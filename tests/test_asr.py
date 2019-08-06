@@ -1,0 +1,409 @@
+# Copyright (c) 2019 NVIDIA Corporation
+import os
+import tarfile
+import unittest
+
+from ruamel.yaml import YAML
+
+from nemo.core import DeviceType
+from nemo_asr.parts import Manifest, AudioDataset, WaveformFeaturizer
+from tests.context import nemo, nemo_asr
+
+freq = 16000
+
+
+class TestASRPytorch(unittest.TestCase):
+    labels = [" ", "a", "b", "c", "d", "e", "f", "g", "h",
+              "i", "j", "k", "l", "m", "n", "o", "p", "q",
+              "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
+    manifest_filepath = "tests/data/asr/an4_train.json"
+    featurizer_config = {'window': 'hann',
+                         'dither': 1e-05,
+                         'normalize': 'per_feature',
+                         'frame_splicing': 1,
+                         'int_values': False,
+                         'window_stride': 0.01,
+                         'sample_rate': freq,
+                         'features': 64,
+                         'n_fft': 512,
+                         'feat_type': 'logfbank',
+                         'window_size': 0.02}
+    yaml = YAML(typ="safe")
+
+    def setUp(self) -> None:
+        data_folder = "tests/data/"
+        print("Looking up for test ASR data")
+        if not os.path.exists(data_folder + "asr"):
+            print("Extracting ASR data to: {0}".format(data_folder + "asr"))
+            tar = tarfile.open("tests/data/asr.tar.gz", "r:gz")
+            tar.extractall(path=data_folder)
+            tar.close()
+        else:
+            print("ASR data found in: {0}".format(data_folder + "asr"))
+
+    def test_transcript_normalizers(self):
+        # Create test json
+        test_strings = [
+            "TEST CAPITALIZATION",
+            '!\\"#$%&\'()*+,-./:;<=>?@[\\\\]^_`{|}~',
+            "3+3=10",
+            "3 + 3 = 10",
+            "why     is \\t whitepsace\\tsuch a problem   why indeed",
+            "\\\"Can you handle quotes?,\\\" says the boy",
+            "I Jump!!!!With joy?Now.",
+            "Maybe I want to learn periods.",
+            "$10 10.90 1-800-000-0000",
+            "18000000000 one thousand 2020",
+            "1 10 100 1000 10000 100000 1000000",
+            "Î  ĻƠvɆȩȅĘ ÀÁÃ Ą ÇĊňńŤŧș",
+            "‘’“”❛❜❝❞「 」 〈 〉 《 》 【 】 〔 〕 ⦗ ⦘ 😙  👀 🔨",
+            "It only costs $1 000 000! Cheap right?",
+            "2500, 3000 are separate but 200, 125 is not",
+            "1",
+            "1 2",
+            "1 2 3",
+            "10:00pm is 10:00 pm is 22:00 but not 10: 00 pm",
+            "10:00 10:01pm 10:10am 10:90pm",
+            "Mr. Expand me!",
+            "Mr Don't Expand me!",
+        ]
+        normalized_strings = [
+            "test capitalization",
+            'percent and \' plus',
+            "three plus three ten",
+            "three plus three ten",
+            "why is whitepsace such a problem why indeed",
+            "can you handle quotes says the boy",
+            "i jump with joy now",
+            "maybe i want to learn periods",
+            "ten dollars ten point nine zero one eight hundred zero zero",
+            "eighteen billion one thousand two thousand and twenty",
+            "one ten thousand one hundred one thousand ten thousand one hundred thousand one million",
+            "i loveeee aaa a ccnntts",
+            "''",
+            "it only costs one million dollars cheap right",
+            "two thousand five hundred three thousand are separate but two hundred thousand one hundred and twenty five is not",
+            "one",
+            "one two",
+            "one two three",
+            "ten pm is ten pm is twenty two but not ten zero pm",
+            "ten ten one pm ten ten am ten ninety pm",
+            "mister expand me",
+            "mr don't expand me",
+        ]
+        manifest_paths = "tests/data/asr/manifest_test.json"
+
+        def remove_test_json():
+            os.remove(manifest_paths)
+
+        self.addCleanup(remove_test_json)
+
+        with open(manifest_paths, "w") as f:
+            for s in test_strings:
+                f.write(
+                    '{{"audio_filepath": "", "duration": 1.0, "text": "{}"}}\n'.format(
+                        s))
+        manifest = Manifest([manifest_paths], self.labels, normalize=True)
+        for i, s in enumerate(normalized_strings):
+            self.assertTrue(manifest[i]["transcript"]
+                            == manifest.parse_transcript(s))
+            # print(test_strings[i])
+            # print(manifest[i]["transcript_text"])
+            # print(s)
+            # self.assertTrue(manifest[i]["transcript_text"] == s)
+
+    def test_pytorch_audio_dataset(self):
+        featurizer = WaveformFeaturizer.from_config(self.featurizer_config)
+        ds = AudioDataset(manifest_filepath=self.manifest_filepath,
+                          labels=self.labels,
+                          featurizer=featurizer)
+
+        for i in range(len(ds)):
+            if i == 5:
+                print(ds[i])
+            # print(ds[i][0].shape)
+            # self.assertEqual(freq, ds[i][0].shape[0])
+
+    def test_dataloader(self):
+        batch_size = 4
+        dl = nemo_asr.AudioToTextDataLayer(
+            featurizer_config=self.featurizer_config,
+            manifest_filepath=self.manifest_filepath,
+            labels=self.labels,
+            batch_size=batch_size,
+            placement=DeviceType.GPU,
+            drop_last=True
+        )
+        for ind, data in enumerate(dl.data_iterator):
+            # With num_workers update, this is no longer true
+            # Moving to GPU is handled by AudioPreprocessing
+            # data is on GPU
+            # self.assertTrue(data[0].is_cuda)
+            # self.assertTrue(data[1].is_cuda)
+            # self.assertTrue(data[2].is_cuda)
+            # self.assertTrue(data[3].is_cuda)
+            # first dimension is batch
+            self.assertTrue(data[0].size(0) == batch_size)
+            self.assertTrue(data[1].size(0) == batch_size)
+            self.assertTrue(data[2].size(0) == batch_size)
+            self.assertTrue(data[3].size(0) == batch_size)
+
+    def test_trim_silence(self):
+        batch_size = 4
+        normal_dl = nemo_asr.AudioToTextDataLayer(
+            featurizer_config=self.featurizer_config,
+            manifest_filepath=self.manifest_filepath,
+            labels=self.labels,
+            batch_size=batch_size,
+            placement=DeviceType.GPU,
+            drop_last=True,
+            shuffle=False
+        )
+        trimmed_dl = nemo_asr.AudioToTextDataLayer(
+            featurizer_config=self.featurizer_config,
+            manifest_filepath=self.manifest_filepath,
+            trim_silence=True,
+            labels=self.labels,
+            batch_size=batch_size,
+            placement=DeviceType.GPU,
+            drop_last=True,
+            shuffle=False
+        )
+        for norm, trim in zip(normal_dl.data_iterator,
+                              trimmed_dl.data_iterator):
+            for point in range(batch_size):
+                self.assertTrue(norm[1][point].data >= trim[1][point].data)
+
+    def test_jasper_training(self):
+        with open("tests/data/jasper_smaller.yaml") as file:
+            jasper_model_definition = self.yaml.load(file)
+        dl = nemo_asr.AudioToTextDataLayer(
+            featurizer_config=self.featurizer_config,
+            manifest_filepath=self.manifest_filepath,
+            labels=self.labels,
+            batch_size=4
+        )
+        pre_process_params = {'int_values': False, 'frame_splicing': 1,
+                              'features': 64,
+                              'window_size': 0.02, 'n_fft': 512,
+                              'dither': 1e-05,
+                              'window': 'hann', 'feat_type': 'logfbank',
+                              'sample_rate': 16000,
+                              'normalize': 'per_feature',
+                              'window_stride': 0.01}
+        preprocessing = nemo_asr.AudioPreprocessing(
+            **pre_process_params)
+        jasper_encoder = nemo_asr.JasperEncoder(
+            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            **jasper_model_definition['JasperEncoder']
+            )
+        jasper_decoder = nemo_asr.JasperDecoderForCTC(
+            feat_in=1024,
+            num_classes=len(self.labels)
+        )
+        ctc_loss = nemo_asr.CTCLossNM(num_classes=len(self.labels))
+
+        # DAG
+        audio_signal, a_sig_length, transcript, transcript_len = dl()
+        processed_signal, p_length = preprocessing(input_signal=audio_signal,
+                                                   length=a_sig_length)
+
+        encoded, encoded_len = jasper_encoder(audio_signal=processed_signal,
+                                              length=p_length)
+        # print(jasper_encoder)
+        log_probs = jasper_decoder(encoder_output=encoded)
+        loss = ctc_loss(log_probs=log_probs,
+                        targets=transcript,
+                        input_length=encoded_len,
+                        target_length=transcript_len)
+
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensor_list2string=lambda x: str(x[0].item()))
+        # Instantiate an optimizer to perform `train` action
+        neural_factory = nemo.core.NeuralModuleFactory(
+            backend=nemo.core.Backend.PyTorch, local_rank=None)
+        optimizer = neural_factory.get_trainer(
+            params={"optimization_params": {"num_epochs": 10, "lr": 0.0003}})
+        optimizer.train([loss], callbacks=[callback])
+
+    def test_double_jasper_training(self):
+        with open("tests/data/jasper_smaller.yaml") as file:
+            jasper_model_definition = self.yaml.load(file)
+        dl = nemo_asr.AudioToTextDataLayer(
+            featurizer_config=self.featurizer_config,
+            manifest_filepath=self.manifest_filepath,
+            labels=self.labels,
+            batch_size=4
+        )
+        pre_process_params = {'int_values': False, 'frame_splicing': 1,
+                              'features': 64,
+                              'window_size': 0.02, 'n_fft': 512,
+                              'dither': 1e-05,
+                              'window': 'hann', 'feat_type': 'logfbank',
+                              'sample_rate': 16000,
+                              'normalize': 'per_feature',
+                              'window_stride': 0.01}
+        preprocessing = nemo_asr.AudioPreprocessing(
+            **pre_process_params)
+        jasper_encoder1 = nemo_asr.JasperEncoder(
+            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            **jasper_model_definition['JasperEncoder']
+            )
+        jasper_encoder2 = nemo_asr.JasperEncoder(
+            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            **jasper_model_definition['JasperEncoder']
+            )
+        mx_max1 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
+        mx_max2 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
+        jasper_decoder1 = nemo_asr.JasperDecoderForCTC(
+            feat_in=1024,
+            num_classes=len(self.labels)
+        )
+        jasper_decoder2 = nemo_asr.JasperDecoderForCTC(
+            feat_in=1024,
+            num_classes=len(self.labels)
+        )
+
+        ctc_loss = nemo_asr.CTCLossNM(num_classes=len(self.labels))
+
+        # DAG
+        audio_signal, a_sig_length, transcript, transcript_len = dl()
+        processed_signal, p_length = preprocessing(input_signal=audio_signal,
+                                                   length=a_sig_length)
+
+        encoded1, encoded_len1 = jasper_encoder1(audio_signal=processed_signal,
+                                                 length=p_length)
+        encoded2, encoded_len2 = jasper_encoder2(audio_signal=processed_signal,
+                                                 length=p_length)
+        log_probs1 = jasper_decoder1(encoder_output=encoded1)
+        log_probs2 = jasper_decoder2(encoder_output=encoded2)
+        log_probs = mx_max1(x1=log_probs1, x2=log_probs2)
+        encoded_len = mx_max2(x1=encoded_len1, x2=encoded_len2)
+        loss = ctc_loss(log_probs=log_probs,
+                        targets=transcript,
+                        input_length=encoded_len,
+                        target_length=transcript_len)
+
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensor_list2string=lambda x: str(x[0].item()))
+        # Instantiate an optimizer to perform `train` action
+        neural_factory = nemo.core.NeuralModuleFactory(
+            backend=nemo.core.Backend.PyTorch, local_rank=None)
+        optimizer = neural_factory.get_trainer(
+            params={"optimization_params": {"num_epochs": 10, "lr": 0.0003}})
+        optimizer.train([loss], callbacks=[callback])
+
+    def test_stft_conv(self):
+        with open("tests/data/jasper_smaller.yaml") as file:
+            jasper_model_definition = self.yaml.load(file)
+        dl = nemo_asr.AudioToTextDataLayer(
+            featurizer_config=self.featurizer_config,
+            manifest_filepath=self.manifest_filepath,
+            labels=self.labels,
+            batch_size=4
+        )
+        pre_process_params = {'int_values': False, 'frame_splicing': 1,
+                              'features': 64,
+                              'window_size': 0.02, 'n_fft': 512,
+                              'dither': 1e-05,
+                              'window': 'hann', 'feat_type': 'logfbank',
+                              'sample_rate': 16000,
+                              'normalize': 'per_feature',
+                              'window_stride': 0.01,
+                              'stft_conv': True}
+        preprocessing = nemo_asr.AudioPreprocessing(
+            **pre_process_params)
+        jasper_encoder = nemo_asr.JasperEncoder(
+            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            **jasper_model_definition['JasperEncoder']
+            )
+        jasper_decoder = nemo_asr.JasperDecoderForCTC(
+            feat_in=1024,
+            num_classes=len(self.labels)
+        )
+
+        ctc_loss = nemo_asr.CTCLossNM(num_classes=len(self.labels))
+
+        # DAG
+        audio_signal, a_sig_length, transcript, transcript_len = dl()
+        processed_signal, p_length = preprocessing(input_signal=audio_signal,
+                                                   length=a_sig_length)
+
+        encoded, encoded_len = jasper_encoder(audio_signal=processed_signal,
+                                              length=p_length)
+        # print(jasper_encoder)
+        log_probs = jasper_decoder(encoder_output=encoded)
+        loss = ctc_loss(log_probs=log_probs,
+                        targets=transcript,
+                        input_length=encoded_len,
+                        target_length=transcript_len)
+
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensor_list2string=lambda x: str(x[0].item()))
+        # Instantiate an optimizer to perform `train` action
+        neural_factory = nemo.core.NeuralModuleFactory(
+            backend=nemo.core.Backend.PyTorch, local_rank=None)
+        optimizer = neural_factory.get_trainer(
+            params={"optimization_params": {"num_epochs": 10, "lr": 0.0003}})
+        optimizer.train([loss], callbacks=[callback])
+
+    def test_clas(self):
+        with open('examples/asr/configs/clas_an4.yaml') as file:
+            cfg = self.yaml.load(file)
+        dl = nemo_asr.AudioToTextDataLayer(
+            featurizer_config=self.featurizer_config,
+            manifest_filepath=self.manifest_filepath,
+            labels=self.labels,
+            batch_size=4
+        )
+        pre_process_params = {'int_values': False, 'frame_splicing': 1,
+                              'features': 64,
+                              'window_size': 0.02, 'n_fft': 512,
+                              'dither': 1e-05,
+                              'window': 'hann', 'feat_type': 'logfbank',
+                              'sample_rate': 16000,
+                              'normalize': 'per_feature',
+                              'window_stride': 0.01,
+                              'stft_conv': True}
+        preprocessing = nemo_asr.AudioPreprocessing(
+            **pre_process_params
+        )
+        encoder = nemo_asr.JasperEncoder(
+            jasper=cfg['encoder']['jasper'],
+            activation=cfg['encoder']['activation'],
+            feat_in=cfg['input']['train']['features']
+        )
+        connector = nemo_asr.JasperRNNConnector(
+            in_channels=cfg['encoder']['jasper'][-1]['filters'],
+            out_channels=cfg['decoder']['hidden_size']
+        )
+        decoder = nemo.backends.pytorch.common.DecoderRNN(
+            voc_size=len(self.labels),
+            bos_id=0,  # fictive
+            **cfg['decoder']
+        )
+        loss = nemo.backends.pytorch.common.SequenceLoss()
+
+        # DAG
+        audio_signal, a_sig_length, transcripts, transcript_len = dl()
+        processed_signal, p_length = preprocessing(input_signal=audio_signal,
+                                                   length=a_sig_length)
+        encoded, encoded_len = encoder(audio_signal=processed_signal,
+                                              length=p_length)
+        encoded = connector(tensor=encoded)
+        log_probs, _ = decoder(targets=transcripts, encoder_outputs=encoded)
+        loss = loss(log_probs=log_probs, targets=transcripts)
+
+        # Train
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensor_list2string=lambda x: str(x[0].item()))
+        # Instantiate an optimizer to perform `train` action
+        neural_factory = nemo.core.NeuralModuleFactory(
+            backend=nemo.core.Backend.PyTorch, local_rank=None)
+        optimizer = neural_factory.get_trainer(
+            params={"optimization_params": {"num_epochs": 10, "lr": 0.0003}})
+        optimizer.train([loss], callbacks=[callback])
+
+
+if __name__ == '__main__':
+    unittest.main()

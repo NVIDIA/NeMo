@@ -1,0 +1,200 @@
+model = "CLAS"
+
+[optimization]
+batch_size = 64
+optimizer = "novograd"
+smoothing_coef = 0.0
+warmup_epochs = 5
+[optimization.params]
+num_epochs = 100
+lr = 0.02
+weight_decay = 1e-5
+larc = false
+larc_eta = 1e-3
+luc = false
+luc_eta = 1e-3
+
+[input]
+[input.train]
+normalize = "per_feature"
+sample_rate = 16000
+window_size = 0.02
+window_stride = 0.01
+window = "hann"
+features = 64
+n_fft = 512
+frame_splicing = 1
+dither = 0.00001
+feat_type = "logfbank"
+normalize_transcripts = true
+trim_silence = true
+pad_to = 16
+max_duration = 16.7
+
+
+[spectr_augment]
+rect_masks = 5
+rect_time = 60
+rect_freq = 25
+
+[input.eval]
+normalize = "per_feature"
+sample_rate = 16000
+window_size = 0.02
+window_stride = 0.01
+window = "hann"
+features = 64
+n_fft = 512
+frame_splicing = 1
+dither = 0.00001
+feat_type = "logfbank"
+normalize_transcripts = true
+trim_silence = true
+
+[encoder]
+activation = "relu"
+load = true
+freeze = false
+
+[[encoder.jasper]]
+filters = 256
+repeat = 1
+kernel = [11]
+stride = [2]
+dilation = [1]
+dropout = 0.2
+residual = false
+
+[[encoder.jasper]]
+filters = 256
+repeat = 5
+kernel = [11]
+stride = [1]
+dilation = [1]
+dropout = 0.2
+residual = true
+
+[[encoder.jasper]]
+filters = 256
+repeat = 5
+kernel = [11]
+stride = [1]
+dilation = [1]
+dropout = 0.2
+residual = true
+
+[[encoder.jasper]]
+filters = 384
+repeat = 5
+kernel = [13]
+stride = [1]
+dilation = [1]
+dropout = 0.2
+residual = true
+
+[[encoder.jasper]]
+filters = 384
+repeat = 5
+kernel = [13]
+stride = [1]
+dilation = [1]
+dropout = 0.2
+residual = true
+
+[[encoder.jasper]]
+filters = 512
+repeat = 5
+kernel = [17]
+stride = [1]
+dilation = [1]
+dropout = 0.2
+residual = true
+
+[[encoder.jasper]]
+filters = 512
+repeat = 5
+kernel = [17]
+stride = [1]
+dilation = [1]
+dropout = 0.2
+residual = true
+
+[[encoder.jasper]]
+filters = 640
+repeat = 5
+kernel = [21]
+stride = [1]
+dilation = [1]
+dropout = 0.3
+residual = true
+
+[[encoder.jasper]]
+filters = 640
+repeat = 5
+kernel = [21]
+stride = [1]
+dilation = [1]
+dropout = 0.3
+residual = true
+
+[[encoder.jasper]]
+filters = 768
+repeat = 5
+kernel = [25]
+stride = [1]
+dilation = [1]
+dropout = 0.3
+residual = true
+
+[[encoder.jasper]]
+filters = 768
+repeat = 5
+kernel = [25]
+stride = [1]
+dilation = [1]
+dropout = 0.3
+residual = true
+
+[[encoder.jasper]]
+filters = 896
+repeat = 1
+kernel = [29]
+stride = [1]
+dilation = [2]
+dropout = 0.4
+residual = false
+
+[[encoder.jasper]]
+filters = 1024
+repeat = 1
+kernel = [1]
+stride = [1]
+dilation = [1]
+dropout = 0.4
+residual = false
+
+[decoder]
+hidden_size = 256
+attention_method = "general"
+attention_type = "post"
+in_dropout = 0.2
+gru_dropout = 0.2
+attn_dropout = 0.2
+teacher_forcing = 0.6
+curriculum_learning = 0.75
+rnn_type = "gru"
+n_layers = 2
+tie_emb_out_weights = true
+load = false
+freeze = false
+
+[target]
+labels = [
+    " ", "'",
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+    "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"
+]
+max_len = 356
+
+[inference]
+beam_size = 8

@@ -1,0 +1,171 @@
+model = "Jasper"
+
+[input]
+normalize = "per_feature"
+sample_rate = 16000
+window_size = 0.02
+window_stride = 0.01
+window = "hann"
+features = 64
+n_fft = 512
+frame_splicing = 1
+dither = 0.00001
+feat_type = "logfbank"
+normalize_transcripts = true
+trim_silence = true
+pad_to = "max"
+max_duration = 16.7
+
+[spectr_augment]
+rect_masks = 5
+rect_time = 120
+rect_freq = 50
+
+[input_eval]
+normalize = "per_feature"
+sample_rate = 16000
+window_size = 0.02
+window_stride = 0.01
+window = "hann"
+features = 64
+n_fft = 512
+frame_splicing = 1
+dither = 0.00001
+feat_type = "logfbank"
+normalize_transcripts = true
+trim_silence = true
+
+[encoder]
+activation = "relu"
+
+[[jasper]]
+filters = 256
+repeat = 1
+kernel = [33]
+stride = [2]
+dilation = [1]
+dropout = 0.0
+residual = false
+separable = true
+
+[[jasper]]
+filters = 256
+repeat = 5
+kernel = [33]
+stride = [1]
+dilation = [1]
+dropout = 0.0
+residual = true
+separable = true
+
+[[jasper]]
+filters = 256
+repeat = 5
+kernel = [33]
+stride = [1]
+dilation = [1]
+dropout = 0.0
+residual = true
+separable = true
+
+[[jasper]]
+filters = 256
+repeat = 5
+kernel = [39]
+stride = [1]
+dilation = [1]
+dropout = 0.0
+residual = true
+separable = true
+
+[[jasper]]
+filters = 256
+repeat = 5
+kernel = [39]
+stride = [1]
+dilation = [1]
+dropout = 0.0
+residual = true
+separable = true
+
+[[jasper]]
+filters = 512
+repeat = 5
+kernel = [51]
+stride = [1]
+dilation = [1]
+dropout = 0.0
+residual = true
+separable = true
+
+[[jasper]]
+filters = 512
+repeat = 5
+kernel = [51]
+stride = [1]
+dilation = [1]
+dropout = 0.0
+residual = true
+separable = true
+
+[[jasper]]
+filters = 512
+repeat = 5
+kernel = [63]
+stride = [1]
+dilation = [1]
+dropout = 0.0
+residual = true
+separable = true
+
+[[jasper]]
+filters = 512
+repeat = 5
+kernel = [63]
+stride = [1]
+dilation = [1]
+dropout = 0.0
+residual = true
+separable = true
+
+[[jasper]]
+filters = 512
+repeat = 5
+kernel = [75]
+stride = [1]
+dilation = [1]
+dropout = 0.0
+residual = true
+separable = true
+
+[[jasper]]
+filters = 512
+repeat = 5
+kernel = [75]
+stride = [1]
+dilation = [1]
+dropout = 0.0
+residual = true
+separable = true
+
+[[jasper]]
+filters = 512
+repeat = 1
+kernel = [87]
+stride = [1]
+dilation = [2]
+dropout = 0.0
+residual = false
+separable = true
+
+[[jasper]]
+filters = 1024
+repeat = 1
+kernel = [1]
+stride = [1]
+dilation = [1]
+dropout = 0.0
+residual = false
+
+[labels]
+labels = [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]

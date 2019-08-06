@@ -1,0 +1,99 @@
+Welcome to NEMO!
+================================
+
+.. toctree::
+   :hidden:
+   :maxdepth: 2
+
+   Introduction <self>
+   installation
+   tutorials/intro
+   training
+   asr/intro
+   nlp/intro
+   collections/modules
+   api-docs/modules
+   faq
+
+.. image:: nemo-icon-256x256.png
+    :align: center
+    :alt: NEMO
+
+NEural MOdules (NeMo) is a high level toolkit for training AI applications using Neural Modules.
+NeMo comes with neural module collections for automatic speech recognition (ASR) and natural language processing (NLP).
+
+NeMo is built for fast training on GPUs. It provides:
+
+* Mixed-precision training using Tensor Cores on NVIDIA's Volta and Turing GPUs
+* Multi-GPU and multi-node distributed training
+* Distributed evaluation
+
+
+Automatic Speech Recognition
+-----------------------------
+
+**Video walk-through**
+
+`A short VIDEO walk-through about using NEMO for ASR. <https://confluence.nvidia.com/display/AAD/Neural+Modules?preview=/163999167/299604998/nemo_for_asr.mp4>`_
+
+
+.. raw:: html
+
+    <figure class="video_container">
+      <video controls="true" allowfullscreen="true">
+        <source src="https://confluence.nvidia.com/display/AAD/Neural+Modules?preview=/163999167/299604998/nemo_for_asr.mp4" type="video/mp4">
+      </video>
+    </figure>
+    <!-- blank line -->
+    <br/>
+
+**You can use ``nemo_nlp`` collection to construct the following models**
+
+* Jasper
+* QuartzNet
+* GarNet
+
+.. list-table::
+   :widths: 2 1 1 1 2
+   :header-rows: 2
+
+   * - model 
+     - greedy WER, %
+     - greedy WER, %
+     - weights 
+     - description
+   * - 
+     - LibriSpeech test-clean
+     - LibriSpeech test-other
+     - MLN
+     - 
+
+
+   * - :doc:`Jasper 10x5 </asr/jasper>`
+     - 4.32
+     - 11.82
+     - ~330
+     - 1D conv encoder + CTC decoder
+
+   * - :doc:`QuartzNet 15x5 </asr/quartznet>`
+     - 4.19
+     - 10.98
+     - ~20
+     - Separable 1D conv encoder + CTC decoder
+
+   * - :doc:`GarNet 15x5 </asr/garnet>`
+     - tbd
+     - tbd
+     - ~50
+     - Separable 1D conv encoder + RNN with attention decoder
+
+For each model we provide training/fine-tuning recipe and pre-trained weights.
+
+
+Natural Language Processing
+---------------------------
+
+Under construction ...
+
+
+
