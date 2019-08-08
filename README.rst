@@ -1,7 +1,7 @@
 NEMO: NEural MOdules Toolkit
 ============================
 
-.. image:: docs/sources/source/nemo-icon-256x256.png
+.. image:: docs/_images/nemo-icon-256x256.png
     :width: 40
     :align: center
     :alt: NEMO
