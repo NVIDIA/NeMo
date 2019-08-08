@@ -1,4 +1,4 @@
-NEMO: NEural MOdules Toolkit
+NeMo: Neural Modules Toolkit
 ============================
 
 .. image:: docs/_images/nemo-icon-256x256.png
@@ -6,7 +6,7 @@ NEMO: NEural MOdules Toolkit
     :align: center
     :alt: NEMO
 
-NEural MOdules (NEMO): a framework-agnostic toolkit for building AI applications powered by Neural Modules
+Neural Modules (NeMo): a framework-agnostic toolkit for building AI applications powered by Neural Modules
 
 
 **VIDEO**
@@ -26,7 +26,7 @@ NEural MOdules (NEMO): a framework-agnostic toolkit for building AI applications
 
 **Documentation**
 
-Please refer to the HTML documentation is the `docs` folder
+Please refer to the HTML documentation in the `docs` folder
 
 
 **Requirements**
