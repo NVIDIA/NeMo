@@ -27,7 +27,6 @@ eggs/
 .eggs/
 lib/
 lib64/
-#parts/
 sdist/
 var/
 wheels/
@@ -141,3 +140,6 @@ cifar-10-batches-py
 
 # outputs folder
 examples/*/outputs
+examples/*/wandb
+examples/*/data
+wandb

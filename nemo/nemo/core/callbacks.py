@@ -1,13 +1,17 @@
 # Copyright (c) 2019 NVIDIA Corporation
+from abc import ABC, abstractmethod
+from collections import namedtuple
 import glob
 import math
+import logging
 import os
 import sys
 import time
-from abc import ABC, abstractmethod
-from collections import namedtuple
 
-from ..utils import get_latest_checkpoint_from_dir
+from ..utils import get_checkpoint_from_dir
+
+
+logger = logging.getLogger('log')
 
 
 class ActionCallback(ABC):
@@ -198,20 +202,27 @@ class SimpleLossLoggerCallback(ActionCallback):
 
 
 class CheckpointCallback(ActionCallback):
-    def __init__(self, folder, step_freq=None, epoch_freq=None,
+    def __init__(self, folder, step_freq=-1, epoch_freq=-1,
                  checkpoints_to_keep=4):
         super().__init__()
-        if step_freq is None and epoch_freq is None:
-            print(
-                "WARNING: NO checkpoints will be saved because step_freq and "
-                "epoch freq are both None."
+        if step_freq == -1 and epoch_freq == -1:
+            logger.warning(
+                "No checkpoints will be saved because step_freq and "
+                "epoch_freq are both -1."
             )
+
+        if step_freq > -1 and epoch_freq > -1:
+            logger.warning(
+                "You config the model to save by both steps and epochs. "
+                "Save by step_freq only"
+            )
+            epoch_freq = -1
 
         self._step_freq = step_freq
         self._epoch_freq = epoch_freq
         self._folder = folder
-        self._checkpoints_to_keep = checkpoints_to_keep
-        self._saved_steps_so_far = []
+        self._ckpt2keep = checkpoints_to_keep
+        self._saved_ckpts = []
 
         # These will be set in action
         self.call_chain = None
@@ -220,28 +231,36 @@ class CheckpointCallback(ActionCallback):
     def __save_to(self, path):
         if not os.path.isdir(path):
             print("Creating {0} folder".format(path))
-            os.mkdir(path)
+            os.makedirs(path, exist_ok=True)
         for ind, (module, _) in enumerate(self.call_chain):
             if module.num_weights > 0:
                 class_name = module.__class__.__name__
-                filename = "{0}_{1}-STEP-{2}.pt".format(
-                    class_name, ind, self.step)
+                if self._step_freq > -1:
+                    filename = f"{class_name}_{ind}-STEP-{self.step}.pt"
+                else:
+                    filename = f"{class_name}_{ind}-EPOCH-{self.epoch_num}.pt"
                 module.save_to(os.path.join(path, filename))
-        filename = "{0}_{1}-STEP-{2}.pt".format("trainer", ind, self.step)
-        self.action.save_state_to(os.path.join(path, filename))
-        self._saved_steps_so_far.insert(0, self.step)
-        if len(self._saved_steps_so_far) > self._checkpoints_to_keep:
-            stp = self._saved_steps_so_far.pop()
-            file_list = glob.glob(os.path.join(path, "*STEP-{0}*".format(stp)))
-            for filename in file_list:
-                os.remove(filename)
+
+        if self._step_freq > -1:
+            filename = f"trainer_{ind}-STEP-{self.step}.pt"
+        else:
+            filename = f"trainer_{ind}-EPOCH-{self.epoch_num}.pt"
+
+        self.action.save_state_to(f'{path}/{filename}')
+        self._saved_ckpts.append(f'-{self.epoch_num}.pt')
+
+        if len(self._saved_ckpts) > self._ckpt2keep:
+            for end in self._saved_ckpts[:-self._ckpt2keep]:
+                for file in glob.glob(f'{path}/*{end}'):
+                    os.remove(file)
+            self._saved_ckpts = self._saved_ckpts[-self._ckpt2keep:]
+        logger.info(f'Saved checkpoint: {path}/{filename}')
 
     def __restore_from(self, path):
         if not os.path.isdir(path):
-            print("Checkpoint folder {0} not found. Not restoring!"
-                  .format(path))
+            logger.warning(f"Checkpoint folder {path} not found!")
         else:
-            print("Checkpoint folder {0} found. Restoring...".format(path))
+            logger.info("Restoring checkpoint from folder {path} ...")
             modules_to_restore = []
             modules_to_restore_name = []
             for ind, (module, _) in enumerate(self.call_chain):
@@ -250,9 +269,8 @@ class CheckpointCallback(ActionCallback):
                     modules_to_restore_name.append(
                         "{0}_{1}".format(module.__class__.__name__, ind)
                     )
-
             try:
-                module_checkpoints = get_latest_checkpoint_from_dir(
+                module_checkpoints = get_checkpoint_from_dir(
                     modules_to_restore_name, path, None
                 )
 
@@ -266,7 +284,7 @@ class CheckpointCallback(ActionCallback):
                         path))
                 return
 
-            trainer_chekpoints = get_latest_checkpoint_from_dir(
+            trainer_chekpoints = get_checkpoint_from_dir(
                 ["trainer"], path, None)
             for tr, checkpoint in zip([self.action], trainer_chekpoints):
                 tr.restore_state_from(checkpoint)
@@ -278,20 +296,29 @@ class CheckpointCallback(ActionCallback):
         step = self.step
         if (
                 self._step_freq > 0
-                and
-                step % self._step_freq == 0
+                and step % self._step_freq == 0
                 and step > 0
                 and (self._local_rank is None or self._local_rank == 0)
         ):
-            print("Saving checkpoint to: {0}".format(self._folder))
             self.__save_to(path=self._folder)
-            print("Checkpoint saved to {0}".format(self._folder))
 
     def on_action_end(self):
         if self._local_rank is None or self._local_rank == 0:
-            print("Saving checkpoint to: {0}".format(self._folder))
             self.__save_to(path=self._folder)
-            print("Checkpoint saved to {0}".format(self._folder))
+
+    def on_epoch_start(self):
+        self._last_epoch_start = time.time()
+
+    def on_epoch_end(self):
+        if self._epoch_freq > 0:
+            if self.local_rank is None or self.local_rank == 0:
+                logger.info(
+                    "Finished epoch {0} in {1}".format(
+                        self.epoch_num, time.time() - self._last_epoch_start
+                    )
+                )
+                if (self.epoch_num + 1) % self._epoch_freq == 0:
+                    self.__save_to(path=self._folder)
 
 
 class EvaluatorCallback(ActionCallback):

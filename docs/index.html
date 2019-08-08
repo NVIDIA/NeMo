@@ -1,0 +1,279 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Welcome to NEMO! &mdash; nemo 0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation" href="installation.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="#" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="collections/modules.html">NEMO Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Frequently Asked Questions (FAQ)</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="#">Docs</a> &raquo;</li>
+        
+      <li>Welcome to NEMO!</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="welcome-to-nemo">
+<h1>Welcome to NEMO!<a class="headerlink" href="#welcome-to-nemo" title="Permalink to this headline">¶</a></h1>
+<div class="toctree-wrapper compound">
+</div>
+<img alt="NEMO" class="align-center" src="_images/nemo-icon-256x256.png" />
+<p>NEural MOdules (NeMo) is a high level toolkit for training AI applications using Neural Modules.
+NeMo comes with neural module collections for automatic speech recognition (ASR) and natural language processing (NLP).</p>
+<p>NeMo is built for fast training on GPUs. It provides:</p>
+<ul class="simple">
+<li><p>Mixed-precision training using Tensor Cores on NVIDIA’s Volta and Turing GPUs</p></li>
+<li><p>Multi-GPU and multi-node distributed training</p></li>
+<li><p>Distributed evaluation</p></li>
+</ul>
+<div class="section" id="automatic-speech-recognition">
+<h2>Automatic Speech Recognition<a class="headerlink" href="#automatic-speech-recognition" title="Permalink to this headline">¶</a></h2>
+<p><a class="reference external" href="https://drive.google.com/file/d/1CF-buP_Y1qCAefzoyvOUCXl_3v2vO5P-/view?usp=sharing">A Short VIDEO walk-through about using NEMO to experiment with ASR systems.</a></p>
+<p><strong>You can use ``nemo_nlp`` collection to construct the following models</strong></p>
+<ul class="simple">
+<li><p>Jasper</p></li>
+<li><p>QuartzNet</p></li>
+<li><p>GarNet</p></li>
+</ul>
+<table class="colwidths-given docutils align-default">
+<colgroup>
+<col style="width: 29%" />
+<col style="width: 14%" />
+<col style="width: 14%" />
+<col style="width: 14%" />
+<col style="width: 29%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>model</p></th>
+<th class="head"><p>greedy WER, %</p></th>
+<th class="head"><p>greedy WER, %</p></th>
+<th class="head"><p>weights</p></th>
+<th class="head"><p>description</p></th>
+</tr>
+<tr class="row-even"><th class="head"></th>
+<th class="head"><p>LibriSpeech test-clean</p></th>
+<th class="head"><p>LibriSpeech test-other</p></th>
+<th class="head"><p>MLN</p></th>
+<th class="head"></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="asr/jasper.html"><span class="doc">Jasper 10x5</span></a></p></td>
+<td><p>4.32</p></td>
+<td><p>11.82</p></td>
+<td><p>~330</p></td>
+<td><p>1D conv encoder + CTC decoder</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="asr/quartznet.html"><span class="doc">QuartzNet 15x5</span></a></p></td>
+<td><p>4.19</p></td>
+<td><p>10.98</p></td>
+<td><p>~20</p></td>
+<td><p>Separable 1D conv encoder + CTC decoder</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="asr/garnet.html"><span class="doc">GarNet 15x5</span></a></p></td>
+<td><p>tbd</p></td>
+<td><p>tbd</p></td>
+<td><p>~50</p></td>
+<td><p>Separable 1D conv encoder + RNN with attention decoder</p></td>
+</tr>
+</tbody>
+</table>
+<p>For each model we provide training/fine-tuning recipe and pre-trained weights.</p>
+</div>
+<div class="section" id="natural-language-processing">
+<h2>Natural Language Processing<a class="headerlink" href="#natural-language-processing" title="Permalink to this headline">¶</a></h2>
+<p>Under construction …</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="installation.html" class="btn btn-neutral float-right" title="Installation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, AI Applications team
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

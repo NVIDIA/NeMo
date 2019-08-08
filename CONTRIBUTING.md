@@ -8,6 +8,4 @@
 
 4) Send your Pull Request to `master` branch
 
-5) Have a look at CODEOWNERS file. Ask component owners whose code your touch for review
-
 

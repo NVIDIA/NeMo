@@ -62,7 +62,7 @@ def main():
               "--model_prefix={} ".format(args.model_prefix) +
               "--vocab_size={} ".format(args.vocab_size
                                         - args.num_placeholders) +
-              "--input_sentence_size={}".format(args.sample_size) +
+              "--input_sentence_size={} ".format(args.sample_size) +
               "--shuffle_input_sentence=true " +
               "--bos_id=-1 " +
               "--eos_id=-1")

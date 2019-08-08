@@ -1,5 +1,7 @@
 # Copyright (c) 2019 NVIDIA Corporation
+from collections.abc import Iterable
 import functools
+import glob
 import os
 
 
@@ -15,40 +17,25 @@ def rsetattr(obj, attr, val):
     return setattr(rgetattr(obj, pre) if pre else obj, post, val)
 
 
-def get_latest_checkpoint_from_dir(module_names, directory, step=None):
-    if not isinstance(module_names, list):
+def get_checkpoint_from_dir(module_names, cpkt_dir, ckpt_pattern=''):
+    if not isinstance(module_names, Iterable):
         module_names = [module_names]
-    most_recent_step = []
-    module_checkpoint = []
+
+    ckpts = []
+
     for module in module_names:
         if not isinstance(module, str):
-            raise ValueError("module {} is not a string".format(module))
-        if step is None:
-            most_recent_step.append(0)
-        module_checkpoint.append(None)
+            raise ValueError(f"Module {module} is not a string")
 
-    for file in os.listdir(directory):
-        if os.path.isfile(os.path.join(directory, file)):
-            for i, module in enumerate(module_names):
-                if module in file:
-                    step_num = int(file.split("STEP-")[-1].split(".")[0])
-                    if step is None and step_num > most_recent_step[i]:
-                        most_recent_step[i] = step_num
-                        module_checkpoint[i] = os.path.join(directory, file)
-                    elif step_num == step:
-                        module_checkpoint[i] = os.path.join(directory, file)
+        module_ckpts = glob.glob(f'{cpkt_dir}/{module}*{ckpt_pattern}*')
+        if not module_ckpts:
+            raise ValueError(f'No file matches {ckpt_pattern} in {cpkt_dir}')
 
-    for i, checkpoint in enumerate(module_checkpoint):
-        if checkpoint is None:
-            if step:
-                raise ValueError(
-                    "Unable to found checkpoint for {}"
-                    " at step {}".format(module_names[i], step)
-                )
-            raise ValueError(
-                "Unable to found checkpoint for {}".format(module_names[i])
-            )
-    return module_checkpoint
+        # if multiple checkpoints match a pattern, take the latest one
+        module_ckpts = sorted(module_ckpts, key=os.path.getmtime)
+        ckpts.append(module_ckpts[-1])
+
+    return ckpts
 
 
 def _call_args_to_string(call_args):

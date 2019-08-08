@@ -8,7 +8,7 @@ import nemo
 import nemo_asr
 from nemo_asr.helpers import monitor_asr_train_progress, \
     process_evaluation_batch, process_evaluation_epoch
-from nemo.utils.lr_policies import SquareAnnealing
+from nemo.utils.lr_policies import CosineAnnealing
 from tensorboardX import SummaryWriter
 
 parser = argparse.ArgumentParser(description='Jasper')
@@ -371,6 +371,6 @@ optimizer.train(tensors_to_optimize=[loss_t],
                 callbacks=callbacks,
                 tensors_to_evaluate=[predictions_t, transcript_t,
                                      transcript_len_t],
-                lr_policy=SquareAnnealing(num_epochs * step_per_epoch,
+                lr_policy=CosineAnnealing(num_epochs * step_per_epoch,
                                           warmup_steps=warmup),
                 batches_per_step=bp_step)

@@ -20,7 +20,7 @@ from ...core.callbacks import (
     CheckpointCallback,
 )
 from ...core.neural_factory import Actions, ModelMode, Optimization
-from ...utils.helpers import get_latest_checkpoint_from_dir
+from ...utils.helpers import get_checkpoint_from_dir
 from nemo.core.callbacks import ValueSetterCallback
 
 try:
@@ -858,7 +858,7 @@ class PtActions(Actions):
         )
         self._perform_on_action_end(callbacks=callbacks)
 
-    def infer(self, callback, checkpoint_dir=None, step_to_restore_from=None):
+    def infer(self, callback, checkpoint_dir=None, ckpt_pattern=''):
 
         if checkpoint_dir:
             # Find all modules that need to be restored
@@ -872,8 +872,8 @@ class PtActions(Actions):
                     modules_to_restore.append(op[0])
                     modules_to_restore_name.append(op[0].__class__.__name__)
 
-            module_checkpoints = get_latest_checkpoint_from_dir(
-                modules_to_restore_name, checkpoint_dir, step_to_restore_from
+            module_checkpoints = get_checkpoint_from_dir(
+                modules_to_restore_name, checkpoint_dir, ckpt_pattern
             )
 
             for mod, checkpoint in zip(modules_to_restore, module_checkpoints):
