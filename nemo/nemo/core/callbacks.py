@@ -271,21 +271,20 @@ class CheckpointCallback(ActionCallback):
                     )
             try:
                 module_checkpoints = get_checkpoint_from_dir(
-                    modules_to_restore_name, path, None
+                    modules_to_restore_name, path
                 )
 
                 for mod, checkpoint in zip(modules_to_restore,
                                            module_checkpoints):
                     mod.restore_from(checkpoint, self._local_rank)
-            except BaseException as e:
+            except (BaseException, ValueError) as e:
                 print(e)
                 print(
                     "Checkpoint folder {0} present but did not restore".format(
                         path))
                 return
 
-            trainer_chekpoints = get_checkpoint_from_dir(
-                ["trainer"], path, None)
+            trainer_chekpoints = get_checkpoint_from_dir(["trainer"], path)
             for tr, checkpoint in zip([self.action], trainer_chekpoints):
                 tr.restore_state_from(checkpoint)
 
