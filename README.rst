@@ -6,7 +6,14 @@ NeMo: Neural Modules Toolkit
     :align: center
     :alt: NEMO
 
-Neural Modules (NeMo): a framework-agnostic toolkit for building AI applications powered by Neural Modules
+Neural Modules (NeMo) is a framework-agnostic toolkit for building AI applications powered by Neural Modules.
+Current support is for PyTorch framework.
+
+A "Neural Module" is a block of code that computes a set of outputs from a set of inputs.
+
+Neural Modules’ inputs and outputs have Neural Type for semantic checking.
+
+An application built with NeMo application is a Directed Acyclic Graph(DAG) of connected modules enabling researchers to define and build new speech and nlp networks easily through API Compatible modules.
 
 
 **VIDEO**
@@ -21,7 +28,7 @@ Neural Modules (NeMo): a framework-agnostic toolkit for building AI applications
 * `NeuralType` - represents types of modules' ports and NmTensors.
 * `NeuralFactory` - to create neural modules and manage training.
 * **Lazy execution** - when describing activation flow between neural modules, nothing happens until an "action" (such as `optimizer.optimize(...)` is called.
-* **Collections** - NEMO comes with collections - related group of modules such as `nemo_asr` (for Speech Recognition) and `nemo_nlp` for NLP
+* **Collections** - NeMo comes with collections - related group of modules such as `nemo_asr` (for Speech Recognition) and `nemo_nlp` for NLP
 
 
 **Documentation**
