@@ -98,12 +98,14 @@
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html">How to build Neural Module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="weightsharing.html">Weight Sharing between Modules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html">Callbacks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="complex_training.html">Complex Training Pipelines (GAN Example)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NEMO Collections API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -186,29 +188,29 @@
 <p>This example shows how to build a model which learn Taylor’s coefficients for y=sin(x).</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">nemo</span>
 
-<span class="c1"># instantiate Neural Factory</span>
+<span class="c1"># instantiate Neural Factory with supported backend</span>
 <span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">()</span>
 
-<span class="c1"># instantiate neural modules</span>
-<span class="n">data</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">get_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;RealFunctionDataLayer&quot;</span><span class="p">,</span> <span class="n">collection</span><span class="o">=</span><span class="s2">&quot;toys&quot;</span><span class="p">,</span>
-                     <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;n&quot;</span><span class="p">:</span> <span class="mi">10000</span><span class="p">,</span> <span class="s2">&quot;batch_size&quot;</span><span class="p">:</span> <span class="mi">128</span><span class="p">})</span>
-<span class="n">f</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">get_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;TaylorNet&quot;</span><span class="p">,</span> <span class="n">collection</span><span class="o">=</span><span class="s2">&quot;toys&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;dim&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">})</span>
-<span class="n">L</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">get_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;MSELoss&quot;</span><span class="p">,</span> <span class="n">collection</span><span class="o">=</span><span class="s2">&quot;toys&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{})</span>
+<span class="c1"># instantiate necessary neural modules</span>
+<span class="n">dl</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">RealFunctionDataLayer</span><span class="p">(</span>
+    <span class="n">n</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>
+<span class="n">fx</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">TaylorNet</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">MSELoss</span><span class="p">()</span>
 
-<span class="c1"># build model out of neural modules using activations</span>
-<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">data</span><span class="p">()</span>
-<span class="n">p</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">x</span><span class="p">)</span>
-<span class="n">loss</span> <span class="o">=</span> <span class="n">L</span><span class="p">(</span><span class="n">predictions</span><span class="o">=</span><span class="n">p</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">y</span><span class="p">)</span>
+<span class="c1"># describe activation&#39;s flow</span>
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">dl</span><span class="p">()</span>
+<span class="n">p</span> <span class="o">=</span> <span class="n">fx</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">x</span><span class="p">)</span>
+<span class="n">lss</span> <span class="o">=</span> <span class="n">loss</span><span class="p">(</span><span class="n">predictions</span><span class="o">=</span><span class="n">p</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">y</span><span class="p">)</span>
 
-<span class="c1"># add SimpleLossLoggerCallback to print loss values to console</span>
-<span class="c1"># Callback function converts a list of tensors into string</span>
-<span class="n">callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span><span class="n">tensor_list2string</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()))</span>
+<span class="c1"># SimpleLossLoggerCallback will print loss values to console.</span>
+<span class="n">callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
+    <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">lss</span><span class="p">],</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;Train Loss: {str(x[0].item())}&#39;</span><span class="p">))</span>
 
-<span class="c1"># instantiate SGD as optimizer</span>
-<span class="n">optimizer</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">get_trainer</span><span class="p">(</span><span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;optimization_params&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="mf">0.0003</span><span class="p">}})</span>
-
-<span class="c1"># start training</span>
-<span class="n">optimizer</span><span class="o">.</span><span class="n">train</span><span class="p">([</span><span class="n">loss</span><span class="p">],</span> <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">callback</span><span class="p">])</span>
+<span class="c1"># Invoke &quot;train&quot; action</span>
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">([</span><span class="n">lss</span><span class="p">],</span> <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">callback</span><span class="p">],</span>
+         <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="mf">0.0003</span><span class="p">},</span>
+         <span class="n">optimizer</span><span class="o">=</span><span class="s2">&quot;sgd&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -241,47 +243,44 @@
 <span class="c1"># Get Data</span>
 <span class="n">data_file</span> <span class="o">=</span> <span class="s2">&quot;movie_data.txt&quot;</span>
 <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">data_file</span><span class="p">):</span>
-  <span class="k">with</span> <span class="n">gzip</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;../../tests/data/movie_lines.txt.gz&quot;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f_in</span><span class="p">:</span>
-    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">data_file</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f_out</span><span class="p">:</span>
-      <span class="n">shutil</span><span class="o">.</span><span class="n">copyfileobj</span><span class="p">(</span><span class="n">f_in</span><span class="p">,</span> <span class="n">f_out</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">gzip</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">&quot;../../tests/data/movie_lines.txt.gz&quot;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f_in</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">data_file</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f_out</span><span class="p">:</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">copyfileobj</span><span class="p">(</span><span class="n">f_in</span><span class="p">,</span> <span class="n">f_out</span><span class="p">)</span>
 
 <span class="c1"># Configuration</span>
 <span class="n">config</span> <span class="o">=</span> <span class="p">{</span>
-  <span class="s2">&quot;corpus_name&quot;</span><span class="p">:</span> <span class="s2">&quot;cornell&quot;</span><span class="p">,</span>
-  <span class="s2">&quot;datafile&quot;</span><span class="p">:</span> <span class="n">data_file</span><span class="p">,</span>
-  <span class="s2">&quot;attn_model&quot;</span><span class="p">:</span> <span class="s1">&#39;dot&#39;</span><span class="p">,</span>
-  <span class="s2">&quot;hidden_size&quot;</span><span class="p">:</span> <span class="mi">512</span><span class="p">,</span>
-  <span class="s2">&quot;encoder_n_layers&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
-  <span class="s2">&quot;decoder_n_layers&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
-  <span class="s2">&quot;dropout&quot;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span>
-  <span class="s2">&quot;voc_size&quot;</span><span class="p">:</span> <span class="mi">6104</span> <span class="o">+</span> <span class="mi">3</span><span class="p">,</span>
-  <span class="s2">&quot;batch_size&quot;</span><span class="p">:</span> <span class="mi">128</span><span class="p">,</span>
-  <span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="mi">15</span><span class="p">,</span>
-  <span class="s2">&quot;optimizer_kind&quot;</span><span class="p">:</span> <span class="s2">&quot;adam&quot;</span><span class="p">,</span>
-  <span class="s2">&quot;learning_rate&quot;</span><span class="p">:</span> <span class="mf">0.0003</span><span class="p">,</span>
-  <span class="s2">&quot;tb_log_dir&quot;</span><span class="p">:</span> <span class="s2">&quot;ChatBot&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;corpus_name&quot;</span><span class="p">:</span> <span class="s2">&quot;cornell&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;datafile&quot;</span><span class="p">:</span> <span class="n">data_file</span><span class="p">,</span>
+    <span class="s2">&quot;attn_model&quot;</span><span class="p">:</span> <span class="s1">&#39;dot&#39;</span><span class="p">,</span>
+    <span class="s2">&quot;hidden_size&quot;</span><span class="p">:</span> <span class="mi">512</span><span class="p">,</span>
+    <span class="s2">&quot;encoder_n_layers&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="s2">&quot;decoder_n_layers&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="s2">&quot;dropout&quot;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span>
+    <span class="s2">&quot;voc_size&quot;</span><span class="p">:</span> <span class="mi">6104</span> <span class="o">+</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="s2">&quot;batch_size&quot;</span><span class="p">:</span> <span class="mi">128</span><span class="p">,</span>
+    <span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="mi">15</span><span class="p">,</span>
+    <span class="s2">&quot;optimizer_kind&quot;</span><span class="p">:</span> <span class="s2">&quot;adam&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;learning_rate&quot;</span><span class="p">:</span> <span class="mf">0.0003</span><span class="p">,</span>
+    <span class="s2">&quot;tb_log_dir&quot;</span><span class="p">:</span> <span class="s2">&quot;ChatBot&quot;</span><span class="p">,</span>
 <span class="p">}</span>
 
-<span class="c1">#instantiate neural factory</span>
+<span class="c1"># instantiate neural factory</span>
 <span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">()</span>
 
-<span class="c1">#instantiate neural modules</span>
-<span class="n">dl</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">get_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;DialogDataLayer&quot;</span><span class="p">,</span> <span class="n">collection</span><span class="o">=</span><span class="s2">&quot;tutorials&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
-
-<span class="n">encoder</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">get_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;EncoderRNN&quot;</span><span class="p">,</span> <span class="n">collection</span><span class="o">=</span><span class="s2">&quot;tutorials&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
-
-<span class="n">decoder</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">get_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;LuongAttnDecoderRNN&quot;</span><span class="p">,</span> <span class="n">collection</span><span class="o">=</span><span class="s2">&quot;tutorials&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
-
-<span class="n">L</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">get_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;MaskedXEntropyLoss&quot;</span><span class="p">,</span> <span class="n">collection</span><span class="o">=</span><span class="s2">&quot;tutorials&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{})</span>
-
-<span class="n">decoderInfer</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">get_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;GreedyLuongAttnDecoderRNN&quot;</span><span class="p">,</span> <span class="n">collection</span><span class="o">=</span><span class="s2">&quot;tutorials&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+<span class="c1"># instantiate neural modules</span>
+<span class="n">dl</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">DialogDataLayer</span><span class="p">(</span><span class="o">**</span><span class="n">config</span><span class="p">)</span>
+<span class="n">encoder</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">EncoderRNN</span><span class="p">(</span><span class="o">**</span><span class="n">config</span><span class="p">)</span>
+<span class="n">decoder</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">LuongAttnDecoderRNN</span><span class="p">(</span><span class="o">**</span><span class="n">config</span><span class="p">)</span>
+<span class="n">L</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">MaskedXEntropyLoss</span><span class="p">()</span>
+<span class="n">decoderInfer</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">GreedyLuongAttnDecoderRNN</span><span class="p">(</span><span class="o">**</span><span class="n">config</span><span class="p">)</span>
 
 <span class="c1"># PARAMETER SHARING: between training and auto-regressive inference decoders</span>
 <span class="n">decoderInfer</span><span class="o">.</span><span class="n">tie_weights_with</span><span class="p">(</span><span class="n">decoder</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">decoder</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
 
 <span class="c1"># express activations flow</span>
 <span class="n">src</span><span class="p">,</span> <span class="n">src_lengths</span><span class="p">,</span> <span class="n">tgt</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="n">max_tgt_length</span> <span class="o">=</span> <span class="n">dl</span><span class="p">()</span>
-<span class="n">encoder_outputs</span><span class="p">,</span> <span class="n">encoder_hidden</span> <span class="o">=</span> <span class="n">encoder</span><span class="p">(</span><span class="n">input_seq</span><span class="o">=</span><span class="n">src</span><span class="p">,</span> <span class="n">input_lengths</span><span class="o">=</span><span class="n">src_lengths</span><span class="p">)</span>
+<span class="n">encoder_outputs</span><span class="p">,</span> <span class="n">encoder_hidden</span> <span class="o">=</span> <span class="n">encoder</span><span class="p">(</span><span class="n">input_seq</span><span class="o">=</span><span class="n">src</span><span class="p">,</span>
+                                          <span class="n">input_lengths</span><span class="o">=</span><span class="n">src_lengths</span><span class="p">)</span>
 <span class="n">outputs</span><span class="p">,</span> <span class="n">hidden</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span><span class="n">targets</span><span class="o">=</span><span class="n">tgt</span><span class="p">,</span> <span class="n">encoder_outputs</span><span class="o">=</span><span class="n">encoder_outputs</span><span class="p">,</span>
                           <span class="n">max_target_len</span><span class="o">=</span><span class="n">max_tgt_length</span><span class="p">)</span>
 <span class="n">loss</span> <span class="o">=</span> <span class="n">L</span><span class="p">(</span><span class="n">predictions</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">tgt</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">)</span>
@@ -289,31 +288,34 @@
 <span class="c1"># run inference decoder to generate predictions</span>
 <span class="n">outputs_inf</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">decoderInfer</span><span class="p">(</span><span class="n">encoder_outputs</span><span class="o">=</span><span class="n">encoder_outputs</span><span class="p">)</span>
 
+
 <span class="c1"># define callback function which prints intermediate results to console</span>
 <span class="k">def</span> <span class="nf">outputs2words</span><span class="p">(</span><span class="n">tensors</span><span class="p">,</span> <span class="n">vocab</span><span class="p">):</span>
-  <span class="n">source_ids</span> <span class="o">=</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">0</span><span class="p">][:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
-  <span class="n">response_ids</span> <span class="o">=</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">1</span><span class="p">][:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
-  <span class="n">tgt_ids</span> <span class="o">=</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">2</span><span class="p">][:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
-  <span class="n">source</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">vocab</span><span class="p">[</span><span class="n">x</span><span class="p">],</span> <span class="n">source_ids</span><span class="p">))</span>
-  <span class="n">response</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">vocab</span><span class="p">[</span><span class="n">x</span><span class="p">],</span> <span class="n">response_ids</span><span class="p">))</span>
-  <span class="n">target</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">vocab</span><span class="p">[</span><span class="n">x</span><span class="p">],</span> <span class="n">tgt_ids</span><span class="p">))</span>
-  <span class="n">source</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">source</span> <span class="k">if</span> <span class="n">s</span><span class="o">!=</span><span class="s1">&#39;EOS&#39;</span> <span class="ow">and</span> <span class="n">s</span><span class="o">!=</span><span class="s1">&#39;PAD&#39;</span><span class="p">])</span>
-  <span class="n">response</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">response</span> <span class="k">if</span> <span class="n">s</span><span class="o">!=</span><span class="s1">&#39;EOS&#39;</span> <span class="ow">and</span> <span class="n">s</span><span class="o">!=</span><span class="s1">&#39;PAD&#39;</span><span class="p">])</span>
-  <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">target</span> <span class="k">if</span> <span class="n">s</span><span class="o">!=</span><span class="s1">&#39;EOS&#39;</span> <span class="ow">and</span> <span class="n">s</span><span class="o">!=</span><span class="s1">&#39;PAD&#39;</span><span class="p">])</span>
-  <span class="k">return</span> <span class="s2">&quot; SOURCE: {0} &lt;---&gt; PREDICTED RESPONSE: {1} &lt;---&gt; TARGET: {2}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
-    <span class="n">source</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+    <span class="n">source_ids</span> <span class="o">=</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">1</span><span class="p">][:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">response_ids</span> <span class="o">=</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">2</span><span class="p">][:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">tgt_ids</span> <span class="o">=</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">3</span><span class="p">][:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">vocab</span><span class="p">[</span><span class="n">x</span><span class="p">],</span> <span class="n">source_ids</span><span class="p">))</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">vocab</span><span class="p">[</span><span class="n">x</span><span class="p">],</span> <span class="n">response_ids</span><span class="p">))</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">vocab</span><span class="p">[</span><span class="n">x</span><span class="p">],</span> <span class="n">tgt_ids</span><span class="p">))</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">source</span> <span class="k">if</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">&#39;EOS&#39;</span> <span class="ow">and</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">&#39;PAD&#39;</span><span class="p">])</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">response</span> <span class="k">if</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">&#39;EOS&#39;</span> <span class="ow">and</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">&#39;PAD&#39;</span><span class="p">])</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">target</span> <span class="k">if</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">&#39;EOS&#39;</span> <span class="ow">and</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">&#39;PAD&#39;</span><span class="p">])</span>
+    <span class="k">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Train Loss:{str(tensors[0].item())}&quot;</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;SOURCE: {source} &lt;---&gt; PREDICTED RESPONSE: {response} &quot;</span>
+          <span class="n">f</span><span class="s2">&quot;&lt;---&gt; TARGET: {target}&quot;</span><span class="p">)</span>
+
 
 <span class="n">callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
-  <span class="n">tensor_list2string</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()),</span>
-  <span class="n">tensor_list2string_evl</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">outputs2words</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dl</span><span class="o">.</span><span class="n">voc</span><span class="o">.</span><span class="n">index2word</span><span class="p">))</span>
-
-<span class="c1"># instantiate an optimizer for training</span>
-<span class="n">optimizer</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">get_trainer</span><span class="p">(</span><span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;optimizer_kind&quot;</span><span class="p">:</span> <span class="s2">&quot;adam&quot;</span><span class="p">,</span>
-              <span class="s2">&quot;optimization_params&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">],</span> <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="mf">0.001</span><span class="p">}})</span>
+    <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">loss</span><span class="p">,</span> <span class="n">src</span><span class="p">,</span> <span class="n">outputs_inf</span><span class="p">,</span> <span class="n">tgt</span><span class="p">],</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">outputs2words</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dl</span><span class="o">.</span><span class="n">voc</span><span class="o">.</span><span class="n">index2word</span><span class="p">)</span>
+<span class="p">)</span>
 
 <span class="c1"># start training</span>
-<span class="n">optimizer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">loss</span><span class="p">],</span> <span class="n">tensors_to_evaluate</span><span class="o">=</span><span class="p">[</span><span class="n">src</span><span class="p">,</span> <span class="n">outputs_inf</span><span class="p">,</span> <span class="n">tgt</span><span class="p">],</span>
-                <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">callback</span><span class="p">])</span>
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">loss</span><span class="p">],</span>
+    <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">callback</span><span class="p">],</span>
+    <span class="n">optimizer</span><span class="o">=</span><span class="s2">&quot;adam&quot;</span><span class="p">,</span>
+    <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">config</span><span class="p">[</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">],</span> <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="mf">0.001</span><span class="p">})</span>
 </pre></div>
 </div>
 <div class="admonition note">

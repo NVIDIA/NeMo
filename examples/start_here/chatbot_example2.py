@@ -84,29 +84,31 @@ outputs_inf, _ = decoderInfer(encoder_outputs=encoder_outputs)
 
 
 def outputs2words(tensors, vocab):
-    source_ids = tensors[0][:, 0].cpu().numpy().tolist()
-    response_ids = tensors[1][:, 0].cpu().numpy().tolist()
-    tgt_ids = tensors[2][:, 0].cpu().numpy().tolist()
+    source_ids = tensors[1][:, 0].cpu().numpy().tolist()
+    response_ids = tensors[2][:, 0].cpu().numpy().tolist()
+    tgt_ids = tensors[3][:, 0].cpu().numpy().tolist()
     source = list(map(lambda x: vocab[x], source_ids))
     response = list(map(lambda x: vocab[x], response_ids))
     target = list(map(lambda x: vocab[x], tgt_ids))
     source = ' '.join([s for s in source if s != 'EOS' and s != 'PAD'])
     response = ' '.join([s for s in response if s != 'EOS' and s != 'PAD'])
     target = ' '.join([s for s in target if s != 'EOS' and s != 'PAD'])
-    return " SOURCE: {0} <---> PREDICTED RESPONSE: {1} <---> TARGET: {2}".format(
-        source, response, target)
+    print(f'Train Loss: {str(tensors[0].item())}')
+    tmp = " SOURCE: {0} <---> PREDICTED RESPONSE: {1} <---> TARGET: {2}"
+    return tmp.format(source, response, target)
 
 
 # Create trainer and execute training action
 callback = nemo.core.SimpleLossLoggerCallback(
-    tensor_list2string=lambda x: str(x[0].item()),
-    tensor_list2string_evl=lambda x: outputs2words(x, dl.voc.index2word))
+    tensors=[loss, src, outputs_inf, tgt],
+    print_func=lambda x: outputs2words(x, dl.voc.index2word))
 # Instantiate an optimizer to perform `train` action
-optimizer = neural_factory.get_trainer(
-    params={"optimizer_kind": "adam",
-            "optimization_params": {"num_epochs": config["num_epochs"],
-                                    "lr": 0.001}})
+optimizer = neural_factory.get_trainer()
 
-optimizer.train(tensors_to_optimize=[loss],
-                tensors_to_evaluate=[src, outputs_inf, tgt],
-                callbacks=[callback])
+optimizer.train(
+    tensors_to_optimize=[loss],
+    callbacks=[callback],
+    optimizer="adam",
+    optimization_params={"num_epochs": config["num_epochs"],
+                         "lr": 0.001}
+)

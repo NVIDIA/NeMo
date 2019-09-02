@@ -1,0 +1,501 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Pretraining BERT &mdash; nemo 0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Tutorial" href="ner.html" />
+    <link rel="prev" title="Tutorial" href="language-modeling.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">Natural Language Processing</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="intro.html#neural-machine-translation-nmt">Neural Machine Translation (NMT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#language-modeling-lm">Language Modeling (LM)</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="intro.html#bert">BERT</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Pretraining BERT</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#download-corpus">Download Corpus</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#build-vocabulary">Build Vocabulary</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#training">Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#references">References</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#named-entity-recognition">Named Entity Recognition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#improving-speech-recognition-with-bertx2-post-processing-model">Improving speech recognition with BERTx2 post-processing model</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently Asked Questions (FAQ)</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">Natural Language Processing</a> &raquo;</li>
+        
+      <li>Pretraining BERT</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/nlp/pretraining.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="pretraining-bert">
+<h1>Pretraining BERT<a class="headerlink" href="#pretraining-bert" title="Permalink to this headline">¶</a></h1>
+<p>Make sure you have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> installed before starting this
+tutorial. See the <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section for more details.</p>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>This tutorial is focused on pretraining BERT from scratch. Creating domain-specific BERT models can be advantageous for a wide range of applications. Most notably, in a biomedical setting, similar to BioBERT <a class="reference internal" href="#lee2019biobert" id="id1">[2]</a> and SciBERT <a class="reference internal" href="#beltagy2019scibert" id="id2">[1]</a>.</p>
+</div>
+<div class="section" id="download-corpus">
+<h2>Download Corpus<a class="headerlink" href="#download-corpus" title="Permalink to this headline">¶</a></h2>
+<p>For demonstration purposes, we will be using the very small WikiText-2 corpus. This script will download and unzip the corpus for you:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./tests/data/get_wt2.sh
+</pre></div>
+</div>
+<p>After the download has completed, there should be a <cite>wikitext-2</cite> folder in your current directory, which should include <cite>train.txt</cite>, <cite>valid.txt</cite>, and <cite>test.txt</cite>.</p>
+</div>
+<div class="section" id="build-vocabulary">
+<h2>Build Vocabulary<a class="headerlink" href="#build-vocabulary" title="Permalink to this headline">¶</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This step is optional! If you don’t want to use a custom vocabulary, using the <cite>vocab.txt</cite> file from any <a class="reference external" href="https://github.com/google-research/bert#pre-trained-models">pretrained BERT model</a> will do. Also, depending on the size of your corpus, this may take awhile.</p>
+</div>
+<p>Another script can be used to generate your vocabulary file. In this example with WikiText-2, you can build it like this:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># In this example, our dataset consists of one file, so we can run it like this:</span>
+python tests/data/create_vocab.py --train_path wikitext-2/train.txt
+
+<span class="c1"># If your corpus consists of many different files, you should run it like this instead:</span>
+python tests/data/create_vocab.py --dataset_dir path_to_dataset/
+</pre></div>
+</div>
+<p>The script will output two important files: <cite>tokenizer.vocab</cite> and <cite>tokenizer.model</cite>. We’ll explain how to use both in the next section.</p>
+</div>
+<div class="section" id="training">
+<h2>Training<a class="headerlink" href="#training" title="Permalink to this headline">¶</a></h2>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>We recommend you try this out in a Jupyter notebook. It’ll make debugging much easier!</p>
+</div>
+<p>Here, we will pre-train a BERT model from scratch on the WikiText-2 corpus. We’ll start off with our imports and constants.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">import</span> <span class="nn">nemo</span>
+<span class="kn">from</span> <span class="nn">nemo.utils.lr_policies</span> <span class="kn">import</span> <span class="n">CosineAnnealing</span>
+
+<span class="kn">import</span> <span class="nn">nemo_nlp</span>
+<span class="kn">from</span> <span class="nn">nemo_nlp</span> <span class="kn">import</span> <span class="n">NemoBertTokenizer</span><span class="p">,</span> <span class="n">SentencePieceTokenizer</span>
+<span class="kn">from</span> <span class="nn">nemo_nlp.callbacks.bert_pretraining</span> <span class="kn">import</span> <span class="n">eval_iter_callback</span><span class="p">,</span> \
+    <span class="n">eval_epochs_done_callback</span>
+
+<span class="n">BATCHES_PER_STEP</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">BATCH_SIZE</span> <span class="o">=</span> <span class="mi">64</span>
+<span class="n">BATCH_SIZE_EVAL</span> <span class="o">=</span> <span class="mi">16</span>
+<span class="n">CHECKPOINT_DIR</span> <span class="o">=</span> <span class="s2">&quot;bert_pretraining_checkpoints&quot;</span>
+<span class="n">D_MODEL</span> <span class="o">=</span> <span class="mi">768</span>
+<span class="n">D_INNER</span> <span class="o">=</span> <span class="mi">3072</span>
+<span class="n">HIDDEN_ACT</span> <span class="o">=</span> <span class="s2">&quot;gelu&quot;</span>
+<span class="n">LEARNING_RATE</span> <span class="o">=</span> <span class="mf">1e-2</span>
+<span class="n">LR_WARMUP_PROPORTION</span> <span class="o">=</span> <span class="mf">0.05</span>
+<span class="n">MASK_PROBABILITY</span> <span class="o">=</span> <span class="mf">0.15</span>
+<span class="n">MAX_SEQ_LENGTH</span> <span class="o">=</span> <span class="mi">128</span>
+<span class="n">NUM_EPOCHS</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">NUM_HEADS</span> <span class="o">=</span> <span class="mi">12</span>
+<span class="n">NUM_LAYERS</span> <span class="o">=</span> <span class="mi">12</span>
+<span class="n">OPTIMIZER</span> <span class="o">=</span> <span class="s2">&quot;novograd&quot;</span>
+<span class="n">WEIGHT_DECAY</span> <span class="o">=</span> <span class="mi">0</span>
+</pre></div>
+</div>
+<p>Next, we need to create our neural factory. How you should define it depends on whether you’d like to multi-GPU or mixed-precision training. This tutorial assumes that you’re training on one GPU, without mixed precision.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Instantiate neural factory with supported backend</span>
+<span class="n">neural_factory</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
+    <span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
+
+    <span class="c1"># If you&#39;re training with multiple GPUs, you should handle this value with</span>
+    <span class="c1"># something like argparse. See examples/nlp/bert_pretraining.py for an example.</span>
+    <span class="n">local_rank</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+
+    <span class="c1"># If you&#39;re training with mixed precision, this should be set to mxprO1 or mxprO2.</span>
+    <span class="c1"># See https://nvidia.github.io/apex/amp.html#opt-levels for more details.</span>
+    <span class="n">optimization_level</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO0</span><span class="p">,</span>
+
+    <span class="c1"># If you&#39;re training with multiple GPUs, this should be set to</span>
+    <span class="c1"># nemo.core.DeviceType.AllGpu</span>
+    <span class="n">placement</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now, we need to define our tokenizer. If you’d like to use a custom vocabulary file, we strongly recommend you use our <cite>SentencePieceTokenizer</cite>. Otherwise, if you’ll be using a vocabulary file from another pre-trained BERT model, you should use <cite>NemoBertTokenizer</cite>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># If you&#39;re using a custom vocabulary, create your tokenizer like this</span>
+<span class="n">tokenizer</span> <span class="o">=</span> <span class="n">SentencePieceTokenizer</span><span class="p">(</span><span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;tokenizer.model&quot;</span><span class="p">)</span>
+<span class="n">tokenizer</span><span class="o">.</span><span class="n">add_special_tokens</span><span class="p">([</span><span class="s2">&quot;[MASK]&quot;</span><span class="p">,</span> <span class="s2">&quot;[CLS]&quot;</span><span class="p">,</span> <span class="s2">&quot;[SEP]&quot;</span><span class="p">])</span>
+
+<span class="c1"># Otherwise, create your tokenizer like this</span>
+<span class="n">tokenizer</span> <span class="o">=</span> <span class="n">NemoBertTokenizer</span><span class="p">(</span><span class="n">vocab_file</span><span class="o">=</span><span class="s2">&quot;vocab.txt&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We also need to define the BERT model that we will be pre-training. Here, you can configure your model size as needed.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span>
+    <span class="n">vocab_size</span><span class="o">=</span><span class="n">tokenizer</span><span class="o">.</span><span class="n">vocab_size</span><span class="p">,</span>
+    <span class="n">num_hidden_layers</span><span class="o">=</span><span class="n">NUM_LAYERS</span><span class="p">,</span>
+    <span class="n">hidden_size</span><span class="o">=</span><span class="n">D_MODEL</span><span class="p">,</span>
+    <span class="n">num_attention_heads</span><span class="o">=</span><span class="n">NUM_HEADS</span><span class="p">,</span>
+    <span class="n">intermediate_size</span><span class="o">=</span><span class="n">D_INNER</span><span class="p">,</span>
+    <span class="n">max_position_embeddings</span><span class="o">=</span><span class="n">MAX_SEQ_LENGTH</span><span class="p">,</span>
+    <span class="n">hidden_act</span><span class="o">=</span><span class="n">HIDDEN_ACT</span><span class="p">,</span>
+    <span class="n">factory</span><span class="o">=</span><span class="n">neural_factory</span><span class="p">)</span>
+
+<span class="c1"># If you want to start pre-training from existing BERT checkpoints, you should create</span>
+<span class="c1"># the model like this instead. For the full list of BERT model names, check out</span>
+<span class="c1"># nemo_nlp.huggingface.BERT.list_pretrained_models()</span>
+<span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span>
+    <span class="n">pretrained_model_name</span><span class="o">=</span><span class="s2">&quot;bert-base-cased&quot;</span><span class="p">,</span>
+    <span class="n">factory</span><span class="o">=</span><span class="n">neural_factory</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Next, we will define our loss functions. We will demonstrate how to pre-train with both MLM and NSP losses, but you may observe higher downstream accuracy by only pre-training with MLM loss.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mlm_log_softmax</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TransformerLogSoftmaxNM</span><span class="p">(</span>
+    <span class="n">vocab_size</span><span class="o">=</span><span class="n">tokenizer</span><span class="o">.</span><span class="n">vocab_size</span><span class="p">,</span>
+    <span class="n">d_model</span><span class="o">=</span><span class="n">D_MODEL</span><span class="p">,</span>
+    <span class="n">factory</span><span class="o">=</span><span class="n">neural_factory</span><span class="p">)</span>
+<span class="n">mlm_loss</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">MaskedLanguageModelingLossNM</span><span class="p">(</span><span class="n">factory</span><span class="o">=</span><span class="n">neural_factory</span><span class="p">)</span>
+
+<span class="n">mlm_log_softmax</span><span class="o">.</span><span class="n">log_softmax</span><span class="o">.</span><span class="n">dense</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> \
+    <span class="n">bert_model</span><span class="o">.</span><span class="n">bert</span><span class="o">.</span><span class="n">embeddings</span><span class="o">.</span><span class="n">word_embeddings</span><span class="o">.</span><span class="n">weight</span>
+
+<span class="n">nsp_log_softmax</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">SentenceClassificationLogSoftmaxNM</span><span class="p">(</span>
+    <span class="n">d_model</span><span class="o">=</span><span class="n">D_MODEL</span><span class="p">,</span>
+    <span class="n">num_classes</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="n">factory</span><span class="o">=</span><span class="n">neural_factory</span><span class="p">)</span>
+<span class="n">nsp_loss</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">NextSentencePredictionLossNM</span><span class="p">(</span><span class="n">factory</span><span class="o">=</span><span class="n">neural_factory</span><span class="p">)</span>
+
+<span class="n">bert_loss</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">LossAggregatorNM</span><span class="p">(</span>
+    <span class="n">num_inputs</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="n">factory</span><span class="o">=</span><span class="n">neural_factory</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Another crucial pre-training component is our data layer. If you’re training on larger corpora, you can pass a directory name into the <cite>dataset</cite> argument, but we can do our example like this:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">train_data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertPretrainingDataLayer</span><span class="p">(</span>
+    <span class="n">tokenizer</span><span class="o">=</span><span class="n">tokenizer</span><span class="p">,</span>
+    <span class="n">dataset</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;wikitext-2&quot;</span><span class="p">,</span> <span class="s2">&quot;train.txt&quot;</span><span class="p">),</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;train&quot;</span><span class="p">,</span>
+    <span class="n">max_seq_length</span><span class="o">=</span><span class="n">MAX_SEQ_LENGTH</span><span class="p">,</span>
+    <span class="n">mask_probability</span><span class="o">=</span><span class="n">MASK_PROBABILITY</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">BATCH_SIZE</span><span class="p">,</span>
+    <span class="n">factory</span><span class="o">=</span><span class="n">neural_factory</span><span class="p">)</span>
+
+<span class="n">test_data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertPretrainingDataLayer</span><span class="p">(</span>
+    <span class="n">tokenizer</span><span class="o">=</span><span class="n">tokenizer</span><span class="p">,</span>
+    <span class="n">dataset</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;wikitext-2&quot;</span><span class="p">,</span> <span class="s2">&quot;test.txt&quot;</span><span class="p">),</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;test&quot;</span><span class="p">,</span>
+    <span class="n">max_seq_length</span><span class="o">=</span><span class="n">MAX_SEQ_LENGTH</span><span class="p">,</span>
+    <span class="n">mask_probability</span><span class="o">=</span><span class="n">MASK_PROBABILITY</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">BATCH_SIZE_EVAL</span><span class="p">,</span>
+    <span class="n">factory</span><span class="o">=</span><span class="n">neural_factory</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Next, we will define our training pipeline.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">input_ids</span><span class="p">,</span> <span class="n">input_type_ids</span><span class="p">,</span> <span class="n">input_mask</span><span class="p">,</span> \
+    <span class="n">output_ids</span><span class="p">,</span> <span class="n">output_mask</span><span class="p">,</span> <span class="n">nsp_labels</span> <span class="o">=</span> <span class="n">train_data_layer</span><span class="p">()</span>
+
+<span class="n">hidden_states</span> <span class="o">=</span> <span class="n">bert_model</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">input_ids</span><span class="p">,</span>
+                           <span class="n">token_type_ids</span><span class="o">=</span><span class="n">input_type_ids</span><span class="p">,</span>
+                           <span class="n">attention_mask</span><span class="o">=</span><span class="n">input_mask</span><span class="p">)</span>
+
+<span class="n">train_mlm_log_probs</span> <span class="o">=</span> <span class="n">mlm_log_softmax</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+<span class="n">train_mlm_loss</span> <span class="o">=</span> <span class="n">mlm_loss</span><span class="p">(</span><span class="n">log_probs</span><span class="o">=</span><span class="n">train_mlm_log_probs</span><span class="p">,</span>
+                          <span class="n">output_ids</span><span class="o">=</span><span class="n">output_ids</span><span class="p">,</span>
+                          <span class="n">output_mask</span><span class="o">=</span><span class="n">output_mask</span><span class="p">)</span>
+
+<span class="n">train_nsp_log_probs</span> <span class="o">=</span> <span class="n">nsp_log_softmax</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+<span class="n">train_nsp_loss</span> <span class="o">=</span> <span class="n">nsp_loss</span><span class="p">(</span><span class="n">log_probs</span><span class="o">=</span><span class="n">train_nsp_log_probs</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">nsp_labels</span><span class="p">)</span>
+<span class="n">train_loss</span> <span class="o">=</span> <span class="n">bert_loss</span><span class="p">(</span><span class="n">loss_1</span><span class="o">=</span><span class="n">train_mlm_loss</span><span class="p">,</span> <span class="n">loss_2</span><span class="o">=</span><span class="n">train_nsp_loss</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>And testing pipeline.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">input_ids_</span><span class="p">,</span> <span class="n">input_type_ids_</span><span class="p">,</span> <span class="n">input_mask_</span><span class="p">,</span> \
+    <span class="n">output_ids_</span><span class="p">,</span> <span class="n">output_mask_</span><span class="p">,</span> <span class="n">nsp_labels_</span> <span class="o">=</span> <span class="n">test_data_layer</span><span class="p">()</span>
+
+<span class="n">hidden_states_</span> <span class="o">=</span> <span class="n">bert_model</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">input_ids_</span><span class="p">,</span>
+                            <span class="n">token_type_ids</span><span class="o">=</span><span class="n">input_type_ids_</span><span class="p">,</span>
+                            <span class="n">attention_mask</span><span class="o">=</span><span class="n">input_mask_</span><span class="p">)</span>
+
+<span class="n">test_mlm_log_probs</span> <span class="o">=</span> <span class="n">mlm_log_softmax</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states_</span><span class="p">)</span>
+<span class="n">test_mlm_loss</span> <span class="o">=</span> <span class="n">mlm_loss</span><span class="p">(</span><span class="n">log_probs</span><span class="o">=</span><span class="n">test_mlm_log_probs</span><span class="p">,</span>
+                         <span class="n">output_ids</span><span class="o">=</span><span class="n">output_ids_</span><span class="p">,</span>
+                         <span class="n">output_mask</span><span class="o">=</span><span class="n">output_mask_</span><span class="p">)</span>
+
+<span class="n">test_nsp_log_probs</span> <span class="o">=</span> <span class="n">nsp_log_softmax</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states_</span><span class="p">)</span>
+<span class="n">test_nsp_loss</span> <span class="o">=</span> <span class="n">nsp_loss</span><span class="p">(</span><span class="n">log_probs</span><span class="o">=</span><span class="n">test_nsp_log_probs</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">nsp_labels_</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now, we will define our callbacks. NeMo provides a variety of callbacks for you to use; in this tutorial, we will make use of <cite>SimpleLossLoggerCallback</cite>, which prints loss values during training, <cite>CheckpointCallback</cite>, which saves model checkpoints at set intervals, and <cite>EvaluatorCallback</cite>, which evaluates test loss at set intervals.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><a class="reference external" href="https://www.tensorflow.org/tensorboard">Tensorboard</a> is a great debugging tool. It’s not a requirement for this tutorial, but if you’d like to use it, you should install <a class="reference external" href="https://github.com/lanpa/tensorboardX">tensorboardX</a> and run the following command during pre-training:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tensorboard --logdir bert_pretraining_tb
+</pre></div>
+</div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">tensorboardX</span>
+    <span class="n">tb_writer</span> <span class="o">=</span> <span class="n">tensorboardX</span><span class="o">.</span><span class="n">SummaryWriter</span><span class="p">(</span><span class="s2">&quot;bert_pretraining_tb&quot;</span><span class="p">)</span>
+<span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
+    <span class="n">tb_writer</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Tensorboard is not available&quot;</span><span class="p">)</span>
+
+<span class="n">callback_loss</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
+    <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Loss: {:.3f}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())),</span>
+    <span class="n">get_tb_values</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">[[</span><span class="s2">&quot;loss&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]]],</span>
+    <span class="n">tb_writer</span><span class="o">=</span><span class="n">tb_writer</span><span class="p">)</span>
+
+<span class="n">callback_ckpt</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span>
+    <span class="n">folder</span><span class="o">=</span><span class="n">CHECKPOINT_DIR</span><span class="p">,</span>
+    <span class="n">step_freq</span><span class="o">=</span><span class="mi">25000</span><span class="p">)</span>
+
+<span class="n">train_data_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">train_data_layer</span><span class="p">)</span>
+
+<span class="c1"># If you&#39;re training on multiple GPUs, this should be</span>
+<span class="c1"># train_data_size / (batch_size * batches_per_step * num_gpus)</span>
+<span class="n">steps_per_epoch</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">train_data_size</span> <span class="o">/</span> <span class="p">(</span><span class="n">BATCHES_PER_STEP</span> <span class="o">*</span> <span class="n">BATCH_SIZE</span><span class="p">))</span>
+
+<span class="n">callback_test</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span>
+    <span class="n">eval_tensors</span><span class="o">=</span><span class="p">[</span><span class="n">test_mlm_loss</span><span class="p">,</span> <span class="n">test_nsp_loss</span><span class="p">],</span>
+    <span class="n">user_iter_callback</span><span class="o">=</span><span class="n">eval_iter_callback</span><span class="p">,</span>
+    <span class="n">user_epochs_done_callback</span><span class="o">=</span><span class="n">eval_epochs_done_callback</span><span class="p">,</span>
+    <span class="n">eval_step</span><span class="o">=</span><span class="n">steps_per_epoch</span><span class="p">,</span>
+    <span class="n">tb_writer</span><span class="o">=</span><span class="n">tb_writer</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We also recommend you export your model’s parameters to a config file. This makes it easier to load your BERT model into NeMo later, as explained in our NER tutorial.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">CHECKPOINT_DIR</span><span class="p">):</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">CHECKPOINT_DIR</span><span class="p">)</span>
+
+<span class="n">config_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">CHECKPOINT_DIR</span><span class="p">,</span> <span class="s2">&quot;config.json&quot;</span><span class="p">)</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">config_path</span><span class="p">):</span>
+    <span class="n">bert_model</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">to_json_file</span><span class="p">(</span><span class="n">config_path</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Finally, you should define your optimizer, and start training!</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">lr_policy</span> <span class="o">=</span> <span class="n">CosineAnnealing</span><span class="p">(</span><span class="n">NUM_EPOCHS</span> <span class="o">*</span> <span class="n">steps_per_epoch</span><span class="p">,</span>
+                            <span class="n">warmup_ratio</span><span class="o">=</span><span class="n">LR_WARMUP_PROPORTION</span><span class="p">)</span>
+<span class="n">neural_factory</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
+                <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy</span><span class="p">,</span>
+                <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">callback_loss</span><span class="p">,</span> <span class="n">callback_ckpt</span><span class="p">,</span> <span class="n">callback_test</span><span class="p">],</span>
+                <span class="n">batches_per_step</span><span class="o">=</span><span class="n">BATCHES_PER_STEP</span><span class="p">,</span>
+                <span class="n">optimizer</span><span class="o">=</span><span class="n">OPTIMIZER</span><span class="p">,</span>
+                <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span>
+                    <span class="s2">&quot;batch_size&quot;</span><span class="p">:</span> <span class="n">BATCH_SIZE</span><span class="p">,</span>
+                    <span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">NUM_EPOCHS</span><span class="p">,</span>
+                    <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">LEARNING_RATE</span><span class="p">,</span>
+                    <span class="s2">&quot;weight_decay&quot;</span><span class="p">:</span> <span class="n">WEIGHT_DECAY</span><span class="p">,</span>
+                    <span class="s2">&quot;betas&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.95</span><span class="p">,</span> <span class="mf">0.98</span><span class="p">),</span>
+                    <span class="s2">&quot;grad_norm_clip&quot;</span><span class="p">:</span> <span class="bp">None</span>
+                <span class="p">})</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<p id="bibtex-bibliography-nlp/pretraining-0"><dl class="citation">
+<dt class="label" id="beltagy2019scibert"><span class="brackets"><a class="fn-backref" href="#id2">1</a></span></dt>
+<dd><p>Iz Beltagy, Arman Cohan, and Kyle Lo. Scibert: pretrained contextualized embeddings for scientific text. 2019. <a class="reference external" href="https://arxiv.org/abs/1903.10676">arXiv:1903.10676</a>.</p>
+</dd>
+<dt class="label" id="lee2019biobert"><span class="brackets"><a class="fn-backref" href="#id1">2</a></span></dt>
+<dd><p>Jinhyuk Lee, Wonjin Yoon, Sungdong Kim, Donghyeon Kim, Sunkyu Kim, Chan Ho So, and Jaewoo Kang. Biobert: a pre-trained biomedical language representation model for biomedical text mining. 2019. <a class="reference external" href="https://arxiv.org/abs/1901.08746">arXiv:1901.08746</a>.</p>
+</dd>
+</dl>
+</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="ner.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="language-modeling.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, AI Applications team
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

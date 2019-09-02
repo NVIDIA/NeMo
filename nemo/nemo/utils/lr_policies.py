@@ -1,6 +1,9 @@
 import math
 from abc import ABC, abstractmethod
 
+import inspect
+import sys
+
 
 class _LRPolicy(ABC):
     """Base class for defining learning rate policies"""
@@ -35,8 +38,11 @@ class WarmupPolicy(_LRPolicy):
 
     """
 
-    def __init__(self, *, warmup_steps=None,
-                 warmup_ratio=None, total_steps=None):
+    def __init__(self,
+                 *,
+                 warmup_steps=None,
+                 warmup_ratio=None,
+                 total_steps=None):
         assert not (warmup_steps is not None and warmup_ratio is not None), \
             "Either use particular number of step or ratio"
         assert warmup_ratio is None or total_steps is not None, \
@@ -61,7 +67,6 @@ class WarmupPolicy(_LRPolicy):
 
     def _get_lr(self, initial_lr, step, epoch):
         """Simple const lr policy"""
-
         return initial_lr
 
 
@@ -127,3 +132,21 @@ class InverseSquareRootAnnealing(WarmupPolicy):
         denom = ((step + 1) / (self.warmup_steps + 1)) ** 0.5
         out_lr = initial_lr / denom
         return out_lr
+
+
+def get_all_lr_classes():
+    """ Get all LR classes defined within this module
+    """
+    lr_classes = {}
+    for name, obj in inspect.getmembers(sys.modules[__name__]):
+        if inspect.isclass(obj) and name != 'ABC':
+            lr_classes[name] = obj
+    return lr_classes
+
+
+def get_lr_policy(lr_policy, **kwargs):
+    lr_classes = get_all_lr_classes()
+    if lr_policy not in lr_classes:
+        raise ValueError(f'{lr_policy} is not a supported lr policy. '
+                         f'Supported lr policies are {lr_classes.keys()}.')
+    return lr_classes[lr_policy](**kwargs)

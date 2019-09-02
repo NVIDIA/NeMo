@@ -1,6 +1,6 @@
 # TODO: Update param placement so it is organized per module
 
-model: "CLAS-AN4"
+model: "GarNet-AN4"
 
 optimization:
     batch_size: 256

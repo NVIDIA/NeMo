@@ -1,5 +1,5 @@
-# Copyright (c) 2019 NVIDIA Corporation
 import os
+import sys
 import gzip
 import shutil
 import nemo
@@ -28,73 +28,55 @@ config = {
     "tb_log_dir": "ChatBot",
 }
 
-# instantiate Neural Factory with supported backend
-neural_factory = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch,
-    local_rank=None)
+# instantiate neural factory
+nf = nemo.core.NeuralModuleFactory()
 
-# instantiate necessary neural modules
-dl = neural_factory.get_module(
-    name="DialogDataLayer", collection="tutorials",
-    params=config)
+# instantiate neural modules
+dl = nemo.tutorials.DialogDataLayer(**config)
+encoder = nemo.tutorials.EncoderRNN(**config)
+decoder = nemo.tutorials.LuongAttnDecoderRNN(**config)
+L = nemo.tutorials.MaskedXEntropyLoss()
+decoderInfer = nemo.tutorials.GreedyLuongAttnDecoderRNN(**config)
 
-encoder = neural_factory.get_module(
-    name="EncoderRNN", collection="tutorials",
-    params=config)
-
-decoder = neural_factory.get_module(
-    name="LuongAttnDecoderRNN", collection="tutorials",
-    params=config)
-
-L = neural_factory.get_module(
-    name="MaskedXEntropyLoss", collection="tutorials",
-    params={})
-
-decoderInfer = neural_factory.get_module(
-    name="GreedyLuongAttnDecoderRNN", collection="tutorials",
-    params=config)
-# notice trainng and inference decoder share parameters
+# PARAMETER SHARING: between training and auto-regressive inference decoders
 decoderInfer.tie_weights_with(decoder, list(decoder.get_weights().keys()))
 
 # express activations flow
 src, src_lengths, tgt, mask, max_tgt_length = dl()
 encoder_outputs, encoder_hidden = encoder(input_seq=src,
                                           input_lengths=src_lengths)
-outputs, hidden = decoder(targets=tgt,
-                          encoder_outputs=encoder_outputs,
+outputs, hidden = decoder(targets=tgt, encoder_outputs=encoder_outputs,
                           max_target_len=max_tgt_length)
 loss = L(predictions=outputs, target=tgt, mask=mask)
 
 # run inference decoder to generate predictions
 outputs_inf, _ = decoderInfer(encoder_outputs=encoder_outputs)
 
-# this function is necessary to print intermediate results to console
 
-
+# define callback function which prints intermediate results to console
 def outputs2words(tensors, vocab):
-    source_ids = tensors[0][:, 0].cpu().numpy().tolist()
-    response_ids = tensors[1][:, 0].cpu().numpy().tolist()
-    tgt_ids = tensors[2][:, 0].cpu().numpy().tolist()
+    source_ids = tensors[1][:, 0].cpu().numpy().tolist()
+    response_ids = tensors[2][:, 0].cpu().numpy().tolist()
+    tgt_ids = tensors[3][:, 0].cpu().numpy().tolist()
     source = list(map(lambda x: vocab[x], source_ids))
     response = list(map(lambda x: vocab[x], response_ids))
     target = list(map(lambda x: vocab[x], tgt_ids))
     source = ' '.join([s for s in source if s != 'EOS' and s != 'PAD'])
     response = ' '.join([s for s in response if s != 'EOS' and s != 'PAD'])
     target = ' '.join([s for s in target if s != 'EOS' and s != 'PAD'])
-    return " SOURCE: {0} <---> PREDICTED RESPONSE: {1} <---> TARGET: {2}".format(
-        source, response, target)
+    print(f"Train Loss:{str(tensors[0].item())}")
+    print(f"SOURCE: {source} <---> PREDICTED RESPONSE: {response} "
+          f"<---> TARGET: {target}")
 
 
-# Create trainer and execute training action
 callback = nemo.core.SimpleLossLoggerCallback(
-    tensor_list2string=lambda x: str(x[0].item()),
-    tensor_list2string_evl=lambda x: outputs2words(x, dl.voc.index2word))
-# Instantiate an optimizer to perform `train` action
-optimizer = neural_factory.get_trainer(
-    params={"optimizer_kind": "adam",
-            "optimization_params": {"num_epochs": config["num_epochs"],
-                                    "lr": 0.001}})
+    tensors=[loss, src, outputs_inf, tgt],
+    print_func=lambda x: outputs2words(x, dl.voc.index2word)
+)
 
-optimizer.train(tensors_to_optimize=[loss],
-                tensors_to_evaluate=[src, outputs_inf, tgt],
-                callbacks=[callback])
+# start training
+nf.train(
+    tensors_to_optimize=[loss],
+    callbacks=[callback],
+    optimizer="adam",
+    optimization_params={"num_epochs": config["num_epochs"], "lr": 0.001})

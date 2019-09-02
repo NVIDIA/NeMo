@@ -15,6 +15,10 @@ Neural Modules’ inputs and outputs have Neural Type for semantic checking.
 
 An application built with NeMo application is a Directed Acyclic Graph(DAG) of connected modules enabling researchers to define and build new speech and nlp networks easily through API Compatible modules.
 
+**Documentation and Tutorials**
+
+Please refer to the HTML documentation in the `docs` folder
+
 
 **VIDEO**
 
@@ -29,11 +33,6 @@ An application built with NeMo application is a Directed Acyclic Graph(DAG) of c
 * `NeuralFactory` - to create neural modules and manage training.
 * **Lazy execution** - when describing activation flow between neural modules, nothing happens until an "action" (such as `optimizer.optimize(...)` is called.
 * **Collections** - NeMo comes with collections - related group of modules such as `nemo_asr` (for Speech Recognition) and `nemo_nlp` for NLP
-
-
-**Documentation**
-
-Please refer to the HTML documentation in the `docs` folder
 
 
 **Requirements**
@@ -60,7 +59,7 @@ Run this:
 2) Go to `nemo` folder and do: `python setup.py install`
 3) Install collections:
     a) ASR collection from `collections/nemo_asr` do: `python setup.py install`
-    b) NLP collection coming soon ...
+    b) NLP collection from `collections/nemo_nlp` do: `python setup.py install`
 
 4) For development do: `python setup.py develop` instead of `python setup.py install` in Step (3) above
 5) Go to `examples/start_here` to get started with few simple examples

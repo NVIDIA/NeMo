@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>NEMO Common Collection &mdash; nemo 0.1 documentation</title>
+  <title>NeMo Common Collection &mdash; nemo 0.1 documentation</title>
   
 
   
@@ -36,7 +36,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="NEMO_ASR collection" href="ncollections.html" />
-    <link rel="prev" title="NEMO Collections API" href="modules.html" /> 
+    <link rel="prev" title="NeMo Collections API" href="modules.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -90,12 +90,13 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="modules.html">NEMO Collections API</a><ul class="current">
-<li class="toctree-l2 current"><a class="current reference internal" href="#">NEMO Common Collection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">NeMo Collections API</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">NeMo Common Collection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ncollections.html">NEMO_ASR collection</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -142,9 +143,9 @@
     
       <li><a href="../index.html">Docs</a> &raquo;</li>
         
-          <li><a href="modules.html">NEMO Collections API</a> &raquo;</li>
+          <li><a href="modules.html">NeMo Collections API</a> &raquo;</li>
         
-      <li>NEMO Common Collection</li>
+      <li>NeMo Common Collection</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -164,8 +165,8 @@
            <div itemprop="articleBody">
             
   <div class="section" id="nemo-common-collection">
-<h1>NEMO Common Collection<a class="headerlink" href="#nemo-common-collection" title="Permalink to this headline">¶</a></h1>
-<p>NEMO core package comes with “common” collection for pytorch built-in:</p>
+<h1>NeMo Common Collection<a class="headerlink" href="#nemo-common-collection" title="Permalink to this headline">¶</a></h1>
+<p>NeMo core package comes with “common” collection for pytorch built-in:</p>
 <span class="target" id="module-nemo.backends.pytorch.common.data"></span><dl class="class">
 <dt id="nemo.backends.pytorch.common.data.TextDataLayer">
 <em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.data.</code><code class="sig-name descname">TextDataLayer</code><span class="sig-paren">(</span><em class="sig-param">path</em>, <em class="sig-param">labels</em>, <em class="sig-param">eos_id</em>, <em class="sig-param">pad_id</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">drop_last=False</em>, <em class="sig-param">num_workers=0</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/data.html#TextDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.data.TextDataLayer" title="Permalink to this definition">¶</a></dt>
@@ -219,8 +220,38 @@ should return None.</p>
 </dd></dl>
 
 <span class="target" id="module-nemo.backends.pytorch.common.losses"></span><dl class="class">
+<dt id="nemo.backends.pytorch.common.losses.CrossEntropyLoss">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">CrossEntropyLoss</code><span class="sig-paren">(</span><em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#CrossEntropyLoss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.CrossEntropyLoss" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.LossNM</span></code></a></p>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>logits</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.ChannelTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>labels</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>loss</strong>:</p>
+<ul>
+<li><p>non-tensor object</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
 <dt id="nemo.backends.pytorch.common.losses.SequenceLoss">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">SequenceLoss</code><span class="sig-paren">(</span><em class="sig-param">pad_id=0</em>, <em class="sig-param">smoothing_coef=0.0</em>, <em class="sig-param">aux_ctc=False</em>, <em class="sig-param">ctc_initial_coef=0.1</em>, <em class="sig-param">ctc_blank_id=None</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#SequenceLoss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.SequenceLoss" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">SequenceLoss</code><span class="sig-paren">(</span><em class="sig-param">pad_id=0</em>, <em class="sig-param">smoothing_coef=0.0</em>, <em class="sig-param">sample_wise=False</em>, <em class="sig-param">aux_ctc=False</em>, <em class="sig-param">ctc_initial_coef=0.1</em>, <em class="sig-param">ctc_blank_id=None</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#SequenceLoss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.SequenceLoss" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.LossNM</span></code></a></p>
 <p>Loss for seq2seq tasks</p>
 <dl class="field-list simple">
@@ -230,6 +261,9 @@ should return None.</p>
 Defaults to 0.</p></li>
 <li><p><strong>smoothing_coef</strong> (<em>float</em>) – Label smoothing coefficient in range [0, 1].
 Defaults to 0.0.</p></li>
+<li><p><strong>sample_wise</strong> (<em>bool</em>) – Flag indicates if loss sum divisor should be batch
+size.
+Defaults to False.</p></li>
 <li><p><strong>aux_ctc</strong> (<em>bool</em>) – Whether to add auxiliary CTC loss.
 Defaults to False.</p></li>
 <li><p><strong>ctc_initial_coef</strong> (<em>float</em>) – Initial coefficient to multiply ctc component
@@ -414,7 +448,7 @@ Defaults to 8.</p></li>
 <dl class="class">
 <dt id="nemo.backends.pytorch.common.search.GreedySearch">
 <em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.search.</code><code class="sig-name descname">GreedySearch</code><span class="sig-paren">(</span><em class="sig-param">decoder</em>, <em class="sig-param">pad_id</em>, <em class="sig-param">bos_id</em>, <em class="sig-param">eos_id</em>, <em class="sig-param">max_len</em>, <em class="sig-param">batch_size=None</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/search.html#GreedySearch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.search.GreedySearch" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM" title="nemo.backends.pytorch.nm.NonTrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.NonTrainableNM</span></code></a></p>
 <p>Greedy translation search.</p>
 <p>For encoder-decoder based models.</p>
 <dl class="field-list simple">
@@ -516,7 +550,7 @@ should return None.</p>
         <a href="ncollections.html" class="btn btn-neutral float-right" title="NEMO_ASR collection" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="modules.html" class="btn btn-neutral float-left" title="NEMO Collections API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="modules.html" class="btn btn-neutral float-left" title="NeMo Collections API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

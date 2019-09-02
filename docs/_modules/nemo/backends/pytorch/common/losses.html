@@ -88,8 +88,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../../../collections/modules.html">NEMO Collections API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../../../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -172,6 +173,9 @@
 <span class="sd">            Defaults to 0.</span>
 <span class="sd">        smoothing_coef (float): Label smoothing coefficient in range [0, 1].</span>
 <span class="sd">            Defaults to 0.0.</span>
+<span class="sd">        sample_wise (bool): Flag indicates if loss sum divisor should be batch</span>
+<span class="sd">            size.</span>
+<span class="sd">            Defaults to False.</span>
 <span class="sd">        aux_ctc (bool): Whether to add auxiliary CTC loss.</span>
 <span class="sd">            Defaults to False.</span>
 <span class="sd">        ctc_initial_coef (float): Initial coefficient to multiply ctc component</span>
@@ -201,7 +205,7 @@
         <span class="p">}</span>
         <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pad_id</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">smoothing_coef</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pad_id</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">smoothing_coef</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">sample_wise</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                  <span class="n">aux_ctc</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ctc_initial_coef</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">ctc_blank_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">assert</span> <span class="p">(</span><span class="ow">not</span> <span class="n">aux_ctc</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">ctc_blank_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">),</span> \
@@ -211,6 +215,7 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">pad_id</span> <span class="o">=</span> <span class="n">pad_id</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">smoothing_coef</span> <span class="o">=</span> <span class="n">smoothing_coef</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sample_wise</span> <span class="o">=</span> <span class="n">sample_wise</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">aux_ctc</span> <span class="o">=</span> <span class="n">aux_ctc</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ctc_coef</span> <span class="o">=</span> <span class="n">ctc_initial_coef</span>
 
@@ -240,13 +245,49 @@
             <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">smoothing_coef</span> <span class="o">*</span> <span class="n">log_probs</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
         <span class="n">pad_mask</span> <span class="o">=</span> <span class="n">pad_mask</span><span class="o">.</span><span class="n">float</span><span class="p">()</span>
         <span class="n">loss</span> <span class="o">=</span> <span class="o">-</span><span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">loss</span> <span class="o">*</span> <span class="n">pad_mask</span><span class="p">)</span>
-        <span class="n">loss</span> <span class="o">=</span> <span class="n">loss</span> <span class="o">/</span> <span class="p">(</span><span class="n">pad_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">+</span> <span class="n">EPS</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample_wise</span><span class="p">:</span>
+            <span class="n">loss</span> <span class="o">/=</span> <span class="n">target_log_probs</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">loss</span> <span class="o">/=</span> <span class="n">pad_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">+</span> <span class="n">EPS</span>
         <span class="k">return</span> <span class="n">loss</span>
 
     <span class="k">def</span> <span class="nf">_ctc_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">log_probs</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">pad_mask</span><span class="p">):</span>
         <span class="n">lengths</span> <span class="o">=</span> <span class="n">pad_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
         <span class="n">loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ctc</span><span class="p">(</span><span class="n">log_probs</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">targets</span><span class="p">,</span> <span class="n">lengths</span><span class="p">,</span> <span class="n">lengths</span><span class="p">)</span>
         <span class="n">loss</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">loss</span></div>
+
+
+<div class="viewcode-block" id="CrossEntropyLoss"><a class="viewcode-back" href="../../../../../collections/core.html#nemo.backends.pytorch.common.losses.CrossEntropyLoss">[docs]</a><span class="k">class</span> <span class="nc">CrossEntropyLoss</span><span class="p">(</span><span class="n">LossNM</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    CrossEntropyLoss</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
+        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;logits&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">)</span>
+            <span class="p">}),</span>
+            <span class="s2">&quot;labels&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+            <span class="p">})</span>
+        <span class="p">}</span>
+
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;loss&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="kc">None</span><span class="p">),</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">LossNM</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_criterion</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">CrossEntropyLoss</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_loss_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                       <span class="n">logits</span><span class="p">,</span>
+                       <span class="n">labels</span><span class="p">):</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_criterion</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">loss</span></div>
 </pre></div>
 

@@ -7,6 +7,7 @@ An exception will be raised when a NmTensor and input port where it goes are
 of incompatible types.
 """
 from enum import Enum
+import uuid
 
 
 class BaseTag(object):
@@ -290,6 +291,7 @@ class NmTensor(NeuralType):
         self._producer = producer
         self._producer_args = producer_args
         self._name = name
+        self._uuid = str(uuid.uuid4())
 
     @property
     def producer(self):
@@ -328,7 +330,7 @@ class NmTensor(NeuralType):
         """
         if self._producer is None:
             raise ValueError("This NmTensor does not have a unique name")
-        return self._name + "~~~" + self.producer._uuid
+        return f"{self._name}~~~{self.producer}~~~{self._uuid}"
 
 
 class NeuralTypeError(Exception):

@@ -88,8 +88,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../../../collections/modules.html">NEMO Collections API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../../../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -241,6 +242,8 @@
 
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">batch_list</span><span class="p">):</span>
             <span class="n">texts</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">narrow</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">texts</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
 
         <span class="k">return</span> <span class="n">texts</span></div>
 </pre></div>

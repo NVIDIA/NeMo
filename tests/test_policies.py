@@ -3,8 +3,10 @@ import unittest
 from nemo.utils.lr_policies import SquareAnnealing, CosineAnnealing, \
     WarmupAnnealing
 
+from .common_setup import NeMoUnitTest
 
-class TestPolicies(unittest.TestCase):
+
+class TestPolicies(NeMoUnitTest):
     def test_square(self):
         policy = SquareAnnealing(100)
         lr1, lr2, lr3 = (policy(1e-3, x, 0) for x in (0, 10, 20))

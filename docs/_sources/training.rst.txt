@@ -1,13 +1,13 @@
 Fast Training 
 =============
 
-Training large model (especially from scratch) requires significant compute. NeMo provides support for mixed precision and distributed training to  speed-up trainng. For this NEMO uses `NVIDIA's APEX library <https://github.com/NVIDIA/apex>`_, which enables to get maximum performance out of NVIDIA's GPUs.   Furthermore, multi-GPU systems (such as DGX Station, DGX-1 and DGX-2) have *NVLINK* to speed-up multi-GPU communication.
+Training large model (especially from scratch) requires significant compute. NeMo provides support for mixed precision and distributed training to speed-up training. NeMo uses `NVIDIA's APEX library <https://github.com/NVIDIA/apex>`_ to get maximum performance out of NVIDIA's GPUs. Furthermore, multi-GPU systems (such as DGX Station, DGX-1 and DGX-2) have *NVLINK* to speed-up multi-GPU communication.
 
 
 Mixed Precision
 ~~~~~~~~~~~~~~~
 NVIDIA Volta and Turing GPUs have *Tensor Cores* which can do fast matrix multiplications with values in float16 format.
-To enable mixed-precision in NeMo all you need to do is to set `optimization_level` parameter of `nemo.core.NeuralModuleFactory`  to `nemo.core.Optimization.mxprO1`. For example:
+To enable mixed-precision in NeMo all you need to do is to set `optimization_level` parameter of `nemo.core.NeuralModuleFactory` to `nemo.core.Optimization.mxprO1`. For example:
 
 .. code-block:: python
 
@@ -15,7 +15,7 @@ To enable mixed-precision in NeMo all you need to do is to set `optimization_lev
            optimization_level=nemo.core.Optimization.mxprO1)
 
 .. important::
-    Mixed precision requires Tensor Cores, so it  works only on NVIDIA Volta and Turing GPUs.
+    Mixed precision requires Tensor Cores, so it works only on NVIDIA Volta and Turing GPUs.
 
 Multi-GPU training
 ~~~~~~~~~~~~~~~~~~
@@ -23,7 +23,7 @@ Multi-GPU training
 For multi-GPU training:
 
 (1) Set `placement` to `nemo.core.DeviceType.AllGpu` in NeuralModuleFactory
-(2) Add  to your script 'local_rank' argument and do not set it yourself: `parser.add_argument("--local_rank", default=None, type=int)`
+(2) Add 'local_rank' argument to your script and do not set it yourself: `parser.add_argument("--local_rank", default=None, type=int)`
 
 .. code-block:: python
 

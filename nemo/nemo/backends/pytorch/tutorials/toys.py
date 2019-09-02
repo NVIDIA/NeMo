@@ -155,6 +155,26 @@ class MSELoss(LossNM):
         return self._criterion(*(kwargs.values()))
 
 
+class L1Loss(LossNM):
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "predictions": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "target": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+        }
+        output_ports = {"loss": NeuralType(None)}
+        return input_ports, output_ports
+
+    def __init__(self, **kwargs):
+        LossNM.__init__(self, **kwargs)
+        self._criterion = nn.L1Loss()
+
+    def _loss_function(self, **kwargs):
+        return self._criterion(*(kwargs.values()))
+
+
 class CrossEntropyLoss(LossNM):
     @staticmethod
     def create_ports():
@@ -179,7 +199,7 @@ class CrossEntropyLoss(LossNM):
 
 class DopeDualLoss(LossNM):
     """
-    The dual loss function that DOPE user
+    The dual loss function that DOPE uses
     """
     @staticmethod
     def create_ports():

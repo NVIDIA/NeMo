@@ -88,8 +88,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../collections/modules.html">NEMO Collections API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -159,9 +160,11 @@
 <span class="kn">import</span> <span class="nn">uuid</span>
 <span class="kn">import</span> <span class="nn">logging</span>
 <span class="kn">from</span> <span class="nn">abc</span> <span class="k">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
 <span class="kn">from</span> <span class="nn">enum</span> <span class="k">import</span> <span class="n">Enum</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">List</span>
 <span class="kn">from</span> <span class="nn">inspect</span> <span class="k">import</span> <span class="n">getargvalues</span><span class="p">,</span> <span class="n">stack</span>
+<span class="kn">from</span> <span class="nn">nemo.core</span> <span class="k">import</span> <span class="n">NeuralModuleFactory</span>
 
 <span class="kn">from</span> <span class="nn">.neural_factory</span> <span class="k">import</span> <span class="n">Optimization</span><span class="p">,</span> <span class="n">DeviceType</span>
 <span class="kn">from</span> <span class="nn">.neural_types</span> <span class="k">import</span> <span class="n">CanNotInferResultNeuralType</span><span class="p">,</span>\
@@ -178,10 +181,17 @@
     <span class="n">TRANSPOSE</span> <span class="o">=</span> <span class="mi">1</span></div>
 
 
+<span class="n">PretrainedModelInfo</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s2">&quot;PretrainedModleInfo&quot;</span><span class="p">,</span>
+                                 <span class="p">(</span><span class="s2">&quot;pretrained_model_name&quot;</span><span class="p">,</span> <span class="s2">&quot;description&quot;</span><span class="p">,</span>
+                                  <span class="s2">&quot;parameters&quot;</span><span class="p">,</span> <span class="s2">&quot;location&quot;</span><span class="p">))</span>
+
+
 <div class="viewcode-block" id="NeuralModule"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule">[docs]</a><span class="k">class</span> <span class="nc">NeuralModule</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Abstract class that every Neural Module must inherit from.</span>
 
 <span class="sd">    Args:</span>
+<span class="sd">        pretrained_model_name (str): name of pretrained model to use in order</span>
+<span class="sd">            to initialize this neural module</span>
 <span class="sd">        create_port_args (dict): arguments that are passed to create_ports()</span>
 <span class="sd">        factory (NeuralModuleFactory): :class:`NeuralModuleFactory` which</span>
 <span class="sd">            created or which should mange this instance. Required for</span>
@@ -193,12 +203,13 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
             <span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+            <span class="n">pretrained_model_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">create_port_args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">factory</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">placement</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="o">**</span><span class="n">kwargs</span>
     <span class="p">):</span>
-
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pretrained_model_name</span> <span class="o">=</span> <span class="n">pretrained_model_name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_local_parameters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_local_params</span><span class="p">()</span>
 
         <span class="k">if</span> <span class="n">create_port_args</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -206,13 +217,17 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_input_ports</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_output_ports</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_ports</span><span class="p">(</span>
             <span class="o">**</span><span class="n">create_port_args</span><span class="p">)</span>
 
+        <span class="n">default_factory</span> <span class="o">=</span> <span class="n">NeuralModuleFactory</span><span class="o">.</span><span class="n">get_default_factory</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">factory</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">default_factory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="n">factory</span> <span class="o">=</span> <span class="n">default_factory</span>
+
         <span class="c1"># Set module properties from factory else use defaults</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_placement</span> <span class="o">=</span> <span class="n">factory</span><span class="o">.</span><span class="n">placement</span> <span class="k">if</span> <span class="n">factory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>\
             <span class="k">else</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_opt_level</span> <span class="o">=</span> <span class="n">factory</span><span class="o">.</span><span class="n">optim_level</span> <span class="k">if</span> <span class="n">factory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>\
-            <span class="k">else</span> <span class="n">Optimization</span><span class="o">.</span><span class="n">nothing</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_master_process</span> <span class="o">=</span> <span class="n">factory</span><span class="o">.</span><span class="n">master_process</span> <span class="k">if</span> <span class="n">factory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>\
-            <span class="k">else</span> <span class="kc">True</span>
+            <span class="k">else</span> <span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span> <span class="o">=</span> <span class="n">factory</span><span class="o">.</span><span class="n">logger</span> <span class="k">if</span> <span class="n">factory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>\
+            <span class="k">else</span> <span class="n">logging</span>
 
         <span class="c1"># Update module properties using overrides if overrides exist</span>
         <span class="k">if</span> <span class="n">placement</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -221,12 +236,16 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_factory</span> <span class="o">=</span> <span class="n">factory</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_uuid</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_master_process</span> <span class="ow">and</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+        <span class="k">if</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;When constructing </span><span class="si">{}</span><span class="s2">. The base &quot;</span>
                 <span class="s2">&quot;NeuralModule class received the following unused &quot;</span>
                 <span class="s2">&quot;arguments:&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">))</span>
-            <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+
+<div class="viewcode-block" id="NeuralModule.pretrained_storage"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.pretrained_storage">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">pretrained_storage</span><span class="p">():</span>
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span></div>
 
     <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;This method allows objects to be called with their port names</span>
@@ -327,6 +346,9 @@
                 <span class="p">)</span>
             <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
 
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+
 <div class="viewcode-block" id="NeuralModule.get_weights"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.get_weights">[docs]</a>    <span class="nd">@abstractmethod</span>
     <span class="k">def</span> <span class="nf">get_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)]]:</span>
         <span class="sd">&quot;&quot;&quot;Returns NeuralModule&#39;s weights copy.</span>
@@ -365,6 +387,22 @@
 <span class="sd">          name2name_and_transform: mapping from name -&gt; (name, transform)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="NeuralModule.list_pretrained_models"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.list_pretrained_models">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">list_pretrained_models</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">PretrainedModelInfo</span><span class="p">]]:</span>
+        <span class="sd">&quot;&quot;&quot;List all available pre-trained models (e.g. weights) for this NM.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A list of PretrainedModelInfo tuples.</span>
+<span class="sd">            The pretrained_model_name field of the tuple can be used to</span>
+<span class="sd">            retrieve pre-trained model&#39;s weights (pass it as</span>
+<span class="sd">            pretrained_model_name argument to the module&#39;s constructor)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="NeuralModule.get_config_dict_and_checkpoint"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.get_config_dict_and_checkpoint">[docs]</a>    <span class="k">def</span> <span class="nf">get_config_dict_and_checkpoint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pretrained_model_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;WARNING: This part is work in progress&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
 
 <div class="viewcode-block" id="NeuralModule.tie_weights_with"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.tie_weights_with">[docs]</a>    <span class="nd">@abstractmethod</span>
     <span class="k">def</span> <span class="nf">tie_weights_with</span><span class="p">(</span>

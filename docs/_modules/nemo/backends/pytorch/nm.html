@@ -88,8 +88,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../../collections/modules.html">NEMO Collections API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -191,9 +192,7 @@
         <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>  <span class="c1"># For NeuralModule API</span>
         <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>  <span class="c1"># For PyTorch API</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">device</span><span class="p">(</span>
-            <span class="s2">&quot;cuda&quot;</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">placement</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">placement</span> <span class="o">==</span>
-            <span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span>
+            <span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">placement</span> <span class="ow">in</span> <span class="p">[</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span><span class="p">,</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">]</span>
             <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span>
         <span class="p">)</span>
 
@@ -224,9 +223,9 @@
 <div class="viewcode-block" id="TrainableNM.tie_weights_with"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.tie_weights_with">[docs]</a>    <span class="k">def</span> <span class="nf">tie_weights_with</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">weight_names</span><span class="p">,</span>
                          <span class="n">name2name_and_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">module</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Module with which to tie weights can&#39;t be None&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Module to tie weights can&#39;t be None&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">weight_names</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">weight_names</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Please provide weigth names to tie&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Please provide weight names to tie&quot;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">name2name_and_transform</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">weight_names</span><span class="p">:</span>
@@ -261,7 +260,7 @@
 <div class="viewcode-block" id="TrainableNM.restore_from"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.restore_from">[docs]</a>    <span class="k">def</span> <span class="nf">restore_from</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">local_rank</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
         <span class="c1"># self._pt_module.load_state_dict(t.load(path))</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">placement</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">:</span>
-            <span class="n">load_device</span> <span class="o">=</span> <span class="s2">&quot;cuda:</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">local_rank</span><span class="p">)</span>
+            <span class="n">load_device</span> <span class="o">=</span> <span class="n">f</span><span class="s2">&quot;cuda:</span><span class="si">{local_rank}</span><span class="s2">&quot;</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">load_device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_device</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="n">load_device</span><span class="p">))</span></div>
@@ -295,9 +294,7 @@
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>  <span class="c1"># For NeuralModule API</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">device</span><span class="p">(</span>
-            <span class="s2">&quot;cuda&quot;</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">placement</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">placement</span> <span class="o">==</span>
-            <span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span>
+            <span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">placement</span> <span class="ow">in</span> <span class="p">[</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span><span class="p">,</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">]</span>
             <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span>
         <span class="p">)</span>
 
@@ -310,7 +307,7 @@
             <span class="k">return</span> <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
 <div class="viewcode-block" id="NonTrainableNM.forward"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="nb">input</span><span class="p">):</span>
-        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Defines the computation performed at every call.</span>
+        <span class="sd">&quot;&quot;&quot;Defines the computation performed at every call.</span>
 
 <span class="sd">        Should be overridden by all subclasses.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -510,8 +507,7 @@
         <span class="k">pass</span>
 
     <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force_pt</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">*</span><span class="nb">input</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="n">pt_call</span> <span class="o">=</span> <span class="n">force_pt</span>
-        <span class="k">if</span> <span class="n">pt_call</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">force_pt</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_loss_function</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>

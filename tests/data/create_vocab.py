@@ -64,6 +64,7 @@ def main():
                                         - args.num_placeholders) +
               "--input_sentence_size={} ".format(args.sample_size) +
               "--shuffle_input_sentence=true " +
+              "--hard_vocab_limit=false " +
               "--bos_id=-1 " +
               "--eos_id=-1")
 

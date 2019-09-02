@@ -4,9 +4,9 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="nemo",
-    version="0.0.1",
-    author="AI Applications @ NVIDIA",
+    name="nemo_toolkit",
+    version="0.3",
+    author="NVIDIA",
     author_email="okuchaiev@nvidia.com",
     description="NEMO core package. Necessary for all collections.",
     long_description=long_description,
@@ -16,11 +16,14 @@ setuptools.setup(
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
+        "License :: OSI Approved :: Apache License 2.0"
     ],
     install_requires=[
         'torch>=1.0.0',
         'torchvision',
-        'tensorboardX'
+        'tensorboardX',
+        'pandas',
+        'wget'
     ]
 )
 

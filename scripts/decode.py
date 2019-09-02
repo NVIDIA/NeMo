@@ -20,7 +20,7 @@ parser = argparse.ArgumentParser(
     description="CTC decoding and tuning with LM rescoring"
 )
 parser.add_argument("--mode", help="either 'eval' (default) or 'infer'",
-    default="eval")
+                    default="eval")
 parser.add_argument(
     "--model_toml", help="Toml file describing the model and vocabulary",
     required=True
@@ -30,7 +30,7 @@ parser.add_argument(
     required=False
 )
 parser.add_argument("--logits", help="pickle file with CTC logits",
-    required=True)
+                    required=True)
 parser.add_argument(
     "--labels",
     help="JSON file with audio filenames \
@@ -39,7 +39,7 @@ parser.add_argument(
 )
 parser.add_argument("--lm", help="KenLM binary file", required=True)
 parser.add_argument("--alpha", type=float, help="value of LM weight",
-    required=True)
+                    required=True)
 parser.add_argument(
     "--alpha_max",
     type=float,
@@ -214,7 +214,7 @@ if args.mode == "eval":
     for alpha in np.arange(args.alpha, args.alpha_max, args.alpha_step):
         for beta in np.arange(args.beta, args.beta_max, args.beta_step):
             scorer = Scorer(alpha, beta, model_path=args.lm,
-                vocabulary=vocab[:-1])
+                            vocabulary=vocab[:-1])
             res = ctc_beam_search_decoder_batch(
                 probs_batch,
                 vocab[:-1],
@@ -238,7 +238,7 @@ if args.mode == "eval":
                 best_result["beta"] = beta
                 best_result["beams"] = res
             print("alpha={:.2f}, beta={:.2f}: WER={:.4f}".format(alpha, beta,
-                wer))
+                                                                 wer))
     print(
         "BEST: alpha={:.2f}, beta={:.2f}, WER={:.4f}".format(
             best_result["alpha"], best_result["beta"], best_result["wer"]
@@ -255,7 +255,7 @@ if args.mode == "eval":
 
 elif args.mode == "infer":
     scorer = Scorer(args.alpha, args.beta, model_path=args.lm,
-        vocabulary=vocab[:-1])
+                    vocabulary=vocab[:-1])
     res = ctc_beam_search_decoder_batch(
         probs_batch,
         vocab[:-1],

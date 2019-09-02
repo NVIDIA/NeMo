@@ -1,18 +1,20 @@
-import os
+# Copyright (c) 2019 NVIDIA Corporation
 import json
-import nemo
-import nemo_asr
+import os
 import time
-from app import app, data_preprocessor, jasper_encoder, jasper_decoder, \
-    greedy_decoder, neural_factory, MODEL_YAML, WORK_DIR, ENABLE_NGRAM
-from flask import request, Response
+
+from flask import request
 from werkzeug.utils import secure_filename
 
+from app import app, data_preprocessor, jasper_encoder, jasper_decoder, \
+    greedy_decoder, neural_factory, MODEL_YAML, WORK_DIR, ENABLE_NGRAM
 try:
     from app import beam_search_with_lm
 except ImportError:
     print("Not using Beam Search Decoder with LM")
     ENABLE_NGRAM = False
+import nemo
+import nemo_asr
 
 
 def wav_to_text(manifest, greedy=True):
@@ -29,7 +31,7 @@ def wav_to_text(manifest, greedy=True):
         labels=labels, batch_size=1)
 
     # Define inference DAG
-    audio_signal, audio_signal_len, transcript, transcript_len = data_layer()
+    audio_signal, audio_signal_len, _, _ = data_layer()
     processed_signal, processed_signal_len = data_preprocessor(
         input_signal=audio_signal,
         length=audio_signal_len)
@@ -47,12 +49,7 @@ def wav_to_text(manifest, greedy=True):
     if greedy:
         eval_tensors = [predictions]
 
-    infer_callback = nemo.core.InferenceCallback(
-        eval_tensors=eval_tensors
-    )
-
-    optimizer = neural_factory.get_trainer(params={})
-    tensors = optimizer.infer(callback=infer_callback)
+    tensors = neural_factory.infer(tensors=eval_tensors)
     if greedy:
         from nemo_asr.helpers import post_process_predictions
         prediction = post_process_predictions(tensors[0], labels)
@@ -67,7 +64,7 @@ result_template = """
    <body style="border:3px solid green">
    <div align="center">
    <p>Transcription time: {0}</p>
-   <p>{1}</p>   
+   <p>{1}</p>
    </div>
    </body>
 </html>

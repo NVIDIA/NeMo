@@ -92,6 +92,7 @@ class DecoderRNN(TrainableNM):
 
         voc_size = pad_to(voc_size, 8)  # 8-divisors trick
         self.embedding = nn.Embedding(voc_size, hidden_size)
+        # noinspection PyTypeChecker
         self.in_dropout = nn.Dropout(in_dropout)
         rnn_class = getattr(nn, rnn_type.upper())
         self.rnn = rnn_class(hidden_size, hidden_size, n_layers,
@@ -129,6 +130,7 @@ class DecoderRNN(TrainableNM):
 
         # Inputs
         decoder_inputs = self.embedding(decoder_inputs)
+        # noinspection PyCallingNonCallable
         decoder_inputs = self.in_dropout(decoder_inputs)
 
         # RNN
