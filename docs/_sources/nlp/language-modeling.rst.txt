@@ -1,0 +1,10 @@
+Tutorial
+======================
+
+In this tutorial we are going to implement Language Modeling (LM) system based on `Transformer decoder architecture <https://arxiv.org/abs/1706.03762>`_ :cite:`baevski2018adaptive`. All code used in this tutorial is based on ``examples/nlp/lm_tutorial.py``.
+
+References
+-------------
+
+.. bibliography:: lm.bib
+    :style: plain
