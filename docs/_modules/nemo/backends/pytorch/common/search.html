@@ -88,8 +88,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../../../collections/modules.html">NEMO Collections API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../../../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -156,7 +157,7 @@
   <h1>Source code for nemo.backends.pytorch.common.search</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">torch</span>
 
-<span class="kn">from</span> <span class="nn">nemo.backends.pytorch.nm</span> <span class="k">import</span> <span class="n">TrainableNM</span>
+<span class="kn">from</span> <span class="nn">nemo.backends.pytorch.nm</span> <span class="k">import</span> <span class="n">NonTrainableNM</span>
 <span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="k">import</span> <span class="n">NeuralType</span><span class="p">,</span> <span class="n">AxisType</span><span class="p">,</span> <span class="n">BatchTag</span><span class="p">,</span> <span class="n">TimeTag</span><span class="p">,</span> \
     <span class="n">ChannelTag</span>
 
@@ -165,7 +166,7 @@
 
 
 <span class="c1"># TODO: Validate, compare to `BeamSearch`</span>
-<div class="viewcode-block" id="GreedySearch"><a class="viewcode-back" href="../../../../../collections/core.html#nemo.backends.pytorch.common.search.GreedySearch">[docs]</a><span class="k">class</span> <span class="nc">GreedySearch</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
+<div class="viewcode-block" id="GreedySearch"><a class="viewcode-back" href="../../../../../collections/core.html#nemo.backends.pytorch.common.search.GreedySearch">[docs]</a><span class="k">class</span> <span class="nc">GreedySearch</span><span class="p">(</span><span class="n">NonTrainableNM</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Greedy translation search.</span>
 
 <span class="sd">    For encoder-decoder based models.</span>
@@ -272,10 +273,11 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">beam_size</span> <span class="o">=</span> <span class="n">beam_size</span>
 
-    <span class="nd">@torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">()</span>
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">encoder_outputs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">k</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">beam_size</span>
+        <span class="n">fdtype</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span><span class="o">.</span><span class="n">embedding</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">dtype</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">encoder_outputs</span> <span class="o">=</span> <span class="n">encoder_outputs</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">fdtype</span><span class="p">)</span>
             <span class="n">bs</span> <span class="o">=</span> <span class="n">encoder_outputs</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
             <span class="c1"># [BK]TC</span>
             <span class="c1"># encoder_output = encoder_output.repeat_interleave(k, 0)</span>
@@ -290,13 +292,13 @@
             <span class="n">bs</span> <span class="o">*</span> <span class="n">k</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span>
             <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span>
         <span class="p">)</span><span class="o">.</span><span class="n">fill_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bos_id</span><span class="p">)</span>  <span class="c1"># [BK]1</span>
-        <span class="n">scores</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>  <span class="c1"># [BK]1</span>
+        <span class="n">scores</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">predictions</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">fdtype</span><span class="p">)</span>  <span class="c1"># [BK]1</span>
         <span class="n">pad_profile</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">predictions</span><span class="p">)</span>  <span class="c1"># [BK]1</span>
         <span class="k">if</span> <span class="n">encoder_outputs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">t</span> <span class="o">=</span> <span class="n">encoder_outputs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
             <span class="c1"># [BK]1T</span>
             <span class="n">attention_weights</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span>
-                <span class="n">bs</span> <span class="o">*</span> <span class="n">k</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span>
+                <span class="n">bs</span> <span class="o">*</span> <span class="n">k</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">fdtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span>
             <span class="p">)</span><span class="o">.</span><span class="n">fill_</span><span class="p">(</span><span class="mf">1.</span> <span class="o">/</span> <span class="n">t</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">attention_weights</span> <span class="o">=</span> <span class="kc">None</span>

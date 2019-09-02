@@ -14,11 +14,11 @@ To get started
 ~~~~~~~~~~~~~~
 
 1) Install Flask: ``pip install flask```
-2) Create WORKDIR folder (anywhere) to be used in (3)
+2) Create WORKDIR folder (anywhere) to be used in step 3.
 3) In the file ``<nemo_git_root>/examples/applications/asr_service/app/__init__.py`` modify `WORK_DIR`, `MODEL_YAML`, `CHECKPOINT_ENCODER` and `CHECKPOINT_DECODER` to point to the correct values
-5) From `<nemo_git_root>/examples/applications/asr_service` folder do: `export FLASK_APP=asr_service.py` and start service: `flask run --host=0.0.0.0`
-6) Modify `recognize.html`: replace `<flask_service_ip>` with the IP address of machine where flask service from Step 5 is running.
-7) Open `recognize.html` with any browser and upload a .wav file
+4) From `<nemo_git_root>/examples/applications/asr_service` folder do: `export FLASK_APP=asr_service.py` and start service: `flask run --host=0.0.0.0`
+5) Modify `recognize.html`: replace `<flask_service_ip>` with the IP address of machine where flask service from Step 4 is running.
+6) Open `recognize.html` with any browser and upload a .wav file
 
 You can also enable BeamSearch with KenLM language model. Set `ENABLE_NGRAM=True` in `examples/applications/asr_service/app/__init__.py` to enable running with BeamSearch and KenLM.
 Also you must install Baidu's CTC decoder and KenLM. Do do so (with KenLM built on LibriSpeech dataset) do:

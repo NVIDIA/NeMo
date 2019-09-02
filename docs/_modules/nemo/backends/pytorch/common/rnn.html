@@ -88,8 +88,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../../../collections/modules.html">NEMO Collections API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../../../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -248,6 +249,7 @@
 
         <span class="n">voc_size</span> <span class="o">=</span> <span class="n">pad_to</span><span class="p">(</span><span class="n">voc_size</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span>  <span class="c1"># 8-divisors trick</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">embedding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Embedding</span><span class="p">(</span><span class="n">voc_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">)</span>
+        <span class="c1"># noinspection PyTypeChecker</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">in_dropout</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Dropout</span><span class="p">(</span><span class="n">in_dropout</span><span class="p">)</span>
         <span class="n">rnn_class</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">nn</span><span class="p">,</span> <span class="n">rnn_type</span><span class="o">.</span><span class="n">upper</span><span class="p">())</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">rnn</span> <span class="o">=</span> <span class="n">rnn_class</span><span class="p">(</span><span class="n">hidden_size</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span> <span class="n">n_layers</span><span class="p">,</span>
@@ -285,6 +287,7 @@
 
         <span class="c1"># Inputs</span>
         <span class="n">decoder_inputs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding</span><span class="p">(</span><span class="n">decoder_inputs</span><span class="p">)</span>
+        <span class="c1"># noinspection PyCallingNonCallable</span>
         <span class="n">decoder_inputs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_dropout</span><span class="p">(</span><span class="n">decoder_inputs</span><span class="p">)</span>
 
         <span class="c1"># RNN</span>

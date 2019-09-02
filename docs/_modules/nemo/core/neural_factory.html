@@ -88,8 +88,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../collections/modules.html">NEMO Collections API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -155,13 +156,15 @@
             
   <h1>Source code for nemo.core.neural_factory</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2019 NVIDIA Corporation</span>
-<span class="kn">import</span> <span class="nn">logging</span>
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">random</span>
 <span class="kn">from</span> <span class="nn">abc</span> <span class="k">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
 
-<span class="kn">from</span> <span class="nn">.callbacks</span> <span class="k">import</span> <span class="n">ActionCallback</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">.callbacks</span> <span class="k">import</span> <span class="n">ActionCallback</span><span class="p">,</span> <span class="n">EvaluatorCallback</span>
 <span class="kn">from</span> <span class="nn">.neural_types</span> <span class="k">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">ExpManager</span>
 
 
 <div class="viewcode-block" id="Backend"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.Backend">[docs]</a><span class="k">class</span> <span class="nc">Backend</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
@@ -179,14 +182,13 @@
 
 
 <div class="viewcode-block" id="Optimization"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.Optimization">[docs]</a><span class="k">class</span> <span class="nc">Optimization</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Various levels of Optimization.</span>
+    <span class="sd">&quot;&quot;&quot;Various levels of Apex/amp Optimization.</span>
 <span class="sd">    WARNING: This might have effect on model accuracy.&quot;&quot;&quot;</span>
 
-    <span class="n">nothing</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="n">mxprO0</span> <span class="o">=</span> <span class="mi">1</span>
-    <span class="n">mxprO1</span> <span class="o">=</span> <span class="mi">2</span>
-    <span class="n">mxprO2</span> <span class="o">=</span> <span class="mi">3</span>
-    <span class="n">mxprO3</span> <span class="o">=</span> <span class="mi">4</span></div>
+    <span class="n">mxprO0</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">mxprO1</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">mxprO2</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">mxprO3</span> <span class="o">=</span> <span class="mi">3</span></div>
 
 
 <div class="viewcode-block" id="DeviceType"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.DeviceType">[docs]</a><span class="k">class</span> <span class="nc">DeviceType</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
@@ -200,13 +202,10 @@
 <div class="viewcode-block" id="Actions"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.Actions">[docs]</a><span class="k">class</span> <span class="nc">Actions</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Basic actions allowed on graphs of Neural Modules&quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">local_rank</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_parameters</span> <span class="o">=</span> <span class="n">params</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">local_rank</span><span class="p">,</span>
+                 <span class="n">optimization_level</span><span class="o">=</span><span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO0</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_local_rank</span> <span class="o">=</span> <span class="n">local_rank</span>
-        <span class="k">if</span> <span class="s2">&quot;optimization_level&quot;</span> <span class="ow">in</span> <span class="n">params</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;optimization_level&quot;</span><span class="p">]</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span> <span class="o">=</span> <span class="n">Optimization</span><span class="o">.</span><span class="n">nothing</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span> <span class="o">=</span> <span class="n">optimization_level</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">step</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">epoch_num</span> <span class="o">=</span> <span class="kc">None</span>
 
@@ -223,7 +222,6 @@
     <span class="k">def</span> <span class="nf">train</span><span class="p">(</span>
             <span class="bp">self</span><span class="p">,</span>
             <span class="n">tensors_to_optimize</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">NmTensor</span><span class="p">],</span>
-            <span class="n">tensors_to_evaluate</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">NmTensor</span><span class="p">]],</span>
             <span class="n">callbacks</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">ActionCallback</span><span class="p">]],</span>
             <span class="n">lr_policy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">batches_per_step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
@@ -234,7 +232,6 @@
 <span class="sd">        Args:</span>
 <span class="sd">            tensors_to_optimize: which tensors to optimize. Typically this is</span>
 <span class="sd">                single loss tesnor.</span>
-<span class="sd">            tensors_to_evaluate: which tensors to compute during evaluation.</span>
 <span class="sd">            callbacks: list of callback objects</span>
 <span class="sd">            lr_policy: function which should take (initial_lr, step, epoch) and</span>
 <span class="sd">                return learning rate</span>
@@ -289,7 +286,29 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">pass</span></div>
 
+<div class="viewcode-block" id="Actions.create_optimizer"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.Actions.create_optimizer">[docs]</a>    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">create_optimizer</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">optimizer</span><span class="p">,</span>
+            <span class="n">things_to_optimize</span><span class="p">,</span>
+            <span class="n">optimizer_params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Creates an optimizer object to be use in the train() method.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            optimizer: Specifies which optimizer to use.</span>
+<span class="sd">            things_to_optimize: A list of neural modules or tensors to be</span>
+<span class="sd">                optimized.</span>
+<span class="sd">            optimizer_params: Specifies the parameters of the optimizer</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Optimizer</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
     <span class="k">def</span> <span class="nf">_perform_on_iteration_start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">callbacks</span><span class="p">):</span>
+        <span class="c1"># TODO: Most of these checks can be relaxed since we enforce callbacks</span>
+        <span class="c1"># to be a list of ActionCallback objects</span>
         <span class="k">if</span> <span class="n">callbacks</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">callbacks</span><span class="p">,</span> <span class="n">List</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span>
                 <span class="n">callbacks</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">callback</span> <span class="ow">in</span> <span class="n">callbacks</span><span class="p">:</span>
@@ -331,26 +350,34 @@
                 <span class="n">callback</span><span class="o">.</span><span class="n">_local_rank</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_rank</span>
                 <span class="n">callback</span><span class="o">.</span><span class="n">on_epoch_end</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="nf">_fill_callbacks</span><span class="p">(</span>
+    <span class="k">def</span> <span class="nf">_init_callbacks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">callbacks</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">callbacks</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">callbacks</span><span class="p">,</span> <span class="n">List</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span>
+                <span class="n">callbacks</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">callback</span> <span class="ow">in</span> <span class="n">callbacks</span><span class="p">:</span>
+                <span class="n">callback</span><span class="o">.</span><span class="n">action</span> <span class="o">=</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">_update_callbacks</span><span class="p">(</span>
             <span class="bp">self</span><span class="p">,</span>
             <span class="n">callbacks</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">tensors_to_optimize</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">tensors_to_evaluate</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">registered_tensors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="c1"># if self.local_rank is None or self.local_rank == 0:</span>
         <span class="k">if</span> <span class="n">callbacks</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">callbacks</span><span class="p">,</span> <span class="n">List</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span>
                 <span class="n">callbacks</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">callback</span> <span class="ow">in</span> <span class="n">callbacks</span><span class="p">:</span>
-                <span class="n">callback</span><span class="o">.</span><span class="n">_step</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">step</span>
-                <span class="n">callback</span><span class="o">.</span><span class="n">_epoch_num</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">epoch_num</span>
-                <span class="n">callback</span><span class="o">.</span><span class="n">_tensors_to_optimize</span> <span class="o">=</span> <span class="n">tensors_to_optimize</span>
-                <span class="n">callback</span><span class="o">.</span><span class="n">_tensors_to_evaluate</span> <span class="o">=</span> <span class="n">tensors_to_evaluate</span>
-                <span class="n">callback</span><span class="o">.</span><span class="n">_registered_tensors</span> <span class="o">=</span> <span class="n">registered_tensors</span>
-                <span class="n">callback</span><span class="o">.</span><span class="n">_local_rank</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_rank</span></div>
+                <span class="n">callback</span><span class="o">.</span><span class="n">_registered_tensors</span> <span class="o">=</span> <span class="n">registered_tensors</span></div>
+
+
+<span class="k">def</span> <span class="nf">_str_to_opt_level</span><span class="p">(</span><span class="n">opt_str</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optimization</span><span class="p">:</span>
+    <span class="n">number</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">opt_str</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+    <span class="k">if</span> <span class="n">number</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">Optimization</span><span class="o">.</span><span class="n">_value2member_map_</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Unknown optimization value </span><span class="si">{opt_str}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Optimization</span><span class="p">(</span><span class="n">number</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="NeuralModuleFactory"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory">[docs]</a><span class="k">class</span> <span class="nc">NeuralModuleFactory</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="n">_DEFAULT</span> <span class="o">=</span> <span class="kc">None</span>
+
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Neural Module Factory instance is used to create neural modules and</span>
 <span class="sd">    trainers</span>
@@ -371,24 +398,46 @@
 <span class="sd">            randomness. This should be used for debugging purposes as it might</span>
 <span class="sd">            have negative impact on performance. Can&#39;t be used when</span>
 <span class="sd">            `cudnn_benchmark=True`.</span>
+<span class="sd">        master_process (bool): (default True) Flag for master process</span>
+<span class="sd">            indication</span>
+<span class="sd">        set_default (bool): (default True) True if should set this instance as</span>
+<span class="sd">            default factory for modules instantiating.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
             <span class="bp">self</span><span class="p">,</span>
             <span class="n">backend</span><span class="o">=</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
             <span class="n">local_rank</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">optimization_level</span><span class="o">=</span><span class="n">Optimization</span><span class="o">.</span><span class="n">nothing</span><span class="p">,</span>
-            <span class="n">placement</span><span class="o">=</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span><span class="p">,</span>
+            <span class="n">optimization_level</span><span class="o">=</span><span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO0</span><span class="p">,</span>
+            <span class="n">placement</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">cudnn_benchmark</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
             <span class="n">random_seed</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">master_process</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">set_default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">log_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">checkpoint_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">tensorboard_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">create_tb_writer</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">files_to_copy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">add_time_to_log_dir</span><span class="o">=</span><span class="kc">False</span>
     <span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_local_rank</span> <span class="o">=</span> <span class="n">local_rank</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">optimization_level</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">optimization_level</span> <span class="o">=</span> <span class="n">_str_to_opt_level</span><span class="p">(</span><span class="n">optimization_level</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span> <span class="o">=</span> <span class="n">optimization_level</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_placement</span> <span class="o">=</span> <span class="n">placement</span>
+
+        <span class="k">if</span> <span class="n">placement</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">local_rank</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">device</span> <span class="o">=</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">device</span> <span class="o">=</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_placement</span> <span class="o">=</span> <span class="n">device</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_placement</span> <span class="o">=</span> <span class="n">placement</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">_backend</span> <span class="o">=</span> <span class="n">backend</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_world_size</span> <span class="o">=</span> <span class="mi">1</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_master_process</span> <span class="o">=</span> <span class="n">master_process</span>
         <span class="k">if</span> <span class="n">backend</span> <span class="o">==</span> <span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">:</span>
             <span class="c1"># TODO: Move all framework specific code from this file</span>
             <span class="kn">import</span> <span class="nn">torch</span>
@@ -401,6 +450,7 @@
                 <span class="n">torch</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">cudnn</span><span class="o">.</span><span class="n">benchmark</span> <span class="o">=</span> <span class="kc">False</span>
                 <span class="n">torch</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span><span class="n">random_seed</span><span class="p">)</span>
                 <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">random_seed</span><span class="p">)</span>
+                <span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">random_seed</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_rank</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">set_device</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_local_rank</span><span class="p">)</span>
@@ -411,6 +461,37 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
                 <span class="s2">&quot;Only Pytorch backend is currently supported.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">set_default</span><span class="p">:</span>
+            <span class="n">NeuralModuleFactory</span><span class="o">.</span><span class="n">set_default_factory</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="c1"># Create ExpManager</span>
+        <span class="c1"># if log_dir is None, only create logger</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exp_manager</span> <span class="o">=</span> <span class="n">ExpManager</span><span class="p">(</span>
+            <span class="n">work_dir</span><span class="o">=</span><span class="n">log_dir</span><span class="p">,</span>
+            <span class="n">ckpt_dir</span><span class="o">=</span><span class="n">checkpoint_dir</span><span class="p">,</span>
+            <span class="n">use_tb</span><span class="o">=</span><span class="n">create_tb_writer</span><span class="p">,</span>
+            <span class="n">tb_dir</span><span class="o">=</span><span class="n">tensorboard_dir</span><span class="p">,</span>
+            <span class="n">local_rank</span><span class="o">=</span><span class="n">local_rank</span><span class="p">,</span>
+            <span class="n">files_to_copy</span><span class="o">=</span><span class="n">files_to_copy</span><span class="p">,</span>
+            <span class="n">add_time</span><span class="o">=</span><span class="n">add_time_to_log_dir</span><span class="p">,</span>
+            <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tb_writer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exp_manager</span><span class="o">.</span><span class="n">tb_writer</span>
+
+        <span class="c1"># Create trainer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_trainer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_trainer</span><span class="p">(</span><span class="n">tb_writer</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_tb_writer</span><span class="p">)</span>
+
+<div class="viewcode-block" id="NeuralModuleFactory.get_default_factory"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.get_default_factory">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">get_default_factory</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_DEFAULT</span></div>
+
+<div class="viewcode-block" id="NeuralModuleFactory.set_default_factory"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.set_default_factory">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">set_default_factory</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">factory</span><span class="p">):</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">_DEFAULT</span> <span class="o">=</span> <span class="n">factory</span></div>
+
+<div class="viewcode-block" id="NeuralModuleFactory.reset_default_factory"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.reset_default_factory">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">reset_default_factory</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">_DEFAULT</span> <span class="o">=</span> <span class="kc">None</span></div>
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">__name_import</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
@@ -541,17 +622,16 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s2">&quot;optimization_level&quot;</span> <span class="ow">in</span> <span class="n">params</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;optimization_level&quot;</span><span class="p">]</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span><span class="p">:</span>
-                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_master_process</span><span class="p">:</span>
-                    <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="s2">&quot;Module&#39;s </span><span class="si">{0}</span><span class="s2"> requested optimization level </span><span class="si">{1}</span><span class="s2"> is&quot;</span>
-                        <span class="s2">&quot;different from the one specified by factory - </span><span class="si">{2}</span><span class="s2">.&quot;</span>
-                        <span class="s2">&quot;Using: </span><span class="si">{3}</span><span class="s2"> for this module&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
-                            <span class="n">name</span><span class="p">,</span>
-                            <span class="n">params</span><span class="p">[</span><span class="s2">&quot;optimization_level&quot;</span><span class="p">],</span>
-                            <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span><span class="p">,</span>
-                            <span class="n">params</span><span class="p">[</span><span class="s2">&quot;optimization_level&quot;</span><span class="p">],</span>
-                        <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">&quot;Module&#39;s </span><span class="si">{0}</span><span class="s2"> requested optimization level </span><span class="si">{1}</span><span class="s2"> is&quot;</span>
+                    <span class="s2">&quot;different from the one specified by factory - </span><span class="si">{2}</span><span class="s2">.&quot;</span>
+                    <span class="s2">&quot;Using: </span><span class="si">{3}</span><span class="s2"> for this module&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">name</span><span class="p">,</span>
+                        <span class="n">params</span><span class="p">[</span><span class="s2">&quot;optimization_level&quot;</span><span class="p">],</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span><span class="p">,</span>
+                        <span class="n">params</span><span class="p">[</span><span class="s2">&quot;optimization_level&quot;</span><span class="p">],</span>
                     <span class="p">)</span>
+                <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">params</span> <span class="o">=</span> <span class="p">{}</span>
@@ -565,22 +645,93 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">None</span></div>
 
-<div class="viewcode-block" id="NeuralModuleFactory.get_trainer"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.get_trainer">[docs]</a>    <span class="k">def</span> <span class="nf">get_trainer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">tb_writer</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="NeuralModuleFactory.create_optimizer"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.create_optimizer">[docs]</a>    <span class="k">def</span> <span class="nf">create_optimizer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                         <span class="n">optimizer</span><span class="p">,</span>
+                         <span class="n">things_to_optimize</span><span class="p">,</span>
+                         <span class="n">optimizer_params</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trainer</span><span class="o">.</span><span class="n">create_optimizer</span><span class="p">(</span>
+            <span class="n">optimizer</span><span class="o">=</span><span class="n">optimizer</span><span class="p">,</span>
+            <span class="n">things_to_optimize</span><span class="o">=</span><span class="n">things_to_optimize</span><span class="p">,</span>
+            <span class="n">optimizer_params</span><span class="o">=</span><span class="n">optimizer_params</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NeuralModuleFactory.train"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.train">[docs]</a>    <span class="k">def</span> <span class="nf">train</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+              <span class="n">tensors_to_optimize</span><span class="p">,</span>
+              <span class="n">optimizer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">optimization_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">callbacks</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">ActionCallback</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+              <span class="n">lr_policy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">batches_per_step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">stop_on_nan_loss</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+              <span class="n">reset</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">reset</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reset_trainer</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+            <span class="n">tensors_to_optimize</span><span class="o">=</span><span class="n">tensors_to_optimize</span><span class="p">,</span>
+            <span class="n">optimizer</span><span class="o">=</span><span class="n">optimizer</span><span class="p">,</span>
+            <span class="n">optimization_params</span><span class="o">=</span><span class="n">optimization_params</span><span class="p">,</span>
+            <span class="n">callbacks</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
+            <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy</span><span class="p">,</span>
+            <span class="n">batches_per_step</span><span class="o">=</span><span class="n">batches_per_step</span><span class="p">,</span>
+            <span class="n">stop_on_nan_loss</span><span class="o">=</span><span class="n">stop_on_nan_loss</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NeuralModuleFactory.eval"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.eval">[docs]</a>    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+             <span class="n">callbacks</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">EvaluatorCallback</span><span class="p">]):</span>
+        <span class="k">if</span> <span class="n">callbacks</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">callbacks</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;You need to provide at lease one evaluation&quot;</span>
+                             <span class="n">f</span><span class="s2">&quot;callback to eval&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">callback</span> <span class="ow">in</span> <span class="n">callbacks</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">callback</span><span class="p">,</span> <span class="n">EvaluatorCallback</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;All callbacks passed to the eval action must&quot;</span>
+                                <span class="n">f</span><span class="s2">&quot;be inherited from EvaluatorCallback&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+            <span class="n">tensors_to_optimize</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">optimizer</span><span class="o">=</span><span class="s1">&#39;sgd&#39;</span><span class="p">,</span>
+            <span class="n">callbacks</span><span class="o">=</span><span class="n">callbacks</span>
+        <span class="p">)</span></div>
+
+<div class="viewcode-block" id="NeuralModuleFactory.infer"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.infer">[docs]</a>    <span class="k">def</span> <span class="nf">infer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tensors</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">NmTensor</span><span class="p">],</span> <span class="n">checkpoint_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">ckpt_pattern</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trainer</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span>
+            <span class="n">tensors</span><span class="o">=</span><span class="n">tensors</span><span class="p">,</span> <span class="n">checkpoint_dir</span><span class="o">=</span><span class="n">checkpoint_dir</span><span class="p">,</span>
+            <span class="n">ckpt_pattern</span><span class="o">=</span><span class="n">ckpt_pattern</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_get_trainer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tb_writer</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_backend</span> <span class="o">==</span> <span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">:</span>
-            <span class="n">params</span><span class="p">[</span><span class="s2">&quot;optimization_level&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span>
             <span class="n">constructor</span> <span class="o">=</span> <span class="n">NeuralModuleFactory</span><span class="o">.</span><span class="n">__name_import</span><span class="p">(</span>
                 <span class="s2">&quot;nemo.backends.pytorch.PtActions&quot;</span>
             <span class="p">)</span>
-            <span class="n">instance</span> <span class="o">=</span> <span class="n">constructor</span><span class="p">(</span><span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span>
-                                   <span class="n">local_rank</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_local_rank</span><span class="p">,</span>
-                                   <span class="n">tb_writer</span><span class="o">=</span><span class="n">tb_writer</span><span class="p">)</span>
+            <span class="n">instance</span> <span class="o">=</span> <span class="n">constructor</span><span class="p">(</span><span class="n">local_rank</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_local_rank</span><span class="p">,</span>
+                                   <span class="n">tb_writer</span><span class="o">=</span><span class="n">tb_writer</span><span class="p">,</span>
+                                   <span class="n">optimization_level</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">instance</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Only PyTorch backend is currently supported.&quot;</span><span class="p">)</span></div>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Only PyTorch backend is currently supported.&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="NeuralModuleFactory.get_trainer"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.get_trainer">[docs]</a>    <span class="k">def</span> <span class="nf">get_trainer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tb_writer</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="n">f</span><span class="s2">&quot;This function is deprecated and will be removed&quot;</span>
+            <span class="n">f</span><span class="s2">&quot;in future versions of NeMo.&quot;</span>
+            <span class="n">f</span><span class="s2">&quot;Please use .train(...), .eval(...), .infer(...) and &quot;</span>
+            <span class="n">f</span><span class="s2">&quot;.create_optimizer(...) directly methods from &quot;</span>
+            <span class="n">f</span><span class="s2">&quot;NeuralModuleFactory instance.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trainer</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">&quot;The trainer instance was created during initialization of &quot;</span>
+                <span class="s2">&quot;Neural factory, using the already created instance.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trainer</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_trainer</span><span class="p">(</span><span class="n">tb_writer</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NeuralModuleFactory.reset_trainer"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.reset_trainer">[docs]</a>    <span class="k">def</span> <span class="nf">reset_trainer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trainer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_trainer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_trainer</span><span class="p">(</span><span class="n">tb_writer</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_tb_writer</span><span class="p">)</span></div>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">world_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_world_size</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">tb_writer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tb_writer</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">placement</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -591,8 +742,16 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">master_process</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_master_process</span></div>
+    <span class="k">def</span> <span class="nf">logger</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exp_manager</span><span class="o">.</span><span class="n">logger</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">checkpoint_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exp_manager</span><span class="o">.</span><span class="n">ckpt_dir</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">work_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exp_manager</span><span class="o">.</span><span class="n">work_dir</span></div>
 </pre></div>
 
            </div>

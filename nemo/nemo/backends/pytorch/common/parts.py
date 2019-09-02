@@ -1,3 +1,6 @@
+import os
+
+import pandas as pd
 import torch
 # noinspection PyPep8Naming
 from torch import nn
@@ -6,8 +9,14 @@ from torch.utils.data import Dataset
 
 class TextDataset(Dataset):
     def __init__(self, path, labels, eos_id):
-        with open(path, 'r') as f:
-            self.texts = [l.strip().lower() for l in f.readlines() if len(l)]
+        _, ext = os.path.splitext(path)
+        if ext == '.csv':
+            texts = pd.read_csv(path)['transcript'].tolist()
+        else:
+            with open(path, 'r') as f:
+                texts = f.readlines()
+        texts = [l.strip().lower() for l in texts if len(l)]
+        self.texts = texts
 
         self.char2num = {c: i for i, c in enumerate(labels)}
         self.eos_id = eos_id

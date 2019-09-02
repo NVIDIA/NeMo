@@ -88,8 +88,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../collections/modules.html">NEMO Collections API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -162,7 +163,7 @@
 <span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">apex</span> <span class="k">import</span> <span class="n">amp</span>
 
-<span class="kn">from</span> <span class="nn">nemo.backends.pytorch.nm</span> <span class="k">import</span> <span class="n">DataLayerNM</span><span class="p">,</span> <span class="n">NonTrainableNM</span>
+<span class="kn">from</span> <span class="nn">nemo.backends.pytorch.nm</span> <span class="k">import</span> <span class="n">DataLayerNM</span><span class="p">,</span> <span class="n">TrainableNM</span><span class="p">,</span> <span class="n">NonTrainableNM</span>
 <span class="kn">from</span> <span class="nn">nemo.core</span> <span class="k">import</span> <span class="n">Optimization</span><span class="p">,</span> <span class="n">DeviceType</span>
 <span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="k">import</span> <span class="o">*</span>
 <span class="kn">from</span> <span class="nn">.parts.dataset</span> <span class="k">import</span> <span class="n">AudioDataset</span><span class="p">,</span> <span class="n">seq_collate_fn</span>
@@ -268,13 +269,12 @@
             <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span>
             <span class="n">featurizer</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_featurizer</span><span class="p">,</span> <span class="n">max_duration</span><span class="o">=</span><span class="n">max_duration</span><span class="p">,</span>
             <span class="n">min_duration</span><span class="o">=</span><span class="n">min_duration</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="n">normalize_transcripts</span><span class="p">,</span>
-            <span class="n">trim</span><span class="o">=</span><span class="n">trim_silence</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_master_process</span><span class="p">,</span>
+            <span class="n">trim</span><span class="o">=</span><span class="n">trim_silence</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="p">,</span>
             <span class="n">eos_id</span><span class="o">=</span><span class="n">eos_id</span><span class="p">,</span> <span class="n">load_audio</span><span class="o">=</span><span class="n">load_audio</span>
         <span class="p">)</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_placement</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">:</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_master_process</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Parallelizing DATALAYER&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Parallelizing DATALAYER&#39;</span><span class="p">)</span>
             <span class="n">sampler</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">DistributedSampler</span><span class="p">(</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_dataset</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -302,7 +302,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dataloader</span></div>
 
 
-<div class="viewcode-block" id="AudioPreprocessing"><a class="viewcode-back" href="../../collections/ncollections.html#nemo_asr.data_layer.AudioPreprocessing">[docs]</a><span class="k">class</span> <span class="nc">AudioPreprocessing</span><span class="p">(</span><span class="n">NonTrainableNM</span><span class="p">):</span>
+<div class="viewcode-block" id="AudioPreprocessing"><a class="viewcode-back" href="../../collections/ncollections.html#nemo_asr.data_layer.AudioPreprocessing">[docs]</a><span class="k">class</span> <span class="nc">AudioPreprocessing</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Neural Module that does batch processing of audio files and converts them</span>
 <span class="sd">    to spectrogram representations</span>
@@ -388,7 +388,7 @@
             <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;AudioPreprocessing currently only &quot;</span>
                                       <span class="s2">&quot;accepts &#39;fbank&#39; or &#39;logfbank&#39; as &quot;</span>
                                       <span class="s2">&quot;feat_type&quot;</span><span class="p">)</span>
-        <span class="n">NonTrainableNM</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">TrainableNM</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">featurizer</span> <span class="o">=</span> <span class="n">FilterbankFeatures</span><span class="p">(</span>
             <span class="n">sample_rate</span><span class="o">=</span><span class="n">sample_rate</span><span class="p">,</span>
@@ -404,14 +404,14 @@
             <span class="n">dither</span><span class="o">=</span><span class="n">dither</span><span class="p">,</span>
             <span class="n">pad_to</span><span class="o">=</span><span class="n">pad_to</span><span class="p">,</span>
             <span class="n">frame_splicing</span><span class="o">=</span><span class="n">frame_splicing</span><span class="p">,</span>
-            <span class="n">stft_conv</span><span class="o">=</span><span class="n">stft_conv</span>
+            <span class="n">stft_conv</span><span class="o">=</span><span class="n">stft_conv</span><span class="p">,</span>
+            <span class="n">logger</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_logger</span>
         <span class="p">)</span>
         <span class="c1"># _pre_procesing_config = self.local_parameters</span>
         <span class="c1"># self.featurizer = FeatureFactory.from_config(_pre_procesing_config)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">featurizer</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
 
-        <span class="n">stft_conv</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;stft_conv&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">disable_casts</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_opt_level</span> <span class="o">!=</span> <span class="n">Optimization</span><span class="o">.</span><span class="n">nothing</span> <span class="ow">and</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">disable_casts</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_opt_level</span> <span class="o">==</span> <span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO1</span> <span class="ow">and</span>
                               <span class="ow">not</span> <span class="n">stft_conv</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_signal</span><span class="p">,</span> <span class="n">length</span><span class="p">):</span>

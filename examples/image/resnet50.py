@@ -1,14 +1,14 @@
 # Copyright (c) 2019 NVIDIA Corporation
+from tensorboardX import SummaryWriter
+from nemo.utils.lr_policies import SquareAnnealing
+from nemo.backends.pytorch.torchvision.helpers import eval_iter_callback, \
+    eval_epochs_done_callback, compute_accuracy
+import nemo
 import argparse
 import os
 import sys
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../..')))
-import nemo
-from nemo.backends.pytorch.torchvision.helpers import eval_iter_callback, \
-    eval_epochs_done_callback, compute_accuracy
-from nemo.utils.lr_policies import SquareAnnealing
-from tensorboardX import SummaryWriter
 
 parser = argparse.ArgumentParser(description='ResNet50 on ImageNet')
 parser.add_argument("--local_rank", default=None, type=int)
@@ -50,7 +50,7 @@ neural_factory = nemo.core.NeuralModuleFactory(
     local_rank=args.local_rank,
     # Set this to nemo.core.Optimization.mxprO1
     # if you have Volta or Turing GPU
-    optimization_level=nemo.core.Optimization.nothing)
+    optimization_level=nemo.core.Optimization.mxprO0)
 
 resnet = neural_factory.get_module(name="resnet50",
                                    params={"placement": device},
@@ -87,7 +87,7 @@ L_eval = neural_factory.get_module(
     name="CrossEntropyLoss", collection="toys",
     params={"placement": device})
 
-step_per_epoch = int(len(dl_train)/(batch_size*num_gpus))
+step_per_epoch = int(len(dl_train) / (batch_size * num_gpus))
 
 
 images, labels = dl_train()
@@ -98,24 +98,26 @@ e_images, e_labels = dl_eval()
 e_outputs = resnet(x=e_images)
 e_loss = L_eval(predictions=e_outputs, labels=e_labels)
 
-callback = nemo.core.SimpleLossLoggerCallback(step_frequency=50,
-                                              tensorboard_writer=tb_writer,
-                                              tensor_list2string=lambda x: str(
-                                                  x[0].item()),
-                                              tensor_list2string_evl=lambda x: compute_accuracy(x))
+callback = nemo.core.SimpleLossLoggerCallback(
+    step_freq=50, tb_writer=tb_writer, tensor_list2str=lambda x: str(
+        x[0].item()), tensor_list2str_evl=lambda x: compute_accuracy(x))
 
-callback_eval = nemo.core.EvaluatorCallback(eval_tensors=[e_loss, e_outputs, e_labels],
-                                            user_iter_callback=eval_iter_callback,
-                                            user_epochs_done_callback=eval_epochs_done_callback,
-                                            eval_step=10000,
-                                            tensorboard_writer=tb_writer)
+callback_eval = nemo.core.EvaluatorCallback(
+    eval_tensors=[e_loss, e_outputs, e_labels],
+    user_iter_callback=eval_iter_callback,
+    user_epochs_done_callback=eval_epochs_done_callback,
+    eval_step=10000,
+    tb_writer=tb_writer)
 
 # Instantiate an optimizer to perform `train` action
 optimizer = neural_factory.get_trainer(
-    params={"optimization_params": {"num_epochs": num_epochs, "lr": learning_rate,
-                                    "max_steps": max_steps,
-                                    "weight_decay": weight_decay,
-                                    "momentum": momentum}})
+    params={
+        "optimization_params": {
+            "num_epochs": num_epochs,
+            "lr": learning_rate,
+            "max_steps": max_steps,
+            "weight_decay": weight_decay,
+            "momentum": momentum}})
 
 optimizer.train(tensors_to_optimize=[train_loss],
                 tensors_to_evaluate=[outputs, labels],

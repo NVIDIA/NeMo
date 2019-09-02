@@ -1,27 +1,26 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import itertools
-import os
 import logging
+import os
+from typing import List, Optional
+
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
+from nemo.backends.pytorch.nm import TrainableNM
 
-from typing import List, Optional, Dict, Set
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
 from .optimizers import Novograd, AdamW, Lamb
-from ...core import NmTensor, DeviceType
+from ...core import NmTensor, DeviceType, NeuralModule
 from ...core.callbacks import (
     ActionCallback,
     EvaluatorCallback,
     SimpleLossLoggerCallback,
-    ModuleSaverCallback,
-    CheckpointCallback,
 )
 from ...core.neural_factory import Actions, ModelMode, Optimization
 from ...utils.helpers import get_checkpoint_from_dir
-from nemo.core.callbacks import ValueSetterCallback
 
 try:
     import apex
@@ -39,36 +38,29 @@ AmpOptimizations = {
     Optimization.mxprO3: "O3",
 }
 
-_float_2_half_req = {Optimization.mxprO1, Optimization.mxprO2,
+_float_2_half_req = {Optimization.mxprO1,
+                     Optimization.mxprO2,
                      Optimization.mxprO3}
 
 
-def _add_uuid_2_name(name, uuid):
-    return name + "~~~" + uuid
-
-
-def _remove_uuid_from_name(name):
-    return name[: name.index("~~~")]
-
-
-def _filter_dict(d: Dict, keys: Set) -> Set:
-    res = {}
-    for k, v in d.items():
-        if k in keys:
-            res[_remove_uuid_from_name(k)] = v
-    return res
-
-
 class PtActions(Actions):
-    def __init__(self, params, local_rank=None, tb_writer=None):
-        super(PtActions, self).__init__(params=params, local_rank=local_rank)
+    def __init__(self, local_rank=None, tb_writer=None,
+                 optimization_level=Optimization.mxprO0):
+        super(PtActions, self).__init__(
+            local_rank=local_rank,
+            optimization_level=optimization_level)
 
         # will be [unique_instance_id -> (NMModule, PTModule)]
         self.module_reference_table = {}
         self.step = 0
         self.epoch_num = 0
-        self.optimizer = None
+        self.optimizers = []
         self.tb_writer = tb_writer
+        self._modules = set()
+
+    @property
+    def modules(self):
+        return self._modules
 
     def __get_top_sorted_modules_and_dataloader(self, hook):
         """
@@ -79,7 +71,7 @@ class PtActions(Actions):
           in DAG
 
         Returns:
-          list of modules with their call arguments and dataset
+          list of modules with their call arguments and outputs, and dataset
         """
 
         def create_node(producer, producer_args):
@@ -107,41 +99,94 @@ class PtActions(Actions):
         else:
             hooks = hook
 
+        # ensures that no tensors are processed twice
+        processed_nmtensors = set()
+
+        indices_to_remove = []
+        # Check for duplicates in hook
+        for i, nmtensor in enumerate(hook):
+            if nmtensor in processed_nmtensors:
+                indices_to_remove.append(i)
+            else:
+                processed_nmtensors.add(nmtensor)
+
+        for i in reversed(indices_to_remove):
+            hook.pop(i)
+
         _top_sorted_modules = []
-        all_nodes = set()
+        all_nodes = {}
 
         # extract all nodes to all_nodes set
         hooks_lst = list(hooks)
         while len(hooks_lst) > 0:
-            # take hook from the end of the list
-            hook = hooks_lst.pop()
-            node = create_node(hook.producer, hook.producer_args)
-            all_nodes.add(node)
-            if hook.producer_args is not None and hook.producer_args != {}:
-                for _, nmtensor in hook.producer_args.items():
-                    hooks_lst.insert(0, nmtensor)
+            # take nmtensor from the end of the list
+            nmtensor = hooks_lst.pop()
+            node = create_node(nmtensor.producer, nmtensor.producer_args)
+            # Store nmtensor as an output of its producer
+            # first make sure all keys are present per output port
+            # and nm is inside all_nodes
+            if node not in all_nodes:
+                all_nodes[node] = {
+                    k: None for k in nmtensor.producer._output_ports}
+            # second, populate output port with current nmtensor
+            # where applicable
+            all_nodes[node][nmtensor.name] = nmtensor
+            processed_nmtensors.add(nmtensor)
+            if (nmtensor.producer_args is not None
+                    and nmtensor.producer_args != {}):
+                for _, new_nmtensor in nmtensor.producer_args.items():
+                    if new_nmtensor not in processed_nmtensors:
+                        # put in the start of list
+                        hooks_lst.insert(0, new_nmtensor)
 
-        while len(all_nodes) > 0:
-            for node in all_nodes.copy():
+        all_node_with_output = []
+        # Iterate over all_nodes to create new nodes that include its output
+        # now all nodes have (module, input tensors, output tensors)
+        for node in all_nodes:
+            all_node_with_output.append(tuple((
+                node[0],
+                node[1],
+                all_nodes[node]
+            )))
+
+        processed_nodes = []
+        while len(all_node_with_output) > 0:
+            for node in all_node_with_output.copy():
                 # if node's in_degree is zero it can be added to
                 # _top_sorted_modules
                 # this will also reduce in_degree of its children
-                if is_in_degree_zero(node, _top_sorted_modules):
+                if is_in_degree_zero(node, processed_nodes):
                     _top_sorted_modules.append(node)
-                    all_nodes.remove(node)
+                    processed_nodes.append((node[0], node[1]))
+                    all_node_with_output.remove(node)
 
-        tdataset = _top_sorted_modules[0][0].dataset
-        top_sorted_modules = [(m[0], dict(m[1])) for m in _top_sorted_modules]
+        # Create top_sorted_modules aka callchain
+        top_sorted_modules = []
+        for i, m in enumerate(_top_sorted_modules):
+            top_sorted_modules.append((m[0], dict(m[1]), m[2]))
+            # Ensure that there is only one dataset in callchain
+            if i > 0 and isinstance(m[0], DataLayerNM):
+                raise ValueError(
+                    "There were more than one DataLayer NeuralModule inside "
+                    "your DAG.")
+
+        if not isinstance(top_sorted_modules[0][0], DataLayerNM):
+            raise ValueError(
+                "The first module in your DAG was not a DataLayer "
+                "NeuralModule.")
+
+        tdataset = top_sorted_modules[0][0].dataset
 
         # populate self.module_reference_table
-        for m in _top_sorted_modules:
+        for m in top_sorted_modules:
             if m[0].factory is None and self._local_rank is not None:
                 raise ValueError("Neural module {0} was created without "
                                  "NeuralModuleFactory, but you are trying to"
                                  "run in distributed mode. Please instantiate"
-                                 "NeuralModuleFactory first and pass it's "
+                                 "NeuralModuleFactory first and pass its "
                                  "instance as `factory` parameter to all your"
-                                 "Neural Module objects.")
+                                 "Neural Module objects."
+                                 "".format(m[0].__class__.__name__))
             key = m[0].unique_instance_id
             if key not in self.module_reference_table:
                 if isinstance(m[0], TrainableNeuralModuleWrapper):
@@ -151,18 +196,84 @@ class PtActions(Actions):
 
         return top_sorted_modules, tdataset
 
+    def create_optimizer(
+            self,
+            optimizer,
+            things_to_optimize,
+            optimizer_params=None,
+    ):
+        """
+        Wrapper function around __setup_optimizer()
+
+        Args:
+            optimizer : A instantiated PyTorch optimizer or string. For
+                currently supported strings, see __setup_optimizer().
+            things_to_optimize (list): Must be a list of Neural Modules and/or
+                parameters. If a Neural Module is passed, all trainable
+                parameters are extracted and passed to the optimizer.
+            optimizer_params (dict): Optional parameters dictionary.
+
+        Returns:
+            Optimizer
+        """
+
+        optimizer_instance = None
+        optimizer_class = None
+        if isinstance(optimizer, str):
+            optimizer_class = optimizer
+        elif isinstance(optimizer, torch.optim.Optimizer):
+            optimizer_instance = optimizer
+        else:
+            raise ValueError("`optimizer` must be a string or an instance "
+                             "of torch.optim.Optimizer")
+
+        modules_to_optimize = []
+        tensors_to_optimize = []
+        if not isinstance(things_to_optimize, list):
+            things_to_optimize = [things_to_optimize]
+        for thing in things_to_optimize:
+            if isinstance(thing, NeuralModule):
+                modules_to_optimize.append(thing)
+            elif isinstance(thing, NmTensor):
+                tensors_to_optimize.append(thing)
+            else:
+                raise ValueError("{} passed to create_optimizer() was neither "
+                                 "a neural module nor a neural module tensor")
+
+        if tensors_to_optimize:
+            call_chain, _ = self.__get_top_sorted_modules_and_dataloader(
+                tensors_to_optimize)
+
+            for module in call_chain:
+                if module[0] not in modules_to_optimize:
+                    modules_to_optimize.append(module[0])
+
+        # Extract trainable weights which will be optimized
+        params_list = [
+            p.parameters() for p in modules_to_optimize
+            if isinstance(p, TrainableNM) or p.is_trainable()
+        ]
+        params_to_optimize = itertools.chain(*params_list)
+
+        if optimizer_params is None:
+            optimizer_params = {}
+        # Init amp
+        optimizer = self.__setup_optimizer(
+            optimizer_instance=optimizer_instance,
+            optimizer_class=optimizer_class,
+            optimization_params=optimizer_params,
+            params_to_optimize=params_to_optimize)
+
+        self.optimizers.append(optimizer)
+        return optimizer
+
     @staticmethod
     def __setup_optimizer(
             optimizer_instance,
             optimizer_class,
             optimization_params,
             params_to_optimize,
-            call_chain,
-            optim_level=Optimization.nothing,
     ):
-        amp_min_loss_scale = 1.0
-        if optimization_params is not None:
-            amp_min_loss_scale = optimization_params.get('min_loss_scale', 1.0)
         if optimizer_instance is None:
             # Setup optimizer instance, by default it is SGD
             lr = optimization_params["lr"]
@@ -174,8 +285,10 @@ class PtActions(Actions):
                     weight_decay=optimization_params.get("weight_decay", 0.0),
                 )
             elif optimizer_class.lower() == "adam":
-                optimizer = optim.Adam(params=params_to_optimize, lr=lr)
-            elif optimizer_class.lower() == "fuzed_adam":
+                optimizer = optim.Adam(
+                    params=params_to_optimize, lr=lr,
+                    betas=optimization_params.get("betas", (0.9, 0.999)))
+            elif optimizer_class.lower() == "fused_adam":
                 optimizer = apex.optimizers.FusedAdam(
                     params=params_to_optimize,
                     lr=lr)
@@ -192,6 +305,7 @@ class PtActions(Actions):
                     weight_decay=optimization_params.get("weight_decay", 0.0),
                     luc=optimization_params.get("luc", False),
                     luc_trust=optimization_params.get("luc_eta", 1e-3),
+                    betas=optimization_params.get("betas", (0.95, 0.98)),
                 )
             elif optimizer_class.lower() == "lamb":
                 optimizer = Lamb(
@@ -218,48 +332,43 @@ class PtActions(Actions):
                                 "optimizer because `optimizer_instance` "
                                 "is provided")
             optimizer = optimizer_instance
+        return optimizer
 
-        if optim_level in AmpOptimizations:
-            inds = []
-            pt_modules = []
-            for i in range(len(call_chain)):
-                if isinstance(call_chain[i][0], nn.Module):
-                    inds.append([i, False])
-                    pt_modules.append(call_chain[i][0])
-                elif isinstance(call_chain[i][0],
-                                TrainableNeuralModuleWrapper):
-                    inds.append([i, True])
-                    pt_modules.append(call_chain[i][0]._pt_module)
+    def __initialize_amp(
+            self, optimizer, optim_level, amp_min_loss_scale=1.0
+    ):
+        if optim_level not in AmpOptimizations:
+            raise ValueError("__initialize_amp() was called but optim_level "
+                             "was set to float32.")
+        if len(self.modules) < 1:
+            raise ValueError("There were no modules to initialize")
+        pt_modules = []
+        for module in self.modules:
+            if isinstance(module, nn.Module):
+                pt_modules.append(module)
+            elif isinstance(module,
+                            TrainableNeuralModuleWrapper):
+                pt_modules.append(module._pt_module)
 
-            pt_modules, optimizer = amp.initialize(
-                min_loss_scale=amp_min_loss_scale,
-                max_loss_scale=32768.0,
-                models=pt_modules,
-                optimizers=optimizer,
-                opt_level=AmpOptimizations[optim_level],
-            )
-
-            for ind in range(len(pt_modules)):
-                if inds[ind][1]:
-                    call_chain[inds[ind][0]][0]._pt_module = pt_modules[ind]
-                else:
-                    call_chain[inds[ind][0]] = (
-                        pt_modules[ind],
-                        call_chain[inds[ind][0]][1],
-                    )
-        else:
-            return optimizer, call_chain
-        return optimizer, call_chain
+        _, optimizer = amp.initialize(
+            min_loss_scale=amp_min_loss_scale,
+            models=pt_modules,
+            optimizers=optimizer,
+            opt_level=AmpOptimizations[optim_level],
+        )
+        return optimizer
 
     def __nm_graph_forward_pass(
-            self, call_chain, registered_tensors, mode=ModelMode.train
+            self,
+            call_chain,
+            registered_tensors,
+            mode=ModelMode.train
     ):
         for ind in range(1, len(call_chain)):
             call_args = call_chain[ind][1]
             # module = call_chain[ind][0]
             m_id = call_chain[ind][0].unique_instance_id
             pmodule = self.module_reference_table[m_id][1]
-            module_output_port_names = call_chain[ind][0]._output_ports.keys()
 
             if mode == ModelMode.train:
                 # if module.is_trainable():
@@ -291,20 +400,17 @@ class PtActions(Actions):
                     new_tensors = [new_tensors]
                 else:
                     new_tensors = list(new_tensors)
-            # module_output_port_names = module._output_ports.keys()
-            # now pack it according module's output port names
-            new_tensors_packed = dict(
-                zip(
-                    [
-                        _add_uuid_2_name(port_name, m_id)
-                        for port_name in module_output_port_names
-                    ],
-                    new_tensors,
-                )
-            )
-            for t_name, t_tensor in new_tensors_packed.items():
+            for t_tensor, nm_tensor in zip(
+                    new_tensors, call_chain[ind][2].values()):
+                if nm_tensor is None:
+                    continue
+                t_name = nm_tensor.unique_name
                 if t_name not in registered_tensors:
                     registered_tensors[t_name] = t_tensor
+                else:
+                    raise ValueError(
+                        "A NMTensor was produced twice in the same DAG. "
+                        "{}".format(t_name))
 
     @staticmethod
     def pad_tensor(t: torch.Tensor, target_size: torch.Size):
@@ -363,11 +469,6 @@ class PtActions(Actions):
             )
             dl_nm = call_chain[0][0]
 
-            if not isinstance(dl_nm, DataLayerNM):
-                raise ValueError(
-                    "The evaluation callchain did not start with a DataLayerNM"
-                )
-
             # Prepare eval_dataloader
             # For distributed training it should have disjoint subsets of
             # all data on every worker
@@ -400,6 +501,7 @@ class PtActions(Actions):
                 eval_dataloader.sampler.set_epoch(0)
             else:  # Not distributed
                 if dl_nm.dataset is not None:
+                    # Todo: remove local_parameters
                     eval_dataloader = torch.utils.data.DataLoader(
                         dataset=dl_nm.dataset,
                         sampler=None,  # not distributed sampler
@@ -419,7 +521,6 @@ class PtActions(Actions):
             # there
 
             callback.clear_global_var_dict()
-            data_layer_output_port_names = dl_nm._output_ports.keys()
             dl_device = dl_nm._device
 
             # Evaluation mini-batch for loop
@@ -432,29 +533,26 @@ class PtActions(Actions):
                     print("Evaluating batch {} out of {}".format(epoch_i,
                                                                  num_batches))
                 tensors = []
+                if isinstance(data, torch.Tensor):
+                    data = (data,)
                 for d in data:
                     if isinstance(d, torch.Tensor):
                         tensors.append(d.to(dl_device))
                     else:
                         tensors.append(d)
 
-                registered_e_tensors = dict(
-                    zip(
-                        [
-                            _add_uuid_2_name(dl_port_name,
-                                             call_chain[0][0]._uuid)
-                            for dl_port_name in data_layer_output_port_names
-                        ],
-                        tensors,
-                    )
-                )
+                registered_e_tensors = {t.unique_name: d for t, d in
+                                        zip(call_chain[0][2].values(), tensors)
+                                        if t is not None
+                                        }
                 self.__nm_graph_forward_pass(
                     call_chain=call_chain,
                     registered_tensors=registered_e_tensors,
                     mode=ModelMode.eval,
                 )
 
-                values_dict = {}
+                if not is_distributed or self.local_rank == 0:
+                    values_dict = {}
                 # If distributed. For the outer loop, we need to ensure that
                 # all processes loop through the elements in the same order
                 for t2e in tensors_2_evaluate:
@@ -467,7 +565,6 @@ class PtActions(Actions):
                         )
                         continue
                     if is_distributed:
-                        values_dict["IS_FROM_DIST_EVAL"] = True
                         # where we will all_gather results from all workers
                         tensors_list = []
                         # where we will all_gather tensor sizes
@@ -511,7 +608,9 @@ class PtActions(Actions):
                             self.depad_tensor(t, size)
                             for t, size in zip(tensors_list, sizes)
                         ]
-                        values_dict[key] = tensors_list
+                        if self.local_rank == 0:
+                            values_dict["IS_FROM_DIST_EVAL"] = True
+                            values_dict[key] = tensors_list
                     else:  # NON-DISTRIBUTED TRAINING
                         values_dict["IS_FROM_DIST_EVAL"] = False
                         values_dict[key] = [registered_e_tensors[key]]
@@ -534,6 +633,172 @@ class PtActions(Actions):
                     for key, val in vals_to_log.items():
                         callback._swriter.add_scalar(key, val, step)
 
+    def _infer(self, tensors_to_return, step, verbose=False):
+        """
+        Does the same as _eval() just with tensors instead of eval callback.
+        """
+        with torch.no_grad():
+            # each call chain corresponds to a tensor in tensors_2_evaluate
+            dl_nm = None
+            call_chain, _ = self.__get_top_sorted_modules_and_dataloader(
+                hook=tensors_to_return
+            )
+            dl_nm = call_chain[0][0]
+
+            # Prepare eval_dataloader
+            # For distributed training it should have disjoint subsets of
+            # all data on every worker
+            is_distributed = False
+            world_size = None
+            if dl_nm.placement == DeviceType.AllGpu:
+                assert dist.is_initialized()
+                is_distributed = True
+                world_size = torch.distributed.get_world_size()
+                # print(
+                #     "Doing distributed evaluation. Rank {0} of {1}".format(
+                #         self.local_rank, world_size
+                #     )
+                # )
+                if dl_nm.dataset is not None:
+                    sampler = torch.utils.data.distributed.DistributedSampler(
+                        dl_nm.dataset
+                    )
+                    eval_dataloader = torch.utils.data.DataLoader(
+                        dataset=dl_nm.dataset,
+                        sampler=sampler,
+                        num_workers=dl_nm.local_parameters.get(
+                            "num_workers", os.cpu_count()
+                        ),
+                        batch_size=dl_nm.local_parameters["batch_size"],
+                        shuffle=(sampler is None),
+                    )
+                else:
+                    eval_dataloader = dl_nm.data_iterator
+                eval_dataloader.sampler.set_epoch(0)
+            else:  # Not distributed
+                if dl_nm.dataset is not None:
+                    # Todo: remove local_parameters
+                    eval_dataloader = torch.utils.data.DataLoader(
+                        dataset=dl_nm.dataset,
+                        sampler=None,  # not distributed sampler
+                        num_workers=call_chain[0][0].local_parameters.get(
+                            "num_workers", os.cpu_count()
+                        ),
+                        batch_size=call_chain[0][0].local_parameters[
+                            "batch_size"],
+                        shuffle=call_chain[0][0].local_parameters.get(
+                            "shuffle",
+                            False),
+                    )
+                else:
+                    eval_dataloader = dl_nm.data_iterator
+            # after this eval_dataloader is ready to be used
+            # reset global_var_dict - results of evaluation will be stored
+            # there
+
+            if not is_distributed or self.local_rank == 0:
+                values_dict = {}
+                for t in tensors_to_return:
+                    values_dict[t.unique_name] = []
+            dl_device = dl_nm._device
+
+            # Evaluation mini-batch for loop
+            num_batches = len(eval_dataloader)
+            for epoch_i, data in enumerate(eval_dataloader, 0):
+                if verbose and (
+                        num_batches < 10 or (
+                        epoch_i % int(num_batches / 10) == 0)
+                ):
+                    print("Evaluating batch {} out of {}".format(epoch_i,
+                                                                 num_batches))
+                tensors = []
+                if isinstance(data, torch.Tensor):
+                    data = (data,)
+                for d in data:
+                    if isinstance(d, torch.Tensor):
+                        tensors.append(d.to(dl_device))
+                    else:
+                        tensors.append(d)
+
+                registered_e_tensors = {t.unique_name: d for t, d in
+                                        zip(call_chain[0][2].values(), tensors)
+                                        if t is not None
+                                        }
+                self.__nm_graph_forward_pass(
+                    call_chain=call_chain,
+                    registered_tensors=registered_e_tensors,
+                    mode=ModelMode.eval,
+                )
+
+                # If distributed. For the outer loop, we need to ensure that
+                # all processes loop through the elements in the same order
+                for t2e in tensors_to_return:
+                    key = t2e.unique_name
+                    if key not in registered_e_tensors.keys():
+                        print(
+                            "WARNING: Tensor {} was not found during "
+                            "eval".format(
+                                key)
+                        )
+                        continue
+                    if is_distributed:
+                        # where we will all_gather results from all workers
+                        tensors_list = []
+                        # where we will all_gather tensor sizes
+                        tensor_on_worker = registered_e_tensors[key]
+                        if tensor_on_worker.shape != torch.Size([]):
+                            tensor_on_worker_size_as_tensor = torch.tensor(
+                                tensor_on_worker.shape
+                            ).cuda()
+                            sizes = []
+                            for ind in range(world_size):
+                                sizes.append(
+                                    torch.empty_like(
+                                        tensor_on_worker_size_as_tensor)
+                                )
+                            dist.all_gather(sizes,
+                                            tensor_on_worker_size_as_tensor)
+                            mx_dim, _ = torch.max(torch.stack(sizes), dim=0)
+                        else:  # this is a singleton. For example, loss value
+                            sizes = [torch.Size([])] * world_size
+                            mx_dim = None
+                        for ind in range(world_size):
+                            # we have to use max shape for all_gather
+                            if mx_dim is None:  # singletons
+                                tensors_list.append(
+                                    torch.tensor(2).cuda().type_as(
+                                        tensor_on_worker)
+                                )
+                            else:  # non-singletons
+                                tensors_list.append(torch.empty(
+                                    mx_dim.cpu().data.numpy().tolist()).cuda()
+                                    .type_as(
+                                    tensor_on_worker))
+
+                        if mx_dim is not None:
+                            t_to_send = self.pad_tensor(tensor_on_worker,
+                                                        mx_dim)
+                        else:
+                            t_to_send = tensor_on_worker
+                        dist.all_gather(tensors_list, t_to_send)
+                        tensors_list = [
+                            self.depad_tensor(t, size)
+                            for t, size in zip(tensors_list, sizes)
+                        ]
+                        if self.local_rank == 0:
+                            values_dict[key] += tensors_list
+                    else:  # NON-DISTRIBUTED TRAINING
+                        values_dict[key] += [registered_e_tensors[key]]
+
+            if not is_distributed or self.local_rank == 0:
+                inferred_tensors = []
+                for t in tensors_to_return:
+                    inferred_tensors.append(values_dict[t.unique_name])
+                return inferred_tensors
+
+            # For all other ranks
+            return None
+
     def save_state_to(self, path: str):
         """
         Saves current state such as step, epoch and optimizer parameters
@@ -546,8 +811,7 @@ class PtActions(Actions):
         state = {
             "step": self.step,
             "epoch_num": self.epoch_num,
-            "optimizer_state": self.optimizer.state_dict() if self.optimizer
-            else None,
+            "optimizer_state": [opt.state_dict() for opt in self.optimizers],
         }
         torch.save(state, path)
 
@@ -567,67 +831,202 @@ class PtActions(Actions):
             checkpoint = torch.load(path, map_location="cpu")
             self.step = checkpoint["step"]
             self.epoch_num = checkpoint["epoch_num"]
-            if checkpoint["optimizer_state"] is not None:
-                self.optimizer.load_state_dict(checkpoint["optimizer_state"])
+            if checkpoint["optimizer_state"]:
+                for opt, opt_chkpt in zip(
+                        self.optimizers, checkpoint["optimizer_state"]):
+                    opt.load_state_dict(opt_chkpt)
         else:
             raise FileNotFoundError(
                 "Could not find checkpoint file: {0}".format(path))
 
+    @staticmethod
+    def _check_all_tensors(list_of_tensors):
+        """Method that checks if the passed list contains all NmTensors
+        """
+        if not isinstance(list_of_tensors, list):
+            return False
+        for tensor in list_of_tensors:
+            if not isinstance(tensor, NmTensor):
+                return False
+        return True
+
+    @staticmethod
+    def _check_tuples(list_of_tuples):
+        """Method that checks if the passed tuple contains an optimizer in the
+        first element, and a list of NmTensors in the second.
+        """
+        for tup in list_of_tuples:
+            if not (isinstance(tup[0], torch.optim.Optimizer)
+                    and PtActions._check_all_tensors(tup[1])):
+                return False
+        return True
+
+    def _get_all_modules(
+            self, training_loop, callbacks, logging_callchain=None):
+        """Gets all neural modules that will be used by train() and eval() via
+        EvaluatorCallbacks. Saves all modules to self.modules
+        """
+        # If there is a SimpleLossLoggerCallback, create an logger_callchain
+        # with all callchains from training_loop and
+        # SimpleLossLoggerCallback.tensors
+        if logging_callchain:
+            for module in logging_callchain:
+                self.modules.add(module[0])
+
+        # Else grab all callchains from training_loop
+        else:
+            for step in training_loop:
+                for module in step[2]:
+                    self.modules.add(module[0])
+
+        # Lastly, grab all eval modules
+        if callbacks is not None:
+            for callback in callbacks:
+                if isinstance(callback, EvaluatorCallback):
+                    callchain, _ = \
+                        self.__get_top_sorted_modules_and_dataloader(
+                            hook=callback.eval_tensors)
+                    for module in callchain:
+                        self.modules.add(module[0])
+
     def train(
             self,
-            tensors_to_optimize: List[NmTensor],
-            tensors_to_evaluate: Optional[List[NmTensor]] = None,
+            tensors_to_optimize,
+            optimizer=None,
+            optimization_params=None,
             callbacks: Optional[List[ActionCallback]] = None,
             lr_policy=None,
             batches_per_step=None,
             stop_on_nan_loss=False
     ):
-        if len(tensors_to_optimize) != 1:
-            raise NotImplementedError(
-                "Currently we can only optimize single loss")
+        if not optimization_params:
+            optimization_params = {}
+        num_epochs = optimization_params.get("num_epochs", 1)
+        max_steps = optimization_params.get("max_steps", None)
+        grad_norm_clip = optimization_params.get('grad_norm_clip', None)
+
         if batches_per_step is None:
             batches_per_step = 1
         # this is necessary because we average gradients over batch
-        bps_scale = torch.FloatTensor([1.0/batches_per_step])
+        bps_scale = torch.FloatTensor([1.0 / batches_per_step])
 
-        # Parse graph into a topologically sorted sequence of neural
-        # modules' calls
-        opt_call_chain, t_dataset = \
-            self.__get_top_sorted_modules_and_dataloader(
-                hook=tensors_to_optimize
-            )
-        opteval_call_chain = None
-        if tensors_to_evaluate is not None:
-            opteval_call_chain, _ = \
+        if tensors_to_optimize is None:
+            # This is Evaluation Mode
+            self._init_callbacks(callbacks)
+            # Do action start callbacks
+            self._perform_on_action_end(callbacks=callbacks)
+            return
+        # Check if tensors_to_optimize is just a list of NmTensors
+        elif tensors_to_optimize is not None and (
+                isinstance(tensors_to_optimize[0],
+                           NmTensor) and PtActions._check_all_tensors(
+                tensors_to_optimize)):
+            # Parse graph into a topologically sorted sequence of neural
+            # modules' calls
+            opt_call_chain, t_dataset = \
                 self.__get_top_sorted_modules_and_dataloader(
-                    hook=tensors_to_optimize + tensors_to_evaluate
+                    hook=tensors_to_optimize
                 )
 
-        # Extract trainable weights which will be optimized
-        params_list = [p[0].parameters() for p in opt_call_chain if
-                       p[0].is_trainable()]
-        params_to_optimize = itertools.chain(*params_list)
+            # Extract trainable weights which will be optimized
+            params_list = [
+                p[0].parameters() for p in opt_call_chain
+                if isinstance(p[0], TrainableNM) or p[0].is_trainable()
+            ]
+            params_to_optimize = itertools.chain(*params_list)
 
-        # Setup optimizer instance. By default it is SGD
-        optimizer_instance = self._parameters.get("optimizer_instance", None)
-        optimizer_class = self._parameters.get("optimizer_kind", "sgd")
-        optimization_params = self._parameters.get(
-            "optimization_params", {"lr": 0.0003}
-        )
-        grad_norm_clip = optimization_params.get('grad_norm_clip', None)
-        num_epochs = optimization_params.get("num_epochs", 1)
-        max_steps = optimization_params.get("max_steps", None)
-        self.optimizer, opt_call_chain = self.__setup_optimizer(
-            optimizer_instance=optimizer_instance,
-            optimizer_class=optimizer_class,
-            optimization_params=optimization_params,
-            params_to_optimize=params_to_optimize,
-            call_chain=opt_call_chain,
-            optim_level=self._optim_level,
-        )
+            # Setup optimizer instance. By default it is SGD
+            optimizer_instance = None
+            optimizer_class = None
+            if isinstance(optimizer, str):
+                optimizer_class = optimizer
+            elif isinstance(optimizer, torch.optim.optimizer):
+                optimizer_instance = optimizer
+            else:
+                raise ValueError("optimizer was not understood")
+            optimizer = self.__setup_optimizer(
+                optimizer_instance=optimizer_instance,
+                optimizer_class=optimizer_class,
+                optimization_params=optimization_params,
+                params_to_optimize=params_to_optimize,
+            )
 
-        dataNM = opt_call_chain[0][0]
+            training_loop = [
+                (optimizer, tensors_to_optimize, opt_call_chain)
+            ]
+
+            self.optimizers.append(optimizer)
+            assert len(self.optimizers) == 1, \
+                ("There was more than one optimizer, was create_optimizer() "
+                 "called before train()?")
+
+        elif PtActions._check_tuples(tensors_to_optimize):
+            if batches_per_step != 1:
+                raise ValueError("Gradient accumlation with multiple "
+                                 "optimizers is not supported")
+            datasets = []
+            training_loop = []
+            for step in tensors_to_optimize:
+                step_call_chain, dataset = \
+                    self.__get_top_sorted_modules_and_dataloader(
+                        hook=step[1]
+                    )
+                datasets.append(dataset)
+                training_loop.append(
+                    (step[0], step[1], step_call_chain))
+
+            t_dataset = datasets[0]
+            for dataset in datasets:
+                if type(dataset) is not type(t_dataset):
+                    raise ValueError(
+                        "There were two training datasets, we only support 1.")
+        else:
+            raise ValueError("tensors_to_optimize was not understood")
+
+        logging_callchain = None
+        # callbacks setup
+        if callbacks is not None:
+            for callback in callbacks:
+                if not isinstance(callback, ActionCallback):
+                    raise ValueError("A callback was received that was not a "
+                                     "child of ActionCallback")
+                elif isinstance(callback, SimpleLossLoggerCallback):
+                    if logging_callchain:
+                        raise ValueError("We only support one logger callback "
+                                         "but more than one were found")
+                    logger_step_freq = callback._step_freq
+                    logging_tensors = callback.tensors
+                    all_tensors = logging_tensors
+                    for step in training_loop:
+                        all_tensors = all_tensors + step[1]
+                    logging_callchain, _ = \
+                        self.__get_top_sorted_modules_and_dataloader(
+                            hook=all_tensors)
+
+        self._get_all_modules(training_loop, callbacks, logging_callchain)
+
+        # Intialize Amp if needed
+        if self._optim_level in AmpOptimizations:
+            # Store mapping of self.optimizers to optimizer in callchain
+            training_loop_opts = []
+            for opt in training_loop:
+                training_loop_opts.append(self.optimizers.index(opt[0]))
+            self.optimizers = self.__initialize_amp(
+                optimizer=self.optimizers,
+                optim_level=self._optim_level,
+                amp_min_loss_scale=optimization_params.get(
+                    'amp_min_loss_scale', 1.0))
+            # Use stored mapping to map amp_init opts to training loop
+            for i, step in enumerate(training_loop):
+                training_loop[i] = (
+                    self.optimizers[training_loop_opts[i]], step[1], step[2])
+
+        dataNM = training_loop[0][2][0][0]
         if dataNM.placement == DeviceType.AllGpu:
+            if len(training_loop) > 1:
+                raise NotImplementedError(
+                    "Distributed training does nor work with multiple "
+                    "optimizers")
             print("Doing distributed training")
             if t_dataset is not None:
                 train_sampler = \
@@ -673,32 +1072,8 @@ class PtActions(Actions):
                 train_dataloader = dataNM.data_iterator
                 train_sampler = None
 
-        data_layer_output_port_names = opt_call_chain[0][0]._output_ports\
-            .keys()
-        eval_tensors_debug_freq = 1000000000
-
-        # callbacks setup
-        if callbacks is not None:
-            for callback in callbacks:
-                if isinstance(callback, EvaluatorCallback):
-                    callback.__setattr__("_compute_callback", self._eval)
-                elif isinstance(callback, SimpleLossLoggerCallback):
-                    eval_tensors_debug_freq = min(callback._step_frequency,
-                                                  eval_tensors_debug_freq)
-                elif isinstance(callback, CheckpointCallback):
-                    callback.__setattr__("call_chain", opt_call_chain)
-                    callback.__setattr__("action", self)
-                elif isinstance(callback, (ModuleSaverCallback,
-                                           ValueSetterCallback)):
-                    pass
-                else:
-                    raise TypeError("Callback of unknown type")
-        # Register action start with callbacks
-        self._fill_callbacks(
-            callbacks=callbacks,
-            tensors_to_optimize=tensors_to_optimize,
-            tensors_to_evaluate=tensors_to_evaluate,
-        )
+        self._init_callbacks(callbacks)
+        # Do action start callbacks
         self._perform_on_action_start(callbacks=callbacks)
 
         # MAIN TRAINING LOOP
@@ -711,28 +1086,20 @@ class PtActions(Actions):
                 break
 
             # Register epochs start with callbacks
-            self._fill_callbacks(
-                callbacks=callbacks,
-                tensors_to_optimize=tensors_to_optimize,
-                tensors_to_evaluate=tensors_to_evaluate,
-            )
             self._perform_on_epoch_start(callbacks=callbacks)
 
             # iteration over batches in epoch
             batch_counter = 0
-            for epoch_i, data in enumerate(train_dataloader, 0):
+            for _, data in enumerate(train_dataloader, 0):
                 if max_steps is not None and self.step >= max_steps:
                     break
 
                 if batch_counter == 0:
                     # Started step, zero gradients
-                    self.optimizer.zero_grad()
+                    curr_optimizer = training_loop[
+                        self.step % len(training_loop)][0]
+                    curr_optimizer.zero_grad()
                     # Register iteration start with callbacks
-                    self._fill_callbacks(
-                        callbacks=callbacks,
-                        tensors_to_optimize=tensors_to_optimize,
-                        tensors_to_evaluate=tensors_to_evaluate,
-                    )
                     self._perform_on_iteration_start(callbacks=callbacks)
 
                 # set learning rate policy
@@ -740,16 +1107,20 @@ class PtActions(Actions):
                     adjusted_lr = lr_policy(
                         optimization_params["lr"], self.step, self.epoch_num
                     )
-                    for param_group in self.optimizer.param_groups:
+                    for param_group in curr_optimizer.param_groups:
                         param_group["lr"] = adjusted_lr
                 if self.tb_writer is not None:
-                    value = self.optimizer.param_groups[0]['lr']
+                    value = curr_optimizer.param_groups[0]['lr']
                     self.tb_writer.add_scalar('param/lr', value, self.step)
 
                 # registered_tensors will contain created tensors
                 # named by output port and uuid of module which created them
                 # Get and properly name tensors returned by data layer
-                dl_device = opt_call_chain[0][0]._device
+                curr_call_chain = training_loop[
+                    self.step % len(training_loop)][2]
+                dl_device = curr_call_chain[0][0]._device
+                if logging_callchain and self.step % logger_step_freq == 0:
+                    curr_call_chain = logging_callchain
                 tensors = []
                 if isinstance(data, torch.Tensor):
                     data = (data,)
@@ -767,62 +1138,46 @@ class PtActions(Actions):
                     else:
                         tensors.append(d)
 
-                registered_tensors = dict(
-                    zip(
-                        [
-                            _add_uuid_2_name(dl_port_name,
-                                             opt_call_chain[0][0]._uuid)
-                            for dl_port_name in data_layer_output_port_names
-                        ],
-                        tensors,
-                    )
+                registered_tensors = {
+                    t.unique_name: d for t, d in
+                    zip(curr_call_chain[0][2].values(), tensors)
+                    if t is not None
+                }
+                self.__nm_graph_forward_pass(
+                    call_chain=curr_call_chain,
+                    registered_tensors=registered_tensors
                 )
 
-                # Run opteval_call_chain as needed, otherwise run
-                # opt_call_chain
-                if (
-                        self.step % eval_tensors_debug_freq == 0
-                        and opteval_call_chain is not None
-                ):
-                    self.__nm_graph_forward_pass(
-                        call_chain=opteval_call_chain,
-                        registered_tensors=registered_tensors,
-                    )
-                else:
-                    self.__nm_graph_forward_pass(
-                        call_chain=opt_call_chain,
-                        registered_tensors=registered_tensors
-                    )
-
-                tto_len = len(tensors_to_optimize)
+                curr_tensors_to_optimize = training_loop[
+                    self.step % len(training_loop)][1]
+                tto_len = len(curr_tensors_to_optimize)
                 for ind in range(tto_len):
-                    registered_name = tensors_to_optimize[ind].unique_name
+                    tensor_name = curr_tensors_to_optimize[ind].unique_name
                     if self._optim_level in AmpOptimizations and ind == \
                             tto_len - 1:
                         with amp.scale_loss(
-                                registered_tensors[registered_name],
-                                self.optimizer
+                                registered_tensors[tensor_name],
+                                curr_optimizer
                         ) as scaled_loss:
                             if torch.isnan(scaled_loss).any():
                                 if stop_on_nan_loss:
                                     raise ValueError('Loss is NaN exiting')
-                                else:
-                                    print('WARNING: Loss is NaN')
-                                    self.optimizer.zero_grad()
+                                print('WARNING: Loss is NaN')
+                                curr_optimizer.zero_grad()
                             scaled_loss.backward(
                                 bps_scale.to(scaled_loss.get_device()))
                     else:
-                        if torch.isnan(registered_tensors[registered_name])\
-                                .any():
+                        if torch.isnan(registered_tensors[tensor_name]).any():
                             if stop_on_nan_loss:
                                 raise ValueError('Loss is NaN exiting')
-                            else:
-                                print('WARNING: Loss is NaN')
-                                self.optimizer.zero_grad()
+                            print('WARNING: Loss is NaN')
+                            curr_optimizer.zero_grad()
+                            break
 
-                        registered_tensors[registered_name].backward(
-                            bps_scale.to(registered_tensors[
-                                             registered_name].get_device()))
+                        registered_tensors[tensor_name].backward(
+                            bps_scale.to(
+                                registered_tensors[tensor_name].get_device()),
+                            retain_graph=(ind != tto_len - 1))
 
                 batch_counter += 1
 
@@ -830,14 +1185,12 @@ class PtActions(Actions):
                     # Ended step. Do optimizer update
                     if grad_norm_clip is not None:
                         torch.nn.utils.clip_grad_norm_(
-                            amp.master_params(self.optimizer), grad_norm_clip)
-                    self.optimizer.step()
+                            amp.master_params(curr_optimizer), grad_norm_clip)
+                    curr_optimizer.step()
                     batch_counter = 0
                     # Register iteration end with callbacks
-                    self._fill_callbacks(
+                    self._update_callbacks(
                         callbacks=callbacks,
-                        tensors_to_optimize=tensors_to_optimize,
-                        tensors_to_evaluate=tensors_to_evaluate,
                         registered_tensors=registered_tensors,
                     )
                     self._perform_on_iteration_end(callbacks=callbacks)
@@ -845,25 +1198,16 @@ class PtActions(Actions):
             # End of epoch for loop
 
             # Register epochs end with callbacks
-            self._fill_callbacks(
-                callbacks=callbacks,
-                tensors_to_optimize=tensors_to_optimize,
-                tensors_to_evaluate=tensors_to_evaluate,
-            )
             self._perform_on_epoch_end(callbacks=callbacks)
-        self._fill_callbacks(
-            callbacks=callbacks,
-            tensors_to_optimize=tensors_to_optimize,
-            tensors_to_evaluate=tensors_to_evaluate,
-        )
         self._perform_on_action_end(callbacks=callbacks)
 
-    def infer(self, callback, checkpoint_dir=None, ckpt_pattern=''):
+    def infer(self, tensors, checkpoint_dir=None, ckpt_pattern='',
+              logger=None):
 
         if checkpoint_dir:
             # Find all modules that need to be restored
             call_chain, _ = self.__get_top_sorted_modules_and_dataloader(
-                hook=callback.eval_tensors
+                hook=tensors
             )
             modules_to_restore = []
             modules_to_restore_name = []
@@ -877,6 +1221,8 @@ class PtActions(Actions):
             )
 
             for mod, checkpoint in zip(modules_to_restore, module_checkpoints):
+                if logger:
+                    logger.info(f"Restoring {mod} from {checkpoint}")
                 mod.restore_from(checkpoint, self._local_rank)
 
             # Init Amp
@@ -891,17 +1237,10 @@ class PtActions(Actions):
 
                 amp.initialize(
                     min_loss_scale=1.0,
-                    max_loss_scale=8192.0,
                     models=pt_modules,
                     optimizers=None,
                     opt_level=AmpOptimizations[self._optim_level],
                 )
 
         # Run infer
-        self._eval(callback.eval_tensors, callback, step=0, verbose=True)
-
-        evaluated_tensors = []
-        for tensor in callback.eval_tensors:
-            evaluated_tensors.append(
-                callback._global_var_dict[tensor.unique_name])
-        return evaluated_tensors
+        return self._infer(tensors_to_return=tensors, step=0, verbose=True)

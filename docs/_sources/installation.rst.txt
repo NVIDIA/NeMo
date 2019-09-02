@@ -13,7 +13,7 @@ Installation
 6) (Recommended for distributed training) `NCCL <https://github.com/NVIDIA/nccl/>`_ >= 2.4
 
 
-**Installing NEMO and Collections**
+**Installing NeMo and Collections**
 
 1) Clone the repository:
 
@@ -23,7 +23,7 @@ Installation
 
 2) Go to ``nemo`` folder and do: ``python setup.py install``
 
-3) Run unittests to validate instalation:
+3) Run unittests to validate installation:
 
 .. code-block:: bash
 
@@ -40,6 +40,4 @@ Installation
 For development do: ``python setup.py develop`` instead of ``python setup.py install``
 
 5) Go to ``examples/start_here`` to get started with few simple examples
-
-
 

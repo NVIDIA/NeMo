@@ -1,7 +1,7 @@
-NEMO Common Collection
+NeMo Common Collection
 ======================
 
-NEMO core package comes with "common" collection for pytorch built-in:
+NeMo core package comes with "common" collection for pytorch built-in:
 
 .. automodule:: nemo.backends.pytorch.common.data
     :members:

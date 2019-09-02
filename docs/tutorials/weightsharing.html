@@ -99,12 +99,14 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html">Callbacks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="complex_training.html">Complex Training Pipelines (GAN Example)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NEMO Collections API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -180,10 +182,10 @@
 <p>The idea is to re-use neural modules between training, evaluation and inference graphs.
 For example:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="o">...</span>
-<span class="n">train_dataloader</span><span class="o">=</span><span class="n">nf</span><span class="o">.</span><span class="n">get_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;TrainDataLayer&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">train_config</span><span class="p">)</span>
-<span class="n">eval_dataloader</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">get_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;EvalDataLayer&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">eval_config</span><span class="p">)</span>
+<span class="n">train_dataloader</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">TrainDataLayer</span><span class="p">(</span><span class="o">**</span><span class="n">train_config</span><span class="p">)</span>
+<span class="n">eval_dataloader</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">EvalDataLayer</span><span class="p">(</span><span class="o">**</span><span class="n">eval_config</span><span class="p">)</span>
 
-<span class="n">L</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">get_module</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;MaskedXEntropyLoss&quot;</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{})</span>
+<span class="n">L</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">MaskedXEntropyLoss</span><span class="p">()</span>
 
 <span class="c1"># training model</span>
 

@@ -29,7 +29,7 @@ num_epochs = args.num_epochs
 num_gpus = args.num_gpus
 weight_decay = args.weight_decay
 if args.optimization_level is None or args.optimization_level == 0:
-    opt_level = nemo.core.Optimization.nothing
+    opt_level = nemo.core.Optimization.mxprO0
 elif args.optimization_level == 1:
     opt_level = nemo.core.Optimization.mxprO1
 elif args.optimization_level == 2:
@@ -162,9 +162,9 @@ print('================================')
 
 # Callbacks needed to print info to console and Tensorboard
 train_callback = nemo.core.SimpleLossLoggerCallback(
-    tensor_list2string=lambda x: str(x[0].item()),
-    tensorboard_writer=tb_writer,
-    tensor_list2string_evl=lambda x: monitor_asr_train_progress(x, labels=labels))
+    tensor_list2str=lambda x: str(x[0].item()),
+    tb_writer=tb_writer,
+    tensor_list2str_evl=lambda x: monitor_asr_train_progress(x, labels=labels))
 
 eval_callback1 = nemo.core.EvaluatorCallback(
     eval_tensors=[loss_e1, predictions_e1, transcript_e1, transcript_len_e1],
@@ -173,7 +173,7 @@ eval_callback1 = nemo.core.EvaluatorCallback(
     user_epochs_done_callback=lambda x: process_evaluation_epoch(x,
                                                                  tag="DEV-CLEAN"),
     eval_step=500,
-    tensorboard_writer=tb_writer)
+    tb_writer=tb_writer)
 
 
 def lr_policy(initial_lr, step, N):

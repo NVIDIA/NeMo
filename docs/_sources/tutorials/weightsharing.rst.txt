@@ -12,10 +12,10 @@ For example:
 .. code-block:: python
 
     ...
-    train_dataloader=nf.get_module(name="TrainDataLayer", params=train_config)
-    eval_dataloader = nf.get_module(name="EvalDataLayer", params=eval_config)
+    train_dataloader = nemo.TrainDataLayer(**train_config)
+    eval_dataloader = nemo.EvalDataLayer(**eval_config)
 
-    L = nf.get_module(name="MaskedXEntropyLoss", params={})
+    L = nemo.MaskedXEntropyLoss()
 
     # training model
 
