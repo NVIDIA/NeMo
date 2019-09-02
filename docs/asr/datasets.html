@@ -96,14 +96,17 @@
 <li class="toctree-l3"><a class="reference internal" href="#mozilla-common-voice">Mozilla Common Voice</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wsj">WSJ</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#switchboard-and-callhome">Switchboard and CallHome</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fisher-english-training-speech">Fisher English Training Speech</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#hub5-english-evaluation-speech">2000 HUB5 English Evaluation Speech</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#building-your-own-dataset">Building Your Own Dataset</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="models.html">Models</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NEMO Collections API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -201,6 +204,72 @@ python get_librispeech_data.py --data_root<span class="o">=</span>data --data_se
 <div class="section" id="switchboard-and-callhome">
 <h2>Switchboard and CallHome<a class="headerlink" href="#switchboard-and-callhome" title="Permalink to this headline">¶</a></h2>
 <p>coming soon …</p>
+</div>
+<div class="section" id="fisher-english-training-speech">
+<h2>Fisher English Training Speech<a class="headerlink" href="#fisher-english-training-speech" title="Permalink to this headline">¶</a></h2>
+<p>Run these scripts to convert the Fisher English Training Speech data into a format expected by the <cite>nemo_asr</cite> collection.</p>
+<p>In brief, the following scripts convert the .sph files to .wav, slice those files into smaller audio samples, match the smaller slices with their corresponding transcripts, and split the resulting audio segments into train, validation, and test sets (with one manifest each).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You will need at least 106GB of space to run the .wav conversion, and an additional 105GB for the slicing and matching.
+You will need to have sph2pipe installed in order to run the .wav conversion.</p>
+</div>
+<p><strong>Instructions</strong></p>
+<p>These scripts assume that you already have the Fisher dataset from the Linguistic Data Consortium, with a directory structure that looks something like this:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>FisherEnglishTrainingSpeech/
+├── LDC2004S13-Part1
+│   ├── fe_03_p1_transcripts
+│   ├── fisher_eng_tr_sp_d1
+│   ├── fisher_eng_tr_sp_d2
+│   ├── fisher_eng_tr_sp_d3
+│   └── ...
+└── LDC2005S13-Part2
+    ├── fe_03_p2_transcripts
+    ├── fe_03_p2_sph1
+    ├── fe_03_p2_sph2
+    ├── fe_03_p2_sph3
+    └── ...
+</pre></div>
+</div>
+<p>The transcripts that will be used are located in <cite>fe_03_p&lt;1,2&gt;_transcripts/data/trans</cite>, and the audio files (.sph) are located in the remaining directories in an <cite>audio</cite> subdirectory.</p>
+<p>First, convert the audio files from .sph to .wav by running:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> &lt;nemo_root&gt;/scripts
+python fisher_audio_to_wav.py <span class="se">\</span>
+  --data_root<span class="o">=</span>&lt;fisher_root&gt; --dest_root<span class="o">=</span>&lt;conversion_target_dir&gt;
+</pre></div>
+</div>
+<p>This will place the unsliced .wav files in <cite>&lt;conversion_target_dir&gt;/LDC200[4,5]S13-Part[1,2]/audio-wav/</cite>.
+It will take several minutes to run.</p>
+<p>Next, process the transcripts and slice the audio data:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python process_fisher_data.py <span class="se">\</span>
+  --audio_root<span class="o">=</span>&lt;conversion_target_dir&gt; --transcript_root<span class="o">=</span>&lt;fisher_root&gt; <span class="se">\</span>
+  --dest_root<span class="o">=</span>&lt;processing_target_dir&gt; <span class="se">\</span>
+  --remove_noises
+</pre></div>
+</div>
+<p>This script will split the full dataset into train, validation, and test sets, and place the audio slices in the corresponding folders in the destination directory.
+One manifest will be written out per set, which includes each slice’s transcript, duration, and path.</p>
+<p>This will likely take around 20 minutes to run.
+Once finished, you may delete the 10 minute long .wav files if you wish.</p>
+</div>
+<div class="section" id="hub5-english-evaluation-speech">
+<h2>2000 HUB5 English Evaluation Speech<a class="headerlink" href="#hub5-english-evaluation-speech" title="Permalink to this headline">¶</a></h2>
+<p>Run the following script to convert the HUB5 data into a format expected by the <cite>nemo_asr</cite> collection.</p>
+<p>Similarly to the Fisher dataset processing scripts, this script converts the .sph files to .wav, slices the audio files and transcripts into utterances, and combines them into segments of some minimum length (default is 10 seconds).
+The resulting segments are all written out to an audio directory, and the corresponding transcripts are written to a manifest JSON.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You will need 5GB of free space to run this script.
+You will also need to have sph2pipe installed.</p>
+</div>
+<p>This script assumes you already have the 2000 HUB5 dataset from the Linguistic Data Consortium.</p>
+<p>Run the following to process the 2000 HUB5 English Evaluation Speech samples:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python process_hub5_data.py <span class="se">\</span>
+  --data_root<span class="o">=</span>&lt;path_to_HUB5_data&gt; <span class="se">\</span>
+  --dest_root<span class="o">=</span>&lt;target_dir&gt;
+</pre></div>
+</div>
+<p>You may optionally include <cite>–min_slice_duration=&lt;num_seconds&gt;</cite> if you would like to change the minimum audio segment duration.</p>
 </div>
 <div class="section" id="building-your-own-dataset">
 <h2>Building Your Own Dataset<a class="headerlink" href="#building-your-own-dataset" title="Permalink to this headline">¶</a></h2>

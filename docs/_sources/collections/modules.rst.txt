@@ -1,6 +1,6 @@
 .. _collection-docs:
 
-NEMO Collections API
+NeMo Collections API
 ====================
 
 .. toctree::

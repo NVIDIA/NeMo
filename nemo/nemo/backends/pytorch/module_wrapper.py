@@ -24,7 +24,7 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
         self._input_ports = input_ports_dict
         self._output_ports = output_ports_dict
         self._device = t.device(
-            "cuda" if self.placement == DeviceType.GPU or DeviceType.AllGpu
+            "cuda" if self.placement in [DeviceType.GPU, DeviceType.AllGpu]
             else "cpu"
         )
         self._pt_module = pt_nn_module

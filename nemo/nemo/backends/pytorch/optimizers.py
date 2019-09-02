@@ -4,6 +4,15 @@ import torch
 from torch.optim import Optimizer
 
 
+def _check_valid_opt_params(lr, eps, betas):
+    if lr < 0:
+        raise ValueError(f"Invalid learning rate: {lr}")
+    if eps < 0:
+        raise ValueError(f"Invalid epsilon value: {eps}")
+    if not (0.0 <= betas[0] < 1.0 and 0.0 <= betas[1] < 1.0):
+        raise ValueError(f"Betas have to be between 0 and 1: {betas}")
+
+
 class AdamW(Optimizer):
     """Implements AdamW algorithm.
     It has been proposed in "Decoupled Weight Decay Regularization"
@@ -31,20 +40,12 @@ class AdamW(Optimizer):
             weight_decay=0,
             amsgrad=False,
     ):
-        if not 0.0 <= lr:
-            raise ValueError("Invalid learning rate: {}".format(lr))
-        if not 0.0 <= eps:
-            raise ValueError("Invalid epsilon value: {}".format(eps))
-        if not 0.0 <= betas[0] < 1.0:
-            raise ValueError(
-                "Invalid beta parameter at index 0: {}".format(betas[0]))
-        if not 0.0 <= betas[1] < 1.0:
-            raise ValueError(
-                "Invalid beta parameter at index 1: {}".format(betas[1]))
-        defaults = dict(
-            lr=lr, betas=betas, eps=eps, weight_decay=weight_decay,
-            amsgrad=amsgrad
-        )
+        _check_valid_opt_params(lr, eps, betas)
+        defaults = dict(lr=lr,
+                        betas=betas,
+                        eps=eps,
+                        weight_decay=weight_decay,
+                        amsgrad=amsgrad)
         super(AdamW, self).__init__(params, defaults)
 
     def __setstate__(self, state):
@@ -74,19 +75,17 @@ class AdamW(Optimizer):
                         "consider SparseAdam instead"
                     )
                 amsgrad = group["amsgrad"]
-
                 state = self.state[p]
 
                 # State initialization
-                if len(state) == 0:
+                if not state:
                     state["step"] = 0
                     # Exponential moving average of gradient values
                     state["exp_avg"] = torch.zeros_like(p.data)
                     # Exponential moving average of squared gradient values
                     state["exp_avg_sq"] = torch.zeros_like(p.data)
                     if amsgrad:
-                        # Maintains max of all exp. moving avg. of sq. grad.
-                        # values
+                        # Maintains max of all exp moving avg of squared grad
                         state["max_exp_avg_sq"] = torch.zeros_like(p.data)
 
                 exp_avg, exp_avg_sq = state["exp_avg"], state["exp_avg_sq"]
@@ -103,10 +102,9 @@ class AdamW(Optimizer):
                 exp_avg.mul_(beta1).add_(1 - beta1, grad)
                 exp_avg_sq.mul_(beta2).addcmul_(1 - beta2, grad, grad)
                 if amsgrad:
-                    # Maintains the maximum of all 2nd moment running avg.
-                    # till now
+                    # Maintains max of all 2nd moment running avg till now
                     torch.max(max_exp_avg_sq, exp_avg_sq, out=max_exp_avg_sq)
-                    # Use the max. for normalizing running avg. of gradient
+                    # Use the max. for normalizing running avg of gradient
                     denom = max_exp_avg_sq.sqrt().add_(group["eps"])
                 else:
                     denom = exp_avg_sq.sqrt().add_(group["eps"])
@@ -159,24 +157,13 @@ class Novograd(Optimizer):
             luc_trust=1e-3,
             luc_eps=1e-8,
     ):
-        if not 0.0 <= lr:
-            raise ValueError("Invalid learning rate: {}".format(lr))
-        if not 0.0 <= eps:
-            raise ValueError("Invalid epsilon value: {}".format(eps))
-        if not 0.0 <= betas[0] < 1.0:
-            raise ValueError(
-                "Invalid beta parameter at index 0: {}".format(betas[0]))
-        if not 0.0 <= betas[1] < 1.0:
-            raise ValueError(
-                "Invalid beta parameter at index 1: {}".format(betas[1]))
-        defaults = dict(
-            lr=lr,
-            betas=betas,
-            eps=eps,
-            weight_decay=weight_decay,
-            grad_averaging=grad_averaging,
-            amsgrad=amsgrad,
-        )
+        _check_valid_opt_params(lr, eps, betas)
+        defaults = dict(lr=lr,
+                        betas=betas,
+                        eps=eps,
+                        weight_decay=weight_decay,
+                        grad_averaging=grad_averaging,
+                        amsgrad=amsgrad)
         self.luc = luc
         self.luc_trust = luc_trust
         self.luc_eps = luc_eps
@@ -206,11 +193,10 @@ class Novograd(Optimizer):
                 if grad.is_sparse:
                     raise RuntimeError("Sparse gradients are not supported.")
                 amsgrad = group["amsgrad"]
-
                 state = self.state[p]
 
                 # State initialization
-                if len(state) == 0:
+                if not state:
                     state["step"] = 0
                     # Exponential moving average of gradient values
                     state["exp_avg"] = torch.zeros_like(p.data)
@@ -218,8 +204,7 @@ class Novograd(Optimizer):
                     state["exp_avg_sq"] = torch.zeros([]).to(
                         state["exp_avg"].device)
                     if amsgrad:
-                        # Maintains max of all exp. moving avg. of sq. grad.
-                        # values
+                        # Maintains max of all exp moving avg of squared grad
                         state["max_exp_avg_sq"] = torch.zeros([]).to(
                             state["exp_avg"].device
                         )
@@ -234,15 +219,14 @@ class Novograd(Optimizer):
                 norm = grad.norm().pow(2)
 
                 if exp_avg_sq == 0:
-                    exp_avg_sq = norm
+                    exp_avg_sq.copy_(norm)
                 else:
                     exp_avg_sq.mul_(beta2).add_(1 - beta2, norm)
 
                 if amsgrad:
-                    # Maintains the maximum of all 2nd moment running avg.
-                    # till now
+                    # Maintains max of all 2nd moment running avg till now
                     torch.max(max_exp_avg_sq, exp_avg_sq, out=max_exp_avg_sq)
-                    # Use the max. for normalizing running avg. of gradient
+                    # Use the max for normalizing running avg. of gradient
                     denom = max_exp_avg_sq.sqrt().add_(group["eps"])
                 else:
                     denom = exp_avg_sq.sqrt().add_(group["eps"])
@@ -259,7 +243,7 @@ class Novograd(Optimizer):
                     data_norm = torch.norm(p.data)
                     grad_norm = torch.norm(exp_avg.data)
                     luc_factor = self.luc_trust * data_norm / (
-                            grad_norm + self.luc_eps)
+                        grad_norm + self.luc_eps)
                     luc_factor = min(luc_factor, group["lr"])
                     p.data.add_(-luc_factor, exp_avg)
                 else:
@@ -287,16 +271,7 @@ class Lamb(Optimizer):
 
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-6,
                  weight_decay=0):
-        if not 0.0 <= lr:
-            raise ValueError("Invalid learning rate: {}".format(lr))
-        if not 0.0 <= eps:
-            raise ValueError("Invalid epsilon value: {}".format(eps))
-        if not 0.0 <= betas[0] < 1.0:
-            raise ValueError(
-                "Invalid beta parameter at index 0: {}".format(betas[0]))
-        if not 0.0 <= betas[1] < 1.0:
-            raise ValueError(
-                "Invalid beta parameter at index 1: {}".format(betas[1]))
+        _check_valid_opt_params(lr, eps, betas)
         defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
         super(Lamb, self).__init__(params, defaults)
 
@@ -323,7 +298,7 @@ class Lamb(Optimizer):
                 state = self.state[p]
 
                 # State initialization
-                if len(state) == 0:
+                if not state:
                     state['step'] = 0
                     # Exponential moving average of gradient values
                     state['exp_avg'] = torch.zeros_like(p.data)

@@ -28,7 +28,8 @@ def __ctc_decoder_predictions_tensor(tensor, labels):
     return hypotheses
 
 
-def monitor_asr_train_progress(tensors: list, labels: list, tb_logger=None):
+def monitor_asr_train_progress(tensors: list, labels: list, tb_logger=None,
+                               logger=None):
     """
     Takes output of greedy ctc decoder and performs ctc decoding algorithm to
     remove duplicates and special symbol. Prints sample to screen, computes
@@ -46,8 +47,8 @@ def monitor_asr_train_progress(tensors: list, labels: list, tb_logger=None):
     labels_map = dict([(i, labels[i]) for i in range(len(labels))])
     with torch.no_grad():
         # prediction_cpu_tensor = tensors[0].long().cpu()
-        targets_cpu_tensor = tensors[1].long().cpu()
-        tgt_lenths_cpu_tensor = tensors[2].long().cpu()
+        targets_cpu_tensor = tensors[2].long().cpu()
+        tgt_lenths_cpu_tensor = tensors[3].long().cpu()
 
         # iterate over batch
         for ind in range(targets_cpu_tensor.shape[0]):
@@ -56,14 +57,21 @@ def monitor_asr_train_progress(tensors: list, labels: list, tb_logger=None):
             reference = ''.join([labels_map[c] for c in target])
             references.append(reference)
         hypotheses = __ctc_decoder_predictions_tensor(
-            tensors[0], labels=labels)
+            tensors[1], labels=labels)
     tag = "training_batch_WER"
     wer = word_error_rate(hypotheses, references)
     if tb_logger is not None:
         tb_logger.add_scalar(tag, wer)
-    print('{0}: {1}'.format(tag, wer))
-    print('Prediction: {0}'.format(hypotheses[0]))
-    print('Reference: {0}'.format(references[0]))
+    if logger:
+        logger.info(f'Loss: {tensors[0]}')
+        logger.info(f'{tag}: {wer*100 : 5.2f}%')
+        logger.info(f'Prediction: {hypotheses[0]}')
+        logger.info(f'Reference: {references[0]}')
+    else:
+        print(f'Loss: {tensors[0]}')
+        print(f'{tag}: {wer*100 : 5.2f}%')
+        print(f'Prediction: {hypotheses[0]}')
+        print(f'Reference: {references[0]}')
 
 
 def __gather_losses(losses_list: list) -> list:
@@ -126,7 +134,7 @@ def process_evaluation_batch(tensors: dict, global_vars: dict, labels: list):
                                                        labels=labels)
 
 
-def process_evaluation_epoch(global_vars: dict, tag=None):
+def process_evaluation_epoch(global_vars: dict, tag=None, logger=None):
     """
     Calculates the aggregated loss and WER across the entire evaluation dataset
     """
@@ -136,14 +144,22 @@ def process_evaluation_epoch(global_vars: dict, tag=None):
 
     wer = word_error_rate(hypotheses=hypotheses, references=references)
     if tag is None:
-        print("==========>>>>>>Evaluation Loss: {0}".format(eloss))
-        print("==========>>>>>>Evaluation WER: {0}".format(wer))
-        return dict({"Evaluation Loss": eloss, "Evaluation WER": wer})
+        if logger:
+            logger.info(f"==========>>>>>>Evaluation Loss: {eloss}")
+            logger.info(f"==========>>>>>>Evaluation WER: {wer*100 : 5.2f}%")
+        else:
+            print(f"==========>>>>>>Evaluation Loss: {eloss}")
+            print(f"==========>>>>>>Evaluation WER: {wer*100 : 5.2f}%")
+        return {"Evaluation_Loss": eloss, "Evaluation_WER": wer}
     else:
-        print("==========>>>>>>Evaluation Loss {1}: {0}".format(eloss, tag))
-        print("==========>>>>>>Evaluation WER {1}: {0}".format(wer, tag))
-        return dict({"Evaluation Loss {0}".format(tag): eloss,
-                     "Evaluation WER {0}".format(tag): wer})
+        if logger:
+            logger.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
+            logger.info(f"==========>>>>>>Evaluation WER {tag}: "
+                        f"{wer*100 : 5.2f}%")
+        else:
+            print(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
+            print(f"==========>>>>>>Evaluation WER {tag}: {wer*100 : 5.2f}%")
+        return {f"Evaluation_Loss_{tag}": eloss, f"Evaluation_WER_{tag}": wer}
 
 
 def post_process_predictions(predictions, labels):

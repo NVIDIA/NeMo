@@ -86,4 +86,6 @@ class TextDataLayer(DataLayerNM):
         for i, s in enumerate(batch_list):
             texts[i].narrow(0, 0, s.size(0)).copy_(s)
 
+        assert len(texts.shape) == 2
+
         return texts

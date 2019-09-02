@@ -88,8 +88,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../collections/modules.html">NEMO Collections API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -163,6 +164,7 @@
 <span class="sd">of incompatible types.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="kn">from</span> <span class="nn">enum</span> <span class="k">import</span> <span class="n">Enum</span>
+<span class="kn">import</span> <span class="nn">uuid</span>
 
 
 <div class="viewcode-block" id="BaseTag"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_types.BaseTag">[docs]</a><span class="k">class</span> <span class="nc">BaseTag</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -446,6 +448,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_producer</span> <span class="o">=</span> <span class="n">producer</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_producer_args</span> <span class="o">=</span> <span class="n">producer_args</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_uuid</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">producer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -484,7 +487,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_producer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;This NmTensor does not have a unique name&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">+</span> <span class="s2">&quot;~~~&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">producer</span><span class="o">.</span><span class="n">_uuid</span></div>
+        <span class="k">return</span> <span class="n">f</span><span class="s2">&quot;</span><span class="si">{self._name}</span><span class="s2">~~~</span><span class="si">{self.producer}</span><span class="s2">~~~</span><span class="si">{self._uuid}</span><span class="s2">&quot;</span></div>
 
 
 <div class="viewcode-block" id="NeuralTypeError"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_types.NeuralTypeError">[docs]</a><span class="k">class</span> <span class="nc">NeuralTypeError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>

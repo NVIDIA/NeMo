@@ -35,9 +35,7 @@ class TrainableNM(NeuralModule, nn.Module):
         NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
         nn.Module.__init__(self)  # For PyTorch API
         self._device = t.device(
-            "cuda"
-            if self.placement == DeviceType.GPU or self.placement ==
-            DeviceType.AllGpu
+            "cuda" if self.placement in [DeviceType.GPU, DeviceType.AllGpu]
             else "cpu"
         )
 
@@ -68,9 +66,9 @@ class TrainableNM(NeuralModule, nn.Module):
     def tie_weights_with(self, module, weight_names,
                          name2name_and_transform=None):
         if module is None:
-            raise ValueError("Module with which to tie weights can't be None")
+            raise ValueError("Module to tie weights can't be None")
         if weight_names is None or len(weight_names) == 0:
-            raise ValueError("Please provide weigth names to tie")
+            raise ValueError("Please provide weight names to tie")
 
         if name2name_and_transform is None:
             for name in weight_names:
@@ -105,7 +103,7 @@ class TrainableNM(NeuralModule, nn.Module):
     def restore_from(self, path, local_rank=0):
         # self._pt_module.load_state_dict(t.load(path))
         if self.placement == DeviceType.AllGpu:
-            load_device = "cuda:{}".format(local_rank)
+            load_device = f"cuda:{local_rank}"
         else:
             load_device = self._device
         self.load_state_dict(t.load(path, map_location=load_device))
@@ -139,9 +137,7 @@ class NonTrainableNM(NeuralModule):
     def __init__(self, **kwargs):
         NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
         self._device = t.device(
-            "cuda"
-            if self.placement == DeviceType.GPU or self.placement ==
-            DeviceType.AllGpu
+            "cuda" if self.placement in [DeviceType.GPU, DeviceType.AllGpu]
             else "cpu"
         )
 
@@ -154,7 +150,7 @@ class NonTrainableNM(NeuralModule):
             return NeuralModule.__call__(self, **kwargs)
 
     def forward(self, *input):
-        r"""Defines the computation performed at every call.
+        """Defines the computation performed at every call.
 
         Should be overridden by all subclasses.
         """
@@ -354,8 +350,7 @@ class LossNM(NeuralModule):
         pass
 
     def __call__(self, force_pt=False, *input, **kwargs):
-        pt_call = force_pt
-        if pt_call:
+        if force_pt:
             return self._loss_function(**kwargs)
         else:
             return NeuralModule.__call__(self, **kwargs)

@@ -6,7 +6,7 @@ processing
 import torch
 from apex import amp
 
-from nemo.backends.pytorch.nm import DataLayerNM, NonTrainableNM
+from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM, NonTrainableNM
 from nemo.core import Optimization, DeviceType
 from nemo.core.neural_types import *
 from .parts.dataset import AudioDataset, seq_collate_fn
@@ -112,13 +112,12 @@ transcript_n}
             labels=labels,
             featurizer=self._featurizer, max_duration=max_duration,
             min_duration=min_duration, normalize=normalize_transcripts,
-            trim=trim_silence, verbose=self._master_process,
+            trim=trim_silence, logger=self._logger,
             eos_id=eos_id, load_audio=load_audio
         )
 
         if self._placement == DeviceType.AllGpu:
-            if self._master_process:
-                print('Parallelizing DATALAYER')
+            self._logger.info('Parallelizing DATALAYER')
             sampler = torch.utils.data.distributed.DistributedSampler(
                 self._dataset)
         else:
@@ -146,7 +145,7 @@ transcript_n}
         return self._dataloader
 
 
-class AudioPreprocessing(NonTrainableNM):
+class AudioPreprocessing(TrainableNM):
     """
     Neural Module that does batch processing of audio files and converts them
     to spectrogram representations
@@ -232,7 +231,7 @@ class AudioPreprocessing(NonTrainableNM):
             raise NotImplementedError("AudioPreprocessing currently only "
                                       "accepts 'fbank' or 'logfbank' as "
                                       "feat_type")
-        NonTrainableNM.__init__(self, **kwargs)
+        TrainableNM.__init__(self, **kwargs)
 
         self.featurizer = FilterbankFeatures(
             sample_rate=sample_rate,
@@ -248,14 +247,14 @@ class AudioPreprocessing(NonTrainableNM):
             dither=dither,
             pad_to=pad_to,
             frame_splicing=frame_splicing,
-            stft_conv=stft_conv
+            stft_conv=stft_conv,
+            logger=self._logger
         )
         # _pre_procesing_config = self.local_parameters
         # self.featurizer = FeatureFactory.from_config(_pre_procesing_config)
         self.featurizer.to(self._device)
 
-        stft_conv = kwargs.get("stft_conv", False)
-        self.disable_casts = (self._opt_level != Optimization.nothing and
+        self.disable_casts = (self._opt_level == Optimization.mxprO1 and
                               not stft_conv)
 
     def forward(self, input_signal, length):

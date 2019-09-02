@@ -5,8 +5,9 @@ import torch
 
 
 def compute_accuracy(tensors):
-    output = tensors[0]
-    target = tensors[1]
+    print(f"Train Loss: {str(tensors[0].item())}")
+    output = tensors[1]
+    target = tensors[2]
     res = []
     topk = (1,)
     with torch.no_grad():

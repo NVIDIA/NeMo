@@ -10,11 +10,4 @@ Getting started
    custommodules
    weightsharing
    callbacks
-
-
-
-
-
-
-
-
+   complex_training
