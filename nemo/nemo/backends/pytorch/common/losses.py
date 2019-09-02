@@ -16,6 +16,9 @@ class SequenceLoss(LossNM):
             Defaults to 0.
         smoothing_coef (float): Label smoothing coefficient in range [0, 1].
             Defaults to 0.0.
+        sample_wise (bool): Flag indicates if loss sum divisor should be batch
+            size.
+            Defaults to False.
         aux_ctc (bool): Whether to add auxiliary CTC loss.
             Defaults to False.
         ctc_initial_coef (float): Initial coefficient to multiply ctc component
@@ -45,7 +48,7 @@ class SequenceLoss(LossNM):
         }
         return input_ports, output_ports
 
-    def __init__(self, pad_id=0, smoothing_coef=0.0,
+    def __init__(self, pad_id=0, smoothing_coef=0.0, sample_wise=False,
                  aux_ctc=False, ctc_initial_coef=0.1, ctc_blank_id=None,
                  **kwargs):
         assert (not aux_ctc) or (ctc_blank_id is not None), \
@@ -55,6 +58,7 @@ class SequenceLoss(LossNM):
 
         self.pad_id = pad_id
         self.smoothing_coef = smoothing_coef
+        self.sample_wise = sample_wise
         self.aux_ctc = aux_ctc
         self.ctc_coef = ctc_initial_coef
 
@@ -84,11 +88,47 @@ class SequenceLoss(LossNM):
             + self.smoothing_coef * log_probs.mean(-1)
         pad_mask = pad_mask.float()
         loss = -torch.sum(loss * pad_mask)
-        loss = loss / (pad_mask.sum() + EPS)
+        if self.sample_wise:
+            loss /= target_log_probs.size(0)
+        else:
+            loss /= pad_mask.sum() + EPS
         return loss
 
     def _ctc_loss(self, log_probs, targets, pad_mask):
         lengths = pad_mask.sum(-1)
         loss = self.ctc(log_probs.transpose(0, 1), targets, lengths, lengths)
         loss = torch.mean(loss)
+        return loss
+
+
+class CrossEntropyLoss(LossNM):
+    """
+    CrossEntropyLoss
+
+    """
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "logits": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(ChannelTag)
+            }),
+            "labels": NeuralType({
+                0: AxisType(BatchTag),
+            })
+        }
+
+        output_ports = {
+            "loss": NeuralType(None),
+        }
+        return input_ports, output_ports
+
+    def __init__(self, **kwargs):
+        LossNM.__init__(self, **kwargs)
+        self._criterion = nn.CrossEntropyLoss()
+
+    def _loss_function(self,
+                       logits,
+                       labels):
+        loss = self._criterion(logits, labels)
         return loss

@@ -74,7 +74,7 @@ class AudioDataset(Dataset):
     def __init__(self, manifest_filepath, labels, featurizer,
                  max_duration=None,
                  min_duration=None, max_utts=0, normalize=True,
-                 trim=False, eos_id=None, verbose=False, load_audio=True):
+                 trim=False, eos_id=None, logger=False, load_audio=True):
         """
         Dataset that loads tensors via a json file containing paths to audio
         files, transcripts, and durations
@@ -112,8 +112,8 @@ class AudioDataset(Dataset):
         self.trim = trim
         self.eos_id = eos_id
         self.load_audio = load_audio
-        if verbose:
-            print(
+        if logger:
+            logger.info(
                 "Dataset loaded with {0:.2f} hours. Filtered {1:.2f} "
                 "hours.".format(
                     self.manifest.duration / 3600,

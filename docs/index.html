@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Welcome to NEMO! &mdash; nemo 0.1 documentation</title>
+  <title>Welcome to NeMo! &mdash; nemo 0.1 documentation</title>
   
 
   
@@ -89,8 +89,9 @@
 <li class="toctree-l1"><a class="reference internal" href="tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1"><a class="reference internal" href="collections/modules.html">NEMO Collections API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -137,7 +138,7 @@
     
       <li><a href="#">Docs</a> &raquo;</li>
         
-      <li>Welcome to NEMO!</li>
+      <li>Welcome to NeMo!</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -157,10 +158,10 @@
            <div itemprop="articleBody">
             
   <div class="section" id="welcome-to-nemo">
-<h1>Welcome to NEMO!<a class="headerlink" href="#welcome-to-nemo" title="Permalink to this headline">¶</a></h1>
+<h1>Welcome to NeMo!<a class="headerlink" href="#welcome-to-nemo" title="Permalink to this headline">¶</a></h1>
 <div class="toctree-wrapper compound">
 </div>
-<img alt="NEMO" class="align-center" src="_images/nemo-icon-256x256.png" />
+<img alt="NeMo" class="align-center" src="_images/nemo-icon-256x256.png" />
 <p>NEural MOdules (NeMo) is a high level toolkit for training AI applications using Neural Modules.
 NeMo comes with neural module collections for automatic speech recognition (ASR) and natural language processing (NLP).</p>
 <p>NeMo is built for fast training on GPUs. It provides:</p>
@@ -171,8 +172,18 @@ NeMo comes with neural module collections for automatic speech recognition (ASR)
 </ul>
 <div class="section" id="automatic-speech-recognition">
 <h2>Automatic Speech Recognition<a class="headerlink" href="#automatic-speech-recognition" title="Permalink to this headline">¶</a></h2>
-<p><a class="reference external" href="https://drive.google.com/file/d/1CF-buP_Y1qCAefzoyvOUCXl_3v2vO5P-/view?usp=sharing">A Short VIDEO walk-through about using NEMO to experiment with ASR systems.</a></p>
-<p><strong>You can use ``nemo_nlp`` collection to construct the following models</strong></p>
+<div class="section" id="video-walk-through">
+<h3>Video walk-through<a class="headerlink" href="#video-walk-through" title="Permalink to this headline">¶</a></h3>
+<p><a class="reference external" href="https://confluence.nvidia.com/display/AAD/Neural+Modules?preview=/163999167/299604998/nemo_for_asr.mp4">A short VIDEO walk-through about using NeMo for ASR.</a></p>
+<figure class="video_container">
+  <video controls="true" allowfullscreen="true">
+    <source src="https://confluence.nvidia.com/display/AAD/Neural+Modules?preview=/163999167/299604998/nemo_for_asr.mp4" type="video/mp4">
+  </video>
+</figure>
+<!-- blank line -->
+<br/></div>
+<div class="section" id="you-can-use-nemo-asr-collection-to-construct-the-following-models">
+<h3>You can use <code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code> collection to construct the following models<a class="headerlink" href="#you-can-use-nemo-asr-collection-to-construct-the-following-models" title="Permalink to this headline">¶</a></h3>
 <ul class="simple">
 <li><p>Jasper</p></li>
 <li><p>QuartzNet</p></li>
@@ -222,6 +233,7 @@ NeMo comes with neural module collections for automatic speech recognition (ASR)
 </tbody>
 </table>
 <p>For each model we provide training/fine-tuning recipe and pre-trained weights.</p>
+</div>
 </div>
 <div class="section" id="natural-language-processing">
 <h2>Natural Language Processing<a class="headerlink" href="#natural-language-processing" title="Permalink to this headline">¶</a></h2>

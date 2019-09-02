@@ -1,6 +1,6 @@
 import torch
 
-from nemo.backends.pytorch.nm import TrainableNM
+from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core.neural_types import NeuralType, AxisType, BatchTag, TimeTag, \
     ChannelTag
 
@@ -9,7 +9,7 @@ BIG_NUM = 1e+4
 
 
 # TODO: Validate, compare to `BeamSearch`
-class GreedySearch(TrainableNM):
+class GreedySearch(NonTrainableNM):
     """Greedy translation search.
 
     For encoder-decoder based models.
@@ -116,10 +116,11 @@ class BeamSearch(GreedySearch):
 
         self.beam_size = beam_size
 
-    @torch.no_grad()
     def forward(self, encoder_outputs=None):
         k = self.beam_size
+        fdtype = self.decoder.embedding.weight.dtype
         if self.batch_size is None:
+            encoder_outputs = encoder_outputs.to(fdtype)
             bs = encoder_outputs.size(0)
             # [BK]TC
             # encoder_output = encoder_output.repeat_interleave(k, 0)
@@ -134,13 +135,13 @@ class BeamSearch(GreedySearch):
             bs * k, 1,
             dtype=torch.long, device=self._device
         ).fill_(self.bos_id)  # [BK]1
-        scores = torch.zeros_like(predictions, dtype=torch.float)  # [BK]1
+        scores = torch.zeros_like(predictions, dtype=fdtype)  # [BK]1
         pad_profile = torch.zeros_like(predictions)  # [BK]1
         if encoder_outputs is not None:
             t = encoder_outputs.shape[1]
             # [BK]1T
             attention_weights = torch.empty(
-                bs * k, 1, t, device=self._device
+                bs * k, 1, t, dtype=fdtype, device=self._device
             ).fill_(1. / t)
         else:
             attention_weights = None

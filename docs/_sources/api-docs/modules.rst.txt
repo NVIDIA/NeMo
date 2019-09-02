@@ -1,4 +1,4 @@
-NEMO API
+NeMo API
 ========
 
 .. toctree::

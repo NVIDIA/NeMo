@@ -196,9 +196,12 @@ class FilterbankFeatures(nn.Module):
                  preemph=0.97,
                  nfilt=64, lowfreq=0, highfreq=None, log=True, dither=CONSTANT,
                  pad_to=16, max_duration=16.7,
-                 frame_splicing=1, stft_conv=False):
+                 frame_splicing=1, stft_conv=False, logger=None):
         super(FilterbankFeatures, self).__init__()
-        print("PADDING: {}".format(pad_to))
+        if logger:
+            logger.info(f"PADDING: {pad_to}")
+        else:
+            print(f"PADDING: {pad_to}")
 
         self.win_length = int(sample_rate * window_size)
         self.hop_length = int(sample_rate * window_stride)
@@ -206,7 +209,10 @@ class FilterbankFeatures(nn.Module):
         self.stft_conv = stft_conv
 
         if stft_conv:
-            print("STFT using conv")
+            if logger:
+                logger.info("STFT using conv")
+            else:
+                print("STFT using conv")
 
             # Create helper class to patch forward func for use with AMP
             class STFTPatch(STFT):

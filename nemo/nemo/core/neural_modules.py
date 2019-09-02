@@ -3,9 +3,11 @@
 import uuid
 import logging
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from enum import Enum
 from typing import Optional, Dict, Set, Tuple, List
 from inspect import getargvalues, stack
+from nemo.core import NeuralModuleFactory
 
 from .neural_factory import Optimization, DeviceType
 from .neural_types import CanNotInferResultNeuralType,\
@@ -22,10 +24,17 @@ class WeightShareTransform(Enum):
     TRANSPOSE = 1
 
 
+PretrainedModelInfo = namedtuple("PretrainedModleInfo",
+                                 ("pretrained_model_name", "description",
+                                  "parameters", "location"))
+
+
 class NeuralModule(ABC):
     """Abstract class that every Neural Module must inherit from.
 
     Args:
+        pretrained_model_name (str): name of pretrained model to use in order
+            to initialize this neural module
         create_port_args (dict): arguments that are passed to create_ports()
         factory (NeuralModuleFactory): :class:`NeuralModuleFactory` which
             created or which should mange this instance. Required for
@@ -37,12 +46,13 @@ class NeuralModule(ABC):
 
     def __init__(
             self, *,
+            pretrained_model_name=None,
             create_port_args=None,
             factory=None,
             placement=None,
             **kwargs
     ):
-
+        self._pretrained_model_name = pretrained_model_name
         self._local_parameters = self.update_local_params()
 
         if create_port_args is None:
@@ -50,13 +60,17 @@ class NeuralModule(ABC):
         self._input_ports, self._output_ports = self.create_ports(
             **create_port_args)
 
+        default_factory = NeuralModuleFactory.get_default_factory()
+        if (factory is None) and (default_factory is not None):
+            factory = default_factory
+
         # Set module properties from factory else use defaults
         self._placement = factory.placement if factory is not None\
             else DeviceType.GPU
         self._opt_level = factory.optim_level if factory is not None\
-            else Optimization.nothing
-        self._master_process = factory.master_process if factory is not None\
-            else True
+            else Optimization.mxprO0
+        self._logger = factory.logger if factory is not None\
+            else logging
 
         # Update module properties using overrides if overrides exist
         if placement is not None:
@@ -65,12 +79,16 @@ class NeuralModule(ABC):
         self._factory = factory
         self._uuid = str(uuid.uuid4())
 
-        if self._master_process and kwargs:
-            logging.warning(
+        if kwargs:
+            self._logger.warning(
                 "When constructing {}. The base "
                 "NeuralModule class received the following unused "
                 "arguments:".format(self.__class__.__name__))
-            logging.warning("{}".format(kwargs.keys()))
+            self._logger.warning("{}".format(kwargs.keys()))
+
+    @staticmethod
+    def pretrained_storage():
+        return ''
 
     def __call__(self, **kwargs):
         """This method allows objects to be called with their port names
@@ -171,6 +189,9 @@ class NeuralModule(ABC):
                 )
             return tuple(result)
 
+    def __str__(self):
+        return self.__class__.__name__
+
     @abstractmethod
     def get_weights(self) -> Optional[Dict[(str, bool)]]:
         """Returns NeuralModule's weights copy.
@@ -209,6 +230,22 @@ class NeuralModule(ABC):
           name2name_and_transform: mapping from name -> (name, transform)
         """
         pass
+
+    @staticmethod
+    def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:
+        """List all available pre-trained models (e.g. weights) for this NM.
+
+        Returns:
+            A list of PretrainedModelInfo tuples.
+            The pretrained_model_name field of the tuple can be used to
+            retrieve pre-trained model's weights (pass it as
+            pretrained_model_name argument to the module's constructor)
+        """
+        return None
+
+    def get_config_dict_and_checkpoint(self, pretrained_model_name):
+        """WARNING: This part is work in progress"""
+        return None
 
     @abstractmethod
     def tie_weights_with(

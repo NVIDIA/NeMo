@@ -5,10 +5,11 @@ import torch
 from ruamel.yaml import YAML
 
 from nemo.core.neural_types import *
-from tests.context import nemo,nemo_asr
+from .context import nemo, nemo_asr
+from .common_setup import NeMoUnitTest
 
 
-class TestZeroDL(unittest.TestCase):
+class TestZeroDL(NeMoUnitTest):
     labels = ["'", "a", "b", "c", "d", "e", "f", "g", "h",
               "i", "j", "k", "l", "m", "n", "o", "p", "q",
               "r", "s", "t", "u", "v", "w", "x", "y", "z", " "]
@@ -16,10 +17,11 @@ class TestZeroDL(unittest.TestCase):
     yaml = YAML(typ="safe")
 
     def setUp(self) -> None:
+        super().setUp()
         data_folder = "tests/data/"
         print("Looking up for test ASR data")
         if not os.path.exists(data_folder + "nemo_asr"):
-            print("Extracting ASR data to: {0}".format(data_folder + "nemo_asr"))
+            print(f"Extracting ASR data to: {data_folder + 'nemo_asr'}")
             tar = tarfile.open("tests/data/asr.tar.gz", "r:gz")
             tar.extractall(path=data_folder)
             tar.close()
@@ -29,33 +31,31 @@ class TestZeroDL(unittest.TestCase):
     def test_simple_train(self):
         print("Simplest train test with ZeroDL")
         neural_factory = nemo.core.neural_factory.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch)
+            backend=nemo.core.Backend.PyTorch, create_tb_writer=False)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
-        data_source = nemo.backends.pytorch.common.ZerosDataLayer(size=10000,
-                                                           dtype=torch.FloatTensor,
-                                                           batch_size=128,
-                                                           output_ports={
-                                                               "x": NeuralType({
-                                                                   0: AxisType(
-                                                                       BatchTag),
-                                                                   1: AxisType(
-                                                                       ChannelTag, dim=1)}),
-                                                               "y": NeuralType({
-                                                                   0: AxisType(
-                                                                       BatchTag),
-                                                                   1: AxisType(
-                                                                       ChannelTag, dim=1)})})
+        data_source = nemo.backends.pytorch.common.ZerosDataLayer(
+            size=10000,
+            dtype=torch.FloatTensor,
+            batch_size=128,
+            output_ports={
+                "x": NeuralType({
+                    0: AxisType(BatchTag),
+                    1: AxisType(ChannelTag, dim=1)}),
+                "y": NeuralType({
+                    0: AxisType(BatchTag),
+                    1: AxisType(ChannelTag, dim=1)})})
         loss = nemo.backends.pytorch.tutorials.MSELoss()
         x, y = data_source()
         y_pred = trainable_module(x=x)
-        l = loss(predictions=y_pred, target=y)
+        loss_tensor = loss(predictions=y_pred, target=y)
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensor_list2string=lambda x: str(x[0].item()))
-        # Instantiate an optimizer to perform `train` action
-        optimizer = neural_factory.get_trainer(
-            params={"optimization_params": {"num_epochs": 3, "lr": 0.0003}})
-        optimizer.train([l], callbacks=[callback])
+            tensors=[loss_tensor],
+            print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
+        neural_factory.train(
+            [loss_tensor], callbacks=[callback],
+            optimization_params={"num_epochs": 3, "lr": 0.0003},
+            optimizer="sgd")
 
     def test_asr_with_zero_ds(self):
         print("Testing ASR NMs with ZeroDS and without pre-processing")
@@ -98,10 +98,13 @@ class TestZeroDL(unittest.TestCase):
                         target_length=transcript_len)
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensor_list2string=lambda x: str(x[0].item()))
+            tensors=[loss],
+            print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None)
-        optimizer = neural_factory.get_trainer(
-            params={"optimization_params": {"num_epochs": 2, "lr": 0.0003}})
-        optimizer.train([loss], callbacks=[callback])
+            backend=nemo.core.Backend.PyTorch, local_rank=None,
+            create_tb_writer=False)
+        neural_factory.train(
+            [loss], callbacks=[callback],
+            optimization_params={"num_epochs": 2, "lr": 0.0003},
+            optimizer="sgd")

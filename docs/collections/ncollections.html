@@ -35,8 +35,8 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="NEMO API" href="../api-docs/modules.html" />
-    <link rel="prev" title="NEMO Common Collection" href="core.html" /> 
+    <link rel="next" title="NeMo API" href="../api-docs/modules.html" />
+    <link rel="prev" title="NeMo Common Collection" href="core.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -90,8 +90,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="modules.html">NEMO Collections API</a><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="core.html">NEMO Common Collection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">NeMo Collections API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="core.html">NeMo Common Collection</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">NEMO_ASR collection</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#module-nemo_asr.data_layer">Speech data processing modules</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-nemo_asr.jasper">Automatic Speech Recognition modules</a></li>
@@ -99,7 +100,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NEMO API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently Asked Questions (FAQ)</a></li>
 </ul>
 
@@ -146,7 +147,7 @@
     
       <li><a href="../index.html">Docs</a> &raquo;</li>
         
-          <li><a href="modules.html">NEMO Collections API</a> &raquo;</li>
+          <li><a href="modules.html">NeMo Collections API</a> &raquo;</li>
         
       <li>NEMO_ASR collection</li>
     
@@ -167,7 +168,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <p>NEMO support the following collections</p>
+  <p>NeMo support the following collections</p>
 <div class="section" id="nemo-asr-collection">
 <h1>NEMO_ASR collection<a class="headerlink" href="#nemo-asr-collection" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="module-nemo_asr.data_layer">
@@ -177,7 +178,7 @@ processing</p>
 <dl class="class">
 <dt id="nemo_asr.data_layer.AudioPreprocessing">
 <em class="property">class </em><code class="sig-prename descclassname">nemo_asr.data_layer.</code><code class="sig-name descname">AudioPreprocessing</code><span class="sig-paren">(</span><em class="sig-param">*</em>, <em class="sig-param">sample_rate=16000</em>, <em class="sig-param">window_size=0.02</em>, <em class="sig-param">window_stride=0.01</em>, <em class="sig-param">window='hann'</em>, <em class="sig-param">normalize='per_feature'</em>, <em class="sig-param">n_fft=None</em>, <em class="sig-param">preemph=0.97</em>, <em class="sig-param">features=64</em>, <em class="sig-param">lowfreq=0</em>, <em class="sig-param">highfreq=None</em>, <em class="sig-param">feat_type='logfbank'</em>, <em class="sig-param">dither=1e-05</em>, <em class="sig-param">pad_to=16</em>, <em class="sig-param">frame_splicing=1</em>, <em class="sig-param">stft_conv=False</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_asr/data_layer.html#AudioPreprocessing"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_asr.data_layer.AudioPreprocessing" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM" title="nemo.backends.pytorch.nm.NonTrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.NonTrainableNM</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
 <p>Neural Module that does batch processing of audio files and converts them
 to spectrogram representations</p>
 <dl class="field-list simple">
@@ -639,10 +640,10 @@ Defaults to “xavier_uniform”.</p></li>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../api-docs/modules.html" class="btn btn-neutral float-right" title="NEMO API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="../api-docs/modules.html" class="btn btn-neutral float-right" title="NeMo API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="core.html" class="btn btn-neutral float-left" title="NEMO Common Collection" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="core.html" class="btn btn-neutral float-left" title="NeMo Common Collection" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

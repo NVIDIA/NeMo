@@ -1,15 +1,18 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import unittest
-import numpy as np
-import torch
-from tests.context import nemo, nemo_asr
 from typing import Dict
+import unittest
+
+import numpy as np
+from ruamel.yaml import YAML
+import torch
+
+from .context import nemo, nemo_asr
 from nemo.core import WeightShareTransform
 from nemo.core.neural_types import *
-from ruamel.yaml import YAML
+from .common_setup import NeMoUnitTest
 
 
-class TestWeightSharing(unittest.TestCase):
+class TestWeightSharing(NeMoUnitTest):
     labels = ["'", "a", "b", "c", "d", "e", "f", "g", "h",
               "i", "j", "k", "l", "m", "n", "o", "p", "q",
               "r", "s", "t", "u", "v", "w", "x", "y", "z", " "]
@@ -33,8 +36,9 @@ class TestWeightSharing(unittest.TestCase):
             return False
         else:
             for key in w1.keys():
-                all_same = all_same and np.array_equal(w1[key][0].cpu().detach().numpy(),
-                                                       w2[key][0].cpu().detach().numpy())
+                all_same = all_same and np.array_equal(
+                  w1[key][0].cpu().detach().numpy(),
+                  w2[key][0].cpu().detach().numpy())
         return all_same
 
     def test_TaylorNet_get_weights(self):
@@ -68,30 +72,32 @@ class TestWeightSharing(unittest.TestCase):
     def test_tie_weights2(self):
         voc_size = 3
         dim = 2
-        embd = nemo.backends.pytorch.common.SequenceEmbedding(voc_size=voc_size,
-                                                                 hidden_size=dim)
-        proj = nemo.backends.pytorch.common.SequenceProjection(from_dim=dim,
-                                                                  to_dim=voc_size)
-        embd.tie_weights_with(proj,
-                              weight_names=["embedding.weight"],
-                              name2name_and_transform={"embedding.weight":
-                                                       ("projection.weight",
-                                                        WeightShareTransform.SAME)})
-        self.assertTrue(np.array_equal(embd.embedding.weight.detach().numpy(),
-                                       proj.projection.weight.detach().numpy()))
+        embd = nemo.backends.pytorch.common.SequenceEmbedding(
+          voc_size=voc_size, hidden_size=dim)
+        proj = nemo.backends.pytorch.common.SequenceProjection(
+          from_dim=dim, to_dim=voc_size)
+        embd.tie_weights_with(
+            proj,
+            weight_names=["embedding.weight"],
+            name2name_and_transform={"embedding.weight": (
+                "projection.weight", WeightShareTransform.SAME)})
+        self.assertTrue(
+            np.array_equal(embd.embedding.weight.detach().numpy(),
+                           proj.projection.weight.detach().numpy()))
         was = embd.embedding.weight.detach().numpy()
         embd.embedding.weight.data = torch.tensor(
             np.random.randint(0, 10, (3, 2))*1.0)
         after = embd.embedding.weight.detach().numpy()
-        self.assertTrue(np.array_equal(embd.embedding.weight.detach().numpy(),
-                                       proj.projection.weight.detach().numpy()))
+        self.assertTrue(
+            np.array_equal(embd.embedding.weight.detach().numpy(),
+                           proj.projection.weight.detach().numpy()))
         self.assertFalse(np.array_equal(was, after))
 
     def test_set_weights(self):
         voc_size = 3
         dim = 2
-        embd = nemo.backends.pytorch.common.SequenceEmbedding(voc_size=voc_size,
-                                                                 hidden_size=dim)
+        embd = nemo.backends.pytorch.common.SequenceEmbedding(
+            voc_size=voc_size, hidden_size=dim)
         weights = torch.tensor(np.random.randint(0, 10, (3, 2))*1.0)
         name2weights = {"embedding.weight": (weights, True)}
         embd.set_weights(name2weight=name2weights)
@@ -110,10 +116,11 @@ class TestWeightSharing(unittest.TestCase):
             labels=self.labels,
             batch_size=4
         )
-        pre_process_params = {'int_values': False, 'frame_splicing': 1, 'features': 64,
-                              'window_size': 0.02, 'n_fft': 512, 'dither': 1e-05,
-                              'window': 'hann', 'feat_type': 'logfbank', 'sample_rate': 16000,
-                              'normalize': 'per_feature', 'window_stride': 0.01}
+        pre_process_params = {
+            'int_values': False, 'frame_splicing': 1, 'features': 64,
+            'window_size': 0.02, 'n_fft': 512, 'dither': 1e-05,
+            'window': 'hann', 'feat_type': 'logfbank', 'sample_rate': 16000,
+            'normalize': 'per_feature', 'window_stride': 0.01}
         preprocessing = nemo_asr.AudioPreprocessing(
             **pre_process_params)
         jasper_encoder = nemo_asr.JasperEncoder(
@@ -142,30 +149,36 @@ class TestWeightSharing(unittest.TestCase):
                         target_length=transcript_len)
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensor_list2string=lambda x: str(x[0].item()))
+            tensors=[loss],
+            print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None)
-        optimizer = neural_factory.get_trainer(
-            params={"optimization_params": {"num_epochs": 2, "lr": 0.0003}})
-        optimizer.train([loss], callbacks=[callback])
+            backend=nemo.core.Backend.PyTorch, local_rank=None,
+            create_tb_writer=False)
+        optimizer = neural_factory.get_trainer()
+        optimizer.train(
+            [loss], callbacks=[callback],
+            optimizer="sgd",
+            optimization_params={"num_epochs": 2, "lr": 0.0003})
 
     def test_freeze_unfreeze_Wrapper(self):
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch,
-            placement=nemo.core.DeviceType.GPU)
+            placement=nemo.core.DeviceType.GPU,
+            create_tb_writer=False)
 
-        dl_train = nemo.backends.pytorch.ZerosDataLayer(size=40,
-                                                        dtype=[torch.FloatTensor,
-                                                              torch.LongTensor],
-                                                        batch_size=4,
-                                                        output_ports={
-                                                            "image": NeuralType({0: AxisType(BatchTag),
-                                                                                 1: AxisType(ChannelTag, 3),
-                                                                                 2: AxisType(HeightTag, 224),
-                                                                                 3: AxisType(WidthTag, 224)}),
-                                                            "label": NeuralType({0: AxisType(BatchTag)})
-                                                        })
+        dl_train = nemo.backends.pytorch.ZerosDataLayer(
+            size=40,
+            dtype=[torch.FloatTensor,
+                   torch.LongTensor],
+            batch_size=4,
+            output_ports={
+                "image": NeuralType({0: AxisType(BatchTag),
+                                     1: AxisType(ChannelTag, 3),
+                                     2: AxisType(HeightTag, 224),
+                                     3: AxisType(WidthTag, 224)}),
+                "label": NeuralType({0: AxisType(BatchTag)})
+            })
 
         # NOTICE: pretrain=True argument
         resnet = neural_factory.get_module(name="resnet18",
@@ -187,10 +200,14 @@ class TestWeightSharing(unittest.TestCase):
         train_loss = L_train(predictions=outputs, labels=labels)
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensor_list2string=lambda x: str(x[0].item()))
+            tensors=[train_loss],
+            print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None)
-        optimizer = neural_factory.get_trainer(
-            params={"optimization_params": {"num_epochs": 2, "lr": 0.0003}})
-        optimizer.train([train_loss], callbacks=[callback])
+            backend=nemo.core.Backend.PyTorch, local_rank=None,
+            create_tb_writer=False)
+        optimizer = neural_factory.get_trainer()
+        optimizer.train(
+            [train_loss], callbacks=[callback],
+            optimizer="sgd",
+            optimization_params={"num_epochs": 2, "lr": 0.0003})

@@ -1,5 +1,5 @@
 from itertools import chain
-from pprint import pprint
+from pprint import pformat
 
 import torch
 from nemo.backends.pytorch.common.metrics import char_lm_metrics
@@ -10,7 +10,7 @@ ENG_MWN = 5.3
 
 
 def process_evaluation_batch(tensors, global_vars, labels, specials,
-                             tb_writer=None):
+                             tb_writer=None, write_attn=True):
     loss, log_probs = ([],) * 2
     transcripts, transcript_texts = ([],) * 2
     predictions, prediction_texts = ([],) * 2
@@ -43,7 +43,7 @@ def process_evaluation_batch(tensors, global_vars, labels, specials,
     global_vars['prediction_texts'].extend(prediction_texts)
 
     # TODO: Add step number?
-    if tb_writer is not None and len(attention_weights):
+    if tb_writer is not None and len(attention_weights) and write_attn:
         sample_len = len(prediction_texts[0][0])
         if sample_len > 0:
             attention_weights = attention_weights[0][0, :sample_len, :]
@@ -55,7 +55,7 @@ def process_evaluation_batch(tensors, global_vars, labels, specials,
 
 def process_evaluation_epoch(global_vars,
                              metrics=('loss', 'bpc', 'ppl'), calc_wer=False,
-                             log=True, mode='eval', tag='none'):
+                             logger=None, mode='eval', tag='none'):
     tag = '_'.join(tag.lower().strip().split())
     return_dict = {}
     for metric in metrics:
@@ -70,17 +70,17 @@ def process_evaluation_epoch(global_vars,
         transcript_texts = list(chain(*global_vars['transcript_texts']))
         prediction_texts = list(chain(*global_vars['prediction_texts']))
 
-        if log:
-            print(f'Ten examples (transcripts and predictions)')
-            print(transcript_texts[:10])
-            print(prediction_texts[:10])
+        if logger:
+            logger.info(f'Ten examples (transcripts and predictions)')
+            logger.info(transcript_texts[:10])
+            logger.info(prediction_texts[:10])
 
         wer = word_error_rate(hypotheses=prediction_texts,
                               references=transcript_texts)
         return_dict[f'metric/{mode}_wer_{tag}'] = wer
 
-    if log:
-        pprint(return_dict)
+    if logger:
+        logger.info(pformat(return_dict))
 
     return return_dict
 

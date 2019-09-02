@@ -1,19 +1,22 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import unittest
-import tarfile
 import os
+import tarfile
+import unittest
+
 from ruamel.yaml import YAML
-from tests.context import nemo, nemo_asr
+
+from .context import nemo, nemo_asr
 from nemo.core import *
 import nemo_asr
+from .common_setup import NeMoUnitTest
 
 
-
-class TestNeuralTypes(unittest.TestCase):
+class TestNeuralTypes(NeMoUnitTest):
     manifest_filepath = "tests/data/asr/an4_train.json"
     yaml = YAML(typ="safe")
 
     def setUp(self) -> None:
+        super().setUp()
         data_folder = "tests/data/"
         print("Looking up for test ASR data")
         if not os.path.exists(data_folder + "asr"):
@@ -170,35 +173,40 @@ class TestNeuralTypes(unittest.TestCase):
                          NeuralTypeComparisonResult.SAME)
 
     def test_optional_input_no_input(self):
-        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=100,
-                                                                            batch_size=128)
+        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(
+          n=100, batch_size=128)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNetO(dim=4)
         loss = nemo.backends.pytorch.tutorials.MSELoss()
         x, y = data_source()
         y_pred = trainable_module(x=x)
-        l = loss(predictions=y_pred, target=y)
+        loss_tensor = loss(predictions=y_pred, target=y)
 
-        optimizer = nemo.backends.pytorch.actions.PtActions(
-            params={"learning_rate": 0.0003, "num_epochs": 1})
-        optimizer.train(tensors_to_optimize=[l])
+        optimizer = nemo.backends.pytorch.actions.PtActions()
+        optimizer.train(
+            tensors_to_optimize=[loss_tensor],
+            optimizer="sgd",
+            optimization_params={"lr": 0.0003, "num_epochs": 1})
 
     def test_optional_input_no_with_input(self):
-        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=100,
-                                                                            batch_size=128)
+        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(
+            n=100, batch_size=128)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNetO(dim=4)
         loss = nemo.backends.pytorch.tutorials.MSELoss()
         x, y = data_source()
         y_pred = trainable_module(x=x, o=x)
-        l = loss(predictions=y_pred, target=y)
-        optimizer = nemo.backends.pytorch.actions.PtActions(
-            params={"learning_rate": 0.0003, "num_epochs": 1})
-        optimizer.train(tensors_to_optimize=[l])
+        loss_tensor = loss(predictions=y_pred, target=y)
+        optimizer = nemo.backends.pytorch.actions.PtActions()
+        optimizer.train(
+            tensors_to_optimize=[loss_tensor],
+            optimizer="sgd",
+            optimization_params={"lr": 0.0003, "num_epochs": 1})
 
     def test_optional_input_no_with_wrong_input(self):
 
         def wrong_fn():
-            data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=100,
-                                                                                batch_size=128)
+            data_source = \
+                nemo.backends.pytorch.tutorials.RealFunctionDataLayer(
+                    n=100, batch_size=128)
             trainable_module = nemo.backends.pytorch.tutorials.TaylorNetO(
                 dim=4)
             loss = nemo.backends.pytorch.tutorials.MSELoss()
@@ -211,10 +219,12 @@ class TestNeuralTypes(unittest.TestCase):
                                               1: AxisType(BatchTag)
                                           }))
             y_pred = trainable_module(x=x, o=wrong_optional)
-            l = loss(predictions=y_pred, target=y)
-            optimizer = nemo.backends.pytorch.actions.PtActions(
-                params={"learning_rate": 0.0003, "num_epochs": 1})
-            optimizer.train(tensors_to_optimize=[l])
+            loss_tensor = loss(predictions=y_pred, target=y)
+            optimizer = nemo.backends.pytorch.actions.PtActions()
+            optimizer.train(
+                tensors_to_optimize=[loss_tensor],
+                optimizer="sgd",
+                optimization_params={"lr": 0.0003, "num_epochs": 1})
 
         self.assertRaises(NeuralPortNmTensorMismatchError, wrong_fn)
 
@@ -256,17 +266,17 @@ class TestNeuralTypes(unittest.TestCase):
 
         def wrong():
             with open("tests/data/jasper_smaller.yaml") as file:
-                jasper_model_definition = self.yaml.load(file)
-            labels = jasper_model_definition['labels']
+                jasper_config = self.yaml.load(file)
+            labels = jasper_config['labels']
 
             data_layer = nemo_asr.AudioToTextDataLayer(
                 manifest_filepath=self.manifest_filepath,
                 labels=labels, batch_size=4)
             data_preprocessor = nemo_asr.AudioPreprocessing(
-                **jasper_model_definition['AudioPreprocessing'])
+                **jasper_config['AudioPreprocessing'])
             jasper_encoder = nemo_asr.JasperEncoder(
-                feat_in=jasper_model_definition['AudioPreprocessing']['features'],
-                **jasper_model_definition['JasperEncoder']
+                feat_in=jasper_config['AudioPreprocessing']['features'],
+                **jasper_config['JasperEncoder']
                 )
             jasper_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024,
                                                           num_classes=len(
@@ -286,6 +296,7 @@ class TestNeuralTypes(unittest.TestCase):
             log_probs = jasper_decoder(encoder_output=processed_signal)
 
         self.assertRaises(NeuralPortNmTensorMismatchError, wrong)
+
 
 if __name__ == '__main__':
     unittest.main()
