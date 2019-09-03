@@ -254,8 +254,7 @@ class AudioPreprocessing(TrainableNM):
         # self.featurizer = FeatureFactory.from_config(_pre_procesing_config)
         self.featurizer.to(self._device)
 
-        self.disable_casts = (self._opt_level == Optimization.mxprO1 and
-                              not stft_conv)
+        self.disable_casts = (self._opt_level == Optimization.mxprO1)
 
     def forward(self, input_signal, length):
         length.requires_grad_(False)
