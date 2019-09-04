@@ -15,7 +15,7 @@ Preliminaries
 
 We use newstest2013 for development and newstest2014 for testing. All datasets, as well as the tokenizer model can be downloaded from `here <https://drive.google.com/open?id=1AErD1hEg16Yt28a-IGflZnwGTg9O27DT>`_. In the following steps, we assume that all data is located at **<path_to_data>**.
 
-**Resources.** Training script ``examples/nlp/nmt_tutorial.py`` used in this tutorial allows to train Transformer-big architecture to **29.2** BLEU / **28.5** SacreBLEU on newstest2014 in approximately 15 hours on NVIDIA's DGX-1 with 16GB Volta GPUs. This setup can also be replicated with fewer resources by using gradient accumulation :cite:`ott2018scaling`.
+**Resources.** Training script ``examples/nlp/nmt_tutorial.py`` used in this tutorial allows to train Transformer-big architecture to **29.2** BLEU / **28.5** SacreBLEU on newstest2014 in approximately 15 hours on NVIDIA's DGX-1 with 16GB Volta GPUs. This setup can also be replicated with fewer resources by using more steps of gradient accumulation :cite:`ott2018scaling`.
 
 .. tip::
     Launching training script without any arguments will run training on much smaller dataset (newstest2013) of 3000 sentence pairs and validate on the subset of this dataset consisting of 100 sentence pairs. This is useful for debugging purposes: if everything is set up correctly, validation BLEU will reach >99 and training / validation losses will go to <1.5 pretty fast.
@@ -126,14 +126,14 @@ To train the Transformer-big model, run ``nmt_tutorial.py`` located at ``nemo/ex
         python -m torch.distributed.launch --nproc_per_node=8 nmt_tutorial.py \
             --data_root <path_to_data> --tokenizer_model bpe8k_yttm.model \
             --eval_datasets valid/newstest2013 --optimizer novograd --lr 0.04 \
-            --weight_decay 0.0001 --max_num_steps 40000 --warmup_steps 4000 \
+            --weight_decay 0.0001 --max_steps 40000 --warmup_steps 4000 \
             --d_model 1024 --d_inner 4096 --num_layers 6 --num_attn_heads 16 \
-            --batch_size 12288 --grad_accumulation_steps 5
+            --batch_size 12288 --iter_per_step 5
 
 
     .. note::
 
-        This command runs training on 8 GPUs with at least 16 GB of memory. If your GPUs have less memory, decrease the **batch_size** parameter. To train with bigger batches which do not fit into the memory, increase the **grad_accumulation_steps** parameter.
+        This command runs training on 8 GPUs with at least 16 GB of memory. If your GPUs have less memory, decrease the **batch_size** parameter. To train with bigger batches which do not fit into the memory, increase the **iter_per_step** parameter.
 
 Translation with pretrained model
 ---------------------------------
@@ -144,7 +144,7 @@ Translation with pretrained model
     python nmt_tutorial.py --tokenizer_model bpe8k_yttm.model \
          --eval_datasets test --optimizer novograd --d_model 1024 \
          --d_inner 4096 --num_layers 6 --num_attn_heads 16 \
-         --path_to_checkpoints <path_to_ckpt> --interactive
+         --checkpoint_dir <path_to_ckpt> --interactive
 
 
    .. image:: interactive_translation.png
