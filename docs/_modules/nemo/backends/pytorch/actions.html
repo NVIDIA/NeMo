@@ -519,22 +519,13 @@
             <span class="bp">self</span><span class="p">,</span>
             <span class="n">call_chain</span><span class="p">,</span>
             <span class="n">registered_tensors</span><span class="p">,</span>
-            <span class="n">mode</span><span class="o">=</span><span class="n">ModelMode</span><span class="o">.</span><span class="n">train</span><span class="p">,</span>
-            <span class="n">disable_allreduce</span><span class="o">=</span><span class="kc">False</span>
+            <span class="n">mode</span><span class="o">=</span><span class="n">ModelMode</span><span class="o">.</span><span class="n">train</span>
     <span class="p">):</span>
         <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">call_chain</span><span class="p">)):</span>
             <span class="n">call_args</span> <span class="o">=</span> <span class="n">call_chain</span><span class="p">[</span><span class="n">ind</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
             <span class="c1"># module = call_chain[ind][0]</span>
             <span class="n">m_id</span> <span class="o">=</span> <span class="n">call_chain</span><span class="p">[</span><span class="n">ind</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">unique_instance_id</span>
             <span class="n">pmodule</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">module_reference_table</span><span class="p">[</span><span class="n">m_id</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
-
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pmodule</span><span class="p">,</span> <span class="n">DDP</span><span class="p">):</span>
-                <span class="k">if</span> <span class="n">disable_allreduce</span><span class="p">:</span>
-                    <span class="n">pmodule</span><span class="o">.</span><span class="n">disable_allreduce</span><span class="p">()</span>
-                    <span class="n">pmodule</span><span class="o">.</span><span class="n">delay_allreduce</span> <span class="o">=</span> <span class="kc">True</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">pmodule</span><span class="o">.</span><span class="n">enable_allreduce</span><span class="p">()</span>
-                    <span class="n">pmodule</span><span class="o">.</span><span class="n">delay_allreduce</span> <span class="o">=</span> <span class="kc">False</span>
 
             <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="n">ModelMode</span><span class="o">.</span><span class="n">train</span><span class="p">:</span>
                 <span class="c1"># if module.is_trainable():</span>
@@ -1309,11 +1300,9 @@
                     <span class="nb">zip</span><span class="p">(</span><span class="n">curr_call_chain</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">tensors</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">t</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
                 <span class="p">}</span>
-                <span class="n">disable_allreduce</span> <span class="o">=</span> <span class="n">batch_counter</span> <span class="o">&lt;</span> <span class="p">(</span><span class="n">batches_per_step</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">__nm_graph_forward_pass</span><span class="p">(</span>
                     <span class="n">call_chain</span><span class="o">=</span><span class="n">curr_call_chain</span><span class="p">,</span>
-                    <span class="n">registered_tensors</span><span class="o">=</span><span class="n">registered_tensors</span><span class="p">,</span>
-                    <span class="n">disable_allreduce</span><span class="o">=</span><span class="n">disable_allreduce</span>
+                    <span class="n">registered_tensors</span><span class="o">=</span><span class="n">registered_tensors</span>
                 <span class="p">)</span>
 
                 <span class="n">curr_tensors_to_optimize</span> <span class="o">=</span> <span class="n">training_loop</span><span class="p">[</span>

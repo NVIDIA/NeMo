@@ -411,8 +411,7 @@
         <span class="c1"># self.featurizer = FeatureFactory.from_config(_pre_procesing_config)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">featurizer</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">disable_casts</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_opt_level</span> <span class="o">==</span> <span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO1</span> <span class="ow">and</span>
-                              <span class="ow">not</span> <span class="n">stft_conv</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">disable_casts</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_opt_level</span> <span class="o">==</span> <span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO1</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_signal</span><span class="p">,</span> <span class="n">length</span><span class="p">):</span>
         <span class="n">length</span><span class="o">.</span><span class="n">requires_grad_</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>

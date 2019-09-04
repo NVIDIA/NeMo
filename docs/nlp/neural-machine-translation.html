@@ -193,7 +193,7 @@
 </ul>
 </div></blockquote>
 <p>We use newstest2013 for development and newstest2014 for testing. All datasets, as well as the tokenizer model can be downloaded from <a class="reference external" href="https://drive.google.com/open?id=1AErD1hEg16Yt28a-IGflZnwGTg9O27DT">here</a>. In the following steps, we assume that all data is located at <strong>&lt;path_to_data&gt;</strong>.</p>
-<p><strong>Resources.</strong> Training script <code class="docutils literal notranslate"><span class="pre">examples/nlp/nmt_tutorial.py</span></code> used in this tutorial allows to train Transformer-big architecture to <strong>29.2</strong> BLEU / <strong>28.5</strong> SacreBLEU on newstest2014 in approximately 15 hours on NVIDIA’s DGX-1 with 16GB Volta GPUs. This setup can also be replicated with fewer resources by using gradient accumulation <a class="reference internal" href="#ott2018scaling" id="id3">[2]</a>.</p>
+<p><strong>Resources.</strong> Training script <code class="docutils literal notranslate"><span class="pre">examples/nlp/nmt_tutorial.py</span></code> used in this tutorial allows to train Transformer-big architecture to <strong>29.2</strong> BLEU / <strong>28.5</strong> SacreBLEU on newstest2014 in approximately 15 hours on NVIDIA’s DGX-1 with 16GB Volta GPUs. This setup can also be replicated with fewer resources by using more steps of gradient accumulation <a class="reference internal" href="#ott2018scaling" id="id3">[2]</a>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>Launching training script without any arguments will run training on much smaller dataset (newstest2013) of 3000 sentence pairs and validate on the subset of this dataset consisting of 100 sentence pairs. This is useful for debugging purposes: if everything is set up correctly, validation BLEU will reach &gt;99 and training / validation losses will go to &lt;1.5 pretty fast.</p>
@@ -302,14 +302,14 @@
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">launch</span> <span class="o">--</span><span class="n">nproc_per_node</span><span class="o">=</span><span class="mi">8</span> <span class="n">nmt_tutorial</span><span class="o">.</span><span class="n">py</span> \
     <span class="o">--</span><span class="n">data_root</span> <span class="o">&lt;</span><span class="n">path_to_data</span><span class="o">&gt;</span> <span class="o">--</span><span class="n">tokenizer_model</span> <span class="n">bpe8k_yttm</span><span class="o">.</span><span class="n">model</span> \
     <span class="o">--</span><span class="n">eval_datasets</span> <span class="n">valid</span><span class="o">/</span><span class="n">newstest2013</span> <span class="o">--</span><span class="n">optimizer</span> <span class="n">novograd</span> <span class="o">--</span><span class="n">lr</span> <span class="mf">0.04</span> \
-    <span class="o">--</span><span class="n">weight_decay</span> <span class="mf">0.0001</span> <span class="o">--</span><span class="n">max_num_steps</span> <span class="mi">40000</span> <span class="o">--</span><span class="n">warmup_steps</span> <span class="mi">4000</span> \
+    <span class="o">--</span><span class="n">weight_decay</span> <span class="mf">0.0001</span> <span class="o">--</span><span class="n">max_steps</span> <span class="mi">40000</span> <span class="o">--</span><span class="n">warmup_steps</span> <span class="mi">4000</span> \
     <span class="o">--</span><span class="n">d_model</span> <span class="mi">1024</span> <span class="o">--</span><span class="n">d_inner</span> <span class="mi">4096</span> <span class="o">--</span><span class="n">num_layers</span> <span class="mi">6</span> <span class="o">--</span><span class="n">num_attn_heads</span> <span class="mi">16</span> \
-    <span class="o">--</span><span class="n">batch_size</span> <span class="mi">12288</span> <span class="o">--</span><span class="n">grad_accumulation_steps</span> <span class="mi">5</span>
+    <span class="o">--</span><span class="n">batch_size</span> <span class="mi">12288</span> <span class="o">--</span><span class="n">iter_per_step</span> <span class="mi">5</span>
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This command runs training on 8 GPUs with at least 16 GB of memory. If your GPUs have less memory, decrease the <strong>batch_size</strong> parameter. To train with bigger batches which do not fit into the memory, increase the <strong>grad_accumulation_steps</strong> parameter.</p>
+<p>This command runs training on 8 GPUs with at least 16 GB of memory. If your GPUs have less memory, decrease the <strong>batch_size</strong> parameter. To train with bigger batches which do not fit into the memory, increase the <strong>iter_per_step</strong> parameter.</p>
 </div>
 </div></blockquote>
 </div>
@@ -321,7 +321,7 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">nmt_tutorial</span><span class="o">.</span><span class="n">py</span> <span class="o">--</span><span class="n">tokenizer_model</span> <span class="n">bpe8k_yttm</span><span class="o">.</span><span class="n">model</span> \
      <span class="o">--</span><span class="n">eval_datasets</span> <span class="n">test</span> <span class="o">--</span><span class="n">optimizer</span> <span class="n">novograd</span> <span class="o">--</span><span class="n">d_model</span> <span class="mi">1024</span> \
      <span class="o">--</span><span class="n">d_inner</span> <span class="mi">4096</span> <span class="o">--</span><span class="n">num_layers</span> <span class="mi">6</span> <span class="o">--</span><span class="n">num_attn_heads</span> <span class="mi">16</span> \
-     <span class="o">--</span><span class="n">path_to_checkpoints</span> <span class="o">&lt;</span><span class="n">path_to_ckpt</span><span class="o">&gt;</span> <span class="o">--</span><span class="n">interactive</span>
+     <span class="o">--</span><span class="n">checkpoint_dir</span> <span class="o">&lt;</span><span class="n">path_to_ckpt</span><span class="o">&gt;</span> <span class="o">--</span><span class="n">interactive</span>
 </pre></div>
 </div>
 <img alt="../_images/interactive_translation.png" class="align-center" src="../_images/interactive_translation.png" />
