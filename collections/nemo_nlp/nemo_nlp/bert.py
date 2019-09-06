@@ -331,11 +331,11 @@ class SequenceClassifier(TrainableNM):
         }
         return input_ports, output_ports
 
-    def __init__(self, **kwargs):
+    def __init__(self, hidden_size, num_classes, dropout, **kwargs):
         TrainableNM.__init__(self, **kwargs)
-        self.hidden_size = self.local_parameters["d_model"]
-        self.num_classes = self.local_parameters["num_classes"]
-        self.dropout = nn.Dropout(self.local_parameters["dropout"])
+        self.hidden_size = hidden_size
+        self.num_classes = num_classes
+        self.dropout = nn.Dropout(dropout)
         self.dense = nn.Linear(self.hidden_size, self.hidden_size)
         self.classifier = nn.Linear(self.hidden_size, self.num_classes)
         self.apply(

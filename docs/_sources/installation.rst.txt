@@ -9,7 +9,7 @@ Installation
 2) `CUDA <https://developer.nvidia.com/cuda-downloads/>`_ >= 10.0
 3) `cuDNN <https://developer.nvidia.com/cudnn/>`_ >= 7.6
 4) `APEX <https://github.com/NVIDIA/apex/>`_
-5) PyTorch >=1.1
+5) PyTorch >=1.2
 6) (Recommended for distributed training) `NCCL <https://github.com/NVIDIA/nccl/>`_ >= 2.4
 
 
