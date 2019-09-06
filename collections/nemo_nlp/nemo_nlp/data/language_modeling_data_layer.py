@@ -34,11 +34,6 @@ class LanguageModelingDataLayer(DataLayerNM):
     def __init__(self, *, tokenizer, dataset, max_seq_length, **kwargs):
         DataLayerNM.__init__(self, **kwargs)
 
-        self._device = torch.device(
-            "cuda" if self.placement in [DeviceType.GPU, DeviceType.AllGpu]
-            else "cpu"
-        )
-
         self._dataset = LanguageModelingDataset(
             tokenizer=tokenizer,
             dataset=dataset,

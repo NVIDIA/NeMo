@@ -55,7 +55,6 @@ class BertSentenceClassificationDataLayer(DataLayerNM):
                  num_samples=-1,
                  **kwargs):
         DataLayerNM.__init__(self, **kwargs)
-        self._device = nemo.utils.get_cuda_device(self.placement)
         self._dataset = BertSentenceClassificationDataset(
             input_file=path_to_data,
             tokenizer=tokenizer,
@@ -131,7 +130,6 @@ class BertJointIntentSlotDataLayer(DataLayerNM):
                  num_samples=-1,
                  **kwargs):
         DataLayerNM.__init__(self, **kwargs)
-        self._device = nemo.utils.get_cuda_device(self.placement)
         self._dataset = BertJointIntentSlotDataset(
             input_file=path_to_data,
             slot_file=path_to_slot,
@@ -195,7 +193,6 @@ class BertJointIntentSlotInferDataLayer(DataLayerNM):
 
     def __init__(self, queries, tokenizer, max_seq_length, **kwargs):
         DataLayerNM.__init__(self, **kwargs)
-        self._device = nemo.utils.get_cuda_device(self.placement)
         self._dataset = BertJointIntentSlotInferDataset(
             queries=queries,
             tokenizer=tokenizer,

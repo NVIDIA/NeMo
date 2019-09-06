@@ -284,7 +284,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             not_eos_pad = prefixes.ne(self.eos) & prefixes.ne(self.pad)
             prefixes_len = 1 + not_eos_pad.sum(
                 dim=1, keepdim=True).to(scores.dtype)
-            pad_profile = (1 - not_eos_pad[:, -1:]).long()
+            pad_profile = (~not_eos_pad[:, -1:]).long()
 
             # if all hypotheses end with <eos> or <pad>, interrupt search
             if pad_profile.sum() == batch_size * self.beam_size:

@@ -37,11 +37,6 @@ class BertNERDataLayer(DataLayerNM):
     def __init__(self, *, tokenizer, path_to_data, max_seq_length, **kwargs):
         DataLayerNM.__init__(self, **kwargs)
 
-        self._device = torch.device(
-            "cuda" if self.placement in [DeviceType.GPU, DeviceType.AllGpu]
-            else "cpu"
-        )
-
         self._dataset = BertNERDataset(
             tokenizer=tokenizer,
             input_file=path_to_data,

@@ -6,8 +6,9 @@ import numpy as np
 from pytorch_transformers import BertTokenizer
 
 import nemo
-import nemo_nlp
 from nemo.utils.lr_policies import get_lr_policy
+
+import nemo_nlp
 from nemo_nlp.callbacks.joint_intent_slot import \
     eval_iter_callback, eval_epochs_done_callback
 from nemo_nlp.text_data_utils import \
@@ -56,20 +57,14 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    optimization_level=args.amp_opt_level,
                                    log_dir=work_dir,
                                    create_tb_writer=True,
-                                   files_to_copy=[__file__])
+                                   files_to_copy=[__file__],
+                                   add_time_to_log_dir=True)
 
 # Load the pretrained BERT parameters
-# pretrained_model can be one of:
-# bert-base-uncased, bert-large-uncased, bert-base-cased,
-# bert-large-cased, bert-base-multilingual-uncased,
-# bert-base-multilingual-cased, bert-base-chinese.
-
-pretrained_bert_model = nf.get_module(
-    name="huggingface.BERT",
-    params={"pretrained_model_name": args.pretrained_bert_model,
-            "local_rank": args.local_rank},
-    collection="nemo_nlp",
-    pretrained=True)
+# See the list of pretrained models here:
+# https://huggingface.co/pytorch-transformers/pretrained_models.html
+pretrained_bert_model = nemo_nlp.huggingface.BERT(
+    pretrained_model_name=args.pretrained_bert_model, factory=nf)
 
 if args.dataset_name == 'atis':
     num_intents = 26
@@ -118,10 +113,6 @@ tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
 def create_pipeline(data_file,
                     slot_file,
-                    tokenizer,
-                    classifier,
-                    loss_fn,
-                    pad_label,
                     max_seq_length,
                     batch_size=32,
                     num_samples=-1,
@@ -192,10 +183,6 @@ def create_pipeline(data_file,
 train_loss, callback_train, steps_per_epoch =\
     create_pipeline(data_dir + '/train.tsv',
                     data_dir + '/train_slots.tsv',
-                    tokenizer=tokenizer,
-                    classifier=classifier,
-                    loss_fn=loss_fn,
-                    pad_label=pad_label,
                     max_seq_length=args.max_seq_length,
                     batch_size=args.batch_size,
                     num_samples=args.num_train_samples,
@@ -203,13 +190,9 @@ train_loss, callback_train, steps_per_epoch =\
                     num_gpus=args.num_gpus,
                     local_rank=args.local_rank,
                     mode='train')
-eval_loss, callback_eval, _ =\
+_, callback_eval, _ =\
     create_pipeline(data_dir + '/test.tsv',
                     data_dir + '/test_slots.tsv',
-                    tokenizer=tokenizer,
-                    classifier=classifier,
-                    loss_fn=loss_fn,
-                    pad_label=pad_label,
                     max_seq_length=args.max_seq_length,
                     batch_size=args.batch_size,
                     num_samples=args.num_train_samples,

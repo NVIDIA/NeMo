@@ -7,7 +7,7 @@ import torch as t
 import torch.nn as nn
 
 from ...core import NeuralModule, DeviceType, WeightShareTransform
-from ...utils.helpers import rgetattr, rsetattr
+from ...utils.helpers import rgetattr, rsetattr, get_cuda_device
 
 
 class TrainableNM(NeuralModule, nn.Module):
@@ -34,10 +34,7 @@ class TrainableNM(NeuralModule, nn.Module):
     def __init__(self, **kwargs):
         NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
         nn.Module.__init__(self)  # For PyTorch API
-        self._device = t.device(
-            "cuda" if self.placement in [DeviceType.GPU, DeviceType.AllGpu]
-            else "cpu"
-        )
+        self._device = get_cuda_device(self.placement)
 
     def __call__(self, force_pt=False, *input, **kwargs):
         pt_call = len(input) > 0 or force_pt
@@ -136,10 +133,7 @@ class TrainableNM(NeuralModule, nn.Module):
 class NonTrainableNM(NeuralModule):
     def __init__(self, **kwargs):
         NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
-        self._device = t.device(
-            "cuda" if self.placement in [DeviceType.GPU, DeviceType.AllGpu]
-            else "cpu"
-        )
+        self._device = get_cuda_device(self.placement)
 
     def __call__(self, force_pt=False, *input, **kwargs):
         pt_call = len(input) > 0 or force_pt
@@ -193,13 +187,12 @@ class DataLayerNM(NeuralModule):
     """
 
     def __init__(self, **kwargs):
+        if 'batch_size' not in kwargs:
+            logging.warning("No batch_size specified in the data layer. "
+                            "Setting batch_size to 1.")
+            kwargs['batch_size'] = 1
         NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
-        self._device = t.device(
-            "cuda"
-            if self.placement == DeviceType.GPU or self.placement ==
-            DeviceType.AllGpu
-            else "cpu"
-        )
+        self._device = get_cuda_device(self.placement)
 
     def get_weights(self):
         logging.warning(
@@ -285,12 +278,7 @@ class LossNM(NeuralModule):
 
     def __init__(self, **kwargs):
         NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
-        self._device = t.device(
-            "cuda"
-            if self.placement == DeviceType.GPU or self.placement ==
-            DeviceType.AllGpu
-            else "cpu"
-        )
+        self._device = get_cuda_device(self.placement)
 
     def get_weights(self):
         # logging.warning("Loss function module does not have any weights to
