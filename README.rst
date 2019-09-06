@@ -1,28 +1,28 @@
-NEMO: NEural MOdules Toolkit
+NeMo: Neural Modules Toolkit
 ============================
 
-.. image:: docs/sources/source/nemo-icon-256x256.png
+.. image:: docs/_images/nemo-icon-256x256.png
     :width: 40
     :align: center
     :alt: NEMO
 
-NEural MOdules (NEMO): a framework-agnostic toolkit for building AI applications powered by Neural Modules
+Neural Modules (NeMo) is a framework-agnostic toolkit for building AI applications powered by Neural Modules.
+Current support is for PyTorch framework.
+
+A "Neural Module" is a block of code that computes a set of outputs from a set of inputs.
+
+Neural Modules’ inputs and outputs have Neural Type for semantic checking.
+
+An application built with NeMo application is a Directed Acyclic Graph(DAG) of connected modules enabling researchers to define and build new speech and nlp networks easily through API Compatible modules.
+
+**Documentation and Tutorials**
+
+Please refer to the HTML documentation in the `docs` folder
 
 
 **VIDEO**
 
-`A Short VIDEO walk-through about using NEMO to experiment with ASR systems. <https://confluence.nvidia.com/display/AAD/Neural+Modules?preview=/163999167/299604998/nemo_for_asr.mp4>`_
-
-
-.. raw:: html
-
-    <figure class="video_container">
-      <video controls="true" allowfullscreen="true">
-        <source src="https://confluence.nvidia.com/display/AAD/Neural+Modules?preview=/163999167/299604998/nemo_for_asr.mp4" type="video/mp4">
-      </video>
-    </figure>
-    <!-- blank line -->
-
+`A Short VIDEO walk-through about using NEMO to experiment with ASR systems. <https://drive.google.com/file/d/1CF-buP_Y1qCAefzoyvOUCXl_3v2vO5P-/view?usp=sharing>`_
 
 
 **Core Concepts and Features**
@@ -32,13 +32,13 @@ NEural MOdules (NEMO): a framework-agnostic toolkit for building AI applications
 * `NeuralType` - represents types of modules' ports and NmTensors.
 * `NeuralFactory` - to create neural modules and manage training.
 * **Lazy execution** - when describing activation flow between neural modules, nothing happens until an "action" (such as `optimizer.optimize(...)` is called.
-* **Collections** - NEMO comes with collections - related group of modules such as `nemo_asr` (for Speech Recognition) and `nemo_nlp` for NLP
+* **Collections** - NeMo comes with collections - related group of modules such as `nemo_asr` (for Speech Recognition) and `nemo_nlp` for NLP
 
 
 **Requirements**
 
 1) Python 3.6 or 3.7
-2) Pytorch >=1.2 with GPU support
+2) Pytorch =1.2 with GPU support
 3) NVIDIA APEX: https://github.com/NVIDIA/apex
 4) (for `nemo_asr` do: `apt-get install libsndfile1`)
 
@@ -60,19 +60,9 @@ Run this:
 3) Install collections:
     a) ASR collection from `collections/nemo_asr` do: `python setup.py install`
     b) NLP collection from `collections/nemo_nlp` do: `python setup.py install`
-    c) LPR collection from `collections/nemo_lpr` do: `python setup.py install`
+
 4) For development do: `python setup.py develop` instead of `python setup.py install` in Step (3) above
 5) Go to `examples/start_here` to get started with few simple examples
 6) To get started with speech recognition:
-
-.. code-block:: bash
-
-    cd examples/asr
-    #download prepared AN4 dataset (an4data.tar.gz) from: https://drive.google.com/file/d/1n2CkS7KyTi5vb8qZm-HfSvrQcZVnmBuj
-    tar -xvf an4data.tar.gz
-    python jasper_an4.py
-
-**Documentation**
-
-
-http://10.110.40.127:8000
+    a) head to the ASR tutorial in the documentation
+    b) head to `examples/asr/ASR_made_simple.ipynb`
