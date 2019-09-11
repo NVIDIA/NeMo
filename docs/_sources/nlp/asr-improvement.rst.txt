@@ -107,7 +107,7 @@ positional encodings ``"learn_positional_encodings": True``:
                 "d_inner": args.d_inner,
                 "num_layers": args.num_layers,
                 "num_attn_heads": args.num_heads,
-                "fully_connected_dropout": args.fully_connected_dropout,
+                "ffn_dropout": args.ffn_dropout,
                 "vocab_size": vocab_size,
                 "max_seq_length": max_sequence_length,
                 "embedding_dropout": args.embedding_dropout,

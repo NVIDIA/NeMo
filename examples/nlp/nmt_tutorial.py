@@ -37,7 +37,7 @@ parser.add_argument("--d_inner", default=2048, type=int)
 parser.add_argument("--num_layers", default=4, type=int)
 parser.add_argument("--num_attn_heads", default=8, type=int)
 parser.add_argument("--embedding_dropout", default=0.2, type=float)
-parser.add_argument("--fully_connected_dropout", default=0.2, type=float)
+parser.add_argument("--ffn_dropout", default=0.2, type=float)
 parser.add_argument("--attn_score_dropout", default=0.2, type=float)
 parser.add_argument("--attn_layer_dropout", default=0.2, type=float)
 parser.add_argument("--warmup_steps", default=1000, type=int)
@@ -91,8 +91,9 @@ encoder = nemo_nlp.TransformerEncoderNM(
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
+    embedding_dropout=args.embedding_dropout,
     num_attn_heads=args.num_attn_heads,
-    ffn_dropout=args.fully_connected_dropout,
+    ffn_dropout=args.ffn_dropout,
     vocab_size=vocab_size,
     attn_score_dropout=args.attn_score_dropout,
     attn_layer_dropout=args.attn_layer_dropout,
@@ -102,8 +103,9 @@ decoder = nemo_nlp.TransformerDecoderNM(
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
+    embedding_dropout=args.embedding_dropout,
     num_attn_heads=args.num_attn_heads,
-    ffn_dropout=args.fully_connected_dropout,
+    ffn_dropout=args.ffn_dropout,
     vocab_size=vocab_size,
     attn_score_dropout=args.attn_score_dropout,
     attn_layer_dropout=args.attn_layer_dropout,

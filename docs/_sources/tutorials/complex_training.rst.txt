@@ -6,9 +6,6 @@ across all Trainable Neural Modules. NeMo further extends to uses cases that
 require multiple losses and multiple optimizers.
 
 .. note::
-    These pipelines do not currently support multi-gpu training.
-
-.. note::
     All of our pipelines only support one datalayer.
 
 Multiple Losses

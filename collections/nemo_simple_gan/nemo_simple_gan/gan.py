@@ -150,6 +150,7 @@ class GradientPenalty(LossNM):
             interpolated_decision.size(), dtype=interpolated_image.dtype)
         if self.placement != DeviceType.CPU:
             grad_outputs = grad_outputs.cuda()
+
         gradients = torch.autograd.grad(
             outputs=interpolated_decision, inputs=interpolated_image,
             grad_outputs=grad_outputs,
@@ -163,7 +164,7 @@ class GradientPenalty(LossNM):
         return self._loss(**kwargs)
 
 
-class InterpolateImage(NonTrainableNM):
+class InterpolateImage(TrainableNM):
     """Linearly interpolates an image between image1 and image2
     """
     @staticmethod
@@ -193,6 +194,9 @@ class InterpolateImage(NonTrainableNM):
     def forward(self, image1, image2):
         alpha = torch.rand(image1.shape[0], 1).unsqueeze(-1).unsqueeze(-1)
         alpha = alpha.to(self._device)
+        alpha = alpha.type(image2.dtype)
+        image1 = image1.type(image2.dtype)
+
         interpolated_image = alpha * image1 + ((1 - alpha) * image2)
         return torch.autograd.Variable(interpolated_image, requires_grad=True)
 

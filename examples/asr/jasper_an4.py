@@ -52,7 +52,8 @@ def main():
     args = parser.parse_args()
     betas = (args.beta1, args.beta2)
 
-    wer_thr = 0.15
+    wer_thr = 0.20
+    beam_wer_thr = 0.15
 
     nf = nemo.core.NeuralModuleFactory(
         local_rank=args.local_rank,
@@ -226,9 +227,9 @@ def main():
         beam_wer = word_error_rate(
             hypotheses=beam_hypotheses, references=references)
         nf.logger.info("Beam WER {:.2f}%".format(beam_wer * 100))
-        assert beam_wer <= wer_thr, (
+        assert beam_wer <= beam_wer_thr, (
             "Final eval beam WER {:.2f}%  > than {:.2f}%".format(
-                beam_wer*100, wer_thr*100))
+                beam_wer*100, beam_wer_thr*100))
         assert beam_wer <= wer, (
             "Final eval beam WER > than the greedy WER.")
 

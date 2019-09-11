@@ -50,7 +50,7 @@ discriminator = nemo_simple_gan.SimpleDiscriminator()
 neg_disc_loss = nemo_simple_gan.DiscriminatorLoss(neg=True)
 disc_loss = nemo_simple_gan.DiscriminatorLoss()
 disc_grad_penalty = nemo_simple_gan.GradientPenalty(
-    lambda_=10)
+    lambda_=3)
 interpolater = nemo_simple_gan.InterpolateImage()
 
 # Create generator DAG

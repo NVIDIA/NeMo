@@ -307,6 +307,15 @@ class PtActions(Actions):
                     luc_trust=optimization_params.get("luc_eta", 1e-3),
                     betas=optimization_params.get("betas", (0.95, 0.98)),
                 )
+            elif optimizer_class.lower() == "fused_novograd":
+                optimizer = apex.optimizers.FusedNovoGrad(
+                    params_to_optimize,
+                    lr=lr,
+                    weight_decay=optimization_params.get("weight_decay", 0.0),
+                    reg_inside_moment=True,
+                    grad_averaging=False,
+                    betas=optimization_params.get("betas", (0.95, 0.25)),
+                )
             elif optimizer_class.lower() == "lamb":
                 optimizer = Lamb(
                     params_to_optimize,
@@ -318,6 +327,7 @@ class PtActions(Actions):
                     "Unknown optimizer class: {0}".format(optimizer_class))
 
             if optimization_params.get("larc", False):
+                print("Enabling larc")
                 optimizer = LARC(
                     optimizer,
                     trust_coefficient=optimization_params.get("larc_eta", 2e-2)
@@ -362,13 +372,20 @@ class PtActions(Actions):
             self,
             call_chain,
             registered_tensors,
-            mode=ModelMode.train
+            mode=ModelMode.train,
+            disable_allreduce=False
     ):
         for ind in range(1, len(call_chain)):
             call_args = call_chain[ind][1]
             # module = call_chain[ind][0]
             m_id = call_chain[ind][0].unique_instance_id
             pmodule = self.module_reference_table[m_id][1]
+
+            if isinstance(pmodule, DDP):
+                if disable_allreduce:
+                    pmodule.disable_allreduce()
+                else:
+                    pmodule.enable_allreduce()
 
             if mode == ModelMode.train:
                 # if module.is_trainable():
@@ -426,7 +443,7 @@ class PtActions(Actions):
         elif len(t_size) == 3:
             padded_t[: t_size[0], : t_size[1], : t_size[2]] = t
         elif len(t_size) == 4:
-            padded_t[: t_size[0], : t_size[1], : t_size[2], : t.size[3]] = t
+            padded_t[: t_size[0], : t_size[1], : t_size[2], : t_size[3]] = t
         else:
             raise NotImplementedError
         return padded_t
@@ -530,8 +547,8 @@ class PtActions(Actions):
                         num_batches < 10 or (
                         epoch_i % int(num_batches / 10) == 0)
                 ):
-                    print("Evaluating batch {} out of {}".format(epoch_i,
-                                                                 num_batches))
+                    print(
+                        f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
                 if isinstance(data, torch.Tensor):
                     data = (data,)
@@ -709,8 +726,8 @@ class PtActions(Actions):
                         num_batches < 10 or (
                         epoch_i % int(num_batches / 10) == 0)
                 ):
-                    print("Evaluating batch {} out of {}".format(epoch_i,
-                                                                 num_batches))
+                    print(
+                        f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
                 if isinstance(data, torch.Tensor):
                     data = (data,)
@@ -1023,10 +1040,10 @@ class PtActions(Actions):
 
         dataNM = training_loop[0][2][0][0]
         if dataNM.placement == DeviceType.AllGpu:
-            if len(training_loop) > 1:
-                raise NotImplementedError(
-                    "Distributed training does nor work with multiple "
-                    "optimizers")
+            # if len(training_loop) > 1:
+            #     raise NotImplementedError(
+            #         "Distributed training does nor work with multiple "
+            #         "optimizers")
             print("Doing distributed training")
             if t_dataset is not None:
                 train_sampler = \
@@ -1046,15 +1063,17 @@ class PtActions(Actions):
                 train_dataloader = dataNM.data_iterator
                 train_sampler = train_dataloader.sampler
 
-            for i in range(1, len(opt_call_chain) - 1):
-                key = opt_call_chain[i][0].unique_instance_id
-                self.module_reference_table[key] = (
-                    self.module_reference_table[key][0],
-                    DDP(self.module_reference_table[key][1]) if isinstance(
-                        self.module_reference_table[key][1],
-                        torch.nn.Module) else self.module_reference_table[key][
-                        1],
-                )
+            for train_iter in training_loop:
+                call_chain = train_iter[2]
+                for i in range(1, len(call_chain) - 1):
+                    key = call_chain[i][0].unique_instance_id
+                    pmodule = self.module_reference_table[key][1]
+                    if (not isinstance(pmodule, DDP) and
+                            isinstance(pmodule, torch.nn.Module)):
+                        pmodule = DDP(pmodule)
+                    self.module_reference_table[key] = (
+                        self.module_reference_table[key][0], pmodule
+                    )
         # single GPU/CPU training
         else:
             if t_dataset is not None:
@@ -1126,15 +1145,7 @@ class PtActions(Actions):
                     data = (data,)
                 for d in data:
                     if isinstance(d, torch.Tensor):
-                        if self._optim_level in _float_2_half_req:
-                            if isinstance(d, torch.FloatTensor) or isinstance(
-                                    d, torch.cuda.FloatTensor
-                            ):
-                                tensors.append(d.to(dl_device).half())
-                            else:
-                                tensors.append(d.to(dl_device))
-                        else:
-                            tensors.append(d.to(dl_device))
+                        tensors.append(d.to(dl_device))
                     else:
                         tensors.append(d)
 
@@ -1143,41 +1154,47 @@ class PtActions(Actions):
                     zip(curr_call_chain[0][2].values(), tensors)
                     if t is not None
                 }
+                disable_allreduce = batch_counter < (batches_per_step - 1)
                 self.__nm_graph_forward_pass(
                     call_chain=curr_call_chain,
-                    registered_tensors=registered_tensors
+                    registered_tensors=registered_tensors,
+                    disable_allreduce=disable_allreduce
                 )
 
                 curr_tensors_to_optimize = training_loop[
                     self.step % len(training_loop)][1]
-                tto_len = len(curr_tensors_to_optimize)
-                for ind in range(tto_len):
-                    tensor_name = curr_tensors_to_optimize[ind].unique_name
-                    if self._optim_level in AmpOptimizations and ind == \
-                            tto_len - 1:
-                        with amp.scale_loss(
-                                registered_tensors[tensor_name],
-                                curr_optimizer
-                        ) as scaled_loss:
-                            if torch.isnan(scaled_loss).any():
-                                if stop_on_nan_loss:
-                                    raise ValueError('Loss is NaN exiting')
-                                print('WARNING: Loss is NaN')
-                                curr_optimizer.zero_grad()
-                            scaled_loss.backward(
-                                bps_scale.to(scaled_loss.get_device()))
-                    else:
-                        if torch.isnan(registered_tensors[tensor_name]).any():
+                final_loss = 0
+                nan = False
+                for tensor in curr_tensors_to_optimize:
+                    if torch.isnan(
+                            registered_tensors[tensor.unique_name]).any():
+                        if stop_on_nan_loss:
+                            raise ValueError('Loss is NaN exiting')
+                        print('WARNING: Loss is NaN')
+                        curr_optimizer.zero_grad()
+                        nan = True
+                        break
+                    final_loss += registered_tensors[tensor.unique_name]
+                if nan:
+                    continue
+                if self._optim_level in AmpOptimizations:
+                    with amp.scale_loss(
+                            final_loss,
+                            curr_optimizer,
+                            delay_unscale=disable_allreduce
+                    ) as scaled_loss:
+                        if torch.isnan(scaled_loss).any():
                             if stop_on_nan_loss:
                                 raise ValueError('Loss is NaN exiting')
                             print('WARNING: Loss is NaN')
                             curr_optimizer.zero_grad()
-                            break
-
-                        registered_tensors[tensor_name].backward(
-                            bps_scale.to(
-                                registered_tensors[tensor_name].get_device()),
-                            retain_graph=(ind != tto_len - 1))
+                            continue
+                        scaled_loss.backward(
+                            bps_scale.to(scaled_loss.get_device()))
+                else:
+                    final_loss.backward(
+                        bps_scale.to(
+                            final_loss.get_device()))
 
                 batch_counter += 1
 

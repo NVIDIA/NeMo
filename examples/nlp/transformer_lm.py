@@ -29,7 +29,7 @@ parser.add_argument("--d_inner", default=1920, type=int)
 parser.add_argument("--num_layers", default=10, type=int)
 parser.add_argument("--num_heads", default=12, type=int)
 parser.add_argument("--embedding_dropout", default=0.3, type=float)
-parser.add_argument("--fully_connected_dropout", default=0.3, type=float)
+parser.add_argument("--ffn_dropout", default=0.3, type=float)
 parser.add_argument("--attn_score_dropout", default=0.3, type=float)
 parser.add_argument("--attn_layer_dropout", default=0.3, type=float)
 parser.add_argument("--conv_kernel_size", default=7, type=int)
@@ -129,7 +129,7 @@ t_encoder = neural_factory.get_module(
         "d_inner": args.d_inner,
         "num_layers": args.num_layers,
         "num_attn_heads": args.num_heads,
-        "fully_connected_dropout": args.fully_connected_dropout,
+        "ffn_dropout": args.ffn_dropout,
         "vocab_size": vocab_size,
         "max_seq_length": args.max_sequence_length,
         "embedding_dropout": args.embedding_dropout,

@@ -260,7 +260,7 @@ constructor as part of the <code class="docutils literal notranslate"><span clas
         <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="c1"># (3) call base constructor</span>
+        <span class="c1"># (3) Call base constructor</span>
         <span class="n">TrainableNM</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="c1"># And of Neural Modules specific part. Rest is PyTorch code</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_parameters</span><span class="p">[</span><span class="s2">&quot;dim&quot;</span><span class="p">]</span>
@@ -269,6 +269,7 @@ constructor as part of the <code class="docutils literal notranslate"><span clas
 
     <span class="c1"># IMPORTANT: input arguments to forward must match input input ports&#39; names</span>
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># (4) Implement the forward method</span>
         <span class="n">lst</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">pw</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dim</span><span class="p">):</span>
             <span class="n">lst</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="n">pw</span><span class="p">)</span>
@@ -308,13 +309,13 @@ constructor as part of the <code class="docutils literal notranslate"><span clas
 <h2>Data Layer Module<a class="headerlink" href="#data-layer-module" title="Permalink to this headline">¶</a></h2>
 <ol class="arabic simple">
 <li><p>Inherit from <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataLayerNM</span></code></a> class.</p></li>
-<li><p>Implement <code class="docutils literal notranslate"><span class="pre">__len__</span></code> method to return dataset size</p></li>
-<li><p>Implement <code class="docutils literal notranslate"><span class="pre">data_iterator</span></code> property to return iterator over your dataset.</p></li>
+<li><p>Implement <code class="docutils literal notranslate"><span class="pre">__len__</span></code> method to return dataset size.</p></li>
+<li><p>Implement either the <code class="docutils literal notranslate"><span class="pre">dataset</span></code> or <code class="docutils literal notranslate"><span class="pre">data_iterator</span></code> property to return a PyTorch Dataset object or an iterator over your dataset, respectively. (The unused property should return None.)</p></li>
 </ol>
 <p>When implementing constructor, you should first call base class constructor and
 define <em>output ports only</em> in create_ports().  Also, module should accept
 parameters such as <code class="docutils literal notranslate"><span class="pre">batch_size</span></code> and <code class="docutils literal notranslate"><span class="pre">shuffle</span></code>.</p>
-<p>If under the hood you are using <code class="docutils literal notranslate"><span class="pre">torch.utils.data.Dataset</span></code> class (<em>recommended approach</em>), then you can use <code class="docutils literal notranslate"><span class="pre">torch.utils.data.DataLoader</span></code> to construct iterator over your data.
+<p>If under the hood you are using <code class="docutils literal notranslate"><span class="pre">torch.utils.data.Dataset</span></code> class (<em>recommended approach</em>), then you can implement the <code class="docutils literal notranslate"><span class="pre">dataset</span></code> property, and a DataLoader will be created for you.
 (See example below).</p>
 <div class="section" id="example">
 <h3>Example<a class="headerlink" href="#example" title="Permalink to this headline">¶</a></h3>
@@ -344,12 +345,8 @@ parameters such as <code class="docutils literal notranslate"><span class="pre">
         <span class="n">create_port_args</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;size&quot;</span><span class="p">:</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;input_size&quot;</span><span class="p">]}</span>
         <span class="n">DataLayerNM</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">create_port_args</span><span class="o">=</span><span class="n">create_port_args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">_batch_size</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;batch_size&quot;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_input_size</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;input_size&quot;</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_shuffle</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;shuffle&quot;</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;path&quot;</span><span class="p">]</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">placement</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_transforms</span> <span class="o">=</span> <span class="n">transforms</span><span class="o">.</span><span class="n">Compose</span><span class="p">([</span>
             <span class="n">transforms</span><span class="o">.</span><span class="n">RandomResizedCrop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_input_size</span><span class="p">),</span>
@@ -363,10 +360,12 @@ parameters such as <code class="docutils literal notranslate"><span class="pre">
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dataset</span><span class="p">)</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dataset</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">data_iterator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">DataLoader</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dataset</span><span class="p">,</span>
-                                       <span class="n">batch_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_batch_size</span><span class="p">,</span>
-                                       <span class="n">shuffle</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_shuffle</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">None</span>
 </pre></div>
 </div>
 </div>
