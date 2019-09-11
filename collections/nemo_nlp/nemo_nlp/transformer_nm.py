@@ -32,7 +32,7 @@ class TransformerEncoderNM(TrainableNM):
         num_attention_heads: number of attention heads
         inner_size: number of neurons in the intermediate part of
             fully-connected network (second_sub_layer)
-        fully_connected_dropout: dropout ratio applied to FFN
+        ffn_dropout: dropout ratio applied to FFN
         attn_score_dropout: dropout ratio applied to attention scores
         attn_layer_dropout: dropout ratio applied to the output of attn layer
         conv_kernel_size: convolution kernel size in lightweight_conv
@@ -83,7 +83,7 @@ class TransformerEncoderNM(TrainableNM):
             "mask_future": params.get("mask_future", False),
             "num_attention_heads": params["num_attn_heads"],
             "inner_size": params["d_inner"],
-            "ffn_dropout": params.get("fully_connected_dropout", 0),
+            "ffn_dropout": params.get("ffn_dropout", 0),
             "hidden_act": params.get("hidden_act", "relu"),
             "attn_score_dropout": params.get("attn_score_dropout", 0),
             "attn_layer_dropout": params.get("attn_layer_dropout", 0)
@@ -157,7 +157,7 @@ class TransformerDecoderNM(TrainableNM):
             "hidden_size": params["d_model"],
             "num_attention_heads": params["num_attn_heads"],
             "inner_size": params["d_inner"],
-            "ffn_dropout": params.get("fully_connected_dropout", 0),
+            "ffn_dropout": params.get("ffn_dropout", 0),
             "hidden_act": params.get("hidden_act", "relu"),
             "attn_score_dropout": params.get("attn_score_dropout", 0),
             "attn_layer_dropout": params.get("attn_layer_dropout", 0)

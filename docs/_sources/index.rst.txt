@@ -15,9 +15,6 @@ Welcome to NeMo!
    api-docs/modules
    faq
 
-.. image:: nemo-icon-256x256.png
-    :align: center
-    :alt: NeMo
 
 NEural MOdules (NeMo) is a high level toolkit for training AI applications using Neural Modules.
 NeMo comes with neural module collections for automatic speech recognition (ASR) and natural language processing (NLP).

@@ -59,7 +59,7 @@ class SpecAugment(nn.Module):
                 mask[idx, :,
                      y_left:y_left + w] = 1
 
-        x = x.masked_fill(mask.to(device=x.device), 0)
+        x = x.masked_fill(mask.type(torch.bool).to(device=x.device), 0)
 
         return x
 
@@ -108,6 +108,6 @@ class SpecCutout(nn.Module):
                 mask[idx, rect_x:rect_x + w_x,
                      rect_y:rect_y + w_y] = 1
 
-        x = x.masked_fill(mask.to(device=x.device), 0)
+        x = x.masked_fill(mask.type(torch.bool).to(device=x.device), 0)
 
         return x

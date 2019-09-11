@@ -314,7 +314,9 @@ class FilterbankFeatures(nn.Module):
         max_len = x.size(-1)
         mask = torch.arange(max_len).to(x.device)
         mask = mask.expand(x.size(0), max_len) >= seq_len.unsqueeze(1)
-        x = x.masked_fill(mask.unsqueeze(1).to(device=x.device), 0)
+        x = x.masked_fill(
+            mask.unsqueeze(1).type(torch.bool).to(device=x.device), 0
+        )
         del mask
         pad_to = self.pad_to
         if not self.training:

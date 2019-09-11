@@ -464,6 +464,15 @@
                     <span class="n">luc_trust</span><span class="o">=</span><span class="n">optimization_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;luc_eta&quot;</span><span class="p">,</span> <span class="mf">1e-3</span><span class="p">),</span>
                     <span class="n">betas</span><span class="o">=</span><span class="n">optimization_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;betas&quot;</span><span class="p">,</span> <span class="p">(</span><span class="mf">0.95</span><span class="p">,</span> <span class="mf">0.98</span><span class="p">)),</span>
                 <span class="p">)</span>
+            <span class="k">elif</span> <span class="n">optimizer_class</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;fused_novograd&quot;</span><span class="p">:</span>
+                <span class="n">optimizer</span> <span class="o">=</span> <span class="n">apex</span><span class="o">.</span><span class="n">optimizers</span><span class="o">.</span><span class="n">FusedNovoGrad</span><span class="p">(</span>
+                    <span class="n">params_to_optimize</span><span class="p">,</span>
+                    <span class="n">lr</span><span class="o">=</span><span class="n">lr</span><span class="p">,</span>
+                    <span class="n">weight_decay</span><span class="o">=</span><span class="n">optimization_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;weight_decay&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
+                    <span class="n">reg_inside_moment</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="n">grad_averaging</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                    <span class="n">betas</span><span class="o">=</span><span class="n">optimization_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;betas&quot;</span><span class="p">,</span> <span class="p">(</span><span class="mf">0.95</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">)),</span>
+                <span class="p">)</span>
             <span class="k">elif</span> <span class="n">optimizer_class</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;lamb&quot;</span><span class="p">:</span>
                 <span class="n">optimizer</span> <span class="o">=</span> <span class="n">Lamb</span><span class="p">(</span>
                     <span class="n">params_to_optimize</span><span class="p">,</span>
@@ -475,6 +484,7 @@
                     <span class="s2">&quot;Unknown optimizer class: </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">optimizer_class</span><span class="p">))</span>
 
             <span class="k">if</span> <span class="n">optimization_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;larc&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Enabling larc&quot;</span><span class="p">)</span>
                 <span class="n">optimizer</span> <span class="o">=</span> <span class="n">LARC</span><span class="p">(</span>
                     <span class="n">optimizer</span><span class="p">,</span>
                     <span class="n">trust_coefficient</span><span class="o">=</span><span class="n">optimization_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;larc_eta&quot;</span><span class="p">,</span> <span class="mf">2e-2</span><span class="p">)</span>
@@ -519,13 +529,20 @@
             <span class="bp">self</span><span class="p">,</span>
             <span class="n">call_chain</span><span class="p">,</span>
             <span class="n">registered_tensors</span><span class="p">,</span>
-            <span class="n">mode</span><span class="o">=</span><span class="n">ModelMode</span><span class="o">.</span><span class="n">train</span>
+            <span class="n">mode</span><span class="o">=</span><span class="n">ModelMode</span><span class="o">.</span><span class="n">train</span><span class="p">,</span>
+            <span class="n">disable_allreduce</span><span class="o">=</span><span class="kc">False</span>
     <span class="p">):</span>
         <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">call_chain</span><span class="p">)):</span>
             <span class="n">call_args</span> <span class="o">=</span> <span class="n">call_chain</span><span class="p">[</span><span class="n">ind</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
             <span class="c1"># module = call_chain[ind][0]</span>
             <span class="n">m_id</span> <span class="o">=</span> <span class="n">call_chain</span><span class="p">[</span><span class="n">ind</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">unique_instance_id</span>
             <span class="n">pmodule</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">module_reference_table</span><span class="p">[</span><span class="n">m_id</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pmodule</span><span class="p">,</span> <span class="n">DDP</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">disable_allreduce</span><span class="p">:</span>
+                    <span class="n">pmodule</span><span class="o">.</span><span class="n">disable_allreduce</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">pmodule</span><span class="o">.</span><span class="n">enable_allreduce</span><span class="p">()</span>
 
             <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="n">ModelMode</span><span class="o">.</span><span class="n">train</span><span class="p">:</span>
                 <span class="c1"># if module.is_trainable():</span>
@@ -583,7 +600,7 @@
         <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">t_size</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
             <span class="n">padded_t</span><span class="p">[:</span> <span class="n">t_size</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">:</span> <span class="n">t_size</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="p">:</span> <span class="n">t_size</span><span class="p">[</span><span class="mi">2</span><span class="p">]]</span> <span class="o">=</span> <span class="n">t</span>
         <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">t_size</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
-            <span class="n">padded_t</span><span class="p">[:</span> <span class="n">t_size</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">:</span> <span class="n">t_size</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="p">:</span> <span class="n">t_size</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">size</span><span class="p">[</span><span class="mi">3</span><span class="p">]]</span> <span class="o">=</span> <span class="n">t</span>
+            <span class="n">padded_t</span><span class="p">[:</span> <span class="n">t_size</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">:</span> <span class="n">t_size</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="p">:</span> <span class="n">t_size</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="p">:</span> <span class="n">t_size</span><span class="p">[</span><span class="mi">3</span><span class="p">]]</span> <span class="o">=</span> <span class="n">t</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">NotImplementedError</span>
         <span class="k">return</span> <span class="n">padded_t</span></div>
@@ -687,8 +704,8 @@
                         <span class="n">num_batches</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="ow">or</span> <span class="p">(</span>
                         <span class="n">epoch_i</span> <span class="o">%</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_batches</span> <span class="o">/</span> <span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
                 <span class="p">):</span>
-                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Evaluating batch </span><span class="si">{}</span><span class="s2"> out of </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">epoch_i</span><span class="p">,</span>
-                                                                 <span class="n">num_batches</span><span class="p">))</span>
+                    <span class="nb">print</span><span class="p">(</span>
+                        <span class="n">f</span><span class="s2">&quot;Evaluating batch </span><span class="si">{epoch_i}</span><span class="s2"> out of </span><span class="si">{num_batches}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">tensors</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
                     <span class="n">data</span> <span class="o">=</span> <span class="p">(</span><span class="n">data</span><span class="p">,)</span>
@@ -866,8 +883,8 @@
                         <span class="n">num_batches</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="ow">or</span> <span class="p">(</span>
                         <span class="n">epoch_i</span> <span class="o">%</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_batches</span> <span class="o">/</span> <span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
                 <span class="p">):</span>
-                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Evaluating batch </span><span class="si">{}</span><span class="s2"> out of </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">epoch_i</span><span class="p">,</span>
-                                                                 <span class="n">num_batches</span><span class="p">))</span>
+                    <span class="nb">print</span><span class="p">(</span>
+                        <span class="n">f</span><span class="s2">&quot;Evaluating batch </span><span class="si">{epoch_i}</span><span class="s2"> out of </span><span class="si">{num_batches}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">tensors</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
                     <span class="n">data</span> <span class="o">=</span> <span class="p">(</span><span class="n">data</span><span class="p">,)</span>
@@ -1180,10 +1197,10 @@
 
         <span class="n">dataNM</span> <span class="o">=</span> <span class="n">training_loop</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">2</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">dataNM</span><span class="o">.</span><span class="n">placement</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">training_loop</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
-                    <span class="s2">&quot;Distributed training does nor work with multiple &quot;</span>
-                    <span class="s2">&quot;optimizers&quot;</span><span class="p">)</span>
+            <span class="c1"># if len(training_loop) &gt; 1:</span>
+            <span class="c1">#     raise NotImplementedError(</span>
+            <span class="c1">#         &quot;Distributed training does nor work with multiple &quot;</span>
+            <span class="c1">#         &quot;optimizers&quot;)</span>
             <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Doing distributed training&quot;</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">t_dataset</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">train_sampler</span> <span class="o">=</span> \
@@ -1203,15 +1220,17 @@
                 <span class="n">train_dataloader</span> <span class="o">=</span> <span class="n">dataNM</span><span class="o">.</span><span class="n">data_iterator</span>
                 <span class="n">train_sampler</span> <span class="o">=</span> <span class="n">train_dataloader</span><span class="o">.</span><span class="n">sampler</span>
 
-            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">opt_call_chain</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
-                <span class="n">key</span> <span class="o">=</span> <span class="n">opt_call_chain</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">unique_instance_id</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">module_reference_table</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">module_reference_table</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span>
-                    <span class="n">DDP</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">module_reference_table</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">module_reference_table</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
-                        <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">module_reference_table</span><span class="p">[</span><span class="n">key</span><span class="p">][</span>
-                        <span class="mi">1</span><span class="p">],</span>
-                <span class="p">)</span>
+            <span class="k">for</span> <span class="n">train_iter</span> <span class="ow">in</span> <span class="n">training_loop</span><span class="p">:</span>
+                <span class="n">call_chain</span> <span class="o">=</span> <span class="n">train_iter</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">call_chain</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="n">call_chain</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">unique_instance_id</span>
+                    <span class="n">pmodule</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">module_reference_table</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pmodule</span><span class="p">,</span> <span class="n">DDP</span><span class="p">)</span> <span class="ow">and</span>
+                            <span class="nb">isinstance</span><span class="p">(</span><span class="n">pmodule</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">)):</span>
+                        <span class="n">pmodule</span> <span class="o">=</span> <span class="n">DDP</span><span class="p">(</span><span class="n">pmodule</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">module_reference_table</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">module_reference_table</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">pmodule</span>
+                    <span class="p">)</span>
         <span class="c1"># single GPU/CPU training</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">t_dataset</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1283,15 +1302,7 @@
                     <span class="n">data</span> <span class="o">=</span> <span class="p">(</span><span class="n">data</span><span class="p">,)</span>
                 <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
                     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
-                        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span> <span class="ow">in</span> <span class="n">_float_2_half_req</span><span class="p">:</span>
-                            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">FloatTensor</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span>
-                                    <span class="n">d</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">FloatTensor</span>
-                            <span class="p">):</span>
-                                <span class="n">tensors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dl_device</span><span class="p">)</span><span class="o">.</span><span class="n">half</span><span class="p">())</span>
-                            <span class="k">else</span><span class="p">:</span>
-                                <span class="n">tensors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dl_device</span><span class="p">))</span>
-                        <span class="k">else</span><span class="p">:</span>
-                            <span class="n">tensors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dl_device</span><span class="p">))</span>
+                        <span class="n">tensors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">dl_device</span><span class="p">))</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">tensors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
 
@@ -1300,41 +1311,47 @@
                     <span class="nb">zip</span><span class="p">(</span><span class="n">curr_call_chain</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">tensors</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">t</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
                 <span class="p">}</span>
+                <span class="n">disable_allreduce</span> <span class="o">=</span> <span class="n">batch_counter</span> <span class="o">&lt;</span> <span class="p">(</span><span class="n">batches_per_step</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">__nm_graph_forward_pass</span><span class="p">(</span>
                     <span class="n">call_chain</span><span class="o">=</span><span class="n">curr_call_chain</span><span class="p">,</span>
-                    <span class="n">registered_tensors</span><span class="o">=</span><span class="n">registered_tensors</span>
+                    <span class="n">registered_tensors</span><span class="o">=</span><span class="n">registered_tensors</span><span class="p">,</span>
+                    <span class="n">disable_allreduce</span><span class="o">=</span><span class="n">disable_allreduce</span>
                 <span class="p">)</span>
 
                 <span class="n">curr_tensors_to_optimize</span> <span class="o">=</span> <span class="n">training_loop</span><span class="p">[</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">step</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">training_loop</span><span class="p">)][</span><span class="mi">1</span><span class="p">]</span>
-                <span class="n">tto_len</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">curr_tensors_to_optimize</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">tto_len</span><span class="p">):</span>
-                    <span class="n">tensor_name</span> <span class="o">=</span> <span class="n">curr_tensors_to_optimize</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span><span class="o">.</span><span class="n">unique_name</span>
-                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span> <span class="ow">in</span> <span class="n">AmpOptimizations</span> <span class="ow">and</span> <span class="n">ind</span> <span class="o">==</span> \
-                            <span class="n">tto_len</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
-                        <span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span>
-                                <span class="n">registered_tensors</span><span class="p">[</span><span class="n">tensor_name</span><span class="p">],</span>
-                                <span class="n">curr_optimizer</span>
-                        <span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
-                            <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">scaled_loss</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
-                                <span class="k">if</span> <span class="n">stop_on_nan_loss</span><span class="p">:</span>
-                                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Loss is NaN exiting&#39;</span><span class="p">)</span>
-                                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;WARNING: Loss is NaN&#39;</span><span class="p">)</span>
-                                <span class="n">curr_optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
-                            <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span>
-                                <span class="n">bps_scale</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">scaled_loss</span><span class="o">.</span><span class="n">get_device</span><span class="p">()))</span>
-                    <span class="k">else</span><span class="p">:</span>
-                        <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">registered_tensors</span><span class="p">[</span><span class="n">tensor_name</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+                <span class="n">final_loss</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">nan</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">curr_tensors_to_optimize</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span>
+                            <span class="n">registered_tensors</span><span class="p">[</span><span class="n">tensor</span><span class="o">.</span><span class="n">unique_name</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+                        <span class="k">if</span> <span class="n">stop_on_nan_loss</span><span class="p">:</span>
+                            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Loss is NaN exiting&#39;</span><span class="p">)</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;WARNING: Loss is NaN&#39;</span><span class="p">)</span>
+                        <span class="n">curr_optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+                        <span class="n">nan</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="k">break</span>
+                    <span class="n">final_loss</span> <span class="o">+=</span> <span class="n">registered_tensors</span><span class="p">[</span><span class="n">tensor</span><span class="o">.</span><span class="n">unique_name</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">nan</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span> <span class="ow">in</span> <span class="n">AmpOptimizations</span><span class="p">:</span>
+                    <span class="k">with</span> <span class="n">amp</span><span class="o">.</span><span class="n">scale_loss</span><span class="p">(</span>
+                            <span class="n">final_loss</span><span class="p">,</span>
+                            <span class="n">curr_optimizer</span><span class="p">,</span>
+                            <span class="n">delay_unscale</span><span class="o">=</span><span class="n">disable_allreduce</span>
+                    <span class="p">)</span> <span class="k">as</span> <span class="n">scaled_loss</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">scaled_loss</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
                             <span class="k">if</span> <span class="n">stop_on_nan_loss</span><span class="p">:</span>
                                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Loss is NaN exiting&#39;</span><span class="p">)</span>
                             <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;WARNING: Loss is NaN&#39;</span><span class="p">)</span>
                             <span class="n">curr_optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
-                            <span class="k">break</span>
-
-                        <span class="n">registered_tensors</span><span class="p">[</span><span class="n">tensor_name</span><span class="p">]</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span>
-                            <span class="n">bps_scale</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
-                                <span class="n">registered_tensors</span><span class="p">[</span><span class="n">tensor_name</span><span class="p">]</span><span class="o">.</span><span class="n">get_device</span><span class="p">()),</span>
-                            <span class="n">retain_graph</span><span class="o">=</span><span class="p">(</span><span class="n">ind</span> <span class="o">!=</span> <span class="n">tto_len</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+                            <span class="k">continue</span>
+                        <span class="n">scaled_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span>
+                            <span class="n">bps_scale</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">scaled_loss</span><span class="o">.</span><span class="n">get_device</span><span class="p">()))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">final_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">(</span>
+                        <span class="n">bps_scale</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                            <span class="n">final_loss</span><span class="o">.</span><span class="n">get_device</span><span class="p">()))</span>
 
                 <span class="n">batch_counter</span> <span class="o">+=</span> <span class="mi">1</span>
 

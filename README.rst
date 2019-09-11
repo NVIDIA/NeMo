@@ -1,11 +1,6 @@
 NEMO: NEural MOdules Toolkit
 ============================
 
-.. image:: docs/sources/source/nemo-icon-256x256.png
-    :width: 40
-    :align: center
-    :alt: NEMO
-
 NEural MOdules (NEMO): a framework-agnostic toolkit for building AI applications powered by Neural Modules
 
 
@@ -54,6 +49,9 @@ Run this:
 
 
 **Getting started**
+
+.. tip:: The below steps can be much easier from `NVIDIA's PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ .
+    You can pull it like so: `docker pull nvcr.io/nvidia/pytorch:19.08-py3`
 
 1) Clone the repository and run unittests
 2) Go to `nemo` folder and do: `python setup.py install`

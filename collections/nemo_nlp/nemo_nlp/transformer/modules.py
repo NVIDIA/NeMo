@@ -281,16 +281,16 @@ class PositionWiseFF(nn.Module):
         hidden_size: size of the embeddings in the model, also known as d_model
         inner_size: number of neurons in the intermediate part of feed-forward
             net, usually is (4-8 x hidden_size) in the papers
-        fully_connected_dropout: probability of dropout applied to net output
+        ffn_dropout: probability of dropout applied to net output
         hidden_act: activation function used between two linear layers
     """
 
     def __init__(self, hidden_size, inner_size,
-                 fully_connected_dropout=0.0, hidden_act="relu"):
+                 ffn_dropout=0.0, hidden_act="relu"):
         super().__init__()
         self.dense_in = nn.Linear(hidden_size, inner_size)
         self.dense_out = nn.Linear(inner_size, hidden_size)
-        self.layer_dropout = nn.Dropout(fully_connected_dropout)
+        self.layer_dropout = nn.Dropout(ffn_dropout)
         self.layer_norm = FusedLayerNorm(hidden_size, eps=1e-5)
         ACT2FN = {"gelu": gelu, "relu": torch.relu}
         self.act_fn = ACT2FN[hidden_act]
