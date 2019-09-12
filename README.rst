@@ -59,7 +59,7 @@ and then continue with the following steps:
 
 **Tutorials**
 
-* `Speech recgonition <https://nvidia.github.io/NeMo/asr/intro.html>`_
+* `Speech recognition <https://nvidia.github.io/NeMo/asr/intro.html>`_
 * `Natural language processing LINK <https://nvidia.github.io/NeMo/nlp/intro.html>`_
 
 
