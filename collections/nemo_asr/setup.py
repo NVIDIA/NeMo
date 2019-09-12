@@ -26,6 +26,7 @@ setuptools.setup(
         'torch-stft',
         'soundfile',
         'marshmallow',
-        'ruamel.yaml'
+        'ruamel.yaml',
+        'sox'
     ]
 )
