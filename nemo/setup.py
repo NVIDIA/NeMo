@@ -5,9 +5,9 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="nemo_toolkit",
-    version="0.3",
+    version="0.8",
     author="NVIDIA",
-    author_email="okuchaiev@nvidia.com",
+    author_email="nemo-toolkit@nvidia.com",
     description="NEMO core package. Necessary for all collections.",
     long_description=long_description,
     long_description_content_type="text/markdown",
