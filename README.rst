@@ -12,7 +12,7 @@ An application built with NeMo application is a Directed Acyclic Graph(DAG) of c
 
 **Introduction**
 
-See this video for a walk-through. LINK TBD
+See this `video for a walk-through. <https://nvidia.github.io/NeMo/>`_
 
 
 **Core Concepts and Features**
@@ -33,7 +33,7 @@ See this video for a walk-through. LINK TBD
 
 
 **Documentation**
-TBD
+`NeMo documentation <https://nvidia.github.io/NeMo/>`_
 
 
 **Getting started**
@@ -59,8 +59,8 @@ and then continue with the following steps:
 
 **Tutorials**
 
-* Speech recgonition LINK
-* Natural language processing LINK
+* `Speech recgonition <https://nvidia.github.io/NeMo/asr/intro.html>`_
+* `Natural language processing LINK <https://nvidia.github.io/NeMo/nlp/intro.html>`_
 
 
 **Unittests**
