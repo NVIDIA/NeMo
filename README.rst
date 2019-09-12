@@ -19,6 +19,7 @@ Please refer to the HTML documentation in the `docs` folder
 
 `A Short VIDEO walk-through about using NEMO to experiment with ASR systems. <https://drive.google.com/file/d/1CF-buP_Y1qCAefzoyvOUCXl_3v2vO5P-/view?usp=sharing>`_
 
+<iframe src="https://drive.google.com/file/d/1CF-buP_Y1qCAefzoyvOUCXl_3v2vO5P-/preview" width="640" height="480"></iframe>
 
 **Core Concepts and Features**
 
