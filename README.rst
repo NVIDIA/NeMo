@@ -41,7 +41,10 @@ See this `video for a walk-through. <https://nvidia.github.io/NeMo/>`_
 If desired, you can start with `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ which already includes
 requirements above.
 
-You can pull it like so: ``docker pull nvcr.io/nvidia/pytorch:19.08-py3``
+* You can pull it like so: ``docker pull nvcr.io/nvidia/pytorch:19.08-py3``
+* And then run: ``nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.08-py3''
+* ``cd /NeMo''
+
 and then continue with the following steps:
 
 
