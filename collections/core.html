@@ -1,0 +1,590 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>NeMo Common Collection &mdash; nemo 0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="NEMO_ASR collection" href="ncollections.html" />
+    <link rel="prev" title="NeMo Collections API" href="modules.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">NeMo Collections API</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">NeMo Common Collection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ncollections.html">NEMO_ASR collection</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="modules.html">NeMo Collections API</a> &raquo;</li>
+        
+      <li>NeMo Common Collection</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/collections/core.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="nemo-common-collection">
+<h1>NeMo Common Collection<a class="headerlink" href="#nemo-common-collection" title="Permalink to this headline">¶</a></h1>
+<p>NeMo core package comes with “common” collection for pytorch built-in:</p>
+<span class="target" id="module-nemo.backends.pytorch.common.data"></span><dl class="class">
+<dt id="nemo.backends.pytorch.common.data.TextDataLayer">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.data.</code><code class="sig-name descname">TextDataLayer</code><span class="sig-paren">(</span><em class="sig-param">path</em>, <em class="sig-param">labels</em>, <em class="sig-param">eos_id</em>, <em class="sig-param">pad_id</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">drop_last=False</em>, <em class="sig-param">num_workers=0</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/data.html#TextDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.data.TextDataLayer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.DataLayerNM</span></code></a></p>
+<p>A simple Neural Module for loading textual data</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> – (str) Path to file with newline separate strings of text</p></li>
+<li><p><strong>labels</strong> (<em>list</em>) – List of string labels to use when to str2int translation</p></li>
+<li><p><strong>eos_id</strong> (<em>int</em>) – Label position of end of string symbol</p></li>
+<li><p><strong>pad_id</strong> (<em>int</em>) – Label position of padding symbol</p></li>
+<li><p><strong>batch_size</strong> (<em>int</em>) – Size of batches to generate in data loader</p></li>
+<li><p><strong>drop_last</strong> (<em>bool</em>) – Whether we drop last (possibly) incomplete batch.
+Defaults to False.</p></li>
+<li><p><strong>num_workers</strong> (<em>int</em>) – Number of processes to work on data loading (0 for
+just main process).
+Defaults to 0.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>texts</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="nemo.backends.pytorch.common.data.TextDataLayer.data_iterator">
+<em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo.backends.pytorch.common.data.TextDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
+<dd><p>“Iterator over the dataset. It is a good idea to return
+torch.utils.data.DataLoader here. Should implement either this or
+<cite>dataset</cite>.
+If this is implemented, <cite>dataset</cite> property should return None.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="nemo.backends.pytorch.common.data.TextDataLayer.dataset">
+<em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo.backends.pytorch.common.data.TextDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Should return an instance of torch.utils.data.Dataset. Should
+implement
+either this or <cite>data_iterator</cite>. If this is implemented, <cite>data_iterator</cite>
+should return None.</p>
+</dd></dl>
+
+</dd></dl>
+
+<span class="target" id="module-nemo.backends.pytorch.common.losses"></span><dl class="class">
+<dt id="nemo.backends.pytorch.common.losses.CrossEntropyLoss">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">CrossEntropyLoss</code><span class="sig-paren">(</span><em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#CrossEntropyLoss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.CrossEntropyLoss" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.LossNM</span></code></a></p>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>logits</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.ChannelTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>labels</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>loss</strong>:</p>
+<ul>
+<li><p>non-tensor object</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.backends.pytorch.common.losses.SequenceLoss">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">SequenceLoss</code><span class="sig-paren">(</span><em class="sig-param">pad_id=0</em>, <em class="sig-param">smoothing_coef=0.0</em>, <em class="sig-param">sample_wise=False</em>, <em class="sig-param">aux_ctc=False</em>, <em class="sig-param">ctc_initial_coef=0.1</em>, <em class="sig-param">ctc_blank_id=None</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#SequenceLoss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.SequenceLoss" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.LossNM</span></code></a></p>
+<p>Loss for seq2seq tasks</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pad_id</strong> (<em>int</em>) – Label position of padding symbol.
+Defaults to 0.</p></li>
+<li><p><strong>smoothing_coef</strong> (<em>float</em>) – Label smoothing coefficient in range [0, 1].
+Defaults to 0.0.</p></li>
+<li><p><strong>sample_wise</strong> (<em>bool</em>) – Flag indicates if loss sum divisor should be batch
+size.
+Defaults to False.</p></li>
+<li><p><strong>aux_ctc</strong> (<em>bool</em>) – Whether to add auxiliary CTC loss.
+Defaults to False.</p></li>
+<li><p><strong>ctc_initial_coef</strong> (<em>float</em>) – Initial coefficient to multiply ctc component
+by.
+Defaults to 0.1.</p></li>
+<li><p><strong>ctc_blank_id</strong> (<em>int</em>) – ID of blank symbols to pass to mask when
+calculating ctc loss.
+Defaults to None.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>log_probs</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.ChannelTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>targets</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>loss</strong>:</p>
+<ul>
+<li><p>non-tensor object</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<span class="target" id="module-nemo.backends.pytorch.common.rnn"></span><dl class="class">
+<dt id="nemo.backends.pytorch.common.rnn.DecoderRNN">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.rnn.</code><code class="sig-name descname">DecoderRNN</code><span class="sig-paren">(</span><em class="sig-param">voc_size</em>, <em class="sig-param">bos_id</em>, <em class="sig-param">hidden_size</em>, <em class="sig-param">attention_method='general'</em>, <em class="sig-param">attention_type='post'</em>, <em class="sig-param">in_dropout=0.2</em>, <em class="sig-param">gru_dropout=0.2</em>, <em class="sig-param">attn_dropout=0.0</em>, <em class="sig-param">teacher_forcing=1.0</em>, <em class="sig-param">curriculum_learning=0.5</em>, <em class="sig-param">rnn_type='gru'</em>, <em class="sig-param">n_layers=2</em>, <em class="sig-param">tie_emb_out_weights=True</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/rnn.html#DecoderRNN"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.rnn.DecoderRNN" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
+<p>Simple RNN-based decoder with attention.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>voc_size</strong> (<em>int</em>) – Total number of symbols to use</p></li>
+<li><p><strong>bos_id</strong> (<em>int</em>) – Label position of start of string symbol</p></li>
+<li><p><strong>hidden_size</strong> (<em>int</em>) – Size of hidden vector to use in RNN</p></li>
+<li><p><strong>attention_method</strong> (<em>str</em>) – Method of using attention to pass in
+<cite>Attention</cite> constructor.
+Defaults to ‘general’.</p></li>
+<li><p><strong>attention_type</strong> (<em>str</em>) – String type of attention describing time to apply
+attention. Could be on of [‘post’, ‘none’].
+Defaults to ‘post’.</p></li>
+<li><p><strong>in_dropout</strong> (<em>float</em>) – Float value of embedding dropout.
+Defaults to 0.2.</p></li>
+<li><p><strong>gru_dropout</strong> (<em>float</em>) – Float value of RNN interlayers dropout
+Defaults to 0.2.</p></li>
+<li><p><strong>attn_dropout</strong> (<em>float</em>) – Float value of attention dropout to pass to
+<cite>Attention</cite> constructor
+Defaults to 0.0.</p></li>
+<li><p><strong>teacher_forcing</strong> (<em>float</em>) – Probability of applying full teacher forcing
+method at each step.
+Defaults to 1.0.</p></li>
+<li><p><strong>curriculum_learning</strong> (<em>float</em>) – If teacher forcing is not applying, this
+value indicates probability of using target token from next step.
+Defaults to 0.5.</p></li>
+<li><p><strong>rnn_type</strong> (<em>str</em>) – Type of RNN to use. Could be one of [‘gru’, ‘lstm’].
+Defaults to ‘gru’.</p></li>
+<li><p><strong>n_layers</strong> (<em>int</em>) – Number of layers to use in RNN.
+Defaults to 2.</p></li>
+<li><p><strong>tie_emb_out_weights</strong> (<em>bool</em>) – Whether to tie embedding and output
+weights.
+Defaults to True.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>targets</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>encoder_outputs</strong>:</p>
+<ul>
+<li><p>(Optional)</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>log_probs</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.ChannelTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>attention_weights</strong>:</p>
+<ul>
+<li><p>(Optional)</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="nemo.backends.pytorch.common.rnn.DecoderRNN.forward_cl">
+<code class="sig-name descname">forward_cl</code><span class="sig-paren">(</span><em class="sig-param">targets</em>, <em class="sig-param">encoder_outputs=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/rnn.html#DecoderRNN.forward_cl"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.rnn.DecoderRNN.forward_cl" title="Permalink to this definition">¶</a></dt>
+<dd><p>(BT, BTC&#64;?) -&gt; (BTC, BTT&#64;?)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="nemo.backends.pytorch.common.rnn.DecoderRNN.forward_step">
+<code class="sig-name descname">forward_step</code><span class="sig-paren">(</span><em class="sig-param">decoder_inputs</em>, <em class="sig-param">encoder_outputs=None</em>, <em class="sig-param">decoder_hidden=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/rnn.html#DecoderRNN.forward_step"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.rnn.DecoderRNN.forward_step" title="Permalink to this definition">¶</a></dt>
+<dd><p>(BT, BTC&#64;?, hBC&#64;?) -&gt; (BTC, hBC, BTT&#64;?)</p>
+</dd></dl>
+
+</dd></dl>
+
+<span class="target" id="module-nemo.backends.pytorch.common.search"></span><dl class="class">
+<dt id="nemo.backends.pytorch.common.search.BeamSearch">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.search.</code><code class="sig-name descname">BeamSearch</code><span class="sig-paren">(</span><em class="sig-param">decoder</em>, <em class="sig-param">pad_id</em>, <em class="sig-param">bos_id</em>, <em class="sig-param">eos_id</em>, <em class="sig-param">max_len</em>, <em class="sig-param">batch_size=None</em>, <em class="sig-param">beam_size=8</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/search.html#BeamSearch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.search.BeamSearch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.backends.pytorch.common.search.GreedySearch" title="nemo.backends.pytorch.common.search.GreedySearch"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.common.search.GreedySearch</span></code></a></p>
+<p>Beam translation search.</p>
+<p>For encoder-decoder based models.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>decoder</strong> (<a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a>) – Neural module with <cite>.forward_step(…)</cite> function.</p></li>
+<li><p><strong>pad_id</strong> (<em>int</em>) – Label position of padding symbol</p></li>
+<li><p><strong>bos_id</strong> (<em>int</em>) – Label position of start of string symbol</p></li>
+<li><p><strong>eos_id</strong> (<em>int</em>) – Label position of end of string symbol</p></li>
+<li><p><strong>max_len</strong> (<em>int</em>) – Maximum length of sample when doing inference</p></li>
+<li><p><strong>batch_size</strong> (<em>int</em>) – When there is no encoder outputs passed to forward,
+batch size will be used for determine number of samples to infer.
+Defaults to None.</p></li>
+<li><p><strong>beam_size</strong> (<em>int</em>) – Number of beams (e.g. candidates) to generate and keep
+while doing inference.
+Defaults to 8.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>encoder_outputs</strong>:</p>
+<ul>
+<li><p>(Optional)</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>predictions</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>attention_weights</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="nemo.backends.pytorch.common.search.BeamSearch.choose">
+<em class="property">static </em><code class="sig-name descname">choose</code><span class="sig-paren">(</span><em class="sig-param">tensor</em>, <em class="sig-param">indices</em>, <em class="sig-param">dim</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/search.html#BeamSearch.choose"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.search.BeamSearch.choose" title="Permalink to this definition">¶</a></dt>
+<dd><p>(<em>[BK]</em>, BK, int) -&gt; <em>[BK]</em></p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.backends.pytorch.common.search.GreedySearch">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.search.</code><code class="sig-name descname">GreedySearch</code><span class="sig-paren">(</span><em class="sig-param">decoder</em>, <em class="sig-param">pad_id</em>, <em class="sig-param">bos_id</em>, <em class="sig-param">eos_id</em>, <em class="sig-param">max_len</em>, <em class="sig-param">batch_size=None</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/search.html#GreedySearch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.search.GreedySearch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM" title="nemo.backends.pytorch.nm.NonTrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.NonTrainableNM</span></code></a></p>
+<p>Greedy translation search.</p>
+<p>For encoder-decoder based models.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>decoder</strong> (<a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a>) – Neural module with <cite>.forward_step(…)</cite> function.</p></li>
+<li><p><strong>pad_id</strong> (<em>int</em>) – Label position of padding symbol</p></li>
+<li><p><strong>bos_id</strong> (<em>int</em>) – Label position of start of string symbol</p></li>
+<li><p><strong>eos_id</strong> (<em>int</em>) – Label position of end of string symbol</p></li>
+<li><p><strong>max_len</strong> (<em>int</em>) – Maximum length of sample when doing inference</p></li>
+<li><p><strong>batch_size</strong> (<em>int</em>) – When there is no encoder outputs passed to forward,
+batch size will be used for determine number of samples to infer.
+Defaults to None.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>encoder_outputs</strong>:</p>
+<ul>
+<li><p>(Optional)</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>predictions</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>attention_weights</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<span class="target" id="module-nemo.backends.pytorch.common.zero_data"></span><dl class="class">
+<dt id="nemo.backends.pytorch.common.zero_data.ZerosDataLayer">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.zero_data.</code><code class="sig-name descname">ZerosDataLayer</code><span class="sig-paren">(</span><em class="sig-param">*</em>, <em class="sig-param">size</em>, <em class="sig-param">output_ports</em>, <em class="sig-param">dtype</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">shapes=None</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/zero_data.html#ZerosDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.zero_data.ZerosDataLayer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.DataLayerNM</span></code></a></p>
+<p>DataLayer Neural Module which emits zeros.
+This module should be used for debugging/benchmarking purposes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>size</strong> – (int) size of the underlying dataset</p></li>
+<li><p><strong>output_ports</strong> – which output ports it should have</p></li>
+<li><p><strong>dtype</strong> – Dtype of the output tensors.</p></li>
+<li><p><strong>batch_size</strong> (<em>int</em>) – Size of batches to output.</p></li>
+<li><p><strong>shapes</strong> – If None, this will be inferred from output_ports. Else,
+specifies the shape of the output tensors.
+Defaults to None.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="nemo.backends.pytorch.common.zero_data.ZerosDataLayer.batch_size">
+<em class="property">property </em><code class="sig-name descname">batch_size</code><a class="headerlink" href="#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.batch_size" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="nemo.backends.pytorch.common.zero_data.ZerosDataLayer.data_iterator">
+<em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
+<dd><p>“Iterator over the dataset. It is a good idea to return
+torch.utils.data.DataLoader here. Should implement either this or
+<cite>dataset</cite>.
+If this is implemented, <cite>dataset</cite> property should return None.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="nemo.backends.pytorch.common.zero_data.ZerosDataLayer.dataset">
+<em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Should return an instance of torch.utils.data.Dataset. Should
+implement
+either this or <cite>data_iterator</cite>. If this is implemented, <cite>data_iterator</cite>
+should return None.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="ncollections.html" class="btn btn-neutral float-right" title="NEMO_ASR collection" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="modules.html" class="btn btn-neutral float-left" title="NeMo Collections API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, AI Applications team
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

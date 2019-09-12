@@ -1,0 +1,563 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Tutorial &mdash; nemo 0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Datasets" href="datasets.html" />
+    <link rel="prev" title="Speech Recognition" href="intro.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">Speech Recognition</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Tutorial</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#get-data">Get data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#training">Training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mixed-precision-training">Mixed Precision training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#multi-gpu-training">Multi-GPU training</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#large-training-example">Large Training Example</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#fine-tuning">Fine-tuning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#inference">Inference</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#inference-with-language-model">Inference with Language Model</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#using-kenlm">Using KenLM</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="models.html">Models</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">Speech Recognition</a> &raquo;</li>
+        
+      <li>Tutorial</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/asr/tutorial.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="tutorial">
+<h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+<p>Make sure you have installed <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code> collection.
+See <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You only need <cite>nemo</cite> and <cite>nemo_asr</cite> collection for this tutorial.</p>
+</div>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>This Automatic Speech Recognition (ASR) tutorial is focused on Jasper <a class="reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id1">[1]</a> model. Jasper is CTC-based <a class="reference internal" href="#graves2006" id="id2">[1]</a> end-to-end model. The model is called “end-to-end” because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text.
+CTC-ASR training pipeline consists of the following blocks:</p>
+<ol class="arabic">
+<li><p>audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)</p></li>
+<li><p>neural acoustic model (which predicts a probability distribution P_t(c) over vocabulary characters c per each time step t given input features per each timestep)</p></li>
+<li><p>CTC loss function</p>
+<blockquote>
+<div><img alt="CTC-based ASR" class="align-center" src="../_images/ctc_asr.png" />
+</div></blockquote>
+</li>
+</ol>
+</div>
+<div class="section" id="get-data">
+<h2>Get data<a class="headerlink" href="#get-data" title="Permalink to this headline">¶</a></h2>
+<p>We will be using an open-source LibriSpeech <a class="reference internal" href="../nlp/asr-improvement.html#panayotov2015librispeech" id="id3">[3]</a> dataset. These scripts will download and convert LibriSpeech into format expected by <cite>nemo_asr</cite>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir data
+<span class="c1"># note that this script requires sox to be installed</span>
+<span class="c1"># to install sox on Ubuntu, simply do: sudo apt-get install sox</span>
+<span class="c1"># and then: pip install sox</span>
+<span class="c1"># get_librispeech_data.py script is located under &lt;nemo_git_repo_root&gt;/scripts</span>
+python get_librispeech_data.py --data_root<span class="o">=</span>data --data_set<span class="o">=</span>dev_clean,train_clean_100
+<span class="c1"># To get all LibriSpeech data, do:</span>
+<span class="c1"># python get_librispeech_data.py --data_root=data --data_set=ALL</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You should have at least 26GB of disk space available if you’ve used <code class="docutils literal notranslate"><span class="pre">--data_set=dev_clean,train_clean_100</span></code>; and at least 110GB if you used <code class="docutils literal notranslate"><span class="pre">--data_set=ALL</span></code>. Also, it will take some time to download and process, so go grab a coffee.</p>
+</div>
+<p>After download and conversion, your <cite>data</cite> folder should contain 2 json files:</p>
+<ul class="simple">
+<li><p>dev_clean.json</p></li>
+<li><p>train_clean_100.json</p></li>
+</ul>
+<p>In the tutorial we will use <cite>train_clean_100.json</cite> for training and <cite>dev_clean.json`for evaluation.
+Each line in json file describes a training sample - `audio_filepath</cite> contains path to the wav file, <cite>duration</cite> it’s duration in seconds, and <cite>text</cite> is it’s transcript:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&lt;absolute_path_to&gt;/1355-39947-0000.wav&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">11.3</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;psychotherapy and the community both the physician and the patient find their place in the community the life interests of which are superior to the interests of the individual&quot;</span><span class="p">}</span>
+<span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&lt;absolute_path_to&gt;/1355-39947-0001.wav&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">15.905</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;it is an unavoidable question how far from the higher point of view of the social mind the psychotherapeutic efforts should be encouraged or suppressed are there any conditions which suggest suspicion of or direct opposition to such curative work&quot;</span><span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="training">
+<h2>Training<a class="headerlink" href="#training" title="Permalink to this headline">¶</a></h2>
+<p>We will train a small model from the Jasper family <a class="reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id4">[1]</a>.
+Jasper (“Just Another SPeech Recognizer”) is a deep time delay neural network (TDNN) comprising of blocks of 1D-convolutional layers.
+Jasper family of models are denoted as Jasper_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization, ReLU, and dropout:</p>
+<blockquote>
+<div><img alt="japer model" class="align-center" src="../_images/jasper.png" />
+</div></blockquote>
+<p>In the tutorial we will be using model [12x1] and will be using separable convolutions.
+The script below does both training (on <cite>train_clean_100.json</cite>) and evaluation (on <cite>dev_clean.json</cite>) on single GPU:</p>
+<blockquote>
+<div><div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Run Jupyter notebook and walk through this script step-by-step</p>
+</div>
+</div></blockquote>
+<p><strong>Training script</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># NeMo&#39;s &quot;core&quot; package</span>
+<span class="kn">import</span> <span class="nn">nemo</span>
+<span class="c1"># NeMo&#39;s ASR collection</span>
+<span class="kn">import</span> <span class="nn">nemo_asr</span>
+
+<span class="c1"># Create a Neural Factory</span>
+<span class="c1"># It creates log files and tensorboard writers for us among other functions</span>
+<span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
+    <span class="n">log_dir</span><span class="o">=</span><span class="s1">&#39;jasper12x1SEP&#39;</span><span class="p">,</span>
+    <span class="n">create_tb_writer</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">tb_writer</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">tb_writer</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">logger</span>
+
+<span class="c1"># Path to our training manifest</span>
+<span class="n">train_dataset</span> <span class="o">=</span> <span class="s2">&quot;&lt;path_to_where_you_put_data&gt;/train_clean_100.json&quot;</span>
+
+<span class="c1"># Path to our validation manifest</span>
+<span class="n">eval_datasets</span> <span class="o">=</span> <span class="s2">&quot;&lt;path_to_where_you_put_data&gt;/dev_clean.json&quot;</span>
+
+<span class="c1"># Jasper Model definition</span>
+<span class="kn">from</span> <span class="nn">ruamel.yaml</span> <span class="kn">import</span> <span class="n">YAML</span>
+
+<span class="c1"># Here we will be using separable convolutions</span>
+<span class="c1"># with 12 blocks (k=12 repeated once r=1 from the picture above)</span>
+<span class="n">yaml</span> <span class="o">=</span> <span class="n">YAML</span><span class="p">(</span><span class="n">typ</span><span class="o">=</span><span class="s2">&quot;safe&quot;</span><span class="p">)</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;&lt;nemo_git_repo_root&gt;/examples/asr/configs/jasper12x1SEP.yaml&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">jasper_model_definition</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+<span class="n">labels</span> <span class="o">=</span> <span class="n">jasper_model_definition</span><span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">]</span>
+
+<span class="c1"># Instantiate neural modules</span>
+<span class="n">data_layer</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioToTextDataLayer</span><span class="p">(</span>
+    <span class="n">manifest_filepath</span><span class="o">=</span><span class="n">train_dataset</span><span class="p">,</span>
+    <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span>
+<span class="n">data_layer_val</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioToTextDataLayer</span><span class="p">(</span>
+    <span class="n">manifest_filepath</span><span class="o">=</span><span class="n">eval_datasets</span><span class="p">,</span>
+    <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+<span class="n">data_preprocessor</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioPreprocessing</span><span class="p">()</span>
+<span class="n">spec_augment</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">SpectrogramAugmentation</span><span class="p">(</span><span class="n">rect_masks</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+
+<span class="n">jasper_encoder</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">JasperEncoder</span><span class="p">(</span>
+    <span class="n">feat_in</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">jasper_model_definition</span><span class="p">[</span><span class="s1">&#39;JasperEncoder&#39;</span><span class="p">])</span>
+<span class="n">jasper_decoder</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">JasperDecoderForCTC</span><span class="p">(</span>
+    <span class="n">feat_in</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">labels</span><span class="p">))</span>
+<span class="n">ctc_loss</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">CTCLossNM</span><span class="p">(</span><span class="n">num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">labels</span><span class="p">))</span>
+<span class="n">greedy_decoder</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">GreedyCTCDecoder</span><span class="p">()</span>
+
+<span class="c1"># Training DAG (Model)</span>
+<span class="n">audio_signal</span><span class="p">,</span> <span class="n">audio_signal_len</span><span class="p">,</span> <span class="n">transcript</span><span class="p">,</span> <span class="n">transcript_len</span> <span class="o">=</span> <span class="n">data_layer</span><span class="p">()</span>
+<span class="n">processed_signal</span><span class="p">,</span> <span class="n">processed_signal_len</span> <span class="o">=</span> <span class="n">data_preprocessor</span><span class="p">(</span>
+    <span class="n">input_signal</span><span class="o">=</span><span class="n">audio_signal</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">audio_signal_len</span><span class="p">)</span>
+<span class="n">aug_signal</span> <span class="o">=</span> <span class="n">spec_augment</span><span class="p">(</span><span class="n">input_spec</span><span class="o">=</span><span class="n">processed_signal</span><span class="p">)</span>
+<span class="n">encoded</span><span class="p">,</span> <span class="n">encoded_len</span> <span class="o">=</span> <span class="n">jasper_encoder</span><span class="p">(</span>
+    <span class="n">audio_signal</span><span class="o">=</span><span class="n">aug_signal</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">processed_signal_len</span><span class="p">)</span>
+<span class="n">log_probs</span> <span class="o">=</span> <span class="n">jasper_decoder</span><span class="p">(</span><span class="n">encoder_output</span><span class="o">=</span><span class="n">encoded</span><span class="p">)</span>
+<span class="n">predictions</span> <span class="o">=</span> <span class="n">greedy_decoder</span><span class="p">(</span><span class="n">log_probs</span><span class="o">=</span><span class="n">log_probs</span><span class="p">)</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="n">ctc_loss</span><span class="p">(</span>
+    <span class="n">log_probs</span><span class="o">=</span><span class="n">log_probs</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">transcript</span><span class="p">,</span>
+    <span class="n">input_length</span><span class="o">=</span><span class="n">encoded_len</span><span class="p">,</span> <span class="n">target_length</span><span class="o">=</span><span class="n">transcript_len</span><span class="p">)</span>
+
+<span class="c1"># Validation DAG (Model)</span>
+<span class="c1"># We need to instantiate additional data layer neural module</span>
+<span class="c1"># for validation data</span>
+<span class="n">audio_signal_v</span><span class="p">,</span> <span class="n">audio_signal_len_v</span><span class="p">,</span> <span class="n">transcript_v</span><span class="p">,</span> <span class="n">transcript_len_v</span> <span class="o">=</span> <span class="n">data_layer_val</span><span class="p">()</span>
+<span class="n">processed_signal_v</span><span class="p">,</span> <span class="n">processed_signal_len_v</span> <span class="o">=</span> <span class="n">data_preprocessor</span><span class="p">(</span>
+    <span class="n">input_signal</span><span class="o">=</span><span class="n">audio_signal_v</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">audio_signal_len_v</span><span class="p">)</span>
+<span class="c1"># Note that we are not using data-augmentation in validation DAG</span>
+<span class="n">encoded_v</span><span class="p">,</span> <span class="n">encoded_len_v</span> <span class="o">=</span> <span class="n">jasper_encoder</span><span class="p">(</span>
+    <span class="n">audio_signal</span><span class="o">=</span><span class="n">processed_signal_v</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">processed_signal_len_v</span><span class="p">)</span>
+<span class="n">log_probs_v</span> <span class="o">=</span> <span class="n">jasper_decoder</span><span class="p">(</span><span class="n">encoder_output</span><span class="o">=</span><span class="n">encoded_v</span><span class="p">)</span>
+<span class="n">predictions_v</span> <span class="o">=</span> <span class="n">greedy_decoder</span><span class="p">(</span><span class="n">log_probs</span><span class="o">=</span><span class="n">log_probs_v</span><span class="p">)</span>
+<span class="n">loss_v</span> <span class="o">=</span> <span class="n">ctc_loss</span><span class="p">(</span>
+    <span class="n">log_probs</span><span class="o">=</span><span class="n">log_probs_v</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">transcript_v</span><span class="p">,</span>
+    <span class="n">input_length</span><span class="o">=</span><span class="n">encoded_len_v</span><span class="p">,</span> <span class="n">target_length</span><span class="o">=</span><span class="n">transcript_len_v</span><span class="p">)</span>
+
+<span class="c1"># These helper functions are needed to print and compute various metrics</span>
+<span class="c1"># such as word error rate and log them into tensorboard</span>
+<span class="c1"># they are domain-specific and are provided by NeMo&#39;s collections</span>
+<span class="kn">from</span> <span class="nn">nemo_asr.helpers</span> <span class="kn">import</span> <span class="n">monitor_asr_train_progress</span><span class="p">,</span> \
+    <span class="n">process_evaluation_batch</span><span class="p">,</span> <span class="n">process_evaluation_epoch</span>
+
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="c1"># Callback to track loss and print predictions during training</span>
+<span class="n">train_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
+    <span class="n">tb_writer</span><span class="o">=</span><span class="n">tb_writer</span><span class="p">,</span>
+    <span class="c1"># Define the tensors that you want SimpleLossLoggerCallback to</span>
+    <span class="c1"># operate on</span>
+    <span class="c1"># Here we want to print our loss, and our word error rate which</span>
+    <span class="c1"># is a function of our predictions, transcript, and transcript_len</span>
+    <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">loss</span><span class="p">,</span> <span class="n">predictions</span><span class="p">,</span> <span class="n">transcript</span><span class="p">,</span> <span class="n">transcript_len</span><span class="p">],</span>
+    <span class="c1"># To print logs to screen, define a print_func</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="n">partial</span><span class="p">(</span>
+        <span class="n">monitor_asr_train_progress</span><span class="p">,</span>
+        <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span>
+        <span class="n">logger</span><span class="o">=</span><span class="n">logger</span>
+    <span class="p">))</span>
+
+<span class="n">saver_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span>
+    <span class="n">folder</span><span class="o">=</span><span class="s2">&quot;./&quot;</span><span class="p">,</span>
+    <span class="c1"># Set how often we want to save checkpoints</span>
+    <span class="n">step_freq</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+
+<span class="c1"># PRO TIP: while you can only have 1 train DAG, you can have as many</span>
+<span class="c1"># val DAGs and callbacks as you want. This is useful if you want to monitor</span>
+<span class="c1"># progress on more than one val dataset at once (say LibriSpeech dev clean</span>
+<span class="c1"># and dev other)</span>
+<span class="n">eval_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span>
+    <span class="n">eval_tensors</span><span class="o">=</span><span class="p">[</span><span class="n">loss_v</span><span class="p">,</span> <span class="n">predictions_v</span><span class="p">,</span> <span class="n">transcript_v</span><span class="p">,</span> <span class="n">transcript_len_v</span><span class="p">],</span>
+    <span class="c1"># how to process evaluation batch - e.g. compute WER</span>
+    <span class="n">user_iter_callback</span><span class="o">=</span><span class="n">partial</span><span class="p">(</span>
+        <span class="n">process_evaluation_batch</span><span class="p">,</span>
+        <span class="n">labels</span><span class="o">=</span><span class="n">labels</span>
+        <span class="p">),</span>
+    <span class="c1"># how to aggregate statistics (e.g. WER) for the evaluation epoch</span>
+    <span class="n">user_epochs_done_callback</span><span class="o">=</span><span class="n">partial</span><span class="p">(</span>
+        <span class="n">process_evaluation_epoch</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">&quot;DEV-CLEAN&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span>
+        <span class="p">),</span>
+    <span class="n">eval_step</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>
+    <span class="n">tb_writer</span><span class="o">=</span><span class="n">tb_writer</span><span class="p">)</span>
+
+<span class="c1"># Run training using your Neural Factory</span>
+<span class="c1"># Once this &quot;action&quot; is called data starts flowing along train and eval DAGs</span>
+<span class="c1"># and computations start to happen</span>
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="c1"># Specify the loss to optimize for</span>
+    <span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">loss</span><span class="p">],</span>
+    <span class="c1"># Specify which callbacks you want to run</span>
+    <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">train_callback</span><span class="p">,</span> <span class="n">eval_callback</span><span class="p">,</span> <span class="n">saver_callback</span><span class="p">],</span>
+    <span class="c1"># Specify what optimizer to use</span>
+    <span class="n">optimizer</span><span class="o">=</span><span class="s2">&quot;novograd&quot;</span><span class="p">,</span>
+    <span class="c1"># Specify optimizer parameters such as num_epochs and lr</span>
+    <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span> <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="mf">0.02</span><span class="p">,</span> <span class="s2">&quot;weight_decay&quot;</span><span class="p">:</span> <span class="mf">1e-4</span>
+        <span class="p">}</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This script trains should finish 50 epochs in about 7 hours on GTX 1080.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<dl class="simple">
+<dt>To improve your word error rates:</dt><dd><ol class="arabic simple">
+<li><p>Train longer</p></li>
+<li><p>Train on more data</p></li>
+<li><p>Use larger model</p></li>
+<li><p>Train on several GPUs and use mixed precision (on NVIDIA Volta and Turing GPUs)</p></li>
+<li><p>Start with pre-trained checkpoints</p></li>
+</ol>
+</dd>
+</dl>
+</div>
+</div>
+<div class="section" id="mixed-precision-training">
+<h2>Mixed Precision training<a class="headerlink" href="#mixed-precision-training" title="Permalink to this headline">¶</a></h2>
+<p>Mixed precision and distributed training in NeMo is based on <a class="reference external" href="https://github.com/NVIDIA/apex">NVIDIA’s APEX library</a>.
+Make sure it is installed.</p>
+<p>To train with mixed-precision all you need is to set <cite>optimization_level</cite> parameter of <cite>nemo.core.NeuralModuleFactory</cite>  to <cite>nemo.core.Optimization.mxprO1</cite>. For example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
+    <span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
+    <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+    <span class="n">optimization_level</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO1</span><span class="p">,</span>
+    <span class="n">placement</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">,</span>
+    <span class="n">cudnn_benchmark</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Because mixed precision requires Tensor Cores it only works on NVIDIA Volta and Turing based GPUs</p>
+</div>
+</div>
+<div class="section" id="multi-gpu-training">
+<h2>Multi-GPU training<a class="headerlink" href="#multi-gpu-training" title="Permalink to this headline">¶</a></h2>
+<p>Enabling multi-GPU training with NeMo is easy:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>First set <cite>placement</cite> to <cite>nemo.core.DeviceType.AllGpu</cite> in NeuralModuleFactory and in your Neural Modules</p></li>
+<li><p>Have your script accept ‘local_rank’ argument and do not set it yourself: <cite>parser.add_argument(“–local_rank”, default=None, type=int)</cite></p></li>
+<li><p>Use <cite>torch.distributed.launch</cite> package to run your script like this (replace &lt;num_gpus&gt; with number of gpus):</p></li>
+</ol>
+</div></blockquote>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>&lt;num_gpus&gt; &lt;nemo_git_repo_root&gt;/examples/asr/jasper.py ...
+</pre></div>
+</div>
+<div class="section" id="large-training-example">
+<h3>Large Training Example<a class="headerlink" href="#large-training-example" title="Permalink to this headline">¶</a></h3>
+<p>Please refer to the <cite>&lt;nemo_git_repo_root&gt;/examples/asr/jasper.py</cite> for comprehensive example. It builds one train DAG and up to three validation DAGs to evaluate on different datasets.</p>
+<p>Assuming, you are working with Volta-based DGX, you can run training like this:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>&lt;num_gpus&gt; &lt;nemo_git_repo_root&gt;/examples/asr/jasper.py --batch_size<span class="o">=</span><span class="m">64</span> --num_epochs<span class="o">=</span><span class="m">100</span> --lr<span class="o">=</span><span class="m">0</span>.015 --warmup_steps<span class="o">=</span><span class="m">8000</span> --weight_decay<span class="o">=</span><span class="m">0</span>.001 --train_dataset<span class="o">=</span>/manifests/librivox-train-all.json --eval_datasets /manifests/librivox-dev-clean.json /manifests/librivox-dev-other.json --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/nemo/examples/asr/configs/jasper15x5SEP.yaml --exp_name<span class="o">=</span>MyLARGE-ASR-EXPERIMENT
+</pre></div>
+</div>
+<p>The command above should trigger 8-GPU training with mixed precision. In the command above various manifests (.json) files are various datasets. Substitute them with the ones containing your data.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>You can pass several manifests (comma-separated) to train on a combined dataset like this: <cite>–train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json</cite>. Here it combines 3 data sets: LibriSpeech, Mozilla Common Voice and LibriSpeech speed perturbed.</p>
+</div>
+</div>
+</div>
+<div class="section" id="fine-tuning">
+<h2>Fine-tuning<a class="headerlink" href="#fine-tuning" title="Permalink to this headline">¶</a></h2>
+<p>Training time can be dramatically reduced if starting from a good pre-trained model:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>Obtain pre-trained model (jasper_encoder, jasper_decoder and configuration files) <a class="reference external" href="https://drive.google.com/drive/folders/1b-TQYY7o8_CQgZsVEe-8_2kHWU0lYJ-z?usp=sharing">from here</a>.</p></li>
+<li><p>load pre-trained weights right after you’ve instantiated your jasper_encoder and jasper_decoder, like this:</p></li>
+</ol>
+</div></blockquote>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">jasper_encoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/15x5SEP/JasperEncoder-STEP-247400.pt&quot;</span><span class="p">)</span>
+<span class="n">jasper_decoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/15x5SEP/JasperDecoderForCTC-STEP-247400.pt&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>When fine-tuning, use smaller learning rate.</p>
+</div>
+</div>
+<div class="section" id="inference">
+<h2>Inference<a class="headerlink" href="#inference" title="Permalink to this headline">¶</a></h2>
+<p>First download pre-trained model (jasper_encoder, jasper_decoder and configuration files) <a class="reference external" href="https://drive.google.com/drive/folders/1b-TQYY7o8_CQgZsVEe-8_2kHWU0lYJ-z?usp=sharing">from here</a> into <cite>&lt;path_to_checkpoints&gt;</cite>. We will use this pre-trained model to measure WER on LibriSpeech dev-clean dataset.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_infer.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/jasper15x5SEP.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt;
+</pre></div>
+</div>
+</div>
+<div class="section" id="inference-with-language-model">
+<h2>Inference with Language Model<a class="headerlink" href="#inference-with-language-model" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="using-kenlm">
+<h3>Using KenLM<a class="headerlink" href="#using-kenlm" title="Permalink to this headline">¶</a></h3>
+<p>We will be using <a class="reference external" href="https://github.com/PaddlePaddle/DeepSpeech">Baidu’s CTC decoder with LM implementation.</a>.</p>
+<p>Perform the following steps:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Go to <cite>cd &lt;nemo_git_repo_root&gt;/scripts</cite></p></li>
+<li><p>Install Baidu’s CTC decoders <cite>sudo apt-get install swig</cite> and <cite>./install_decoders.sh</cite></p></li>
+<li><p>Build 6-gram KenLM model on LibriSpeech <cite>./build_6-gram_OpenSLR_lm.sh</cite></p></li>
+<li><p>Run jasper_infer.py with the –lm_path flag</p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_infer.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/jasper15x5SEP.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt; --lm_path<span class="o">=</span>&lt;path_to_6gram.binary&gt;
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+</div>
+<div class="section" id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<p id="bibtex-bibliography-asr/tutorial-0"><dl class="citation">
+<dt class="label" id="graves2006"><span class="brackets"><a class="fn-backref" href="#id2">1</a></span></dt>
+<dd><p>Alex Graves, Santiago Fernández, Faustino Gomez, and Jürgen Schmidhuber. Connectionist temporal classification: labelling unsegmented sequence data with recurrent neural networks. In <em>Proceedings of the 23rd international conference on Machine learning</em>, 369–376. ACM, 2006.</p>
+</dd>
+<dt class="label" id="li2019jasper"><span class="brackets">1</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id4">2</a>)</span></dt>
+<dd><p>Jason Li, Vitaly Lavrukhin, Boris Ginsburg, Ryan Leary, Oleksii Kuchaiev, Jonathan M Cohen, Huyen Nguyen, and Ravi Teja Gadde. Jasper: an end-to-end convolutional neural acoustic model. <em>arXiv preprint arXiv:1904.03288</em>, 2019.</p>
+</dd>
+<dt class="label" id="panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
+<dd><p>Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur. Librispeech: an asr corpus based on public domain audio books. In <em>Acoustics, Speech and Signal Processing (ICASSP), 2015 IEEE International Conference on</em>, 5206–5210. IEEE, 2015.</p>
+</dd>
+</dl>
+</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="datasets.html" class="btn btn-neutral float-right" title="Datasets" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="intro.html" class="btn btn-neutral float-left" title="Speech Recognition" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, AI Applications team
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

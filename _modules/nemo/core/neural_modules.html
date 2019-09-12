@@ -1,0 +1,645 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>nemo.core.neural_modules &mdash; nemo 0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>nemo.core.neural_modules</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for nemo.core.neural_modules</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2019 NVIDIA Corporation</span>
+<span class="sd">&quot;&quot;&quot;This file contains NeuralModule and NmTensor classes.&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">uuid</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">abc</span> <span class="k">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
+<span class="kn">from</span> <span class="nn">enum</span> <span class="k">import</span> <span class="n">Enum</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">List</span>
+<span class="kn">from</span> <span class="nn">inspect</span> <span class="k">import</span> <span class="n">getargvalues</span><span class="p">,</span> <span class="n">stack</span>
+<span class="kn">from</span> <span class="nn">nemo.core</span> <span class="k">import</span> <span class="n">NeuralModuleFactory</span>
+
+<span class="kn">from</span> <span class="nn">.neural_factory</span> <span class="k">import</span> <span class="n">Optimization</span><span class="p">,</span> <span class="n">DeviceType</span>
+<span class="kn">from</span> <span class="nn">.neural_types</span> <span class="k">import</span> <span class="n">CanNotInferResultNeuralType</span><span class="p">,</span>\
+                          <span class="n">NeuralType</span><span class="p">,</span> <span class="n">NeuralTypeComparisonResult</span><span class="p">,</span>\
+                          <span class="n">NeuralPortNameMismatchError</span><span class="p">,</span>\
+                          <span class="n">NeuralPortNmTensorMismatchError</span><span class="p">,</span>\
+                          <span class="n">NmTensor</span>
+
+
+<div class="viewcode-block" id="WeightShareTransform"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.WeightShareTransform">[docs]</a><span class="k">class</span> <span class="nc">WeightShareTransform</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;When sharing parameters, what kind of transform to apply.&quot;&quot;&quot;</span>
+
+    <span class="n">SAME</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">TRANSPOSE</span> <span class="o">=</span> <span class="mi">1</span></div>
+
+
+<span class="n">PretrainedModelInfo</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s2">&quot;PretrainedModleInfo&quot;</span><span class="p">,</span>
+                                 <span class="p">(</span><span class="s2">&quot;pretrained_model_name&quot;</span><span class="p">,</span> <span class="s2">&quot;description&quot;</span><span class="p">,</span>
+                                  <span class="s2">&quot;parameters&quot;</span><span class="p">,</span> <span class="s2">&quot;location&quot;</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="NeuralModule"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule">[docs]</a><span class="k">class</span> <span class="nc">NeuralModule</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Abstract class that every Neural Module must inherit from.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        pretrained_model_name (str): name of pretrained model to use in order</span>
+<span class="sd">            to initialize this neural module</span>
+<span class="sd">        create_port_args (dict): arguments that are passed to create_ports()</span>
+<span class="sd">        factory (NeuralModuleFactory): :class:`NeuralModuleFactory` which</span>
+<span class="sd">            created or which should mange this instance. Required for</span>
+<span class="sd">            multi-gpu training.</span>
+<span class="sd">        placement (DeviceType): (default:None) where this module should</span>
+<span class="sd">            be placed. If provided, this parameter takes precedence over</span>
+<span class="sd">            whatever is specified in factory.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+            <span class="n">pretrained_model_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">create_port_args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">factory</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">placement</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pretrained_model_name</span> <span class="o">=</span> <span class="n">pretrained_model_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_local_parameters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_local_params</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">create_port_args</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">create_port_args</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_input_ports</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_output_ports</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_ports</span><span class="p">(</span>
+            <span class="o">**</span><span class="n">create_port_args</span><span class="p">)</span>
+
+        <span class="n">default_factory</span> <span class="o">=</span> <span class="n">NeuralModuleFactory</span><span class="o">.</span><span class="n">get_default_factory</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">factory</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">default_factory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="n">factory</span> <span class="o">=</span> <span class="n">default_factory</span>
+
+        <span class="c1"># Set module properties from factory else use defaults</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_placement</span> <span class="o">=</span> <span class="n">factory</span><span class="o">.</span><span class="n">placement</span> <span class="k">if</span> <span class="n">factory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>\
+            <span class="k">else</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_opt_level</span> <span class="o">=</span> <span class="n">factory</span><span class="o">.</span><span class="n">optim_level</span> <span class="k">if</span> <span class="n">factory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>\
+            <span class="k">else</span> <span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span> <span class="o">=</span> <span class="n">factory</span><span class="o">.</span><span class="n">logger</span> <span class="k">if</span> <span class="n">factory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>\
+            <span class="k">else</span> <span class="n">logging</span>
+
+        <span class="c1"># Update module properties using overrides if overrides exist</span>
+        <span class="k">if</span> <span class="n">placement</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_placement</span> <span class="o">=</span> <span class="n">placement</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_factory</span> <span class="o">=</span> <span class="n">factory</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_uuid</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
+
+        <span class="k">if</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">&quot;When constructing </span><span class="si">{}</span><span class="s2">. The base &quot;</span>
+                <span class="s2">&quot;NeuralModule class received the following unused &quot;</span>
+                <span class="s2">&quot;arguments:&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+
+<div class="viewcode-block" id="NeuralModule.pretrained_storage"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.pretrained_storage">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">pretrained_storage</span><span class="p">():</span>
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span></div>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;This method allows objects to be called with their port names</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">          kwargs: Input ports and their values. For example:</span>
+<span class="sd">          ...</span>
+<span class="sd">          mymodule1 = Subclass1_of_NeuralModule(...)</span>
+<span class="sd">          mymodule2 = Subclass2_of_NeuralModule(...)</span>
+<span class="sd">          ...</span>
+<span class="sd">          out_port1, out_port2 = mymodule1(input_port1=value1,</span>
+<span class="sd">          input_port2=value2,</span>
+<span class="sd">          input_port3=value3)</span>
+<span class="sd">          out_port11 = mymodule2(input_port1=out_port2)</span>
+<span class="sd">          ...</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">          NmTensor object or tuple of NmTensor objects</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># if self._assigned_top_order is not None:</span>
+        <span class="c1">#    raise ValueError(&quot;We currently do not support calling same NM&quot;</span>
+        <span class="c1">#                     &quot;more than once&quot;)</span>
+
+        <span class="n">first_input_nmtensor_type</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">input_nmtensors_are_of_same_type</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">for</span> <span class="n">port_name</span><span class="p">,</span> <span class="n">tgv</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">port_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_ports</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="n">NeuralPortNameMismatchError</span><span class="p">(</span>
+                    <span class="s2">&quot;Wrong input port name: </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">port_name</span><span class="p">)</span>
+                <span class="p">)</span>
+
+            <span class="n">type_comatibility</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_ports</span><span class="p">[</span><span class="n">port_name</span><span class="p">]</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">tgv</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">first_input_nmtensor_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">first_input_nmtensor_type</span> <span class="o">=</span> <span class="n">NeuralType</span><span class="p">(</span><span class="n">tgv</span><span class="o">.</span><span class="n">_axis2type</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">first_input_nmtensor_type</span><span class="o">.</span><span class="n">_axis2type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">input_nmtensors_are_of_same_type</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">input_nmtensors_are_of_same_type</span> <span class="o">=</span> \
+                        <span class="n">first_input_nmtensor_type</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">tgv</span><span class="p">)</span> \
+                        <span class="o">==</span> <span class="n">NeuralTypeComparisonResult</span><span class="o">.</span><span class="n">SAME</span> <span class="ow">and</span> \
+                        <span class="nb">len</span><span class="p">(</span><span class="n">first_input_nmtensor_type</span><span class="o">.</span><span class="n">_axis2type</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">type_comatibility</span> <span class="o">==</span> <span class="n">NeuralTypeComparisonResult</span><span class="o">.</span><span class="n">SAME</span> <span class="ow">or</span>
+                    <span class="n">type_comatibility</span> <span class="o">==</span> <span class="n">NeuralTypeComparisonResult</span><span class="o">.</span><span class="n">GREATER</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">NeuralPortNmTensorMismatchError</span><span class="p">(</span>
+                    <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">In </span><span class="si">{0}</span><span class="s2">. </span><span class="se">\n</span><span class="s2">&quot;</span>
+                    <span class="s2">&quot;Port: </span><span class="si">{1}</span><span class="s2"> and a NmTensor it was fed are </span><span class="se">\n</span><span class="s2">&quot;</span>
+                    <span class="s2">&quot;of incompatible neural types:</span><span class="se">\n\n</span><span class="si">{2}</span><span class="s2"> </span><span class="se">\n\n</span><span class="s2"> and </span><span class="se">\n\n</span><span class="si">{3}</span><span class="s2">&quot;</span>
+                    <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">Type comparison result: </span><span class="si">{4}</span><span class="s2">&quot;</span>
+                    <span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+                        <span class="n">port_name</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_input_ports</span><span class="p">[</span><span class="n">port_name</span><span class="p">],</span>
+                        <span class="n">tgv</span><span class="p">,</span>
+                        <span class="n">type_comatibility</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="n">type_comatibility</span> <span class="o">==</span> <span class="n">NeuralTypeComparisonResult</span><span class="o">.</span><span class="n">LESS</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Types were raised&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_output_ports</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">out_name</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_output_ports</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">out_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_output_ports</span><span class="p">[</span><span class="n">out_name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">out_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">input_nmtensors_are_of_same_type</span><span class="p">:</span>
+                    <span class="n">out_type</span> <span class="o">=</span> <span class="n">first_input_nmtensor_type</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">CanNotInferResultNeuralType</span><span class="p">(</span>
+                        <span class="s2">&quot;Can&#39;t infer output neural type.&quot;</span>
+                        <span class="s2">&quot;Likely your inputs are of &quot;</span>
+                        <span class="s2">&quot;different type.&quot;</span>
+                    <span class="p">)</span>
+            <span class="k">return</span> <span class="n">NmTensor</span><span class="p">(</span>
+                <span class="n">producer</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">producer_args</span><span class="o">=</span><span class="n">kwargs</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">out_name</span><span class="p">,</span>
+                <span class="n">ntype</span><span class="o">=</span><span class="n">out_type</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">out_port</span><span class="p">,</span> <span class="n">n_type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_output_ports</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">out_type</span> <span class="o">=</span> <span class="n">n_type</span>
+                <span class="k">if</span> <span class="n">out_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">input_nmtensors_are_of_same_type</span><span class="p">:</span>
+                        <span class="n">out_type</span> <span class="o">=</span> <span class="n">first_input_nmtensor_type</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="n">CanNotInferResultNeuralType</span><span class="p">(</span>
+                            <span class="s2">&quot;Can&#39;t infer output neural type.&quot;</span>
+                            <span class="s2">&quot;Likely your inputs are of &quot;</span>
+                            <span class="s2">&quot;different type.&quot;</span>
+                        <span class="p">)</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">NmTensor</span><span class="p">(</span>
+                        <span class="n">producer</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
+                        <span class="n">producer_args</span><span class="o">=</span><span class="n">kwargs</span><span class="p">,</span>
+                        <span class="n">name</span><span class="o">=</span><span class="n">out_port</span><span class="p">,</span>
+                        <span class="n">ntype</span><span class="o">=</span><span class="n">out_type</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+
+<div class="viewcode-block" id="NeuralModule.get_weights"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.get_weights">[docs]</a>    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">get_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)]]:</span>
+        <span class="sd">&quot;&quot;&quot;Returns NeuralModule&#39;s weights copy.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">          Dictionary of name -&gt; (weights, trainable)&quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="NeuralModule.set_weights"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.set_weights">[docs]</a>    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">set_weights</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">name2weight</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">])],</span>
+            <span class="n">name2name_and_transform</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span>
+                <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">WeightShareTransform</span><span class="p">])]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Sets weight from given values. For every named weight in</span>
+<span class="sd">        name2weight,</span>
+<span class="sd">        if weight with the same name is found in the model, it will be set to</span>
+<span class="sd">        found value.</span>
+
+<span class="sd">        WARNING: This will NOT tie weights. It will copy values.</span>
+
+<span class="sd">        If ``name2name_and_transform`` is provided then if will set weights</span>
+<span class="sd">        using</span>
+<span class="sd">        name mapping and transform. For example, suppose ``objec1.X = 3x5</span>
+<span class="sd">        weight``.</span>
+<span class="sd">        Then, if ``name2name_and_transform[&#39;X&#39;]=(&#39;Y&#39;,</span>
+<span class="sd">        WeightShareTransform.TRANSPOSE)``</span>
+<span class="sd">        and ``Y`` is 5x3 weight and ``name2weight[&#39;Y&#39;]=Y. Then:</span>
+<span class="sd">        ``object1.set_weights(name2weight, name2name_and_transform)`` will</span>
+<span class="sd">        set object1.X=transpose(Y).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">          name2weight (dict): dictionary of name to (weight, trainable).</span>
+<span class="sd">          Typically this is output of get_weights method.</span>
+<span class="sd">          name2name_and_transform: mapping from name -&gt; (name, transform)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="NeuralModule.list_pretrained_models"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.list_pretrained_models">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">list_pretrained_models</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">PretrainedModelInfo</span><span class="p">]]:</span>
+        <span class="sd">&quot;&quot;&quot;List all available pre-trained models (e.g. weights) for this NM.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A list of PretrainedModelInfo tuples.</span>
+<span class="sd">            The pretrained_model_name field of the tuple can be used to</span>
+<span class="sd">            retrieve pre-trained model&#39;s weights (pass it as</span>
+<span class="sd">            pretrained_model_name argument to the module&#39;s constructor)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="NeuralModule.get_config_dict_and_checkpoint"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.get_config_dict_and_checkpoint">[docs]</a>    <span class="k">def</span> <span class="nf">get_config_dict_and_checkpoint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pretrained_model_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;WARNING: This part is work in progress&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="NeuralModule.tie_weights_with"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.tie_weights_with">[docs]</a>    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">tie_weights_with</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">module</span><span class="p">,</span>
+            <span class="n">weight_names</span><span class="o">=</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+            <span class="n">name2name_and_transform</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span>
+                <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">WeightShareTransform</span><span class="p">])]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Ties weights between self and module. For every weight name in</span>
+<span class="sd">        weight_names, if weight with the same name is found in self, it will</span>
+<span class="sd">        be tied</span>
+<span class="sd">        with a same weight from ``module``.</span>
+
+<span class="sd">        WARNING: Once weights are tied, updates to one weights&#39;s weights</span>
+<span class="sd">        will affect</span>
+<span class="sd">        other module&#39;s weights.</span>
+
+
+<span class="sd">        If ``name2name_and_transform`` is provided then if will set weights</span>
+<span class="sd">        using</span>
+<span class="sd">        name mapping and transform. For example, suppose ``objec1.X = 3x5</span>
+<span class="sd">        weights``</span>
+<span class="sd">        and ``object2.Y = 5x3 weights``. Then these weights can be tied like</span>
+<span class="sd">        this:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">          object1.tie_weights_with(object2, weight_names=[&#39;X&#39;],</span>
+<span class="sd">          name2name_and_transform =</span>
+<span class="sd">          { &#39;X&#39;: (&#39;Y&#39;, WeightShareTransform.TRANSPOSE)})</span>
+
+
+<span class="sd">        Args:</span>
+<span class="sd">            module: with which module to tie weights</span>
+<span class="sd">            weight_names (List[str]): list of self weights&#39; names</span>
+<span class="sd">            name2name_and_transform: mapping from name -&gt; (name, transform)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="NeuralModule.is_trainable"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.is_trainable">[docs]</a>    <span class="k">def</span> <span class="nf">is_trainable</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Checks if NeuralModule is trainable.</span>
+<span class="sd">        A NeuralModule is trainable IFF it contains at least one trainable</span>
+<span class="sd">        weight</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">          True if module has trainable weights, False otherwise</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">weights</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">weights</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">w</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+<div class="viewcode-block" id="NeuralModule.save_to"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.save_to">[docs]</a>    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">save_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Save module state to file.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">          path (string): path to while where to save.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="NeuralModule.restore_from"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.restore_from">[docs]</a>    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">restore_from</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Restore module&#39;s state from file.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">          path (string): path to where to restore from.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="NeuralModule.freeze"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.freeze">[docs]</a>    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">freeze</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weights</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Freeze weights</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">          weights (set): set of weight names to freeze</span>
+<span class="sd">          If None, all weights are freezed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="NeuralModule.unfreeze"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.unfreeze">[docs]</a>    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">unfreeze</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weights</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Unfreeze weights</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">          weights (set): set of weight names to unfreeze</span>
+<span class="sd">          If None, all weights are unfreezed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">placement</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Module&#39;s placement. Currently CPU or GPU.</span>
+<span class="sd">        DataParallel and ModelParallel will come later.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">          (DeviceType) Device where NM&#39;s weights are located</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_placement</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">local_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">]:</span>
+        <span class="sd">&quot;&quot;&quot;Get module&#39;s parameters</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">          module&#39;s parameters</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_parameters</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">input_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NeuralType</span><span class="p">]]:</span>
+        <span class="sd">&quot;&quot;&quot;Get all module&#39;s input ports</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">          A (dict) of module&#39;s input ports names to NeuralTypes mapping</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_ports</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">output_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NeuralType</span><span class="p">]]:</span>
+        <span class="sd">&quot;&quot;&quot;Get all module&#39;s output ports</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">          A (dict) of module&#39;s output ports names to NeuralTypes mapping</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_output_ports</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">unique_instance_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A unique instance id for this object</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">          A uniq uuid which can be used to identify this object</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_uuid</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">factory</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Neural module factory which created this module</span>
+<span class="sd">        Returns: NeuralModuleFactory instance or None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_factory</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">num_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Number of module&#39;s weights</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+
+<div class="viewcode-block" id="NeuralModule.create_ports"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.create_ports">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A static function that must be defined by the child Neural Module. It</span>
+<span class="sd">        returns the input and output ports of the module.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Two dictionaries, the first representing the input ports of the</span>
+<span class="sd">            module and the second representing the output ports of the module</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{},</span> <span class="p">{}</span></div>
+
+<div class="viewcode-block" id="NeuralModule.update_local_params"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.update_local_params">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">update_local_params</span><span class="p">():</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loops through the call chain of class initializations and stops at the</span>
+<span class="sd">        first class that is not an instance of Neural Module. At each step of</span>
+<span class="sd">        the loop, the class contructor arguments are added to a dictionary</span>
+<span class="sd">        containing the local parameters used to construct the Neural Module</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A dictionary containing all parameters passed to the module&#39;s init</span>
+<span class="sd">            chain.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">local_parameters</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">stack</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]:</span>
+            <span class="n">posname</span><span class="p">,</span> <span class="n">kwname</span><span class="p">,</span> <span class="n">localvars</span> <span class="o">=</span> <span class="n">getargvalues</span><span class="p">(</span><span class="n">frame</span><span class="p">[</span><span class="mi">0</span><span class="p">])[</span><span class="o">-</span><span class="mi">3</span><span class="p">:]</span>
+            <span class="c1"># Check if caller is a Neural Module</span>
+            <span class="k">if</span> <span class="p">(</span><span class="s2">&quot;self&quot;</span> <span class="ow">in</span> <span class="n">localvars</span> <span class="ow">and</span>
+                    <span class="nb">isinstance</span><span class="p">(</span><span class="n">localvars</span><span class="p">[</span><span class="s2">&quot;self&quot;</span><span class="p">],</span> <span class="n">NeuralModule</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="n">posname</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;NeuralModules cannot accept `*` &quot;</span>
+                                     <span class="s2">&quot;positional arguments.&quot;</span><span class="p">)</span>
+                <span class="c1"># Get func arg dict</span>
+                <span class="n">localvars</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">localvars</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">kwname</span><span class="p">,</span> <span class="p">[]))</span>
+                <span class="k">del</span> <span class="n">localvars</span><span class="p">[</span><span class="s2">&quot;self&quot;</span><span class="p">]</span>
+                <span class="n">local_parameters</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">localvars</span><span class="p">)</span>
+            <span class="c1"># Else we have rearched the end of the init callchain and we are</span>
+            <span class="c1"># done</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">break</span>
+
+        <span class="k">return</span> <span class="n">local_parameters</span></div></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, AI Applications team
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
