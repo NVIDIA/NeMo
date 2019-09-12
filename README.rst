@@ -60,7 +60,7 @@ and then continue with the following steps:
 **Tutorials**
 
 * `Speech recognition <https://nvidia.github.io/NeMo/asr/intro.html>`_
-* `Natural language processing LINK <https://nvidia.github.io/NeMo/nlp/intro.html>`_
+* `Natural language processing <https://nvidia.github.io/NeMo/nlp/intro.html>`_
 
 
 **Unittests**
