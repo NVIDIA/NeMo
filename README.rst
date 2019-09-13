@@ -1,3 +1,6 @@
+[![License](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Documentation](https://img.shields.io/badge/documentation-github.io-blue.svg)](https://nvidia.github.io/NeMo/)
+
 NVIDIA Neural Modules: NeMo
 ===========================
 
