@@ -79,12 +79,12 @@ class NeuralModule(ABC):
         self._factory = factory
         self._uuid = str(uuid.uuid4())
 
-        if kwargs:
-            self._logger.warning(
-                "When constructing {}. The base "
-                "NeuralModule class received the following unused "
-                "arguments:".format(self.__class__.__name__))
-            self._logger.warning("{}".format(kwargs.keys()))
+        # if kwargs:
+        #    self._logger.warning(
+        #        "When constructing {}. The base "
+        #        "NeuralModule class received the following unused "
+        #        "arguments:".format(self.__class__.__name__))
+        #    self._logger.warning("{}".format(kwargs.keys()))
 
     @staticmethod
     def pretrained_storage():
