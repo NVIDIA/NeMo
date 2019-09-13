@@ -1,3 +1,16 @@
+.. image:: http://www.repostatus.org/badges/latest/active.svg
+	:target: http://www.repostatus.org/#active
+	:alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
+
+.. image:: https://img.shields.io/badge/documentation-github.io-blue.svg
+	:target: https://nvidia.github.io/NeMo/
+	:alt: NeMo documentation on GitHub pages
+   
+.. image:: https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg
+	:target: https://github.com/NVIDIA/NeMo/blob/master/LICENSE
+	:alt: NeMo core license and license for collections in this repo
+
+
 NVIDIA Neural Modules: NeMo
 ===========================
 
