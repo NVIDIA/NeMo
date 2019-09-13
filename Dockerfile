@@ -47,8 +47,6 @@ RUN cd nemo && \
     cd ../collections/nemo_asr && \
     python setup.py install && \
     cd ../nemo_nlp && \
-    python setup.py install && \
-    cd ../nemo_lpr && \
     python setup.py install
 
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
