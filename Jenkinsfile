@@ -11,7 +11,7 @@ pipeline {
     }
     stage('Unittests') {
       steps {
-        sh 'conda init && conda activate py37p1.12c10 && ./reinstall.sh && python -m unittest tests/*.py'
+        sh './reinstall.sh && python -m unittest tests/*.py'
       }
     }
   }
