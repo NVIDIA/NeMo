@@ -16,8 +16,8 @@ pipeline {
     }
     stage('Simple tests') {
       steps {
-        sh 'cd examples/start_here && python simplest_example.py',
-        sh 'cd examples/start_here && python chatbot_example.py',
+        sh 'cd examples/start_here && python simplest_example.py'
+        sh 'cd examples/start_here && python chatbot_example.py'
       }
     }
   }
