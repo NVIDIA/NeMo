@@ -24,7 +24,6 @@ import collections
 import logging
 import os
 import random
-import random
 import string
 import time
 
@@ -49,6 +48,20 @@ def list2str(l):
 
 
 class BertSentenceClassificationDataset(Dataset):
+    """A dataset class that converts from raw data to
+    a dataset that can be used by DataLayerNM.
+
+    Args:
+        input_file (str): file to sequence + label.
+            the first line is header (sentence [tab] label)
+            each line should be [sentence][tab][label]
+        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer (Tokenizer): such as BertTokenizer
+        num_samples (int): number of samples you want to use for the dataset.
+            If -1, use all dataset. Useful for testing.
+        shuffle (bool): whether to shuffle your data.
+    """
+
     def __init__(self,
                  input_file,
                  max_seq_length,
@@ -61,7 +74,7 @@ class BertSentenceClassificationDataset(Dataset):
             too_long_count = 0
 
             lines = f.readlines()[1:]
-            print(input_file, len(lines))
+            logger.info(f'{input_file}: {len(lines)}')
 
             if shuffle or num_samples > -1:
                 random.seed(0)
