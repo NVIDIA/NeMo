@@ -2,16 +2,14 @@ import argparse
 import os
 
 import numpy as np
+from pytorch_transformers import BertTokenizer
 from sklearn.metrics import confusion_matrix, classification_report
 
-from pytorch_transformers import BertTokenizer
 import nemo
 import nemo_nlp
 from nemo_nlp.callbacks.joint_intent_slot import \
     eval_iter_callback, eval_epochs_done_callback
-from nemo_nlp.text_data_utils import \
-    process_snips, process_atis, merge
-from nemo_nlp import read_intent_slot_outputs
+from nemo_nlp.text_data_utils import JointIntentSlotDataDesc
 
 
 # Parsing arguments
@@ -19,19 +17,16 @@ parser = argparse.ArgumentParser(description='Joint-intent BERT')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=32, type=int)
 parser.add_argument("--max_seq_length", default=50, type=int)
-parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--pretrained_bert_model",
                     default="bert-base-uncased",
                     type=str)
-parser.add_argument("--dataset_name", default='snips-atis', type=str)
+parser.add_argument("--dataset_name", default='atis', type=str)
 parser.add_argument("--data_dir",
-                    default='data/nlu',
+                    default='data/nlu/ATIS',
                     type=str)
 parser.add_argument("--work_dir",
-                    # default='outputs/ATIS/20190814-152523/checkpoints',
-                    # default='outputs/SNIPS-ALL/20190821-154734/checkpoints',
-                    default='outputs/SNIPS-ATIS/20190829-140622/checkpoints',
+                    default='outputs/ATIS/20190814-152523/checkpoints',
                     type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
@@ -46,79 +41,45 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
                                    log_dir=None)
-logger = nf.logger
-# Load the pretrained BERT parameters
-# pretrained_model can be one of:
-# bert-base-uncased, bert-large-uncased, bert-base-cased,
-# bert-large-cased, bert-base-multilingual-uncased,
-# bert-base-multilingual-cased, bert-base-chinese.
 
-pretrained_bert_model = nf.get_module(
-    name="huggingface.BERT",
-    params={"pretrained_model_name": args.pretrained_bert_model,
-            "local_rank": args.local_rank},
-    collection="nemo_nlp",
-    pretrained=True)
-
-if args.dataset_name == 'atis':
-    num_intents = 26
-    num_slots = 129
-    data_dir = process_atis(args.data_dir, args.do_lower_case)
-    pad_label = num_slots - 1
-elif args.dataset_name == 'snips-atis':
-    data_dir, pad_label = merge(args.data_dir,
-                                ['ATIS/nemo-processed-uncased',
-                                 'snips/nemo-processed-uncased/all'],
-                                args.dataset_name)
-    num_intents = 41
-    num_slots = 140
-elif args.dataset_name.startswith('snips'):
-    data_dir = process_snips(args.data_dir, args.do_lower_case)
-    if args.dataset_name.endswith('light'):
-        data_dir = f'{data_dir}/light'
-        num_intents = 6
-        num_slots = 4
-    elif args.dataset_name.endswith('speak'):
-        data_dir = f'{data_dir}/speak'
-        num_intents = 9
-        num_slots = 9
-    elif args.dataset_name.endswith('all'):
-        data_dir = f'{data_dir}/all'
-        num_intents = 15
-        num_slots = 12
-    pad_label = num_slots - 1
-else:
-    nf.logger.info("Looks like you pass in the name of dataset that isn't "
-                   "already supported by NeMo. Please make sure that you "
-                   "build the preprocessing method for it.")
-tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
+""" Load the pretrained BERT parameters
+See the list of pretrained models, call:
+nemo_nlp.huggingface.BERT.list_pretrained_models()
+"""
+pretrained_bert_model = nemo_nlp.huggingface.BERT(
+    pretrained_model_name=args.pretrained_bert_model, factory=nf)
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
+tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
-classifier = nemo_nlp.JointIntentSlotClassifier(hidden_size=hidden_size,
-                                                num_intents=num_intents,
-                                                num_slots=num_slots,
-                                                dropout=args.fc_dropout)
 
-loss_fn = nemo_nlp.JointIntentSlotLoss(num_slots=num_slots)
+data_desc = JointIntentSlotDataDesc(
+    args.dataset_name, args.data_dir, args.do_lower_case)
 
+dataset = nemo_nlp.BertJointIntentSlotDataset(
+    input_file=data_desc.eval_file,
+    slot_file=data_desc.eval_slot_file,
+    pad_label=data_desc.pad_label,
+    tokenizer=tokenizer,
+    max_seq_length=args.max_seq_length,
+    shuffle=False)
+
+classifier = nemo_nlp.JointIntentSlotClassifier(
+    hidden_size=hidden_size,
+    num_intents=data_desc.num_intents,
+    num_slots=data_desc.num_slots,
+    dropout=args.fc_dropout)
+
+loss_fn = nemo_nlp.JointIntentSlotLoss(num_slots=data_desc.num_slots)
 
 # Evaluation pipeline
-logger.info("Loading eval data...")
+nf.logger.info("Loading eval data...")
 data_layer = nemo_nlp.BertJointIntentSlotDataLayer(
-    path_to_data=data_dir + '/test.tsv',
-    path_to_slot=data_dir + '/test_slots.tsv',
-    pad_label=num_slots-1,
-    tokenizer=tokenizer,
-    mode='eval',
-    max_seq_length=args.max_seq_length,
+    dataset,
     batch_size=args.batch_size,
-    shuffle=False,
     num_workers=0,
-    local_rank=args.local_rank
-)
+    local_rank=args.local_rank)
 
 ids, type_ids, input_mask, slot_mask, intents, slots = data_layer()
-
 
 hidden_states = pretrained_bert_model(input_ids=ids,
                                       token_type_ids=type_ids,
@@ -151,13 +112,13 @@ intents = concatenate(evaluated_tensors[3])
 slots = concatenate(evaluated_tensors[4])
 
 pred_intents = np.argmax(intent_logits, 1)
-logger.info('Intent prediction results')
-logger.info(classification_report(intents, pred_intents))
+nf.logger.info('Intent prediction results')
+nf.logger.info(classification_report(intents, pred_intents))
 
 pred_slots = np.argmax(slot_logits, axis=2)
 pred_slot_list, slot_list = [], []
 for i, pred_slot in enumerate(pred_slots):
     pred_slot_list.extend(list(pred_slot[slot_masks[i]][1:-1]))
     slot_list.extend(list(slots[i][slot_masks[i]][1:-1]))
-logger.info('Slot prediction results')
-logger.info(classification_report(slot_list, pred_slot_list))
+nf.logger.info('Slot prediction results')
+nf.logger.info(classification_report(slot_list, pred_slot_list))
