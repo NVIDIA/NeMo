@@ -54,6 +54,21 @@ pipeline {
       }
     }
 
+    stage('Parallel Stage3') {
+      failFast true
+      parallel {
+        stage('GAN O1') {
+          steps {
+            sh 'cd examples/image && CUDA_VISIBLE_DEVICES=0 python gan.py --amp_opt_level=O1 --num_epochs=3'
+          }
+        }
+        stage('GAN O2') {
+          steps {
+            sh 'cd examples/image && CUDA_VISIBLE_DEVICES=0 python gan.py --amp_opt_level=O2 --num_epochs=3'
+          }
+        }
+      }
+    }
   }
   post {
     always {
