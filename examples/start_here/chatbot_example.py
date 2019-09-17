@@ -22,7 +22,9 @@ config = {
     "dropout": 0.1,
     "voc_size": 6104 + 3,
     "batch_size": 128,
-    "num_epochs": 15,
+    # "num_epochs": 15,
+    # 3 is too small - used for test
+    "num_epochs": 3,
     "optimizer_kind": "adam",
     "learning_rate": 0.0003,
     "tb_log_dir": "ChatBot",
