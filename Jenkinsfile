@@ -14,5 +14,11 @@ pipeline {
         sh './reinstall.sh && python -m unittest tests/*.py'
       }
     }
+    stage('Simple tests') {
+      steps {
+        sh 'cd examples/start_here && python simplest_example.py',
+        sh 'cd examples/start_here && python chatbot_example.py',
+      }
+    }
   }
 }
