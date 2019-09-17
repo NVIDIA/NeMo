@@ -3,7 +3,7 @@ pipeline {
   stages {
     stage('core PEP8') {
       steps {
-        sh 'pycodestyle nemo/nemo'
+        sh 'pycodestyle nemo'
       }
     }
   }
