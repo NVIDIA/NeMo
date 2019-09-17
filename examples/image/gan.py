@@ -12,12 +12,14 @@ from nemo.backends.pytorch.torchvision.helpers import eval_iter_callback, \
 import nemo_simple_gan
 
 
-parser = argparse.ArgumentParser(description='CIFAR10')
+parser = argparse.ArgumentParser(description='MNIST')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=128, type=int)
 parser.add_argument("--num_epochs", default=5000, type=int)
 parser.add_argument("--work_dir", default=None, type=str)
-parser.add_argument("--train_dataset", default=os.getcwd(), type=str)
+parser.add_argument("--train_dataset",
+                    # set default=os.getcwd() unless your are running test
+                    default="/home/mrjenkins/TestData", type=str)
 parser.add_argument("--amp_opt_level", choices=['O0', 'O1', 'O2', 'O3'],
                     default='O0')
 
@@ -25,9 +27,9 @@ args = parser.parse_args()
 
 batch_size = args.batch_size
 
-work_dir = "GAN"
+work_dir = f"GAN_{args.amp_opt_level}"
 if args.work_dir:
-    work_dir = os.path.join(args.work_dir, "GAN")
+    work_dir = os.path.join(args.work_dir, work_dir)
 
 # instantiate Neural Factory with supported backend
 neural_factory = nemo.core.NeuralModuleFactory(
