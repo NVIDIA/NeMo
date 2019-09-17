@@ -1,5 +1,8 @@
 pipeline {
   agent any
+  environment {
+      PATH="/home/mrjenkins/anaconda3/envs/py37p1.12c10/bin:$PATH"
+  }
   stages {
     stage('PEP8 Checks') {
       steps {
