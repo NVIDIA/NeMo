@@ -343,10 +343,10 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="s1">&#39;batch_size&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No batch_size specified in the data layer. &quot;</span>
-                            <span class="s2">&quot;Setting batch_size to 1.&quot;</span><span class="p">)</span>
-            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;batch_size&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="c1"># if &#39;batch_size&#39; not in kwargs:</span>
+        <span class="c1">#    logging.warning(&quot;No batch_size specified in the data layer. &quot;</span>
+        <span class="c1">#                    &quot;Setting batch_size to 1.&quot;)</span>
+        <span class="c1">#    kwargs[&#39;batch_size&#39;] = 1</span>
         <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>  <span class="c1"># For NeuralModule API</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">get_cuda_device</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">placement</span><span class="p">)</span>
 

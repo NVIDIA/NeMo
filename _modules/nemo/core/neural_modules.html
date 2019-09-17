@@ -235,12 +235,12 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_factory</span> <span class="o">=</span> <span class="n">factory</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_uuid</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
 
-        <span class="k">if</span> <span class="n">kwargs</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="s2">&quot;When constructing </span><span class="si">{}</span><span class="s2">. The base &quot;</span>
-                <span class="s2">&quot;NeuralModule class received the following unused &quot;</span>
-                <span class="s2">&quot;arguments:&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">))</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+        <span class="c1"># if kwargs:</span>
+        <span class="c1">#    self._logger.warning(</span>
+        <span class="c1">#        &quot;When constructing {}. The base &quot;</span>
+        <span class="c1">#        &quot;NeuralModule class received the following unused &quot;</span>
+        <span class="c1">#        &quot;arguments:&quot;.format(self.__class__.__name__))</span>
+        <span class="c1">#    self._logger.warning(&quot;{}&quot;.format(kwargs.keys()))</span>
 
 <div class="viewcode-block" id="NeuralModule.pretrained_storage"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.pretrained_storage">[docs]</a>    <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">pretrained_storage</span><span class="p">():</span>

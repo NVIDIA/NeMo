@@ -197,7 +197,7 @@ To augment this data we used two techniques:</p>
 <li><p>We split all training data into 10 folds and trained 10 Jasper models in cross-validation manner: a model was trained on 9 folds and used to make ASR predictions for the remaining fold.</p></li>
 <li><p>We took pretrained Jasper model and enabled dropout during inference on training data. This procedure was repeated multiple times with different random seeds.</p></li>
 </ul>
-<p><strong>Data postprocessing.</strong> The collecred dataset was postprocessed by removing duplicates
+<p><strong>Data postprocessing.</strong> The collected dataset was postprocessed by removing duplicates
 and examples with word error rate higher than 0.5.
 The resulting training dataset consists of 1.7M pairs of “bad” English-“good” English examples.</p>
 <p><strong>Dev and test datasets preparation</strong>. Librispeech contains 2 dev datasets
@@ -241,7 +241,7 @@ vocabukary, since our dataset only contains lower-case text:</p>
     <span class="n">collection</span><span class="o">=</span><span class="s2">&quot;nemo_nlp&quot;</span>
 <span class="p">)</span>
 <span class="n">encoder</span> <span class="o">=</span> <span class="n">neural_factory</span><span class="o">.</span><span class="n">get_module</span><span class="p">(</span>
-    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;higgingface.BERT&quot;</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;huggingface.BERT&quot;</span><span class="p">,</span>
     <span class="n">params</span><span class="o">=</span><span class="p">{</span>
         <span class="s2">&quot;pretrained_model_name&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">pretrained_model_name</span><span class="p">,</span>
         <span class="s2">&quot;local_rank&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">local_rank</span>
