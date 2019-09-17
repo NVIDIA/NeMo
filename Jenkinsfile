@@ -14,7 +14,7 @@ pipeline {
         sh './reinstall.sh && python -m unittest tests/*.py'
       }
     }
-    stage('Parallel Stage') {
+    stage('Parallel Stage1') {
       failFast true
       parallel {
         stage('Simplest test') {
@@ -29,5 +29,21 @@ pipeline {
         }
       }
     }
+    stage('Parallel Stage2') {
+      failFast true
+      parallel {
+        stage('Jasper AN4 O1') {
+          steps {
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0 python jasper_an4.py --amp_opt_level=O1 --num_epochs=40 --test_after_training'
+          }
+        }
+        stage('Jasper AN4 O2') {
+          steps {
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=1 python jasper_an4.py --amp_opt_level=O2 --num_epochs=40 --test_after_training'
+          }
+        }
+      }
+    }
+
   }
 }
