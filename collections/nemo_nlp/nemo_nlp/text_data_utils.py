@@ -505,3 +505,85 @@ def merge(data_dir, subdirs, dataset_name, modes=['train', 'test']):
     write_vocab_in_order(intents, f'{outfold}/dict.intents.csv')
     write_vocab_in_order(slots, f'{outfold}/dict.slots.csv')
     return outfold, none_slot
+
+
+class JointIntentSlotDataDesc:
+    def __init__(self, dataset_name, data_dir, do_lower_case):
+        if dataset_name == 'atis':
+            self.num_intents = 26
+            self.num_slots = 129
+            self.data_dir = process_atis(data_dir, do_lower_case)
+            self.pad_label = self.num_slots - 1
+        elif dataset_name == 'snips-atis':
+            self.data_dir, self.pad_label = merge(
+                data_dir,
+                ['ATIS/nemo-processed-uncased',
+                 'snips/nemo-processed-uncased/all'],
+                dataset_name)
+            self.num_intents = 41
+            self.num_slots = 140
+        elif dataset_name.startswith('snips'):
+            self.data_dir = process_snips(data_dir, do_lower_case)
+            if dataset_name.endswith('light'):
+                self.data_dir = f'{data_dir}/light'
+                self.num_intents = 6
+                self.num_slots = 4
+            elif dataset_name.endswith('speak'):
+                self.data_dir = f'{data_dir}/speak'
+                self.num_intents = 9
+                self.num_slots = 9
+            elif dataset_name.endswith('all'):
+                self.data_dir = f'{data_dir}/all'
+                self.num_intents = 15
+                self.num_slots = 12
+            self.pad_label = num_slots - 1
+        else:
+            logger.info("Looks like you pass in a dataset name that isn't "
+                        "already supported by NeMo. Please make sure that "
+                        "you build the preprocessing method for it.")
+
+        self.train_file = self.data_dir + '/train.tsv'
+        self.train_slot_file = self.data_dir + '/train_slots.tsv'
+        self.eval_file = self.data_dir + '/test.tsv'
+        self.eval_slot_file = self.data_dir + '/test_slots.tsv'
+        self.intent_dict_file = self.data_dir + '/dict.intents.csv'
+        self.slot_dict_file = self.data_dir + '/dict.slots.csv'
+
+
+class SentenceClassificationDataDesc:
+    def __init__(self, dataset_name, data_dir, do_lower_case):
+        if dataset_name == 'sst-2':
+            self.data_dir = process_sst_2(data_dir)
+            self.num_labels = 2
+            self.eval_file = self.data_dir + '/dev.tsv'
+        elif dataset_name == 'imdb':
+            self.num_labels = 2
+            self.data_dir = process_imdb(data_dir, do_lower_case)
+            self.eval_file = self.data_dir + '/test.tsv'
+        elif dataset_name.startswith('nlu-'):
+            if dataset_name.endswith('chat'):
+                self.data_dir = f'{data_dir}/ChatbotCorpus.json'
+                self.num_labels = 2
+            elif dataset_name.endswith('ubuntu'):
+                self.data_dir = f'{data_dir}/AskUbuntuCorpus.json'
+                self.num_labels = 5
+            elif dataset_name.endswith('web'):
+                data_dir = f'{data_dir}/WebApplicationsCorpus.json'
+                self.num_labels = 8
+            self.data_dir = process_nlu(data_dir,
+                                        do_lower_case,
+                                        dataset_name=dataset_name)
+            self.eval_file = self.data_dir + '/test.tsv'
+        elif dataset_name == 'nvidia-car':
+            self.data_dir, labels = process_nvidia_car(data_dir, do_lower_case)
+            for intent in labels:
+                idx = labels[intent]
+                logger.info(f'{intent}: {idx}')
+            self.num_labels = len(labels)
+            self.eval_file = self.data_dir + '/test.tsv'
+        else:
+            logger.info("Looks like you pass in a dataset name that isn't "
+                        "already supported by NeMo. Please make sure that "
+                        "you build the preprocessing method for it.")
+
+        self.train_file = self.data_dir + '/train.tsv'
