@@ -145,7 +145,7 @@ class BertJointIntentSlotDataset(Dataset):
     Creates dataset to use for the task of joint intent
     and slot classification with pretrained model.
 
-    Converts from raw data to an instance that can be used by 
+    Converts from raw data to an instance that can be used by
     NMDataLayer.
 
     For dataset to use during inference without labels, see
@@ -236,7 +236,7 @@ class BertJointIntentSlotInferDataset(Dataset):
     Creates dataset to use for the task of joint intent
     and slot classification with pretrained model.
 
-    Converts from raw data to an instance that can be used by 
+    Converts from raw data to an instance that can be used by
     NMDataLayer.
 
     This is to be used during inference only.
