@@ -1,4 +1,4 @@
-NEMO ASR Collection: Neural Modules for Automatic Speech Recognition
+NeMo ASR Collection: Neural Modules for Automatic Speech Recognition
 ====================================================================
 
 **Models**
