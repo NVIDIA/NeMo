@@ -21,7 +21,7 @@ To augment this data we used two techniques:
 * We split all training data into 10 folds and trained 10 Jasper models in cross-validation manner: a model was trained on 9 folds and used to make ASR predictions for the remaining fold.
 * We took pretrained Jasper model and enabled dropout during inference on training data. This procedure was repeated multiple times with different random seeds.
 
-**Data postprocessing.** The collecred dataset was postprocessed by removing duplicates
+**Data postprocessing.** The collected dataset was postprocessed by removing duplicates
 and examples with word error rate higher than 0.5.
 The resulting training dataset consists of 1.7M pairs of "bad" English-"good" English examples.
 
@@ -69,7 +69,7 @@ The encoder block is a neural module corresponding to BERT language model from
             collection="nemo_nlp"
         )
         encoder = neural_factory.get_module(
-            name="higgingface.BERT",
+            name="huggingface.BERT",
             params={
                 "pretrained_model_name": args.pretrained_model_name,
                 "local_rank": args.local_rank
