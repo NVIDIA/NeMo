@@ -54,23 +54,46 @@ We define tokenizer which transforms text into BERT tokens, using a built-in tok
 
 Next, we define all Neural Modules participating in our joint intent slot filling classification pipeline.
     
-    * Data layer: converting from the formatted dataset to data loader that feeds data into our model.
+    * Process data: the `JointIntentSlotDataDesc` class in `nemo_nlp/nemo_nlp/text_data_utils.py` is supposed to do the preprocessing of raw data into the format data supported by `BertJointIntentSlotDataset`. Currently, it supports SNIPS and ATIS raw datasets, but you can also write your own preprocessing scripts for any dataset.
+
+    A JointIntentSlotDataDesc object includes information such as `self.train_file`, `self.train_slot_file`, `self.eval_file`, `self.eval_slot_file`,  `self.intent_dict_file`, and `self.slot_dict_file`.
 
     .. code-block:: python
 
-        data_layer = nemo_nlp.BertJointIntentSlotDataLayer(
-                path_to_data=data_file,
-                path_to_slot=slot_file,
-                pad_label=pad_label,
+        data_desc = JointIntentSlotDataDesc(
+            args.dataset_name, args.data_dir, args.do_lower_case)
+
+
+    * Dataset: convert from the formatted dataset to a dataset that can be fed into DataLayerNM.
+
+    .. code-block:: python
+
+        def get_dataset(data_desc, mode, num_samples):
+            nf.logger.info(f"Loading {mode} data...")
+            data_file = getattr(data_desc, mode + '_file')
+            slot_file = getattr(data_desc, mode + '_slot_file')
+            shuffle = args.shuffle_data if mode == 'train' else False
+            return nemo_nlp.BertJointIntentSlotDataset(
+                input_file=data_file,
+                slot_file=slot_file,
+                pad_label=data_desc.pad_label,
                 tokenizer=tokenizer,
-                mode=mode,
-                max_seq_length=max_seq_length,
+                max_seq_length=args.max_seq_length,
                 num_samples=num_samples,
-                batch_size=batch_size,
-                shuffle=shuffle,
-                num_workers=0,
-                local_rank=local_rank
-            )
+                shuffle=shuffle)
+
+
+        train_dataset = get_dataset(data_desc, 'train', args.num_train_samples)
+        eval_dataset = get_dataset(data_desc, 'eval', args.num_eval_samples)
+
+    * DataLayer: an extra layer to do the semantic checking for your dataset and convert it into DataLayerNM. You have to define `input_ports` and `output_ports`.
+
+    .. code-block:: python
+
+        data_layer = nemo_nlp.BertJointIntentSlotDataLayer(dataset,
+                                                batch_size=batch_size,
+                                                num_workers=0,
+                                                local_rank=local_rank)
 
         ids, type_ids, input_mask, slot_mask, intents, slots = data_layer()
 
@@ -114,29 +137,26 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
 
     .. code-block:: python
 
-        if mode == 'train':
-            callback_fn = nemo.core.SimpleLossLoggerCallback(
-                tensors=[loss, intent_logits, slot_logits],
-                print_func=lambda x: str(np.round(x[0].item(), 3)),
-                tb_writer=exp.tb_writer,
-                get_tb_values=lambda x: [["loss", x[0]]],
-                step_freq=100)
-        elif mode == 'eval':
-            callback_fn = nemo.core.EvaluatorCallback(
-                eval_tensors=[intent_logits, slot_logits, intents, slots],
-                user_iter_callback=lambda x, y: eval_iter_callback(
-                    x, y, data_layer),
-                user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-                    x, f'{exp.work_dir}/graphs'),
-                tb_writer=exp.tb_writer,
-                eval_step=steps_per_epoch)
+        callback_train = nemo.core.SimpleLossLoggerCallback(
+            tensors=train_tensors,
+            print_func=lambda x: str(np.round(x[0].item(), 3)),
+            tb_writer=nf.tb_writer,
+            get_tb_values=lambda x: [["loss", x[0]]],
+            step_freq=steps_per_epoch)
 
+        callback_eval = nemo.core.EvaluatorCallback(
+            eval_tensors=eval_tensors,
+            user_iter_callback=lambda x, y: eval_iter_callback(
+                x, y, data_layer),
+            user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+                x, f'{nf.work_dir}/graphs'),
+            tb_writer=nf.tb_writer,
+            eval_step=steps_per_epoch)
 
         ckpt_callback = nemo.core.CheckpointCallback(
-            folder=exp.ckpt_dir,
+            folder=nf.checkpoint_dir,
             epoch_freq=args.save_epoch_freq,
             step_freq=args.save_step_freq)
-
 
     * Finally, we define the optimization parameters and run the whole pipeline.
 
