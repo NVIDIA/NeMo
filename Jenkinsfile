@@ -32,7 +32,7 @@ pipeline {
 
         stage ('NMT test') {
           steps {
-            sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=1 python nmt_tutorial.py'
+            sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python nmt_tutorial.py'
           }
         }
       }
