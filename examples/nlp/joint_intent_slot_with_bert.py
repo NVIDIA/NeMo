@@ -11,8 +11,7 @@ from nemo.utils.lr_policies import get_lr_policy
 import nemo_nlp
 from nemo_nlp.callbacks.joint_intent_slot import \
     eval_iter_callback, eval_epochs_done_callback
-from nemo_nlp.text_data_utils import \
-    process_atis, process_snips, merge
+from nemo_nlp.text_data_utils import JointIntentSlotDataDesc
 
 
 # Parsing arguments
@@ -24,7 +23,7 @@ parser.add_argument("--max_seq_length", default=50, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--num_epochs", default=8, type=int)
 parser.add_argument("--num_train_samples", default=-1, type=int)
-parser.add_argument("--num_dev_samples", default=-1, type=int)
+parser.add_argument("--num_eval_samples", default=100, type=int)
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
 parser.add_argument("--lr", default=5e-5, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
@@ -33,9 +32,8 @@ parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--pretrained_bert_model",
                     default="bert-base-uncased",
                     type=str)
-parser.add_argument("--data_dir", default='data/nlu', type=str)
-# parser.add_argument("--dataset_name", default='snips-all', type=str)
-parser.add_argument("--dataset_name", default='snips-atis', type=str)
+parser.add_argument("--data_dir", default='data/nlu/ATIS', type=str)
+parser.add_argument("--dataset_name", default='snips-all', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
 parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
@@ -60,80 +58,56 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    files_to_copy=[__file__],
                                    add_time_to_log_dir=True)
 
-# Load the pretrained BERT parameters
-# See the list of pretrained models here:
-# https://huggingface.co/pytorch-transformers/pretrained_models.html
+""" Load the pretrained BERT parameters
+See the list of pretrained models, call:
+nemo_nlp.huggingface.BERT.list_pretrained_models()
+"""
 pretrained_bert_model = nemo_nlp.huggingface.BERT(
     pretrained_model_name=args.pretrained_bert_model, factory=nf)
-
-if args.dataset_name == 'atis':
-    num_intents = 26
-    num_slots = 129
-    data_dir = process_atis(args.data_dir, args.do_lower_case)
-    pad_label = num_slots - 1
-elif args.dataset_name == 'snips-atis':
-    data_dir, pad_label = merge(args.data_dir,
-                                ['ATIS/nemo-processed-uncased',
-                                 'snips/nemo-processed-uncased/all'],
-                                args.dataset_name)
-    num_intents = 41
-    num_slots = 140
-elif args.dataset_name.startswith('snips'):
-    data_dir = process_snips(args.data_dir, args.do_lower_case)
-    if args.dataset_name.endswith('light'):
-        data_dir = f'{data_dir}/light'
-        num_intents = 6
-        num_slots = 4
-    elif args.dataset_name.endswith('speak'):
-        data_dir = f'{data_dir}/speak'
-        num_intents = 9
-        num_slots = 9
-    elif args.dataset_name.endswith('all'):
-        data_dir = f'{data_dir}/all'
-        num_intents = 15
-        num_slots = 12
-    pad_label = num_slots - 1
-else:
-    nf.logger.info("Looks like you pass in the name of dataset that isn't "
-                   "already supported by NeMo. Please make sure that you "
-                   "build the preprocessing method for it.")
-
-# Create sentence classification loss on top
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
-
-classifier = nemo_nlp.JointIntentSlotClassifier(hidden_size=hidden_size,
-                                                num_intents=num_intents,
-                                                num_slots=num_slots,
-                                                dropout=args.fc_dropout)
-
-loss_fn = nemo_nlp.JointIntentSlotLoss(num_slots=num_slots)
-
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
+data_desc = JointIntentSlotDataDesc(
+    args.dataset_name, args.data_dir, args.do_lower_case)
 
-def create_pipeline(data_file,
-                    slot_file,
-                    max_seq_length,
+
+def get_dataset(data_desc, mode, num_samples):
+    nf.logger.info(f"Loading {mode} data...")
+    data_file = getattr(data_desc, mode + '_file')
+    slot_file = getattr(data_desc, mode + '_slot_file')
+    shuffle = args.shuffle_data if mode == 'train' else False
+    return nemo_nlp.BertJointIntentSlotDataset(
+        input_file=data_file,
+        slot_file=slot_file,
+        pad_label=data_desc.pad_label,
+        tokenizer=tokenizer,
+        max_seq_length=args.max_seq_length,
+        num_samples=num_samples,
+        shuffle=shuffle)
+
+
+train_dataset = get_dataset(data_desc, 'train', args.num_train_samples)
+eval_dataset = get_dataset(data_desc, 'eval', args.num_eval_samples)
+
+# Create sentence classification loss on top
+classifier = nemo_nlp.JointIntentSlotClassifier(
+    hidden_size=hidden_size,
+    num_intents=data_desc.num_intents,
+    num_slots=data_desc.num_slots,
+    dropout=args.fc_dropout)
+
+loss_fn = nemo_nlp.JointIntentSlotLoss(num_slots=data_desc.num_slots)
+
+
+def create_pipeline(dataset,
                     batch_size=32,
-                    num_samples=-1,
-                    shuffle=True,
                     num_gpus=1,
                     local_rank=0,
                     mode='train'):
-    nf.logger.info(f"Loading {mode} data...")
-    data_layer = nemo_nlp.BertJointIntentSlotDataLayer(
-        path_to_data=data_file,
-        path_to_slot=slot_file,
-        pad_label=pad_label,
-        tokenizer=tokenizer,
-        mode=mode,
-        max_seq_length=max_seq_length,
-        num_samples=num_samples,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=0,
-        local_rank=local_rank
-    )
+    data_layer = nemo_nlp.BertJointIntentSlotDataLayer(dataset,
+                                                       batch_size=batch_size,
+                                                       num_workers=0,
+                                                       local_rank=local_rank)
 
     ids, type_ids, input_mask, slot_mask, intents, slots = data_layer()
     data_size = len(data_layer)
@@ -143,8 +117,7 @@ def create_pipeline(data_file,
         nf.logger.warning("Reducing batch_size to dataset size")
         batch_size = data_size
 
-    steps_per_epoch = int(data_size / (batch_size * num_gpus))
-
+    steps_per_epoch = math.ceil(data_size / (batch_size * num_gpus))
     nf.logger.info(f"Steps_per_epoch = {steps_per_epoch}")
 
     hidden_states = pretrained_bert_model(input_ids=ids,
@@ -159,48 +132,42 @@ def create_pipeline(data_file,
                    intents=intents,
                    slots=slots)
 
-    # Create trainer and execute training action
     if mode == 'train':
-        callback_fn = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss, intent_logits, slot_logits],
-            print_func=lambda x: str(np.round(x[0].item(), 3)),
-            tb_writer=nf.tb_writer,
-            get_tb_values=lambda x: [["loss", x[0]]],
-            step_freq=100)
-    elif mode == 'eval':
-        callback_fn = nemo.core.EvaluatorCallback(
-            eval_tensors=[intent_logits, slot_logits, intents, slots],
-            user_iter_callback=lambda x, y: eval_iter_callback(
-                x, y, data_layer),
-            user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-                x, f'{nf.work_dir}/graphs'),
-            tb_writer=nf.tb_writer,
-            eval_step=steps_per_epoch)
+        tensors_to_evaluate = [loss, intent_logits, slot_logits]
+    else:
+        tensors_to_evaluate = [intent_logits, slot_logits, intents, slots]
 
-    return loss, callback_fn, steps_per_epoch
+    return tensors_to_evaluate, loss, steps_per_epoch, data_layer
 
 
-train_loss, callback_train, steps_per_epoch =\
-    create_pipeline(data_dir + '/train.tsv',
-                    data_dir + '/train_slots.tsv',
-                    max_seq_length=args.max_seq_length,
+train_tensors, train_loss, steps_per_epoch, _ =\
+    create_pipeline(train_dataset,
                     batch_size=args.batch_size,
-                    num_samples=args.num_train_samples,
-                    shuffle=args.shuffle_data,
                     num_gpus=args.num_gpus,
                     local_rank=args.local_rank,
                     mode='train')
-_, callback_eval, _ =\
-    create_pipeline(data_dir + '/test.tsv',
-                    data_dir + '/test_slots.tsv',
-                    max_seq_length=args.max_seq_length,
-                    batch_size=args.batch_size,
-                    num_samples=args.num_train_samples,
-                    shuffle=False,
-                    num_gpus=args.num_gpus,
-                    local_rank=args.local_rank,
-                    mode='eval')
+eval_tensors, _,  _, data_layer = create_pipeline(eval_dataset,
+                                                  batch_size=args.batch_size,
+                                                  num_gpus=args.num_gpus,
+                                                  local_rank=args.local_rank,
+                                                  mode='eval')
 
+# Create callbacks for train and eval modes
+callback_train = nemo.core.SimpleLossLoggerCallback(
+    tensors=train_tensors,
+    print_func=lambda x: str(np.round(x[0].item(), 3)),
+    tb_writer=nf.tb_writer,
+    get_tb_values=lambda x: [["loss", x[0]]],
+    step_freq=steps_per_epoch)
+
+callback_eval = nemo.core.EvaluatorCallback(
+    eval_tensors=eval_tensors,
+    user_iter_callback=lambda x, y: eval_iter_callback(
+        x, y, data_layer),
+    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+        x, f'{nf.work_dir}/graphs'),
+    tb_writer=nf.tb_writer,
+    eval_step=steps_per_epoch)
 
 # Create callback to save checkpoints
 ckpt_callback = nemo.core.CheckpointCallback(
@@ -211,6 +178,7 @@ ckpt_callback = nemo.core.CheckpointCallback(
 lr_policy_fn = get_lr_policy(args.lr_policy,
                              total_steps=args.num_epochs * steps_per_epoch,
                              warmup_ratio=args.lr_warmup_proportion)
+
 nf.train(tensors_to_optimize=[train_loss],
          callbacks=[callback_train, callback_eval, ckpt_callback],
          lr_policy=lr_policy_fn,

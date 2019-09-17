@@ -145,20 +145,25 @@ class BertJointIntentSlotDataset(Dataset):
     Creates dataset to use for the task of joint intent
     and slot classification with pretrained model.
 
+    Converts from raw data to an instance that can be used by 
+    NMDataLayer.
+
+    For dataset to use during inference without labels, see
+    BertJointIntentSlotInferDataset.
+
     Args:
-        input_file: file to sequence + label.
-                    the first line is header (sentence [tab] label)
-                    each line should be [sentence][tab][label]
-        slot_file: file to slot labels, each line corresponding to
-                   slot labels for a sentence in input_file. No header.
-        max_seq_length: max sequence length (minus 2 for [CLS] and [SEP])
-        tokenizer: such as BERT tokenizer.
-        num_samples: number of samples you want to use for the dataset.
-                     if -1, use all dataset.
-                     useful for testing.
-        shuffle: whether to shuffle
-        pad_label: pad value use for slot labels.
-                   by default, it's the neural label.
+        input_file (str): file to sequence + label.
+            the first line is header (sentence [tab] label)
+            each line should be [sentence][tab][label]
+        slot_file (str): file to slot labels, each line corresponding to
+            slot labels for a sentence in input_file. No header.
+        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer (Tokenizer): such as BertTokenizer
+        num_samples (int): number of samples you want to use for the dataset.
+            If -1, use all dataset. Useful for testing.
+        shuffle (bool): whether to shuffle your data.
+        pad_label (int): pad value use for slot labels.
+            by default, it's the neutral label.
 
     """
 
@@ -230,14 +235,20 @@ class BertJointIntentSlotInferDataset(Dataset):
     """
     Creates dataset to use for the task of joint intent
     and slot classification with pretrained model.
+
+    Converts from raw data to an instance that can be used by 
+    NMDataLayer.
+
     This is to be used during inference only.
+    For dataset to use during training with labels, see
+    BertJointIntentSlotDataset.
 
     Args:
-        query: the query to run inference on
-        max_seq_length: max sequence length (minus 2 for [CLS] and [SEP])
-        tokenizer: such as BERT tokenizer.
-        pad_label: pad value use for slot labels.
-                   by default, it's the neural label.
+        queries (list): list of queries to run inference on
+        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer (Tokenizer): such as BertTokenizer
+        pad_label (int): pad value use for slot labels.
+            by default, it's the neutral label.
 
     """
 
