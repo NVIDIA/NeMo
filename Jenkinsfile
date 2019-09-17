@@ -19,12 +19,12 @@ pipeline {
       parallel {
         stage('Simplest test') {
           steps {
-            sh 'cd examples/start_here && python simplest_example.py'        
+            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=0 python simplest_example.py'
           }
         }
         stage ('Chatbot test') {
           steps {
-            sh 'cd examples/start_here && python chatbot_example.py'
+            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=1 python chatbot_example.py'
           }
         }
       }
