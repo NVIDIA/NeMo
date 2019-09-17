@@ -14,17 +14,20 @@ pipeline {
         sh './reinstall.sh && python -m unittest tests/*.py'
       }
     }
-    parallel {
-      stage('Simplest test') {
-        steps {
-          sh 'cd examples/start_here && python simplest_example.py'        
+    stage('Parallel Stage') {
+      failFast true
+      parallel {
+        stage('Simplest test') {
+          steps {
+            sh 'cd examples/start_here && python simplest_example.py'        
+          }
+        }
+        stage ('Chatbot test') {
+          steps {
+            sh 'cd examples/start_here && python chatbot_example.py'
+          }
         }
       }
-      stage ('Chatbot test') {
-        steps {
-          sh 'cd examples/start_here && python chatbot_example.py'
-        }
-      }
-   }
+    }
   }
 }
