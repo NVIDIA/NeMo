@@ -17,7 +17,9 @@ parser.set_defaults(
     eval_datasets=["valid"],
     checkpoint_dir="transformer_nmt",
     optimizer="novograd",
-    num_epochs=1000,
+    # num_epochs=1000,
+    # 5 is too small - only use for test
+    num_epochs=5,
     batch_size=4096,
     eval_batch_size=4096,
     lr=0.005,
