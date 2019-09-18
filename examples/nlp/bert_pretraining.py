@@ -13,6 +13,7 @@ import nemo_nlp
 from nemo_nlp.callbacks.bert_pretraining import eval_iter_callback, \
     eval_epochs_done_callback
 
+
 console = logging.StreamHandler()
 console.setLevel(logging.INFO)
 # add the handler to the root logger
@@ -57,6 +58,7 @@ parser.add_argument("--checkpoint_save_frequency", default=25000, type=int)
 parser.add_argument("--tensorboard_filename", default=None, type=str)
 parser.add_argument("--fp16", default=0, type=int, choices=[0, 1, 2, 3])
 parser.add_argument("--batch_per_step", default=1, type=int)
+parser.add_argument("--short_seq_prob", default=0.1, type=float)
 args = parser.parse_args()
 
 name = "BERT-H{0}-D{1}-lr{2}-opt{3}-warmup{4}-bs{5}-e{6}-b2{7}".format(
@@ -134,6 +136,7 @@ train_data_layer = nemo_nlp.BertPretrainingDataLayer(
     name="train",
     sentence_indices_filename=args.train_sentence_indices_filename,
     max_seq_length=args.max_sequence_length,
+    short_seq_prob=args.short_seq_prob,
     mask_probability=args.mask_probability,
     batch_size=args.batch_size,
     factory=neural_factory)
@@ -144,6 +147,7 @@ dev_data_layer = nemo_nlp.BertPretrainingDataLayer(
     name="dev",
     sentence_indices_filename=args.dev_sentence_indices_filename,
     max_seq_length=args.max_sequence_length,
+    short_seq_prob=args.short_seq_prob,
     mask_probability=args.mask_probability,
     batch_size=args.eval_batch_size,
     factory=neural_factory)
@@ -155,12 +159,12 @@ hidden_states = bert_model(input_ids=input_ids,
                            token_type_ids=input_type_ids,
                            attention_mask=input_mask)
 train_mlm_log_probs = mlm_log_softmax(hidden_states=hidden_states)
-train_loss = mlm_loss(log_probs=train_mlm_log_probs,
+train_mlm_loss = mlm_loss(log_probs=train_mlm_log_probs,
                       output_ids=output_ids,
                       output_mask=output_mask)
-# train_nsp_log_probs = nsp_log_softmax(hidden_states=hidden_states)
-# train_nsp_loss = nsp_loss(log_probs=train_nsp_log_probs, labels=nsp_labels)
-# train_loss = bert_loss(loss_1=train_mlm_loss, loss_2=train_nsp_loss)
+train_nsp_log_probs = nsp_log_softmax(hidden_states=hidden_states)
+train_nsp_loss = nsp_loss(log_probs=train_nsp_log_probs, labels=nsp_labels)
+train_loss = bert_loss(loss_1=train_mlm_loss, loss_2=train_nsp_loss)
 
 # evaluation pipeline
 input_ids_, input_type_ids_, input_mask_, \
@@ -172,8 +176,8 @@ dev_mlm_log_probs = mlm_log_softmax(hidden_states=hidden_states_)
 dev_mlm_loss = mlm_loss(log_probs=dev_mlm_log_probs,
                         output_ids=output_ids_,
                         output_mask=output_mask_)
-# dev_nsp_log_probs = nsp_log_softmax(hidden_states=hidden_states_)
-# dev_nsp_loss = nsp_loss(log_probs=dev_nsp_log_probs, labels=nsp_labels_)
+dev_nsp_log_probs = nsp_log_softmax(hidden_states=hidden_states_)
+dev_nsp_loss = nsp_loss(log_probs=dev_nsp_log_probs, labels=nsp_labels_)
 
 # callback which prints training loss and perplexity once in a while
 callback_loss = nemo.core.SimpleLossLoggerCallback(
@@ -191,8 +195,7 @@ steps_per_epoch = int(train_data_size / (args.batch_size * args.num_gpus *
                                          args.batch_per_step))
 
 callback_dev = nemo.core.EvaluatorCallback(
-    # eval_tensors=[dev_mlm_loss, dev_nsp_loss],
-    eval_tensors=[dev_mlm_loss],
+    eval_tensors=[dev_mlm_loss, dev_nsp_loss],
     user_iter_callback=eval_iter_callback,
     user_epochs_done_callback=eval_epochs_done_callback,
     eval_step=steps_per_epoch,

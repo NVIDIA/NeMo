@@ -45,6 +45,7 @@ class BertPretrainingDataLayer(DataLayerNM):
 
     def __init__(self, *, tokenizer, dataset, name, max_seq_length,
                  sentence_indices_filename=None, mask_probability=0.15,
+                 short_seq_prob=0.1,
                  **kwargs):
         DataLayerNM.__init__(self, **kwargs)
 
@@ -59,7 +60,8 @@ class BertPretrainingDataLayer(DataLayerNM):
             name=name,
             sentence_indices_filename=sentence_indices_filename,
             max_length=max_seq_length,
-            mask_probability=mask_probability)
+            mask_probability=mask_probability,
+            short_seq_prob=short_seq_prob)
 
     def __len__(self):
         return len(self._dataset)
