@@ -14,11 +14,11 @@
 NVIDIA Neural Modules: NeMo
 ===========================
 
-NeMo (**Ne**ural **Mo**dules) is a toolkit for creating AI applications built around **neural modules**, conceptual blocks of neural networks that take *typed* inputs and produce *typed* outputs. Such modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
+NeMo (Neural Modules) is a toolkit for creating AI applications built around **neural modules**, conceptual blocks of neural networks that take *typed* inputs and produce *typed* outputs. Such modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
 
 NeMo makes it easy to combine and re-use these building blocks while providing a level of semantic correctness checking via its neural type system. As long as two modules have compatible inputs and outputs, it is legal to chain them together. An application built with NeMo is a **Directed Acyclic Graph** (DAG) of connected modules.
 
-NeMo's API is designed to be **framework-agnostic**, but currently only PyTorch is supported. We plan on supporting other frameworks in the near future.
+NeMo's API is designed to be **framework-agnostic**, but currently only PyTorch is supported.
 
 NeMo follows a **lazy execution** model: no computation is done until an action (such as `optimizer.optimize(...)` is called.
 
@@ -39,7 +39,7 @@ See `this video <https://nvidia.github.io/NeMo/>`_ for a quick walk-through.
 
 1) Python 3.6 or 3.7
 2) Pytorch 1.2 with GPU support
-3) NVIDIA APEX. Install here: https://github.com/NVIDIA/apex
+3) NVIDIA APEX. Install from here: https://github.com/NVIDIA/apex
 
 
 **Documentation**
