@@ -38,7 +38,7 @@ See `this video <https://nvidia.github.io/NeMo/>`_ for a quick walk-through.
 **Requirements**
 
 1) Python 3.6 or 3.7
-2) Pytorch 1.2 with GPU support
+2) PyTorch 1.2 with GPU support
 3) NVIDIA APEX. Install from here: https://github.com/NVIDIA/apex
 
 
@@ -81,7 +81,7 @@ instead of
 
 .. code-block:: bash
 	
-	# Install the ASR collection from collections/nemo_asr 
+    # Install the ASR collection from collections/nemo_asr 
     apt-get install libsndfile1
     cd collections/nemo_asr
     pip install .
