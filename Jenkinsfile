@@ -3,6 +3,10 @@ pipeline {
   environment {
       PATH="/home/mrjenkins/anaconda3/envs/py37p1.12c10/bin:$PATH"
   }
+  options {
+    timeout(time: 1, unit: 'HOURS')
+    disableConcurrentBuilds()
+   }
   stages {
     stage('PEP8 Checks') {
       steps {
