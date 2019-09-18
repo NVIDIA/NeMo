@@ -1,8 +1,11 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import numpy as np
 
+from nemo.utils.exp_logging import get_logger
 
 GLOBAL_KEYS = ["eval_loss", "sys"]
+
+logger = get_logger('')
 
 
 def eval_iter_callback(tensors, global_vars):
@@ -21,10 +24,10 @@ def eval_epochs_done_callback(global_vars):
     eval_loss = np.mean(global_vars["eval_loss"])
     eval_ppl = np.exp(eval_loss)
 
-    print("------------------------------------------------------------")
-    print("Validation loss: {0}".format(np.round(eval_loss, 3)))
-    print("Validation  ppl: {0}".format(np.round(eval_ppl, 3)))
-    print("------------------------------------------------------------")
+    logger.info("------------------------------------------------------------")
+    logger.info("Eval loss: {0}".format(np.round(eval_loss, 3)))
+    logger.info("Eval  ppl: {0}".format(np.round(eval_ppl, 3)))
+    logger.info("------------------------------------------------------------")
     for key in GLOBAL_KEYS:
         global_vars[key] = []
-    return dict({"Eval loss": eval_loss, "Eval ppl": eval_ppl})
+    return dict({"Eval_loss": eval_loss, "Eval_ppl": eval_ppl})
