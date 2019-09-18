@@ -4,7 +4,7 @@ Just learns simple function `y=sin(x)`.
 Simply run from `examples/start_here` folder.
 
 # ChatBot Example
-This is an adaptation of [Pytorch Chatbot tutorial](https://pytorch.org/tutorials/beginner/chatbot_tutorial.html)
+This is an adaptation of [PyTorch Chatbot tutorial](https://pytorch.org/tutorials/beginner/chatbot_tutorial.html)
 Simply run from `examples/start_here` folder.
 
 During training it will print **SOURCE**, **PREDICTED RESPONSE** and **TARGET**.
