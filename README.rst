@@ -78,6 +78,7 @@ instead of
 	pip install .
 
 3) Install the collection you want.
+
 .. code-block:: bash
 	
 	# Install the ASR collection from collections/nemo_asr 
