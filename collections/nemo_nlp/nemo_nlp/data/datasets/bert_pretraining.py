@@ -163,9 +163,9 @@ class BertPretrainingDataset(Dataset):
                                     line_idx, sentence_indices):
           # match the target seq_length
           for _ in range(10):
+            # if line_idx + 1 is larger than the file, then we don't match seq_length
+            # - it'll be a shorter seq_length.
             if len(document) < target_seq_length and \
-              # if line_idx + 1 is larger than the file, then we don't match seq_length
-              # - it'll be a shorter seq_length.
               line_idx + 1 < len(sentence_indices[filename]):
               if sentence_indices[filename][line_idx + 1] < \
                                           self.sentence_indices[filename][-1]:
