@@ -1,6 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
 """
-If you want to add your own data layer, you should put its name in 
+If you want to add your own data layer, you should put its name in
 __all__ so that it can be imported with 'from text_data_layers import *'
 """
 __all__ = ['TextDataLayer',
