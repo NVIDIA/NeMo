@@ -14,63 +14,82 @@
 NVIDIA Neural Modules: NeMo
 ===========================
 
-Neural Modules (NeMo) is a framework-agnostic toolkit for building AI applications powered by Neural Modules. Current support is for PyTorch framework.
+NeMo (Neural Modules) is a toolkit for creating AI applications built around **neural modules**, conceptual blocks of neural networks that take *typed* inputs and produce *typed* outputs. Such modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
 
-A "Neural Module" is a block of code that computes a set of outputs from a set of inputs.
+NeMo makes it easy to combine and re-use these building blocks while providing a level of semantic correctness checking via its neural type system. As long as two modules have compatible inputs and outputs, it is legal to chain them together. An application built with NeMo is a **Directed Acyclic Graph** (DAG) of connected modules.
 
-Neural Modules’ inputs and outputs have Neural Type for semantic checking.
+NeMo's API is designed to be **framework-agnostic**, but currently only PyTorch is supported.
 
-An application built with NeMo application is a Directed Acyclic Graph(DAG) of connected modules enabling researchers to define and build new speech and nlp networks easily through API Compatible modules.
+NeMo follows a **lazy execution** model: no computation is done until an action (such as `optimizer.optimize(...)` is called.
+
+The toolkit comes with extendable collections of pre-built modules for automatic speech recognition (ASR) and natural language processing (NLP). Furthermore, NeMo provides built-in support for **distributed training** and **mixed precision** on the latest NVIDIA GPUs.
+
+NeMo consists of: 
+
+* **NeMo Core**: fundamental building blocks for all neural models and type system.
+* **NeMo collections**: pre-built neural modules for particular domains such as automatic speech recognition (nemo_asr) and natural language processing (nemo_nlp).
 
 
 **Introduction**
 
-See this `video for a walk-through. <https://nvidia.github.io/NeMo/>`_
-
-
-**Core Concepts and Features**
-
-* `NeuralModule` class - represents and implements a neural module.
-* `NmTensor` - represents activations which flow between neural modules' ports.
-* `NeuralType` - represents types of modules' ports and NmTensors.
-* `NeuralFactory` - to create neural modules and manage training.
-* `Lazy execution` - when describing activation flow between neural modules, nothing happens until an "action" (such as `optimizer.optimize(...)` is called.
-* `Collections` - NeMo comes with collections - related group of modules such as `nemo_asr` (for Speech Recognition) and `nemo_nlp` for NLP
+See `this video <https://nvidia.github.io/NeMo/>`_ for a quick walk-through.
 
 
 **Requirements**
 
 1) Python 3.6 or 3.7
 2) Pytorch 1.2 with GPU support
-3) NVIDIA APEX: https://github.com/NVIDIA/apex
+3) NVIDIA APEX. Install from here: https://github.com/NVIDIA/apex
 
 
 **Documentation**
+
 `NeMo documentation <https://nvidia.github.io/NeMo/>`_
+
+See `examples/start_here` to get started with the simplest example. The folder `examples` contains several examples to get you started with various tasks in NLP and ASR.
 
 
 **Getting started**
 
-If desired, you can start with `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ which already includes
-requirements above.
+You can use our `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ which already includes all the requirements above.
 
-* You can pull it like so: ``docker pull nvcr.io/nvidia/pytorch:19.08-py3``
-* And then run: ``nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.08-py3``
-* ``cd /NeMo''
+* Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:19.08-py3``
+* Run: ``nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.08-py3``
+* ``cd /NeMo``
 
-and then continue with the following steps:
+and then continue with the following steps.
 
+**Note**
 
-1) Clone the repository
-2) Go to nemo folder and then: ``python setup.py install``
-3) Install collections:
-    * ASR collection from `collections/nemo_asr`: 
-        1. ``apt-get install libsndfile1``
-        2. ``python setup.py install``
+For step 2 and 3, if you want to use NeMo in development mode, use:
+
+``pip install -e .``
+
+instead of 
+
+``pip install .``
+
+1) Clone the repository ``git clone https://github.com/NVIDIA/NeMo.git``
+2) Go to NeMo folder and install the toolkit:
+
+.. code-block:: bash
+
+	cd NeMo
+	pip install .
+
+3) Install the collection you want.
+
+.. code-block:: bash
+	
+	# Install the ASR collection from collections/nemo_asr 
+    apt-get install libsndfile1
+    cd collections/nemo_asr
+    pip install .
         
-    * NLP collection from `collections/nemo_nlp`: ``python setup.py install``
-4) For development you will need to: ``python setup.py develop`` instead of ``python setup.py install`` in Step (3.2) above
-5) Go to `examples/start_here` to get started with few simple examples
+    # Install the NLP collection from collections/nemo_nlp
+    apt-get install libsndfile1
+    cd collections/nemo_nlp
+    pip install .
 
 
 **Tutorials**
