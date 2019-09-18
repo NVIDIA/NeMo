@@ -1,24 +1,26 @@
 Pretraining BERT
 ================
 
-Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this
-tutorial. See the :ref:`installation` section for more details.
+In this tutorial, we will build and train a masked language model from scratch using the BERT architecture. Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See the :ref:`installation` section for more details.
 
 Introduction
 ------------
 
-This tutorial is focused on pretraining BERT from scratch. Creating domain-specific BERT models can be advantageous for a wide range of applications. Most notably, in a biomedical setting, similar to BioBERT :cite:`lee2019biobert` and SciBERT :cite:`beltagy2019scibert`.
+Creating domain-specific BERT models can be advantageous for a wide range of applications. One notable is domain-specific BERT in a biomedical setting, similar to BioBERT :cite:`lee2019biobert` and SciBERT :cite:`beltagy2019scibert`.
+
 
 Download Corpus
 ---------------
 
-For demonstration purposes, we will be using the very small WikiText-2 corpus. This script will download and unzip the corpus for you:
+For demonstration purposes, we will be using the very small WikiText-2 dataset :cite:`merity2016pointer`.
+
+To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
 
 .. code-block:: bash
 
-   ./tests/data/get_wt2.sh
-
-After the download has completed, there should be a `wikitext-2` folder in your current directory, which should include `train.txt`, `valid.txt`, and `test.txt`.
+    test.txt
+    train.txt
+    valid.txt
 
 Build Vocabulary
 ----------------
@@ -39,6 +41,7 @@ Another script can be used to generate your vocabulary file. In this example wit
     python tests/data/create_vocab.py --dataset_dir path_to_dataset/
 
 The script will output two important files: `tokenizer.vocab` and `tokenizer.model`. We'll explain how to use both in the next section.
+
 
 Training
 --------
