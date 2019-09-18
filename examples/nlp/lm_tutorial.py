@@ -12,7 +12,7 @@ console.setLevel(logging.INFO)
 # add the handler to the root logger
 logging.getLogger('').addHandler(console)
 
-parser = nemo.utils.NemoArgParser(description='Transformer for WT-103 LM')
+parser = nemo.utils.NemoArgParser(description='Transformer for LM')
 parser.set_defaults(
     train_dataset="train.txt",
     eval_datasets=["valid.txt"],
@@ -31,8 +31,7 @@ parser.set_defaults(
     checkpoint_save_freq=10000,
     eval_freq=1000
 )
-parser.add_argument("--data_root", default="../../tests/data/wikitext-2/",
-                    type=str)
+parser.add_argument("--data_root", default="data/lm/wikitext-2", type=str)
 parser.add_argument("--d_model", default=384, type=int)
 parser.add_argument("--d_inner", default=1536, type=int)
 parser.add_argument("--num_layers", default=12, type=int)
@@ -49,6 +48,10 @@ parser.add_argument("--predict_last_k", default=16, type=int)
 parser.add_argument("--interactive", action="store_true")
 args = parser.parse_args()
 
+"""
+To get the data, go to tests/data and run get_wt2.sh
+Then run create_vocab.py
+"""
 # create TensorboardX logger to log training statistics
 name = f"transformer-lm-lr_{args.lr}-optim_{args.optimizer}-" \
     f"warmup_{args.warmup_steps}-bs_{args.batch_size}"
