@@ -1,8 +1,13 @@
 # Copyright (c) 2019 NVIDIA Corporation
+"""
+If you want to add your own data layer, you should put its name in 
+__all__ so that it can be imported with 'from text_data_layers import *'
+"""
 __all__ = ['TextDataLayer',
-		   'BertSentenceClassificationDataLayer',
-		   'BertJointIntentSlotDataLayer',
-		   'BertJointIntentSlotInferDataLayer']
+           'BertSentenceClassificationDataLayer',
+           'BertJointIntentSlotDataLayer',
+           'BertJointIntentSlotInferDataLayer',
+           'LanguageModelingDataLayer']
 
 import torch
 
@@ -12,6 +17,16 @@ from nemo.core.neural_types import *
 
 
 class TextDataLayer(DataLayerNM):
+    """
+    Required args:
+    dataset
+    batch_size
+
+    Optional args:
+    num_workers
+    local_rank
+    """
+
     def __init__(self, dataset, **kwargs):
         DataLayerNM.__init__(self, **kwargs)
         self._dataset = dataset
@@ -135,3 +150,28 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
             })
         }
         return {}, output_ports
+
+
+class LanguageModelingDataLayer(TextDataLayer):
+    @staticmethod
+    def create_ports():
+        input_ports = {}
+        output_ports = {
+            "input_ids":
+            NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_mask":
+            NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "labels":
+            NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            })
+        }
+
+        return input_ports, output_ports

@@ -2,7 +2,9 @@ import glob
 import json
 import os
 import random
+import re
 import shutil
+import subprocess
 
 from nemo.utils.exp_logging import get_logger
 from nemo_nlp.nlp_utils import get_vocab, write_vocab, write_vocab_in_order
@@ -12,11 +14,11 @@ logger = get_logger('')
 LOGGING_TMP = '{} dataset has already been processed and stored at {}'
 
 
-def if_exist(outfold, modes):
+def if_exist(outfold, files):
     if not os.path.exists(outfold):
         return False
-    for mode in modes:
-        if not os.path.exists(os.path.join(outfold, mode + '.tsv')):
+    for file in files:
+        if not os.path.exists(f'{outfold}/{file}'):
             return False
     return True
 
@@ -41,7 +43,7 @@ def process_imdb(data_dir, uncased, modes=['train', 'test']):
     if uncased:
         outfold = f'{outfold}_uncased'
 
-    if if_exist(outfold, modes):
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
         logger.info(LOGGING_TMP.format('IMDB', outfold))
         return outfold
     logger.info(f'Processing IMDB dataset and store at {outfold}')
@@ -111,7 +113,7 @@ def process_nlu(filename,
     if uncased:
         outfold = f'{outfold}_uncased'
 
-    if if_exist(outfold, modes):
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
         logger.info(LOGGING_TMP.format(dataset_name.upper(), outfold))
         return outfold
     logger.info(f'Processing data and store at {outfold}')
@@ -162,7 +164,7 @@ def process_nvidia_car(infold,
     if uncased:
         outfold = f'{outfold}_uncased'
 
-    if if_exist(outfold, modes):
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
         logger.info(LOGGING_TMP.format('NVIDIA-CAR', outfold))
         labels = get_car_labels(intent_file)
         return outfold, labels
@@ -240,7 +242,7 @@ def process_atis(infold, uncased, modes=['train', 'test'], dev_split=0):
     if uncased:
         outfold = f'{outfold}-uncased'
 
-    if if_exist(outfold, modes):
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
         logger.info(LOGGING_TMP.format('ATIS', outfold))
         return outfold
     logger.info(f'Processing ATIS dataset and store at {outfold}')
@@ -396,7 +398,7 @@ def process_snips(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
 
     exist = True
     for dataset in ['light', 'speak', 'all']:
-        if if_exist(f'{outfold}/{dataset}', modes):
+        if if_exist(f'{outfold}/{dataset}', [f'{mode}.tsv' for mode in modes]):
             logger.info(LOGGING_TMP.format(
                 'SNIPS-' + dataset.upper(), outfold))
         else:
@@ -437,7 +439,7 @@ def list2str(nums):
 
 def merge(data_dir, subdirs, dataset_name, modes=['train', 'test']):
     outfold = f'{data_dir}/{dataset_name}'
-    if if_exist(outfold, modes):
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
         logger.info(LOGGING_TMP.format('SNIPS-ATIS', outfold))
         slots = get_vocab(f'{outfold}/dict.slots.csv')
         none_slot = 0
@@ -525,18 +527,18 @@ class JointIntentSlotDataDesc:
         elif dataset_name.startswith('snips'):
             self.data_dir = process_snips(data_dir, do_lower_case)
             if dataset_name.endswith('light'):
-                self.data_dir = f'{data_dir}/light'
+                self.data_dir = f'{self.data_dir}/light'
                 self.num_intents = 6
                 self.num_slots = 4
             elif dataset_name.endswith('speak'):
-                self.data_dir = f'{data_dir}/speak'
+                self.data_dir = f'{self.data_dir}/speak'
                 self.num_intents = 9
                 self.num_slots = 9
             elif dataset_name.endswith('all'):
-                self.data_dir = f'{data_dir}/all'
+                self.data_dir = f'{self.data_dir}/all'
                 self.num_intents = 15
                 self.num_slots = 12
-            self.pad_label = num_slots - 1
+            self.pad_label = self.num_slots - 1
         else:
             logger.info("Looks like you pass in a dataset name that isn't "
                         "already supported by NeMo. Please make sure that "
@@ -587,3 +589,47 @@ class SentenceClassificationDataDesc:
                         "you build the preprocessing method for it.")
 
         self.train_file = self.data_dir + '/train.tsv'
+
+
+def process_wkt(data_dir):
+    if if_exist(data_dir, ['train.txt', 'valid.txt', 'test.txt', 'vocab.txt']):
+        logger.info(LOGGING_TMP.format('WikiText', data_dir))
+        return data_dir
+    logger.info(f'Processing WikiText dataset and store at {data_dir}')
+
+    with open(f'{data_dir}/train.txt', 'r') as file:
+        docstr = ''.join(file.readlines())
+        lines = re.split(r'[\n]', docstr)
+        sentences = [
+            line.strip().split() for line in lines if len(line.strip()) > 1
+        ]
+
+        vocab = {"[PAD]": 0, "[SEP]": 1, "[CLS]": 2, "[MASK]": 3}
+        idx = 4
+        for sentence in sentences:
+            for word in sentence:
+                if word not in vocab:
+                    vocab[word] = idx
+                    idx += 1
+
+    with open(f'{data_dir}/vocab.txt', 'w') as f:
+        for word in vocab.keys():
+            f.write(word + '\n')
+    logger.info(f"Created vocabulary of size {len(vocab)}")
+    return data_dir
+
+
+class LanguageModelDataDesc:
+    def __init__(self, dataset_name, data_dir, do_lower_case):
+        if dataset_name == 'wikitext-2':
+            if not os.path.exists(data_dir):
+                os.makedirs('data/lm', exist_ok=True)
+                logger.warning(f'Data not found at {data_dir}. '
+                               f'Download {dataset_name} to data/lm')
+                data_dir = 'data/lm/wikitext-2'
+                subprocess.call('scripts/get_wkt2.sh')
+            self.data_dir = process_wkt(data_dir)
+        else:
+            logger.info("Looks like you pass in a dataset name that isn't "
+                        "already supported by NeMo. Please make sure that "
+                        "you build the preprocessing method for it.")
