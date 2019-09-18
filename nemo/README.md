@@ -19,7 +19,7 @@ NEMO is built around these principles:
 
 Built to run on GPUs
 --------------------
-NeMo provides:
+NeMo Core provides:
 
 * Mixed-precision training using Tensor Cores on NVIDIA's Volta and Turing GPUs
 * Distributed training
