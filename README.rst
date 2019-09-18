@@ -39,10 +39,11 @@ See `this video <https://nvidia.github.io/NeMo/>`_ for a quick walk-through.
 
 1) Python 3.6 or 3.7
 2) Pytorch 1.2 with GPU support
-3) NVIDIA APEX: https://github.com/NVIDIA/apex
+3) NVIDIA APEX. Install here: https://github.com/NVIDIA/apex
 
 
 **Documentation**
+
 `NeMo documentation <https://nvidia.github.io/NeMo/>`_
 
 See `examples/start_here` to get started with the simplest example. The folder `examples` contains several examples to get you started with various tasks in NLP and ASR.
@@ -54,19 +55,30 @@ You can use our `NGC PyTorch container <https://ngc.nvidia.com/catalog/container
 
 * Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:19.08-py3``
 * Run: ``nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.08-py3``
-* ``cd /NeMo''
+* ``cd /NeMo``
 
 and then continue with the following steps.
 
-** Note** For step 2 and 3, if you want to use NeMo in development mode, use ``pip install -e .`` instead of ``pip install .``.
+** Note**
+
+For step 2 and 3, if you want to use NeMo in development mode, use:
+
+``pip install -e .``
+
+instead of 
+
+``pip install .``
 
 1) Clone the repository ``git clone https://github.com/NVIDIA/NeMo.git``
-2) Go to NeMo folder and install the toolkit: 
-```
-cd NeMo
-pip install .
-```
+2) Go to NeMo folder and install the toolkit:
+
+.. code-block:: bash
+
+	cd NeMo
+	pip install .
+
 3) Install the collection you want.
+	
 	* Install the ASR collection from `collections/nemo_asr`: 
         1. ``apt-get install libsndfile1``
         2. ``cd collections/nemo_asr``
