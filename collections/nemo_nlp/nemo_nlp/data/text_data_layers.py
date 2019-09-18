@@ -18,15 +18,13 @@ from nemo.core.neural_types import *
 
 class TextDataLayer(DataLayerNM):
     """
-    Required args:
-    dataset
-    batch_size
+    Generic Text Data Layer NM which wraps PyTorch's dataset
 
-    Optional args:
-    num_workers
-    local_rank
+
+    Args:
+        dataset: a PyTorch dataset to wrap into Neural Module
+
     """
-
     def __init__(self, dataset, **kwargs):
         DataLayerNM.__init__(self, **kwargs)
         self._dataset = dataset
