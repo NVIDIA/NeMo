@@ -22,7 +22,7 @@ A "Neural Module" is a block of code that computes a set of outputs from a set o
 
 Neural Modules’ inputs and outputs have Neural Type for semantic checking.
 
-An application built with NeMo application is a Directed Acyclic Graph(DAG) of connected modules enabling researchers to define and build new speech and nlp networks easily through API Compatible modules.
+An application built with NeMo application is a Directed Acyclic Graph (DAG) of connected modules enabling researchers to define and build new speech and nlp networks easily through API Compatible modules.
 
 
 **Introduction**
@@ -49,12 +49,8 @@ See this video for a walk-through.
 **Requirements**
 
 1) Python 3.6 or 3.7
-2) Pytorch 1.2 with GPU support
+2) PyTorch 1.2 with GPU support
 3) NVIDIA APEX: https://github.com/NVIDIA/apex
-
-
-**Documentation**
-TBD
 
 
 **Getting started**
