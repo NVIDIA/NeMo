@@ -26,8 +26,8 @@ The toolkit comes with extendable collections of pre-built modules for automatic
 
 NeMo consists of: 
 
-* NeMo Core: fundamental building blocks for all neural models and type system.
-* NeMo collections: pre-built neural modules for particular domains such as automatic speech recognition (nemo_asr) and natural language processing (nemo_nlp).
+* **NeMo Core**: fundamental building blocks for all neural models and type system.
+* **NeMo collections**: pre-built neural modules for particular domains such as automatic speech recognition (nemo_asr) and natural language processing (nemo_nlp).
 
 
 **Introduction**
@@ -59,7 +59,7 @@ You can use our `NGC PyTorch container <https://ngc.nvidia.com/catalog/container
 
 and then continue with the following steps.
 
-** Note**
+**Note**
 
 For step 2 and 3, if you want to use NeMo in development mode, use:
 
@@ -78,16 +78,17 @@ instead of
 	pip install .
 
 3) Install the collection you want.
+.. code-block:: bash
 	
-	* Install the ASR collection from `collections/nemo_asr`: 
-        1. ``apt-get install libsndfile1``
-        2. ``cd collections/nemo_asr``
-        3. ``pip install .``
+	# Install the ASR collection from collections/nemo_asr 
+    apt-get install libsndfile1
+    cd collections/nemo_asr
+    pip install .
         
-    * Install the NLP collection from `collections/nemo_nlp`:
-    	1. ``apt-get install libsndfile1``
-        2. ``cd collections/nemo_nlp``
-        3. ``pip install .``
+    # Install the NLP collection from collections/nemo_nlp
+    apt-get install libsndfile1
+    cd collections/nemo_nlp
+    pip install .
 
 
 **Tutorials**
