@@ -33,4 +33,4 @@ from nemo.core import Backend
 
 name = "nemo_nlp"
 backend = Backend.PyTorch
-__version__ = "0.1"
+__version__ = "0.8"

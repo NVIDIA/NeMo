@@ -24,4 +24,4 @@ from .losses import CTCLossNM
 
 name = "nemo_asr"
 backend = Backend.PyTorch
-__version__ = "0.1"
+__version__ = "0.8"
