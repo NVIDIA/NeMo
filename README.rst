@@ -59,6 +59,17 @@ You can use our `NGC PyTorch container <https://ngc.nvidia.com/catalog/container
 
 and then continue with the following steps.
 
+If you have all requirements installed (or are using `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ ),
+then you can simply use pip to install the latest released version of NeMo and its collections (currently 0.8):
+
+.. code-block:: bash
+
+    pip install nemo-toolkit  # install NeMo Core
+    pip install nemo-asr # installs NeMo ASR collection
+    pip install nemo-nlp # installs NeMo NLP collection
+
+If you prefer to use NeMo's latest development version (from GitHub) follow the steps below:
+
 **Note**
 
 For step 2 and 3, if you want to use NeMo in development mode, use:
