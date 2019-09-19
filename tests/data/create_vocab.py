@@ -43,7 +43,8 @@ def main():
     elif args.dataset_dir is not None:
         # If the dataset is distributed across multiple files, merge into one
         # file before proceeding
-        filepaths = glob.glob(os.path.join(args.dataset_dir, "**", "*.txt"))
+        # filepaths = glob.glob(os.path.join(args.dataset_dir, "**", "*.txt"))
+        filepaths = glob.glob(os.path.join(args.dataset_dir, "*.txt"))
         print("Found {} files, concatenenating dataset into one file..."
               .format(len(filepaths)))
 
