@@ -32,7 +32,7 @@ parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--pretrained_bert_model",
                     default="bert-base-uncased",
                     type=str)
-parser.add_argument("--data_dir", default='data/nlu/ATIS', type=str)
+parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
 parser.add_argument("--dataset_name", default='snips-all', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
 parser.add_argument("--save_epoch_freq", default=1, type=int)
