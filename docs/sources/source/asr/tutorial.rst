@@ -314,9 +314,13 @@ We will be using `Baidu's CTC decoder with LM implementation. <https://github.co
 
 Perform the following steps:
 
-    * Go to `cd <nemo_git_repo_root>/scripts`
-    * Install Baidu's CTC decoders `sudo apt-get install swig` and `./install_decoders.sh`
-    * Build 6-gram KenLM model on LibriSpeech `./build_6-gram_OpenSLR_lm.sh`
+    * Go to ``cd <nemo_git_repo_root>/scripts``
+    * Install Baidu's CTC decoders (NOTE: no need for "sudo" if inside the container):
+        * ``sudo apt-get update && sudo apt-get install swig``
+        * ``sudo apt-get install pkg-config libflac-dev libogg-dev libvorbis-dev libboost-dev``
+        * ``sudo apt-get install libsndfile1-dev python-setuptools libboost-all-dev python-dev``
+        * ``./install_decoders.sh``
+    * Build 6-gram KenLM model on LibriSpeech ``./build_6-gram_OpenSLR_lm.sh``
     * Run jasper_infer.py with the --lm_path flag
 
     .. code-block:: bash
