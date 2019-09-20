@@ -181,11 +181,11 @@
 <p>In this tutorial, we will build and train a masked language model from scratch using the BERT architecture. Make sure you have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> installed before starting this tutorial. See the <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section for more details.</p>
 <div class="section" id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
-<p>Creating domain-specific BERT models can be advantageous for a wide range of applications. One notable is domain-specific BERT in a biomedical setting, similar to BioBERT <a class="reference internal" href="#lee2019biobert" id="id1">[2]</a> and SciBERT <a class="reference internal" href="#beltagy2019scibert" id="id2">[1]</a>.</p>
+<p>Creating domain-specific BERT models can be advantageous for a wide range of applications. One notable is domain-specific BERT in a biomedical setting, similar to BioBERT <a class="bibtex reference internal" href="#lee2019biobert" id="id1">[2]</a> and SciBERT <a class="bibtex reference internal" href="#beltagy2019scibert" id="id2">[1]</a>.</p>
 </div>
 <div class="section" id="download-corpus">
 <h2>Download Corpus<a class="headerlink" href="#download-corpus" title="Permalink to this headline">¶</a></h2>
-<p>For demonstration purposes, we will be using the very small WikiText-2 dataset <a class="reference internal" href="#merity2016pointer" id="id3">[3]</a>.</p>
+<p>For demonstration purposes, we will be using the very small WikiText-2 dataset <a class="bibtex reference internal" href="#merity2016pointer" id="id3">[3]</a>.</p>
 <p>To download the dataset, run the script <code class="docutils literal notranslate"><span class="pre">examples/nlp/scripts/get_wt2.sh</span></code>. After downloading and unzipping, the folder should include 3 files that look like this:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>test.txt
 train.txt
@@ -437,13 +437,13 @@ python tests/data/create_vocab.py --dataset_dir path_to_dataset/
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
 <p id="bibtex-bibliography-nlp/pretraining-0"><dl class="citation">
-<dt class="label" id="beltagy2019scibert"><span class="brackets"><a class="fn-backref" href="#id2">1</a></span></dt>
+<dt class="bibtex label" id="beltagy2019scibert"><span class="brackets"><a class="fn-backref" href="#id2">1</a></span></dt>
 <dd><p>Iz Beltagy, Arman Cohan, and Kyle Lo. Scibert: pretrained contextualized embeddings for scientific text. 2019. <a class="reference external" href="https://arxiv.org/abs/1903.10676">arXiv:1903.10676</a>.</p>
 </dd>
-<dt class="label" id="lee2019biobert"><span class="brackets"><a class="fn-backref" href="#id1">2</a></span></dt>
+<dt class="bibtex label" id="lee2019biobert"><span class="brackets"><a class="fn-backref" href="#id1">2</a></span></dt>
 <dd><p>Jinhyuk Lee, Wonjin Yoon, Sungdong Kim, Donghyeon Kim, Sunkyu Kim, Chan Ho So, and Jaewoo Kang. Biobert: a pre-trained biomedical language representation model for biomedical text mining. 2019. <a class="reference external" href="https://arxiv.org/abs/1901.08746">arXiv:1901.08746</a>.</p>
 </dd>
-<dt class="label" id="merity2016pointer"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
+<dt class="bibtex label" id="merity2016pointer"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
 <dd><p>Stephen Merity, Caiming Xiong, James Bradbury, and Richard Socher. Pointer sentinel mixture models. <em>arXiv preprint arXiv:1609.07843</em>, 2016.</p>
 </dd>
 </dl>

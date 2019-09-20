@@ -183,11 +183,11 @@ output of end-to-end language model. This model method works similar to translat
 in contrast to traditional ASR language model rescoring. The model architecture is
 attention based encoder-decoder where both encoder and decoder are initialized with
 pretrained BERT language model. To train this model we collected dataset with typical
-ASR errors by using pretrained Jasper ASR model <a class="reference internal" href="#li2019jasper" id="id1">[1]</a>.</p>
+ASR errors by using pretrained Jasper ASR model <a class="bibtex reference internal" href="#li2019jasper" id="id1">[1]</a>.</p>
 <div class="section" id="data">
 <h2>Data<a class="headerlink" href="#data" title="Permalink to this headline">¶</a></h2>
 <p><strong>Data collection.</strong> We collected dataset for this tutorial with Jasper ASR model
-<a class="reference internal" href="#li2019jasper" id="id2">[1]</a> trained on Librispeech dataset <a class="reference internal" href="#panayotov2015librispeech" id="id3">[3]</a>.
+<a class="bibtex reference internal" href="#li2019jasper" id="id2">[1]</a> trained on Librispeech dataset <a class="bibtex reference internal" href="#panayotov2015librispeech" id="id3">[3]</a>.
 To download the Librispeech dataset, see <a class="reference internal" href="../asr/datasets.html#librispeech-dataset"><span class="std std-ref">LibriSpeech</span></a>.
 To obtain the pretrained Jasper model, see <a class="reference internal" href="../asr/jasper.html#jasper-model"><span class="std std-ref">Jasper</span></a>.
 Librispeech training dataset consists of three parts – train-clean-100, train-clean-360 and
@@ -212,7 +212,7 @@ for evaluation in our tutorial.</p>
 model has the same architecture as transformer encoder, there is no need to do anything
 additional. To prepare decoder parameters from pretrained BERT we wrote a script
 <code class="docutils literal notranslate"><span class="pre">get_decoder_params_from_bert.py</span></code> that downloads BERT parameters from
-pytorch-transformers repository <a class="reference internal" href="#huggingface2019transformers" id="id4">[1]</a> and maps them into a transformer decoder.
+pytorch-transformers repository <a class="bibtex reference internal" href="#huggingface2019transformers" id="id4">[1]</a> and maps them into a transformer decoder.
 Encoder-decoder attention is initialized with self-attention parameters.
 The script is located under <code class="docutils literal notranslate"><span class="pre">nemo/scripts</span></code> directory and accepts 2 arguments:
 <code class="docutils literal notranslate"><span class="pre">--model_name</span></code> (ex. <code class="docutils literal notranslate"><span class="pre">bert-base-cased</span></code>, <code class="docutils literal notranslate"><span class="pre">bert-base-uncased</span></code>, etc) and <code class="docutils literal notranslate"><span class="pre">--save_to</span></code>
@@ -305,7 +305,7 @@ of the decoder neural module:</p>
 <div class="section" id="model-training">
 <h2>Model training<a class="headerlink" href="#model-training" title="Permalink to this headline">¶</a></h2>
 <p>To train the model run <code class="docutils literal notranslate"><span class="pre">asr_postprocessor.py.py</span></code> located in <code class="docutils literal notranslate"><span class="pre">nemo\examples\nlp</span></code> directory.
-We train with novograd optimizer <a class="reference internal" href="#ginsburg2019stochastic" id="id5">[2]</a>, learning rate <code class="docutils literal notranslate"><span class="pre">lr=0.001</span></code>,
+We train with novograd optimizer <a class="bibtex reference internal" href="#ginsburg2019stochastic" id="id5">[2]</a>, learning rate <code class="docutils literal notranslate"><span class="pre">lr=0.001</span></code>,
 polynomial learning rate decay policy, <code class="docutils literal notranslate"><span class="pre">1000</span></code> warmup steps, per-gpu batch size of <code class="docutils literal notranslate"><span class="pre">4096*8</span></code> tokens,
 and <code class="docutils literal notranslate"><span class="pre">0.25</span></code> dropout probability. We trained on 8 GPUS. To launch the training in
 multi-gpu mode run the following command:</p>
@@ -318,16 +318,16 @@ multi-gpu mode run the following command:</p>
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
 <p id="bibtex-bibliography-nlp/asr-improvement-0"><dl class="citation">
-<dt class="label" id="huggingface2019transformers"><span class="brackets"><a class="fn-backref" href="#id4">1</a></span></dt>
+<dt class="bibtex label" id="huggingface2019transformers"><span class="brackets"><a class="fn-backref" href="#id4">1</a></span></dt>
 <dd><p>A library of state-of-the-art pretrained models for natural language processing (nlp). <span><a class="reference external" href="#"></a></span>https://github.com/huggingface/pytorch-transformers, Accessed August 23, 2019.</p>
 </dd>
-<dt class="label" id="ginsburg2019stochastic"><span class="brackets"><a class="fn-backref" href="#id5">2</a></span></dt>
+<dt class="bibtex label" id="ginsburg2019stochastic"><span class="brackets"><a class="fn-backref" href="#id5">2</a></span></dt>
 <dd><p>Boris Ginsburg, Patrice Castonguay, Oleksii Hrinchuk, Oleksii Kuchaiev, Vitaly Lavrukhin, Ryan Leary, Jason Li, Huyen Nguyen, and Jonathan M Cohen. Stochastic gradient methods with layer-wise adaptive moments for training of deep networks. <em>arXiv preprint arXiv:1905.11286</em>, 2019.</p>
 </dd>
-<dt class="label" id="li2019jasper"><span class="brackets">1</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id2">2</a>)</span></dt>
+<dt class="bibtex label" id="li2019jasper"><span class="brackets">1</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id2">2</a>)</span></dt>
 <dd><p>Jason Li, Vitaly Lavrukhin, Boris Ginsburg, Ryan Leary, Oleksii Kuchaiev, Jonathan M Cohen, Huyen Nguyen, and Ravi Teja Gadde. Jasper: an end-to-end convolutional neural acoustic model. <em>arXiv preprint arXiv:1904.03288</em>, 2019.</p>
 </dd>
-<dt class="label" id="panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
+<dt class="bibtex label" id="panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
 <dd><p>Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur. Librispeech: an asr corpus based on public domain audio books. In <em>2015 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>, 5206–5210. IEEE, 2015.</p>
 </dd>
 </dl>
