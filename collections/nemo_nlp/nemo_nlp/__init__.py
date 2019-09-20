@@ -19,8 +19,7 @@ from .transformer_nm import TransformerEncoderNM, TransformerDecoderNM, \
     BeamSearchTranslatorNM, GreedyLanguageGeneratorNM
 from .bert import MaskedLanguageModelingLossNM, \
     SentenceClassificationLogSoftmaxNM, NextSentencePredictionLossNM, \
-    LossAggregatorNM, QuestionAnsweringPredictionLoss, \
-    TokenClassificationLoss, SequenceClassifier, \
+    LossAggregatorNM, TokenClassificationLoss, SequenceClassifier, \
     JointIntentSlotLoss, ZerosLikeNM, \
     JointIntentSlotClassifier
 from .nlp_utils import read_intent_slot_outputs
