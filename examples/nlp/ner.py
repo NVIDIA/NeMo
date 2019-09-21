@@ -19,9 +19,9 @@ parser = argparse.ArgumentParser(description="NER_with_pretrained_BERT")
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=32, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
-parser.add_argument("--num_epochs", default=10, type=int)
+parser.add_argument("--num_epochs", default=1, type=int)
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
-parser.add_argument("--lr", default=3e-4, type=float)
+parser.add_argument("--lr", default=5e-5, type=float)
 parser.add_argument("--weight_decay", default=0, type=float)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--mixed_precision", action="store_true")
@@ -124,7 +124,7 @@ train_loss, train_logits = ner_loss(
 print("Loading eval data...")
 eval_data_layer = nemo_nlp.BertNERDataLayer(
     tokenizer=tokenizer,
-    path_to_data=os.path.join(args.data_dir, "test.txt"),
+    path_to_data=os.path.join(args.data_dir, "dev.txt"),
     max_seq_length=args.max_seq_length,
     is_training=True,
     batch_size=args.batch_size,
@@ -148,20 +148,10 @@ eval_loss, eval_logits = ner_loss(
 
 # Create trainer and execute training action
 callback_train = nemo.core.SimpleLossLoggerCallback(
-    tensor_list2str=lambda x: "{:.3f}".format(x[0].item()),
-    tb_writer=tb_writer,
-    step_freq=100)
-
-# Instantiate an optimizer to perform `train` action
-optimizer = neural_factory.get_trainer(
-    params={
-        "optimizer_kind": args.optimizer_kind,
-        "optimization_params": {
-            "num_epochs": args.num_epochs,
-            "lr": args.lr,
-            "weight_decay": args.weight_decay,
-            "amsgrad": True
-        }})
+    tensors=[train_loss],
+    print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+    get_tb_values=lambda x: [["loss", x[0]]],
+    tb_writer=tb_writer)
 
 train_data_size = len(train_data_layer)
 steps_per_epoch = int(train_data_size / (args.batch_size * args.num_gpus))
@@ -187,7 +177,12 @@ elif args.lr_policy == "lr_cosine":
 else:
     raise ValueError("Invalid lr_policy, must be lr_warmup or lr_poly")
 
-optimizer.train(
+neural_factory.train(
     tensors_to_optimize=[train_loss],
     callbacks=[callback_train, callback_eval],
-    lr_policy=lr_policy_func)
+    lr_policy=lr_policy_func,
+    optimizer=args.optimizer_kind,
+    optimization_params={
+        "num_epochs": args.num_epochs,
+        "lr": args.lr
+    })
