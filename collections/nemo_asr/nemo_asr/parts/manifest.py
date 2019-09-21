@@ -139,10 +139,21 @@ class Manifest(object):
         return transcript
 
     def parse_transcript(self, transcript):
-        chars = [self.labels_map.get(x, self.blank_index)
-                 for x in list(transcript)]
-        transcript = list(filter(lambda x: x != self.blank_index, chars))
-        return transcript
+        # allow for special labels such as "<NOISE>"
+        special_labels = set([label for label in self.labels_map.keys() if len(label) > 1])
+        tokens = []
+        # split by word to find special tokens
+        for i, word in enumerate(transcript.split(" ")):
+            if i > 0:
+                tokens.append(self.labels_map.get(" ", self.blank_index))
+            if word in special_labels:
+                tokens.append(self.labels_map.get(word))
+                continue
+            # split by character to get the rest of the tokens
+            for char in word:
+                tokens.append(self.labels_map.get(char, self.blank_index))
+        tokens = [x for x in tokens if x != self.blank_index]
+        return tokens
 
     def __getitem__(self, item):
         return self._data[item]
