@@ -27,6 +27,7 @@ setuptools.setup(
         'soundfile',
         'marshmallow',
         'ruamel.yaml',
-        'sox'
+        'sox',
+        'unidecode'
     ]
 )
