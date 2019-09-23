@@ -20,6 +20,8 @@ To get started
 5) Modify `recognize.html`: replace `<flask_service_ip>` with the IP address of machine where flask service from Step 4 is running.
 6) Open `recognize.html` with any browser and upload a .wav file
 
+For performing inference on CPU, in ``app/__init__.py``, replace ``placement=nemo.core.DeviceType.GPU`` with ``placement=nemo.core.DeviceType.CPU``.
+
 You can also enable BeamSearch with KenLM language model. Set `ENABLE_NGRAM=True` in `examples/applications/asr_service/app/__init__.py` to enable running with BeamSearch and KenLM.
 Also you must install Baidu's CTC decoder and KenLM. Do do so (with KenLM built on LibriSpeech dataset) do:
 
