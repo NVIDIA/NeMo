@@ -268,8 +268,6 @@ def start_of_chunk(prev_tag, tag, prev_type, type):
         return True
     elif prev_tag == "O" and tag == "I":
         return True
-    elif prev_tag == "O" and tag == "I":
-        return True
     elif tag != "O" and prev_type != type:
         return True
 
@@ -282,8 +280,6 @@ def end_of_chunk(prev_tag, tag, prev_type, type):
     elif prev_tag == "B" and tag == "O":
         return True
     elif prev_tag == "I" and tag == "B":
-        return True
-    elif prev_tag == "I" and tag == "O":
         return True
     elif prev_tag == "I" and tag == "O":
         return True
