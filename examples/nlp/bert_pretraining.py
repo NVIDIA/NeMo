@@ -1,7 +1,7 @@
+#!/usr/bin/env python3
 # Copyright (c) 2019 NVIDIA Corporation
 
 import argparse
-import logging
 import math
 import os
 
@@ -10,20 +10,19 @@ from nemo.utils.lr_policies import SquareAnnealing, CosineAnnealing, \
     InverseSquareRootAnnealing
 
 import nemo_nlp
-from nemo_nlp.callbacks.bert_pretraining import eval_iter_callback, \
+from nemo_nlp.utils.callbacks.bert_pretraining import eval_iter_callback, \
     eval_epochs_done_callback
 
-console = logging.StreamHandler()
-console.setLevel(logging.INFO)
-# add the handler to the root logger
-logging.getLogger('').addHandler(console)
 
 parser = argparse.ArgumentParser(description='BERT pretraining')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--lr", default=0.01, type=float)
+parser.add_argument("--beta1", default=0.95, type=float)
 parser.add_argument("--beta2", default=0.25, type=float)
 parser.add_argument("--optimizer", default="novograd", type=str)
-parser.add_argument("--lr_decay_policy", default="cosine", type=str)
+parser.add_argument("--amp_opt_level", default="O0",
+                    type=str, choices=["O0", "O1", "O2"])
+parser.add_argument("--lr_policy", default="CosineAnnealing", type=str)
 parser.add_argument("--lr_warmup_proportion", default=0.05, type=float)
 parser.add_argument("--weight_decay", default=0.0, type=float)
 parser.add_argument("--batch_size", default=64, type=int)
@@ -37,60 +36,25 @@ parser.add_argument("--num_heads", default=12, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--embedding_dropout", default=0.1, type=float)
-parser.add_argument("--ffn_dropout", default=0.1, type=float)
-parser.add_argument("--attn_score_dropout", default=0.1, type=float)
-parser.add_argument("--attn_layer_dropout", default=0.1, type=float)
-parser.add_argument("--conv_kernel_size", default=7, type=int)
-parser.add_argument("--conv_weight_dropout", default=0.1, type=float)
-parser.add_argument("--conv_layer_dropout", default=0.1, type=float)
 parser.add_argument("--tokenizer_model", default="tokenizer.model",
                     type=str)
-parser.add_argument("--dataset_dir", default="./pubmed-corpus", type=str)
-parser.add_argument(
-    "--dev_dataset_dir", default="./pubmed-corpus-test", type=str)
-parser.add_argument("--train_sentence_indices_filename",
-                    default="train_sentence_indices.pkl", type=str)
-parser.add_argument("--dev_sentence_indices_filename",
-                    default="dev_sentence_indices.pkl", type=str)
-parser.add_argument("--checkpoint_directory", default="./checkpoint", type=str)
-parser.add_argument("--checkpoint_save_frequency", default=25000, type=int)
-parser.add_argument("--tensorboard_filename", default=None, type=str)
-parser.add_argument("--fp16", default=0, type=int, choices=[0, 1, 2, 3])
-parser.add_argument("--batch_per_step", default=1, type=int)
+parser.add_argument("--dataset_dir", default="data/lm/wikitext-2", type=str)
+parser.add_argument("--work_dir", default="outputs", type=str)
+parser.add_argument("--dataset_name", default="wikitext-2", type=str)
+parser.add_argument("--save_epoch_freq", default=1, type=int)
+parser.add_argument("--save_step_freq", default=-1, type=int)
 args = parser.parse_args()
 
-name = "BERT-H{0}-D{1}-lr{2}-opt{3}-warmup{4}-bs{5}-e{6}-b2{7}".format(
-    args.num_heads, args.d_model, args.lr, args.optimizer,
-    args.lr_decay_policy, args.batch_size, args.num_epochs, args.beta2)
+nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
+                                   local_rank=args.local_rank,
+                                   optimization_level=args.amp_opt_level,
+                                   log_dir=args.work_dir,
+                                   create_tb_writer=True,
+                                   files_to_copy=[__file__])
 
-if args.tensorboard_filename is not None:
-    name = args.tensorboard_filename
+data_desc = BERTLanguageModelDataDesc(
+    args.dataset_name, args.data_dir, )
 
-try:
-    import tensorboardX
-    tb_writer = tensorboardX.SummaryWriter(name)
-except ModuleNotFoundError:
-    tb_writer = None
-    print("Tensorboard is not available")
-
-# instantiate Neural Factory with supported backend
-device = nemo.core.DeviceType.AllGpu if args.local_rank is not None \
-    else nemo.core.DeviceType.GPU
-
-if args.fp16 == 1:
-    optimization_level = nemo.core.Optimization.mxprO1
-elif args.fp16 == 2:
-    optimization_level = nemo.core.Optimization.mxprO2
-elif args.fp16 == 3:
-    optimization_level = nemo.core.Optimization.mxprO3
-else:
-    optimization_level = nemo.core.Optimization.mxprO0
-
-neural_factory = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch,
-    local_rank=args.local_rank,
-    optimization_level=optimization_level,
-    placement=device)
 
 tokenizer = nemo_nlp.SentencePieceTokenizer(model_path=args.tokenizer_model)
 tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
@@ -187,8 +151,7 @@ callback_ckpt = nemo.core.CheckpointCallback(
     step_freq=args.checkpoint_save_frequency)
 
 train_data_size = len(train_data_layer)
-steps_per_epoch = int(train_data_size / (args.batch_size * args.num_gpus *
-                                         args.batch_per_step))
+steps_per_epoch = int(train_data_size / (args.batch_size * args.num_gpus))
 
 callback_dev = nemo.core.EvaluatorCallback(
     # eval_tensors=[dev_mlm_loss, dev_nsp_loss],
@@ -225,13 +188,12 @@ optimizer = neural_factory.get_trainer()
 optimizer.train(tensors_to_optimize=[train_loss],
                 lr_policy=lr_policy,
                 callbacks=[callback_loss, callback_ckpt, callback_dev],
-                batches_per_step=args.batch_per_step,
                 optimizer=args.optimizer,
                 optimization_params={
                     "batch_size": args.batch_size,
                     "num_epochs": args.num_epochs,
                     "lr": args.lr,
                     "weight_decay": args.weight_decay,
-                    "betas": (0.95, args.beta2),
+                    "betas": (args.beta1, args.beta2),
                     "grad_norm_clip": None
-                })
+})

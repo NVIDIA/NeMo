@@ -25,11 +25,12 @@ from .bert import MaskedLanguageModelingLossNM, \
 from .nlp_utils import read_intent_slot_outputs
 from . import transformer, huggingface
 
-from .callbacks import *
+from .utils import callbacks
 
-from nemo.core import Backend
+import nemo
+# from nemo.core import Backend
 
 
 name = "nemo_nlp"
-backend = Backend.PyTorch
+backend = nemo.core.Backend.PyTorch
 __version__ = "0.8"

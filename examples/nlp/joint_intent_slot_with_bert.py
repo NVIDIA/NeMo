@@ -30,8 +30,7 @@ parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-uncased",
-                    type=str)
+                    default="bert-base-uncased", type=str)
 parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
 parser.add_argument("--dataset_name", default='snips-all', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)

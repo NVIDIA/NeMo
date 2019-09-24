@@ -7,7 +7,8 @@ __all__ = ['TextDataLayer',
            'BertSentenceClassificationDataLayer',
            'BertJointIntentSlotDataLayer',
            'BertJointIntentSlotInferDataLayer',
-           'LanguageModelingDataLayer']
+           'LanguageModelingDataLayer',
+           'BertNERDataLayer']
 
 import torch
 
@@ -23,8 +24,10 @@ class TextDataLayer(DataLayerNM):
 
     Args:
         dataset: a PyTorch dataset to wrap into Neural Module
+        batch_size: 
 
     """
+
     def __init__(self, dataset, **kwargs):
         DataLayerNM.__init__(self, **kwargs)
         self._dataset = dataset
@@ -173,3 +176,32 @@ class LanguageModelingDataLayer(TextDataLayer):
         }
 
         return input_ports, output_ports
+
+
+class BertNERDataLayer(TextDataLayer):
+    @staticmethod
+    def create_ports():
+        input_ports = {}
+        output_ports = {
+            "input_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_type_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "labels": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "seq_ids": NeuralType({0: AxisType(BatchTag)})
+        }
+        return input_ports, output_ports
+
+    def eval_preds(self, logits, seq_ids, tag_ids):
+        return self._dataset.eval_preds(logits, seq_ids, tag_ids)
