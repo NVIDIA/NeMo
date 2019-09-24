@@ -90,14 +90,12 @@ class NextSentencePredictionLossNM(TrainableNM):
     @staticmethod
     def create_ports():
         input_ports = {
-            "log_probs":
-            NeuralType({
+            "log_probs": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag)
             }),
-            "labels":
-            NeuralType({0: AxisType(BatchTag)}),
+            "labels": NeuralType({0: AxisType(BatchTag)}),
         }
 
         output_ports = {"loss": NeuralType(None)}
