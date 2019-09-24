@@ -1,13 +1,16 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import torch
-import nemo
 import math
-import nemo_nlp
-from nemo_nlp.callbacks.translation import eval_iter_callback, \
-    eval_epochs_done_callback_wer
-from nemo_nlp.data.tokenizers.bert_tokenizer import NemoBertTokenizer
+
+import torch
+
+import nemo
 from nemo.core.callbacks import CheckpointCallback
 from nemo.utils.lr_policies import SquareAnnealing
+
+import nemo_nlp
+from nemo_nlp.data.tokenizers.bert_tokenizer import NemoBertTokenizer
+from nemo_nlp.utils.callbacks.translation import \
+    eval_iter_callback, eval_epochs_done_callback_wer
 
 parser = nemo.utils.NemoArgParser(description='ASR postprocessor')
 parser.set_defaults(train_dataset="train",
@@ -251,9 +254,7 @@ neural_factory.train(tensors_to_optimize=[train_loss],
                      callbacks=callbacks,
                      optimizer=args.optimizer,
                      lr_policy=lr_policy,
-                     optimization_params={
-                         "num_epochs": 300,
-                         "lr": args.lr,
-                         "weight_decay": args.weight_decay
-                     },
+                     optimization_params={"num_epochs": 300,
+                                          "lr": args.lr,
+                                          "weight_decay": args.weight_decay},
                      batches_per_step=args.iter_per_step)
