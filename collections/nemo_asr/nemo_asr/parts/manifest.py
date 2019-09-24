@@ -140,7 +140,7 @@ class Manifest(object):
 
     def parse_transcript(self, transcript):
         # allow for special labels such as "<NOISE>"
-        special_labels = set([label for label in self.labels_map.keys() if len(label) > 1])
+        special_labels = set([l for l in self.labels_map.keys() if len(l) > 1])
         tokens = []
         # split by word to find special tokens
         for i, word in enumerate(transcript.split(" ")):
