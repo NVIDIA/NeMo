@@ -30,20 +30,21 @@ class BertPretrainingDataset(Dataset):
     def __init__(self,
                  tokenizer,
                  dataset,
-                 name,
-                 sentence_indices_filename=None,
                  max_length=128,
-                 mask_probability=0.15):
+                 mask_probability=0.15,
+                 sentence_indices_filename=None):
         self.tokenizer = tokenizer
-
-        if sentence_indices_filename is None:
-            sentence_indices_filename = "{}_sentence_indices.pkl".format(name)
 
         # Loading enormous datasets into RAM isn't always feasible -- for
         # example, the pubmed corpus is 200+ GB, which doesn't fit into RAM on
         # most computers. To get around this, we store the indices of newlines
         # in each file so we can seek to and retrieve sentences immediately
         # from main memory when needed during training.
+
+        if sentence_indices_filename is None:
+            data_dir = dataset[:dataset.rfind('/')]
+            mode = dataset[dataset.rfind('/')+1:dataset.rfind('.')]
+            sentence_indices_filename = f"{data_dir}/{mode}_sentence_indices.pkl"
 
         if os.path.isfile(sentence_indices_filename):
             # If the sentence indices file already exists, load from it

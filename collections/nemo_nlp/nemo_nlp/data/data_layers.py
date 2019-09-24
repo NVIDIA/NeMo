@@ -8,7 +8,8 @@ __all__ = ['TextDataLayer',
            'BertJointIntentSlotDataLayer',
            'BertJointIntentSlotInferDataLayer',
            'LanguageModelingDataLayer',
-           'BertNERDataLayer']
+           'BertTokenClassificationDataLayer',
+           'BertPretrainingDataLayer']
 
 import torch
 
@@ -178,7 +179,7 @@ class LanguageModelingDataLayer(TextDataLayer):
         return input_ports, output_ports
 
 
-class BertNERDataLayer(TextDataLayer):
+class BertTokenClassificationDataLayer(TextDataLayer):
     @staticmethod
     def create_ports():
         input_ports = {}
@@ -205,3 +206,34 @@ class BertNERDataLayer(TextDataLayer):
 
     def eval_preds(self, logits, seq_ids, tag_ids):
         return self._dataset.eval_preds(logits, seq_ids, tag_ids)
+
+
+class BertPretrainingDataLayer(TextDataLayer):
+    @staticmethod
+    def create_ports():
+        input_ports = {}
+        output_ports = {
+            "input_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_type_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "output_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "output_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "labels": NeuralType({0: AxisType(BatchTag)}),
+        }
+
+        return input_ports, output_ports

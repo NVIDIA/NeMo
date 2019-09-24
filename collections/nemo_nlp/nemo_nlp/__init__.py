@@ -28,7 +28,6 @@ from . import transformer, huggingface
 from .utils import callbacks
 
 import nemo
-# from nemo.core import Backend
 
 
 name = "nemo_nlp"
