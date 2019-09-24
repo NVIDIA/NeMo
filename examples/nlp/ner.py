@@ -56,15 +56,17 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
 output_file = f'{nf.work_dir}/output.txt'
 
 if args.bert_checkpoint is None:
-    # Use this if you're using a standard BERT model.
-    # To see the list of pretrained models, call:
-    # nemo_nlp.huggingface.BERT.list_pretrained_models()
+    """ Use this if you're using a standard BERT model.
+    To see the list of pretrained models, call:
+    nemo_nlp.huggingface.BERT.list_pretrained_models()
+    """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
     pretrained_bert_model = nemo_nlp.huggingface.BERT(
         pretrained_model_name=args.pretrained_bert_model, factory=nf)
 else:
-    # Use this if you're using a BERT model that you pre-trained yourself.
-    # Replace BERT-STEP-150000.pt with the path to your checkpoint.
+    """ Use this if you're using a BERT model that you pre-trained yourself.
+    Replace BERT-STEP-150000.pt with the path to your checkpoint.
+    """
     tokenizer = SentencePieceTokenizer(model_path=tokenizer_model)
     tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
 
@@ -96,10 +98,11 @@ ner_loss = nemo_nlp.TokenClassificationLoss(
 
 def create_pipeline(dataset, batch_size=args.batch_size,
                     local_rank=args.local_rank, num_gpus=args.num_gpus):
-    data_layer = nemo_nlp.BertNERDataLayer(dataset,
-                                           batch_size=batch_size,
-                                           num_workers=0,
-                                           local_rank=local_rank)
+    data_layer = nemo_nlp.BertTokenClassificationDataLayer(
+        dataset,
+        batch_size=batch_size,
+        num_workers=0,
+        local_rank=local_rank)
     input_ids, input_type_ids, input_mask, labels, seq_ids = data_layer()
     hidden_states = pretrained_bert_model(input_ids=input_ids,
                                           token_type_ids=input_type_ids,
@@ -116,13 +119,13 @@ _, _, data_layer, eval_tensors = create_pipeline(eval_dataset)
 nf.logger.info(f"steps_per_epoch = {steps_per_epoch}")
 
 # Create trainer and execute training action
-callback_train = nemo.core.SimpleLossLoggerCallback(
+train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer)
 
-callback_eval = nemo.core.EvaluatorCallback(
+eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(
         x, y, data_layer, tag_ids),
@@ -143,7 +146,7 @@ lr_policy_fn = get_lr_policy(args.lr_policy,
 
 
 nf.train(tensors_to_optimize=[train_loss],
-         callbacks=[callback_train, callback_eval, ckpt_callback],
+         callbacks=[train_callback, eval_callback, ckpt_callback],
          lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,

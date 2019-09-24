@@ -645,13 +645,15 @@ class LanguageModelDataDesc:
 
 def process_wkt_mlm(data_dir,
                     vocab_size,
-                    num_placeholders,
                     sample_size,
+                    special_tokens=['PAD', '[UNK]',
+                                    '[CLS]', '[SEP]', '[MASK]'],
                     train_file=''):
+    vocab = special_tokens[:]
     bert_dir = f'{data_dir}/bert'
-    if if_exist(outdir, ['tokenizer.model', 'tokenizer.vocab', 'vocab.txt']):
+    if if_exist(bert_dir, ['tokenizer.model', 'tokenizer.vocab', 'vocab.txt']):
         logger.info(LOGGING_TMP.format('WikiText_BERT', bert_dir))
-        return data_dir
+        return data_dir, f'{bert_dir}/tokenizer.model'
     logger.info(f'Processing WikiText dataset and store at {bert_dir}')
     os.makedirs(bert_dir, exist_ok=True)
 
@@ -669,14 +671,13 @@ def process_wkt_mlm(data_dir,
         train_file = f'{data_dir}/{train_file}'
 
     cmd = (f"--input={train_file} --model_prefix={bert_dir}/tokenizer "
-           f"--vocab_size={vocab_size - num_placeholders} "
+           f"--vocab_size={vocab_size - len(vocab)} "
            f"--input_sentence_size={sample_size} "
            f"--shuffle_input_sentence=true --hard_vocab_limit=false "
            f"--bos_id=-1 --eos_id=-1")
     SPT.Train(cmd)
 
     # Add BERT control symbols
-    vocab = ["[PAD]"]
     tokens = []
 
     with open(f"{bert_dir}/tokenizer.vocab", "r") as f:
@@ -688,26 +689,36 @@ def process_wkt_mlm(data_dir,
             token = piece[1:] if piece.startswith("▁") else f"##{piece}"
             tokens.append(token)
 
-    vocab.extend([f"[unused{i}]" for i in range(vocab_size - len(tokens))])
-    vocab.extend(["[UNK]", "[CLS]", "[SEP]", "[MASK]"])
     vocab.extend(tokens)
 
     # Save vocabulary to output file
     with open(f'{bert_dir}/vocab.txt', "w") as f:
         for token in vocab:
             f.write(f"{token}\n".format())
-    return data_dir
+    return data_dir, f'{bert_dir}/tokenizer.model'
 
 
-class BERTLanguageModelDataDesc:
-    def __init__(self, dataset_name, data_dir, vocab_size, num_placeholders,
-                 sample_size, train_file=''):
+class BERTPretrainingDataDesc:
+    def __init__(self,
+                 dataset_name,
+                 data_dir,
+                 vocab_size,
+                 sample_size,
+                 special_tokens,
+                 train_file=''):
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
                 data_dir = download_wkt2(data_dir)
-            self.data_dir = process_wkt_mlm(data_dir, vocab_size,
-                                            num_placeholders, sample_size, train_file)
+            self.data_dir, self.tokenizer_model = process_wkt_mlm(data_dir,
+                                                                  vocab_size,
+                                                                  sample_size,
+                                                                  special_tokens,
+                                                                  train_file)
         else:
             logger.info("Looks like you pass in a dataset name that isn't "
                         "already supported by NeMo. Please make sure that "
                         "you build the preprocessing method for it.")
+
+        self.train_file = f'{data_dir}/train.txt'
+        self.eval_file = f'{data_dir}/valid.txt'
+        self.test_file = f'{data_dir}/test.txt'

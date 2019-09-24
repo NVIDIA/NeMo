@@ -4,9 +4,9 @@ import math
 import nemo
 from nemo.utils.lr_policies import CosineAnnealing
 import nemo_nlp
-from nemo_nlp.callbacks.language_modeling import eval_iter_callback, \
-    eval_epochs_done_callback
 from nemo_nlp.text_data_utils import LanguageModelDataDesc
+from nemo_nlp.utils.callbacks.language_modeling import eval_iter_callback, \
+    eval_epochs_done_callback
 
 
 parser = nemo.utils.NemoArgParser(description='LM Transformer')
@@ -53,6 +53,7 @@ To get the data, go to tests/data and run get_wt2.sh
 Then run create_vocab.py
 """
 
+work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
@@ -125,7 +126,7 @@ train_loss = create_pipeline(train_dataset, args.batch_size)
 eval_loss = create_pipeline(eval_dataset, args.batch_size)
 
 # callback which prints training loss once in a while
-callback_train = nemo.core.SimpleLossLoggerCallback(
+train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     step_freq=100,
     print_func=lambda x: str(x[0].item()),
@@ -133,7 +134,7 @@ callback_train = nemo.core.SimpleLossLoggerCallback(
     tb_writer=nf.tb_writer)
 
 # callback which calculates evaluation loss
-callback_eval = nemo.core.EvaluatorCallback(
+eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=[eval_loss],
     user_iter_callback=eval_iter_callback,
     user_epochs_done_callback=eval_epochs_done_callback,
@@ -155,7 +156,7 @@ max_num_epochs = 0 if args.interactive else args.num_epochs
 callbacks = [callback_ckpt]
 
 if not args.interactive:
-    callbacks.extend([callback_train, callback_eval])
+    callbacks.extend([train_callback, eval_callback])
 
 nf.train(tensors_to_optimize=[train_loss],
          callbacks=callbacks,

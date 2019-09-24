@@ -1,10 +1,12 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import nemo
-import nemo_nlp
 import logging
+
+import nemo
 from nemo.utils.lr_policies import CosineAnnealing
-from nemo_nlp.callbacks.translation import eval_iter_callback, \
-    eval_epochs_done_callback
+
+import nemo_nlp
+from nemo_nlp.utils.callbacks.translation import \
+    eval_iter_callback, eval_epochs_done_callback
 
 console = logging.StreamHandler()
 console.setLevel(logging.INFO)
