@@ -1,3 +1,6 @@
+__all__ = ['WarmupPolicy', 'SquareAnnealing', 'CosineAnnealing',
+           'WarmupAnnealing', 'InverseSquareRootAnnealing']
+
 import math
 from abc import ABC, abstractmethod
 

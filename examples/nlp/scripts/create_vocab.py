@@ -33,7 +33,7 @@ def main():
     parser.add_argument("--model_prefix", default="tokenizer", type=str)
     parser.add_argument("--num_placeholders", default=0, type=int)
     parser.add_argument("--sample_size", default=1e7, type=int)
-    parser.add_argument("--train_path", type=str)
+    # parser.add_argument("--train_path", type=str)
     parser.add_argument("--vocab_filename", default="vocab.txt", type=str)
     parser.add_argument("--vocab_size", default=32000, type=int)
     args = parser.parse_args()
@@ -44,7 +44,7 @@ def main():
 
     if os.path.isdir(data_path):
         files = glob.glob(f'{data_path}/*.txt')
-        print(f"Concatenenating {len(filepaths)} txt files into {MERGED_FILE}")
+        print(f"Concatenenating {len(files)} txt files into {MERGED_FILE}")
 
         with open(MERGED_FILE, "w") as merged:
             for file in tqdm(files):

@@ -18,6 +18,9 @@
 Utility functions for NER NLP tasks
 Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
+
+The data processing part is adapted from:
+https://github.com/kyzhouhzau/BERT-NER/blob/master/conlleval.pl
 """
 
 # TODO: REFACTOR to minimize code reusing
@@ -259,37 +262,23 @@ class BertNERDataset(Dataset):
             total_chunks, lines
 
 
-def start_of_chunk(prev_tag, tag, prev_type, type):
-    if prev_tag == "B" and tag == "B":
+def start_of_chunk(prev_tag, tag, prev_type, type_):
+    if prev_tag in ['B', 'I', 'O'] and tag == 'B':
         return True
-    elif prev_tag == "I" and tag == "B":
+    elif prev_tag == 'O' and tag == 'I':
         return True
-    elif prev_tag == "O" and tag == "B":
+    elif tag != "O" and prev_type != type_:
         return True
-    elif prev_tag == "O" and tag == "I":
-        return True
-    elif prev_tag == "O" and tag == "I":
-        return True
-    elif tag != "O" and prev_type != type:
-        return True
-
     return False
 
 
-def end_of_chunk(prev_tag, tag, prev_type, type):
-    if prev_tag == "B" and tag == "B":
+def end_of_chunk(prev_tag, tag, prev_type, type_):
+    if prev_tag == 'B' and tag in ['B', 'O']:
         return True
-    elif prev_tag == "B" and tag == "O":
+    elif prev_tag == "I" and tag in ['B', 'O']:
         return True
-    elif prev_tag == "I" and tag == "B":
+    elif prev_tag != "O" and prev_type != type_:
         return True
-    elif prev_tag == "I" and tag == "O":
-        return True
-    elif prev_tag == "I" and tag == "O":
-        return True
-    elif prev_tag != "O" and prev_type != type:
-        return True
-
     return False
 
 
@@ -438,13 +427,8 @@ class InputFeatures(object):
                  input_ids,
                  input_mask,
                  segment_ids):
-        self.seq_id = seq_id
-        self.doc_span_index = doc_span_index
-        self.tokens = tokens
-        self.words = words
-        self.labels = labels
-        self.token_to_orig_map = token_to_orig_map
-        self.token_is_max_context = token_is_max_context
-        self.input_ids = input_ids
-        self.input_mask = input_mask
-        self.segment_ids = segment_ids
+        local_params = locals()
+        for key in local_params:
+            if key == 'self':
+                continue
+            setattr(self, key, local_params[key])

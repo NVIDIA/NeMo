@@ -1,4 +1,3 @@
-from .bert_ner_data_layer import BertNERDataLayer
 from .bert_pretraining_data_layer import BertPretrainingDataLayer
 from .bert_tc_data_layer import BertTokenClassificationDataLayer
 from .datasets import *
