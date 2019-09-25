@@ -85,7 +85,7 @@ instead of
 
 .. code-block:: bash
 
-	cd NeMo
+	cd nemo
 	pip install .
 
 3) Install the collection you want.
