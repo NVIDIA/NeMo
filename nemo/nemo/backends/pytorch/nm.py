@@ -187,10 +187,10 @@ class DataLayerNM(NeuralModule):
     """
 
     def __init__(self, **kwargs):
-        if 'batch_size' not in kwargs:
-           logging.warning("No batch_size specified in the data layer. "
-                           "Setting batch_size to 1.")
-           kwargs['batch_size'] = 1
+        # if 'batch_size' not in kwargs:
+        #    logging.warning("No batch_size specified in the data layer. "
+        #                    "Setting batch_size to 1.")
+        #    kwargs['batch_size'] = 1
         NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
 
