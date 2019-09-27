@@ -150,9 +150,6 @@ def create_pipeline(dataset_src,
 train_dataset_src = f"{args.data_dir}/{args.train_dataset}.{args.src_lang}"
 train_dataset_tgt = f"{args.data_dir}/{args.train_dataset}.{args.tgt_lang}"
 
-# train_dataset_src = f"{args.data_dir}/{args.eval_datasets[0]}.{args.src_lang}"
-# train_dataset_tgt = f"{args.data_dir}/{args.eval_datasets[0]}.{args.tgt_lang}"
-
 train_loss, _ = create_pipeline(train_dataset_src,
                                 train_dataset_tgt,
                                 args.batch_size,

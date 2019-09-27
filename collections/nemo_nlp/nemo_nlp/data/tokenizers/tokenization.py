@@ -1,22 +1,27 @@
 # coding=utf-8
-# Copyright 2018 The Google AI Language Team Authors and The HuggingFace Inc. team.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""Tokenization classes."""
+"""
+Copyright 2018 The Google AI Language Team Authors
+and The HuggingFace Inc. team.
 
-from __future__ import absolute_import, division, print_function, unicode_literals
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-from .file_utils import cached_path
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Tokenization classes.
+"""
+
+from __future__ import absolute_import, division,\
+    print_function, unicode_literals
+
+from ...utils.file_utils import cached_path
 import collections
 import logging
 import os
@@ -25,21 +30,18 @@ from io import open
 
 logger = logging.getLogger(__name__)
 
+AWS_BERT_URL = '{AWS_BERT_URL}'
+
 PRETRAINED_VOCAB_ARCHIVE_MAP = {
-    'bert-base-uncased':
-    "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-vocab.txt",
-    'bert-large-uncased':
-    "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-vocab.txt",
-    'bert-base-cased':
-    "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-cased-vocab.txt",
-    'bert-large-cased':
-    "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt",
+    'bert-base-uncased': f"{AWS_BERT_URL}/bert-base-uncased-vocab.txt",
+    'bert-large-uncased': f"{AWS_BERT_URL}/bert-large-uncased-vocab.txt",
+    'bert-base-cased': f"{AWS_BERT_URL}/bert-base-cased-vocab.txt",
+    'bert-large-cased': f"{AWS_BERT_URL}/bert-large-cased-vocab.txt",
     'bert-base-multilingual-uncased':
-    "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-uncased-vocab.txt",
+    f"{AWS_BERT_URL}/bert-base-multilingual-uncased-vocab.txt",
     'bert-base-multilingual-cased':
-    "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-cased-vocab.txt",
-    'bert-base-chinese':
-    "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-chinese-vocab.txt",
+    f"{AWS_BERT_URL}/bert-base-multilingual-cased-vocab.txt",
+    'bert-base-chinese': f"{AWS_BERT_URL}/bert-base-chinese-vocab.txt",
 }
 PRETRAINED_VOCAB_POSITIONAL_EMBEDDINGS_SIZE_MAP = {
     'bert-base-uncased': 512,
@@ -89,19 +91,18 @@ class BertTokenizer(object):
           vocab_file: Path to a one-wordpiece-per-line vocabulary file
           do_lower_case: Whether to lower case the input
                          Only has an effect when do_wordpiece_only=False
-          do_basic_tokenize: Whether to do basic tokenization before wordpiece.
-          max_len: An artificial maximum length to truncate tokenized sequences to;
-                         Effective maximum length is always the minimum of this
-                         value (if specified) and the underlying BERT model's
-                         sequence length.
-          never_split: List of tokens which will never be split during tokenization.
-                         Only has an effect when do_wordpiece_only=False
+          do_basic_tokenize: Whether to do basic tokenization before wordpiece
+          max_len: Artificial max length to truncate tokenized sequences to;
+                   Effective max length is always the min of this value
+                   (if specified) and the underlying BERT model's seq length.
+          never_split: List of tokens not to be split during tokenization.
+                       Only has an effect when do_wordpiece_only=False
         """
         if not os.path.isfile(vocab_file):
-            raise ValueError(
-                "Can't find a vocabulary file at path '{}'. To load the vocabulary from a Google pretrained "
-                "model use `tokenizer = BertTokenizer.from_pretrained(PRETRAINED_MODEL_NAME)`"
-                .format(vocab_file))
+            raise ValueError(f"Vocab file dones't exist: {vocab_file}'. "
+                             "To load the vocabulary from a Google pretrained "
+                             "model, use: tokenizer = BertTokenizer."
+                             "from_pretrained(PRETRAINED_MODEL_NAME)")
         self.vocab = load_vocab(vocab_file)
         self.ids_to_tokens = collections.OrderedDict([
             (ids, tok) for tok, ids in self.vocab.items()
@@ -129,11 +130,10 @@ class BertTokenizer(object):
         for token in tokens:
             ids.append(self.vocab[token])
         if len(ids) > self.max_len:
-            logger.warning(
-                "Token indices sequence length is longer than the specified maximum "
-                " sequence length for this BERT model ({} > {}). Running this"
-                " sequence through BERT will result in indexing errors".format(
-                    len(ids), self.max_len))
+            logger.warning(f"Token indices seq length longer than the "
+                           f"specified max seq length for this BERT model "
+                           f"({len(ids)} > {self.max_len}). Running this"
+                           " seq through BERT will result in indexing errors.")
         return ids
 
     def convert_ids_to_tokens(self, ids):
@@ -173,13 +173,14 @@ class BertTokenizer(object):
                     vocab_file))
             return None
         if resolved_vocab_file == vocab_file:
-            logger.info("loading vocabulary file {}".format(vocab_file))
+            logger.info(f"loading vocabulary file {vocab_file}")
         else:
-            logger.info("loading vocabulary file {} from cache at {}".format(
-                vocab_file, resolved_vocab_file))
-        if pretrained_model_name_or_path in PRETRAINED_VOCAB_POSITIONAL_EMBEDDINGS_SIZE_MAP:
-            # if we're using a pretrained model, ensure the tokenizer wont index sequences longer
-            # than the number of positional embeddings
+            logger.info(f"loading vocabulary file {vocab_file} from cache "
+                        f"at {resolved_vocab_file}")
+        if pretrained_model_name_or_path in \
+                PRETRAINED_VOCAB_POSITIONAL_EMBEDDINGS_SIZE_MAP:
+            # if we're using a pretrained model, ensure the tokenizer wont
+            # index sequences longer than the number of positional embeddings
             max_len = PRETRAINED_VOCAB_POSITIONAL_EMBEDDINGS_SIZE_MAP[
                 pretrained_model_name_or_path]
             kwargs['max_len'] = min(kwargs.get('max_len', int(1e12)), max_len)
@@ -205,11 +206,11 @@ class BasicTokenizer(object):
     def tokenize(self, text):
         """Tokenizes a piece of text."""
         text = self._clean_text(text)
-        # This was added on November 1st, 2018 for the multilingual and Chinese
-        # models. This is also applied to the English models now, but it doesn't
+        # This was added on November 1, 2018 for the multilingual and Chinese
+        # models. This is also applied to the English models, but it doesn't
         # matter since the English models were not trained on any Chinese data
         # and generally don't have any Chinese data in them (there are Chinese
-        # characters in the vocabulary because Wikipedia does have some Chinese
+        # characters in the vocabulary because Wikipedia has some Chinese
         # words in the English Wikipedia.).
         text = self._tokenize_chinese_chars(text)
         orig_tokens = whitespace_tokenize(text)
@@ -270,15 +271,15 @@ class BasicTokenizer(object):
         return "".join(output)
 
     def _is_chinese_char(self, cp):
-        """Checks whether CP is the codepoint of a CJK character."""
-        # This defines a "chinese character" as anything in the CJK Unicode block:
-        #   https://en.wikipedia.org/wiki/CJK_Unified_Ideographs_(Unicode_block)
-        #
-        # Note that the CJK Unicode block is NOT all Japanese and Korean characters,
-        # despite its name. The modern Korean Hangul alphabet is a different block,
-        # as is Japanese Hiragana and Katakana. Those alphabets are used to write
-        # space-separated words, so they are not treated specially and handled
-        # like the all of the other languages.
+        """Checks whether CP is the codepoint of a CJK character.
+        This defines a "chinese character" as anything in the CJK Unicode block:
+          https://en.wikipedia.org/wiki/CJK_Unified_Ideographs_(Unicode_block)
+
+        Note that the CJK Unicode block is NOT all Japanese and Korean characters,
+        despite its name. The modern Korean Hangul alphabet is a different block,
+        as is Japanese Hiragana and Katakana. Those alphabets are used to write
+        space-separated words, so they are not treated specially and handled
+        like the all of the other languages. """
         if ((cp >= 0x4E00 and cp <= 0x9FFF) or  #
             (cp >= 0x3400 and cp <= 0x4DBF) or  #
             (cp >= 0x20000 and cp <= 0x2A6DF) or  #
@@ -286,13 +287,13 @@ class BasicTokenizer(object):
             (cp >= 0x2B740 and cp <= 0x2B81F) or  #
             (cp >= 0x2B820 and cp <= 0x2CEAF) or
             (cp >= 0xF900 and cp <= 0xFAFF) or  #
-            (cp >= 0x2F800 and cp <= 0x2FA1F)):  #
+                (cp >= 0x2F800 and cp <= 0x2FA1F)):  #
             return True
 
         return False
 
     def _clean_text(self, text):
-        """Performs invalid character removal and whitespace cleanup on text."""
+        """Removes invalid character and cleans up whitespace."""
         output = []
         for char in text:
             cp = ord(char)

@@ -222,7 +222,7 @@ def get_from_cache(url, cache_dir=None):
 
     if not os.path.exists(cache_path):
         # Download to temporary file, then copy to cache dir once finished.
-        # Otherwise you get corrupt cache entries if the download gets interrupted.
+        # Else you get corrupt cache entries if the download is interrupted.
         with tempfile.NamedTemporaryFile() as temp_file:
             print("%s not found in cache, downloading to %s", url,
                   temp_file.name)
@@ -233,9 +233,11 @@ def get_from_cache(url, cache_dir=None):
             else:
                 http_get(url, temp_file)
 
-            # we are copying the file before closing it, so flush to avoid truncation
+            # we are copying the file before closing it,
+            # so flush to avoid truncation
             temp_file.flush()
-            # shutil.copyfileobj() starts at the current position, so go to the start
+            # shutil.copyfileobj() starts at the current position,
+            # so go to the start
             temp_file.seek(0)
 
             print("copying %s to cache at %s", temp_file.name, cache_path)

@@ -595,7 +595,7 @@ class SentenceClassificationDataDesc:
         self.train_file = self.data_dir + '/train.tsv'
 
 
-def process_wkt_lm(data_dir, do_lower_case):
+def create_vocab_lm(data_dir, do_lower_case):
     if if_exist(data_dir, ['train.txt', 'valid.txt', 'test.txt', 'vocab.txt']):
         logger.info(LOGGING_TMP.format('WikiText', data_dir))
         return data_dir
@@ -637,19 +637,19 @@ class LanguageModelDataDesc:
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
                 data_dir = download_wkt2(data_dir)
-            self.data_dir = process_wkt_lm(data_dir, do_lower_case)
+            self.data_dir = create_vocab_lm(data_dir, do_lower_case)
         else:
             logger.info("Looks like you pass in a dataset name that isn't "
                         "already supported by NeMo. Please make sure that "
                         "you build the preprocessing method for it.")
 
 
-def process_wkt_mlm(data_dir,
-                    vocab_size,
-                    sample_size,
-                    special_tokens=['PAD', '[UNK]',
-                                    '[CLS]', '[SEP]', '[MASK]'],
-                    train_file=''):
+def create_vocab_mlm(data_dir,
+                     vocab_size,
+                     sample_size,
+                     special_tokens=['PAD', '[UNK]',
+                                     '[CLS]', '[SEP]', '[MASK]'],
+                     train_file=''):
     vocab = special_tokens[:]
     bert_dir = f'{data_dir}/bert'
     if if_exist(bert_dir, ['tokenizer.model']):
@@ -710,11 +710,12 @@ class BERTPretrainingDataDesc:
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
                 data_dir = download_wkt2(data_dir)
-            self.data_dir, self.tokenizer_model = process_wkt_mlm(data_dir,
-                                                                  vocab_size,
-                                                                  sample_size,
-                                                                  special_tokens,
-                                                                  train_file)
+            self.data_dir, self.tokenizer_model = create_vocab_mlm(
+                data_dir,
+                vocab_size,
+                sample_size,
+                special_tokens,
+                train_file)
         else:
             logger.info("Looks like you pass in a dataset name that isn't "
                         "already supported by NeMo. Please make sure that "
