@@ -63,7 +63,7 @@ def url_to_filename(url, etag=None):
 def filename_to_url(filename, cache_dir=None):
     """
     Return the url and etag (which may be ``None``) stored for `filename`.
-    Raise ``EnvironmentError`` if `filename` or its stored metadata do not exist.
+    Raise `EnvironmentError` if `filename` or its stored metadata don't exist.
     """
     if cache_dir is None:
         cache_dir = PYTORCH_PRETRAINED_BERT_CACHE
