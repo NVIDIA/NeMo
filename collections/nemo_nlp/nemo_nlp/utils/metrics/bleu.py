@@ -58,17 +58,19 @@ def compute_bleu(reference_corpus,
                  translation_corpus,
                  max_order=4,
                  smooth=False):
-    """Computes BLEU score of translated segments against one or more references.
-  Args:
-    reference_corpus: list of lists of references for each translation. Each
+    """Computes BLEU for translated segments against one or more references.
+
+    Args:
+        reference_corpus: list of lists of references for each translation. Each
         reference should be tokenized into a list of tokens.
-    translation_corpus: list of translations to score. Each translation
+        translation_corpus: list of translations to score. Each translation
         should be tokenized into a list of tokens.
-    max_order: Maximum n-gram order to use when computing BLEU score.
-    smooth: Whether or not to apply Lin et al. 2004 smoothing.
-  Returns:
-    3-Tuple with the BLEU score, n-gram precisions, geometric mean of n-gram
-    precisions and brevity penalty.
+        max_order: Maximum n-gram order to use when computing BLEU score.
+        smooth: Whether or not to apply Lin et al. 2004 smoothing.
+
+    Returns:
+        3-Tuple with the BLEU score, n-gram precisions, geometric mean of n-gram
+        precisions and brevity penalty.
   """
     matches_by_order = [0] * max_order
     possible_matches_by_order = [0] * max_order
