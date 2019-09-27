@@ -27,7 +27,7 @@ class TextDataLayer(DataLayerNM):
 
     Args:
         dataset: a PyTorch dataset to wrap into Neural Module
-        batch_size: 
+        batch_size: batch size
 
     """
 
