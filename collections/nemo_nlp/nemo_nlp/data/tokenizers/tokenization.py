@@ -272,14 +272,14 @@ class BasicTokenizer(object):
 
     def _is_chinese_char(self, cp):
         """Checks whether CP is the codepoint of a CJK character.
-        This defines a "chinese character" as anything in the CJK Unicode block:
+        A "chinese character" as anything in the CJK Unicode block:
           https://en.wikipedia.org/wiki/CJK_Unified_Ideographs_(Unicode_block)
 
-        Note that the CJK Unicode block is NOT all Japanese and Korean characters,
-        despite its name. The modern Korean Hangul alphabet is a different block,
-        as is Japanese Hiragana and Katakana. Those alphabets are used to write
-        space-separated words, so they are not treated specially and handled
-        like the all of the other languages. """
+        Note that the CJK Unicode block is NOT all Japanese and Korean 
+        characters, despite its name. The modern Korean Hangul alphabet is a
+        different block, as is Japanese Hiragana and Katakana. Those alphabets
+        are used to write space-separated words, so they are not treated
+        specially and handled like the all of the other languages. """
         if ((cp >= 0x4E00 and cp <= 0x9FFF) or  #
             (cp >= 0x3400 and cp <= 0x4DBF) or  #
             (cp >= 0x20000 and cp <= 0x2A6DF) or  #
@@ -317,19 +317,19 @@ class WordpieceTokenizer(object):
     def tokenize(self, text):
         """Tokenizes a piece of text into its word pieces.
 
-        This uses a greedy longest-match-first algorithm to perform tokenization
-        using the given vocabulary.
+        This uses a greedy longest-match-first algorithm to perform
+        tokenization using the given vocabulary.
 
         For example:
-          input = "unaffable"
-          output = ["un", "##aff", "##able"]
+            input = "unaffable"
+            output = ["un", "##aff", "##able"]
 
         Args:
-          text: A single token or whitespace separated tokens. This should have
-            already been passed through `BasicTokenizer`.
+            text: A single token or whitespace separated tokens. This should
+                  have already been passed through `BasicTokenizer`.
 
         Returns:
-          A list of wordpiece tokens.
+            A list of wordpiece tokens.
         """
 
         output_tokens = []
