@@ -31,7 +31,7 @@ JasperEncoder:
           stride: [1]
           dilation: [1]
           dropout: *drop
-          residual: true
+          residual: false
 
         - filters: 256
           repeat: *rep
