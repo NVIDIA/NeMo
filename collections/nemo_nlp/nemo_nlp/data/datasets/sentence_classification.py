@@ -20,9 +20,7 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-import collections
 import logging
-import os
 import random
 import string
 import time
@@ -30,21 +28,9 @@ import time
 import numpy as np
 from torch.utils.data import Dataset
 
+from .. import utils
+
 logger = logging.getLogger('log')
-
-
-def get_stats(lengths):
-    lengths = np.asarray(lengths)
-    logger.info(f'Min: {np.min(lengths)} | \
-                 Max: {np.max(lengths)} | \
-                 Mean: {np.mean(lengths)} | \
-                 Median: {np.median(lengths)}')
-    print(f'75 percentile: {np.percentile(lengths, 75)} | \
-            99 percentile: {np.percentile(lengths, 99)}')
-
-
-def list2str(l):
-    return ' '.join([str(x) for x in l])
 
 
 class BertSentenceClassificationDataset(Dataset):
@@ -100,7 +86,7 @@ class BertSentenceClassificationDataset(Dataset):
                 all_sent_subtokens.append(sent_subtokens)
                 sent_lengths.append(len(sent_subtokens))
 
-        get_stats(sent_lengths)
+        utils.get_stats(sent_lengths)
         self.max_seq_length = min(max_seq_length, max(sent_lengths))
 
         for i in range(len(all_sent_subtokens)):
@@ -167,8 +153,8 @@ class BertSentenceClassificationDataset(Dataset):
                 logger.info("example_index: %s" % sent_id)
                 logger.info("subtokens: %s" % " ".join(sent_subtokens))
                 logger.info("sent_label: %s" % sent_label)
-                logger.info("input_ids: %s" % list2str(input_ids))
-                logger.info("input_mask: %s" % list2str(input_mask))
+                logger.info("input_ids: %s" % utils.list2str(input_ids))
+                logger.info("input_mask: %s" % utils.list2str(input_mask))
 
             self.features.append(InputFeatures(
                 sent_id=sent_id,

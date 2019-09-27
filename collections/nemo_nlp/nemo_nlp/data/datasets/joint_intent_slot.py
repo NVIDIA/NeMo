@@ -19,7 +19,6 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-from collections import Counter
 import itertools
 import random
 
@@ -27,36 +26,12 @@ import numpy as np
 from torch.utils.data import Dataset
 
 from nemo.utils.exp_logging import get_logger
+
+from .. import utils
 from ... import text_data_utils
 
 
 logger = get_logger('')
-
-
-def get_stats(lengths):
-    lengths = np.asarray(lengths)
-    logger.info(f'Min: {np.min(lengths)} | \
-                 Max: {np.max(lengths)} | \
-                 Mean: {np.mean(lengths)} | \
-                 Median: {np.median(lengths)}')
-    logger.info(f'75 percentile: {np.percentile(lengths, 75)} | \
-            99 percentile: {np.percentile(lengths, 99)}')
-
-
-def list2str(l):
-    return ' '.join([str(x) for x in l])
-
-
-def get_label_stats(labels, outfile='stats.tsv'):
-    labels = Counter(labels)
-    total = sum(labels.values())
-    out = open(outfile, 'w')
-    i = 0
-    for k, v in labels.most_common():
-        out.write(f'{k}\t{v/total}\n')
-        if i < 3:
-            logger.info(f'{i} item: {k}, {v} out of {total}, {v/total}.')
-        i += 1
 
 
 def get_features(queries,
@@ -102,7 +77,7 @@ def get_features(queries,
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
     logger.info(f'Max length: {max_seq_length}')
-    get_stats(sent_lengths)
+    utils.get_stats(sent_lengths)
     too_long_count = 0
 
     for i, subtokens in enumerate(all_subtokens):
@@ -214,10 +189,10 @@ class BertJointIntentSlotDataset(Dataset):
 
         infold = input_file[:input_file.rfind('/')]
         logger.info('Three most popular intents')
-        get_label_stats(self.all_intents, infold + '/intent_stats.tsv')
+        utils.get_label_stats(self.all_intents, infold + '/intent_stats.tsv')
         merged_slots = itertools.chain.from_iterable(self.all_slots)
         logger.info('Three most popular slots')
-        get_label_stats(merged_slots, infold + '/slot_stats.tsv')
+        utils.get_label_stats(merged_slots, infold + '/slot_stats.tsv')
 
     def __len__(self):
         return len(self.all_input_ids)

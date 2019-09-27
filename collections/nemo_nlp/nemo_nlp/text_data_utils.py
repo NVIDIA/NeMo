@@ -10,7 +10,8 @@ from sentencepiece import SentencePieceTrainer as SPT
 from tqdm import tqdm
 
 from nemo.utils.exp_logging import get_logger
-from nemo_nlp.nlp_utils import get_vocab, write_vocab, write_vocab_in_order
+
+from .nlp_utils import get_vocab, write_vocab, write_vocab_in_order
 
 
 logger = get_logger('')
@@ -651,7 +652,7 @@ def process_wkt_mlm(data_dir,
                     train_file=''):
     vocab = special_tokens[:]
     bert_dir = f'{data_dir}/bert'
-    if if_exist(bert_dir, ['tokenizer.model', 'tokenizer.vocab', 'vocab.txt']):
+    if if_exist(bert_dir, ['tokenizer.model']):
         logger.info(LOGGING_TMP.format('WikiText_BERT', bert_dir))
         return data_dir, f'{bert_dir}/tokenizer.model'
     logger.info(f'Processing WikiText dataset and store at {bert_dir}')

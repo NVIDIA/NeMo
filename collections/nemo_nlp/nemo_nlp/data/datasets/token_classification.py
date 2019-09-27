@@ -19,22 +19,18 @@ Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-# TODO: REFACTOR to minimize code reusing
+# TODO: REFACTOR to maximize code reusing
 
 
 import collections
-import numpy as np
-from torch.utils.data import Dataset
 import string
 import re
 import random
-from ...externals.run_squad import _check_is_max_context
 
+import numpy as np
+from torch.utils.data import Dataset
 
-def remove_punctuation_from_sentence(sentence):
-    sentence = re.sub('[' + string.punctuation + ']', '', sentence)
-    sentence = sentence.lower()
-    return sentence
+from .. import utils
 
 
 class BertTokenClassificationDataset(Dataset):
@@ -66,7 +62,7 @@ class BertTokenClassificationDataset(Dataset):
                 sentence = line.split()[2:]
                 sentence = " ".join(sentence)
                 # Remove punctuation
-                sentence = remove_punctuation_from_sentence(sentence)
+                sentence = utils.remove_punctuation_from_sentence(sentence)
                 sentence_words = sentence.split()
 
                 sentence_subtoken_count = 0
@@ -241,8 +237,9 @@ def convert_sequences_to_features(seqs_words, seqs_subtokens,
             token_to_orig_map[len(
                 tokens)] = tok_to_orig_index[split_token_index]
 
-            is_max_context = _check_is_max_context(doc_spans, doc_span_index,
-                                                   split_token_index)
+            is_max_context = utils.check_is_max_context(doc_spans,
+                                                        doc_span_index,
+                                                        split_token_index)
             token_is_max_context[len(tokens)] = is_max_context
             tokens.append(all_doc_tokens[split_token_index])
             segment_ids.append(0)
