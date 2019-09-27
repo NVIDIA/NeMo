@@ -141,7 +141,7 @@ def main():
 
         wer = word_error_rate(
             hypotheses=beam_hypotheses, references=references)
-        logger.info("Beam WER {:.2f}".format(wer*100))
+        logger.info("Beam WER {:.2f}%".format(wer*100))
 
     if args.save_logprob:
         # Convert logits to list of numpy arrays
