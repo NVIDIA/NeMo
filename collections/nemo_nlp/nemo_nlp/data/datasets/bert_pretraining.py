@@ -32,7 +32,7 @@ class BertPretrainingDataset(Dataset):
                  dataset,
                  max_length=128,
                  mask_probability=0.15,
-                 sentence_indices_filename=None):
+                 sentence_idx_file=None):
         self.tokenizer = tokenizer
 
         # Loading enormous datasets into RAM isn't always feasible -- for
@@ -41,14 +41,14 @@ class BertPretrainingDataset(Dataset):
         # in each file so we can seek to and retrieve sentences immediately
         # from main memory when needed during training.
 
-        if sentence_indices_filename is None:
+        if sentence_idx_file is None:
             data_dir = dataset[:dataset.rfind('/')]
             mode = dataset[dataset.rfind('/')+1:dataset.rfind('.')]
-            sentence_indices_filename = f"{data_dir}/{mode}_sentence_indices.pkl"
+            sentence_idx_file = f"{data_dir}/{mode}_sentence_indices.pkl"
 
-        if os.path.isfile(sentence_indices_filename):
+        if os.path.isfile(sentence_idx_file):
             # If the sentence indices file already exists, load from it
-            with open(sentence_indices_filename, "rb") as f:
+            with open(sentence_idx_file, "rb") as f:
                 sentence_indices = pickle.load(f)
         else:
             # Otherwise, generate and store sentence indices
@@ -101,7 +101,7 @@ class BertPretrainingDataset(Dataset):
                 sentence_indices[filename] = array.array("I", newline_indices)
 
             # Save sentence indices so we don't have to do this again
-            with open(sentence_indices_filename, "wb") as f:
+            with open(sentence_idx_file, "wb") as f:
                 pickle.dump(sentence_indices, f)
 
             print("Used {} tokens of total {}".format(used_tokens,

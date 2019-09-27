@@ -26,7 +26,6 @@ parser.set_defaults(
     warmup_steps=1000,
     max_steps=50000,
     iter_per_step=1,
-    checkpoint_save_freq=10000,
     eval_freq=1000
 )
 parser.add_argument("--data_dir", default="data/lm/wikitext-2", type=str)
@@ -45,6 +44,8 @@ parser.add_argument("--label_smoothing", default=0.1, type=float)
 parser.add_argument("--beam_size", default=4, type=int)
 parser.add_argument("--tokenizer_model", default="vocab.txt", type=str)
 parser.add_argument("--predict_last_k", default=16, type=int)
+parser.add_argument("--save_epoch_freq", default=1, type=int)
+parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument("--interactive", action="store_true")
 args = parser.parse_args()
 
@@ -144,7 +145,8 @@ eval_callback = nemo.core.EvaluatorCallback(
 # callback which saves checkpoints once in a while
 callback_ckpt = nemo.core.CheckpointCallback(
     folder=nf.checkpoint_dir,
-    step_freq=args.checkpoint_save_freq,
+    epoch_freq=args.save_epoch_freq,
+    step_freq=args.save_step_freq,
     checkpoints_to_keep=-1)
 
 # define learning rate decay policy

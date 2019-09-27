@@ -1,5 +1,4 @@
 import numpy as np
-from sklearn.metrics import confusion_matrix, classification_report
 
 from nemo.utils.exp_logging import get_logger
 
