@@ -235,11 +235,9 @@ class BertNERDataset(Dataset):
                     last_guess_type = guess_type
                     last_correct_type = correct_type
 
-                    lines.append({
-                        "word": word,
-                        "label": feature.labels[token_id],
-                        "prediction": preds[token_id]
-                    })
+                    lines.append({"word": word,
+                                  "label": feature.labels[token_id],
+                                  "prediction": preds[token_id]})
 
                 previous_word_id = word_id
 

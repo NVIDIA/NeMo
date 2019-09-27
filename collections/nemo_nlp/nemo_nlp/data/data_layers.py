@@ -275,7 +275,7 @@ class TranslationDataLayer(TextDataLayer):
 
     def __init__(self, dataset, **kwargs):
         TextDataLayer.__init__(self, None, **kwargs)
-        
+
         if self._placement == nemo.core.DeviceType.AllGpu:
             sampler = pt_data.distributed.DistributedSampler(self._dataset)
         else:
@@ -301,7 +301,7 @@ class TranslationDataLayer(TextDataLayer):
     @property
     def dataset(self):
         return None
-    
+
     @property
     def data_iterator(self):
         return self._dataloader
