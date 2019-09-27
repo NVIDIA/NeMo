@@ -275,7 +275,7 @@ class BasicTokenizer(object):
         A "chinese character" as anything in the CJK Unicode block:
           https://en.wikipedia.org/wiki/CJK_Unified_Ideographs_(Unicode_block)
 
-        Note that the CJK Unicode block is NOT all Japanese and Korean 
+        Note that the CJK Unicode block is NOT all Japanese and Korean
         characters, despite its name. The modern Korean Hangul alphabet is a
         different block, as is Japanese Hiragana and Katakana. Those alphabets
         are used to write space-separated words, so they are not treated
