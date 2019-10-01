@@ -265,6 +265,76 @@ class TokenClassificationLoss(TrainableNM):
         return loss, logits
 
 
+class TokenClassificationLossClassImbalance(TrainableNM):
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "hidden_states":
+            NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(ChannelTag)
+            }),
+            "labels":
+            NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_mask":
+            NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            })
+        }
+
+        output_ports = {
+            "loss":
+            NeuralType(None),
+            "logits":
+            NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(ChannelTag)
+            })
+        }
+        return input_ports, output_ports
+
+    def __init__(self, **kwargs):
+        TrainableNM.__init__(self, **kwargs)
+
+        self.hidden_size = self.local_parameters["d_model"]
+        self.num_labels = self.local_parameters["num_labels"]
+        self.dropout = nn.Dropout(self.local_parameters["dropout"])
+        self.classifier = nn.Linear(self.hidden_size, self.num_labels)
+
+        self.apply(
+            lambda module: transformer_weights_init(module, xavier=False))
+        self.to(self._device)
+
+    def forward(self, hidden_states, labels, input_mask):
+
+        hidden_states = self.dropout(hidden_states)
+        logits = self.classifier(hidden_states)
+
+        loss_fct = nn.CrossEntropyLoss(reduction='none')
+
+        active_loss = input_mask.view(-1) > 0.5
+        active_logits = logits.view(-1, self.num_labels)[active_loss]
+        active_labels = labels.view(-1)[active_loss]
+
+        loss = loss_fct(active_logits, active_labels)
+
+        # deal with imbalanced data
+        nnz = torch.nonzero(active_labels).size(0)
+        zrt = nnz / len(active_labels)
+        loss_nz_weight = (1 - zrt) * active_labels.float()
+        loss_zr_weight = zrt * (torch.ones(len(active_labels)).cuda().long() - active_labels).float()
+        loss = loss * loss_nz_weight + loss * loss_zr_weight
+        loss = loss.mean()
+
+        return loss, logits
+
+
 class ZerosLikeNM(TrainableNM):
     @staticmethod
     def create_ports():

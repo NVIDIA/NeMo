@@ -22,7 +22,8 @@ from .bert import MaskedLanguageModelingLossNM, \
     LossAggregatorNM, QuestionAnsweringPredictionLoss, \
     TokenClassificationLoss, SequenceClassifier, \
     JointIntentSlotLoss, ZerosLikeNM, \
-    JointIntentSlotClassifier
+    JointIntentSlotClassifier, \
+    TokenClassificationLossClassImbalance
 from .nlp_utils import read_intent_slot_outputs
 from . import transformer, huggingface
 
