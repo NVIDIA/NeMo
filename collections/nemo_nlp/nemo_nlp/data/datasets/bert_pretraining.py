@@ -291,20 +291,41 @@ class BertPretrainingDataset(Dataset):
           been masked (to calculate the loss function for these tokens only)
       """
 
+      cand_indexes = []
+      for (i, id) in enumerate(ids):
+
+        if len(cand_indexes) >= 1 and \
+          not self.tokenizer.ids_to_tokens([id])[0].startswith('\u2581'):
+          cand_indexes[-1].append(id)
+        else:
+          cand_indexes.append([id])
+      
       masked_ids = []
       output_mask = []
-      for id in ids:
-          if (random.random() < self.mask_probability) and \
-            id != self.tokenizer.special_tokens["[CLS]"] and \
-            id != self.tokenizer.special_tokens["[SEP]"]:
+      for cand_index in cand_indexes:
+        if (random.random() < self.mask_probability) and \
+          cand_index[0] != self.tokenizer.special_tokens["[CLS]"] and \
+          cand_index[0] != self.tokenizer.special_tokens["[SEP]"]:
+          if random.random() < 0.8:
+            for cand_index_i in cand_index:
               output_mask.append(1)
-              if random.random() < 0.8:
-                  masked_ids.append(self.tokenizer.special_tokens["[MASK]"])
-              elif random.random() < 0.5:
-                  masked_ids.append(random.randrange(self.vocab_size))
-              else:
-                  masked_ids.append(id)
+              masked_ids.append(self.tokenizer.special_tokens["[MASK]"])
+          elif random.random() < 0.5:
+            for cand_index_i in cand_index:
+              output_mask.append(1)
+              for _ in range(10):
+                random_word = random.randrange(self.vocab_size)
+                if random_word != self.tokenizer.special_tokens["[SEP]"] and \
+                  random_word != self.tokenizer.special_tokens["[CLS]"]:
+                  break
+              masked_ids.append(random_word)
           else:
-              masked_ids.append(id)
-              output_mask.append(0)
+            for cand_index_i in cand_index:
+              output_mask.append(1)
+              masked_ids.append(cand_index_i)
+        else:
+          for cand_index_i in cand_index:  
+            masked_ids.append(cand_index_i)
+            output_mask.append(0) 
+      
       return masked_ids, output_mask
