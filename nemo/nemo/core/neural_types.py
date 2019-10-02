@@ -22,6 +22,7 @@ __all__ = ['BaseTag',
            'NmTensor',
            'NeuralTypeError',
            'NeuralPortNameMismatchError',
+           'NeuralPortNmTensorMismatchError',
            'CanNotInferResultNeuralType']
 
 from enum import Enum
