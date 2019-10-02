@@ -1,3 +1,5 @@
+__all__ = ['SmoothedCrossEntropyLoss', 'SequenceClassificationLoss']
+
 import torch
 from torch import nn
 

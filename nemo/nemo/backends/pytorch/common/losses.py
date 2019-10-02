@@ -1,9 +1,14 @@
+__all__ = ['SequenceLoss', 'CrossEntropyLoss']
+
 import torch
 from torch import nn
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core.neural_types import NeuralType, AxisType, BatchTag, TimeTag, \
-    ChannelTag
+from nemo.core.neural_types import (NeuralType,
+                                    AxisType,
+                                    BatchTag,
+                                    TimeTag,
+                                    ChannelTag)
 
 EPS = 1e-5
 

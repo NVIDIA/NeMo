@@ -1,3 +1,5 @@
+__all__ = ['TextDataset', 'Attention', 'MultiLayerPerceptron']
+
 import os
 
 import pandas as pd
@@ -82,3 +84,35 @@ class Attention(nn.Module):
         output = self.tanh(output)
 
         return output, attention_weights
+
+
+class MultiLayerPerceptron(nn.Module):
+    """
+    A simple MLP that can either be used independently or put on top
+    of pretrained models (such as BERT) and act as a classifier.
+
+    Args:
+        @
+    """
+
+    def __init__(self,
+                 hidden_size,
+                 num_classes,
+                 num_layers=2,
+                 activation='relu',
+                 out_activation='log_softmax'):
+        super().__init__()
+
+        self.layers = []
+        for _ in range(num_layers - 1):
+            self.layers.append(nn.Linear(hidden_size, hidden_size))
+            self.layers.append(__getattr__(nn, activation))
+        self.layers.append(nn.Linear(hidden_size, num_classes))
+        if out_activation is not None:
+            self.layers.append(__getattr__(nn, out_activation))
+
+    def forward(self, hidden_states):
+        output_states = hidden_states
+        for layer in self.layers:
+            output_states = self.layer(output_states)
+        return output_states

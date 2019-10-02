@@ -12,25 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from .bert import (MaskedLanguageModelingLossNM,
-                   SentenceClassificationLogSoftmaxNM,
-                   NextSentencePredictionLossNM,
-                   LossAggregatorNM,
-                   TokenClassificationLoss,
-                   SequenceClassifier,
-                   JointIntentSlotLoss,
-                   ZerosLikeNM,
-                   JointIntentSlotClassifier)
-from .data import *
-from .transformer_nm import (TransformerEncoderNM,
-                             TransformerDecoderNM,
-                             TransformerLogSoftmaxNM,
-                             PaddedSmoothedCrossEntropyLossNM,
-                             BeamSearchTranslatorNM,
-                             GreedyLanguageGeneratorNM)
+# from .bert import (MaskedLanguageModelingLossNM,
+#                    SentenceClassificationLogSoftmaxNM,
+#                    NextSentencePredictionLossNM,
+#                    LossAggregatorNM,
+#                    TokenClassifier,
+#                    TokenClassificationLoss,
+#                    SequenceClassifier,
+#                    JointIntentSlotLoss,
+#                    JointIntentSlotClassifier)
 
-from .nlp_utils import read_intent_slot_outputs
 from . import transformer, huggingface
+from .data import *
+from .modules import *
+from .nlp_utils import read_intent_slot_outputs
+from .transformer_nm import *
 
 
 import nemo
