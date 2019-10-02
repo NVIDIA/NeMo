@@ -1,3 +1,9 @@
+__all__ = ['MaskedLanguageModelingLossNM',
+           'LossAggregatorNM',
+           'TokenClassificationLoss',
+           'JointIntentSlotLoss',
+           'PaddedSmoothedCrossEntropyLossNM']
+
 from torch import nn
 
 from nemo.backends.pytorch.nm import LossNM
