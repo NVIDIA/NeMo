@@ -1,3 +1,5 @@
+__all__ = ['TextDataLayer']
+
 from functools import partial
 
 import torch
