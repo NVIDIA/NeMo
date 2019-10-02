@@ -34,7 +34,7 @@ class TokenClassifier(TrainableNM):
                  num_layers=2,
                  activation='relu',
                  log_softmax=True,
-                 dropout=1.0,
+                 dropout=0.0,
                  use_transformer_pretrained=True):
         super().__init__()
 
@@ -44,7 +44,6 @@ class TokenClassifier(TrainableNM):
                                         num_layers,
                                         activation,
                                         log_softmax)
-        print("MLP", self.mlp.layers[-1].weight)
         self.dropout = nn.Dropout(dropout)
         if use_transformer_pretrained:
             self.apply(
@@ -92,7 +91,7 @@ class SequenceClassifier(TrainableNM):
                  num_layers=2,
                  activation='relu',
                  log_softmax=True,
-                 dropout=1.0,
+                 dropout=0.0,
                  use_transformer_pretrained=True):
         super().__init__()
         self.mlp = MultiLayerPerceptron(hidden_size,
@@ -155,7 +154,7 @@ class JointIntentSlotClassifier(TrainableNM):
                  hidden_size,
                  num_intents,
                  num_slots,
-                 dropout=1.0,
+                 dropout=0.0,
                  use_transformer_pretrained=True):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
