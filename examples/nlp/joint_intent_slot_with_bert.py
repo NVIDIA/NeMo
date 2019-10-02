@@ -140,11 +140,11 @@ def create_pipeline(dataset,
 
 
 train_tensors, train_loss, steps_per_epoch, _ = create_pipeline(
-                                                  train_dataset,
-                                                  batch_size=args.batch_size,
-                                                  num_gpus=args.num_gpus,
-                                                  local_rank=args.local_rank,
-                                                  mode='train')
+    train_dataset,
+    batch_size=args.batch_size,
+    num_gpus=args.num_gpus,
+    local_rank=args.local_rank,
+    mode='train')
 eval_tensors, _,  _, data_layer = create_pipeline(eval_dataset,
                                                   batch_size=args.batch_size,
                                                   num_gpus=args.num_gpus,

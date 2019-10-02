@@ -1,3 +1,5 @@
+__all__ = ['TransformerLogSoftmax', 'ClassificationLogSoftmax']
+
 import torch
 from torch import nn
 

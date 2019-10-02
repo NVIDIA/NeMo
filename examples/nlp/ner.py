@@ -74,8 +74,6 @@ else:
         config_filename=args.bert_config, factory=nf)
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 
-hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
-
 nf.logger.info("Loading training data...")
 train_dataset = nemo_nlp.BertNERDataset(
     tokenizer=tokenizer,
@@ -90,10 +88,11 @@ eval_dataset = nemo_nlp.BertNERDataset(
     input_file=f'{args.data_dir}/dev.txt',
     max_seq_length=args.max_seq_length)
 
-ner_loss = nemo_nlp.TokenClassificationLoss(
-    d_model=hidden_size,
-    num_labels=len(tag_ids),
-    dropout=args.fc_dropout)
+hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
+ner_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
+                                          num_classes=len(tag_ids),
+                                          dropout=args.fc_dropout)
+ner_loss = nemo_nlp.TokenClassificationLoss(num_classes=len(tag_ids))
 
 
 def create_pipeline(dataset, batch_size=args.batch_size,
@@ -107,9 +106,8 @@ def create_pipeline(dataset, batch_size=args.batch_size,
     hidden_states = pretrained_bert_model(input_ids=input_ids,
                                           token_type_ids=input_type_ids,
                                           attention_mask=input_mask)
-    loss, logits = ner_loss(hidden_states=hidden_states,
-                            labels=labels,
-                            input_mask=input_mask)
+    logits = ner_classifier(hidden_states=hidden_states)
+    loss = ner_loss(logits=logits, labels=labels, input_mask=input_mask)
     steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
     return loss, steps_per_epoch, data_layer, [logits, seq_ids]
 

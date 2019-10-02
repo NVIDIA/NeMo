@@ -13,6 +13,7 @@
 # an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
 # express or implied. See the License for the specific language governing
 # permissions and limitations under the License.
+from .fairseq_tokenizer import tokenize_en
 """
 SacreBLEU provides hassle-free computation of shareable, comparable, and reproducible BLEU scores.
 Inspired by Rico Sennrich's `multi-bleu-detok.perl`, it produces the official WMT scores but works with plain text.
@@ -1284,7 +1285,7 @@ def tokenize_13a(line):
 
     # language-independent part:
     norm = norm.replace('<skipped>', '')
-    norm = norm.replace('-\n', '')
+    # norm = norm.replace('-\n', '')
     norm = norm.replace('\n', ' ')
     norm = norm.replace('&quot;', '"')
     norm = norm.replace('&amp;', '&')
@@ -1401,7 +1402,8 @@ def tokenize_zh(sentence):
             return True
         elif uchar >= u'\u2f800' and uchar <= u'\u2fa1d':  # CJK Compatibility Supplement, release 3.1
             return True
-        elif uchar >= u'\uff00' and uchar <= u'\uffef':  # Full width ASCII, full width of English punctuation, half width Katakana, half wide half width kana, Korean alphabet
+        # Full width ASCII, full width of English punctuation, half width Katakana, half wide half width kana, Korean alphabet
+        elif uchar >= u'\uff00' and uchar <= u'\uffef':
             return True
         elif uchar >= u'\u2e80' and uchar <= u'\u2eff':  # CJK Radicals Supplement
             return True
@@ -1415,7 +1417,8 @@ def tokenize_zh(sentence):
             return True
         elif uchar >= u'\u3100' and uchar <= u'\u312f':  # Phonetic symbols
             return True
-        elif uchar >= u'\u31a0' and uchar <= u'\u31bf':  # Phonetic symbols (Taiwanese and Hakka expansion)
+        # Phonetic symbols (Taiwanese and Hakka expansion)
+        elif uchar >= u'\u31a0' and uchar <= u'\u31bf':
             return True
         elif uchar >= u'\ufe10' and uchar <= u'\ufe1f':
             return True
@@ -1466,9 +1469,6 @@ def tokenize_zh(sentence):
     sentence = sentence.strip()
 
     return sentence
-
-
-from .fairseq_tokenizer import tokenize_en
 
 
 TOKENIZERS = {
@@ -1657,14 +1657,14 @@ def process_to_text(rawfile, txtfile, field: int = None):
                     if line.startswith('<seg '):
                         print(_clean(
                             re.sub(r'<seg.*?>(.*)</seg>.*?', '\\1', line)),
-                              file=fout)
+                            file=fout)
         elif rawfile.endswith('.xml'):  # IWSLT
             with smart_open(rawfile) as fin, smart_open(txtfile, 'wt') as fout:
                 for line in fin:
                     if line.startswith('<seg '):
                         print(_clean(
                             re.sub(r'<seg.*?>(.*)</seg>.*?', '\\1', line)),
-                              file=fout)
+                            file=fout)
         elif rawfile.endswith('.txt'):  # wmt17/ms
             with smart_open(rawfile) as fin, smart_open(txtfile, 'wt') as fout:
                 for line in fin:
@@ -1797,8 +1797,8 @@ class BLEU(
     def format(self, width=2):
         precisions = "/".join(["{:.1f}".format(p) for p in self.precisions])
         return f'BLEU = {self.score:.{width}f} {precisions} (BP = {self.bp:.3f}' \
-               f' ratio = {(self.sys_len / self.ref_len):.3f} hyp_len = {self.sys_len:d}' \
-               f' ref_len = {self.ref_len:d})'
+            f' ratio = {(self.sys_len / self.ref_len):.3f} hyp_len = {self.sys_len:d}' \
+            f' ref_len = {self.ref_len:d})'
 
     def __str__(self):
         return self.format()
@@ -2116,8 +2116,7 @@ def sentence_chrf(hypothesis: str,
 
 def main():
     arg_parser = argparse.ArgumentParser(
-        description=
-        'sacreBLEU: Hassle-free computation of shareable BLEU scores.'
+        description='sacreBLEU: Hassle-free computation of shareable BLEU scores.'
         'Quick usage: score your detokenized output against WMT\'14 EN-DE:'
         '    cat output.detok.de | ./sacreBLEU -t wmt14 -l en-de')
     arg_parser.add_argument('--test-set',
@@ -2136,16 +2135,14 @@ def main():
         '-s',
         choices=['exp', 'floor', 'add-n', 'none'],
         default='exp',
-        help=
-        'smoothing method: exponential decay (default), floor (increment zero counts), add-k (increment num/denom by k for n>1), or none'
+        help='smoothing method: exponential decay (default), floor (increment zero counts), add-k (increment num/denom by k for n>1), or none'
     )
     arg_parser.add_argument(
         '--smooth-value',
         '-sv',
         type=float,
         default=SMOOTH_VALUE_DEFAULT,
-        help=
-        'The value to pass to the smoothing technique, when relevant. Default: %(default)s.'
+        help='The value to pass to the smoothing technique, when relevant. Default: %(default)s.'
     )
     arg_parser.add_argument('--tokenize',
                             '-tok',
@@ -2167,8 +2164,7 @@ def main():
         choices=['src', 'ref', 'both'],
         type=str,
         default=None,
-        help=
-        'output the source (src), reference (ref), or both (both, pasted) to STDOUT and quit'
+        help='output the source (src), reference (ref), or both (both, pasted) to STDOUT and quit'
     )
     arg_parser.add_argument('--input',
                             '-i',
@@ -2179,8 +2175,7 @@ def main():
         'refs',
         nargs='*',
         default=[],
-        help=
-        'optional list of references (for backwards-compatibility with older scripts)'
+        help='optional list of references (for backwards-compatibility with older scripts)'
     )
     arg_parser.add_argument('--metrics',
                             '-m',

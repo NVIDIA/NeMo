@@ -2,9 +2,18 @@
 """
 This package contains Transformer for translation Neural Module
 """
+__all__ = ['TransformerEncoderNM',
+           'TransformerDecoderNM',
+           'TransformerLogSoftmaxNM',
+           'GreedyLanguageGeneratorNM',
+           'BeamSearchTranslatorNM',
+           'PaddedSmoothedCrossEntropyLossNM']
+
 import math
+
 from nemo.backends.pytorch.nm import TrainableNM, LossNM
 from nemo.core.neural_types import *
+
 from .transformer import TransformerEmbedding, TransformerEncoder, \
     TransformerDecoder, TransformerLogSoftmax, SmoothedCrossEntropyLoss, \
     GreedySequenceGenerator, BeamSearchSequenceGenerator
