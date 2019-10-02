@@ -125,8 +125,10 @@ decoder = nemo_nlp.TransformerDecoderNM(
 
 decoder.restore_from(args.restore_from, local_rank=args.local_rank)
 
-t_log_softmax = nemo_nlp.TransformerLogSoftmaxNM(vocab_size=vocab_size,
-                                                 d_model=args.d_model)
+t_log_softmax = nemo_nlp.TokenClassifier(args.d_model,
+                                         num_classes=vocab_size,
+                                         num_layers=1,
+                                         log_softmax=True)
 
 beam_translator = nemo_nlp.BeamSearchTranslatorNM(
     decoder=decoder,

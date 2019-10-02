@@ -4,20 +4,20 @@ This package contains Transformer for translation Neural Module
 """
 __all__ = ['TransformerEncoderNM',
            'TransformerDecoderNM',
-           'TransformerLogSoftmaxNM',
            'GreedyLanguageGeneratorNM',
-           'BeamSearchTranslatorNM',
-           'PaddedSmoothedCrossEntropyLossNM']
+           'BeamSearchTranslatorNM']
 
 import math
 
 from nemo.backends.pytorch.nm import TrainableNM, LossNM
 from nemo.core.neural_types import *
 
-from .transformer import TransformerEmbedding, TransformerEncoder, \
-    TransformerDecoder, TransformerLogSoftmax, SmoothedCrossEntropyLoss, \
-    GreedySequenceGenerator, BeamSearchSequenceGenerator
-from .transformer.utils import mask_padded_tokens, transformer_weights_init
+from .transformer import (TransformerEmbedding,
+                          TransformerEncoder,
+                          TransformerDecoder,
+                          GreedySequenceGenerator,
+                          BeamSearchSequenceGenerator)
+from .transformer.utils import transformer_weights_init
 
 
 class TransformerEncoderNM(TrainableNM):
@@ -189,43 +189,6 @@ class TransformerDecoderNM(TrainableNM):
         return hidden_states
 
 
-class TransformerLogSoftmaxNM(TrainableNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "hidden_states":
-            NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            }),
-        }
-
-        output_ports = {
-            "log_probs":
-            NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            }),
-        }
-        return input_ports, output_ports
-
-    def __init__(self, *, vocab_size, d_model, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
-
-        self.log_softmax = TransformerLogSoftmax(
-            vocab_size=vocab_size,
-            hidden_size=d_model)
-
-        self.log_softmax.apply(transformer_weights_init)
-        self.log_softmax.to(self._device)
-
-    def forward(self, hidden_states):
-        log_probs = self.log_softmax(hidden_states)
-        return log_probs
-
-
 class GreedyLanguageGeneratorNM(TrainableNM):
     """
     Neural module for greedy text generation with language model
@@ -353,51 +316,3 @@ class BeamSearchTranslatorNM(TrainableNM):
             encoder_hidden_states=hidden_states_src,
             encoder_input_mask=input_mask_src)
         return output_ids
-
-
-class PaddedSmoothedCrossEntropyLossNM(LossNM):
-    """
-    Neural module which calculates CrossEntropyLoss and
-    1) excludes padding tokens from loss calculation
-    2) allows to use label smoothing regularization
-    3) allows to calculate loss for the desired number of last tokens
-
-    Args:
-        label_smoothing: label smoothing regularization coefficient
-        predict_last_k: how many last tokens to use for the loss calculation
-    """
-
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "log_probs":
-            NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            }),
-            "target_ids":
-            NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-        }
-
-        output_ports = {"loss": NeuralType(None)}
-        return input_ports, output_ports
-
-    def __init__(self, **kwargs):
-        LossNM.__init__(self, **kwargs)
-
-        loss_params = {
-            "label_smoothing": self.local_parameters.get("label_smoothing", 0),
-            "predict_last_k": self.local_parameters.get("predict_last_k", 0)
-        }
-        self._loss_fn = SmoothedCrossEntropyLoss(**loss_params)
-        self._pad_id = self.local_parameters['pad_id']
-
-    def _loss_function(self, log_probs, target_ids):
-        target_mask = mask_padded_tokens(
-            target_ids, self._pad_id).to(log_probs.dtype)
-        loss = self._loss_fn(log_probs, target_ids, target_mask)
-        return loss

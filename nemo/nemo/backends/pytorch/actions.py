@@ -8,17 +8,16 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
+
 from nemo.backends.pytorch.nm import TrainableNM
 
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
 from .optimizers import Novograd, AdamW, Lamb
 from ...core import NmTensor, DeviceType, NeuralModule
-from ...core.callbacks import (
-    ActionCallback,
-    EvaluatorCallback,
-    SimpleLossLoggerCallback,
-)
+from ...core.callbacks import (ActionCallback,
+                               EvaluatorCallback,
+                               SimpleLossLoggerCallback)
 from ...core.neural_factory import Actions, ModelMode, Optimization
 from ...utils.helpers import get_checkpoint_from_dir
 
@@ -79,9 +78,8 @@ class PtActions(Actions):
                 return tuple((producer, ()))
             else:
                 return tuple(
-                    (
-                        producer,
-                        tuple([(k, v) for k, v in producer_args.items()]))
+                    (producer,
+                     tuple([(k, v) for k, v in producer_args.items()]))
                 )
 
         def is_in_degree_zero(node, processed_nodes):
@@ -94,10 +92,7 @@ class PtActions(Actions):
                     return False
             return True
 
-        if not isinstance(hook, list):
-            hooks = [hook]
-        else:
-            hooks = hook
+        hooks = hook if isinstance(hook, list) else [hook]
 
         # ensures that no tensors are processed twice
         processed_nmtensors = set()
@@ -196,12 +191,10 @@ class PtActions(Actions):
 
         return top_sorted_modules, tdataset
 
-    def create_optimizer(
-            self,
-            optimizer,
-            things_to_optimize,
-            optimizer_params=None,
-    ):
+    def create_optimizer(self,
+                         optimizer,
+                         things_to_optimize,
+                         optimizer_params=None):
         """
         Wrapper function around __setup_optimizer()
 
@@ -268,12 +261,11 @@ class PtActions(Actions):
         return optimizer
 
     @staticmethod
-    def __setup_optimizer(
-            optimizer_instance,
-            optimizer_class,
-            optimization_params,
-            params_to_optimize,
-    ):
+    def __setup_optimizer(optimizer_instance,
+                          optimizer_class,
+                          optimization_params,
+                          params_to_optimize):
+
         if optimizer_instance is None:
             # Setup optimizer instance, by default it is SGD
             lr = optimization_params["lr"]
@@ -368,13 +360,11 @@ class PtActions(Actions):
         )
         return optimizer
 
-    def __nm_graph_forward_pass(
-            self,
-            call_chain,
-            registered_tensors,
-            mode=ModelMode.train,
-            disable_allreduce=False
-    ):
+    def __nm_graph_forward_pass(self,
+                                call_chain,
+                                registered_tensors,
+                                mode=ModelMode.train,
+                                disable_allreduce=False):
         for ind in range(1, len(call_chain)):
             call_args = call_chain[ind][1]
             # module = call_chain[ind][0]
@@ -425,9 +415,8 @@ class PtActions(Actions):
                 if t_name not in registered_tensors:
                     registered_tensors[t_name] = t_tensor
                 else:
-                    raise ValueError(
-                        "A NMTensor was produced twice in the same DAG. "
-                        "{}".format(t_name))
+                    raise ValueError("A NMTensor was produced twice in "
+                                     f"the same DAG. {t_name}")
 
     @staticmethod
     def pad_tensor(t: torch.Tensor, target_size: torch.Size):
@@ -906,16 +895,14 @@ class PtActions(Actions):
                     for module in callchain:
                         self.modules.add(module[0])
 
-    def train(
-            self,
-            tensors_to_optimize,
-            optimizer=None,
-            optimization_params=None,
-            callbacks: Optional[List[ActionCallback]] = None,
-            lr_policy=None,
-            batches_per_step=None,
-            stop_on_nan_loss=False
-    ):
+    def train(self,
+              tensors_to_optimize,
+              optimizer=None,
+              optimization_params=None,
+              callbacks: Optional[List[ActionCallback]] = None,
+              lr_policy=None,
+              batches_per_step=None,
+              stop_on_nan_loss=False):
         if not optimization_params:
             optimization_params = {}
         num_epochs = optimization_params.get("num_epochs", 1)
@@ -1218,7 +1205,10 @@ class PtActions(Actions):
             self._perform_on_epoch_end(callbacks=callbacks)
         self._perform_on_action_end(callbacks=callbacks)
 
-    def infer(self, tensors, checkpoint_dir=None, ckpt_pattern='',
+    def infer(self,
+              tensors,
+              checkpoint_dir=None,
+              ckpt_pattern='',
               logger=None):
 
         if checkpoint_dir:

@@ -86,7 +86,7 @@ classifier = nemo_nlp.SequenceClassifier(hidden_size=hidden_size,
                                          num_classes=data_desc.num_labels,
                                          dropout=args.fc_dropout)
 
-loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss(factory=nf)
+loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 
 
 def create_pipeline(dataset,

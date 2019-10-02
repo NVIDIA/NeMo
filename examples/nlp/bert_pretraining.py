@@ -76,18 +76,22 @@ bert_model = nemo_nlp.huggingface.BERT(
 """ create necessary modules for the whole translation pipeline, namely
 data layers, BERT encoder, and MLM and NSP loss functions
 """
-mlm_classifier = nemo_nlp.TransformerLogSoftmaxNM(
-    vocab_size=tokenizer.vocab_size, d_model=args.d_model)
+mlm_classifier = nemo_nlp.TokenClassifier(args.d_model,
+                                          num_classes=tokenizer.vocab_size,
+                                          num_layers=1,
+                                          log_softmax=True)
 mlm_loss_fn = nemo_nlp.MaskedLanguageModelingLossNM()
 
-nsp_classifier = nemo_nlp.SentenceClassificationLogSoftmaxNM(
-    d_model=args.d_model, num_classes=2)
-nsp_loss_fn = nemo_nlp.NextSentencePredictionLossNM()
+nsp_classifier = nemo_nlp.SequenceClassifier(args.d_model,
+                                             num_classes=2,
+                                             num_layers=2,
+                                             log_softmax=True)
+nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 
 bert_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
 # tie weights of MLM softmax layer and embedding layer of the encoder
-mlm_classifier.log_softmax.dense.weight = \
+mlm_classifier.mlp.layers[-1].weight = \
     bert_model.bert.embeddings.word_embeddings.weight
 
 
@@ -106,11 +110,11 @@ def create_pipeline(data_file, max_seq_length, mask_probability, batch_size):
                                token_type_ids=input_type_ids,
                                attention_mask=input_mask)
     mlm_logits = mlm_classifier(hidden_states=hidden_states)
-    mlm_loss = mlm_loss_fn(log_probs=mlm_logits,
+    mlm_loss = mlm_loss_fn(logits=mlm_logits,
                            output_ids=output_ids,
                            output_mask=output_mask)
     nsp_logits = nsp_classifier(hidden_states=hidden_states)
-    nsp_loss = nsp_loss_fn(log_probs=nsp_logits, labels=nsp_labels)
+    nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=nsp_labels)
 
     loss = bert_loss(loss_1=mlm_loss, loss_2=nsp_loss)
     return loss, [mlm_loss, nsp_loss], steps_per_epoch
