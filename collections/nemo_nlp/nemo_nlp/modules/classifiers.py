@@ -8,44 +8,6 @@ from nemo.core.neural_types import *
 from ..transformer.utils import transformer_weights_init
 
 
-class SentenceClassificationLogSoftmaxNM(TrainableNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "hidden_states":
-            NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            }),
-        }
-
-        output_ports = {
-            "log_probs":
-            NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            }),
-        }
-        return input_ports, output_ports
-
-    def __init__(self, *, d_model, num_classes, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
-
-        self.log_softmax = ClassificationLogSoftmax(
-            hidden_size=d_model,
-            num_classes=num_classes
-        )
-
-        self.log_softmax.apply(transformer_weights_init)
-        self.log_softmax.to(self._device)
-
-    def forward(self, hidden_states):
-        log_probs = self.log_softmax(hidden_states)
-        return log_probs
-
-
 class TokenClassifier(TrainableNM):
     @staticmethod
     def create_ports():
@@ -66,25 +28,32 @@ class TokenClassifier(TrainableNM):
         }
         return input_ports, output_ports
 
-    def __init__(self, hidden_size, num_classes, dropout, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+    def __init__(self,
+                 hidden_size,
+                 num_classes,
+                 num_layers=2,
+                 activation='relu',
+                 log_softmax=True,
+                 dropout=1.0,
+                 use_transformer_pretrained=True):
+        super().__init__()
 
-        self.hidden_size = hidden_size
-        self.num_classes = num_classes
+        self.mlp = MultiLayerPerceptron(hidden_size,
+                                        num_classes,
+                                        self._device,
+                                        num_layers,
+                                        activation,
+                                        log_softmax)
+        print("MLP", self.mlp.layers[-1].weight)
         self.dropout = nn.Dropout(dropout)
-        self.dense = nn.Linear(self.hidden_size, self.hidden_size)
-        self.classifier = nn.Linear(self.hidden_size, self.num_classes)
-
-        self.apply(
-            lambda module: transformer_weights_init(module, xavier=False))
-        self.to(self._device)
+        if use_transformer_pretrained:
+            self.apply(
+                lambda module: transformer_weights_init(module, xavier=False))
+        # self.to(self._device) # sometimes this is necessary
 
     def forward(self, hidden_states):
-
         hidden_states = self.dropout(hidden_states)
-        hidden_states = self.dense(hidden_states)
-        hidden_states = torch.relu(hidden_states)
-        logits = self.classifier(hidden_states)
+        logits = self.mlp(hidden_states)
         return logits
 
 
@@ -122,32 +91,25 @@ class SequenceClassifier(TrainableNM):
                  num_classes,
                  num_layers=2,
                  activation='relu',
-                 out_activation='log_softmax',
+                 log_softmax=True,
                  dropout=1.0,
-                 **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+                 use_transformer_pretrained=True):
+        super().__init__()
         self.mlp = MultiLayerPerceptron(hidden_size,
-                                        num_layers,
                                         num_classes,
+                                        self._device,
+                                        num_layers,
                                         activation,
-                                        out_activation)
-        # self.hidden_size = hidden_size
-        # self.num_classes = num_classes
+                                        log_softmax)
         self.dropout = nn.Dropout(dropout)
-        # self.dense = nn.Linear(self.hidden_size, self.hidden_size)
-        # self.classifier = nn.Linear(self.hidden_size, self.num_classes)
-        self.apply(
-            lambda module: transformer_weights_init(module, xavier=False))
-        self.to(self._device)
+        if use_transformer_pretrained:
+            self.apply(
+                lambda module: transformer_weights_init(module, xavier=False))
+        # self.to(self._device) # sometimes this is necessary
 
     def forward(self, hidden_states, idx_conditioned_on=0):
         hidden_states = self.dropout(hidden_states)
         logits = self.mlp(hidden_states[:, idx_conditioned_on])
-        # hidden_states = self.dense(hidden_states[:, idx_conditioned_on])
-        # hidden_states = torch.relu(hidden_states)
-        # hidden_states = self.classifier(hidden_states)
-        # logits = torch.log_softmax(hidden_states)
-
         return logits
 
 
@@ -193,33 +155,32 @@ class JointIntentSlotClassifier(TrainableNM):
                  hidden_size,
                  num_intents,
                  num_slots,
-                 dropout,
-                 **kwargs):
-        TrainableNM.__init__(self, **kwargs)
-        self.hidden_size = hidden_size
-        self.num_intents = num_intents
-        self.num_slots = num_slots
+                 dropout=1.0,
+                 use_transformer_pretrained=True):
+        super().__init__()
         self.dropout = nn.Dropout(dropout)
-        self.intent_dense = nn.Linear(self.hidden_size, self.hidden_size)
-        self.intent_classifier = nn.Linear(self.hidden_size, self.num_intents)
-        self.slot_dense = nn.Linear(self.hidden_size, self.hidden_size)
-        self.slot_classifier = nn.Linear(self.hidden_size, self.num_slots)
-        self.apply(
-            lambda module: transformer_weights_init(module, xavier=False))
-        self.to(self._device)
+        self.slot_mlp = MultiLayerPerceptron(hidden_size,
+                                             num_classes=num_slots,
+                                             device=self._device,
+                                             num_layers=2,
+                                             activation='relu',
+                                             log_softmax=False)
+        self.intent_mlp = MultiLayerPerceptron(hidden_size,
+                                               num_classes=num_intents,
+                                               device=self._device,
+                                               num_layers=2,
+                                               activation='relu',
+                                               log_softmax=False)
+        if use_transformer_pretrained:
+            self.apply(
+                lambda module: transformer_weights_init(module, xavier=False))
+        # self.to(self._device)
 
     def forward(self, hidden_states):
         """ hidden_states: the outputs from the previous layers
         """
         hidden_states = self.dropout(hidden_states)
 
-        intent_states = self.intent_dense(hidden_states[:, 0])
-        intent_states = torch.relu(intent_states)
-        intent_logits = self.intent_classifier(intent_states)
-
-        # slot_states = self.slot_dense(hidden_states[1:, :])
-        slot_states = self.slot_dense(hidden_states)
-        slot_states = torch.relu(slot_states)
-        slot_logits = self.slot_classifier(slot_states)
-
+        intent_logits = self.intent_mlp(hidden_states[:, 0])
+        slot_logits = self.slot_mlp(hidden_states)
         return intent_logits, slot_logits

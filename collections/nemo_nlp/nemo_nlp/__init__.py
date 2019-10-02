@@ -12,15 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-# from .bert import (MaskedLanguageModelingLossNM,
-#                    SentenceClassificationLogSoftmaxNM,
-#                    NextSentencePredictionLossNM,
-#                    LossAggregatorNM,
-#                    TokenClassifier,
-#                    TokenClassificationLoss,
-#                    SequenceClassifier,
-#                    JointIntentSlotLoss,
-#                    JointIntentSlotClassifier)
 
 from . import transformer, huggingface
 from .data import *

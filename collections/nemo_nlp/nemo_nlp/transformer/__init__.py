@@ -2,6 +2,4 @@
 from .decoders import *
 from .encoders import *
 from .generators import *
-from .losses import *
 from .modules import *
-from .softmax_layers import *

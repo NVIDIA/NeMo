@@ -96,9 +96,10 @@ decoder = nemo_nlp.TransformerDecoderNM(
     attn_layer_dropout=args.attn_layer_dropout,
     max_seq_length=args.max_seq_length)
 
-log_softmax = nemo_nlp.TransformerLogSoftmaxNM(
-    vocab_size=vocab_size,
-    d_model=args.d_model)
+log_softmax = nemo_nlp.TokenClassifier(args.d_model,
+                                       num_classes=tokenizer.vocab_size,
+                                       num_layers=1,
+                                       log_softmax=True)
 
 beam_search = nemo_nlp.BeamSearchTranslatorNM(
     decoder=decoder,
@@ -114,7 +115,7 @@ loss_fn = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(
     label_smoothing=args.label_smoothing)
 
 # tie weight of embedding and log_softmax layers
-log_softmax.log_softmax.dense.weight = \
+log_softmax.mlp.layers[-1].weight = \
     encoder.embedding_layer.token_embedding.weight
 decoder.embedding_layer.token_embedding.weight = \
     encoder.embedding_layer.token_embedding.weight
@@ -139,7 +140,7 @@ def create_pipeline(dataset_src,
                           input_mask_src=src_mask,
                           input_mask_tgt=tgt_mask)
     logits = log_softmax(hidden_states=tgt_hiddens)
-    loss = loss_fn(log_probs=logits, target_ids=labels)
+    loss = loss_fn(logits=logits, target_ids=labels)
     beam_results = None
     if not training:
         beam_results = beam_search(hidden_states_src=src_hiddens,
