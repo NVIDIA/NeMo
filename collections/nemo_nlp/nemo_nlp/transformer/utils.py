@@ -10,11 +10,6 @@ def gelu(x):
     return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
 
 
-def mask_padded_tokens(tokens, pad_id):
-    mask = (tokens != pad_id)
-    return mask
-
-
 def form_attention_mask(input_mask, diagonal=None):
     """
     Build attention mask with optional masking of future tokens we forbid

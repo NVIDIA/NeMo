@@ -1,14 +1,17 @@
-from nemo.backends.pytorch.nm import TrainableNM, LossNM
+from torch import nn
+
+from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import *
 
-from ..transformer import SmoothedCrossEntropyLoss
+from .pytorch_utils import SmoothedCrossEntropyLoss
+from ..utils.misc import mask_padded_tokens
 
 
 class MaskedLanguageModelingLossNM(LossNM):
     @staticmethod
     def create_ports():
         input_ports = {
-            "log_probs":
+            "logits":
             NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
@@ -33,32 +36,8 @@ class MaskedLanguageModelingLossNM(LossNM):
         LossNM.__init__(self, **kwargs)
         self._criterion = SmoothedCrossEntropyLoss(label_smoothing)
 
-    def _loss_function(self, log_probs, output_ids, output_mask):
-        loss = self._loss_fn(log_probs, output_ids, output_mask)
-        return loss
-
-
-class NextSentencePredictionLossNM(TrainableNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "log_probs": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            }),
-            "labels": NeuralType({0: AxisType(BatchTag)}),
-        }
-
-        output_ports = {"loss": NeuralType(None)}
-        return input_ports, output_ports
-
-    def __init__(self, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
-        self._loss_fn = SequenceClassificationLoss()
-
-    def forward(self, log_probs, labels):
-        loss = self._loss_fn(log_probs, labels)
+    def _loss_function(self, logits, output_ids, output_mask):
+        loss = self._criterion(logits, output_ids, output_mask)
         return loss
 
 
@@ -197,4 +176,53 @@ class JointIntentSlotLoss(LossNM):
         loss = intent_loss * intent_loss_weight + \
             slot_loss * (1 - intent_loss_weight)
 
+        return loss
+
+
+class PaddedSmoothedCrossEntropyLossNM(LossNM):
+    """
+    Neural module which calculates CrossEntropyLoss and
+    1) excludes padding tokens from loss calculation
+    2) allows to use label smoothing regularization
+    3) allows to calculate loss for the desired number of last tokens
+
+
+    Args:
+        label_smoothing: label smoothing regularization coefficient
+        predict_last_k: how many last tokens to use for the loss calculation
+    """
+
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "logits":
+            NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(ChannelTag)
+            }),
+            "target_ids":
+            NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+        }
+
+        output_ports = {"loss": NeuralType(None)}
+        return input_ports, output_ports
+
+    def __init__(self, **kwargs):
+        LossNM.__init__(self, **kwargs)
+
+        loss_params = {
+            "label_smoothing": self.local_parameters.get("label_smoothing", 0),
+            "predict_last_k": self.local_parameters.get("predict_last_k", 0)
+        }
+        self._loss_fn = SmoothedCrossEntropyLoss(**loss_params)
+        self._pad_id = self.local_parameters['pad_id']
+
+    def _loss_function(self, logits, target_ids):
+        target_mask = mask_padded_tokens(
+            target_ids, self._pad_id).to(logits.dtype)
+        loss = self._loss_fn(logits, target_ids, target_mask)
         return loss

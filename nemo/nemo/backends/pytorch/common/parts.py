@@ -98,21 +98,26 @@ class MultiLayerPerceptron(nn.Module):
     def __init__(self,
                  hidden_size,
                  num_classes,
+                 device,
                  num_layers=2,
                  activation='relu',
-                 out_activation='log_softmax'):
+                 log_softmax=True):
         super().__init__()
 
         self.layers = []
         for _ in range(num_layers - 1):
-            self.layers.append(nn.Linear(hidden_size, hidden_size))
-            self.layers.append(__getattr__(nn, activation))
-        self.layers.append(nn.Linear(hidden_size, num_classes))
-        if out_activation is not None:
-            self.layers.append(__getattr__(nn, out_activation))
+            self.layers.append(nn.Linear(hidden_size, hidden_size).to(device))
+            self.layers.append(getattr(torch, activation))
+
+        self.layers.append(nn.Linear(hidden_size, num_classes).to(device))
+        self.log_softmax = log_softmax
 
     def forward(self, hidden_states):
         output_states = hidden_states
         for layer in self.layers:
-            output_states = self.layer(output_states)
+            output_states = layer(output_states)
+
+        if self.log_softmax:
+            output_states = torch.log_softmax(
+                output_states.float(), dim=-1).to(hidden_states.dtype)
         return output_states

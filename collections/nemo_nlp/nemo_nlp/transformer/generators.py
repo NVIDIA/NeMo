@@ -5,7 +5,8 @@ __all__ = ['GreedySequenceGenerator',
 import torch
 import torch.nn as nn
 
-from .utils import mask_padded_tokens, NEG_INF
+from .utils import NEG_INF
+from ..utils.misc import mask_padded_tokens
 
 
 class GreedySequenceGenerator(nn.Module):
