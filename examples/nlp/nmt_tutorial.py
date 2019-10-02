@@ -46,7 +46,7 @@ parser.add_argument("--label_smoothing", default=0.1, type=float)
 parser.add_argument("--beam_size", default=4, type=int)
 parser.add_argument("--tokenizer_model", default="bpe8k_yttm.model", type=str)
 parser.add_argument("--interactive", action="store_true")
-parser.add_argument("--save_epoch_freq", default=1, type=int)
+parser.add_argument("--save_epoch_freq", default=5, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
 
 args = parser.parse_args()
