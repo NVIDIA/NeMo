@@ -67,47 +67,38 @@ then you can simply use pip to install the latest released version of NeMo and i
     pip install nemo-toolkit  # install NeMo Core
     pip install nemo-asr # installs NeMo ASR collection
     pip install nemo-nlp # installs NeMo NLP collection
+    
+**Tutorials**
+
+* `Speech recognition <https://nvidia.github.io/NeMo/asr/intro.html>`_
+* `Natural language processing <https://nvidia.github.io/NeMo/nlp/intro.html>`_
+
+**Installing From Github**
 
 If you prefer to use NeMo's latest development version (from GitHub) follow the steps below:
 
-**Note**
-
-For step 2 and 3, if you want to use NeMo in development mode, use:
-
-``pip install -e .``
-
-instead of 
-
-``pip install .``
+*Note*: For step 2 and 3, if you want to use NeMo in development mode, use: ``pip install -e .`` instead of ``pip install .``
 
 1) Clone the repository ``git clone https://github.com/NVIDIA/NeMo.git``
 2) Go to NeMo folder and install the toolkit:
 
 .. code-block:: bash
 
-	cd NeMo
+	cd NeMo/nemo
 	pip install .
 
-3) Install the collection you want.
+3) Install the collection(s) you want.
 
 .. code-block:: bash
 	
     # Install the ASR collection from collections/nemo_asr 
     apt-get install libsndfile1
-    cd collections/nemo_asr
+    cd NeMo/collections/nemo_asr
     pip install .
         
     # Install the NLP collection from collections/nemo_nlp
-    apt-get install libsndfile1
-    cd collections/nemo_nlp
+    cd NeMo/collections/nemo_nlp
     pip install .
-
-
-**Tutorials**
-
-* `Speech recognition <https://nvidia.github.io/NeMo/asr/intro.html>`_
-* `Natural language processing <https://nvidia.github.io/NeMo/nlp/intro.html>`_
-
 
 **Unittests**
 
