@@ -92,7 +92,12 @@ class MultiLayerPerceptron(nn.Module):
     of pretrained models (such as BERT) and act as a classifier.
 
     Args:
-        @
+        hidden_size (int): the size of each layer
+        num_classes (int): number of output classes
+        device: whether it's CPU or CUDA
+        num_layers (int): number of layers
+        activation: type of activations for layers in between
+        log_softmax (bool): whether to add a log_softmax layer before output
     """
 
     def __init__(self,
@@ -120,4 +125,5 @@ class MultiLayerPerceptron(nn.Module):
         if self.log_softmax:
             output_states = torch.log_softmax(
                 output_states.float(), dim=-1).to(hidden_states.dtype)
+            # TODO: make it work with float16
         return output_states

@@ -13,7 +13,6 @@
 # an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
 # express or implied. See the License for the specific language governing
 # permissions and limitations under the License.
-from .fairseq_tokenizer import tokenize_en
 """
 SacreBLEU provides hassle-free computation of shareable, comparable, and reproducible BLEU scores.
 Inspired by Rico Sennrich's `multi-bleu-detok.perl`, it produces the official WMT scores but works with plain text.
@@ -37,6 +36,9 @@ import urllib.request
 from collections import Counter, namedtuple
 from itertools import zip_longest
 from typing import List, Iterable, Tuple, Union
+
+from .fairseq_tokenizer import tokenize_en
+
 
 VERSION = '1.3.5'
 

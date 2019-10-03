@@ -8,9 +8,9 @@ import nemo
 from nemo.utils.lr_policies import get_lr_policy
 
 import nemo_nlp
-from nemo_nlp.text_data_utils import BERTPretrainingDataDesc
-from nemo_nlp.utils.callbacks.bert_pretraining import eval_iter_callback, \
-    eval_epochs_done_callback
+from nemo_nlp.data.datasets.utils import BERTPretrainingDataDesc
+from nemo_nlp.utils.callbacks.bert_pretraining import \
+    eval_iter_callback, eval_epochs_done_callback
 
 
 parser = argparse.ArgumentParser(description='BERT pretraining')

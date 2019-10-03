@@ -5,6 +5,11 @@ from nemo.utils.exp_logging import get_logger
 logger = get_logger('')
 
 
+def mask_padded_tokens(tokens, pad_id):
+    mask = (tokens != pad_id)
+    return mask
+
+
 def read_intent_slot_outputs(queries,
                              intent_file,
                              slot_file,

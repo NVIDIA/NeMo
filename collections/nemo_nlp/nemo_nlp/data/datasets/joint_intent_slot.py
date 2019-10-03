@@ -27,8 +27,7 @@ from torch.utils.data import Dataset
 
 from nemo.utils.exp_logging import get_logger
 
-from .. import utils
-from ... import text_data_utils
+from . import utils
 
 
 logger = get_logger('')
