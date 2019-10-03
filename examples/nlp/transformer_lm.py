@@ -4,7 +4,8 @@ import math
 import nemo
 from nemo.utils.lr_policies import CosineAnnealing
 import nemo_nlp
-from nemo_nlp.text_data_utils import LanguageModelDataDesc
+
+from nemo_nlp.data.datasets.utils import LanguageModelDataDesc
 from nemo_nlp.utils.callbacks.language_modeling import eval_iter_callback, \
     eval_epochs_done_callback
 
@@ -15,7 +16,7 @@ parser.set_defaults(
     eval_datasets=["valid.txt"],
     work_dir="outputs/transformer_lm",
     optimizer_kind="novograd",
-    amp_opt_level='O2',
+    amp_opt_level='O1',
     num_epochs=1000,
     batch_size=32,
     eval_batch_size=32,
@@ -101,16 +102,17 @@ encoder = nemo_nlp.TransformerEncoderNM(
     attn_layer_dropout=args.attn_layer_dropout,
     max_seq_length=args.max_sequence_length)
 
-log_softmax = nemo_nlp.TransformerLogSoftmaxNM(
-    vocab_size=vocab_size,
-    d_model=args.d_model)
+log_softmax = nemo_nlp.TokenClassifier(args.d_model,
+                                       num_classes=vocab_size,
+                                       num_layers=1,
+                                       log_softmax=True)
 
 loss = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(
     pad_id=tokenizer.pad_id(),
     label_smoothing=args.label_smoothing)
 
 # tie weight of embedding and log_softmax layers
-log_softmax.log_softmax.dense.weight = \
+log_softmax.mlp.layers[-1].weight = \
     encoder.embedding_layer.token_embedding.weight
 
 
@@ -119,8 +121,8 @@ def create_pipeline(dataset, batch_size):
                                                     batch_size=batch_size)
     src, src_mask, labels = data_layer()
     src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)
-    log_probs = log_softmax(hidden_states=src_hiddens)
-    return loss(log_probs=log_probs, target_ids=labels)
+    logits = log_softmax(hidden_states=src_hiddens)
+    return loss(logits=logits, target_ids=labels)
 
 
 train_loss = create_pipeline(train_dataset, args.batch_size)

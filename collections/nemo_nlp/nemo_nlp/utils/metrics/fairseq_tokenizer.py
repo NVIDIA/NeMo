@@ -63,13 +63,9 @@ def tokenize_en(line):
         if match:
             pre = match.group(1)
             if i == len(words)-1:
-                # split last words independently as they are unlikely to be non-breaking prefixes
+                """split last words independently as they are unlikely
+                to be non-breaking prefixes"""
                 word = pre+' .'
-            # elif ((re.search(r'\.', pre) and re.search(r'[^\.\W\d]', pre))
-            #         or (pre in prefixes and prefixes[pre]==1)
-            #         or re.search(r'^[a-z]', words[i+1])
-            #         or (pre in prefixes and prefixes[pre]==2 and re.search(r'^[0-9]+', words[i+1]))):
-            #     pass
             else:
                 word = pre+' .'
 

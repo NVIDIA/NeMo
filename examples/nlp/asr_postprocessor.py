@@ -112,6 +112,7 @@ encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
     (encoder.bert.embeddings.word_embeddings.weight.data, zeros))
 
 decoder = nemo_nlp.TransformerDecoderNM(
+    d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
     num_attn_heads=args.num_heads,
@@ -147,7 +148,7 @@ loss_eval = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(pad_id=0,
                                                       smoothing=0.0)
 
 # tie all embeddings weights
-t_log_softmax.log_softmax.dense.weight = \
+t_log_softmax.mlp.layers[-1].weight = \
     encoder.bert.embeddings.word_embeddings.weight
 decoder.embedding_layer.token_embedding.weight = \
     encoder.bert.embeddings.word_embeddings.weight

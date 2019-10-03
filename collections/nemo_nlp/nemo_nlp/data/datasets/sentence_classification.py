@@ -28,7 +28,7 @@ import time
 import numpy as np
 from torch.utils.data import Dataset
 
-from .. import utils
+from . import utils
 
 logger = logging.getLogger('log')
 

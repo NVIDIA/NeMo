@@ -13,11 +13,10 @@
 # limitations under the License.
 # ==============================================================================
 
-from . import transformer, huggingface
 from .data import *
+from .huggingface import *
 from .modules import *
-from .nlp_utils import read_intent_slot_outputs
-from .transformer_nm import *
+from .transformer import *
 
 
 import nemo

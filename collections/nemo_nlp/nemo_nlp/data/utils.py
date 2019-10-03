@@ -1,9 +1,7 @@
-from collections import Counter
 import os
 import pickle
 
 import numpy as np
-from tqdm import tqdm
 
 from nemo.utils.exp_logging import get_logger
 
@@ -45,8 +43,12 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
     return ids
 
 
-def clean_src_and_target(src_ids, tgt_ids, max_tokens=128, min_tokens=3,
-                         max_tokens_diff=25, max_tokens_ratio=2.5):
+def clean_src_and_target(src_ids,
+                         tgt_ids,
+                         max_tokens=128,
+                         min_tokens=3,
+                         max_tokens_diff=25,
+                         max_tokens_ratio=2.5):
     """
     Cleans source and target sentences to get rid of noisy data.
     Specifically, a pair of sentences is removed if
@@ -73,32 +75,6 @@ def clean_src_and_target(src_ids, tgt_ids, max_tokens=128, min_tokens=3,
         src_ids_.append(src_ids[i])
         tgt_ids_.append(tgt_ids[i])
     return src_ids_, tgt_ids_
-
-
-def get_stats(lengths):
-    lengths = np.asarray(lengths)
-    logger.info(f'Min: {np.min(lengths)} | \
-                 Max: {np.max(lengths)} | \
-                 Mean: {np.mean(lengths)} | \
-                 Median: {np.median(lengths)}')
-    print(f'75 percentile: {np.percentile(lengths, 75)} | \
-            99 percentile: {np.percentile(lengths, 99)}')
-
-
-def get_label_stats(labels, outfile='stats.tsv'):
-    labels = Counter(labels)
-    total = sum(labels.values())
-    out = open(outfile, 'w')
-    i = 0
-    for k, v in labels.most_common():
-        out.write(f'{k}\t{v/total}\n')
-        if i < 3:
-            logger.info(f'{i} item: {k}, {v} out of {total}, {v/total}.')
-        i += 1
-
-
-def list2str(l):
-    return ' '.join([str(x) for x in l])
 
 
 def remove_punctuation_from_sentence(sentence):

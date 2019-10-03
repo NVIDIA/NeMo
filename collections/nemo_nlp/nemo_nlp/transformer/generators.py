@@ -6,12 +6,20 @@ import torch
 import torch.nn as nn
 
 from .utils import NEG_INF
-from ..utils.misc import mask_padded_tokens
+from ..utils.nlp_utils import mask_padded_tokens
 
 
 class GreedySequenceGenerator(nn.Module):
-    def __init__(self, embedding, decoder, log_softmax, pad=0, bos=1, eos=2,
-                 max_sequence_length=512, max_delta_length=20, batch_size=1):
+    def __init__(self,
+                 embedding,
+                 decoder,
+                 log_softmax,
+                 pad=0,
+                 bos=1,
+                 eos=2,
+                 max_sequence_length=512,
+                 max_delta_length=20,
+                 batch_size=1):
         """
         Greedy sequence generator based on the decoder followed by log_softmax.
 
@@ -42,8 +50,12 @@ class GreedySequenceGenerator(nn.Module):
         self.device = next(self.decoder.parameters()).device
 
     @torch.no_grad()
-    def _forward(self, decoder_input_ids=None, encoder_hidden_states=None,
-                 encoder_input_mask=None, decoder_mems_list=None, pos=0):
+    def _forward(self,
+                 decoder_input_ids=None,
+                 encoder_hidden_states=None,
+                 encoder_input_mask=None,
+                 decoder_mems_list=None,
+                 pos=0):
         """
         One step of autoregressive output generation.
 
@@ -63,20 +75,27 @@ class GreedySequenceGenerator(nn.Module):
             decoder_input_ids, start_pos=pos)
         decoder_input_mask = mask_padded_tokens(
             decoder_input_ids, self.pad).float()
+        # TODO: make sure float() work with mixed precision
 
         if encoder_hidden_states is not None:
             decoder_mems_list = self.decoder.forward(
-                decoder_hidden_states, decoder_input_mask,
-                encoder_hidden_states, encoder_input_mask, decoder_mems_list,
+                decoder_hidden_states,
+                decoder_input_mask,
+                encoder_hidden_states,
+                encoder_input_mask,
+                decoder_mems_list,
                 return_mems=True)
         else:
             decoder_mems_list = self.decoder.forward(
-                decoder_hidden_states, decoder_input_mask,
-                decoder_mems_list, return_mems=True)
+                decoder_hidden_states,
+                decoder_input_mask,
+                decoder_mems_list,
+                return_mems=True)
         log_probs = self.log_softmax.forward(decoder_mems_list[-1])
         return log_probs, decoder_mems_list
 
-    def _prepare_for_search(self, decoder_input_ids=None,
+    def _prepare_for_search(self,
+                            decoder_input_ids=None,
                             encoder_hidden_states=None):
         """
         Helper function which defines starting sequence to begin generating
@@ -106,7 +125,9 @@ class GreedySequenceGenerator(nn.Module):
 
         return tgt, batch_size, max_generation_length
 
-    def forward(self, decoder_input_ids=None, encoder_hidden_states=None,
+    def forward(self,
+                decoder_input_ids=None,
+                encoder_hidden_states=None,
                 encoder_input_mask=None):
 
         tgt, batch_size, max_generation_length = self._prepare_for_search(
@@ -138,8 +159,13 @@ class GreedySequenceGenerator(nn.Module):
 
 
 class TopKSequenceGenerator(GreedySequenceGenerator):
-    def __init__(self, embedding, decoder, log_softmax, beam_size=1,
-                 temperature=1.0, **kwargs):
+    def __init__(self,
+                 embedding,
+                 decoder,
+                 log_softmax,
+                 beam_size=1,
+                 temperature=1.0,
+                 **kwargs):
         """
         Top-k sequence generator based on the decoder followed by log_softmax.
 
@@ -158,8 +184,12 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
         self.temp = temperature
 
     @torch.no_grad()
-    def _forward(self, decoder_input_ids=None, encoder_hidden_states=None,
-                 encoder_input_mask=None, decoder_mems_list=None, pos=0):
+    def _forward(self,
+                 decoder_input_ids=None,
+                 encoder_hidden_states=None,
+                 encoder_input_mask=None,
+                 decoder_mems_list=None,
+                 pos=0):
 
         log_probs, decoder_mems_list = super()._forward(
             decoder_input_ids, encoder_hidden_states, encoder_input_mask,
@@ -185,8 +215,13 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
 
 
 class BeamSearchSequenceGenerator(GreedySequenceGenerator):
-    def __init__(self, embedding, decoder, log_softmax, beam_size=1,
-                 len_pen=0, **kwargs):
+    def __init__(self,
+                 embedding,
+                 decoder,
+                 log_softmax,
+                 beam_size=1,
+                 len_pen=0,
+                 **kwargs):
         """
         Beam Search sequence generator based on the decoder followed by
         log_softmax.
@@ -203,7 +238,9 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         self.beam_size = beam_size
         self.len_pen = len_pen
 
-    def forward(self, decoder_input_ids=None, encoder_hidden_states=None,
+    def forward(self,
+                decoder_input_ids=None,
+                encoder_hidden_states=None,
                 encoder_input_mask=None):
 
         tgt, batch_size, max_generation_length = self._prepare_for_search(
