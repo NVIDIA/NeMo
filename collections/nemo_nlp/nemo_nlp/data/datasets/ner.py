@@ -136,9 +136,11 @@ class BertNERDataset(Dataset):
     def __getitem__(self, idx):
         feature = self.features[idx]
 
-        return (np.array(feature.input_ids), np.array(feature.segment_ids),
+        return (np.array(feature.input_ids),
+                np.array(feature.segment_ids),
                 np.array(feature.input_mask, dtype=np.float32),
-                np.array(feature.labels), np.array(feature.seq_id))
+                np.array(feature.labels),
+                np.array(feature.seq_id))
 
     def eval_preds(self, logits_lists, seq_ids, tag_ids):
         correct_chunks, total_chunks, predicted_chunks = 0, 0, 0

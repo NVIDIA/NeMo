@@ -3,11 +3,12 @@
 import argparse
 import os
 
-from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
 
 import nemo
 from nemo.utils.lr_policies import get_lr_policy
+
 import nemo_nlp
+from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
 from nemo_nlp.utils.callbacks.ner import \
     eval_iter_callback, eval_epochs_done_callback
 

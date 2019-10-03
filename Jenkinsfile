@@ -10,7 +10,7 @@ pipeline {
   stages {
     stage('PEP8 Checks') {
       steps {
-        sh 'pycodestyle . --exclude=./scripts/get_librispeech_data.py,./scripts/process_beam_dump.py,./examples/nlp/end_of_sentence_tagging_with_bert.py,./examples/nlp/squad_with_pretrained_bert.py,./examples/nlp/transformer_translation.py,./tests/other/jasper.py,./tests/other/jasper_zero_dl.py,./collections/nemo_nlp/nemo_nlp/data/datasets/question_answering.py,./collections/nemo_nlp/nemo_nlp/data/datasets/token_classification.py,./collections/nemo_nlp/nemo_nlp/utils/metrics/fairseq_tokenizer.py,./collections/nemo_nlp/nemo_nlp/utils/metrics/sacrebleu.py,./nemo/setup.py,./docs/sources/source/conf.py,./docs/sources/source/tutorials/infer.py,./docs/sources/source/tutorials/test.py,./collections/nemo_nlp/build'
+        sh 'pycodestyle . --exclude=./scripts/get_librispeech_data.py,./scripts/process_beam_dump.py,./tests/other/jasper.py,./tests/other/jasper_zero_dl.py,./collections/nemo_nlp/nemo_nlp/utils/metrics/sacrebleu.py,./nemo/setup.py,./docs/sources/source/conf.py,./docs/sources/source/tutorials/infer.py,./docs/sources/source/tutorials/test.py,./collections/nemo_nlp/build'
       }
     } 
 

@@ -10,7 +10,7 @@ from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import *
 
 from .pytorch_utils import SmoothedCrossEntropyLoss
-from ..utils.misc import mask_padded_tokens
+from ..utils.nlp_utils import mask_padded_tokens
 
 
 class MaskedLanguageModelingLossNM(LossNM):
