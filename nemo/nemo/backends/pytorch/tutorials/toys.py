@@ -100,11 +100,11 @@ class RealFunctionDataLayer(DataLayerNM):
         n: Total number of samples
         batch_size: Size of each batch per iteration
         f: A lambda of the function to apply to each x value to get labels.
-           Must take a torch tensor as input, and output a torch tensor of 
+           Must take a torch tensor as input, and output a torch tensor of
            the same shape. Defaults to torch.sin().
         x_lo: Lower bound of domain to sample
         x_hi: Upper bound of domain to sample
-    """ 
+    """
     def __len__(self):
         return self._n
 
