@@ -16,7 +16,7 @@ class TestNeuralFactory(NeMoUnitTest):
         self.assertTrue(isinstance(
             instance, nemo.backends.pytorch.tutorials.TaylorNet))
 
-    def test_simple_exampe(self):
+    def test_simple_example(self):
         #######################################################################
         neural_factory = nemo.core.neural_factory.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch,
