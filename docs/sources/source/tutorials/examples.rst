@@ -13,7 +13,6 @@ Hello World
 
 This example shows how to build a model which learn Taylor's coefficients for y=sin(x).
 
-
 .. code-block:: python
 
     import nemo
@@ -22,6 +21,7 @@ This example shows how to build a model which learn Taylor's coefficients for y=
     nf = nemo.core.NeuralModuleFactory()
 
     # instantiate necessary neural modules
+    # RealFunctionDataLayer defaults to f=torch.sin, sampling from x=[-4, 4]
     dl = nemo.tutorials.RealFunctionDataLayer(
         n=10000, batch_size=128)
     fx = nemo.tutorials.TaylorNet(dim=4)
