@@ -8,7 +8,8 @@ from apex import amp
 
 from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM, NonTrainableNM
 from nemo.core import Optimization, DeviceType
-from nemo.core.neural_types import *
+from nemo.core.neural_types import (NeuralType, AxisType, BatchTag, TimeTag,
+                                    SpectrogramSignalTag, ProcessedTimeTag)
 from .parts.dataset import AudioDataset, seq_collate_fn
 from .parts.features import FilterbankFeatures, WaveformFeaturizer
 from .parts.spectr_augment import SpecAugment, SpecCutout

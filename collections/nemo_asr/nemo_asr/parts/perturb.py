@@ -5,7 +5,7 @@ import random
 import librosa
 from scipy import signal
 
-from .manifest import Manifest
+from .manifest import ManifestEN
 from .segment import AudioSegment
 
 
@@ -48,7 +48,7 @@ class GainPerturbation(Perturbation):
 
 class ImpulsePerturbation(Perturbation):
     def __init__(self, manifest_path=None, rng=None):
-        self._manifest = Manifest(manifest_path)
+        self._manifest = ManifestEN(manifest_path)
         self._rng = random.Random() if rng is None else rng
 
     def perturb(self, data):
@@ -84,7 +84,7 @@ class ShiftPerturbation(Perturbation):
 class NoisePerturbation(Perturbation):
     def __init__(self, manifest_path=None, min_snr_db=40, max_snr_db=50,
                  max_gain_db=300.0, rng=None):
-        self._manifest = Manifest(manifest_path)
+        self._manifest = ManifestEN(manifest_path)
         self._rng = random.Random() if rng is None else rng
         self._min_snr_db = min_snr_db
         self._max_snr_db = max_snr_db
@@ -95,8 +95,7 @@ class NoisePerturbation(Perturbation):
         noise_record = self._rng.sample(self._manifest.data, 1)[0]
         noise = AudioSegment.from_file(noise_record['audio_filepath'],
                                        target_sr=data.sample_rate)
-        noise_gain_db = min(data.rms_db - noise.rms_db -
-                            snr_db, self._max_gain_db)
+        noise_gain_db = min(data.rms_db - noise.rms_db - snr_db, self._max_gain_db)
         # print("DEBUG: noise:", snr_db, noise_gain_db, noise_record[
         # 'audio_filepath'])
 
