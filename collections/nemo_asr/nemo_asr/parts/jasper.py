@@ -205,10 +205,11 @@ class JasperBlock(nn.Module):
                             normalization=normalization,
                             norm_groups=norm_groups)))
         self.out = nn.Sequential(
-            *
-            self._get_act_dropout_layer(
+            *self._get_act_dropout_layer(
                 drop_prob=dropout,
-                activation=activation))
+                activation=activation
+            )
+        )
 
     def _get_conv_bn_layer(self, in_channels, out_channels, kernel_size=11,
                            stride=1, dilation=1, padding=0, bias=False,
