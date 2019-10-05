@@ -6,7 +6,8 @@ import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core import DeviceType
-from nemo.core.neural_types import *
+from nemo.core.neural_types import (NeuralType, AxisType, BatchTag, TimeTag,
+                                    ChannelTag)
 
 
 class BeamSearchDecoderWithLM(NonTrainableNM):
