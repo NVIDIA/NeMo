@@ -1,9 +1,13 @@
 import numpy as np
-from sklearn.metrics import confusion_matrix, classification_report
 
 from nemo.utils.exp_logging import get_logger
 
 logger = get_logger('')
+
+
+def mask_padded_tokens(tokens, pad_id):
+    mask = (tokens != pad_id)
+    return mask
 
 
 def read_intent_slot_outputs(queries,

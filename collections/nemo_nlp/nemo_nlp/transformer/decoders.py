@@ -1,6 +1,10 @@
+__all__ = ['TransformerDecoderBlock', 'TransformerDecoder']
+
 import copy
+
 import torch
 import torch.nn as nn
+
 from .modules import MultiHeadAttention, PositionWiseFF
 from .utils import form_attention_mask
 

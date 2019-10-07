@@ -1,3 +1,4 @@
+from collections import Counter
 import glob
 import json
 import os
@@ -6,12 +7,43 @@ import re
 import shutil
 import subprocess
 
+import numpy as np
+from sentencepiece import SentencePieceTrainer as SPT
+from tqdm import tqdm
+
 from nemo.utils.exp_logging import get_logger
-from nemo_nlp.nlp_utils import get_vocab, write_vocab, write_vocab_in_order
+
+from ...utils.nlp_utils import get_vocab, write_vocab, write_vocab_in_order
 
 
 logger = get_logger('')
 LOGGING_TMP = '{} dataset has already been processed and stored at {}'
+
+
+def get_stats(lengths):
+    lengths = np.asarray(lengths)
+    logger.info(f'Min: {np.min(lengths)} | \
+                 Max: {np.max(lengths)} | \
+                 Mean: {np.mean(lengths)} | \
+                 Median: {np.median(lengths)}')
+    logger.info(f'75 percentile: {np.percentile(lengths, 75)}')
+    logger.info(f'99 percentile: {np.percentile(lengths, 99)}')
+
+
+def get_label_stats(labels, outfile='stats.tsv'):
+    labels = Counter(labels)
+    total = sum(labels.values())
+    out = open(outfile, 'w')
+    i = 0
+    for k, v in labels.most_common():
+        out.write(f'{k}\t{v/total}\n')
+        if i < 3:
+            logger.info(f'{i} item: {k}, {v} out of {total}, {v/total}.')
+        i += 1
+
+
+def list2str(l):
+    return ' '.join([str(x) for x in l])
 
 
 def if_exist(outfold, files):
@@ -591,18 +623,18 @@ class SentenceClassificationDataDesc:
         self.train_file = self.data_dir + '/train.tsv'
 
 
-def process_wkt(data_dir):
+def create_vocab_lm(data_dir, do_lower_case):
     if if_exist(data_dir, ['train.txt', 'valid.txt', 'test.txt', 'vocab.txt']):
         logger.info(LOGGING_TMP.format('WikiText', data_dir))
         return data_dir
     logger.info(f'Processing WikiText dataset and store at {data_dir}')
 
     with open(f'{data_dir}/train.txt', 'r') as file:
-        docstr = ''.join(file.readlines())
-        lines = re.split(r'[\n]', docstr)
-        sentences = [
-            line.strip().split() for line in lines if len(line.strip()) > 1
-        ]
+        txt = file.read()
+        if do_lower_case:
+            txt = txt.lower()
+        lines = re.split(r'[\n]', txt)
+        sentences = [line.strip().split() for line in lines if line.strip()]
 
         vocab = {"[PAD]": 0, "[SEP]": 1, "[CLS]": 2, "[MASK]": 3}
         idx = 4
@@ -619,17 +651,104 @@ def process_wkt(data_dir):
     return data_dir
 
 
+def download_wkt2(data_dir):
+    os.makedirs('data/lm', exist_ok=True)
+    logger.warning(f'Data not found at {data_dir}. '
+                   f'Download {dataset_name} to data/lm')
+    data_dir = 'data/lm/wikitext-2'
+    subprocess.call('scripts/get_wkt2.sh')
+    return data_dir
+
+
 class LanguageModelDataDesc:
     def __init__(self, dataset_name, data_dir, do_lower_case):
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
-                os.makedirs('data/lm', exist_ok=True)
-                logger.warning(f'Data not found at {data_dir}. '
-                               f'Download {dataset_name} to data/lm')
-                data_dir = 'data/lm/wikitext-2'
-                subprocess.call('scripts/get_wkt2.sh')
-            self.data_dir = process_wkt(data_dir)
+                data_dir = download_wkt2(data_dir)
+            self.data_dir = create_vocab_lm(data_dir, do_lower_case)
         else:
             logger.info("Looks like you pass in a dataset name that isn't "
                         "already supported by NeMo. Please make sure that "
                         "you build the preprocessing method for it.")
+
+
+def create_vocab_mlm(data_dir,
+                     vocab_size,
+                     sample_size,
+                     special_tokens=['PAD', '[UNK]',
+                                     '[CLS]', '[SEP]', '[MASK]'],
+                     train_file=''):
+    vocab = special_tokens[:]
+    bert_dir = f'{data_dir}/bert'
+    if if_exist(bert_dir, ['tokenizer.model']):
+        logger.info(LOGGING_TMP.format('WikiText_BERT', bert_dir))
+        return data_dir, f'{bert_dir}/tokenizer.model'
+    logger.info(f'Processing WikiText dataset and store at {bert_dir}')
+    os.makedirs(bert_dir, exist_ok=True)
+
+    if not train_file:
+        files = glob.glob(f'{data_dir}/*.txt')
+        train_file = f'{bert_dir}/merged.txt'
+        logger.info(f"Merging {len(files)} txt files into {train_file}")
+
+        with open(train_file, "w") as merged:
+            for file in tqdm(files):
+                with open(file, 'r') as inf:
+                    content = inf.read().strip()
+                merged.write(content + '\n\n\n')
+    else:
+        train_file = f'{data_dir}/{train_file}'
+
+    cmd = (f"--input={train_file} --model_prefix={bert_dir}/tokenizer "
+           f"--vocab_size={vocab_size - len(vocab)} "
+           f"--input_sentence_size={sample_size} "
+           f"--shuffle_input_sentence=true --hard_vocab_limit=false "
+           f"--bos_id=-1 --eos_id=-1")
+    SPT.Train(cmd)
+
+    # Add BERT control symbols
+    tokens = []
+
+    with open(f"{bert_dir}/tokenizer.vocab", "r") as f:
+        f.readline()  # skip first <unk> token
+
+        # Read tokens from each line and parse for vocab
+        for line in f:
+            piece = line.split("\t")[0]
+            token = piece[1:] if piece.startswith("▁") else f"##{piece}"
+            tokens.append(token)
+
+    vocab.extend(tokens)
+
+    # Save vocabulary to output file
+    with open(f'{bert_dir}/vocab.txt', "w") as f:
+        for token in vocab:
+            f.write(f"{token}\n".format())
+    return data_dir, f'{bert_dir}/tokenizer.model'
+
+
+class BERTPretrainingDataDesc:
+    def __init__(self,
+                 dataset_name,
+                 data_dir,
+                 vocab_size,
+                 sample_size,
+                 special_tokens,
+                 train_file=''):
+        if dataset_name == 'wikitext-2':
+            if not os.path.exists(data_dir):
+                data_dir = download_wkt2(data_dir)
+            self.data_dir, self.tokenizer_model = create_vocab_mlm(
+                data_dir,
+                vocab_size,
+                sample_size,
+                special_tokens,
+                train_file)
+        else:
+            logger.info("Looks like you pass in a dataset name that isn't "
+                        "already supported by NeMo. Please make sure that "
+                        "you build the preprocessing method for it.")
+
+        self.train_file = f'{data_dir}/train.txt'
+        self.eval_file = f'{data_dir}/valid.txt'
+        self.test_file = f'{data_dir}/test.txt'

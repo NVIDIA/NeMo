@@ -6,6 +6,25 @@ Neural Modules' input and output ports are also of Neural Type.
 An exception will be raised when a NmTensor and input port where it goes are
 of incompatible types.
 """
+__all__ = ['BaseTag',
+           'BatchTag',
+           'TimeTag',
+           'ProcessedTimeTag',
+           'ChannelTag',
+           'SpectrogramSignalTag',
+           'EncodedRepresentationTag',
+           'ClassTag',
+           'WidthTag',
+           'HeightTag',
+           'NeuralTypeComparisonResult',
+           'AxisType',
+           'NeuralType',
+           'NmTensor',
+           'NeuralTypeError',
+           'NeuralPortNameMismatchError',
+           'NeuralPortNmTensorMismatchError',
+           'CanNotInferResultNeuralType']
+
 from enum import Enum
 import uuid
 
@@ -111,9 +130,9 @@ class AxisType(object):
 
     def __eq__(self, other):
         return (
-                self.semantics == other.semantics
-                and self.dim == other.dim
-                and self.descriptor == other.descriptor
+            self.semantics == other.semantics
+            and self.dim == other.dim
+            and self.descriptor == other.descriptor
         )
 
     def __str__(self):
@@ -222,7 +241,7 @@ class NeuralType(object):
             if self._optional
             else ""
                  + "\n".join(["{0}->{1}".format(axis, tag) for axis, tag in
-                             self._axis2type.items()])
+                              self._axis2type.items()])
         )
 
     def compare(self, n_type2) -> NeuralTypeComparisonResult:

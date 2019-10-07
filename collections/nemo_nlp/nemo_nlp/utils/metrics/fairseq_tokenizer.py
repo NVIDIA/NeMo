@@ -1,3 +1,8 @@
+""" Code from
+https://github.com/NVIDIA/DeepLearningExamples/blob/
+master/PyTorch/Translation/Transformer/fairseq/tokenizer.py
+"""
+
 import sys
 import re
 import unicodedata
@@ -20,15 +25,15 @@ def tokenize_en(line):
     # remove ASCII junk
     line = re.sub(r'\s+', ' ', line)
     line = re.sub(r'[\x00-\x1F]', '', line)
-    #fix whitespaces
+    # fix whitespaces
     line = re.sub('\ +', ' ', line)
     line = re.sub('^ ', '', line)
     line = re.sub(' $', '', line)
-    #separate other special characters
+    # separate other special characters
     line = re.sub(r'([^\s\.\'\`\,\-\w]|[_'+NUMERICS+'])', r' \g<1> ', line)
     line = re.sub(r'(\w)\-(?=\w)', r'\g<1> @-@ ', line)
 
-    #multidots stay together
+    # multidots stay together
     line = re.sub(r'\.([\.]+)', r' DOTMULTI\g<1>', line)
     while re.search(r'DOTMULTI\.', line):
         line = re.sub(r'DOTMULTI\.([^\.])', r'DOTDOTMULTI \g<1>', line)
@@ -54,21 +59,17 @@ def tokenize_en(line):
     line = ''
     for i in range(len(words)):
         word = words[i]
-        match =  re.search(r'^(\S+)\.$', word)
+        match = re.search(r'^(\S+)\.$', word)
         if match:
             pre = match.group(1)
-            if i==len(words)-1:
-                # split last words independently as they are unlikely to be non-breaking prefixes
+            if i == len(words)-1:
+                """split last words independently as they are unlikely
+                to be non-breaking prefixes"""
                 word = pre+' .'
-            # elif ((re.search(r'\.', pre) and re.search(r'[^\.\W\d]', pre))
-            #         or (pre in prefixes and prefixes[pre]==1)
-            #         or re.search(r'^[a-z]', words[i+1])
-            #         or (pre in prefixes and prefixes[pre]==2 and re.search(r'^[0-9]+', words[i+1]))):
-            #     pass
             else:
                 word = pre+' .'
 
-        word +=' '
+        word += ' '
         line += word
 
     # clean up extraneous spaces
@@ -79,7 +80,7 @@ def tokenize_en(line):
     # .' at end of sentence is missed
     line = re.sub(r'\.\' ?$', ' . \' ', line)
 
-    #restore multi-dots
+    # restore multi-dots
     while re.search('DOTDOTMULTI', line):
         line = re.sub('DOTDOTMULTI', 'DOTMULTI.', line)
 
@@ -95,7 +96,7 @@ def tokenize_en(line):
     line = re.sub(r'\[', r'&#91;', line)
     line = re.sub(r'\]', r'&#93;', line)
 
-    #ensure final line breaks
+    # ensure final line breaks
     # if line[-1] is not '\n':
     #     line += '\n'
 

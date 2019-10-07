@@ -19,22 +19,18 @@ Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-#TODO: REFACTOR to minimize code reusing
+# TODO: REFACTOR to maximize code reusing
 
 
 import collections
-import numpy as np
-from torch.utils.data import Dataset
 import string
 import re
 import random
-from ...externals.run_squad import _check_is_max_context
 
+import numpy as np
+from torch.utils.data import Dataset
 
-def remove_punctuation_from_sentence(sentence):
-    sentence = re.sub('[' + string.punctuation + ']', '', sentence)
-    sentence = sentence.lower()
-    return sentence
+from .. import utils
 
 
 class BertTokenClassificationDataset(Dataset):
@@ -66,7 +62,7 @@ class BertTokenClassificationDataset(Dataset):
                 sentence = line.split()[2:]
                 sentence = " ".join(sentence)
                 # Remove punctuation
-                sentence = remove_punctuation_from_sentence(sentence)
+                sentence = utils.remove_punctuation_from_sentence(sentence)
                 sentence_words = sentence.split()
 
                 sentence_subtoken_count = 0
@@ -83,7 +79,7 @@ class BertTokenClassificationDataset(Dataset):
                 max_tokens_for_doc = max_seq_length - 1
 
                 if (new_seq_subtoken_count + sentence_subtoken_count) < \
-                    max_tokens_for_doc:
+                        max_tokens_for_doc:
 
                     new_seq_words.extend(sentence_words)
                     new_seq_token_labels.extend(sentence_token_labels)
@@ -202,7 +198,7 @@ def convert_sequences_to_features(seqs_words, seqs_subtokens,
     features = []
     for seq_id, (words, seq_subtokens, seq_token_labels, sentence_labels) in \
         enumerate(zip(seqs_words, seqs_subtokens, seqs_token_labels,
-            seqs_sentence_labels)):
+                      seqs_sentence_labels)):
 
         tok_to_orig_index = []
         orig_to_tok_index = []
@@ -241,8 +237,9 @@ def convert_sequences_to_features(seqs_words, seqs_subtokens,
             token_to_orig_map[len(
                 tokens)] = tok_to_orig_index[split_token_index]
 
-            is_max_context = _check_is_max_context(doc_spans, doc_span_index,
-                                                   split_token_index)
+            is_max_context = utils.check_is_max_context(doc_spans,
+                                                        doc_span_index,
+                                                        split_token_index)
             token_is_max_context[len(tokens)] = is_max_context
             tokens.append(all_doc_tokens[split_token_index])
             segment_ids.append(0)
@@ -303,17 +300,20 @@ def convert_sequences_to_features(seqs_words, seqs_subtokens,
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self, seq_id, doc_span_index, tokens, words, labels,
-                 sentence_labels, token_to_orig_map, token_is_max_context,
-                 input_ids, input_mask, segment_ids):
-        self.seq_id = seq_id
-        self.doc_span_index = doc_span_index
-        self.tokens = tokens
-        self.words = words
-        self.labels = labels
-        self.sentence_labels = sentence_labels
-        self.token_to_orig_map = token_to_orig_map
-        self.token_is_max_context = token_is_max_context
-        self.input_ids = input_ids
-        self.input_mask = input_mask
-        self.segment_ids = segment_ids
+    def __init__(self,
+                 seq_id,
+                 doc_span_index,
+                 tokens,
+                 words,
+                 labels,
+                 sentence_labels,
+                 token_to_orig_map,
+                 token_is_max_context,
+                 input_ids,
+                 input_mask,
+                 segment_ids):
+        local_params = locals()
+        for key in local_params:
+            if key == 'self':
+                continue
+            setattr(self, key, local_params[key])

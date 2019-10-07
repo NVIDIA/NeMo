@@ -1,5 +1,13 @@
 # Copyright (c) 2019 NVIDIA Corporation
 """Core PyTorch-base Neural Modules"""
+__all__ = ['SimpleCombiner',
+           'ArgMaxSimple',
+           'TableLookUp',
+           'TableLookUp2',
+           'SequenceEmbedding',
+           'SequenceProjection',
+           'ZerosLikeNM']
+
 from typing import Iterable, Optional, Mapping, Set, Dict
 
 import torch
@@ -262,3 +270,29 @@ class SequenceProjection(TrainableNM):
         if self.dropout != 0.0:
             p = self.dropout(p)
         return p
+
+
+class ZerosLikeNM(TrainableNM):
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "input_type_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+            })
+        }
+
+        output_ports = {
+            "input_type_ids":
+            NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+            })
+        }
+        return input_ports, output_ports
+
+    def __init__(self, **kwargs):
+        TrainableNM.__init__(self, **kwargs)
+
+    def forward(self, input_type_ids):
+        return torch.zeros_like(input_type_ids).long()

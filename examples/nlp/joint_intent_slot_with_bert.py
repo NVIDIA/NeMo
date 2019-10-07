@@ -9,9 +9,9 @@ import nemo
 from nemo.utils.lr_policies import get_lr_policy
 
 import nemo_nlp
-from nemo_nlp.callbacks.joint_intent_slot import \
+from nemo_nlp.data.datasets.utils import JointIntentSlotDataDesc
+from nemo_nlp.utils.callbacks.joint_intent_slot import \
     eval_iter_callback, eval_epochs_done_callback
-from nemo_nlp.text_data_utils import JointIntentSlotDataDesc
 
 
 # Parsing arguments
@@ -30,8 +30,7 @@ parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-uncased",
-                    type=str)
+                    default="bert-base-uncased", type=str)
 parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
 parser.add_argument("--dataset_name", default='snips-all', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
@@ -140,12 +139,12 @@ def create_pipeline(dataset,
     return tensors_to_evaluate, loss, steps_per_epoch, data_layer
 
 
-train_tensors, train_loss, steps_per_epoch, _ =\
-    create_pipeline(train_dataset,
-                    batch_size=args.batch_size,
-                    num_gpus=args.num_gpus,
-                    local_rank=args.local_rank,
-                    mode='train')
+train_tensors, train_loss, steps_per_epoch, _ = create_pipeline(
+    train_dataset,
+    batch_size=args.batch_size,
+    num_gpus=args.num_gpus,
+    local_rank=args.local_rank,
+    mode='train')
 eval_tensors, _,  _, data_layer = create_pipeline(eval_dataset,
                                                   batch_size=args.batch_size,
                                                   num_gpus=args.num_gpus,
@@ -153,14 +152,14 @@ eval_tensors, _,  _, data_layer = create_pipeline(eval_dataset,
                                                   mode='eval')
 
 # Create callbacks for train and eval modes
-callback_train = nemo.core.SimpleLossLoggerCallback(
+train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=train_tensors,
     print_func=lambda x: str(np.round(x[0].item(), 3)),
     tb_writer=nf.tb_writer,
     get_tb_values=lambda x: [["loss", x[0]]],
     step_freq=steps_per_epoch)
 
-callback_eval = nemo.core.EvaluatorCallback(
+eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(
         x, y, data_layer),
@@ -180,7 +179,7 @@ lr_policy_fn = get_lr_policy(args.lr_policy,
                              warmup_ratio=args.lr_warmup_proportion)
 
 nf.train(tensors_to_optimize=[train_loss],
-         callbacks=[callback_train, callback_eval, ckpt_callback],
+         callbacks=[train_callback, eval_callback, ckpt_callback],
          lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,
