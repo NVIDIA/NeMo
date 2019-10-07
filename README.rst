@@ -60,7 +60,7 @@ You can use our `NGC PyTorch container <https://ngc.nvidia.com/catalog/container
 and then continue with the following steps.
 
 If you have all requirements installed (or are using `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ ),
-then you can simply use pip to install the latest released version of NeMo and its collections (currently 0.8):
+then you can simply use pip to install the latest released version (**currently 0.8**) of NeMo and its collections:
 
 .. code-block:: bash
 
@@ -109,3 +109,17 @@ This command runs unittests:
     ./reinstall.sh
     python -m unittest tests/*.py
 
+
+Citation
+~~~~~~~~
+
+If you are using NeMo please cite the following publication
+
+@misc{nemo2019,
+    title={NeMo: a toolkit for building AI applications using Neural Modules},
+    author={Oleksii Kuchaiev and Jason Li and Huyen Nguyen and Oleksii Hrinchuk and Ryan Leary and Boris Ginsburg and Samuel Kriman and Stanislav Beliaev and Vitaly Lavrukhin and Jack Cook and Patrice Castonguay and Mariya Popova and Jocelyn Huang and Jonathan M. Cohen},
+    year={2019},
+    eprint={1909.09577},
+    archivePrefix={arXiv},
+    primaryClass={cs.LG}
+}
