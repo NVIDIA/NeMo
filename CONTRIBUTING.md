@@ -16,4 +16,13 @@ When contributing module to a collection, please make sure it belongs to that ca
 Please note that CI needs to pass for all the modules and collections.
 
 # Citation
-We are working on preparing a paper. We request you to please include a mention of the toolkit and a link to the repository if you use this work in a published or open-source project.
+If you are using NeMo please cite the following publication
+
+@misc{nemo2019,
+    title={NeMo: a toolkit for building AI applications using Neural Modules},
+    author={Oleksii Kuchaiev and Jason Li and Huyen Nguyen and Oleksii Hrinchuk and Ryan Leary and Boris Ginsburg and Samuel Kriman and Stanislav Beliaev and Vitaly Lavrukhin and Jack Cook and Patrice Castonguay and Mariya Popova and Jocelyn Huang and Jonathan M. Cohen},
+    year={2019},
+    eprint={1909.09577},
+    archivePrefix={arXiv},
+    primaryClass={cs.LG}
+}
