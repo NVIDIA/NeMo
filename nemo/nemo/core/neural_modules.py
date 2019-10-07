@@ -1,20 +1,24 @@
 # Copyright (c) 2019 NVIDIA Corporation
 """This file contains NeuralModule and NmTensor classes."""
-import uuid
-import logging
+__all__ = ['WeightShareTransform',
+           'NeuralModule']
+
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from enum import Enum
-from typing import Optional, Dict, Set, Tuple, List
 from inspect import getargvalues, stack
+import logging
+from typing import Optional, Dict, Set, Tuple, List
+import uuid
+
 from nemo.core import NeuralModuleFactory
 
 from .neural_factory import Optimization, DeviceType
-from .neural_types import CanNotInferResultNeuralType,\
-                          NeuralType, NeuralTypeComparisonResult,\
-                          NeuralPortNameMismatchError,\
-                          NeuralPortNmTensorMismatchError,\
-                          NmTensor
+from .neural_types import (CanNotInferResultNeuralType,
+                           NeuralType, NeuralTypeComparisonResult,
+                           NeuralPortNameMismatchError,
+                           NeuralPortNmTensorMismatchError,
+                           NmTensor)
 
 
 class WeightShareTransform(Enum):

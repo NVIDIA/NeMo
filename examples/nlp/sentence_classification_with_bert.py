@@ -8,9 +8,9 @@ import nemo
 from nemo.utils.lr_policies import get_lr_policy
 
 import nemo_nlp
-from nemo_nlp.callbacks.sentence_classification import \
+from nemo_nlp.data.datasets.utils import SentenceClassificationDataDesc
+from nemo_nlp.utils.callbacks.sentence_classification import \
     eval_iter_callback, eval_epochs_done_callback
-from nemo_nlp.text_data_utils import SentenceClassificationDataDesc
 
 # Parsing arguments
 parser = argparse.ArgumentParser(
@@ -86,7 +86,7 @@ classifier = nemo_nlp.SequenceClassifier(hidden_size=hidden_size,
                                          num_classes=data_desc.num_labels,
                                          dropout=args.fc_dropout)
 
-loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss(factory=nf)
+loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 
 
 def create_pipeline(dataset,
@@ -139,14 +139,14 @@ eval_tensors, _, _, data_layer = create_pipeline(eval_dataset,
                                                  mode='eval')
 
 # Create callbacks for train and eval modes
-callback_train = nemo.core.SimpleLossLoggerCallback(
+train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=train_tensors,
     print_func=lambda x: str(np.round(x[0].item(), 3)),
     tb_writer=nf.tb_writer,
     get_tb_values=lambda x: [["loss", x[0]]],
     step_freq=steps_per_epoch)
 
-callback_eval = nemo.core.EvaluatorCallback(
+eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(
         x, y, data_layer),
@@ -166,7 +166,7 @@ lr_policy_fn = get_lr_policy(args.lr_policy,
                              warmup_ratio=args.lr_warmup_proportion)
 
 nf.train(tensors_to_optimize=[train_loss],
-         callbacks=[callback_train, callback_eval, ckpt_callback],
+         callbacks=[train_callback, eval_callback, ckpt_callback],
          lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,

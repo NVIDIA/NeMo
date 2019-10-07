@@ -6,10 +6,8 @@ from sklearn.metrics import confusion_matrix, classification_report
 
 import nemo
 import nemo_nlp
-from nemo_nlp.callbacks.joint_intent_slot import \
-    eval_iter_callback, eval_epochs_done_callback
-from nemo_nlp import read_intent_slot_outputs
-from nemo_nlp.text_data_utils import JointIntentSlotDataDesc
+from nemo_nlp.data.datasets.utils import JointIntentSlotDataDesc
+from nemo_nlp.utils.nlp_utils import read_intent_slot_outputs
 
 
 # Parsing arguments
