@@ -26,9 +26,9 @@ Create the tokenizer model
 ----------------
 `BERTPretrainingDataDesc` converts your dataset into the format compatible with `BertPretrainingDataset`. The most computationally intensive step is to tokenize the dataset to create a vocab file and a tokenizer model.
 
-You can also use an available vocab or tokenizer model to skip this step. If you already have a pretrained tokenizer model, copy it to the `[data_dir]/bert` folder under the name `tokenizer.model` and the script will skip this step.
+You can also use an available vocab or tokenizer model to skip this step. If you already have a pretrained tokenizer model, copy it to the ``[data_dir]/bert``` folder under the name ``tokenizer.model`` and the script will skip this step.
 
-If have an available vocab, say the `vocab.txt` file from any `pretrained BERT model`_, copy it to the `[data_dir]/bert` folder under the name `vocab.txt`.
+If have an available vocab, say the ``vocab.txt`` file from any `pretrained BERT model`_, copy it to the ``[data_dir]/bert`` folder under the name ``vocab.txt``.
 
 .. _pretrained BERT model: https://github.com/google-research/bert#pre-trained-models
 
@@ -43,14 +43,14 @@ If have an available vocab, say the `vocab.txt` file from any `pretrained BERT m
 
 We need to define our tokenizer. If you'd like to use a custom vocabulary file, we strongly recommend you use our `SentencePieceTokenizer`. Otherwise, if you'll be using a vocabulary file from another pre-trained BERT model, you should use `NemoBertTokenizer`.
 
-.. code-block:: python
+    .. code-block:: python
 
-    # If you're using a custom vocabulary, create your tokenizer like this
-    tokenizer = SentencePieceTokenizer(model_path="tokenizer.model")
-    tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
+        # If you're using a custom vocabulary, create your tokenizer like this
+        tokenizer = SentencePieceTokenizer(model_path="tokenizer.model")
+        tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
 
-    # Otherwise, create your tokenizer like this
-    tokenizer = NemoBertTokenizer(vocab_file="vocab.txt")
+        # Otherwise, create your tokenizer like this
+        tokenizer = NemoBertTokenizer(vocab_file="vocab.txt")
 
 Create the model
 ----------------
@@ -200,5 +200,5 @@ Finally, you should define your optimizer, and start training!
 References
 ----------
 
-.. bibliography:: Bertbib.bib
+.. bibliography:: bert.bib
     :style: plain
