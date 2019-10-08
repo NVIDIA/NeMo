@@ -27,36 +27,38 @@ First of all, we instantiate Neural Module Factory which defines 1) backend, 2) 
 
     .. code-block:: python
 
-        neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch,
-            local_rank=args.local_rank,
-            optimization_level=nemo.core.Optimization.mxprO2)
+        nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
+                                           local_rank=args.local_rank,
+                                           optimization_level=args.amp_opt_level,
+                                           log_dir=args.work_dir,
+                                           create_tb_writer=True,
+                                           files_to_copy=[__file__])
 
 We define tokenizer which allows to transform input text into tokens. In this tutorial, we use joint `Byte Pair Encodings (BPE) <https://arxiv.org/abs/1508.07909>`_ :cite:`sennrich2015neural` trained on WMT16 En-De corpus with `YouTokenToMe library <https://github.com/VKCOM/YouTokenToMe>`_. In contrast to the models presented in the literature (which usually have vocabularies of size 30000+), we work with 4x smaller vocabulary of 8192 BPEs. It achieves the same level of performance but allows to increase the batch size by 20% which in turn leads to faster convergence.
 
 
     .. code-block:: python
 
-        tokenizer = nemo_nlp.YouTokenToMeTokenizer(model_path="<path_to_data>/bpe8k_yttm.model")
+        tokenizer = nemo_nlp.YouTokenToMeTokenizer(
+            model_path=f"{args.data_dir}/{args.tokenizer_model}")
+        vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
+
 
     .. tip::
         To leverage the best GPU utilization and mixed precision speedup, make sure that the vocabulary size (as well as all sizes in the model) is divisible by 8.
 
-Next, we define all Neural Modules participating in our NMT pipeline:
+Next, we define all Neural Modules necessary for our model:
 
-    * Two data layers (one for training and one for evaluation) which pack input sentences into batches of similar length to minimize the use of padding symbol. Note, that the maximum allowed number of tokens in a batch is given in **source and target** tokens.
     * Transformer Encoder and Decoder.
-    * LogSoftmax for mapping output of the decoder into probability distribution over vocabulary.
+    * `TokenClassifier` for mapping output of the decoder into probability distribution over vocabulary.
     * Beam Search module for generating translations.
     * Loss function (cross entropy with label smoothing regularization).
 
     .. code-block:: python
 
-        train_data_layer = nemo_nlp.TranslationDataLayer(**train_datalayer_params)
-        eval_data_layer = nemo_nlp.TranslationDataLayer(**eval_datalayer_params)
         encoder = nemo_nlp.TransformerEncoderNM(**encoder_params)
         decoder = nemo_nlp.TransformerDecoderNM(**decoder_params)
-        log_softmax = nemo_nlp.TransformerLogSoftmaxNM(**log_softmax_params)
+        log_softmax = nemo_nlp.TokenClassifier(**token_classifier_params)
         beam_search = nemo_nlp.BeamSearchTranslatorNM(**beam_search_params)
         loss = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(**loss_params)
 
@@ -67,41 +69,54 @@ Following `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`pres
         log_softmax.log_softmax.dense.weight = encoder.embedding_layer.token_embedding.weight
         decoder.embedding_layer.token_embedding.weight = encoder.embedding_layer.token_embedding.weight
 
-Then, we build the computation graph out of instantiated modules:
+Then, we create the pipeline gtom input to output that can be used for both training and evaluation. An important element of this pipeline is the datalayer that packs input sentences into batches of similar length to minimize the use of padding symbol. Note, that the maximum allowed number of tokens in a batch is given in **source and target** tokens.
 
     .. code-block:: python
 
-        ########################### Training pipeline ###########################
-        src, src_mask, tgt, tgt_mask, labels, sent_ids = train_data_layer()
-        src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)
-        tgt_hiddens = decoder(input_ids_tgt=tgt,
-                              hidden_states_src=src_hiddens,
-                              input_mask_src=src_mask,
-                              input_mask_tgt=tgt_mask)
-        log_softmax = log_softmax(hidden_states=tgt_hiddens)
-        train_loss = loss(log_probs=log_softmax, target_ids=labels)
+        def create_pipeline(**args):
+            dataset = nemo_nlp.TranslationDataset(**translation_dataset_params)
+            data_layer = nemo_nlp.TranslationDataLayer(dataset)
+            src, src_mask, tgt, tgt_mask, labels, sent_ids = data_layer()
+            src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)
+            tgt_hiddens = decoder(input_ids_tgt=tgt,
+                                  hidden_states_src=src_hiddens,
+                                  input_mask_src=src_mask,
+                                  input_mask_tgt=tgt_mask)
+            logits = log_softmax(hidden_states=tgt_hiddens)
+            loss = loss_fn(logits=logits, target_ids=labels)
+            beam_results = None
+            if not training:
+                beam_results = beam_search(hidden_states_src=src_hiddens,
+                                           input_mask_src=src_mask)
+            return loss, [tgt, loss, beam_results, sent_ids]
 
-        ########################## Evaluation pipeline ##########################
-        src_, src_mask_, tgt_, tgt_mask_, labels_, sent_ids_ = eval_data_layer()
-        src_hiddens_ = encoder(input_ids=src_, input_mask_src=src_mask_)
-        tgt_hiddens_ = decoder(input_ids_tgt=tgt_,
-                               hidden_states_src=src_hiddens_,
-                               input_mask_src=src_mask_,
-                               input_mask_tgt=tgt_mask_)
-        log_softmax_ = log_softmax(hidden_states=tgt_hiddens_)
-        eval_loss = loss(log_probs=log_softmax_, target_ids=labels_)
-        beam_trans = beam_search(hidden_states_src=src_hiddens_,
-                                 input_mask_src=src_mask_)
+        
+        train_loss, _ = create_pipeline(train_dataset_src,
+                                        train_dataset_tgt,
+                                        args.batch_size,
+                                        clean=True)
 
-Next, we define necessary callbacks for: 1) tracking loss during training, 2) tracking BLEU score on evaluation dataset, 3) saving model checkpoints once in a while.
+        eval_loss, eval_tensors = create_pipeline(eval_dataset_src,
+                                                  eval_dataset_tgt,
+                                                  args.eval_batch_size,
+                                                  clean=True,
+                                                  training=False)
+
+
+
+Next, we define necessary callbacks:
+
+1. `SimpleLossLoggerCallback`: tracking loss during training
+2. `EvaluatorCallback`: tracking BLEU score on evaluation dataset at set intervals
+3. `CheckpointCallback`: saving model checkpoints
 
     .. code-block:: python
 
         from nemo_nlp.callbacks.translation import eval_iter_callback, eval_epochs_done_callback
 
-        callback_train = nemo.core.SimpleLossLoggerCallback(...)
-        callback_eval = nemo.core.EvaluatorCallback(...)
-        callback_ckpt = nemo.core.CheckpointCallback(...)
+        train_callback = nemo.core.SimpleLossLoggerCallback(...)
+        eval_callback = nemo.core.EvaluatorCallback(...)
+        ckpt_callback = nemo.core.CheckpointCallback(...)
 
     .. note::
 
@@ -111,9 +126,19 @@ Finally, we define the optimization parameters and run the whole pipeline.
 
     .. code-block:: python
 
-        optimizer = neural_factory.get_trainer(**optimization_params)
-        optimizer.train(tensors_to_optimize=[train_loss],
-                        callbacks=[callback_train, callback_eval, callback_ckpt])
+        lr_policy_fn = get_lr_policy(args.lr_policy,
+                                     total_steps=args.max_steps,
+                                     warmup_steps=args.warmup_steps)
+
+        nf.train(tensors_to_optimize=[train_loss],
+                 callbacks=callbacks,
+                 optimizer=args.optimizer,
+                 lr_policy=lr_policy_fn,
+                 optimization_params={"num_epochs": max_num_epochs,
+                                      "lr": args.lr,
+                                      "weight_decay": args.weight_decay,
+                                      "betas": (args.beta1, args.beta2)},
+                 batches_per_step=args.iter_per_step)
 
 
 Model training
