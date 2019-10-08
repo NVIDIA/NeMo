@@ -8,8 +8,8 @@ from nemo.core.callbacks import CheckpointCallback
 from nemo.utils.lr_policies import SquareAnnealing
 
 import nemo_nlp
-from nemo_nlp.data.tokenizers.bert_tokenizer import NemoBertTokenizer
-from nemo_nlp.utils.callbacks.translation import \
+from .data.tokenizers.bert_tokenizer import NemoBertTokenizer
+from .utils.callbacks.translation import \
     eval_iter_callback, eval_epochs_done_callback_wer
 
 parser = nemo.utils.NemoArgParser(description='ASR postprocessor')
@@ -36,11 +36,12 @@ parser.add_argument("--d_inner", default=3072, type=int)
 parser.add_argument("--num_layers", default=12, type=int)
 parser.add_argument("--num_heads", default=12, type=int)
 parser.add_argument("--embedding_dropout", default=0.25, type=float)
+parser.add_argument("--max_seq_length", default=512, type=int)
 parser.add_argument("--ffn_dropout", default=0.25, type=float)
 parser.add_argument("--attn_score_dropout", default=0.25, type=float)
 parser.add_argument("--attn_layer_dropout", default=0.25, type=float)
 parser.add_argument("--eval_step_frequency", default=2000, type=int)
-parser.add_argument("--dataset_dir", default="/dataset/", type=str)
+parser.add_argument("--data_dir", default="/dataset/", type=str)
 parser.add_argument("--src_lang", default="pred", type=str)
 parser.add_argument("--tgt_lang", default="real", type=str)
 parser.add_argument("--beam_size", default=4, type=int)
@@ -68,17 +69,14 @@ dec_first_sublayer_params = {
 }
 
 tokenizer = NemoBertTokenizer(pretrained_model=args.pretrained_model)
-
 vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
-
 tokens_to_add = vocab_size - tokenizer.vocab_size
-max_sequence_length = 512
 
 train_dataset = nemo_nlp.TranslationDataset(
     tokenizer_src=tokenizer,
     tokenizer_tgt=tokenizer,
-    dataset_src=args.dataset_dir + "test." + args.src_lang,
-    dataset_tgt=args.dataset_dir + "test." + args.tgt_lang,
+    dataset_src=args.data_dir + "test." + args.src_lang,
+    dataset_tgt=args.data_dir + "test." + args.tgt_lang,
     tokens_in_batch=args.batch_size,
     clean=True)
 train_data_layer = nemo_nlp.TranslationDataLayer(train_dataset)
@@ -91,13 +89,11 @@ for key in dataset_keys:
     eval_dataset = nemo_nlp.TranslationDataset(
         tokenizer_src=tokenizer,
         tokenizer_tgt=tokenizer,
-        dataset_src=args.dataset_dir + key + "." + args.src_lang,
-        dataset_tgt=args.dataset_dir + key + "." + args.tgt_lang,
+        dataset_src=args.data_dir + key + "." + args.src_lang,
+        dataset_tgt=args.data_dir + key + "." + args.tgt_lang,
         tokens_in_batch=args.eval_batch_size,
         clean=False)
     eval_data_layers[key] = nemo_nlp.TranslationDataLayer(eval_dataset)
-
-do_lower_case = True
 
 zeros_transform = nemo.backends.pytorch.common.ZerosLikeNM()
 
@@ -118,7 +114,7 @@ decoder = nemo_nlp.TransformerDecoderNM(
     num_attn_heads=args.num_heads,
     ffn_dropout=args.ffn_dropout,
     vocab_size=vocab_size,
-    max_seq_length=max_sequence_length,
+    max_seq_length=args.max_seq_length,
     embedding_dropout=args.embedding_dropout,
     learn_positional_encodings=True,
     hidden_act="gelu",
@@ -134,7 +130,7 @@ t_log_softmax = nemo_nlp.TokenClassifier(args.d_model,
 beam_translator = nemo_nlp.BeamSearchTranslatorNM(
     decoder=decoder,
     log_softmax=t_log_softmax,
-    max_seq_length=max_sequence_length,
+    max_seq_length=args.max_seq_length,
     beam_size=args.beam_size,
     length_penalty=args.len_pen,
     bos_token=tokenizer.bos_id(),
