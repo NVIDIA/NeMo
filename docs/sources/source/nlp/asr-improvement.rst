@@ -2,7 +2,7 @@ Tutorial
 ===========================
 
 In this tutorial we will train an ASR postprocessing model to correct mistakes in
-output of end-to-end language model. This model method works similar to translation model in contrast to traditional ASR language model rescoring. The model architecture is attention based encoder-decoder where both encoder and decoder are initialized with pretrained BERT language model. To train this model we collected dataset with typical ASR errors by using pretrained Jasper ASR model :cite:`li2019jasper`.
+output of end-to-end speech recognition model. This model method works similar to translation model in contrast to traditional ASR language model rescoring. The model architecture is attention based encoder-decoder where both encoder and decoder are initialized with pretrained BERT language model. To train this model we collected dataset with typical ASR errors by using pretrained Jasper ASR model :cite:`li2019jasper`.
 
 Data
 -----------
