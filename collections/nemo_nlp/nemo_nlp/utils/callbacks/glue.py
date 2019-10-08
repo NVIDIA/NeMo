@@ -108,7 +108,9 @@ def pearson_and_spearman(preds, labels):
     }
 
 def compute_metrics(task_name, preds, labels):
-    assert len(preds) == len(labels)
+    if len(preds) != len(labels):
+        raise ValueError("Predictions and labels must the same lenght")
+            
     if task_name == "cola":
         return {"mcc": matthews_corrcoef(labels, preds)}
     elif task_name == "sst-2":

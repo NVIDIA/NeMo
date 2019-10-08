@@ -187,9 +187,12 @@ def convert_examples_to_features(examples,
             input_mask = input_mask + ([0 if mask_padding_with_zero else 1] * padding_length)
             segment_ids = segment_ids + ([pad_token_segment_id] * padding_length)
         
-        assert len(input_ids) == max_seq_length
-        assert len(input_mask) == max_seq_length
-        assert len(segment_ids) == max_seq_length
+        if len(input_ids) != max_seq_length:
+            raise ValueError("inpud_ids must be of length max_seq_length")
+        if len(input_mask) != max_seq_length:
+            raise ValueError("inpud_mask must be of length max_seq_length")
+        if len(segment_ids) != max_seq_length:
+            raise ValueError("segment_ids must be of length max_seq_length")
      
         if output_mode == "classification":
             label_id = label_map[example.label]
