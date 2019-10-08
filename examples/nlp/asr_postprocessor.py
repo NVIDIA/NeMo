@@ -8,8 +8,8 @@ from nemo.core.callbacks import CheckpointCallback
 from nemo.utils.lr_policies import SquareAnnealing
 
 import nemo_nlp
-from .data.tokenizers.bert_tokenizer import NemoBertTokenizer
-from .utils.callbacks.translation import \
+from nemo_nlp.data.tokenizers.bert_tokenizer import NemoBertTokenizer
+from nemo_nlp.utils.callbacks.translation import \
     eval_iter_callback, eval_epochs_done_callback_wer
 
 parser = nemo.utils.NemoArgParser(description='ASR postprocessor')
