@@ -23,11 +23,11 @@ import os
 
 
 import nemo
+from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
 from nemo.utils.lr_policies import get_lr_policy
 
 import nemo_nlp
-from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer, \
-    SequenceClassificationLoss, SequenceRegressionLoss
+from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
 from nemo_nlp.utils.callbacks.glue import \
     eval_iter_callback, eval_epochs_done_callback
  
@@ -173,9 +173,9 @@ classifier = nemo_nlp.SequenceClassifier(hidden_size=hidden_size,
                                      num_classes=num_labels, 
                                      log_softmax=False)
 if args.task_name == 'sts-b':
-    glue_loss = SequenceRegressionLoss()
+    glue_loss = MSELoss()
 else:
-    glue_loss = SequenceClassificationLoss(num_classes=num_labels)
+    glue_loss = CrossEntropyLoss()
  
     
 def create_pipeline(dataset, batch_size=args.batch_size,

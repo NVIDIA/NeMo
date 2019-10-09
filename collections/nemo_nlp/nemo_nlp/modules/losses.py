@@ -1,8 +1,6 @@
 __all__ = ['MaskedLanguageModelingLossNM',
            'LossAggregatorNM',
            'TokenClassificationLoss',
-           'SequenceClassificationLoss',
-           'SequenceRegressionLoss',
            'JointIntentSlotLoss',
            'PaddedSmoothedCrossEntropyLossNM']
 
@@ -107,61 +105,6 @@ class TokenClassificationLoss(LossNM):
 
         loss = self._criterion(active_logits, active_labels)
         return loss
-
-class SequenceClassificationLoss(LossNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "logits": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(ChannelTag)
-            }),
-            "labels": NeuralType({
-                0: AxisType(BatchTag)
-            })
-        }
-
-        output_ports = {
-            "loss": NeuralType(None)
-        }
-        return input_ports, output_ports
-    
-    def __init__(self, num_classes, **kwargs):
-        LossNM.__init__(self, **kwargs)
-        self._criterion = nn.CrossEntropyLoss()
-        self.num_classes = num_classes
-
-    def _loss_function(self, logits, labels):
-        logits = logits.view(-1, self.num_classes)
-        labels = labels.view(-1)
-        loss = self._criterion(logits, labels)
-        return loss
-    
-class SequenceRegressionLoss(LossNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "logits": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(ChannelTag)
-            }),
-            "labels": NeuralType({
-                0: AxisType(BatchTag)
-            })
-        }
-
-        output_ports = {
-            "loss": NeuralType(None)
-        }
-        return input_ports, output_ports
-    
-    def __init__(self, **kwargs):
-        LossNM.__init__(self, **kwargs)
-        self._criterion = nn.MSELoss()
-
-    def _loss_function(self, logits, labels):
-        loss = self._criterion(logits.view(-1), labels.view(-1))
-        return loss    
 
 class JointIntentSlotLoss(LossNM):
     """
