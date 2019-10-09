@@ -3,6 +3,7 @@ import sys
 import gzip
 import shutil
 import nemo
+from nemo.core import DeviceType
 
 # Get Data
 data_file = "movie_data.txt"
@@ -31,7 +32,7 @@ config = {
 }
 
 # instantiate neural factory
-nf = nemo.core.NeuralModuleFactory()
+nf = nemo.core.NeuralModuleFactory(placement=DeviceType.CPU)
 
 # instantiate neural modules
 dl = nemo.tutorials.DialogDataLayer(**config)
