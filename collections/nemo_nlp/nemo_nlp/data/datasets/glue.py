@@ -1,4 +1,4 @@
-""" 
+"""
 Copyright 2018 The Google AI Language Team Authors and
 The HuggingFace Inc. team.
 Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
@@ -27,57 +27,62 @@ from nemo.utils.exp_logging import get_logger
 
 logger = get_logger('')
 
+
 class GLUEDataset(Dataset):
-    def __init__(self, tokenizer, data_dir, max_seq_length, processor, 
-                 output_mode='classification', evaluate=False, **kwargs):
-        
+    def __init__(self,
+                 tokenizer,
+                 data_dir,
+                 max_seq_length,
+                 processor,
+                 output_mode='classification',
+                 evaluate=False,
+                 **kwargs):
         self.tokenizer = tokenizer
         self.label_list = processor.get_labels()
         self.examples = processor.get_dev_examples(data_dir) if evaluate \
             else processor.get_train_examples(data_dir)
-        
         self.features = convert_examples_to_features(
-                                                    self.examples, 
-                                                    self.label_list,     
-                                                    max_seq_length, 
-                                                    tokenizer, 
+                                                    self.examples,
+                                                    self.label_list,
+                                                    max_seq_length,
+                                                    tokenizer,
                                                     output_mode,
                                                     **kwargs
                                                     )
 
     def __len__(self):
         return len(self.features)
-    
+
     def __getitem__(self, idx):
         feature = self.features[idx]
         return np.array(feature.input_ids), np.array(feature.segment_ids), \
             np.array(feature.input_mask, dtype=np.float32), \
             np.array(feature.label_id)
 
-def convert_examples_to_features(examples, 
-                                 label_list, 
+
+def convert_examples_to_features(examples,
+                                 label_list,
                                  max_seq_length,
-                                 tokenizer, 
+                                 tokenizer,
                                  output_mode,
-                                 bos_token=None, 
-                                 eos_token='[SEP]', 
+                                 bos_token=None,
+                                 eos_token='[SEP]',
                                  pad_token='[PAD]',
-                                 cls_token='[CLS]', 
-                                 sep_token_extra=None, 
+                                 cls_token='[CLS]',
+                                 sep_token_extra=None,
                                  cls_token_at_end=False,
                                  cls_token_segment_id=0,
-                                 pad_token_segment_id=0, 
-                                 pad_on_left=False, 
+                                 pad_token_segment_id=0,
+                                 pad_on_left=False,
                                  mask_padding_with_zero=True,
-                                 sequence_a_segment_id=0, 
+                                 sequence_a_segment_id=0,
                                  sequence_b_segment_id=1):
     """ Loads a data file into a list of `InputBatch`s
         `cls_token_at_end` define the location of the CLS token:
             - False (Default, BERT/XLM pattern): [CLS] + A + [SEP] + B + [SEP]
             - True (XLNet/GPT pattern): A + [SEP] + B + [SEP] + [CLS]
-        `cls_token_segment_id` define the segment id associated to the CLS 
+        `cls_token_segment_id` define the segment id associated to the CLS
         token (0 for BERT, 2 for XLNet)
-        
          The convention in BERT is:
          (a) For sequence pairs:
           tokens:   [CLS] is this jack ##ville ? [SEP] no it is not . [SEP]
@@ -85,19 +90,16 @@ def convert_examples_to_features(examples,
          (b) For single sequences:
           tokens:   [CLS] the dog is hairy . [SEP]
           type_ids:   0   0   0   0  0     0   0
-        
          Where "type_ids" are used to indicate whether this is the first
-         sequence or the second sequence. The embedding vectors for `type=0` 
-         and `type=1` were learned during pre-training and are added to the 
-         wordpiece embedding vector (and position vector). This is 
+         sequence or the second sequence. The embedding vectors for `type=0`
+         and `type=1` were learned during pre-training and are added to the
+         wordpiece embedding vector (and position vector). This is
          not *strictly* necessarysince the [SEP] token unambiguously separates
-         the sequences, but it makes it easier for the model to learn 
+         the sequences, but it makes it easier for the model to learn
          the concept of sequences.
-        
-         For classification tasks, the first vector (corresponding to [CLS]) 
-         is used as as the "sentence vector". Note that this only makes sense 
+         For classification tasks, the first vector (corresponding to [CLS])
+         is used as as the "sentence vector". Note that this only makes sense
          because the entire model is fine-tuned.
-        
          For NMT:
          (a) For sequence pairs:
           tokens:<BOS> is this jack ##ville ? <EOS> <BOS> no it is not . <EOS>
@@ -105,9 +107,8 @@ def convert_examples_to_features(examples,
          (b) For single sequences:
           tokens:   <BOS> the dog is hairy . <EOS>
           type_ids:   0   0   0   0  0     0   0
-        
     """
-    label_map = {label : i for i, label in enumerate(label_list)}
+    label_map = {label: i for i, label in enumerate(label_list)}
 
     features = []
     for (ex_index, example) in enumerate(examples):
@@ -117,7 +118,6 @@ def convert_examples_to_features(examples,
         tokens_a = tokenizer.text_to_tokens(example.text_a)
 
         tokens_b = None
-            
         if example.text_b:
             tokens_b = tokenizer.text_to_tokens(example.text_b)
 
@@ -125,44 +125,38 @@ def convert_examples_to_features(examples,
             special_tokens_count += 1 if sep_token_extra else 0
             special_tokens_count += 2 if bos_token else 0
             special_tokens_count += 1 if cls_token else 0
-            _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - \
+            _truncate_seq_pair(tokens_a, tokens_b, max_seq_length -
                                special_tokens_count)
         else:
             special_tokens_count = 1 if eos_token else 0
             special_tokens_count += 1 if sep_token_extra else 0
             special_tokens_count += 1 if bos_token else 0
             if len(tokens_a) > max_seq_length - special_tokens_count:
-                tokens_a = tokens_a[:(max_seq_length - special_tokens_count)]
-        
+                tokens_a = tokens_a[:max_seq_length - special_tokens_count]
         # Add special tokens to sequence_a
         tokens = tokens_a
         if bos_token:
             tokens = [bos_token] + tokens
         if eos_token:
             tokens += [eos_token]
-        segment_ids = [sequence_a_segment_id] * len(tokens)    
-    
+        segment_ids = [sequence_a_segment_id] * len(tokens)
         # Add sequence separator between sequences
         if tokens_b and sep_token_extra:
             tokens += [sep_token_extra]
-            segment_ids += [sequence_a_segment_id] 
-        
+            segment_ids += [sequence_a_segment_id]
         # Add special tokens to sequence_b
         if tokens_b:
             if bos_token:
-                tokens += [bos_token] 
-                segment_ids += [sequence_b_segment_id] 
-                
-            tokens += tokens_b  
+                tokens += [bos_token]
+                segment_ids += [sequence_b_segment_id]
+            tokens += tokens_b
             segment_ids += [sequence_b_segment_id] * (len(tokens_b))
-            
             if eos_token:
                 tokens += [eos_token]
-                segment_ids += [sequence_b_segment_id] 
-        
+                segment_ids += [sequence_b_segment_id]
         # Add classification token - for BERT models
         if cls_token:
-            if cls_token_at_end: 
+            if cls_token_at_end:
                 tokens += [cls_token]
                 segment_ids += [cls_token_segment_id]
             else:
@@ -176,24 +170,25 @@ def convert_examples_to_features(examples,
 
         # Zero-pad up to the sequence length.
         padding_length = max_seq_length - len(input_ids)
-        
-        pad_token_id = tokenizer.tokens_to_ids([pad_token])[0] 
+        pad_token_id = tokenizer.tokens_to_ids([pad_token])[0]
         if pad_on_left:
             input_ids = ([pad_token_id] * padding_length) + input_ids
-            input_mask = ([0 if mask_padding_with_zero else 1] * padding_length) + input_mask
-            segment_ids = ([pad_token_segment_id] * padding_length) + segment_ids
+            input_mask = ([0 if mask_padding_with_zero else 1] *
+                          padding_length) + input_mask
+            segment_ids = ([pad_token_segment_id] * padding_length) + \
+                segment_ids
         else:
             input_ids = input_ids + ([pad_token_id] * padding_length)
-            input_mask = input_mask + ([0 if mask_padding_with_zero else 1] * padding_length)
-            segment_ids = segment_ids + ([pad_token_segment_id] * padding_length)
-        
+            input_mask = input_mask + \
+                ([0 if mask_padding_with_zero else 1] * padding_length)
+            segment_ids = segment_ids + \
+                ([pad_token_segment_id] * padding_length)
         if len(input_ids) != max_seq_length:
             raise ValueError("inpud_ids must be of length max_seq_length")
         if len(input_mask) != max_seq_length:
             raise ValueError("inpud_mask must be of length max_seq_length")
         if len(segment_ids) != max_seq_length:
             raise ValueError("segment_ids must be of length max_seq_length")
-     
         if output_mode == "classification":
             label_id = label_map[example.label]
         elif output_mode == "regression":
@@ -204,12 +199,16 @@ def convert_examples_to_features(examples,
         if ex_index < 5:
             logger.info("*** Example ***")
             logger.info("guid: %s" % (example.guid))
-            logger.info("tokens: %s" % " ".join(
-                    [str(x) for x in tokens]))
-            logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-            logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-            logger.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
-            logger.info("label: %s (id = %d)" % (example.label, label_id))
+            logger.info(
+                "tokens: %s" % " ".join([str(x) for x in tokens]))
+            logger.info(
+                "input_ids: %s" % " ".join([str(x) for x in input_ids]))
+            logger.info(
+                "input_mask: %s" % " ".join([str(x) for x in input_mask]))
+            logger.info(
+                "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+            logger.info(
+                "label: %s (id = %d)" % (example.label, label_id))
         features.append(
                 InputFeatures(input_ids=input_ids,
                               input_mask=input_mask,
@@ -217,10 +216,11 @@ def convert_examples_to_features(examples,
                               label_id=label_id))
     return features
 
+
 def _truncate_seq_pair(tokens_a, tokens_b, max_length):
     """Truncates a sequence pair in place to the maximum length.
 
-     This will always truncate the longer sequence one token at a time. 
+     This will always truncate the longer sequence one token at a time.
      This makes more sense than truncating an equal percent
      of tokens from each, since if one sequence is very short then each token
      that's truncated likely contains more information than a longer sequence.
@@ -233,6 +233,7 @@ def _truncate_seq_pair(tokens_a, tokens_b, max_length):
             tokens_a.pop()
         else:
             tokens_b.pop()
+
 
 class InputFeatures(object):
     """A single set of features of data."""

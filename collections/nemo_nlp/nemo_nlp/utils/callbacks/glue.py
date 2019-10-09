@@ -22,7 +22,7 @@ https://github.com/huggingface/transformers
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 import os
-import random 
+import random
 import numpy as np
 from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import matthews_corrcoef, f1_score
@@ -42,12 +42,12 @@ def eval_iter_callback(tensors, global_vars, eval_data_layer, output_mode):
     labels_lists = []
 
     for kv, v in tensors.items():
-     
+
         if 'logits' in kv:
             for v_tensor in v:
                 for logit_tensor in v_tensor:
                     logits_lists.append(logit_tensor.detach().cpu().tolist())
-        
+
         if 'labels' in kv:
             for v_tensor in v:
                 for label_tensor in v_tensor:
@@ -60,8 +60,10 @@ def eval_iter_callback(tensors, global_vars, eval_data_layer, output_mode):
     global_vars["all_preds"].extend(preds)
     global_vars["all_labels"].extend(labels_lists)
 
+
 def list2str(l):
     return ' '.join([str(j) for j in l])
+
 
 def eval_epochs_done_callback(global_vars, output_dir, task_name):
     labels = np.asarray(global_vars['all_labels'])
@@ -70,24 +72,26 @@ def eval_epochs_done_callback(global_vars, output_dir, task_name):
     i = 0
     if preds.shape[0] > 21:
         i = random.randint(0, preds.shape[0] - 21)
-        
+
     logger.info("Task name: %s" % task_name.upper())
     logger.info("Sampled preds: [%s]" % list2str(preds[i:i+20]))
     logger.info("Sampled labels: [%s]" % list2str(labels[i:i+20]))
-    
+
     results = compute_metrics(task_name, preds, labels)
-    
+
     os.makedirs(output_dir, exist_ok=True)
     with open(os.path.join(output_dir, task_name + '.txt'), 'w') as f:
         f.write('labels\t' + list2str(labels) + '\n')
         f.write('preds\t' + list2str(preds) + '\n')
-    
+
     logger.info(results)
 
     return results
 
+
 def simple_accuracy(preds, labels):
     return (preds == labels).mean()
+
 
 def acc_and_f1(preds, labels):
     acc = simple_accuracy(preds, labels)
@@ -98,6 +102,7 @@ def acc_and_f1(preds, labels):
         "acc_and_f1": (acc + f1) / 2,
     }
 
+
 def pearson_and_spearman(preds, labels):
     pearson_corr = pearsonr(preds, labels)[0]
     spearman_corr = spearmanr(preds, labels)[0]
@@ -107,10 +112,11 @@ def pearson_and_spearman(preds, labels):
         "corr": (pearson_corr + spearman_corr) / 2,
     }
 
+
 def compute_metrics(task_name, preds, labels):
     if len(preds) != len(labels):
         raise ValueError("Predictions and labels must the same lenght")
-            
+
     if task_name == "cola":
         return {"mcc": matthews_corrcoef(labels, preds)}
     elif task_name == "sst-2":

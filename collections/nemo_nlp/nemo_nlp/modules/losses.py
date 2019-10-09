@@ -106,6 +106,7 @@ class TokenClassificationLoss(LossNM):
         loss = self._criterion(active_logits, active_labels)
         return loss
 
+
 class JointIntentSlotLoss(LossNM):
     """
     Loss function for the joint intent classification and slot
