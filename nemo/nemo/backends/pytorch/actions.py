@@ -21,15 +21,6 @@ from ...core.callbacks import (ActionCallback,
 from ...core.neural_factory import Actions, ModelMode, Optimization
 from ...utils.helpers import get_checkpoint_from_dir
 
-try:
-    import apex
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.parallel.LARC import LARC
-    from apex import amp
-except ImportError:
-    raise ImportError(
-        "Please install apex from https://www.github.com/nvidia/apex")
-
 AmpOptimizations = {
     Optimization.mxprO0: "O0",
     Optimization.mxprO1: "O1",
@@ -339,6 +330,15 @@ class PtActions(Actions):
     def __initialize_amp(
             self, optimizer, optim_level, amp_min_loss_scale=1.0
     ):
+        try:
+            import apex
+            from apex.parallel import DistributedDataParallel as DDP
+            from apex.parallel.LARC import LARC
+            from apex import amp
+        except ImportError:
+            raise ImportError(
+                "Please install apex from https://www.github.com/nvidia/apex")
+
         if optim_level not in AmpOptimizations:
             raise ValueError("__initialize_amp() was called but optim_level "
                              "was set to float32.")
