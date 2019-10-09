@@ -1,4 +1,4 @@
-__all__ = ['SequenceLoss', 'CrossEntropyLoss']
+__all__ = ['SequenceLoss', 'CrossEntropyLoss', 'MSELoss']
 
 import torch
 from torch import nn
@@ -137,3 +137,29 @@ class CrossEntropyLoss(LossNM):
                        labels):
         loss = self._criterion(logits, labels)
         return loss
+
+class MSELoss(LossNM):
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "logits": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(ChannelTag)
+            }),
+            "labels": NeuralType({
+                0: AxisType(BatchTag)
+            })
+        }
+
+        output_ports = {
+            "loss": NeuralType(None)
+        }
+        return input_ports, output_ports
+    
+    def __init__(self, **kwargs):
+        LossNM.__init__(self, **kwargs)
+        self._criterion = nn.MSELoss()
+
+    def _loss_function(self, logits, labels):
+        loss = self._criterion(logits.view(-1), labels)
+        return loss    
