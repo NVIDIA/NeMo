@@ -138,6 +138,7 @@ class CrossEntropyLoss(LossNM):
         loss = self._criterion(logits, labels)
         return loss
 
+
 class MSELoss(LossNM):
     @staticmethod
     def create_ports():
@@ -155,11 +156,11 @@ class MSELoss(LossNM):
             "loss": NeuralType(None)
         }
         return input_ports, output_ports
-    
+
     def __init__(self, **kwargs):
         LossNM.__init__(self, **kwargs)
         self._criterion = nn.MSELoss()
 
     def _loss_function(self, logits, labels):
         loss = self._criterion(logits.view(-1), labels)
-        return loss    
+        return loss
