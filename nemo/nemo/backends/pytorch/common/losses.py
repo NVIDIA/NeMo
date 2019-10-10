@@ -143,9 +143,8 @@ class MSELoss(LossNM):
     @staticmethod
     def create_ports():
         input_ports = {
-            "logits": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(ChannelTag)
+            "preds": NeuralType({
+                0: AxisType(BatchTag)
             }),
             "labels": NeuralType({
                 0: AxisType(BatchTag)
@@ -161,6 +160,6 @@ class MSELoss(LossNM):
         LossNM.__init__(self, **kwargs)
         self._criterion = nn.MSELoss()
 
-    def _loss_function(self, logits, labels):
-        loss = self._criterion(logits.view(-1), labels)
+    def _loss_function(self, preds, labels):
+        loss = self._criterion(preds, labels)
         return loss

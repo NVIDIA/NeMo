@@ -41,21 +41,20 @@ class GLUEDataset(Dataset):
         self.label_list = processor.get_labels()
         self.examples = processor.get_dev_examples(data_dir) if evaluate \
             else processor.get_train_examples(data_dir)
-        self.features = convert_examples_to_features(
-                                                    self.examples,
-                                                    self.label_list,
-                                                    max_seq_length,
-                                                    tokenizer,
-                                                    output_mode,
-                                                    **kwargs
-                                                    )
+        self.features = convert_examples_to_features(self.examples,
+                                                     self.label_list,
+                                                     max_seq_length,
+                                                     tokenizer,
+                                                     output_mode,
+                                                     **kwargs)
 
     def __len__(self):
         return len(self.features)
 
     def __getitem__(self, idx):
         feature = self.features[idx]
-        return np.array(feature.input_ids), np.array(feature.segment_ids), \
+        return np.array(feature.input_ids), \
+            np.array(feature.segment_ids),  \
             np.array(feature.input_mask, dtype=np.float32), \
             np.array(feature.label_id)
 
@@ -111,7 +110,7 @@ def convert_examples_to_features(examples,
     label_map = {label: i for i, label in enumerate(label_list)}
 
     features = []
-    for (ex_index, example) in enumerate(examples):
+    for ex_index, example in enumerate(examples):
         if ex_index % 10000 == 0:
             logger.info("Writing example %d of %d" % (ex_index, len(examples)))
 
@@ -140,10 +139,12 @@ def convert_examples_to_features(examples,
         if eos_token:
             tokens += [eos_token]
         segment_ids = [sequence_a_segment_id] * len(tokens)
+
         # Add sequence separator between sequences
         if tokens_b and sep_token_extra:
             tokens += [sep_token_extra]
             segment_ids += [sequence_a_segment_id]
+
         # Add special tokens to sequence_b
         if tokens_b:
             if bos_token:
@@ -154,6 +155,7 @@ def convert_examples_to_features(examples,
             if eos_token:
                 tokens += [eos_token]
                 segment_ids += [sequence_b_segment_id]
+
         # Add classification token - for BERT models
         if cls_token:
             if cls_token_at_end:
@@ -184,9 +186,9 @@ def convert_examples_to_features(examples,
             segment_ids = segment_ids + \
                 ([pad_token_segment_id] * padding_length)
         if len(input_ids) != max_seq_length:
-            raise ValueError("inpud_ids must be of length max_seq_length")
+            raise ValueError("input_ids must be of length max_seq_length")
         if len(input_mask) != max_seq_length:
-            raise ValueError("inpud_mask must be of length max_seq_length")
+            raise ValueError("input_mask must be of length max_seq_length")
         if len(segment_ids) != max_seq_length:
             raise ValueError("segment_ids must be of length max_seq_length")
         if output_mode == "classification":

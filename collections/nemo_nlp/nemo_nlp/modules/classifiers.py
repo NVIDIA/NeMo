@@ -1,6 +1,7 @@
 __all__ = ['TokenClassifier',
            'SequenceClassifier',
-           'JointIntentSlotClassifier']
+           'JointIntentSlotClassifier',
+           'SequenceRegression']
 
 import torch
 import torch.nn as nn
@@ -187,3 +188,55 @@ class JointIntentSlotClassifier(TrainableNM):
         intent_logits = self.intent_mlp(hidden_states[:, 0])
         slot_logits = self.slot_mlp(hidden_states)
         return intent_logits, slot_logits
+
+
+class SequenceRegression(TrainableNM):
+    """
+    Generates a single number prediction that could be used for a regression
+    task. An example of this task would be semantic textual similatity task,
+    for example, STS-B (from GLUE tasks).
+
+    Args:
+        hidden_size (int): the size of the hidden state for the dense layer
+        dropout (float): dropout to be applied to the layer
+    """
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "hidden_states": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(ChannelTag)
+            })
+        }
+
+        output_ports = {
+            "preds": NeuralType({
+                0: AxisType(BatchTag)
+            }),
+        }
+        return input_ports, output_ports
+
+    def __init__(self,
+                 hidden_size,
+                 num_layers=2,
+                 activation='relu',
+                 dropout=0.0,
+                 use_transformer_pretrained=True):
+        super().__init__()
+        self.mlp = MultiLayerPerceptron(hidden_size,
+                                        num_classes=1,
+                                        device=self._device,
+                                        num_layers=num_layers,
+                                        activation=activation,
+                                        log_softmax=False)
+        self.dropout = nn.Dropout(dropout)
+        if use_transformer_pretrained:
+            self.apply(
+                lambda module: transformer_weights_init(module, xavier=False))
+        # self.to(self._device) # sometimes this is necessary
+
+    def forward(self, hidden_states, idx_conditioned_on=0):
+        hidden_states = self.dropout(hidden_states)
+        preds = self.mlp(hidden_states[:, idx_conditioned_on])
+        return preds.view(-1)
