@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division, print_function
-
 from collections import Counter
 from io import open
 import csv
