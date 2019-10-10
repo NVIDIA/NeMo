@@ -27,8 +27,8 @@ class TransformerEncoderNM(TrainableNM):
 
     Args:
         vocab_size: size of the vocabulary (number of tokens)
-        hidden_size: hidden size (d_model) of the Transformer
-        max_sequence_length: maximum allowed length of input sequences, feeding
+        d_model: hidden size (d_model) of the Transformer
+        max_seq_length: maximum allowed length of input sequences, feeding
             longer sequences will cause an error
         embedding_dropout: dropout ratio applied to embeddings
         learn_positional_encodings: bool, whether to learn positional encoding
@@ -36,17 +36,13 @@ class TransformerEncoderNM(TrainableNM):
         num_layers: number of layers in Transformer encoder
         mask_future: bool, whether to apply triangular future masking to the
             sequence of hidden states (which allows to use it for LM)
-        first_sub_layer: type of the first sublayer, surrently only
-            self_attention and lightweight_conv are supported
-        num_attention_heads: number of attention heads
-        inner_size: number of neurons in the intermediate part of
-            fully-connected network (second_sub_layer)
+        num_attn_heads: number of attention heads
+        d_inner: number of neurons in the intermediate part of feed-forward
+            network (FFN)
         ffn_dropout: dropout ratio applied to FFN
         attn_score_dropout: dropout ratio applied to attention scores
         attn_layer_dropout: dropout ratio applied to the output of attn layer
-        conv_kernel_size: convolution kernel size in lightweight_conv
-        conv_weight_dropout: dropout ratio applied to the convolution kernel
-        conv_layer_dropout: dropout ratio applied to the output of conv layer
+        hidden_act: activation function applied in intermediate FFN module
     """
 
     @staticmethod
@@ -117,24 +113,56 @@ class TransformerEncoderNM(TrainableNM):
 
 
 class TransformerDecoderNM(TrainableNM):
+    """
+    Neural module which consists of embedding layer followed by Transformer
+    decoder.
+
+    Args:
+        vocab_size: size of the vocabulary (number of tokens)
+        d_model: hidden size (d_model) of the Transformer
+        max_seq_length: maximum allowed length of input sequences, feeding
+            longer sequences will cause an error
+        embedding_dropout: dropout ratio applied to embeddings
+        learn_positional_encodings: bool, whether to learn positional encoding
+            or use fixed sinusoidal encodings
+        num_layers: number of layers in Transformer decoder
+        num_attn_heads: number of attention heads
+        d_inner: number of neurons in the intermediate part of feed-forward
+            network (FFN)
+        ffn_dropout: dropout ratio applied to FFN
+        attn_score_dropout: dropout ratio applied to attention scores
+        attn_layer_dropout: dropout ratio applied to the output of attn layer
+        hidden_act: activation function applied in intermediate FFN module
+    """
+
     @staticmethod
     def create_ports():
         input_ports = {
-            "input_ids_tgt": NeuralType({0: AxisType(BatchTag),
-                                         1: AxisType(TimeTag)}),
-            "hidden_states_src": NeuralType({0: AxisType(BatchTag),
-                                             1: AxisType(TimeTag),
-                                             2: AxisType(ChannelTag)}),
-            "input_mask_src": NeuralType({0: AxisType(BatchTag),
-                                          1: AxisType(TimeTag)}),
-            "input_mask_tgt": NeuralType({0: AxisType(BatchTag),
-                                          1: AxisType(TimeTag)}),
+            "input_ids_tgt": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "hidden_states_src": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(ChannelTag)
+            }),
+            "input_mask_src": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_mask_tgt": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
         }
 
         output_ports = {
-            "hidden_states": NeuralType({0: AxisType(BatchTag),
-                                         1: AxisType(TimeTag),
-                                         2: AxisType(ChannelTag)})
+            "hidden_states": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(ChannelTag)
+            })
         }
         return input_ports, output_ports
 
@@ -197,11 +225,10 @@ class GreedyLanguageGeneratorNM(TrainableNM):
     Args:
         decoder: module which maps input_ids into hidden_states
         log_softmax: module which maps hidden_states into log_probs
-        max_sequence_length: maximum allowed length of generated sequences
-        pad: index of padding token in the vocabulary
-        bos: index of beginning of sequence token in the vocabulary
-        eos: index of end of sequence token in the vocabulary
-        device: torch.device to conduct generation on
+        max_seq_length: maximum allowed length of generated sequences
+        pad_token: index of padding token in the vocabulary
+        bos_token: index of beginning of sequence token in the vocabulary
+        eos_token: index of end of sequence token in the vocabulary
         batch_size: size of the batch of generated sequences if no starting
             tokens are provided
     """
@@ -209,13 +236,17 @@ class GreedyLanguageGeneratorNM(TrainableNM):
     @staticmethod
     def create_ports():
         input_ports = {
-            "input_ids": NeuralType({0: AxisType(BatchTag),
-                                     1: AxisType(TimeTag)})
+            "input_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            })
         }
 
         output_ports = {
-            "output_ids": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(TimeTag)})
+            "output_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            })
         }
         return input_ports, output_ports
 
@@ -257,30 +288,37 @@ class BeamSearchTranslatorNM(TrainableNM):
     Args:
         decoder: module which maps input_ids into hidden_states
         log_softmax: module which maps hidden_states into log_probs
-        max_sequence_length: maximum allowed length of generated sequences
-        pad: index of padding token in the vocabulary
-        bos: index of beginning of sequence token in the vocabulary
-        eos: index of end of sequence token in the vocabulary
-        device: torch.device to conduct generation on
+        max_seq_length: maximum allowed length of generated sequences
+        pad_token: index of padding token in the vocabulary
+        bos_token: index of beginning of sequence token in the vocabulary
+        eos_token: index of end of sequence token in the vocabulary
         batch_size: size of the batch of generated sequences if no starting
             tokens are provided
         beam_size: size of the beam
-        len_pen: parameter which penalizes shorter sequences
+        max_delta_length: maximum allowed difference between generated output
+            and input sequence in case of conditional decoding
+        length_penalty: parameter which penalizes shorter sequences
     """
 
     @staticmethod
     def create_ports():
         input_ports = {
-            "hidden_states_src": NeuralType({0: AxisType(BatchTag),
-                                             1: AxisType(TimeTag),
-                                             2: AxisType(ChannelTag)}),
-            "input_mask_src": NeuralType({0: AxisType(BatchTag),
-                                          1: AxisType(TimeTag)})
+            "hidden_states_src": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(ChannelTag)
+            }),
+            "input_mask_src": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            })
         }
 
         output_ports = {
-            "output_ids": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(TimeTag)})
+            "output_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            })
         }
         return input_ports, output_ports
 

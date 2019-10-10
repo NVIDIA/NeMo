@@ -3,7 +3,6 @@ __all__ = ['TokenClassifier',
            'JointIntentSlotClassifier',
            'SequenceRegression']
 
-import torch
 import torch.nn as nn
 
 from nemo.backends.pytorch.common import MultiLayerPerceptron
@@ -14,6 +13,20 @@ from ..transformer.utils import transformer_weights_init
 
 
 class TokenClassifier(TrainableNM):
+    """
+    Neural module which consists of MLP followed by softmax classifier for each
+    token in the sequence.
+
+    Args:
+        hidden_size (int): hidden size (d_model) of the Transformer
+        num_classes (int): number of classes in softmax classifier, e.g. size
+            of the vocabulary in language modeling objective
+        num_layers (int): number of layers in classifier MLP
+        activation (str): activation function applied in classifier MLP layers
+        log_softmax (bool): whether to apply log_softmax to MLP output
+        dropout (float): dropout ratio applied to MLP
+    """
+
     @staticmethod
     def create_ports():
         input_ports = {
@@ -63,15 +76,19 @@ class TokenClassifier(TrainableNM):
 
 class SequenceClassifier(TrainableNM):
     """
-    The softmax classifier for sequence classifier task.
-    Some examples of this task would be sentiment analysis,
-    sentence classification, etc.
+    Neural module which consists of MLP followed by softmax classifier for each
+    sequence in the batch.
 
     Args:
-        hidden_size (int): the size of the hidden state for the dense layer
-        num_classes (int): number of label types
-        dropout (float): dropout to be applied to the layer
+        hidden_size (int): hidden size (d_model) of the Transformer
+        num_classes (int): number of classes in softmax classifier, e.g. number
+            of different sentiments
+        num_layers (int): number of layers in classifier MLP
+        activation (str): activation function applied in classifier MLP layers
+        log_softmax (bool): whether to apply log_softmax to MLP output
+        dropout (float): dropout ratio applied to MLP
     """
+
     @staticmethod
     def create_ports():
         input_ports = {
@@ -120,18 +137,16 @@ class SequenceClassifier(TrainableNM):
 class JointIntentSlotClassifier(TrainableNM):
     """
     The softmax classifier for the joint intent classification and slot
-    filling task.
-
-    It consists of a dense layer + relu + softmax for predicting the slots
-    and similar for predicting the intents.
+    filling task which  consists of a dense layer + relu + softmax for
+    predicting the slots and similar for predicting the intents.
 
     Args:
         hidden_size (int): the size of the hidden state for the dense layer
         num_intents (int): number of intents
         num_slots (int): number of slots
         dropout (float): dropout to be applied to the layer
-
     """
+
     @staticmethod
     def create_ports():
         input_ports = {
@@ -181,8 +196,6 @@ class JointIntentSlotClassifier(TrainableNM):
         # self.to(self._device)
 
     def forward(self, hidden_states):
-        """ hidden_states: the outputs from the previous layers
-        """
         hidden_states = self.dropout(hidden_states)
 
         intent_logits = self.intent_mlp(hidden_states[:, 0])
