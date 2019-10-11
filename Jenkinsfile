@@ -73,6 +73,17 @@ pipeline {
         }
       }
     }
+
+    stage('Multi-GPU test') {
+      failFast true
+      parallel {
+        stage('Jasper AN4 2 GPUs') {
+          steps {
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2  jasper_an4.py --amp_opt_level=O2 --num_epochs=40'
+          }
+        }
+      }
+    }
   }
   post {
     always {
