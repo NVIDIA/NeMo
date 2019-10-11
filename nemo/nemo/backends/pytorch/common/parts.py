@@ -86,7 +86,7 @@ class Attention(nn.Module):
         return output, attention_weights
 
 
-class MultiLayerPerceptron(nn.Sequential):
+class MultiLayerPerceptron(nn.Module):
     """
     A simple MLP that can either be used independently or put on top
     of pretrained models (such as BERT) and act as a classifier.
