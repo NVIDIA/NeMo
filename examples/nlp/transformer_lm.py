@@ -76,19 +76,6 @@ vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 # data layers, encoder, decoder, output log_softmax, beam_search_translator
 # and loss function
 
-
-# train_dataset = nemo_nlp.LanguageModelingDataset(
-#     tokenizer,
-#     dataset=f"{args.data_dir}/{args.train_dataset}",
-#     max_seq_length=args.max_seq_length,
-#     batch_step=args.max_seq_length)
-
-# eval_dataset = nemo_nlp.LanguageModelingDataset(
-#     tokenizer,
-#     dataset=f"{args.data_dir}/{args.eval_dataset}",
-#     max_seq_length=args.max_seq_length,
-#     batch_step=args.predict_last_k)
-
 encoder = nemo_nlp.TransformerEncoderNM(
     d_model=args.d_model,
     d_inner=args.d_inner,
@@ -135,10 +122,10 @@ train_loss = create_pipeline(f"{args.data_dir}/{args.train_dataset}",
                              args.max_seq_length,
                              batch_step=args.max_seq_length,
                              batch_size=args.batch_size)
-eval_loss = create_pipeline(f"{args.data_dir}/{args.train_dataset}",
-                             args.max_seq_length,
-                             batch_step=args.predict_last_k,
-                             batch_size=args.eval_batch_size)
+eval_loss = create_pipeline(f"{args.data_dir}/{args.eval_dataset}",
+                            args.max_seq_length,
+                            batch_step=args.predict_last_k,
+                            batch_size=args.eval_batch_size)
 
 # callback which prints training loss once in a while
 train_callback = nemo.core.SimpleLossLoggerCallback(
