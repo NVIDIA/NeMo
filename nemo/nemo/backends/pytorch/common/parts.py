@@ -122,7 +122,6 @@ class MultiLayerPerceptron(nn.Sequential):
     @property
     def last_linear_layer(self):
         return getattr(self, f'layer{self.layers-1}')
-    
 
     def forward(self, hidden_states):
         output_states = hidden_states[:]
