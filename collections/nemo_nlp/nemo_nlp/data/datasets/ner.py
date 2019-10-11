@@ -31,7 +31,7 @@ import numpy as np
 from torch.utils.data import Dataset
 
 
-class BertNERDataset(Dataset):
+class BertCornellNERDataset(Dataset):
     def __init__(self, input_file, max_seq_length, tokenizer):
         # Read the sentences and group them in sequences up to max_seq_length
         with open(input_file, "r") as f:

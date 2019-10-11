@@ -17,13 +17,13 @@ parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--pretrained_bert_model",
                     default="bert-base-uncased",
                     type=str)
-parser.add_argument("--dataset_name", default='atis', type=str)
+parser.add_argument("--dataset_name", default='snips-all', type=str)
 parser.add_argument("--data_dir",
-                    default='data/nlu/ATIS',
+                    default='data/nlu/snips',
                     type=str)
-parser.add_argument("--query", default='what time is the flight', type=str)
+parser.add_argument("--query", default='please turn on the light', type=str)
 parser.add_argument("--work_dir",
-                    default='outputs/ATIS/20190814-152523/checkpoints',
+                    default='outputs/SNIPS-ALL/20191010-164934/checkpoints',
                     type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
@@ -51,13 +51,11 @@ query = args.query
 if args.do_lower_case:
     query = query.lower()
 
-
-dataset = nemo_nlp.BertJointIntentSlotInferDataset(
+data_layer = nemo_nlp.BertJointIntentSlotInferDataLayer(
     queries=[query],
     tokenizer=tokenizer,
-    max_seq_length=args.max_seq_length)
-data_layer = nemo_nlp.BertJointIntentSlotInferDataLayer(dataset,
-                                                        batch_size=1)
+    max_seq_length=args.max_seq_length,
+    batch_size=1)
 
 
 # Create sentence classification loss on top
@@ -88,9 +86,8 @@ def concatenate(lists):
     return np.concatenate([t.cpu() for t in lists])
 
 
-intent_logits = concatenate(evaluated_tensors[0])
-slot_logits = concatenate(evaluated_tensors[1])
-slot_masks = concatenate(evaluated_tensors[2])
+intent_logits, slot_logits, slot_masks = \
+    [concatenate(tensors) for tensors in evaluated_tensors]
 
 read_intent_slot_outputs([query],
                          data_desc.intent_dict_file,

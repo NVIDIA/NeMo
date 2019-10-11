@@ -86,7 +86,7 @@ class Attention(nn.Module):
         return output, attention_weights
 
 
-class MultiLayerPerceptron(nn.Module):
+class MultiLayerPerceptron(nn.Sequential):
     """
     A simple MLP that can either be used independently or put on top
     of pretrained models (such as BERT) and act as a classifier.
@@ -108,19 +108,26 @@ class MultiLayerPerceptron(nn.Module):
                  activation='relu',
                  log_softmax=True):
         super().__init__()
-
-        self.layers = []
+        self.layers = 0
         for _ in range(num_layers - 1):
-            self.layers.append(nn.Linear(hidden_size, hidden_size).to(device))
-            self.layers.append(getattr(torch, activation))
-
-        self.layers.append(nn.Linear(hidden_size, num_classes).to(device))
+            layer = nn.Linear(hidden_size, hidden_size).to(device)
+            setattr(self, f'layer{self.layers}', layer)
+            setattr(self, f'layer{self.layers+1}', getattr(torch, activation))
+            self.layers += 2
+        layer = nn.Linear(hidden_size, num_classes).to(device)
+        setattr(self, f'layer{self.layers}', layer)
+        self.layers += 1
         self.log_softmax = log_softmax
 
+    @property
+    def last_linear_layer(self):
+        return getattr(self, f'layer{self.layers-1}')
+    
+
     def forward(self, hidden_states):
-        output_states = hidden_states
-        for layer in self.layers:
-            output_states = layer(output_states)
+        output_states = hidden_states[:]
+        for i in range(self.layers):
+            output_states = getattr(self, f'layer{i}')(output_states)
 
         if self.log_softmax:
             output_states = torch.log_softmax(
