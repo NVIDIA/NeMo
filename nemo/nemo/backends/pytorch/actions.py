@@ -1,4 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
+import importlib
 import itertools
 import logging
 import os
@@ -45,24 +46,24 @@ class PtActions(Actions):
                     optimization_level != Optimization.mxprO0
         if need_apex:
             try:
+                apex = importlib.import_module('apex')
                 if optimization_level != Optimization.mxprO0:
                     global amp
-                    amp = __import__('amp', fromlist=['apex'])
+                    amp = importlib.import_module('apex.amp')
                 if local_rank is not None:
                     global DDP
-                    DDP = __import__('DistributedDataParallel',
-                                     fromlist=['apex.parallel'])
-                    # from apex.parallel import DistributedDataParallel as DDP
                     global LARC
-                    LARC = __import__('LARC',
-                                      fromlist=['apex.parallel'])
-                    # from apex.parallel.LARC import LARC
+                    parallel = importlib.import_module('apex.parallel')
+                    DDP = parallel.DistributedDataParallel
+                    LARC = parallel.LARC
+
             except ImportError:
                 raise ImportError(
                     "NVIDIA Apex is necessary for distributed training and"
                     "mixed precision training. It only works on GPUs."
                     "Please install Apex from "
                     "https://www.github.com/nvidia/apex")
+
         super(PtActions, self).__init__(
             local_rank=local_rank,
             optimization_level=optimization_level)
