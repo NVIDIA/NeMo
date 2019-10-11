@@ -24,10 +24,10 @@ class LanguageModelingDataset(Dataset):
     def __init__(self,
                  tokenizer,
                  dataset,
-                 max_sequence_length=512,
+                 max_seq_length=512,
                  batch_step=None):
         self.tokenizer = tokenizer
-        self.max_seq_length = max_sequence_length
+        self.max_seq_length = max_seq_length
         self.batch_step = batch_step or self.max_seq_length
         ids = utils.dataset_to_ids(dataset, tokenizer, add_bos_eos=False)
         self.ids = np.array([j for i in ids for j in i])
