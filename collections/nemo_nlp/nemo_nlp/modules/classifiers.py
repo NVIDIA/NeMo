@@ -174,8 +174,9 @@ class JointIntentSlotClassifier(TrainableNM):
                  num_intents,
                  num_slots,
                  dropout=0.0,
-                 use_transformer_pretrained=True):
-        super().__init__()
+                 use_transformer_pretrained=True,
+                 **kwargs):
+        super().__init__(**kwargs)
         self.dropout = nn.Dropout(dropout)
         self.slot_mlp = MultiLayerPerceptron(hidden_size,
                                              num_classes=num_slots,
@@ -196,7 +197,6 @@ class JointIntentSlotClassifier(TrainableNM):
 
     def forward(self, hidden_states):
         hidden_states = self.dropout(hidden_states)
-
         intent_logits = self.intent_mlp(hidden_states[:, 0])
         slot_logits = self.slot_mlp(hidden_states)
         return intent_logits, slot_logits
