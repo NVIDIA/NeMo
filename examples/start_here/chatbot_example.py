@@ -1,5 +1,4 @@
 import os
-import sys
 import gzip
 import shutil
 import nemo
@@ -32,7 +31,8 @@ config = {
 }
 
 # instantiate neural factory
-nf = nemo.core.NeuralModuleFactory(placement=DeviceType.CPU)
+#nf = nemo.core.NeuralModuleFactory(placement=DeviceType.CPU)
+nf = nemo.core.NeuralModuleFactory()
 
 # instantiate neural modules
 dl = nemo.tutorials.DialogDataLayer(**config)
