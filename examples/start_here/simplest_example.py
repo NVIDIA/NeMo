@@ -2,7 +2,7 @@
 import nemo
 from nemo.core import DeviceType
 # instantiate Neural Factory with supported backend
-#nf = nemo.core.NeuralModuleFactory(placement=DeviceType.CPU)
+# nf = nemo.core.NeuralModuleFactory(placement=DeviceType.CPU)
 nf = nemo.core.NeuralModuleFactory()
 
 # instantiate necessary neural modules
