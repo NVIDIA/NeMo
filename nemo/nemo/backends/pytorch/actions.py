@@ -36,6 +36,23 @@ _float_2_half_req = {Optimization.mxprO1,
 class PtActions(Actions):
     def __init__(self, local_rank=None, tb_writer=None,
                  optimization_level=Optimization.mxprO0):
+        need_apex = local_rank is not None or \
+                    optimization_level != Optimization.mxprO0
+        if need_apex:
+            try:
+                import apex
+                if optimization_level != Optimization.mxprO0:
+                    from apex import amp
+                    print('AAAAAAAAAAAAAAAAAAAAAAA')
+                if local_rank is not None:
+                    from apex.parallel import DistributedDataParallel as DDP
+                    from apex.parallel.LARC import LARC
+            except ImportError:
+                raise ImportError(
+                    "NVIDIA Apex is necessary for distributed training and"
+                    "mixed precision training. It only works on GPUs."
+                    "Please install Apex from "
+                    "https://www.github.com/nvidia/apex")
         super(PtActions, self).__init__(
             local_rank=local_rank,
             optimization_level=optimization_level)
@@ -330,18 +347,13 @@ class PtActions(Actions):
     def __initialize_amp(
             self, optimizer, optim_level, amp_min_loss_scale=1.0
     ):
-        try:
-            import apex
-            from apex.parallel import DistributedDataParallel as DDP
-            from apex.parallel.LARC import LARC
-            from apex import amp
-        except ImportError:
-            raise ImportError(
-                "Please install apex from https://www.github.com/nvidia/apex")
-
         if optim_level not in AmpOptimizations:
-            raise ValueError("__initialize_amp() was called but optim_level "
-                             "was set to float32.")
+            raise ValueError(f"__initialize_amp() was called with unknown "
+                             "optim_level={optim_level}")
+        # in this case, nothing to do here
+        if optim_level == Optimization.mxprO0:
+            return optimizer
+
         if len(self.modules) < 1:
             raise ValueError("There were no modules to initialize")
         pt_modules = []
