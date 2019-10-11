@@ -40,13 +40,14 @@ class PtActions(Actions):
                     optimization_level != Optimization.mxprO0
         if need_apex:
             try:
-                import apex
+                apex = __import__('apex')
                 if optimization_level != Optimization.mxprO0:
-                    from apex import amp
-                    print('AAAAAAAAAAAAAAAAAAAAAAA')
+                    amp = __import__('apex.amp')
                 if local_rank is not None:
-                    from apex.parallel import DistributedDataParallel as DDP
-                    from apex.parallel.LARC import LARC
+                    DDP = __import__(apex.parallel.DistributedDataParallel)
+                    # from apex.parallel import DistributedDataParallel as DDP
+                    LARC = __import__(apex.parallel.LARC)
+                    # from apex.parallel.LARC import LARC
             except ImportError:
                 raise ImportError(
                     "NVIDIA Apex is necessary for distributed training and"
