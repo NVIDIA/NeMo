@@ -371,11 +371,12 @@ class PtActions(Actions):
             m_id = call_chain[ind][0].unique_instance_id
             pmodule = self.module_reference_table[m_id][1]
 
-            if isinstance(pmodule, DDP):
-                if disable_allreduce:
-                    pmodule.disable_allreduce()
-                else:
-                    pmodule.enable_allreduce()
+            if self._local_rank is not None:
+                if isinstance(pmodule, DDP):
+                    if disable_allreduce:
+                        pmodule.disable_allreduce()
+                    else:
+                        pmodule.enable_allreduce()
 
             if mode == ModelMode.train:
                 # if module.is_trainable():
@@ -1164,7 +1165,8 @@ class PtActions(Actions):
                     final_loss += registered_tensors[tensor.unique_name]
                 if nan:
                     continue
-                if self._optim_level in AmpOptimizations:
+                if self._optim_level in AmpOptimizations \
+                        and self._optim_level != Optimization.mxprO0:
                     with amp.scale_loss(
                             final_loss,
                             curr_optimizer,
