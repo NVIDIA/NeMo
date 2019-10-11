@@ -21,6 +21,11 @@ from ...core.callbacks import (ActionCallback,
 from ...core.neural_factory import Actions, ModelMode, Optimization
 from ...utils.helpers import get_checkpoint_from_dir
 
+# these imports will happen on as-needed basis
+amp = None
+DDP = None
+LARC = None
+
 AmpOptimizations = {
     Optimization.mxprO0: "O0",
     Optimization.mxprO1: "O1",
