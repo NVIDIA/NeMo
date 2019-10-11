@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # Copyright (c) 2019 NVIDIA Corporation
-
 import argparse
 import os
 
@@ -25,8 +24,10 @@ parser.add_argument("--lr_warmup_proportion", default=0.05, type=float)
 parser.add_argument("--optimizer", default="novograd", type=str)
 parser.add_argument("--beta1", default=0.95, type=float)
 parser.add_argument("--beta2", default=0.25, type=float)
-parser.add_argument("--amp_opt_level", default="O0",
-                    type=str, choices=["O0", "O1", "O2"])
+parser.add_argument("--amp_opt_level",
+                    default="O0",
+                    type=str,
+                    choices=["O0", "O1", "O2"])
 parser.add_argument("--weight_decay", default=0.0, type=float)
 parser.add_argument("--vocab_size", default=3200, type=int)
 parser.add_argument("--sample_size", default=1e7, type=int)
@@ -91,16 +92,15 @@ nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 bert_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
 # tie weights of MLM softmax layer and embedding layer of the encoder
-mlm_classifier.mlp.layers[-1].weight = \
+mlm_classifier.mlp.last_linear_layer.weight = \
     bert_model.bert.embeddings.word_embeddings.weight
 
 
 def create_pipeline(data_file, max_seq_length, mask_probability, batch_size):
-    dataset = nemo_nlp.BertPretrainingDataset(tokenizer,
-                                              data_file,
-                                              max_seq_length,
-                                              mask_probability)
-    data_layer = nemo_nlp.BertPretrainingDataLayer(dataset,
+    data_layer = nemo_nlp.BertPretrainingDataLayer(tokenizer,
+                                                   data_file,
+                                                   max_seq_length,
+                                                   mask_probability,
                                                    batch_size=batch_size)
     steps_per_epoch = len(data_layer) // (batch_size * args.num_gpus)
 

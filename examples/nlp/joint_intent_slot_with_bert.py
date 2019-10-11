@@ -21,11 +21,11 @@ parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=128, type=int)
 parser.add_argument("--max_seq_length", default=50, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
-parser.add_argument("--num_epochs", default=8, type=int)
+parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--num_train_samples", default=-1, type=int)
-parser.add_argument("--num_eval_samples", default=100, type=int)
+parser.add_argument("--num_eval_samples", default=-1, type=int)
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
-parser.add_argument("--lr", default=5e-5, type=float)
+parser.add_argument("--lr", default=2e-5, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
@@ -69,25 +69,6 @@ tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 data_desc = JointIntentSlotDataDesc(
     args.dataset_name, args.data_dir, args.do_lower_case)
 
-
-def get_dataset(data_desc, mode, num_samples):
-    nf.logger.info(f"Loading {mode} data...")
-    data_file = getattr(data_desc, mode + '_file')
-    slot_file = getattr(data_desc, mode + '_slot_file')
-    shuffle = args.shuffle_data if mode == 'train' else False
-    return nemo_nlp.BertJointIntentSlotDataset(
-        input_file=data_file,
-        slot_file=slot_file,
-        pad_label=data_desc.pad_label,
-        tokenizer=tokenizer,
-        max_seq_length=args.max_seq_length,
-        num_samples=num_samples,
-        shuffle=shuffle)
-
-
-train_dataset = get_dataset(data_desc, 'train', args.num_train_samples)
-eval_dataset = get_dataset(data_desc, 'eval', args.num_eval_samples)
-
 # Create sentence classification loss on top
 classifier = nemo_nlp.JointIntentSlotClassifier(
     hidden_size=hidden_size,
@@ -98,15 +79,27 @@ classifier = nemo_nlp.JointIntentSlotClassifier(
 loss_fn = nemo_nlp.JointIntentSlotLoss(num_slots=data_desc.num_slots)
 
 
-def create_pipeline(dataset,
+def create_pipeline(num_samples=-1,
                     batch_size=32,
                     num_gpus=1,
                     local_rank=0,
                     mode='train'):
-    data_layer = nemo_nlp.BertJointIntentSlotDataLayer(dataset,
-                                                       batch_size=batch_size,
-                                                       num_workers=0,
-                                                       local_rank=local_rank)
+    nf.logger.info(f"Loading {mode} data...")
+    data_file = getattr(data_desc, mode + '_file')
+    slot_file = getattr(data_desc, mode + '_slot_file')
+    shuffle = args.shuffle_data if mode == 'train' else False
+
+    data_layer = nemo_nlp.BertJointIntentSlotDataLayer(
+        input_file=data_file,
+        slot_file=slot_file,
+        pad_label=data_desc.pad_label,
+        tokenizer=tokenizer,
+        max_seq_length=args.max_seq_length,
+        num_samples=num_samples,
+        shuffle=shuffle,
+        batch_size=batch_size,
+        num_workers=0,
+        local_rank=local_rank)
 
     ids, type_ids, input_mask, slot_mask, intents, slots = data_layer()
     data_size = len(data_layer)
@@ -140,16 +133,17 @@ def create_pipeline(dataset,
 
 
 train_tensors, train_loss, steps_per_epoch, _ = create_pipeline(
-    train_dataset,
+    args.num_train_samples,
     batch_size=args.batch_size,
     num_gpus=args.num_gpus,
     local_rank=args.local_rank,
     mode='train')
-eval_tensors, _,  _, data_layer = create_pipeline(eval_dataset,
-                                                  batch_size=args.batch_size,
-                                                  num_gpus=args.num_gpus,
-                                                  local_rank=args.local_rank,
-                                                  mode='eval')
+eval_tensors, _,  _, data_layer = create_pipeline(
+    args.num_eval_samples,
+    batch_size=args.batch_size,
+    num_gpus=args.num_gpus,
+    local_rank=args.local_rank,
+    mode='eval')
 
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(

@@ -72,28 +72,26 @@ tokenizer = NemoBertTokenizer(pretrained_model=args.pretrained_model)
 vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 tokens_to_add = vocab_size - tokenizer.vocab_size
 
-train_dataset = nemo_nlp.TranslationDataset(
+train_data_layer = nemo_nlp.TranslationDataLayer(
     tokenizer_src=tokenizer,
     tokenizer_tgt=tokenizer,
     dataset_src=args.data_dir + "test." + args.src_lang,
     dataset_tgt=args.data_dir + "test." + args.tgt_lang,
     tokens_in_batch=args.batch_size,
     clean=True)
-train_data_layer = nemo_nlp.TranslationDataLayer(train_dataset)
 
 
 eval_data_layers = {}
 dataset_keys = ["dev_clean", "dev_other", "test_clean", "test_other"]
 
 for key in dataset_keys:
-    eval_dataset = nemo_nlp.TranslationDataset(
+    eval_data_layers[key] = nemo_nlp.TranslationDataLayer(
         tokenizer_src=tokenizer,
         tokenizer_tgt=tokenizer,
         dataset_src=args.data_dir + key + "." + args.src_lang,
         dataset_tgt=args.data_dir + key + "." + args.tgt_lang,
         tokens_in_batch=args.eval_batch_size,
         clean=False)
-    eval_data_layers[key] = nemo_nlp.TranslationDataLayer(eval_dataset)
 
 zeros_transform = nemo.backends.pytorch.common.ZerosLikeNM()
 
@@ -144,7 +142,7 @@ loss_eval = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(pad_id=0,
                                                       smoothing=0.0)
 
 # tie all embeddings weights
-t_log_softmax.mlp.layers[-1].weight = \
+t_log_softmax.mlp.last_linear_layer.weight = \
     encoder.bert.embeddings.word_embeddings.weight
 decoder.embedding_layer.token_embedding.weight = \
     encoder.bert.embeddings.word_embeddings.weight

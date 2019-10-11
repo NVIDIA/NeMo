@@ -29,6 +29,10 @@ parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--data_dir", default="data/ner/conll2003", type=str)
 parser.add_argument("--dataset_name", default="conll2003", type=str)
+parser.add_argument("--dataset_type",
+                    default="BertCornellNERDataset",
+                    type=str)
+parser.add_argument("--num_classes", default=5, type=int)
 parser.add_argument("--work_dir", default='outputs', type=str)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--save_epoch_freq", default=1, type=int)
@@ -75,34 +79,27 @@ else:
         config_filename=args.bert_config, factory=nf)
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 
-nf.logger.info("Loading training data...")
-train_dataset = nemo_nlp.BertNERDataset(
-    tokenizer=tokenizer,
-    input_file=f'{args.data_dir}/train.txt',
-    max_seq_length=args.max_seq_length)
-
-tag_ids = train_dataset.tag_ids
-
-nf.logger.info("Loading eval data...")
-eval_dataset = nemo_nlp.BertNERDataset(
-    tokenizer=tokenizer,
-    input_file=f'{args.data_dir}/dev.txt',
-    max_seq_length=args.max_seq_length)
-
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 ner_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
-                                          num_classes=len(tag_ids),
+                                          num_classes=args.num_classes,
                                           dropout=args.fc_dropout)
-ner_loss = nemo_nlp.TokenClassificationLoss(num_classes=len(tag_ids))
+ner_loss = nemo_nlp.TokenClassificationLoss(num_classes=args.num_classes)
 
 
-def create_pipeline(dataset, batch_size=args.batch_size,
-                    local_rank=args.local_rank, num_gpus=args.num_gpus):
+def create_pipeline(input_file,
+                    max_seq_length=args.max_seq_length,
+                    batch_size=args.batch_size,
+                    local_rank=args.local_rank,
+                    num_gpus=args.num_gpus):
     data_layer = nemo_nlp.BertTokenClassificationDataLayer(
-        dataset,
+        tokenizer=tokenizer,
+        input_file=input_file,
+        max_seq_length=max_seq_length,
+        dataset_type=args.dataset_type,
         batch_size=batch_size,
         num_workers=0,
         local_rank=local_rank)
+    tag_ids = data_layer.dataset.tag_ids
     input_ids, input_type_ids, input_mask, labels, seq_ids = data_layer()
     hidden_states = pretrained_bert_model(input_ids=input_ids,
                                           token_type_ids=input_type_ids,
@@ -110,11 +107,13 @@ def create_pipeline(dataset, batch_size=args.batch_size,
     logits = ner_classifier(hidden_states=hidden_states)
     loss = ner_loss(logits=logits, labels=labels, input_mask=input_mask)
     steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
-    return loss, steps_per_epoch, data_layer, [logits, seq_ids]
+    return loss, steps_per_epoch, tag_ids, data_layer, [logits, seq_ids]
 
 
-train_loss, steps_per_epoch, _, _ = create_pipeline(train_dataset)
-_, _, data_layer, eval_tensors = create_pipeline(eval_dataset)
+train_loss, steps_per_epoch, tag_ids, _, _ = create_pipeline(
+    input_file=f'{args.data_dir}/train.txt')
+_, _, _, data_layer, eval_tensors = create_pipeline(
+    input_file=f'{args.data_dir}/dev.txt')
 nf.logger.info(f"steps_per_epoch = {steps_per_epoch}")
 
 # Create trainer and execute training action

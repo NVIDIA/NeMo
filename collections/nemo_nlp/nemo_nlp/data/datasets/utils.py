@@ -59,7 +59,7 @@ def process_sst_2(data_dir):
     if not os.path.exists(data_dir):
         link = 'https://gluebenchmark.com/tasks'
         raise ValueError(f'Data not found at {data_dir}. '
-                         'Please download SST-2 from {link}.')
+                         f'Please download SST-2 from {link}.')
     logger.info('Keep in mind that SST-2 is only available in lower case.')
     return data_dir
 
@@ -68,7 +68,7 @@ def process_imdb(data_dir, uncased, modes=['train', 'test']):
     if not os.path.exists(data_dir):
         link = 'www.kaggle.com/iarunava/imdb-movie-reviews-dataset'
         raise ValueError(f'Data not found at {data_dir}. '
-                         'Please download IMDB from {link}.')
+                         f'Please download IMDB from {link}.')
 
     outfold = f'{data_dir}/nemo-processed'
 
