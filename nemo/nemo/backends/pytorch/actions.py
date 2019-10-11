@@ -45,16 +45,17 @@ class PtActions(Actions):
                     optimization_level != Optimization.mxprO0
         if need_apex:
             try:
-                apex = __import__('apex')
                 if optimization_level != Optimization.mxprO0:
                     global amp
-                    amp = __import__('apex.amp')
+                    amp = __import__('amp', fromlist=['apex'])
                 if local_rank is not None:
                     global DDP
-                    DDP = __import__(apex.parallel.DistributedDataParallel)
+                    DDP = __import__('DistributedDataParallel',
+                                     fromlist=['apex.parallel'])
                     # from apex.parallel import DistributedDataParallel as DDP
                     global LARC
-                    LARC = __import__(apex.parallel.LARC)
+                    LARC = __import__('LARC',
+                                      fromlist=['apex.parallel'])
                     # from apex.parallel.LARC import LARC
             except ImportError:
                 raise ImportError(
