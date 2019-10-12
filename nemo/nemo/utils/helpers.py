@@ -26,6 +26,12 @@ def rsetattr(obj, attr, val):
 
 
 def get_checkpoint_from_dir(module_names, cpkt_dir, ckpt_pattern=''):
+    """ Grab all the modules with match a certain pattern in cpkt_dir
+    If multiple checkpoints found, by default, use the one last created.
+    """
+    if not os.path.isdir(cpkt_dir):
+        raise ValueError(f"{cpkt_dir} isn't a directory")
+
     if not isinstance(module_names, Iterable):
         module_names = [module_names]
 
