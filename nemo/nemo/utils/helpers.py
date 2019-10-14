@@ -42,7 +42,12 @@ def get_checkpoint_from_dir(module_names, cpkt_dir, ckpt_pattern=''):
             raise ValueError(f'No file matches {ckpt_pattern} in {cpkt_dir}')
 
         # if multiple checkpoints match a pattern, take the latest one
-        module_ckpts = sorted(module_ckpts, key=os.path.getmtime)
+        def step_from_checkpoint(checkpoint_name):
+            # return step number given a checkpoint filename
+            step_str = checkpoint_name.split('-STEP-')[1].split('.')[0]
+            return int(step_str)
+
+        module_ckpts = sorted(module_ckpts, key=step_from_checkpoint)
         ckpts.append(module_ckpts[-1])
 
     return ckpts
