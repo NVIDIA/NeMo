@@ -47,8 +47,8 @@ def get_checkpoint_from_dir(module_names, cpkt_dir, ckpt_pattern=''):
             step_str = checkpoint_name.split('-STEP-')[1].split('.')[0]
             return int(step_str)
 
-        module_ckpts = sorted(module_ckpts, key=step_from_checkpoint)
-        ckpts.append(module_ckpts[-1])
+        module_ckpt = max(module_ckpts, key=step_from_checkpoint)
+        ckpts.append(module_ckpt)
 
     return ckpts
 
