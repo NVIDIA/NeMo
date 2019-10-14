@@ -51,7 +51,7 @@ def get_checkpoint_from_dir(module_names, cpkt_dir, ckpt_pattern=''):
         # if multiple checkpoints match a pattern, take the latest one
         def step_from_checkpoint(checkpoint_name):
             # return step number given a checkpoint filename
-            step_str = checkpoint_name.split('-STEP-')[1].split('.')[0]
+            step_str = checkpoint_name.split('-')[-1].split('.')[0]
             return int(step_str)
 
         module_ckpt = max(module_ckpts, key=step_from_checkpoint)
