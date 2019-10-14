@@ -45,7 +45,8 @@ def read_intent_slot_outputs(queries,
 
 def get_vocab(file):
     lines = open(file, 'r').readlines()
-    labels = {i: lines[i].strip() for i in range(len(lines))}
+    lines = [line.strip() for line in lines if line.strip()]
+    labels = {i: lines[i] for i in range(len(lines))}
     return labels
 
 
@@ -58,6 +59,13 @@ def write_vocab(items, outfile):
             vocab[item] = idx
             idx += 1
     return vocab
+
+
+def label2idx(file):
+    lines = open(file, 'r').readlines()
+    lines = [line.strip() for line in lines if line.strip()]
+    labels = {lines[i]: i for i in range(len(lines))}
+    return labels
 
 
 def write_vocab_in_order(vocab, outfile):
