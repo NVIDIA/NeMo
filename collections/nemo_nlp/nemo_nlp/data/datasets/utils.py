@@ -13,7 +13,10 @@ from tqdm import tqdm
 
 from nemo.utils.exp_logging import get_logger
 
-from ...utils.nlp_utils import get_vocab, write_vocab, write_vocab_in_order
+from ...utils.nlp_utils import (get_vocab,
+                                write_vocab,
+                                write_vocab_in_order,
+                                label2idx)
 
 
 logger = get_logger('')
@@ -542,46 +545,85 @@ def merge(data_dir, subdirs, dataset_name, modes=['train', 'test']):
 
 
 class JointIntentSlotDataDesc:
-    def __init__(self, dataset_name, data_dir, do_lower_case):
+    """ Convert the raw data to the standard format supported by 
+    JointIntentSlotDataset.
+
+    By default, the None label for slots is 'O'.
+
+    JointIntentSlotDataset requires two files:
+
+        input_file: file to sequence + label.
+            the first line is header (sentence [tab] label)
+            each line should be [sentence][tab][label]
+
+        slot_file: file to slot labels, each line corresponding to
+            slot labels for a sentence in input_file. No header.
+
+    To keep the mapping from label index to label consistent during
+    training and inferencing, we require the following files:
+        dicts.intents.csv: each line is an intent. The first line
+            corresponding to the 0 intent label, the second line
+            corresponding to the 1 intent label, and so on.
+
+        dicts.slots.csv: each line is a slot. The first line
+            corresponding to the 0 slot label, the second line
+            corresponding to the 1 slot label, and so on.
+
+    Args:
+        data_dir (str): the directory of the dataset
+        do_lower_case (bool): whether to set your dataset to lowercase
+        dataset_name (str): the name of the dataset. If it's a dataset
+            that follows the standard JointIntentSlotDataset format,
+            you can set the name as 'default'.
+        none_slot_label (str): the label for slots that aren't indentified
+            defaulted to 'O'
+        pad_label (int): the int used for padding. If set to -1,
+             it'll be set to the whatever the None label is.
+
+    """
+
+    def __init__(self,
+                 data_dir,
+                 do_lower_case=False,
+                 dataset_name='default',
+                 none_slot_label='O',
+                 pad_label=-1):
         if dataset_name == 'atis':
-            self.num_intents = 26
-            self.num_slots = 129
             self.data_dir = process_atis(data_dir, do_lower_case)
-            self.pad_label = self.num_slots - 1
         elif dataset_name == 'snips-atis':
             self.data_dir, self.pad_label = merge(
                 data_dir,
                 ['ATIS/nemo-processed-uncased',
                  'snips/nemo-processed-uncased/all'],
                 dataset_name)
-            self.num_intents = 41
-            self.num_slots = 140
-        elif dataset_name.startswith('snips'):
+        elif dataset_name in set(['snips-light', 'snips-speak', 'snips-all']):
             self.data_dir = process_snips(data_dir, do_lower_case)
             if dataset_name.endswith('light'):
                 self.data_dir = f'{self.data_dir}/light'
-                self.num_intents = 6
-                self.num_slots = 4
             elif dataset_name.endswith('speak'):
                 self.data_dir = f'{self.data_dir}/speak'
-                self.num_intents = 9
-                self.num_slots = 9
             elif dataset_name.endswith('all'):
                 self.data_dir = f'{self.data_dir}/all'
-                self.num_intents = 15
-                self.num_slots = 12
-            self.pad_label = self.num_slots - 1
         else:
-            logger.info("Looks like you pass in a dataset name that isn't "
-                        "already supported by NeMo. Please make sure that "
-                        "you build the preprocessing method for it.")
+            if not if_exist(data_dir, ['dict.intents.csv', 'dict.slots.csv']):
+                raise FileNotFoundError(
+                    "Make sure that your data follows the standard format "
+                    "supported by JointIntentSlotDataset. Your data must "
+                    "contain dict.intents.csv and dict.slots.csv.")
+            self.data_dir = data_dir
 
-        self.train_file = self.data_dir + '/train.tsv'
-        self.train_slot_file = self.data_dir + '/train_slots.tsv'
-        self.eval_file = self.data_dir + '/test.tsv'
-        self.eval_slot_file = self.data_dir + '/test_slots.tsv'
         self.intent_dict_file = self.data_dir + '/dict.intents.csv'
         self.slot_dict_file = self.data_dir + '/dict.slots.csv'
+        self.num_intents = len(get_vocab(self.intent_dict_file))
+        slots = label2idx(self.slot_dict_file)
+        self.num_slots = len(slots)
+        if pad_label != -1:
+            self.pad_label = pad_label
+        else:
+            if none_slot_label not in slots:
+                raise ValueError(f'none_slot_label {none_slot_label} not '
+                                 f'found in {self.slot_dict_file}.')
+            self.pad_label = slots[none_slot_label]
 
 
 class SentenceClassificationDataDesc:
