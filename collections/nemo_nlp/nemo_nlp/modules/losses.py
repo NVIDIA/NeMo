@@ -14,6 +14,13 @@ from ..utils.nlp_utils import mask_padded_tokens
 
 
 class MaskedLanguageModelingLossNM(LossNM):
+    """
+    Neural module which implements Masked Language Modeling (MLM) loss.
+
+    Args:
+        label_smoothing (float): label smoothing regularization coefficient
+    """
+
     @staticmethod
     def create_ports():
         input_ports = {
@@ -48,6 +55,13 @@ class MaskedLanguageModelingLossNM(LossNM):
 
 
 class LossAggregatorNM(LossNM):
+    """
+    Neural module which combines sums several losses into one.
+
+    Args:
+        num_inputs (int): number of input losses
+    """
+
     @staticmethod
     def create_ports(num_losses=2):
         input_ports = {}
@@ -70,6 +84,14 @@ class LossAggregatorNM(LossNM):
 
 
 class TokenClassificationLoss(LossNM):
+    """
+    Neural module which implements Token Classification loss.
+
+    Args:
+        num_classes (int): number of classes in a classifier, e.g. size
+            of the vocabulary in language modeling objective
+    """
+
     @staticmethod
     def create_ports():
         input_ports = {
@@ -152,7 +174,6 @@ class JointIntentSlotLoss(LossNM):
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            # "intent_loss_weight": NeuralType(None)
         }
 
         output_ports = {
@@ -192,10 +213,10 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
     2) allows to use label smoothing regularization
     3) allows to calculate loss for the desired number of last tokens
 
-
     Args:
-        label_smoothing: label smoothing regularization coefficient
-        predict_last_k: how many last tokens to use for the loss calculation
+        label_smoothing (float): label smoothing regularization coefficient
+        predict_last_k (int): how many last tokens to use for the loss
+            calculation, important for fast evaluation of LM perplexity
     """
 
     @staticmethod
