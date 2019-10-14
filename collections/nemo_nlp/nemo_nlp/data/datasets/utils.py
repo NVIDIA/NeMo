@@ -548,7 +548,7 @@ def merge(data_dir, subdirs, dataset_name, modes=['train', 'test']):
 
 
 class JointIntentSlotDataDesc:
-    """ Convert the raw data to the standard format supported by 
+    """ Convert the raw data to the standard format supported by
     JointIntentSlotDataset.
 
     By default, the None label for slots is 'O'.
