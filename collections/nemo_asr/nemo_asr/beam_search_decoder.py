@@ -54,6 +54,8 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
             beta,
             lm_path,
             num_cpus,
+            cutoff_prob=1.0,
+            cutoff_top_n=40,
             **kwargs):
 
         try:
@@ -80,6 +82,8 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
         self.vocab = vocab
         self.beam_width = beam_width
         self.num_cpus = num_cpus
+        self.cutoff_prob = cutoff_prob
+        self.cutoff_top_n = cutoff_top_n
 
     def forward(self, log_probs, log_probs_length):
         probs = torch.exp(log_probs)
@@ -92,5 +96,7 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
             beam_size=self.beam_width,
             num_processes=self.num_cpus,
             ext_scoring_func=self.scorer,
+            cutoff_prob=self.cutoff_prob,
+            cutoff_top_n=self.cutoff_top_n
         )
         return [res]
