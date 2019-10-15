@@ -1203,10 +1203,13 @@ class PtActions(Actions):
                             continue
                         scaled_loss.backward(
                             bps_scale.to(scaled_loss.get_device()))
+                # no AMP optimizations needed
                 else:
+                    # multi-GPU, float32
                     if self._local_rank is not None:
                         final_loss.backward(
                             bps_scale.to(final_loss.get_device()))
+                    # single device (CPU or GPU)
                     else:
                         final_loss.backward()
 
