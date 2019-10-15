@@ -1204,9 +1204,11 @@ class PtActions(Actions):
                         scaled_loss.backward(
                             bps_scale.to(scaled_loss.get_device()))
                 else:
-                    final_loss.backward(
-                        bps_scale.to(
-                            final_loss.get_device()))
+                    if self._local_rank is not None:
+                        final_loss.backward(
+                            bps_scale.to(final_loss.get_device()))
+                    else:
+                        final_loss.backward()
 
                 batch_counter += 1
 
