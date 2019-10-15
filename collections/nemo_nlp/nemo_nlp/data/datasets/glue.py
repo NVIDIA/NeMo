@@ -30,13 +30,13 @@ logger = get_logger('')
 
 class GLUEDataset(Dataset):
     def __init__(self,
-                 tokenizer,
                  data_dir,
+                 tokenizer,
                  max_seq_length,
                  processor,
-                 output_mode='classification',
-                 evaluate=False,
-                 **kwargs):
+                 output_mode,
+                 evaluate,
+                 token_params):
         self.tokenizer = tokenizer
         self.label_list = processor.get_labels()
         self.examples = processor.get_dev_examples(data_dir) if evaluate \
@@ -46,7 +46,7 @@ class GLUEDataset(Dataset):
                                                      max_seq_length,
                                                      tokenizer,
                                                      output_mode,
-                                                     **kwargs)
+                                                     **token_params)
 
     def __len__(self):
         return len(self.features)

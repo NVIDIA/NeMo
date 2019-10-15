@@ -44,6 +44,8 @@ parser.add_argument("--task_name", default="CoLA", type=str, required=True,
                              'qnli', 'rte', 'wnli'],
                     help="GLUE task name, MNLI includes both matched and \
                     mismatched tasks")
+parser.add_argument("--dataset_type", default="GLUEDataset", type=str,
+                    help='Type of dataset to create datalayers')
 parser.add_argument("--pretrained_bert_model", default="bert-base-cased",
                     type=str, help="Name of the pre-trained model")
 parser.add_argument("--bert_checkpoint", default=None, type=str,
@@ -139,34 +141,6 @@ else:
     model.restore_from(args.bert_checkpoint)
 
 hidden_size = model.local_parameters["hidden_size"]
-data_layer_params = {'bos_token': None,
-                     'eos_token': '[SEP]',
-                     'pad_token': '[PAD]',
-                     'cls_token': '[CLS]'}
-
-nf.logger.info("Loading training data...")
-train_dataset = nemo_nlp.GLUEDataset(tokenizer=tokenizer,
-                                     data_dir=args.data_dir,
-                                     max_seq_length=args.max_seq_length,
-                                     processor=task_processors[0],
-                                     output_mode=output_mode,
-                                     evaluate=False,
-                                     **data_layer_params)
-
-nf.logger.info("Loading eval data...")
-eval_datasets = []
-
-# 2 task_processors for MNLI task: matched and mismatched dev set
-for task_processor in task_processors:
-    eval_datasets.append(nemo_nlp.GLUEDataset(
-                                            tokenizer=tokenizer,
-                                            data_dir=args.data_dir,
-                                            max_seq_length=args.max_seq_length,
-                                            processor=task_processor,
-                                            output_mode=output_mode,
-                                            evaluate=True,
-                                            **data_layer_params))
-
 
 # uses [CLS] token for classification (the first token)
 if args.task_name == 'sts-b':
@@ -179,14 +153,25 @@ else:
     glue_loss = CrossEntropyLoss()
 
 
-def create_pipeline(dataset, batch_size=args.batch_size,
-                    local_rank=args.local_rank, num_gpus=args.num_gpus):
+def create_pipeline(max_seq_length=args.max_seq_length,
+                    batch_size=args.batch_size,
+                    local_rank=args.local_rank,
+                    num_gpus=args.num_gpus,
+                    evaluate=False,
+                    processor=task_processors[0]):
 
-    data_layer = nemo_nlp.BertSentenceClassificationDataLayer(
-            dataset=dataset,
-            batch_size=batch_size,
-            num_workers=0,
-           )
+    data_layer = nemo_nlp.GlueDataLayer(
+                        dataset_type=args.dataset_type,
+                        processor=processor,
+                        output_mode=output_mode,
+                        evaluate=evaluate,
+                        batch_size=batch_size,
+                        num_workers=0,
+                        local_rank=local_rank,
+                        tokenizer=tokenizer,
+                        data_dir=args.data_dir,
+                        max_seq_length=max_seq_length,
+                        token_params=token_params)
 
     input_ids, input_type_ids, input_mask, labels = data_layer()
 
@@ -207,28 +192,38 @@ def create_pipeline(dataset, batch_size=args.batch_size,
         loss = glue_loss(logits=pooler_output, labels=labels)
 
     steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
-    return loss, steps_per_epoch, [pooler_output, labels]
+    return loss, steps_per_epoch, data_layer, [pooler_output, labels]
 
 
-train_loss, steps_per_epoch, _ = create_pipeline(train_dataset)
+token_params = {'bos_token': None,
+                'eos_token': '[SEP]',
+                'pad_token': '[PAD]',
+                'cls_token': '[CLS]'}
 
-_, _, eval_tensors = create_pipeline(eval_datasets[0])
+train_loss, steps_per_epoch, _, _ = create_pipeline()
+_, _, eval_data_layer, eval_tensors = create_pipeline(evaluate=True)
+
 callbacks_eval = [nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, args.work_dir, eval_task_names[0]),
+    user_epochs_done_callback=lambda x:
+        eval_epochs_done_callback(x, args.work_dir, eval_task_names[0]),
     tb_writer=nf.tb_writer,
     eval_step=steps_per_epoch)]
 
-# create additional callback and data layer for MNLI mismatched dev set
+"""
+MNLI task has two dev sets: matched and mismatched
+Create additional callback and data layer for MNLI mismatched dev set
+"""
 if args.task_name == 'mnli':
-    _, _, eval_tensors_mm = create_pipeline(eval_datasets[1])
+    _, _, eval_data_layer_mm, eval_tensors_mm = create_pipeline(
+                                                evaluate=True,
+                                                processor=task_processors[1])
     callbacks_eval.append(nemo.core.EvaluatorCallback(
         eval_tensors=eval_tensors_mm,
         user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-        user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-            x, args.work_dir, eval_task_names[1]),
+        user_epochs_done_callback=lambda x:
+            eval_epochs_done_callback(x, args.work_dir, eval_task_names[1]),
         tb_writer=nf.tb_writer,
         eval_step=steps_per_epoch))
 
