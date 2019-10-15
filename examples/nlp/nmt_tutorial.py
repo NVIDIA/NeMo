@@ -115,7 +115,7 @@ loss_fn = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(
     label_smoothing=args.label_smoothing)
 
 # tie weight of embedding and log_softmax layers
-log_softmax.mlp.layers[-1].weight = \
+log_softmax.mlp.last_linear_layer.weight = \
     encoder.embedding_layer.token_embedding.weight
 decoder.embedding_layer.token_embedding.weight = \
     encoder.embedding_layer.token_embedding.weight
@@ -124,15 +124,14 @@ decoder.embedding_layer.token_embedding.weight = \
 def create_pipeline(dataset_src,
                     dataset_tgt,
                     tokens_in_batch,
-                    clean=True,
+                    clean=False,
                     training=True):
-    dataset = nemo_nlp.TranslationDataset(tokenizer_src=tokenizer,
-                                          tokenizer_tgt=tokenizer,
-                                          dataset_src=dataset_src,
-                                          dataset_tgt=dataset_tgt,
-                                          tokens_in_batch=tokens_in_batch,
-                                          clean=clean)
-    data_layer = nemo_nlp.TranslationDataLayer(dataset)
+    data_layer = nemo_nlp.TranslationDataLayer(tokenizer_src=tokenizer,
+                                               tokenizer_tgt=tokenizer,
+                                               dataset_src=dataset_src,
+                                               dataset_tgt=dataset_tgt,
+                                               tokens_in_batch=tokens_in_batch,
+                                               clean=clean)
     src, src_mask, tgt, tgt_mask, labels, sent_ids = data_layer()
     src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)
     tgt_hiddens = decoder(input_ids_tgt=tgt,
@@ -162,7 +161,6 @@ eval_dataset_tgt = f"{args.data_dir}/{args.eval_datasets[0]}.{args.tgt_lang}"
 eval_loss, eval_tensors = create_pipeline(eval_dataset_src,
                                           eval_dataset_tgt,
                                           args.eval_batch_size,
-                                          clean=True,
                                           training=False)
 
 # callback which prints training loss once in a while
