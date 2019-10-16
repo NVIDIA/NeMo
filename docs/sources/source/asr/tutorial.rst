@@ -298,7 +298,7 @@ Training time can be dramatically reduced if starting from a good pre-trained mo
 Inference
 ---------
 
-First download pre-trained model (jasper_encoder, jasper_decoder and configuration files) `from here <https://drive.google.com/drive/folders/1b-TQYY7o8_CQgZsVEe-8_2kHWU0lYJ-z?usp=sharing>`_ into `<path_to_checkpoints>`. We will use this pre-trained model to measure WER on LibriSpeech dev-clean dataset.
+First download pre-trained model (jasper_encoder, jasper_decoder and configuration files) `from here <https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`_ into `<path_to_checkpoints>`. We will use this pre-trained model to measure WER on LibriSpeech dev-clean dataset.
 
 .. code-block:: bash
 
