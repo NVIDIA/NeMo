@@ -283,7 +283,7 @@ Fine-tuning
 -----------
 Training time can be dramatically reduced if starting from a good pre-trained model:
 
-    (1) Obtain pre-trained model (jasper_encoder, jasper_decoder and configuration files) `from here <https://drive.google.com/drive/folders/1b-TQYY7o8_CQgZsVEe-8_2kHWU0lYJ-z?usp=sharing>`_.
+    (1) Obtain pre-trained model (jasper_encoder, jasper_decoder and configuration files) `from here <https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`_.
     (2) load pre-trained weights right after you've instantiated your jasper_encoder and jasper_decoder, like this:
 
 .. code-block:: python
