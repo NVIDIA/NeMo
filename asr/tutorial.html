@@ -455,7 +455,7 @@ Make sure it is installed.</p>
 <p>Training time can be dramatically reduced if starting from a good pre-trained model:</p>
 <blockquote>
 <div><ol class="arabic simple">
-<li><p>Obtain pre-trained model (jasper_encoder, jasper_decoder and configuration files) <a class="reference external" href="https://drive.google.com/drive/folders/1b-TQYY7o8_CQgZsVEe-8_2kHWU0lYJ-z?usp=sharing">from here</a>.</p></li>
+<li><p>Obtain pre-trained model (jasper_encoder, jasper_decoder and configuration files) <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5">from here</a>.</p></li>
 <li><p>load pre-trained weights right after you’ve instantiated your jasper_encoder and jasper_decoder, like this:</p></li>
 </ol>
 </div></blockquote>
@@ -483,18 +483,9 @@ Make sure it is installed.</p>
 <p>Perform the following steps:</p>
 <blockquote>
 <div><ul class="simple">
-<li><p>Go to <code class="docutils literal notranslate"><span class="pre">cd</span> <span class="pre">&lt;nemo_git_repo_root&gt;/scripts</span></code></p></li>
-<li><dl class="simple">
-<dt>Install Baidu’s CTC decoders (NOTE: no need for “sudo” if inside the container):</dt><dd><ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">update</span> <span class="pre">&amp;&amp;</span> <span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">swig</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">pkg-config</span> <span class="pre">libflac-dev</span> <span class="pre">libogg-dev</span> <span class="pre">libvorbis-dev</span> <span class="pre">libboost-dev</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">libsndfile1-dev</span> <span class="pre">python-setuptools</span> <span class="pre">libboost-all-dev</span> <span class="pre">python-dev</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">./install_decoders.sh</span></code></p></li>
-</ul>
-</dd>
-</dl>
-</li>
-<li><p>Build 6-gram KenLM model on LibriSpeech <code class="docutils literal notranslate"><span class="pre">./build_6-gram_OpenSLR_lm.sh</span></code></p></li>
+<li><p>Go to <cite>cd &lt;nemo_git_repo_root&gt;/scripts</cite></p></li>
+<li><p>Install Baidu’s CTC decoders <cite>sudo apt-get install swig</cite> and <cite>./install_decoders.sh</cite></p></li>
+<li><p>Build 6-gram KenLM model on LibriSpeech <cite>./build_6-gram_OpenSLR_lm.sh</cite></p></li>
 <li><p>Run jasper_infer.py with the –lm_path flag</p></li>
 </ul>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_infer.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/jasper15x5SEP.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt; --lm_path<span class="o">=</span>&lt;path_to_6gram.binary&gt;

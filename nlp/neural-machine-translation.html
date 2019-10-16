@@ -190,7 +190,7 @@
 <li><p>Target sentence is the exact copy of the source sentence <a class="bibtex reference internal" href="#ott2018analyzing" id="id2">[1]</a>.</p></li>
 </ul>
 </div></blockquote>
-<p>We use newstest2013 for development and newstest2014 for testing. All datasets, as well as the tokenizer model can be downloaded from <a class="reference external" href="https://drive.google.com/open?id=1AErD1hEg16Yt28a-IGflZnwGTg9O27DT">here</a>. In the following steps, we assume that all data is located at <strong>&lt;path_to_data&gt;</strong>.</p>
+<p>We use newstest2013 for development and newstest2014 for testing. All datasets, as well as the tokenizer model can be downloaded from <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:transformer_big_en_de_8k">here</a>. In the following steps, we assume that all data is located at <strong>&lt;path_to_data&gt;</strong>.</p>
 <p><strong>Resources.</strong> Training script <code class="docutils literal notranslate"><span class="pre">examples/nlp/nmt_tutorial.py</span></code> used in this tutorial allows to train Transformer-big architecture to <strong>29.2</strong> BLEU / <strong>28.5</strong> SacreBLEU on newstest2014 in approximately 15 hours on NVIDIA’s DGX-1 with 16GB Volta GPUs. This setup can also be replicated with fewer resources by using more steps of gradient accumulation <a class="bibtex reference internal" href="#ott2018scaling" id="id3">[2]</a>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -314,7 +314,7 @@
 <div class="section" id="translation-with-pretrained-model">
 <h2>Translation with pretrained model<a class="headerlink" href="#translation-with-pretrained-model" title="Permalink to this headline">¶</a></h2>
 <ol class="arabic">
-<li><p>Put your saved checkpoint (or download good checkpoint which obtains 28.5 SacreBLEU on newstest2014 from <a class="reference external" href="https://drive.google.com/open?id=1ra8yxIKjRGgVM2e2h7PlE4CbGpoKvqnt">here</a>) into <strong>&lt;path_to_ckpt&gt;</strong>.</p></li>
+<li><p>Put your saved checkpoint (or download good checkpoint which obtains 28.5 SacreBLEU on newstest2014 from <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:transformer_big_en_de_8k">here</a>) into <strong>&lt;path_to_ckpt&gt;</strong>.</p></li>
 <li><p>Run <code class="docutils literal notranslate"><span class="pre">nmt_tutorial.py</span></code> in an interactive mode:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">nmt_tutorial</span><span class="o">.</span><span class="n">py</span> <span class="o">--</span><span class="n">tokenizer_model</span> <span class="n">bpe8k_yttm</span><span class="o">.</span><span class="n">model</span> \
      <span class="o">--</span><span class="n">eval_datasets</span> <span class="n">test</span> <span class="o">--</span><span class="n">optimizer</span> <span class="n">novograd</span> <span class="o">--</span><span class="n">d_model</span> <span class="mi">1024</span> \
