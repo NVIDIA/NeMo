@@ -13,7 +13,7 @@ Preliminaries
     * One sentence is more than 2.5 times longer than the other.
     * Target sentence is the exact copy of the source sentence :cite:`ott2018analyzing`.
 
-We use newstest2013 for development and newstest2014 for testing. All datasets, as well as the tokenizer model can be downloaded from `here <https://drive.google.com/open?id=1AErD1hEg16Yt28a-IGflZnwGTg9O27DT>`_. In the following steps, we assume that all data is located at **<path_to_data>**.
+We use newstest2013 for development and newstest2014 for testing. All datasets, as well as the tokenizer model can be downloaded from `here <https://ngc.nvidia.com/catalog/models/nvidia:transformer_big_en_de_8k>`_. In the following steps, we assume that all data is located at **<path_to_data>**.
 
 **Resources.** Training script ``examples/nlp/nmt_tutorial.py`` used in this tutorial allows to train Transformer-big architecture to **29.2** BLEU / **28.5** SacreBLEU on newstest2014 in approximately 15 hours on NVIDIA's DGX-1 with 16GB Volta GPUs. This setup can also be replicated with fewer resources by using more steps of gradient accumulation :cite:`ott2018scaling`.
 
@@ -163,7 +163,7 @@ To train the Transformer-big model, run ``nmt_tutorial.py`` located at ``nemo/ex
 Translation with pretrained model
 ---------------------------------
 
-1. Put your saved checkpoint (or download good checkpoint which obtains 28.5 SacreBLEU on newstest2014 from `here <https://drive.google.com/open?id=1ra8yxIKjRGgVM2e2h7PlE4CbGpoKvqnt>`_) into **<path_to_ckpt>**.
+1. Put your saved checkpoint (or download good checkpoint which obtains 28.5 SacreBLEU on newstest2014 from `here <https://ngc.nvidia.com/catalog/models/nvidia:transformer_big_en_de_8k>`_) into **<path_to_ckpt>**.
 2. Run ``nmt_tutorial.py`` in an interactive mode::
 
     python nmt_tutorial.py --tokenizer_model bpe8k_yttm.model \
