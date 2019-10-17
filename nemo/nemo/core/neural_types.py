@@ -16,6 +16,8 @@ __all__ = ['BaseTag',
            'ClassTag',
            'WidthTag',
            'HeightTag',
+           'CategoricalTag',
+           'RegressionTag',
            'NeuralTypeComparisonResult',
            'AxisType',
            'NeuralType',
@@ -83,7 +85,7 @@ class EncodedRepresentationTag(ChannelTag):
 class ClassTag(BaseTag):
     """Tag for class dimension.
     For example, number of classes in classification problem,
-    vocabuary size or num of charachters for ASR."""
+    vocabuary size or num of characters for ASR."""
 
     def __str__(self):
         return "channel"
@@ -101,6 +103,22 @@ class HeightTag(BaseTag):
 
     def __str__(self):
         return "height"
+
+
+class CategoricalTag(BatchTag):
+    """Tag for labels for classification tasks."""
+
+    def __str__(self):
+        return "category"
+
+
+class RegressionTag(BatchTag):
+    """Tag for labels for regression tasks.
+    For example, this should be used in STS-B task, where labels
+    represent semantic semilarity score (float)"""
+
+    def __str__(self):
+        return "regression"
 
 
 class NeuralTypeComparisonResult(Enum):

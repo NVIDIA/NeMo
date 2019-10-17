@@ -205,13 +205,15 @@ class JointIntentSlotClassifier(TrainableNM):
 
 class SequenceRegression(TrainableNM):
     """
-    Generates a single number prediction that could be used for a regression
-    task. An example of this task would be semantic textual similatity task,
-    for example, STS-B (from GLUE tasks).
+    Neural module which consists of MLP, generates a single number prediction
+    that could be used for a regression task. An example of this task would be
+    semantic textual similatity task, for example, STS-B (from GLUE tasks).
 
     Args:
         hidden_size (int): the size of the hidden state for the dense layer
-        dropout (float): dropout to be applied to the layer
+        num_layers (int): number of layers in classifier MLP
+        activation (str): activation function applied in classifier MLP layers
+        dropout (float): dropout ratio applied to MLP
     """
     @staticmethod
     def create_ports():
@@ -225,7 +227,7 @@ class SequenceRegression(TrainableNM):
 
         output_ports = {
             "preds": NeuralType({
-                0: AxisType(BatchTag)
+                0: AxisType(RegressionTag)
             }),
         }
         return input_ports, output_ports

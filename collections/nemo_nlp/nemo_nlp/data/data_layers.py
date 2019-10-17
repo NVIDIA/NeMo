@@ -11,7 +11,8 @@ __all__ = ['TextDataLayer',
            'BertTokenClassificationDataLayer',
            'BertPretrainingDataLayer',
            'TranslationDataLayer',
-           'GlueDataLayer']
+           'GlueDataLayerClassification',
+           'GlueDataLayerRegression']
 
 # from abc import abstractmethod
 import sys
@@ -417,10 +418,10 @@ class TranslationDataLayer(TextDataLayer):
         return self._dataloader
 
 
-class GlueDataLayer(TextDataLayer):
+class GlueDataLayerClassification(TextDataLayer):
     """
-    Creates the data layer to use for the GLUE tasks, more details
-    here: https://gluebenchmark.com/tasks
+    Creates the data layer to use for the GLUE classification tasks,
+    more details here: https://gluebenchmark.com/tasks
 
     All the data processing is done in GLUEDataset.
 
@@ -445,7 +446,7 @@ class GlueDataLayer(TextDataLayer):
                 1: AxisType(TimeTag)
             }),
             "labels": NeuralType({
-                0: AxisType(BatchTag),
+                0: AxisType(CategoricalTag),
             }),
         }
         return {}, output_ports
@@ -455,7 +456,6 @@ class GlueDataLayer(TextDataLayer):
                  tokenizer,
                  max_seq_length,
                  processor,
-                 output_mode,
                  evaluate=False,
                  token_params={},
                  num_samples=-1,
@@ -463,9 +463,68 @@ class GlueDataLayer(TextDataLayer):
                  batch_size=64,
                  dataset_type=GLUEDataset,
                  **kwargs):
+
         kwargs['batch_size'] = batch_size
         dataset_params = {'data_dir': data_dir,
-                          'output_mode': output_mode,
+                          'output_mode': 'classification',
+                          'processor': processor,
+                          'evaluate': evaluate,
+                          'token_params': token_params,
+                          'tokenizer': tokenizer,
+                          'max_seq_length': max_seq_length}
+
+        super().__init__(dataset_type, dataset_params, **kwargs)
+
+
+class GlueDataLayerRegression(TextDataLayer):
+    """
+    Creates the data layer to use for the GLUE STS-B regression task,
+    more details here: https://gluebenchmark.com/tasks
+
+    All the data processing is done in GLUEDataset.
+
+    Args:
+        dataset_type (GLUEDataset):
+                the dataset that needs to be converted to DataLayerNM
+    """
+
+    @staticmethod
+    def create_ports():
+        output_ports = {
+            "input_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_type_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "labels": NeuralType({
+                0: AxisType(RegressionTag),
+            }),
+        }
+        return {}, output_ports
+
+    def __init__(self,
+                 data_dir,
+                 tokenizer,
+                 max_seq_length,
+                 processor,
+                 evaluate=False,
+                 token_params={},
+                 num_samples=-1,
+                 shuffle=False,
+                 batch_size=64,
+                 dataset_type=GLUEDataset,
+                 **kwargs):
+
+        kwargs['batch_size'] = batch_size
+        dataset_params = {'data_dir': data_dir,
+                          'output_mode': 'regression',
                           'processor': processor,
                           'evaluate': evaluate,
                           'token_params': token_params,
