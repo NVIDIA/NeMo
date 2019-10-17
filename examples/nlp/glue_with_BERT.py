@@ -16,17 +16,60 @@ limitations under the License.
 
 Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
+
+Example of running a pretrained BERT model on the 9 GLUE tasks, read more
+about GLUE benchmark here: https://gluebenchmark.com
+
+Download the GLUE data by running the script:
+https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e
+
+To run this example on 1 GPU:
+python glue_with_BERT.py  \
+--data_dir /path_to_data_dir/MRPC \
+--task_name mrpc \
+--work_dir /path_to_output_folder \
+
+To run this example on 4 GPUs with mixed precision:
+python -m torch.distributed.launch \
+--nproc_per_node=4 glue_with_BERT.py \
+--data_dir=/path_to_data/MNLI \
+--task_name mnli \
+--work_dir /path_to_output_folder \
+--num_gpus=4 \
+--amp_opt_level=O1 \
+
+The generated predictions and associated labels will be stored in the
+word_dir in {task_name}.txt along with the checkpoints and tensorboard files.
+
+Some of these tasks have a small dataset and training can lead to high variance
+in the results between different runs. Below is the median on 5 runs
+(with different seeds) for each of the metrics on the dev set of the benchmark
+with an uncased BERT base model (the checkpoint bert-base-uncased)
+(source https://github.com/huggingface/transformers/tree/master/examples#glue).
+
+Task	Metric	                        Result
+CoLA	Matthew's corr	                48.87
+SST-2	Accuracy	                    91.74
+MRPC	F1/Accuracy	                 90.70/86.27
+STS-B	Person/Spearman corr.	     91.39/91.04
+QQP	    Accuracy/F1	                 90.79/87.66
+MNLI	Matched acc./Mismatched acc. 83.70/84.83
+QNLI	Accuracy	                    89.31
+RTE	    Accuracy	                    71.43
+WNLI	Accuracy	                    43.66
+
 """
 
 import argparse
 import os
-
+import sys
 
 import nemo
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
 from nemo.utils.lr_policies import get_lr_policy
 
 import nemo_nlp
+from nemo_nlp import GlueDataLayerClassification, GlueDataLayerRegression
 from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
 from nemo_nlp.utils.callbacks.glue import \
     eval_iter_callback, eval_epochs_done_callback
@@ -66,11 +109,11 @@ parser.add_argument("--lr", default=5e-5, type=float,
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
 parser.add_argument("--weight_decay", default=0.0, type=float,
                     help="Weight deay if we apply some.")
-parser.add_argument("--num_epochs", default=2, type=int,
+parser.add_argument("--num_epochs", default=3, type=int,
                     help="Total number of training epochs to perform.")
 parser.add_argument("--batch_size", default=8, type=int,
                     help="Batch size per GPU/CPU for training/evaluation.")
-parser.add_argument("--num_gpus", default=2, type=int,
+parser.add_argument("--num_gpus", default=1, type=int,
                     help="Number of GPUs")
 parser.add_argument("--amp_opt_level", default="O0", type=str,
                     choices=["O0", "O1", "O2"],
@@ -160,18 +203,23 @@ def create_pipeline(max_seq_length=args.max_seq_length,
                     evaluate=False,
                     processor=task_processors[0]):
 
-    data_layer = nemo_nlp.GlueDataLayer(
-                        dataset_type=args.dataset_type,
-                        processor=processor,
-                        output_mode=output_mode,
-                        evaluate=evaluate,
-                        batch_size=batch_size,
-                        num_workers=0,
-                        local_rank=local_rank,
-                        tokenizer=tokenizer,
-                        data_dir=args.data_dir,
-                        max_seq_length=max_seq_length,
-                        token_params=token_params)
+    data_layer = 'GlueDataLayerClassification'
+    if output_mode == 'regression':
+        data_layer = 'GlueDataLayerRegression'
+
+    data_layer = getattr(sys.modules[__name__], data_layer)
+
+    data_layer = data_layer(
+                    dataset_type=args.dataset_type,
+                    processor=processor,
+                    evaluate=evaluate,
+                    batch_size=batch_size,
+                    num_workers=0,
+                    local_rank=local_rank,
+                    tokenizer=tokenizer,
+                    data_dir=args.data_dir,
+                    max_seq_length=max_seq_length,
+                    token_params=token_params)
 
     input_ids, input_type_ids, input_mask, labels = data_layer()
 

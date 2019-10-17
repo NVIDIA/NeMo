@@ -8,7 +8,8 @@ from nemo.core.neural_types import (NeuralType,
                                     AxisType,
                                     BatchTag,
                                     TimeTag,
-                                    ChannelTag)
+                                    ChannelTag,
+                                    RegressionTag)
 
 EPS = 1e-5
 
@@ -144,10 +145,10 @@ class MSELoss(LossNM):
     def create_ports():
         input_ports = {
             "preds": NeuralType({
-                0: AxisType(BatchTag)
+                0: AxisType(RegressionTag)
             }),
             "labels": NeuralType({
-                0: AxisType(BatchTag)
+                0: AxisType(RegressionTag)
             })
         }
 
