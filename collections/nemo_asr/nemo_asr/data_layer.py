@@ -4,8 +4,11 @@ This package contains Neural Modules responsible for ASR-related data
 processing
 """
 import torch
-from apex import amp
-
+try:
+    from apex import amp
+except AttributeError:
+    print("Unable to import APEX. Mixed precision and distributed training "
+          "will not work.")
 from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM, NonTrainableNM
 from nemo.core import Optimization, DeviceType
 from nemo.core.neural_types import (NeuralType, AxisType, BatchTag, TimeTag,
