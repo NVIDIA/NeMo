@@ -1263,7 +1263,8 @@ class PtActions(Actions):
                 mod.restore_from(checkpoint, self._local_rank)
 
             # Init Amp
-            if self._optim_level in AmpOptimizations:
+            if self._optim_level in AmpOptimizations and \
+                    self._optim_level != Optimization.mxprO0:
                 pt_modules = []
                 for i in range(len(call_chain)):
                     if isinstance(call_chain[i][0], nn.Module):
