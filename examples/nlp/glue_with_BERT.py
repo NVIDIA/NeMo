@@ -172,7 +172,7 @@ if args.bert_checkpoint is None:
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
     model = nemo_nlp.huggingface.BERT(
-        pretrained_model_name=args.pretrained_bert_model, factory=nf)
+        pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     Replace BERT-STEP-150000.pt with the path to your checkpoint.
