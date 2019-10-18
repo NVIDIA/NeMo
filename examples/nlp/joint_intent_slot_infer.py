@@ -19,12 +19,11 @@ parser.add_argument("--pretrained_bert_model",
                     default="bert-base-uncased",
                     type=str)
 parser.add_argument("--dataset_name", default='snips-all', type=str)
-parser.add_argument("--data_dir",
-                    default='data/nlu/snips',
-                    type=str)
+parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
 parser.add_argument("--work_dir",
-                    default='outputs/SNIPS-ALL/20191010-164934/checkpoints',
+                    default='outputs/SNIPS-ALL/20191014-104316/checkpoints',
                     type=str)
+parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--do_lower_case", action='store_false')
@@ -49,14 +48,15 @@ hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
 
-data_desc = JointIntentSlotDataDesc(
-    args.dataset_name, args.data_dir, args.do_lower_case)
+data_desc = JointIntentSlotDataDesc(args.data_dir,
+                                    args.do_lower_case,
+                                    args.dataset_name)
 
 # Evaluation pipeline
 nf.logger.info("Loading eval data...")
 data_layer = nemo_nlp.BertJointIntentSlotDataLayer(
-    input_file=data_desc.eval_file,
-    slot_file=data_desc.eval_slot_file,
+    input_file=f'{data_desc.data_dir}/{args.eval_file_prefix}.tsv',
+    slot_file=f'{data_desc.data_dir}/{args.eval_file_prefix}_slots.tsv',
     pad_label=data_desc.pad_label,
     tokenizer=tokenizer,
     max_seq_length=args.max_seq_length,
