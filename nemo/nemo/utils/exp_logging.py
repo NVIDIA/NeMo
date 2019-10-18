@@ -144,8 +144,9 @@ class ExpManager:
                 self.tb_writer = SummaryWriter(self.tb_dir)
             except ImportError:
                 self.tb_writer = None
-                self.logger.info('Not using TensorBoard.')
-                self.logger.info('Install tensorboardX to use TensorBoard')
+                # giving NoneType Error, so commenting out temporarily
+                #self.logger.info('Not using TensorBoard.')
+                #self.logger.info('Install tensorboardX to use TensorBoard')
         return self.tb_writer
 
     def log_exp_info(self, params, print_everywhere=False):
