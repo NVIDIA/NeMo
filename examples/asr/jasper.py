@@ -30,8 +30,10 @@ def parse_args():
     )
 
     # Overwrite default args
-    parser.add_argument("--max_steps", type=int, required=True, default=None,
+    parser.add_argument("--max_steps", type=int, default=None, required=False,
                         help="max number of steps to train")
+    parser.add_argument("--num_epochs", type=int, default=None, required=False,
+                        help="number of epochs to train")
     parser.add_argument("--model_config", type=str, required=True,
                         help="model configuration file: model.yaml")
 
@@ -42,6 +44,9 @@ def parse_args():
     parser.add_argument("--warmup_steps", default=0, type=int)
 
     args = parser.parse_args()
+
+    if args.max_steps is not None and args.num_epochs is not None:
+        raise ValueError("Either max_steps or num_epochs should be provided.")
     return args
 
 
@@ -275,6 +280,7 @@ def main():
                                   warmup_steps=args.warmup_steps),
         optimizer=args.optimizer,
         optimization_params={
+            "num_epochs": args.num_epochs,
             "max_steps": args.max_steps,
             "lr": args.lr,
             "betas": (
