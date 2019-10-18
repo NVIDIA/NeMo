@@ -537,7 +537,8 @@ class NeuralModuleFactory(object):
         self.train(
             tensors_to_optimize=None,
             optimizer='sgd',
-            callbacks=callbacks
+            callbacks=callbacks,
+            optimization_params={'num_epochs': 1}
         )
 
     def infer(self, tensors: List[NmTensor], checkpoint_dir=None,
