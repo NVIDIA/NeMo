@@ -931,6 +931,8 @@ class PtActions(Actions):
             optimization_params = {}
         num_epochs = optimization_params.get("num_epochs", None)
         max_steps = optimization_params.get("max_steps", None)
+        if num_epochs is None and max_steps is None:
+            raise ValueError("You must specify either max_steps or num_epochs")
         grad_norm_clip = optimization_params.get('grad_norm_clip', None)
 
         if batches_per_step is None:
