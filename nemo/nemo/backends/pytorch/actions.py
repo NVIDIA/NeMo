@@ -929,7 +929,7 @@ class PtActions(Actions):
               stop_on_nan_loss=False):
         if not optimization_params:
             optimization_params = {}
-        num_epochs = optimization_params.get("num_epochs", 1)
+        num_epochs = optimization_params.get("num_epochs", None)
         max_steps = optimization_params.get("max_steps", None)
         grad_norm_clip = optimization_params.get('grad_norm_clip', None)
 
@@ -1108,8 +1108,8 @@ class PtActions(Actions):
 
         # MAIN TRAINING LOOP
         # iteration over epochs
-        for epoch_ind in range(self.epoch_num, num_epochs):
-            self.epoch_num = epoch_ind
+        self.epoch_num = 0
+        while num_epochs is None or self.epoch_num < num_epochs:
             if train_sampler is not None:
                 train_sampler.set_epoch(self.epoch_num)
             if max_steps is not None and self.step >= max_steps:
@@ -1230,9 +1230,9 @@ class PtActions(Actions):
                     self._perform_on_iteration_end(callbacks=callbacks)
                     self.step += 1
             # End of epoch for loop
-
             # Register epochs end with callbacks
             self._perform_on_epoch_end(callbacks=callbacks)
+            self.epoch_num += 1
         self._perform_on_action_end(callbacks=callbacks)
 
     def infer(self,
