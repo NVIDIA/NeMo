@@ -1,4 +1,4 @@
-__all__ = ['SequenceLoss', 'CrossEntropyLoss']
+__all__ = ['SequenceLoss', 'CrossEntropyLoss', 'MSELoss']
 
 import torch
 from torch import nn
@@ -8,7 +8,8 @@ from nemo.core.neural_types import (NeuralType,
                                     AxisType,
                                     BatchTag,
                                     TimeTag,
-                                    ChannelTag)
+                                    ChannelTag,
+                                    RegressionTag)
 
 EPS = 1e-5
 
@@ -136,4 +137,30 @@ class CrossEntropyLoss(LossNM):
                        logits,
                        labels):
         loss = self._criterion(logits, labels)
+        return loss
+
+
+class MSELoss(LossNM):
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "preds": NeuralType({
+                0: AxisType(RegressionTag)
+            }),
+            "labels": NeuralType({
+                0: AxisType(RegressionTag)
+            })
+        }
+
+        output_ports = {
+            "loss": NeuralType(None)
+        }
+        return input_ports, output_ports
+
+    def __init__(self, **kwargs):
+        LossNM.__init__(self, **kwargs)
+        self._criterion = nn.MSELoss()
+
+    def _loss_function(self, preds, labels):
+        loss = self._criterion(preds, labels)
         return loss
