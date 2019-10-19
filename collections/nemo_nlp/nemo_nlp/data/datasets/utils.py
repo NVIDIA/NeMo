@@ -794,3 +794,8 @@ class BERTPretrainingDataDesc:
         self.train_file = f'{data_dir}/train.txt'
         self.eval_file = f'{data_dir}/valid.txt'
         self.test_file = f'{data_dir}/test.txt'
+
+
+def create_dst_mem_files(data_dir):
+    lang_file = f'{data_dir}/lang.pkl'
+    mem_lang_file =f'{data_dir}/mem_lang.pkl'
