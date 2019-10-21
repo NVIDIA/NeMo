@@ -287,6 +287,7 @@ class BertPretrainingDataset(Dataset):
             been masked (to calculate the loss function for these tokens only)
         """
 
+        # Whole-word masking by default, as it gives better performance.
         cand_indexes = []
         for (i, id) in enumerate(ids):
 
