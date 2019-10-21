@@ -70,8 +70,8 @@ class BertPunctuationDataset(Dataset):
                     # -1 accounts if [CLS] added
                     max_tokens_for_doc = max_seq_length - 1
 
-                    if new_seq_subtoken_count + token_count < \
-                    max_tokens_for_doc:
+                    if max_tokens_for_doc > (new_seq_subtoken_count +
+                                             token_count):
                         new_seq_words.extend(words)
                         new_seq_token_labels.extend(token_tags)
                         new_seq_subtokens.append(tokens)
@@ -202,7 +202,7 @@ class BertPunctuationDataset(Dataset):
 
                 previous_word_id = word_id
         return correct_tags, total_tags, predicted_tags, correct_labels, \
-                token_count, lines
+            token_count, lines
 
 
 def convert_sequences_to_features(seqs_words, seqs_subtokens,

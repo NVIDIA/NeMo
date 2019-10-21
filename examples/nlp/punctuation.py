@@ -31,11 +31,11 @@ parser.add_argument("--dataset_type", default="BertPunctuationDataset",
 parser.add_argument("--num_classes", default=5, type=int)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-cased", type=str)
+                    default="bert-base-uncased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str)
 parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str)
-parser.add_argument("--work_dir", default='output_glue', type=str,
+parser.add_argument("--work_dir", default='output_punctuation', type=str,
                     help="The output directory where the model prediction\
                     and checkpoints will be written.")
 parser.add_argument("--save_epoch_freq", default=1, type=int,
@@ -74,8 +74,7 @@ else:
     tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
     tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
 
-    bert_model = nemo_nlp.huggingface.BERT(
-        config_filename=args.bert_config, factory=nf)
+    bert_model = nemo_nlp.huggingface.BERT(config_filename=args.bert_config)
     bert_model.restore_from(args.bert_checkpoint)
 
 hidden_size = bert_model.local_parameters["hidden_size"]
