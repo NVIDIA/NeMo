@@ -50,15 +50,24 @@ def parse_args():
     return args
 
 
-def construct_name(name, lr, batch_size, max_steps, wd, optimizer,
+def construct_name(name, lr, batch_size, max_steps, num_epochs, wd, optimizer,
                    iter_per_step):
-    return ("{0}-lr_{1}-bs_{2}-s_{3}-wd_{4}-opt_{5}-ips_{6}".format(
-        name, lr,
-        batch_size,
-        max_steps,
-        wd,
-        optimizer,
-        iter_per_step))
+    if max_steps is not None:
+        return ("{0}-lr_{1}-bs_{2}-s_{3}-wd_{4}-opt_{5}-ips_{6}".format(
+            name, lr,
+            batch_size,
+            max_steps,
+            wd,
+            optimizer,
+            iter_per_step))
+    else:
+        return ("{0}-lr_{1}-bs_{2}-e_{3}-wd_{4}-opt_{5}-ips_{6}".format(
+            name, lr,
+            batch_size,
+            num_epochs,
+            wd,
+            optimizer,
+            iter_per_step))
 
 
 def create_all_dags(args, neural_factory):
@@ -243,6 +252,7 @@ def main():
         args.lr,
         args.batch_size,
         args.max_steps,
+        args.num_epochs,
         args.weight_decay,
         args.optimizer,
         args.iter_per_step)
