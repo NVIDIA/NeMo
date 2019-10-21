@@ -163,22 +163,23 @@ class BertPretrainingDataset(Dataset):
                                     line_idx, sentence_indices):
             # match the target seq_length
             for _ in range(10):
-                # if line_idx + 1 is larger than the file, then we don't match seq_length
-                # - it'll be a shorter seq_length.
+                # if line_idx + 1 is larger than the file, then we don't match
+                # seq_length - it'll be a shorter seq_length.
                 if len(document) < target_seq_length and \
                         line_idx + 1 < len(sentence_indices[filename]):
                     if sentence_indices[filename][line_idx + 1] < \
                             self.sentence_indices[filename][-1]:
                         line_idx += 1
-                        document += get_document(filename,
-                                                 self.sentence_indices[filename][line_idx])
+                        document += get_document(
+                           filename, self.sentence_indices[filename][line_idx])
                     else:
                         line_idx = random.choice(
                             range(len(sentence_indices[filename])))
                         document = get_document(
                             filename, sentence_indices[filename][line_idx])
                         document, line_idx = match_target_seq_length(
-                            document, target_seq_length, filename, line_idx, sentence_indices)
+                            document, target_seq_length, filename, line_idx,
+                            sentence_indices)
                 else:
                     break
 
@@ -189,7 +190,8 @@ class BertPretrainingDataset(Dataset):
         a_document = get_document(
             a_filename, self.sentence_indices[a_filename][a_line_idx])
         a_document, a_line_idx = match_target_seq_length(
-            a_document, target_seq_length_a, a_filename, a_line_idx, self.sentence_indices)
+            a_document, target_seq_length_a, a_filename, a_line_idx,
+            self.sentence_indices)
 
         if self.sentence_indices[a_filename][a_line_idx] >= \
                 self.sentence_indices[a_filename][-1] or \
@@ -216,7 +218,8 @@ class BertPretrainingDataset(Dataset):
             b_document = get_document(
                 b_filename, self.sentence_indices[b_filename][b_line_idx])
             b_document, b_line_idx = match_target_seq_length(
-                b_document, target_seq_length_b, b_filename, b_line_idx, self.sentence_indices)
+                b_document, target_seq_length_b, b_filename, b_line_idx,
+                self.sentence_indices)
 
         else:
             label = 1
@@ -226,7 +229,8 @@ class BertPretrainingDataset(Dataset):
             b_document = get_document(
                 a_filename, self.sentence_indices[a_filename][b_line_idx])
             b_document, b_line_idx = match_target_seq_length(
-                b_document, target_seq_length_b, b_filename, b_line_idx, self.sentence_indices)
+                b_document, target_seq_length_b, b_filename, b_line_idx,
+                self.sentence_indices)
 
         def truncate_seq_pair(a_document, b_document, max_num_tokens):
             # Truncates a pair of sequences to a maximum sequence length
@@ -296,8 +300,8 @@ class BertPretrainingDataset(Dataset):
         output_mask = []
         for cand_index in cand_indexes:
             if (random.random() < self.mask_probability) and \
-                    cand_index[0] != self.tokenizer.special_tokens["[CLS]"] and \
-                    cand_index[0] != self.tokenizer.special_tokens["[SEP]"]:
+                  cand_index[0] != self.tokenizer.special_tokens["[CLS]"] and \
+                  cand_index[0] != self.tokenizer.special_tokens["[SEP]"]:
                 if random.random() < 0.8:
                     for cand_index_i in cand_index:
                         output_mask.append(1)
@@ -308,8 +312,10 @@ class BertPretrainingDataset(Dataset):
                         output_mask.append(1)
                         for _ in range(10):
                             random_word = random.randrange(self.vocab_size)
-                            if random_word != self.tokenizer.special_tokens["[SEP]"] and \
-                                    random_word != self.tokenizer.special_tokens["[CLS]"]:
+                            if random_word != \
+                                    self.tokenizer.special_tokens["[SEP]"] and\
+                               random_word != \
+                                    self.tokenizer.special_tokens["[CLS]"]:
                                 break
                         masked_ids.append(random_word)
                 else:
