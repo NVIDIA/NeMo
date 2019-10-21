@@ -97,8 +97,8 @@ mlm_classifier.mlp.last_linear_layer.weight = \
     bert_model.bert.embeddings.word_embeddings.weight
 
 
-def create_pipeline(data_file, max_seq_length, mask_probability, short_seq_prob,
-                    batch_size):
+def create_pipeline(data_file, max_seq_length, mask_probability,
+                    short_seq_prob, batch_size):
     data_layer = nemo_nlp.BertPretrainingDataLayer(tokenizer,
                                                    data_file,
                                                    max_seq_length,
