@@ -2,7 +2,6 @@
 from abc import ABC, abstractmethod
 from collections import namedtuple
 import glob
-import math
 import os
 import sys
 import time
