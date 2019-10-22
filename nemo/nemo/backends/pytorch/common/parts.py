@@ -6,6 +6,7 @@ import torch
 # noinspection PyPep8Naming
 from torch import nn
 
+
 class Attention(nn.Module):
     def __init__(self, dims, method='general', dropout=0.0):
         super().__init__()

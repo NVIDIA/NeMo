@@ -145,7 +145,7 @@ transcript_n}
         if isinstance(dataset_type, str):
             dataset_type = getattr(sys.modules[__name__], dataset_type)
         self._dataset = dataset_type(**dataset_params)
-        
+
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
             self._logger.info('Parallelizing DATALAYER')
