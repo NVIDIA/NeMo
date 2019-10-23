@@ -1,8 +1,5 @@
-# Audio dataset and corresponding functions taken from Patter
-# https://github.com/ryanleary/patter
+# Taken straight from Patter https://github.com/ryanleary/patter
 # TODO: review, and copyright and fix/add comments
-import os
-import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
@@ -53,7 +50,7 @@ def seq_collate_fn(batch):
 
 def audio_seq_collate_fn(batch):
     """
-    Collate a batch (iterable of (sample tensor, label tensor) tuples) into
+    collate a batch (iterable of (sample tensor, label tensor) tuples) into
     properly shaped data tensors
     :param batch:
     :return: inputs (batch_size, num_features, seq_length), targets,
@@ -85,48 +82,34 @@ def audio_seq_collate_fn(batch):
 
 
 class AudioDataset(Dataset):
-<<<<<<< HEAD
     def __init__(self, manifest_filepath, labels, featurizer,
                  max_duration=None, min_duration=None, max_utts=0,
                  blank_index=-1, unk_index=-1, normalize=True,
-                 trim=False, eos_id=None, logger=False, load_audio=True):
-=======
-    def __init__(
-            self,
-            manifest_filepath,
-            labels,
-            featurizer,
-            max_duration=None,
-            min_duration=None,
-            max_utts=0,
-            normalize=True,
-            trim=False,
-            eos_id=None,
-            logger=False,
-            load_audio=True):
->>>>>>> Standardize ASR DataLayers/Datasets, rename and move one out of common
+                 trim=False, eos_id=None, logger=False, load_audio=True,
+                 manifest_class=ManifestEN):
         """
         Dataset that loads tensors via a json file containing paths to audio
-        files, transcripts, and durations (in seconds). Each new line is a
-        different sample. Example below:
+        files, transcripts, and durations
+        (in seconds). Each new line is a different sample. Example below:
 
         {"audio_filepath": "/path/to/audio.wav", "text_filepath":
         "/path/to/audio.txt", "duration": 23.147}
         ...
         {"audio_filepath": "/path/to/audio.wav", "text": "the
         transcription", offset": 301.75, "duration": 0.82, "utt":
-        "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+        "utterance_id",
+        "ctm_utt": "en_4156", "side": "A"}
 
         Args:
             manifest_filepath: Path to manifest json as described above. Can
-                be comma-separated paths.
+            be coma-separated paths.
             labels: String containing all the possible characters to map to
             featurizer: Initialized featurizer class that converts paths of
-                audio to feature tensors
+            audio to feature tensors
             max_duration: If audio exceeds this length, do not include in
-                dataset
+            dataset
             min_duration: If audio is less than this length, do not include
-                in dataset
+            in dataset
             max_utts: Limit number of utterances
             blank_index: blank character index, default = -1
             unk_index: unk_character index, default = -1
@@ -135,11 +118,13 @@ class AudioDataset(Dataset):
             load_audio: Boolean flag indicate whether do or not load audio
         """
         m_paths = manifest_filepath.split(',')
-        self.manifest = ManifestEN(m_paths, labels,
-                                   max_duration=max_duration,
-                                   min_duration=min_duration, max_utts=max_utts,
-                                   blank_index=blank_index, unk_index=unk_index,
-                                   normalize=normalize)
+        self.manifest = manifest_class(m_paths, labels,
+                                       max_duration=max_duration,
+                                       min_duration=min_duration,
+                                       max_utts=max_utts,
+                                       blank_index=blank_index,
+                                       unk_index=unk_index,
+                                       normalize=normalize)
         self.featurizer = featurizer
         self.trim = trim
         self.eos_id = eos_id
@@ -176,36 +161,3 @@ class AudioDataset(Dataset):
 
     def __len__(self):
         return len(self.manifest)
-
-
-class TranscriptDataset(Dataset):
-    """A dataset class that reads and returns the text of a file.
-
-    Args:
-        path: (str) Path to file with newline separate strings of text
-        labels (list): List of string labels to use when to str2int translation
-        eos_id (int): Label position of end of string symbol
-    """
-    def __init__(self, path, labels, eos_id):
-        _, ext = os.path.splitext(path)
-        if ext == '.csv':
-            texts = pd.read_csv(path)['transcript'].tolist()
-        else:
-            with open(path, 'r') as f:
-                texts = f.readlines()
-        texts = [l.strip().lower() for l in texts if len(l)]
-        self.texts = texts
-
-        self.char2num = {c: i for i, c in enumerate(labels)}
-        self.eos_id = eos_id
-
-    def __len__(self):
-        return len(self.texts)
-
-    def __getitem__(self, item):
-        char2num = self.char2num
-        return torch.tensor(
-            [char2num[c] for c in self.texts[item]
-             if c in char2num] + [self.eos_id],
-            dtype=torch.long
-        )
