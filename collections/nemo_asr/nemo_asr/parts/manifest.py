@@ -88,7 +88,7 @@ class ManifestBase():
             # split by character to get the rest of the tokens
             for char in word:
                 tokens.append(self.labels_map.get(char, self.unk_index))
-        # if unk_index == blank_index then OOV tokens are removed from transcript
+        # if unk_index == blank_index, OOV tokens are removed from transcript
         tokens = [x for x in tokens if x != self.blank_index]
         return tokens
 

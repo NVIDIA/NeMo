@@ -252,8 +252,8 @@ class JasperBlock(nn.Module):
             layers.append(nn.BatchNorm1d(out_channels, eps=1e-3, momentum=0.1))
         else:
             raise ValueError(
-                    f"Normalization method ({normalization}) does not match"
-                    f" one of [batch, layer, group, instance].")
+                f"Normalization method ({normalization}) does not match"
+                f" one of [batch, layer, group, instance].")
 
         if groups > 1:
             layers.append(GroupShuffle(groups, out_channels))

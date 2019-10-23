@@ -85,7 +85,8 @@ class AudioDataset(Dataset):
     def __init__(self, manifest_filepath, labels, featurizer,
                  max_duration=None, min_duration=None, max_utts=0,
                  blank_index=-1, unk_index=-1, normalize=True,
-                 trim=False, eos_id=None, logger=False, load_audio=True):
+                 trim=False, eos_id=None, logger=False, load_audio=True,
+                 manifest_class=ManifestEN):
         """
         Dataset that loads tensors via a json file containing paths to audio
         files, transcripts, and durations
@@ -117,11 +118,13 @@ class AudioDataset(Dataset):
             load_audio: Boolean flag indicate whether do or not load audio
         """
         m_paths = manifest_filepath.split(',')
-        self.manifest = ManifestEN(m_paths, labels,
-                                   max_duration=max_duration,
-                                   min_duration=min_duration, max_utts=max_utts,
-                                   blank_index=blank_index, unk_index=unk_index,
-                                   normalize=normalize)
+        self.manifest = manifest_class(m_paths, labels,
+                                       max_duration=max_duration,
+                                       min_duration=min_duration,
+                                       max_utts=max_utts,
+                                       blank_index=blank_index,
+                                       unk_index=unk_index,
+                                       normalize=normalize)
         self.featurizer = featurizer
         self.trim = trim
         self.eos_id = eos_id

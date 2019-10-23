@@ -95,7 +95,8 @@ class NoisePerturbation(Perturbation):
         noise_record = self._rng.sample(self._manifest.data, 1)[0]
         noise = AudioSegment.from_file(noise_record['audio_filepath'],
                                        target_sr=data.sample_rate)
-        noise_gain_db = min(data.rms_db - noise.rms_db - snr_db, self._max_gain_db)
+        noise_gain_db = min(data.rms_db - noise.rms_db - snr_db,
+                            self._max_gain_db)
         # print("DEBUG: noise:", snr_db, noise_gain_db, noise_record[
         # 'audio_filepath'])
 
