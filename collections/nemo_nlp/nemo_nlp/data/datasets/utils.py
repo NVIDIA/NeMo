@@ -547,6 +547,131 @@ def merge(data_dir, subdirs, dataset_name, modes=['train', 'test']):
     return outfold, none_slot
 
 
+
+def get_intent_query_files(path):
+    files = []
+    # r=root, d=directories, f = files
+    for r, d, f in os.walk(path):
+        for file in f:
+            if '_usersays_en.json' in file:
+                files.append(os.path.join(r, file))
+    return files
+
+def get_intents_and_slots(files, slot_labels):
+
+    intent_names = []
+    intent_queries = []
+    # intent_queries.append('sentence   label') # Should not do this as slot would go out of sync
+    slot_tags = []
+
+    for index, file in enumerate(files):
+        intent_names.append(os.path.basename(file).split('_usersays')[0])
+
+        with open(file) as json_file:
+            intent_data = json.load(json_file)
+            for query in intent_data:
+                querytext = ""
+                slots = ""
+                for segment in query['data']:
+                    querytext = ''.join([querytext, segment['text']])
+                    if 'alias' in segment:
+                        for word in segment['text'].split():
+                            slots = ' '.join([slots, slot_labels.get(segment['alias'])])
+                    else:
+                        for word in segment['text'].split():
+                            slots = ' '.join([slots, slot_labels.get('O')])
+                querytext = f'{querytext.strip()}\t{index}\n'
+                intent_queries.append(querytext)
+                slots = f'{slots.strip()}\n'
+                slot_tags.append(slots)
+
+                # TO DO 
+                # WARNING - Slot tag length and word length doesnt match at many occasions due to different tokenization from dialogflow. E.g. question marks.
+                # assert len(slot_lines) == len(input_lines)
+
+    return intent_queries, intent_names, slot_tags
+
+def get_slots(files):
+    slot_labels = {}
+    count = 0
+    for file in files:
+        intent_head_file = ''.join([file.split('_usersays')[0],'.json'])
+        with open(intent_head_file) as json_file:
+            intent_meta_data = json.load(json_file)
+            for params in intent_meta_data['responses'][0]['parameters']:
+                if params['name'] not in slot_labels:
+                    slot_labels[params['name']] = str(count)
+                    count+=1
+    slot_labels['O'] = str(count)
+    return slot_labels
+
+
+
+def process_dialogflow(data_dir, uncased, modes=['train', 'test'], dev_split=0):
+    if not os.path.exists(data_dir):
+        link = 'www.dialogflow.com'
+        raise ValueError(f'Data not found at {data_dir}. '
+                         'Export your dialogflow data from {link} and unzip at {data_dir}.')
+
+    outfold = f'{data_dir}/nemo-processed'
+    # outfold = f'{infold}/GearStore1stPhase/nemo-processed'
+    # infold = f'{infold}/GearStore1stPhase'
+    # std_format = f'{infold}/std_format'
+
+    #TO DO  - add for test
+    mode = 'train'
+
+    #TO DO  - check for nemo-processed directory already exists. If exists, skip the entire creation steps below.
+
+    os.makedirs(outfold, exist_ok=True)
+
+    files = get_intent_query_files(data_dir)
+
+    slot_labels = get_slots(files)
+
+    # print(slot_labels)
+    # print(len(slot_labels))
+
+    intent_queries, intent_names, slot_tags = get_intents_and_slots(files, slot_labels)
+
+    # print(intent_names)
+    # print(intent_queries)
+    # print(len(intent_queries))
+    # print(len(intent_names))
+    # print(len(slot_tags))
+    # print(slot_tags)
+
+    # for i, item in enumerate(intent_queries):
+    #     if '6' in slot_tags[i].split():
+    #         print(intent_queries[i], slot_tags[i])
+
+
+    with open(os.path.join(outfold, mode + '.tsv'), 'w') as f:
+        f.write('sentence\tlabel\n')
+        # querytext = f'{querytext.strip()}\t{index}\n'
+        for item in intent_queries:
+            f.write(item)
+
+            
+
+    with open(f'{outfold}/{mode}_slots.tsv', 'w') as f:
+        for item in slot_tags:
+            f.write(item)    
+
+
+    with open(f'{outfold}/dict.intents.csv', 'w') as f:
+        for intent in intent_names:
+            intent = f'{intent.strip()}\n'
+            f.write(intent)    
+
+    with open(f'{outfold}/dict.slots.csv', 'w') as f:
+        for slot in slot_labels:
+            slot = f'{slot.strip()}\n'
+            f.write(slot)    
+
+    return outfold
+
+
 class JointIntentSlotDataDesc:
     """ Convert the raw data to the standard format supported by
     JointIntentSlotDataset.
@@ -599,6 +724,13 @@ class JointIntentSlotDataDesc:
                 ['ATIS/nemo-processed-uncased',
                  'snips/nemo-processed-uncased/all'],
                 dataset_name)
+        elif dataset_name == 'dialogflow':
+            self.data_dir = process_dialogflow(data_dir, do_lower_case)    
+            # self.data_dir = ''.join([data_dir, '/GearStore1stPhase/nemo-processed'])
+
+            # num_intents = 15
+            # num_slots = 23
+            # pad_label = num_slots - 1
         elif dataset_name in set(['snips-light', 'snips-speak', 'snips-all']):
             self.data_dir = process_snips(data_dir, do_lower_case)
             if dataset_name.endswith('light'):
