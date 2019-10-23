@@ -24,8 +24,9 @@ def parse_args():
         optimizer="novograd",
         batch_size=64,
         eval_batch_size=64,
-        lr=0.02,
-        amp_opt_level="O1",
+        lr=0.01,
+        weight_decay=0.001,
+        amp_opt_level="O0",
         create_tb_writer=True
     )
 
@@ -39,8 +40,8 @@ def parse_args():
     # Create new args
     parser.add_argument("--exp_name", default="QuartzNet", type=str)
     parser.add_argument("--beta1", default=0.95, type=float)
-    parser.add_argument("--beta2", default=0.25, type=float)
-    parser.add_argument("--warmup_steps", default=0, type=int)
+    parser.add_argument("--beta2", default=0.5, type=float)
+    parser.add_argument("--warmup_steps", default=1000, type=int)
     parser.add_argument("--load_dir", default=None, type=str)
 
     args = parser.parse_args()
