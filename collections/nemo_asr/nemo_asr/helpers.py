@@ -28,7 +28,9 @@ def __ctc_decoder_predictions_tensor(tensor, labels):
     return hypotheses
 
 
-def monitor_asr_train_progress(tensors: list, labels: list, tb_logger=None,
+def monitor_asr_train_progress(tensors: list, labels: list,
+                               use_wer=True,
+                               tb_logger=None,
                                logger=None):
     """
     Takes output of greedy ctc decoder and performs ctc decoding algorithm to
@@ -37,8 +39,9 @@ def monitor_asr_train_progress(tensors: list, labels: list, tb_logger=None,
     Args:
       tensors: A list of 3 tensors (predictions, targets, target_lengths)
       labels: A list of labels
+      use_wer: bool, set False to enable cer
       tb_logger: Tensorboard logging object
-
+      logger:
     Returns:
       None
     """
@@ -58,8 +61,9 @@ def monitor_asr_train_progress(tensors: list, labels: list, tb_logger=None,
             references.append(reference)
         hypotheses = __ctc_decoder_predictions_tensor(
             tensors[1], labels=labels)
-    tag = "training_batch_WER"
-    wer = word_error_rate(hypotheses, references)
+    error_type = 'WER' if use_wer else 'CER'
+    tag = "training_batch_{}".format(error_type)
+    wer = word_error_rate(hypotheses, references, use_wer=use_wer)
     if tb_logger is not None:
         tb_logger.add_scalar(tag, wer)
     if logger:
@@ -134,7 +138,8 @@ def process_evaluation_batch(tensors: dict, global_vars: dict, labels: list):
                                                        labels=labels)
 
 
-def process_evaluation_epoch(global_vars: dict, tag=None, logger=None):
+def process_evaluation_epoch(global_vars: dict,
+                             use_wer=True, tag=None, logger=None):
     """
     Calculates the aggregated loss and WER across the entire evaluation dataset
     """
@@ -142,24 +147,32 @@ def process_evaluation_epoch(global_vars: dict, tag=None, logger=None):
     hypotheses = global_vars['predictions']
     references = global_vars['transcripts']
 
-    wer = word_error_rate(hypotheses=hypotheses, references=references)
+    wer = word_error_rate(hypotheses=hypotheses,
+                          references=references,
+                          use_wer=use_wer)
+    err_type = 'WER'
+    if not use_wer:
+        err_type = 'CER'
     if tag is None:
         if logger:
             logger.info(f"==========>>>>>>Evaluation Loss: {eloss}")
-            logger.info(f"==========>>>>>>Evaluation WER: {wer*100 : 5.2f}%")
+            logger.info(f"==========>>>>>>Evaluation {err_type}: "
+                        f"{wer*100 : 5.2f}%")
         else:
             print(f"==========>>>>>>Evaluation Loss: {eloss}")
-            print(f"==========>>>>>>Evaluation WER: {wer*100 : 5.2f}%")
-        return {"Evaluation_Loss": eloss, "Evaluation_WER": wer}
+            print(f"==========>>>>>>Evaluation {err_type}: {wer*100 : 5.2f}%")
+        return {"Evaluation_Loss": eloss, f"Evaluation_{err_type}": wer}
     else:
         if logger:
             logger.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
-            logger.info(f"==========>>>>>>Evaluation WER {tag}: "
+            logger.info(f"==========>>>>>>Evaluation {err_type} {tag}: "
                         f"{wer*100 : 5.2f}%")
         else:
             print(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
-            print(f"==========>>>>>>Evaluation WER {tag}: {wer*100 : 5.2f}%")
-        return {f"Evaluation_Loss_{tag}": eloss, f"Evaluation_WER_{tag}": wer}
+            print(f"==========>>>>>>Evaluation {err_type} {tag}:"
+                  f" {wer*100 : 5.2f}%")
+        return {f"Evaluation_Loss_{tag}": eloss,
+                f"Evaluation_{err_type}_{tag}": wer}
 
 
 def post_process_predictions(predictions, labels):
