@@ -352,6 +352,7 @@ class EvaluatorCallback(ActionCallback):
             user_iter_callback,
             user_epochs_done_callback,
             tb_writer=None,
+            tb_writer_func=None,
             eval_step=1,
             eval_epoch=None,
     ):
@@ -369,6 +370,7 @@ class EvaluatorCallback(ActionCallback):
         super().__init__()
         self._eval_tensors = eval_tensors
         self._swriter = tb_writer
+        self._tb_writer_func = tb_writer_func
         self._eval_frequency = eval_step
         # will be passed to callbacks below
         self._global_var_dict = {}
@@ -380,6 +382,14 @@ class EvaluatorCallback(ActionCallback):
     @property
     def eval_tensors(self):
         return self._eval_tensors
+
+    @property
+    def tb_writer_func(self):
+        return self._tb_writer_func
+
+    @property
+    def swriter(self):
+        return self._swriter
 
     def on_epoch_end(self):
         pass

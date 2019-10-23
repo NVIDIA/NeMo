@@ -133,9 +133,21 @@ tensors from values_dict to global_var_dict as global_var_dict is saved
 between batches and passed to the final user_epochs_done_callback function.
 
 user_epochs_done_callback is a function that accepts global_var_dict. It's job
-is to log relevant information to the screen such as the evaluation loss. It
+is to log relevant information to the screen such as the evaluation loss.
+
+For simple logging of scalar values to tensorboard, user_epochs_done_callback
 should return a dictionary with strings as keys and scalar tensors as values.
 This tag -> value dictionary will be parsed and each element will be logged
 to tensorboard if a tensorboard writter object is declared.
+
+To enable more complex tensorboard logging such as images or audio,
+EvaluatorCallback must be passed tb_writer_func at initialization. This
+function must accept a
+`tensorboardX.SummaryWriter <https://tensorboardx.readthedocs.io/en/latest/tensorboard.html>`_
+and whatever is returned from user_epochs_done_callback. We recommend for
+user_epochs_done_callback to simply return the global_var_dict for
+tb_writer_func to consume. The user must log all data of interest inside
+tb_writer_func including scalars that would otherwise be logged if
+tb_writer_func was not passed to EvaluatorCallback.
 
 For an example, please see the scripts inside <nemo_dir>/examples.
