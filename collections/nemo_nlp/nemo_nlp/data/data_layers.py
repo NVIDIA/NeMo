@@ -215,8 +215,26 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
 
 
 class LanguageModelingDataLayer(TextDataLayer):
+    """
+    Data layer for standard language modeling task.
+
+    Args:
+        dataset (str): path to text document with data
+        tokenizer (TokenizerSpec): tokenizer
+        max_seq_length (int): maximum allowed length of the text segments
+        batch_step (int): how many tokens to skip between two successive
+            segments of text when constructing batches
+    """
+
     @staticmethod
     def create_ports():
+        """
+        input_ids: indices of tokens which constitute batches of text segments
+        input_mask: bool tensor with 0s in place of tokens to be masked
+        labels: indices of tokens which should be predicted from each of the
+            corresponding tokens in input_ids; for left-to-right language
+            modeling equals to input_ids shifted by 1 to the right
+        """
         input_ports = {}
         output_ports = {
             "input_ids":
@@ -295,8 +313,29 @@ class BertTokenClassificationDataLayer(TextDataLayer):
 
 
 class BertPretrainingDataLayer(TextDataLayer):
+    """
+    Data layer for masked language modeling task.
+
+    Args:
+        tokenizer (TokenizerSpec): tokenizer
+        dataset (str): directory or a single file with dataset documents
+        max_seq_length (int): maximum allowed length of the text segments
+        mask_probability (float): probability of masking input sequence tokens
+        batch_size (int): batch size in segments
+    """
+
     @staticmethod
     def create_ports():
+        """
+        input_ids: indices of tokens which constitute batches of text segments
+        input_type_ids: indices of token types (e.g., sentences A & B in BERT)
+        input_mask: bool tensor with 0s in place of tokens to be masked
+        output_ids: indices of output tokens which should be predicted
+        output_mask: bool tensor with 0s in place of tokens to be excluded
+            from loss calculation
+        labels: indices of classes to be predicted from [CLS] token of text
+            segments (e.g, 0 or 1 in next sentence prediction task)
+        """
         input_ports = {}
         output_ports = {
             "input_ids": NeuralType({
@@ -342,8 +381,36 @@ class BertPretrainingDataLayer(TextDataLayer):
 
 
 class TranslationDataLayer(TextDataLayer):
+    """
+    Data layer for neural machine translation from source (src) language to
+    target (tgt) language.
+
+    Args:
+        tokenizer_src (TokenizerSpec): source language tokenizer
+        tokenizer_tgt (TokenizerSpec): target language tokenizer
+        dataset_src (str): path to source data
+        dataset_tgt (str): path to target data
+        tokens_in_batch (int): maximum allowed number of tokens in batches,
+            batches will be constructed to minimize the use of <pad> tokens
+        clean (bool): whether to use parallel data cleaning such as removing
+            pairs with big difference in sentences length, removing pairs with
+            the same tokens in src and tgt, etc; useful for training data layer
+            and should not be used in evaluation data layer
+    """
+
     @staticmethod
     def create_ports():
+        """
+        src_ids: indices of tokens which correspond to source sentences
+        src_mask: bool tensor with 0s in place of source tokens to be masked
+        tgt_ids: indices of tokens which correspond to target sentences
+        tgt_mask: bool tensor with 0s in place of target tokens to be masked
+        labels: indices of tokens which should be predicted from each of the
+            corresponding target tokens in tgt_ids; for standard neural
+            machine translation equals to tgt_ids shifted by 1 to the right
+        sent_ids: indices of the sentences in a batch; important for
+            evaluation with external metrics, such as SacreBLEU
+        """
         input_ports = {}
         output_ports = {
             "src_ids": NeuralType({
