@@ -158,6 +158,28 @@ class BertJointIntentSlotDataset(Dataset):
         with open(input_file, 'r') as f:
             input_lines = f.readlines()[1:]
 
+        # print(input_lines[0:10])
+        # print(len(input_lines))
+        # # game = input_lines[1:]
+        # # print(len(game))
+        # # input_lines = game
+        # # print(len(game))
+        # # input_lines = game
+        # print(len(input_lines))
+        # # print(len(input_lines[1:]))
+        # # print(len(input_lines[2:]))
+
+        # # input_lines = input_lines[1:]
+        #     # input_lines = input_lines[1:]
+
+        # # print(len(slot_lines))
+        # # print(len(input_lines))
+
+
+        # print(input_lines[0])
+        # print(input_lines[1])
+        # print(input_lines[2])
+
         assert len(slot_lines) == len(input_lines)
 
         dataset = list(zip(slot_lines, input_lines))
