@@ -195,7 +195,8 @@ class SimpleLossLoggerCallback(ActionCallback):
                             value = value.item()
                             self._swriter.add_scalar(name, value, step)
                     if self._log_to_tb_func:
-                        self._log_to_tb_func(self._swriter, tensor_values)
+                        self._log_to_tb_func(
+                            self._swriter, tensor_values, step)
                     run_time = time.time() - self._last_iter_start
                     self._swriter.add_scalar('misc/step_time', run_time, step)
                 run_time = time.time() - self._last_iter_start
