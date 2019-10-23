@@ -66,7 +66,8 @@ class ActionCallback(ABC):
 
 class ModuleSaverCallback(ActionCallback):
     """
-    When step_freq = -1, don't save anything.
+    For callback documentation: please see
+    https://nvidia.github.io/NeMo/tutorials/callbacks.html
     """
 
     def __init__(self, save_modules_list, step_freq=1000, folder=None):
@@ -113,11 +114,16 @@ class ModuleSaverCallback(ActionCallback):
 
 
 class SimpleLossLoggerCallback(ActionCallback):
+    """
+    For callback documentation: please see
+    https://nvidia.github.io/NeMo/tutorials/callbacks.html
+    """
 
     def __init__(self,
                  tensors,
                  print_func=None,
                  get_tb_values=None,
+                 log_to_tb_func=None,
                  step_freq=25,
                  tb_writer=None):
 
@@ -127,6 +133,7 @@ class SimpleLossLoggerCallback(ActionCallback):
         self._tensors = tensors
         self._print_func = print_func
         self._get_tb_values = get_tb_values
+        self._log_to_tb_func = log_to_tb_func
         self._step_freq = step_freq
         self._swriter = tb_writer
         self._start_time = None
@@ -187,6 +194,8 @@ class SimpleLossLoggerCallback(ActionCallback):
                         for name, value in tb_objects:
                             value = value.item()
                             self._swriter.add_scalar(name, value, step)
+                    if self._log_to_tb_func:
+                        self._log_to_tb_func(self._swriter, tensor_values)
                     run_time = time.time() - self._last_iter_start
                     self._swriter.add_scalar('misc/step_time', run_time, step)
                 run_time = time.time() - self._last_iter_start
@@ -194,6 +203,10 @@ class SimpleLossLoggerCallback(ActionCallback):
 
 
 class CheckpointCallback(ActionCallback):
+    """
+    For callback documentation: please see
+    https://nvidia.github.io/NeMo/tutorials/callbacks.html
+    """
 
     def __init__(self, folder, load_from_folder=None, step_freq=-1,
                  epoch_freq=-1, checkpoints_to_keep=4, force_load=False):
@@ -328,6 +341,10 @@ class CheckpointCallback(ActionCallback):
 
 
 class EvaluatorCallback(ActionCallback):
+    """
+    For callback documentation: please see
+    https://nvidia.github.io/NeMo/tutorials/callbacks.html
+    """
 
     def __init__(
             self,
