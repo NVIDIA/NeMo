@@ -22,9 +22,10 @@ SimpleLossLoggerCallback is used to
 log training metrics such as loss and time per step to screen and to
 tensorboard. SimpleLossLoggerCallback has one required arguments, and two
 arguments that we recommend to overwrite. It requires tensors which is a list
-of NMTensors that print_func() and get_tb_values() will receive as input during
-training. The two reccomended arguments to override are print_func() and
-get_tb_values().
+of NMTensors that print_func(), get_tb_values(), and log_to_tb_func will
+receive as input during
+training. The two reccomended arguments to override are print_func(), and
+either get_tb_values() or log_to_tb_func().
 
 print_func() should be used to log values to screen. We recommend using
 neural_factory.logger.info() in place
@@ -38,6 +39,11 @@ of print(). For example, it can be used to print the loss value:
         else:
             print(f"Loss {tensors[0]}")
 
+We provide two methods to log to tensorboard: get_tb_values() and
+log_to_tb_func(). For simple use case of logging scalars, we recommend
+get_tb_values(). For advanced use cases such as pictures or audio, we
+recommend log_to_tb_func().
+
 get_tb_values() is used to return values to be logged to tensorboard. It should
 return a list of 2-element tuples, where the first element is a string
 representing the tensorboard tag, and the second element is the scalar value to
@@ -48,6 +54,18 @@ tb_writer should also be defined.
 
     def my_get_tb_values(tensors):
         return [("Train_Loss", tensors[0])]
+
+log_to_tb_func() takes two arguments: the
+`tensorboardX.SummaryWriter <https://tensorboardx.readthedocs.io/en/latest/tensorboard.html>`_
+and a list
+of evaluated tensors. The user can then use the SummaryWriter class to add
+images, audio, and more. For example:
+
+.. code-block:: python
+
+    def log_to_tb_func(swriter, tensors):
+        swriter.add_scalar("Train_Loss", tensors[0])
+        swriter.add_audio("Train_Sample", tensors[1][0])
 
 SimpleLossLoggerCallback can be constructed as follows:
 
