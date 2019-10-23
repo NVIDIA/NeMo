@@ -168,7 +168,7 @@ def create_all_dags(args, neural_factory):
     logger.info('================================')
 
     # Train DAG
-    audio_signal_t, a_sig_length_t,\
+    audio_signal_t, a_sig_length_t, \
         transcript_t, transcript_len_t = data_layer()
     processed_signal_t, p_length_t = data_preprocessor(
         input_signal=audio_signal_t,

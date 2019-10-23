@@ -171,7 +171,8 @@ def process_evaluation_epoch(global_vars: dict,
                         f"{wer*100 : 5.2f}%")
         else:
             print(f"==========>>>>>>Evaluation Loss: {eloss}")
-            print(f"==========>>>>>>Evaluation {eval_metric}: {wer*100 : 5.2f}%")
+            print(f"==========>>>>>>Evaluation {eval_metric}: "
+                  f"{wer*100 : 5.2f}%")
         return {"Evaluation_Loss": eloss, f"Evaluation_{eval_metric}": wer}
     else:
         if logger:
