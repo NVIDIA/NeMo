@@ -55,17 +55,16 @@ tb_writer should also be defined.
     def my_get_tb_values(tensors):
         return [("Train_Loss", tensors[0])]
 
-log_to_tb_func() takes two arguments: the
+log_to_tb_func() takes three arguments: the
 `tensorboardX.SummaryWriter <https://tensorboardx.readthedocs.io/en/latest/tensorboard.html>`_
-and a list
-of evaluated tensors. The user can then use the SummaryWriter class to add
-images, audio, and more. For example:
+, a list of evaluated tensors, and the current step. The user can then use the
+SummaryWriter class to add images, audio, and more. For example:
 
 .. code-block:: python
 
-    def log_to_tb_func(swriter, tensors):
-        swriter.add_scalar("Train_Loss", tensors[0])
-        swriter.add_audio("Train_Sample", tensors[1][0])
+    def log_to_tb_func(swriter, tensors, step):
+        swriter.add_scalar("Train_Loss", tensors[0], step)
+        swriter.add_audio("Train_Sample", tensors[1][0], step)
 
 SimpleLossLoggerCallback can be constructed as follows:
 
@@ -144,9 +143,9 @@ To enable more complex tensorboard logging such as images or audio,
 EvaluatorCallback must be passed tb_writer_func at initialization. This
 function must accept a
 `tensorboardX.SummaryWriter <https://tensorboardx.readthedocs.io/en/latest/tensorboard.html>`_
-and whatever is returned from user_epochs_done_callback. We recommend for
-user_epochs_done_callback to simply return the global_var_dict for
-tb_writer_func to consume. The user must log all data of interest inside
+, whatever is returned from user_epochs_done_callback, and the current step.
+We recommend for user_epochs_done_callback to simply return the global_var_dict
+for tb_writer_func to consume. The user must log all data of interest inside
 tb_writer_func including scalars that would otherwise be logged if
 tb_writer_func was not passed to EvaluatorCallback.
 

@@ -662,7 +662,7 @@ class PtActions(Actions):
                 if vals_to_log is not None and callback.swriter is not None:
                     if callback.tb_writer_func is not None:
                         callback.tb_writer_func(
-                            callback.swriter, vals_to_log)
+                            callback.swriter, vals_to_log, step)
                     else:
                         for key, val in vals_to_log.items():
                             callback.swriter.add_scalar(key, val, step)
