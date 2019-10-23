@@ -659,9 +659,13 @@ class PtActions(Actions):
                 vals_to_log = callback.user_done_callback(
                     callback._global_var_dict)
                 # log results to Tensorboard
-                if vals_to_log is not None and callback._swriter is not None:
-                    for key, val in vals_to_log.items():
-                        callback._swriter.add_scalar(key, val, step)
+                if vals_to_log is not None and callback.swriter is not None:
+                    if callback.tb_writer_func is not None:
+                        callback.tb_writer_func(
+                            callback.swriter, vals_to_log)
+                    else:
+                        for key, val in vals_to_log.items():
+                            callback.swriter.add_scalar(key, val, step)
 
     def _infer(self, tensors_to_return, step, verbose=False):
         """
