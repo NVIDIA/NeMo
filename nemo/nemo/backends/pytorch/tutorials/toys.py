@@ -93,6 +93,18 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
 
 
 class RealFunctionDataLayer(DataLayerNM):
+    """
+    Data layer that yields (x, f(x)) data and label pairs.
+
+    Args:
+        n: Total number of samples
+        batch_size: Size of each batch per iteration
+        f: A lambda of the function to apply to each x value to get labels.
+           Must take a torch tensor as input, and output a torch tensor of
+           the same shape. Defaults to torch.sin().
+        x_lo: Lower bound of domain to sample
+        x_hi: Upper bound of domain to sample
+    """
     def __len__(self):
         return self._n
 
@@ -107,7 +119,7 @@ class RealFunctionDataLayer(DataLayerNM):
 
         return input_ports, output_ports
 
-    def __init__(self, *, n, batch_size, **kwargs):
+    def __init__(self, *, n, batch_size, f=t.sin, x_lo=-4, x_hi=4, **kwargs):
         DataLayerNM.__init__(self, **kwargs)
 
         self._n = n
@@ -116,10 +128,10 @@ class RealFunctionDataLayer(DataLayerNM):
             "cuda" if self.placement == DeviceType.GPU else "cpu")
 
         x_data = (
-            t.tensor(np.random.uniform(low=-4, high=4, size=self._n))
+            t.tensor(np.random.uniform(low=x_lo, high=x_hi, size=self._n))
             .unsqueeze(-1).to(self._device)
         )
-        y_data = t.sin(x_data)
+        y_data = f(x_data)
 
         self._data_iterator = t_utils.DataLoader(
             t_utils.TensorDataset(x_data.float(), y_data.float()),

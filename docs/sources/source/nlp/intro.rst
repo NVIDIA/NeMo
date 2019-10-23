@@ -8,14 +8,22 @@ Neural Machine Translation (NMT)
 .. toctree::
    :maxdepth: 8
 
-   neural-machine-translation
+   neural_machine_translation
 
 BERT
 ----
 .. toctree::
    :maxdepth: 8
 
-   pretraining
+   bert_pretraining
+
+
+Transformer Language Model
+----
+.. toctree::
+   :maxdepth: 8
+
+   transformer_language_model
 
 
 Named Entity Recognition

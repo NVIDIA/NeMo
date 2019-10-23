@@ -30,14 +30,10 @@ class BertPretrainingDataset(Dataset):
     def __init__(self,
                  tokenizer,
                  dataset,
-                 name,
-                 sentence_indices_filename=None,
-                 max_length=128,
-                 mask_probability=0.15):
+                 max_seq_length=128,
+                 mask_probability=0.15,
+                 sentence_idx_file=None):
         self.tokenizer = tokenizer
-
-        if sentence_indices_filename is None:
-            sentence_indices_filename = "{}_sentence_indices.pkl".format(name)
 
         # Loading enormous datasets into RAM isn't always feasible -- for
         # example, the pubmed corpus is 200+ GB, which doesn't fit into RAM on
@@ -45,9 +41,14 @@ class BertPretrainingDataset(Dataset):
         # in each file so we can seek to and retrieve sentences immediately
         # from main memory when needed during training.
 
-        if os.path.isfile(sentence_indices_filename):
+        if sentence_idx_file is None:
+            data_dir = dataset[:dataset.rfind('/')]
+            mode = dataset[dataset.rfind('/')+1:dataset.rfind('.')]
+            sentence_idx_file = f"{data_dir}/{mode}_sentence_indices.pkl"
+
+        if os.path.isfile(sentence_idx_file):
             # If the sentence indices file already exists, load from it
-            with open(sentence_indices_filename, "rb") as f:
+            with open(sentence_idx_file, "rb") as f:
                 sentence_indices = pickle.load(f)
         else:
             # Otherwise, generate and store sentence indices
@@ -70,8 +71,8 @@ class BertPretrainingDataset(Dataset):
                             .replace(b"\xa0", b" ")
                         num_tokens = len(line.split())
 
-                        # Ensure the line has at least max_length tokens
-                        if num_tokens >= max_length:
+                        # Ensure the line has at least max_seq_length tokens
+                        if num_tokens >= max_seq_length:
                             yield start - 1
                             used_tokens += num_tokens
 
@@ -100,11 +101,10 @@ class BertPretrainingDataset(Dataset):
                 sentence_indices[filename] = array.array("I", newline_indices)
 
             # Save sentence indices so we don't have to do this again
-            with open(sentence_indices_filename, "wb") as f:
+            with open(sentence_idx_file, "wb") as f:
                 pickle.dump(sentence_indices, f)
 
-            print("Used {} tokens of total {}".format(used_tokens,
-                                                      total_tokens))
+            print(f"Used {used_tokens} of total {total_tokens} tokens")
 
         corpus_size = 0
         empty_files = []
@@ -124,22 +124,21 @@ class BertPretrainingDataset(Dataset):
         self.dataset = dataset
         self.filenames = list(sentence_indices.keys())
         self.mask_probability = mask_probability
-        self.max_length = max_length
+        self.max_seq_length = max_seq_length
         self.sentence_indices = sentence_indices
         self.vocab_size = self.tokenizer.vocab_size
 
     def __len__(self):
         return self.corpus_size
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx, min_doc_length=16):
         # Each sequence has three special tokens, as follows:
         # [CLS] <document a> [SEP] <document b> [SEP]
         num_special_tokens = 3
 
         # TODO: Make seq_length = 512 for the last 10% of epochs, as specified
         # in BERT paper
-        seq_length = self.max_length - num_special_tokens
-        min_doc_length = 16
+        seq_length = self.max_seq_length - num_special_tokens
 
         a_length = random.randrange(min_doc_length,
                                     seq_length - min_doc_length + 1)
@@ -159,11 +158,11 @@ class BertPretrainingDataset(Dataset):
 
                 # Read line, remove newline, and decode as UTF8
                 doc_text = f.readline()[:-1].decode("utf-8", errors="ignore")
-                document = [self.tokenizer.token_to_id("[CLS]")] \
-                    + self.tokenizer.text_to_ids(doc_text) \
-                    + [self.tokenizer.token_to_id("[SEP]")]
+                document = [self.tokenizer.token_to_id("[CLS]")]
+                document.extend(self.tokenizer.text_to_ids(doc_text))
+                document.append(self.tokenizer.token_to_id("[SEP]"))
 
-            assert len(document) >= self.max_length
+            assert len(document) >= self.max_seq_length
             return document
 
         a_document = get_document(a_filename, a_line)
@@ -193,20 +192,26 @@ class BertPretrainingDataset(Dataset):
         a_ids = a_document[a_start_idx:a_start_idx + a_length]
         b_ids = b_document[b_start_idx:b_start_idx + b_length]
 
-        output_ids = [self.tokenizer.special_tokens["[CLS]"]] + a_ids + \
-                     [self.tokenizer.special_tokens["[SEP]"]] + b_ids + \
-                     [self.tokenizer.special_tokens["[SEP]"]]
+        output_ids = [self.tokenizer.special_tokens["[CLS]"]]
+        output_ids.extend(a_ids)
+        output_ids.append(self.tokenizer.special_tokens["[SEP]"])
+        output_ids.extend(b_ids)
+        output_ids.append(self.tokenizer.special_tokens["[SEP]"])
 
         input_ids, output_mask = self.mask_ids(output_ids)
 
         output_mask = np.array(output_mask, dtype=np.float32)
-        input_mask = np.ones(self.max_length, dtype=np.float32)
+        input_mask = np.ones(self.max_seq_length, dtype=np.float32)
 
-        input_type_ids = np.zeros(self.max_length, dtype=np.int)
+        input_type_ids = np.zeros(self.max_seq_length, dtype=np.int)
         input_type_ids[a_length + 2:seq_length + 3] = 1
 
-        return np.array(input_ids), input_type_ids, input_mask, \
-            np.array(output_ids), output_mask, label
+        return (np.array(input_ids),
+                input_type_ids,
+                input_mask,
+                np.array(output_ids),
+                output_mask,
+                label)
 
     def mask_ids(self, ids):
         """
@@ -225,7 +230,7 @@ class BertPretrainingDataset(Dataset):
         """
         masked_ids = []
         output_mask = []
-        for id in ids:
+        for i in ids:
             if random.random() < self.mask_probability:
                 output_mask.append(1)
                 if random.random() < 0.8:
@@ -233,8 +238,8 @@ class BertPretrainingDataset(Dataset):
                 elif random.random() < 0.5:
                     masked_ids.append(random.randrange(self.vocab_size))
                 else:
-                    masked_ids.append(id)
+                    masked_ids.append(i)
             else:
-                masked_ids.append(id)
+                masked_ids.append(i)
                 output_mask.append(0)
         return masked_ids, output_mask

@@ -41,129 +41,91 @@ Training
 
     We recommend you try this out in a Jupyter notebook. It'll make debugging much easier!
 
-Here, we'll fine-tune a BERT model on our downstream NER task. We'll start off with our imports and constants.
+First, we need to create our neural factory with the supported backend. How you should define it depends on whether you'd like to multi-GPU or mixed-precision training. This tutorial assumes that you're training on one GPU, without mixed precision. If you want to use mixed precision, set ``amp_opt_level`` to ``O1`` or ``O2``.
 
-.. code-block:: python
+    .. code-block:: python
 
-    import math
-    import os
-
-    import nemo
-    from nemo.utils.lr_policies import WarmupAnnealing
-
-    import nemo_nlp
-    from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
-    from nemo_nlp.callbacks.ner import \
-        eval_iter_callback, eval_epochs_done_callback
-
-    BATCHES_PER_STEP = 1
-    BATCH_SIZE = 32
-    CLASSIFICATION_DROPOUT = 0.1
-    DATA_DIR = "conll2003"
-    MAX_SEQ_LENGTH = 128
-    NUM_EPOCHS = 3
-    LEARNING_RATE = 0.00005
-    LR_WARMUP_PROPORTION = 0.1
-    OPTIMIZER = "adam"
-
-Next, we need to create our neural factory. How you should define it depends on whether you'd like to multi-GPU or mixed-precision training. This tutorial assumes that you're training on one GPU, without mixed precision.
-
-.. code-block:: python
-
-    # Instantiate neural factory with supported backend
-    neural_factory = nemo.core.NeuralModuleFactory(
-        backend=nemo.core.Backend.PyTorch,
-
-        # If you're training with multiple GPUs, you should handle this value with
-        # something like argparse. See examples/nlp/ner.py for an example.
-        local_rank=None,
-
-        # If you're training with mixed precision, this should be set to mxprO1 or mxprO2.
-        # See https://nvidia.github.io/apex/amp.html#opt-levels for more details.
-        optimization_level=nemo.core.Optimization.mxprO0,
-
-        # If you're training with multiple GPUs, this should be set to
-        # nemo.core.DeviceType.AllGpu
-        placement=nemo.core.DeviceType.GPU)
+        nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
+                                           local_rank=args.local_rank,
+                                           optimization_level=args.amp_opt_level,
+                                           log_dir=work_dir,
+                                           create_tb_writer=True,
+                                           files_to_copy=[__file__])
 
 Next, we'll need to define our tokenizer and our BERT model. There are a couple of different ways you can do this. Keep in mind that NER benefits from casing ("New York City" is easier to identify than "new york city"), so we recommend you use cased models.
 
-.. code-block:: python
+If you're using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out ``nemo_nlp.huggingface.BERT.list_pretrained_models()``
 
-    # If you're using a standard BERT model, you should do it like this. To see the full
-    # list of BERT model names, check out nemo_nlp.huggingface.BERT.list_pretrained_models()
-    tokenizer = NemoBertTokenizer(pretrained_model="bert-base-cased")
-    bert_model = nemo_nlp.huggingface.BERT(
-        pretrained_model_name="bert-base-cased",
-        factory=neural_factory)
+    .. code-block:: python
 
-    # If you're using a BERT model that you pre-trained yourself, you should do it like this.
-    # You should replace BERT-STEP-150000.pt with the path to your checkpoint file.
-    tokenizer = SentencePieceTokenizer(model_path="tokenizer.model")
-    tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
+        tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
+        pretrained_bert_model = nemo_nlp.huggingface.BERT(
+            pretrained_model_name=args.pretrained_bert_model, factory=nf)
 
-    bert_model = nemo_nlp.huggingface.BERT(
-        config_filename=os.path.join("bert_pretraining_checkpoints", "config.json"),
-        factory=neural_factory)
-    bert_model.restore_from(
-        os.path.join("bert_pretraining_checkpoints", "BERT-STEP-150000.pt"))
+If you're using a BERT model that you pre-trained yourself, you should do it like this. You should replace ``BERT-STEP-150000.pt`` with the path to your checkpoint file.
 
-Now, we will define the training pipeline:
+    .. code-block:: python
 
-.. code-block:: python
+        tokenizer = SentencePieceTokenizer(model_path=tokenizer_model)
+        tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
 
-    train_data_layer = nemo_nlp.BertNERDataLayer(
-        tokenizer=tokenizer,
-        path_to_data=os.path.join(DATA_DIR, "train.txt"),
-        max_seq_length=MAX_SEQ_LENGTH,
-        batch_size=BATCH_SIZE,
-        factory=neural_factory)
+        bert_model = nemo_nlp.huggingface.BERT(
+                config_filename=args.bert_config, factory=nf)
+        pretrained_bert_model.restore_from(args.bert_checkpoint)
 
-    tag_ids = train_data_layer.dataset.tag_ids
+Now, create the train and evaluation datasets:
 
-    ner_loss = nemo_nlp.TokenClassificationLoss(
-        d_model=bert_model.bert.config.hidden_size,
-        num_labels=len(tag_ids),
-        dropout=CLASSIFICATION_DROPOUT,
-        factory=neural_factory)
+    .. code-block:: python
 
-    input_ids, input_type_ids, input_mask, labels, _ = train_data_layer()
+        train_dataset = nemo_nlp.BertNERDataset(
+            tokenizer=tokenizer,
+            input_file=f'{args.data_dir}/train.txt',
+            max_seq_length=args.max_seq_length)
 
-    hidden_states = bert_model(
-        input_ids=input_ids,
-        token_type_ids=input_type_ids,
-        attention_mask=input_mask)
+        eval_dataset = nemo_nlp.BertNERDataset(
+            tokenizer=tokenizer,
+            input_file=f'{args.data_dir}/dev.txt',
+            max_seq_length=args.max_seq_length)
 
-    train_loss, train_logits = ner_loss(
-        hidden_states=hidden_states,
-        labels=labels,
-        input_mask=input_mask)
+We need to create the classifier to sit on top of the pretrained model and define the loss function:
 
-And now, our evaluation pipeline:
+    .. code-block:: python
 
-.. code-block:: python
+        hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
+        tag_ids = train_dataset.tag_ids
+        ner_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
+                                                  num_classes=len(tag_ids),
+                                                  dropout=args.fc_dropout)
+        ner_loss = nemo_nlp.TokenClassificationLoss(num_classes=len(tag_ids))
 
-    eval_data_layer = nemo_nlp.BertNERDataLayer(
-        tokenizer=tokenizer,
-        path_to_data=os.path.join(DATA_DIR, "dev.txt"),
-        max_seq_length=MAX_SEQ_LENGTH,
-        batch_size=BATCH_SIZE,
-        factory=neural_factory)
+And create the pipeline that can be used for both training and evaluation.
 
-    input_ids, input_type_ids, eval_input_mask, \
-        eval_labels, eval_seq_ids = eval_data_layer()
+    .. code-block:: python
 
-    hidden_states = bert_model(
-        input_ids=input_ids,
-        token_type_ids=input_type_ids,
-        attention_mask=eval_input_mask)
+        def create_pipeline(dataset, batch_size=args.batch_size,
+                            local_rank=args.local_rank, num_gpus=args.num_gpus):
+            data_layer = nemo_nlp.BertTokenClassificationDataLayer(
+                dataset,
+                batch_size=batch_size,
+                num_workers=0,
+                local_rank=local_rank)
+            input_ids, input_type_ids, input_mask, labels, seq_ids = data_layer()
+            hidden_states = pretrained_bert_model(input_ids=input_ids,
+                                                  token_type_ids=input_type_ids,
+                                                  attention_mask=input_mask)
+            logits = ner_classifier(hidden_states=hidden_states)
+            loss = ner_loss(logits=logits, labels=labels, input_mask=input_mask)
+            steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
+            return loss, steps_per_epoch, data_layer, [logits, seq_ids]
 
-    eval_loss, eval_logits = ner_loss(
-        hidden_states=hidden_states,
-        labels=eval_labels,
-        input_mask=eval_input_mask)
+        train_loss, steps_per_epoch, _, _ = create_pipeline(train_dataset)
+        _, _, data_layer, eval_tensors = create_pipeline(eval_dataset)
 
-Now, we will set up our callbacks. Here, we will use `SimpleLossLoggerCallback` to print loss values during training, and `EvaluatorCallback` to evaluate our F1 score on the dev dataset. In this example, `EvaluatorCallback` will also output predictions to `output.txt`, which can be helpful with debugging what our model gets wrong.
+Now, we will set up our callbacks. We will use 3 callbacks:
+
+* `SimpleLossLoggerCallback` to print loss values during training
+* `EvaluatorCallback` to evaluate our F1 score on the dev dataset. In this example, `EvaluatorCallback` will also output predictions to `output.txt`, which can be helpful with debugging what our model gets wrong.
+* `CheckpointCallback` to save and restore checkpoints.
 
 .. tip::
     
@@ -176,53 +138,43 @@ Now, we will set up our callbacks. Here, we will use `SimpleLossLoggerCallback` 
 .. _Tensorboard: https://www.tensorflow.org/tensorboard
 .. _tensorboardX: https://github.com/lanpa/tensorboardX
 
-.. code-block:: python
+    .. code-block:: python
 
-    try:
-        import tensorboardX
-        tb_writer = tensorboardX.SummaryWriter("bert_ner_tb")
-    except ModuleNotFoundError:
-        tb_writer = None
-        print("Tensorboard is not available")
+        train_callback = nemo.core.SimpleLossLoggerCallback(
+            tensors=[train_loss],
+            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+            get_tb_values=lambda x: [["loss", x[0]]],
+            tb_writer=nf.tb_writer)
 
-    callback_train = nemo.core.SimpleLossLoggerCallback(
-        tensors=[train_loss],
-        print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
-        get_tb_values=lambda x: [["loss", x[0]]],
-        tb_writer=tb_writer)
+        eval_callback = nemo.core.EvaluatorCallback(
+            eval_tensors=eval_tensors,
+            user_iter_callback=lambda x, y: eval_iter_callback(
+                x, y, data_layer, tag_ids),
+            user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+                x, tag_ids, output_file),
+            tb_writer=nf.tb_writer,
+            eval_step=steps_per_epoch)
 
-    train_data_size = len(train_data_layer)
-
-    # If you're training on multiple GPUs, this should be
-    # train_data_size / (batch_size * batches_per_step * num_gpus)
-    steps_per_epoch = int(train_data_size / (BATCHES_PER_STEP * BATCH_SIZE))
-
-    callback_eval = nemo.core.EvaluatorCallback(
-        eval_tensors=[eval_logits, eval_seq_ids],
-        user_iter_callback=lambda x, y: eval_iter_callback(
-            x, y, eval_data_layer, tag_ids),
-        user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-            x, tag_ids, "output.txt"),
-        tb_writer=tb_writer,
-        eval_step=steps_per_epoch)
+        ckpt_callback = nemo.core.CheckpointCallback(
+            folder=nf.checkpoint_dir,
+            epoch_freq=args.save_epoch_freq,
+            step_freq=args.save_step_freq)
 
 Finally, we will define our learning rate policy and our optimizer, and start training.
 
-.. code-block:: python
+    .. code-block:: python
 
-    lr_policy = WarmupAnnealing(NUM_EPOCHS * steps_per_epoch,
-                                warmup_ratio=LR_WARMUP_PROPORTION)
-    optimizer = neural_factory.get_trainer()
-    optimizer.train(
-        tensors_to_optimize=[train_loss],
-        callbacks=[callback_train, callback_eval],
-        lr_policy=lr_policy,
-        batches_per_step=BATCHES_PER_STEP,
-        optimizer=OPTIMIZER,
-        optimization_params={
-            "num_epochs": NUM_EPOCHS,
-            "lr": LEARNING_RATE
-        })
+        lr_policy_fn = get_lr_policy(args.lr_policy,
+                                     total_steps=args.num_epochs * steps_per_epoch,
+                                     warmup_ratio=args.lr_warmup_proportion)
+
+
+        nf.train(tensors_to_optimize=[train_loss],
+                 callbacks=[train_callback, eval_callback, ckpt_callback],
+                 lr_policy=lr_policy_fn,
+                 optimizer=args.optimizer_kind,
+                 optimization_params={"num_epochs": args.num_epochs,
+                                      "lr": args.lr})
 
 Using Other BERT Models
 -----------------------

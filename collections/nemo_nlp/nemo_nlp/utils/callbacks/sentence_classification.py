@@ -1,4 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
+__all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
+
 import os
 import random
 import time
@@ -12,6 +14,8 @@ from sklearn.metrics import confusion_matrix, classification_report
 
 matplotlib.use("TkAgg")
 logger = logging.getLogger('log')
+
+__all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 
 def eval_iter_callback(tensors,

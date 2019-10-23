@@ -1,4 +1,10 @@
 # Copyright (c) 2019 NVIDIA Corporation
+__all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
+
+from nemo.utils.exp_logging import get_logger
+
+
+logger = get_logger('')
 
 
 def eval_iter_callback(tensors, global_vars, eval_data_layer, tag_ids):
@@ -71,15 +77,15 @@ def eval_epochs_done_callback(global_vars, tag_ids, output_filename):
                 # modified from https://www.clips.uantwerpen.be/conll2003/ner/)
                 if label != "O":
                     if last_label == line["label"]:
-                        label = "I-{}".format(label)
+                        label = f"I-{label}"
                     else:
-                        label = "B-{}".format(label)
+                        label = f"B-{label}"
 
                 if prediction != "O":
                     if last_prediction == line["prediction"]:
-                        prediction = "I-{}".format(prediction)
+                        prediction = f"I-{prediction}"
                     else:
-                        prediction = "B-{}".format(prediction)
+                        prediction = f"B-{prediction}"
 
                 last_label = line["label"]
                 last_prediction = line["prediction"]
@@ -92,7 +98,7 @@ def eval_epochs_done_callback(global_vars, tag_ids, output_filename):
     r = correct_chunks / total_chunks if total_chunks > 0 else 0
     f1 = 2 * p * r / (p + r) if p > 0 and r > 0 else 0
 
-    print(f"Accuracy = {accuracy}")
-    print(f"F1 = {f1}")
+    logger.info(f"Accuracy = {accuracy}")
+    logger.info(f"F1 = {f1}")
 
     return {"accuracy": accuracy, "f1": f1}

@@ -4,18 +4,19 @@ import math
 import nemo
 from nemo.utils.lr_policies import CosineAnnealing
 import nemo_nlp
-from nemo_nlp.callbacks.language_modeling import eval_iter_callback, \
+
+from nemo_nlp.data.datasets.utils import LanguageModelDataDesc
+from nemo_nlp.utils.callbacks.language_modeling import eval_iter_callback, \
     eval_epochs_done_callback
-from nemo_nlp.text_data_utils import LanguageModelDataDesc
 
 
 parser = nemo.utils.NemoArgParser(description='LM Transformer')
 parser.set_defaults(
     train_dataset="train.txt",
-    eval_datasets=["valid.txt"],
+    eval_dataset="valid.txt",
     work_dir="outputs/transformer_lm",
     optimizer_kind="novograd",
-    amp_opt_level='O2',
+    amp_opt_level='O1',
     num_epochs=1000,
     batch_size=32,
     eval_batch_size=32,
@@ -26,7 +27,6 @@ parser.set_defaults(
     warmup_steps=1000,
     max_steps=50000,
     iter_per_step=1,
-    checkpoint_save_freq=10000,
     eval_freq=1000
 )
 parser.add_argument("--data_dir", default="data/lm/wikitext-2", type=str)
@@ -39,12 +39,14 @@ parser.add_argument("--embedding_dropout", default=0.2, type=float)
 parser.add_argument("--ffn_dropout", default=0.2, type=float)
 parser.add_argument("--attn_score_dropout", default=0.2, type=float)
 parser.add_argument("--attn_layer_dropout", default=0.2, type=float)
-parser.add_argument("--max_sequence_length", default=256, type=int)
+parser.add_argument("--max_seq_length", default=256, type=int)
 parser.add_argument("--do_lower_case", action='store_true')
 parser.add_argument("--label_smoothing", default=0.1, type=float)
 parser.add_argument("--beam_size", default=4, type=int)
 parser.add_argument("--tokenizer_model", default="vocab.txt", type=str)
 parser.add_argument("--predict_last_k", default=16, type=int)
+parser.add_argument("--save_epoch_freq", default=1, type=int)
+parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument("--interactive", action="store_true")
 args = parser.parse_args()
 
@@ -53,6 +55,7 @@ To get the data, go to tests/data and run get_wt2.sh
 Then run create_vocab.py
 """
 
+work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
@@ -73,19 +76,6 @@ vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 # data layers, encoder, decoder, output log_softmax, beam_search_translator
 # and loss function
 
-
-train_dataset = nemo_nlp.LanguageModelingDataset(
-    tokenizer,
-    dataset=f"{args.data_dir}/{args.train_dataset}",
-    max_sequence_length=args.max_sequence_length,
-    batch_step=args.max_sequence_length)
-
-eval_dataset = nemo_nlp.LanguageModelingDataset(
-    tokenizer,
-    dataset=f"{args.data_dir}/{args.eval_datasets[0]}",
-    max_sequence_length=args.max_sequence_length,
-    batch_step=args.predict_last_k)
-
 encoder = nemo_nlp.TransformerEncoderNM(
     d_model=args.d_model,
     d_inner=args.d_inner,
@@ -97,35 +87,48 @@ encoder = nemo_nlp.TransformerEncoderNM(
     mask_future=True,
     attn_score_dropout=args.attn_score_dropout,
     attn_layer_dropout=args.attn_layer_dropout,
-    max_seq_length=args.max_sequence_length)
+    max_seq_length=args.max_seq_length)
 
-log_softmax = nemo_nlp.TransformerLogSoftmaxNM(
-    vocab_size=vocab_size,
-    d_model=args.d_model)
+log_softmax = nemo_nlp.TokenClassifier(args.d_model,
+                                       num_classes=vocab_size,
+                                       num_layers=1,
+                                       log_softmax=True)
 
 loss = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(
     pad_id=tokenizer.pad_id(),
     label_smoothing=args.label_smoothing)
 
 # tie weight of embedding and log_softmax layers
-log_softmax.log_softmax.dense.weight = \
+log_softmax.mlp.last_linear_layer.weight = \
     encoder.embedding_layer.token_embedding.weight
 
 
-def create_pipeline(dataset, batch_size):
+def create_pipeline(dataset,
+                    max_seq_length=args.max_seq_length,
+                    batch_step=args.max_seq_length,
+                    batch_size=args.batch_size):
     data_layer = nemo_nlp.LanguageModelingDataLayer(dataset,
+                                                    tokenizer,
+                                                    max_seq_length,
+                                                    batch_step,
                                                     batch_size=batch_size)
     src, src_mask, labels = data_layer()
     src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)
-    log_probs = log_softmax(hidden_states=src_hiddens)
-    return loss(log_probs=log_probs, target_ids=labels)
+    logits = log_softmax(hidden_states=src_hiddens)
+    return loss(logits=logits, target_ids=labels)
 
 
-train_loss = create_pipeline(train_dataset, args.batch_size)
-eval_loss = create_pipeline(eval_dataset, args.batch_size)
+train_loss = create_pipeline(f"{args.data_dir}/{args.train_dataset}",
+                             args.max_seq_length,
+                             batch_step=args.max_seq_length,
+                             batch_size=args.batch_size)
+eval_loss = create_pipeline(f"{args.data_dir}/{args.eval_dataset}",
+                            args.max_seq_length,
+                            batch_step=args.predict_last_k,
+                            batch_size=args.eval_batch_size)
 
 # callback which prints training loss once in a while
-callback_train = nemo.core.SimpleLossLoggerCallback(
+train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     step_freq=100,
     print_func=lambda x: str(x[0].item()),
@@ -133,7 +136,7 @@ callback_train = nemo.core.SimpleLossLoggerCallback(
     tb_writer=nf.tb_writer)
 
 # callback which calculates evaluation loss
-callback_eval = nemo.core.EvaluatorCallback(
+eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=[eval_loss],
     user_iter_callback=eval_iter_callback,
     user_epochs_done_callback=eval_epochs_done_callback,
@@ -143,7 +146,8 @@ callback_eval = nemo.core.EvaluatorCallback(
 # callback which saves checkpoints once in a while
 callback_ckpt = nemo.core.CheckpointCallback(
     folder=nf.checkpoint_dir,
-    step_freq=args.checkpoint_save_freq,
+    epoch_freq=args.save_epoch_freq,
+    step_freq=args.save_step_freq,
     checkpoints_to_keep=-1)
 
 # define learning rate decay policy
@@ -155,7 +159,7 @@ max_num_epochs = 0 if args.interactive else args.num_epochs
 callbacks = [callback_ckpt]
 
 if not args.interactive:
-    callbacks.extend([callback_train, callback_eval])
+    callbacks.extend([train_callback, eval_callback])
 
 nf.train(tensors_to_optimize=[train_loss],
          callbacks=callbacks,

@@ -13,10 +13,11 @@
 # limitations under the License.
 # ==============================================================================
 """Pytorch Dataset for training Neural Machine Translation."""
+from collections import OrderedDict
 
 import numpy as np
 from torch.utils.data import Dataset
-from collections import OrderedDict
+
 from ..utils import dataset_to_ids, clean_src_and_target
 
 
@@ -85,16 +86,17 @@ class TranslationDataset(Dataset):
         # create buckets sorted by the number of src tokens
         # each bucket is also sorted by the number of tgt tokens
         buckets = {}
-        for i in range(len(src_ids)):
-            src_len, tgt_len = len(src_ids[i]), len(tgt_ids[i])
+        for i, src_id in enumerate(src_ids):
+            src_len, tgt_len = len(src_id), len(tgt_ids[i])
             if src_len not in buckets.keys():
                 buckets[src_len] = [(tgt_len, i)]
             else:
                 buckets[src_len].append((tgt_len, i))
-        for b in buckets:
-            buckets[b] = sorted(buckets[b])
-        buckets = OrderedDict(sorted(buckets.items()))
 
+        for b_idx in buckets:
+            buckets[b_idx] = sorted(buckets[b_idx])
+
+        buckets = OrderedDict(sorted(buckets.items()))
         indices = list(buckets.keys())
 
         batches = [[]]
@@ -130,7 +132,7 @@ class TranslationDataset(Dataset):
                 batches[num_batches].append(idx)
                 batch_size += 1
 
-                if (batch_size * (src_len + tgt_len) > self.tokens_in_batch):
+                if batch_size * (src_len + tgt_len) > self.tokens_in_batch:
 
                     num_examples_to_split = len(batches[num_batches])
                     batches_to_evict = 8 * ((num_examples_to_split - 1) // 8)
