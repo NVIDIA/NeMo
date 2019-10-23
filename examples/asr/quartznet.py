@@ -22,7 +22,7 @@ def parse_args():
     parser.set_defaults(
         checkpoint_dir=None,
         optimizer="novograd",
-        batch_size=64,
+        batch_size=32,
         eval_batch_size=64,
         lr=0.01,
         weight_decay=0.001,
