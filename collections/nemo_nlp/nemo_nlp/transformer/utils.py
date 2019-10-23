@@ -1,4 +1,5 @@
 import math
+
 import torch
 import torch.nn as nn
 
@@ -7,11 +8,6 @@ NEG_INF = -10000.0
 
 def gelu(x):
     return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
-
-
-def mask_padded_tokens(tokens, pad_id):
-    mask = (tokens != pad_id)
-    return mask
 
 
 def form_attention_mask(input_mask, diagonal=None):
@@ -39,7 +35,7 @@ def form_attention_mask(input_mask, diagonal=None):
         future_mask = torch.tril(
             torch.ones(attn_shape).byte().to(input_mask.device), diagonal)
         attn_mask = attn_mask & future_mask
-    attention_mask = (1 - attn_mask.to(input_mask.dtype)) * NEG_INF
+    attention_mask = (1 - attn_mask.to(torch.float)) * NEG_INF
     return attention_mask.unsqueeze(1)
 
 

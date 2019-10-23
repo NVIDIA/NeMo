@@ -73,8 +73,8 @@ class NemoArgParser(argparse.ArgumentParser):
                                "specify either num_epochs or max_steps")
         self.add_argument("--lr", type=float, default=1e-3,
                           help="base learning rate")
-        # self.add_argument("--lr_policy", type=str,
-        #                   help="learning rate decay policy")
+        self.add_argument("--lr_policy", type=str, default='WarmupAnnealing',
+                          help="learning rate decay policy")
         # self.add_argument("--warmup_steps", default=0, type=int,
         #                   help="number of learning rate warmup steps")
         self.add_argument("--iter_per_step", default=1, type=int,

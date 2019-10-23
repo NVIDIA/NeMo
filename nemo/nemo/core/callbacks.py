@@ -2,7 +2,6 @@
 from abc import ABC, abstractmethod
 from collections import namedtuple
 import glob
-import math
 import os
 import sys
 import time
@@ -224,7 +223,7 @@ class CheckpointCallback(ActionCallback):
 
     def __save_to(self, path):
         if not os.path.isdir(path):
-            print("Creating {0} folder".format(path))
+            print(f"Creating {path} folder")
             os.makedirs(path, exist_ok=True)
         unique_mod_names = set()
         for module in self.action.modules:
@@ -284,9 +283,7 @@ class CheckpointCallback(ActionCallback):
                         "force_load was set to True for checkpoint callback"
                         "but a checkpoint was not found.")
                 print(e)
-                print(
-                    "Checkpoint folder {0} present but did not restore".format(
-                        path))
+                print(f"Checkpoint folder {path} present but did not restore")
                 return
 
             try:
@@ -343,10 +340,8 @@ class EvaluatorCallback(ActionCallback):
     ):
         # TODO: Eval_epoch currently does nothing
         if eval_step is None and eval_epoch is None:
-            raise ValueError(
-                "Either eval_step or eval_epoch must be set. "
-                "But got: {0} and {1}".format(eval_step, eval_epoch)
-            )
+            raise ValueError("Either eval_step or eval_epoch must be set. "
+                             f"But got: {eval_step} and {eval_epoch}")
         if (eval_step is not None and eval_step <= 0) or (
                 eval_epoch is not None and eval_epoch <= 0
         ):

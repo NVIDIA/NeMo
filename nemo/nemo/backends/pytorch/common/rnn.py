@@ -1,3 +1,5 @@
+__all__ = ['DecoderRNN']
+
 import random
 
 import torch
@@ -75,11 +77,19 @@ class DecoderRNN(TrainableNM):
         }
         return input_ports, output_ports
 
-    def __init__(self, voc_size, bos_id, hidden_size,
-                 attention_method='general', attention_type='post',
-                 in_dropout=0.2, gru_dropout=0.2, attn_dropout=0.0,
-                 teacher_forcing=1.0, curriculum_learning=0.5,
-                 rnn_type='gru', n_layers=2,
+    def __init__(self,
+                 voc_size,
+                 bos_id,
+                 hidden_size,
+                 attention_method='general',
+                 attention_type='post',
+                 in_dropout=0.2,
+                 gru_dropout=0.2,
+                 attn_dropout=0.0,
+                 teacher_forcing=1.0,
+                 curriculum_learning=0.5,
+                 rnn_type='gru',
+                 n_layers=2,
                  tie_emb_out_weights=True,
                  **kwargs):
         super().__init__(**kwargs)

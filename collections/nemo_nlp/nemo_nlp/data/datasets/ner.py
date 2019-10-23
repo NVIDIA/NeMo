@@ -18,16 +18,20 @@
 Utility functions for NER NLP tasks
 Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
+
+The data processing part is adapted from:
+https://github.com/kyzhouhzau/BERT-NER/blob/master/conlleval.pl
 """
 
-# TODO: REFACTOR to minimize code reusing
+# TODO: REFACTOR to maximize code reusing
 
 import collections
+
 import numpy as np
 from torch.utils.data import Dataset
 
 
-class BertNERDataset(Dataset):
+class BertCornellNERDataset(Dataset):
     def __init__(self, input_file, max_seq_length, tokenizer):
         # Read the sentences and group them in sequences up to max_seq_length
         with open(input_file, "r") as f:
@@ -42,10 +46,7 @@ class BertNERDataset(Dataset):
 
             lines = f.readlines()
 
-            words = []
-            tags = []
-            tokens = []
-            token_tags = []
+            words, tags, tokens, token_tags = [], [], [], []
             token_count = 0
 
             def process_sentence():
@@ -74,7 +75,8 @@ class BertNERDataset(Dataset):
 
             # Collect a list of all possible tags
             for line in lines:
-                if line == "\n":
+                line = line.strip()
+                if not line:
                     continue
 
                 tag = line.split()[-1]
@@ -117,8 +119,11 @@ class BertNERDataset(Dataset):
                 token_count += len(word_tokens)
 
             self.features = convert_sequences_to_features(
-                self.seq_words, self.seq_subtokens, self.seq_token_labels,
-                tokenizer, max_seq_length)
+                self.seq_words,
+                self.seq_subtokens,
+                self.seq_token_labels,
+                tokenizer,
+                max_seq_length)
 
             self.tag_ids = tag_ids
             self.tokenizer = tokenizer
@@ -131,17 +136,15 @@ class BertNERDataset(Dataset):
     def __getitem__(self, idx):
         feature = self.features[idx]
 
-        return np.array(feature.input_ids), np.array(feature.segment_ids), \
-            np.array(feature.input_mask, dtype=np.float32), \
-            np.array(feature.labels), np.array(feature.seq_id)
+        return (np.array(feature.input_ids),
+                np.array(feature.segment_ids),
+                np.array(feature.input_mask, dtype=np.float32),
+                np.array(feature.labels),
+                np.array(feature.seq_id))
 
     def eval_preds(self, logits_lists, seq_ids, tag_ids):
-        correct_chunks = 0
-        total_chunks = 0
-        predicted_chunks = 0
-
-        correct_tags = 0
-        token_count = 0
+        correct_chunks, total_chunks, predicted_chunks = 0, 0, 0
+        correct_tags, token_count = 0, 0
 
         lines = []
         tag_ids = {tag_ids[k]: k for k in tag_ids}
@@ -162,13 +165,10 @@ class BertNERDataset(Dataset):
 
             in_correct = False
 
-            last_label = "O"
-            last_pred = "O"
+            last_label, last_pred = "O", "O"
 
-            last_correct = "O"
-            last_correct_type = ""
-            last_guessed = "O"
-            last_guessed_type = ""
+            last_correct, last_correct_type = "O", ""
+            last_guess, last_guess_type = "O", ""
 
             previous_word_id = -1
 
@@ -180,11 +180,11 @@ class BertNERDataset(Dataset):
                     pred = tag_ids[preds[token_id]]
 
                     if pred != "O":
-                        guessed = "B" if last_pred != pred else "I"
-                        guessed_type = pred
+                        guess = "B" if last_pred != pred else "I"
+                        guess_type = pred
                     else:
-                        guessed = pred
-                        guessed_type = ""
+                        guess = pred
+                        guess_type = ""
 
                     if label != "O":
                         correct = "B" if last_label != label else "I"
@@ -194,40 +194,37 @@ class BertNERDataset(Dataset):
                         correct_type = ""
 
                     if in_correct:
-                        if end_of_chunk(last_correct, correct,
-                                        last_correct_type, correct_type) and \
-                                end_of_chunk(last_guessed, guessed,
-                                             last_guessed_type,
-                                             guessed_type) and \
-                                last_guessed_type == last_correct_type:
+                        if chunk_end(last_correct, correct,
+                                     last_correct_type, correct_type) and \
+                                chunk_end(last_guess, guess,
+                                          last_guess_type, guess_type) and \
+                                last_guess_type == last_correct_type:
                             in_correct = False
                             correct_chunks += 1
 
-                        elif end_of_chunk(last_correct, correct,
-                                          last_correct_type, correct_type) != \
-                                end_of_chunk(last_guessed, guessed,
-                                             last_guessed_type,
-                                             guessed_type) or \
-                                guessed_type != correct_type:
+                        elif chunk_end(last_correct, correct,
+                                       last_correct_type, correct_type) != \
+                                chunk_end(last_guess, guess,
+                                          last_guess_type, guess_type) or \
+                                guess_type != correct_type:
                             in_correct = False
 
-                    if start_of_chunk(last_correct, correct, last_correct_type,
-                                      correct_type) and \
-                            start_of_chunk(last_guessed, guessed,
-                                           last_guessed_type,
-                                           guessed_type) and \
-                            guessed_type == correct_type:
+                    if chunk_start(last_correct, correct,
+                                   last_correct_type, correct_type) and \
+                            chunk_start(last_guess, guess,
+                                        last_guess_type, guess_type) and \
+                            guess_type == correct_type:
                         in_correct = True
 
-                    if start_of_chunk(last_correct, correct, last_correct_type,
-                                      correct_type):
+                    if chunk_start(last_correct, correct, last_correct_type,
+                                   correct_type):
                         total_chunks += 1
 
-                    if start_of_chunk(last_guessed, guessed, last_guessed_type,
-                                      guessed_type):
+                    if chunk_start(last_guess, guess, last_guess_type,
+                                   guess_type):
                         predicted_chunks += 1
 
-                    if correct == guessed and guessed_type == correct_type:
+                    if correct == guess and guess_type == correct_type:
                         correct_tags += 1
 
                     token_count += 1
@@ -235,61 +232,43 @@ class BertNERDataset(Dataset):
                     last_label = label
                     last_pred = pred
 
-                    last_guessed = guessed
+                    last_guess = guess
                     last_correct = correct
-                    last_guessed_type = guessed_type
+                    last_guess_type = guess_type
                     last_correct_type = correct_type
 
-                    lines.append({
-                        "word": word,
-                        "label": feature.labels[token_id],
-                        "prediction": preds[token_id]
-                    })
+                    lines.append({"word": word,
+                                  "label": feature.labels[token_id],
+                                  "prediction": preds[token_id]})
 
                 previous_word_id = word_id
 
             if in_correct:
                 correct_chunks += 1
 
-            lines.append({
-                "word": ""
-            })
+            lines.append({"word": ""})
 
         return correct_tags, token_count, correct_chunks, predicted_chunks, \
             total_chunks, lines
 
 
-def start_of_chunk(prev_tag, tag, prev_type, type):
-    if prev_tag == "B" and tag == "B":
+def chunk_start(prev_tag, tag, prev_type, type_):
+    if prev_tag in ['B', 'I', 'O'] and tag == 'B':
         return True
-    elif prev_tag == "I" and tag == "B":
+    elif prev_tag == 'O' and tag == 'I':
         return True
-    elif prev_tag == "O" and tag == "B":
+    elif tag != "O" and prev_type != type_:
         return True
-    elif prev_tag == "O" and tag == "I":
-        return True
-    elif prev_tag == "O" and tag == "I":
-        return True
-    elif tag != "O" and prev_type != type:
-        return True
-
     return False
 
 
-def end_of_chunk(prev_tag, tag, prev_type, type):
-    if prev_tag == "B" and tag == "B":
+def chunk_end(prev_tag, tag, prev_type, type_):
+    if prev_tag == 'B' and tag in ['B', 'O']:
         return True
-    elif prev_tag == "B" and tag == "O":
+    elif prev_tag == "I" and tag in ['B', 'O']:
         return True
-    elif prev_tag == "I" and tag == "B":
+    elif prev_tag != "O" and prev_type != type_:
         return True
-    elif prev_tag == "I" and tag == "O":
-        return True
-    elif prev_tag == "I" and tag == "O":
-        return True
-    elif prev_tag != "O" and prev_type != type:
-        return True
-
     return False
 
 
@@ -438,13 +417,8 @@ class InputFeatures(object):
                  input_ids,
                  input_mask,
                  segment_ids):
-        self.seq_id = seq_id
-        self.doc_span_index = doc_span_index
-        self.tokens = tokens
-        self.words = words
-        self.labels = labels
-        self.token_to_orig_map = token_to_orig_map
-        self.token_is_max_context = token_is_max_context
-        self.input_ids = input_ids
-        self.input_mask = input_mask
-        self.segment_ids = segment_ids
+        local_params = locals()
+        for key in local_params:
+            if key == 'self':
+                continue
+            setattr(self, key, local_params[key])
