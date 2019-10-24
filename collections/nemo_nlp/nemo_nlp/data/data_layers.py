@@ -293,6 +293,27 @@ class BertTokenClassificationDataLayer(TextDataLayer):
 
 
 class BertPretrainingDataLayer(TextDataLayer):
+    """Data Layer for BERT pre-training
+
+    Module which prepares data for BERT pre-training.
+    It accepts tokenizer, dataset directory or a single text file,
+    and processes the data for BERT pre-training - masked-LM and
+    next-sentence-prediction.
+
+    Args:
+        tokenizer (str): path to the tokenizer
+        dataset (str): path to the directory containing text files,
+            or path to a single text file.
+        max_seq_length (int): maximum sequence length. Usually 128 or 512.
+            Defaults to 128.
+        mask_probability (float): probability of masking random words in
+            a sequence.
+            Defaults to 0.15.
+        short_seeq_prob (float): Probability of creating sequences which are
+            shorter than the maximum length.
+            Defualts to 0.1.
+    """
+
     @staticmethod
     def create_ports():
         input_ports = {}
