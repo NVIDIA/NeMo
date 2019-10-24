@@ -251,5 +251,6 @@ def main():
                     f'{beam_wers_sorted[0][0]}, '
                     f'WER: {beam_wers_sorted[0][1]:.2f}')
 
+
 if __name__ == "__main__":
     main()
