@@ -138,6 +138,7 @@ class BertPretrainingDataset(Dataset):
         max_num_tokens = self.max_seq_length - num_special_tokens
         target_seq_length = max_num_tokens
         if random.random() < self.short_seq_prob:
+            # TODO: maybe introduce an argument to control this.
             target_seq_length = random.randint(2, max_num_tokens)
 
         a_filename = random.choice(self.filenames)
@@ -162,6 +163,8 @@ class BertPretrainingDataset(Dataset):
         def match_target_seq_length(document, target_seq_length, filename,
                                     line_idx, sentence_indices):
             # match the target seq_length
+            # 10 is an arbitrary choice for now searching the data to match
+            # the target_seq_length.
             for _ in range(10):
                 # if line_idx + 1 is larger than the file, then we don't match
                 # seq_length - it'll be a shorter seq_length.
@@ -185,6 +188,8 @@ class BertPretrainingDataset(Dataset):
 
             return document, line_idx
 
+        # prefer the seq_a to be slightly longer than seq_b, hence 0.6
+        # TODO: perhaps give this as an argument to control.
         target_seq_length_a = int(round(target_seq_length * 0.6))
         target_seq_length_b = target_seq_length - target_seq_length_a
         a_document = get_document(
@@ -200,6 +205,10 @@ class BertPretrainingDataset(Dataset):
             # About 50% of the time, B is a random sentence from the corpus
             label = 0
 
+            # This should rarely go for more than one iteration for large
+            # corpora. However, just to be careful, we try to make sure that
+            # the random document is not the same as the document
+            # we're processing.
             for _ in range(10):
                 b_filename = random.choice(self.filenames)
                 b_line_idx = random.choice(
@@ -241,7 +250,9 @@ class BertPretrainingDataset(Dataset):
 
                 trunc_document = a_document if len(
                     a_document) > len(b_document) else b_document
-                assert len(trunc_document) >= 1
+                raise ValueError("Input text corpora probably too small. "
+                                 "Failed to truncate sequence pair to "
+                                 "maximum sequence length.")
 
                 if random.random() < 0.5:
                     del trunc_document[0]
@@ -268,9 +279,10 @@ class BertPretrainingDataset(Dataset):
             output_ids.append(0)
             output_mask = np.append(output_mask, [0])
 
-        return np.array(input_ids), input_type_ids, np.array(
-            input_mask, dtype=np.float32), np.array(output_ids), np.array(
-            output_mask, dtype=np.float32), label
+        # TODO: wrap the return value with () for consistent style.
+        return np.array(input_ids), input_type_ids,\
+            np.array(input_mask, dtype=np.float32), np.array(output_ids),\
+            np.array(output_mask, dtype=np.float32), label
 
     def mask_ids(self, ids):
         """
@@ -304,13 +316,16 @@ class BertPretrainingDataset(Dataset):
                   cand_index[0] != self.tokenizer.special_tokens["[CLS]"] and \
                   cand_index[0] != self.tokenizer.special_tokens["[SEP]"]:
                 if random.random() < 0.8:
-                    for cand_index_i in cand_index:
+                    for _ in range(cand_index):
                         output_mask.append(1)
                         masked_ids.append(
                             self.tokenizer.special_tokens["[MASK]"])
                 elif random.random() < 0.5:
-                    for cand_index_i in cand_index:
+                    for _ in range(cand_index):
                         output_mask.append(1)
+                        # This should rarely go for more than one iteration,
+                        # but doing 10 iterations to make sure.
+                        # There should be more elegant and fast way to do this.
                         for _ in range(10):
                             random_word = random.randrange(self.vocab_size)
                             if random_word != \
