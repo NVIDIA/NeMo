@@ -227,8 +227,6 @@ def main():
                     checkpoint_dir=checkpoint_dir,
                 )
 
-                greedy_hypotheses = post_process_predictions(
-                    evaluated_tensors[1], vocab)
                 references = post_process_transcripts(
                     evaluated_tensors[2], evaluated_tensors[3], vocab)
 
