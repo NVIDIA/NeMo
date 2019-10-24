@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser(description="Punctuation_with_pretrainedBERT")
 parser.add_argument("--interactive", action='store_true'),
 parser.add_argument("--pretrained_bert_model", default="bert-base-uncased",
                     type=str)
-parser.add_argument("--infer_file", default="", type=str,
+parser.add_argument("--infer_file", default="dev.txt", type=str,
                     help="File to use for inference")
 parser.add_argument("--batch_size", default=8, type=int)
 parser.add_argument("--max_seq_length", default=128, type=int)
@@ -30,7 +30,7 @@ parser.add_argument("--bert_checkpoint", default='BERT-EPOCH-1.pt', type=str)
 parser.add_argument("--classifier_checkpoint",
                     default='TokenClassifier-EPOCH-1.pt', type=str)
 parser.add_argument("--bert_config", default=None, type=str)
-parser.add_argument("--work_dir", default='output_glue', type=str,
+parser.add_argument("--work_dir", default='output_punct', type=str,
                     help="The output directory where the model predictions \
                     and checkpoints will be written.")
 
