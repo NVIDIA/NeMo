@@ -28,8 +28,8 @@ parser.add_argument("--amp_opt_level", default="O0",
 parser.add_argument("--data_dir", default="/data", type=str)
 parser.add_argument("--dataset_type", default="BertPunctuationDataset",
                     type=str)
-parser.add_argument("--num_classes", default=5, type=int)
-parser.add_argument("--fc_dropout", default=0.1, type=float)
+parser.add_argument("--num_classes", default=4, type=int)
+parser.add_argument("--fc_dropout", default=0.5, type=float)
 parser.add_argument("--pretrained_bert_model",
                     default="bert-base-uncased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)

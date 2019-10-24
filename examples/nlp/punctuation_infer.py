@@ -23,7 +23,7 @@ parser.add_argument("--infer_file", default="", type=str,
                     help="File to use for inference")
 parser.add_argument("--batch_size", default=8, type=int)
 parser.add_argument("--max_seq_length", default=128, type=int)
-parser.add_argument("--num_classes", default=5, type=int)
+parser.add_argument("--num_classes", default=4, type=int)
 parser.add_argument("--dataset_type", default="BertPunctuationDataset",
                     type=str)
 parser.add_argument("--bert_checkpoint", default='BERT-EPOCH-1.pt', type=str)
@@ -46,7 +46,7 @@ tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
 bert_model = nemo_nlp.huggingface.BERT(
             pretrained_model_name=args.pretrained_bert_model)
 
-tag_ids = {'O': 0, '!': 4, ',': 3, '.': 2, '?': 1}
+tag_ids = {'O': 0, ',': 3, '.': 2, '?': 1}
 ids_to_tags = {tag_ids[k]: k for k in tag_ids}
 
 num_labels = len(tag_ids)
