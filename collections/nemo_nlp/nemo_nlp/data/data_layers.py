@@ -10,9 +10,7 @@ __all__ = ['TextDataLayer',
            'LanguageModelingDataLayer',
            'BertTokenClassificationDataLayer',
            'BertPretrainingDataLayer',
-           'TranslationDataLayer',
-           'GlueDataLayerClassification',
-           'GlueDataLayerRegression']
+           'TranslationDataLayer']
 
 # from abc import abstractmethod
 import sys
@@ -215,26 +213,8 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
 
 
 class LanguageModelingDataLayer(TextDataLayer):
-    """
-    Data layer for standard language modeling task.
-
-    Args:
-        dataset (str): path to text document with data
-        tokenizer (TokenizerSpec): tokenizer
-        max_seq_length (int): maximum allowed length of the text segments
-        batch_step (int): how many tokens to skip between two successive
-            segments of text when constructing batches
-    """
-
     @staticmethod
     def create_ports():
-        """
-        input_ids: indices of tokens which constitute batches of text segments
-        input_mask: bool tensor with 0s in place of tokens to be masked
-        labels: indices of tokens which should be predicted from each of the
-            corresponding tokens in input_ids; for left-to-right language
-            modeling equals to input_ids shifted by 1 to the right
-        """
         input_ports = {}
         output_ports = {
             "input_ids":
@@ -313,29 +293,29 @@ class BertTokenClassificationDataLayer(TextDataLayer):
 
 
 class BertPretrainingDataLayer(TextDataLayer):
-    """
-    Data layer for masked language modeling task.
+    """Data Layer for BERT pre-training
+
+    Module which prepares data for BERT pre-training.
+    It accepts tokenizer, dataset directory or a single text file,
+    and processes the data for BERT pre-training - masked-LM and
+    next-sentence-prediction.
 
     Args:
-        tokenizer (TokenizerSpec): tokenizer
-        dataset (str): directory or a single file with dataset documents
-        max_seq_length (int): maximum allowed length of the text segments
-        mask_probability (float): probability of masking input sequence tokens
-        batch_size (int): batch size in segments
+        tokenizer (str): path to the tokenizer
+        dataset (str): path to the directory containing text files,
+            or path to a single text file.
+        max_seq_length (int): maximum sequence length. Usually 128 or 512.
+            Defaults to 128.
+        mask_probability (float): probability of masking random words in
+            a sequence.
+            Defaults to 0.15.
+        short_seeq_prob (float): Probability of creating sequences which are
+            shorter than the maximum length.
+            Defualts to 0.1.
     """
 
     @staticmethod
     def create_ports():
-        """
-        input_ids: indices of tokens which constitute batches of text segments
-        input_type_ids: indices of token types (e.g., sentences A & B in BERT)
-        input_mask: bool tensor with 0s in place of tokens to be masked
-        output_ids: indices of output tokens which should be predicted
-        output_mask: bool tensor with 0s in place of tokens to be excluded
-            from loss calculation
-        labels: indices of classes to be predicted from [CLS] token of text
-            segments (e.g, 0 or 1 in next sentence prediction task)
-        """
         input_ports = {}
         output_ports = {
             "input_ids": NeuralType({
@@ -381,36 +361,8 @@ class BertPretrainingDataLayer(TextDataLayer):
 
 
 class TranslationDataLayer(TextDataLayer):
-    """
-    Data layer for neural machine translation from source (src) language to
-    target (tgt) language.
-
-    Args:
-        tokenizer_src (TokenizerSpec): source language tokenizer
-        tokenizer_tgt (TokenizerSpec): target language tokenizer
-        dataset_src (str): path to source data
-        dataset_tgt (str): path to target data
-        tokens_in_batch (int): maximum allowed number of tokens in batches,
-            batches will be constructed to minimize the use of <pad> tokens
-        clean (bool): whether to use parallel data cleaning such as removing
-            pairs with big difference in sentences length, removing pairs with
-            the same tokens in src and tgt, etc; useful for training data layer
-            and should not be used in evaluation data layer
-    """
-
     @staticmethod
     def create_ports():
-        """
-        src_ids: indices of tokens which correspond to source sentences
-        src_mask: bool tensor with 0s in place of source tokens to be masked
-        tgt_ids: indices of tokens which correspond to target sentences
-        tgt_mask: bool tensor with 0s in place of target tokens to be masked
-        labels: indices of tokens which should be predicted from each of the
-            corresponding target tokens in tgt_ids; for standard neural
-            machine translation equals to tgt_ids shifted by 1 to the right
-        sent_ids: indices of the sentences in a batch; important for
-            evaluation with external metrics, such as SacreBLEU
-        """
         input_ports = {}
         output_ports = {
             "src_ids": NeuralType({
@@ -485,119 +437,3 @@ class TranslationDataLayer(TextDataLayer):
     @property
     def data_iterator(self):
         return self._dataloader
-
-
-class GlueDataLayerClassification(TextDataLayer):
-    """
-    Creates the data layer to use for the GLUE classification tasks,
-    more details here: https://gluebenchmark.com/tasks
-
-    All the data processing is done in GLUEDataset.
-
-    Args:
-        dataset_type (GLUEDataset):
-                the dataset that needs to be converted to DataLayerNM
-    """
-
-    @staticmethod
-    def create_ports():
-        output_ports = {
-            "input_ids": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-            "input_type_ids": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-            "input_mask": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-            "labels": NeuralType({
-                0: AxisType(CategoricalTag),
-            }),
-        }
-        return {}, output_ports
-
-    def __init__(self,
-                 data_dir,
-                 tokenizer,
-                 max_seq_length,
-                 processor,
-                 evaluate=False,
-                 token_params={},
-                 num_samples=-1,
-                 shuffle=False,
-                 batch_size=64,
-                 dataset_type=GLUEDataset,
-                 **kwargs):
-
-        kwargs['batch_size'] = batch_size
-        dataset_params = {'data_dir': data_dir,
-                          'output_mode': 'classification',
-                          'processor': processor,
-                          'evaluate': evaluate,
-                          'token_params': token_params,
-                          'tokenizer': tokenizer,
-                          'max_seq_length': max_seq_length}
-
-        super().__init__(dataset_type, dataset_params, **kwargs)
-
-
-class GlueDataLayerRegression(TextDataLayer):
-    """
-    Creates the data layer to use for the GLUE STS-B regression task,
-    more details here: https://gluebenchmark.com/tasks
-
-    All the data processing is done in GLUEDataset.
-
-    Args:
-        dataset_type (GLUEDataset):
-                the dataset that needs to be converted to DataLayerNM
-    """
-
-    @staticmethod
-    def create_ports():
-        output_ports = {
-            "input_ids": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-            "input_type_ids": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-            "input_mask": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-            "labels": NeuralType({
-                0: AxisType(RegressionTag),
-            }),
-        }
-        return {}, output_ports
-
-    def __init__(self,
-                 data_dir,
-                 tokenizer,
-                 max_seq_length,
-                 processor,
-                 evaluate=False,
-                 token_params={},
-                 num_samples=-1,
-                 shuffle=False,
-                 batch_size=64,
-                 dataset_type=GLUEDataset,
-                 **kwargs):
-
-        kwargs['batch_size'] = batch_size
-        dataset_params = {'data_dir': data_dir,
-                          'output_mode': 'regression',
-                          'processor': processor,
-                          'evaluate': evaluate,
-                          'token_params': token_params,
-                          'tokenizer': tokenizer,
-                          'max_seq_length': max_seq_length}
-
-        super().__init__(dataset_type, dataset_params, **kwargs)
