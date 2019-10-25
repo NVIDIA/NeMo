@@ -209,8 +209,8 @@ def main():
                 beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
                     vocab=vocab,
                     beam_width=args.beam_width,
-                    alpha=args.alpha,
-                    beta=args.beta,
+                    alpha=alpha,
+                    beta=beta,
                     lm_path=args.lm_path,
                     num_cpus=max(os.cpu_count(), 1))
                 beam_predictions_e1 = beam_search_with_lm(
@@ -246,10 +246,10 @@ def main():
         logger.info('================================')
         logger.info('\n' + '\n'.join([str(e) for e in beam_wers]))
         logger.info('================================')
-        beam_wers_sorted = sorted(beam_wers, key=lambda x: x[1])
+        best_beam_wer = min(beam_wers, key=lambda x: x[1])
         logger.info('Best (alpha, beta): '
-                    f'{beam_wers_sorted[0][0]}, '
-                    f'WER: {beam_wers_sorted[0][1]:.2f}')
+                    f'{best_beam_wer[0]}, '
+                    f'WER: {best_beam_wer[1]:.2f}')
 
 
 if __name__ == "__main__":
