@@ -556,7 +556,10 @@ class NeuralModuleFactory(object):
         return self._trainer.infer(
             tensors=tensors, checkpoint_dir=checkpoint_dir,
             ckpt_pattern=ckpt_pattern, logger=self.logger,
-            cache=cache, use_cache=False)
+            cache=cache, use_cache=use_cache)
+
+    def clear_cache(self):
+        self._trainer.clear_cache()
 
     def _get_trainer(self, tb_writer=None):
         if self._backend == Backend.PyTorch:

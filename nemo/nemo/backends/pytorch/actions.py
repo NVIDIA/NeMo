@@ -75,6 +75,7 @@ class PtActions(Actions):
         self.optimizers = []
         self.tb_writer = tb_writer
         self._modules = set()
+        self.cache = None
 
     @property
     def modules(self):
@@ -391,12 +392,15 @@ class PtActions(Actions):
                                 use_cache=False):
         for ind in range(1, len(call_chain)):
             if use_cache:
+                print("Check cache")
                 in_cache = True
                 for tensor in call_chain[ind][2].values():
-                    if tensor not in registered_tensors:
+                    if tensor.unique_name not in registered_tensors:
+                        import ipdb; ipdb.set_trace()
                         in_cache = False
                 if in_cache:
-                    return
+                    print(f"Skipping {call_chain[ind][0].unique_instance_id}")
+                    continue
             call_args = call_chain[ind][1]
             # module = call_chain[ind][0]
             m_id = call_chain[ind][0].unique_instance_id
@@ -742,16 +746,27 @@ class PtActions(Actions):
             # reset global_var_dict - results of evaluation will be stored
             # there
 
+            if cache:
+                all_tensors = set()
+                for i, mod in enumerate(call_chain):
+                    for t in mod[2].values():
+                        all_tensors.add(t.unique_name)
+            else:
+                all_tensors = tensors_to_return
+
             if not is_distributed or self.local_rank == 0:
                 values_dict = {}
-                for t in tensors_to_return:
-                    values_dict[t.unique_name] = []
+                for t in all_tensors:
+                    key = t if cache else t.unique_name
+                    values_dict[key] = []
             dl_device = dl_nm._device
 
             # Evaluation mini-batch for loop
             if use_cache:
-                num_batches = len(self.get_cache())
-                loop_iterator = self.get_cache()
+                if not self.cache:
+                    raise ValueError("use_cache was set, but cache was empty")
+                num_batches = len(self.cache)
+                loop_iterator = self.cache
             else:
                 num_batches = len(eval_dataloader)
                 loop_iterator = eval_dataloader
@@ -768,7 +783,8 @@ class PtActions(Actions):
                     registered_e_tensors = data
                     # delete tensors_to_return
                     for t in tensors_to_return:
-                        del registered_e_tensors[t.unique_name]
+                        if t.unique_name in registered_e_tensors:
+                            del registered_e_tensors[t.unique_name]
                 else:
                     if isinstance(data, torch.Tensor):
                         data = (data,)
@@ -787,16 +803,15 @@ class PtActions(Actions):
                     call_chain=call_chain,
                     registered_tensors=registered_e_tensors,
                     mode=ModelMode.eval,
+                    use_cache=use_cache
                 )
 
                 # If distributed. For the outer loop, we need to ensure that
                 # all processes loop through the elements in the same order
                 if cache:
-                    tensors_to_store = registered_e_tensors.keys()
-                else:
-                    tensors_to_store = tensors_to_return
+                    self.append_to_cache(registered_e_tensors)
 
-                for t2e in tensors_to_store:
+                for t2e in tensors_to_return:
                     key = t2e.unique_name
                     if key not in registered_e_tensors.keys():
                         print(
@@ -855,8 +870,6 @@ class PtActions(Actions):
                         values_dict[key] += [registered_e_tensors[key]]
 
             if not is_distributed or self.local_rank == 0:
-                if cache:
-                    self.save_cache(values_dict)
                 inferred_tensors = []
                 for t in tensors_to_return:
                     inferred_tensors.append(values_dict[t.unique_name])
@@ -865,15 +878,13 @@ class PtActions(Actions):
             # For all other ranks
             return None
 
-    def save_cache(self, values_dict: dict):
+    def append_to_cache(self, values_dict: dict):
         """TODO
         """
-        self.values_dict = values_dict
+        self.cache.append(values_dict)
 
-    def load_cache(self):
-        """TODO
-        """
-        return self.values_dict
+    def clear_cache(self):
+        self.cache = None
 
     def save_state_to(self, path: str):
         """
@@ -1290,6 +1301,11 @@ class PtActions(Actions):
               logger=None,
               cache=False,
               use_cache=False):
+
+        if cache:
+            if self.cache is not None:
+                raise ValueError("cache was set but was not empty")
+            self.cache = []
 
         if checkpoint_dir:
             # Find all modules that need to be restored
