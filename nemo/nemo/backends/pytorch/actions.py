@@ -387,8 +387,16 @@ class PtActions(Actions):
                                 call_chain,
                                 registered_tensors,
                                 mode=ModelMode.train,
-                                disable_allreduce=False):
+                                disable_allreduce=False,
+                                use_cache=False):
         for ind in range(1, len(call_chain)):
+            if use_cache:
+                in_cache = True
+                for tensor in call_chain[ind][2].values():
+                    if tensor not in registered_tensors:
+                        in_cache = False
+                if in_cache:
+                    return
             call_args = call_chain[ind][1]
             # module = call_chain[ind][0]
             m_id = call_chain[ind][0].unique_instance_id
@@ -667,7 +675,8 @@ class PtActions(Actions):
                         for key, val in vals_to_log.items():
                             callback.swriter.add_scalar(key, val, step)
 
-    def _infer(self, tensors_to_return, step, verbose=False):
+    def _infer(self, tensors_to_return, step, verbose=False, cache=False,
+               use_cache=False):
         """
         Does the same as _eval() just with tensors instead of eval callback.
         """
@@ -685,6 +694,9 @@ class PtActions(Actions):
             is_distributed = False
             world_size = None
             if dl_nm.placement == DeviceType.AllGpu:
+                if self.cache or self.use_cache:
+                    raise NotImplementedError(
+                        "Caching is not available for distributed training.")
                 assert dist.is_initialized()
                 is_distributed = True
                 world_size = torch.distributed.get_world_size()
@@ -709,7 +721,7 @@ class PtActions(Actions):
                 else:
                     eval_dataloader = dl_nm.data_iterator
                 eval_dataloader.sampler.set_epoch(0)
-            else:  # Not distributed
+            elif not use_cache:  # Not distributed
                 if dl_nm.dataset is not None:
                     # Todo: remove local_parameters
                     eval_dataloader = torch.utils.data.DataLoader(
@@ -737,8 +749,14 @@ class PtActions(Actions):
             dl_device = dl_nm._device
 
             # Evaluation mini-batch for loop
-            num_batches = len(eval_dataloader)
-            for epoch_i, data in enumerate(eval_dataloader, 0):
+            if use_cache:
+                num_batches = len(self.get_cache())
+                loop_iterator = self.get_cache()
+            else:
+                num_batches = len(eval_dataloader)
+                loop_iterator = eval_dataloader
+
+            for epoch_i, data in enumerate(loop_iterator, 0):
                 if verbose and (
                         num_batches < 10 or (
                         epoch_i % int(num_batches / 10) == 0)
@@ -746,18 +764,25 @@ class PtActions(Actions):
                     print(
                         f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
-                if isinstance(data, torch.Tensor):
-                    data = (data,)
-                for d in data:
-                    if isinstance(d, torch.Tensor):
-                        tensors.append(d.to(dl_device))
-                    else:
-                        tensors.append(d)
+                if use_cache:
+                    registered_e_tensors = data
+                    # delete tensors_to_return
+                    for t in tensors_to_return:
+                        del registered_e_tensors[t.unique_name]
+                else:
+                    if isinstance(data, torch.Tensor):
+                        data = (data,)
+                    for d in data:
+                        if isinstance(d, torch.Tensor):
+                            tensors.append(d.to(dl_device))
+                        else:
+                            tensors.append(d)
 
-                registered_e_tensors = {t.unique_name: d for t, d in
-                                        zip(call_chain[0][2].values(), tensors)
-                                        if t is not None
-                                        }
+                    registered_e_tensors = {
+                        t.unique_name: d for t, d in
+                        zip(call_chain[0][2].values(), tensors)
+                        if t is not None
+                    }
                 self.__nm_graph_forward_pass(
                     call_chain=call_chain,
                     registered_tensors=registered_e_tensors,
@@ -766,7 +791,12 @@ class PtActions(Actions):
 
                 # If distributed. For the outer loop, we need to ensure that
                 # all processes loop through the elements in the same order
-                for t2e in tensors_to_return:
+                if cache:
+                    tensors_to_store = registered_e_tensors.keys()
+                else:
+                    tensors_to_store = tensors_to_return
+
+                for t2e in tensors_to_store:
                     key = t2e.unique_name
                     if key not in registered_e_tensors.keys():
                         print(
@@ -825,6 +855,8 @@ class PtActions(Actions):
                         values_dict[key] += [registered_e_tensors[key]]
 
             if not is_distributed or self.local_rank == 0:
+                if cache:
+                    self.save_cache(values_dict)
                 inferred_tensors = []
                 for t in tensors_to_return:
                     inferred_tensors.append(values_dict[t.unique_name])
@@ -832,6 +864,16 @@ class PtActions(Actions):
 
             # For all other ranks
             return None
+
+    def save_cache(self, values_dict: dict):
+        """TODO
+        """
+        self.values_dict = values_dict
+
+    def load_cache(self):
+        """TODO
+        """
+        return self.values_dict
 
     def save_state_to(self, path: str):
         """
@@ -1245,7 +1287,9 @@ class PtActions(Actions):
               tensors,
               checkpoint_dir=None,
               ckpt_pattern='',
-              logger=None):
+              logger=None,
+              cache=False,
+              use_cache=False):
 
         if checkpoint_dir:
             # Find all modules that need to be restored
@@ -1287,4 +1331,5 @@ class PtActions(Actions):
                 )
 
         # Run infer
-        return self._infer(tensors_to_return=tensors, step=0, verbose=True)
+        return self._infer(tensors_to_return=tensors, step=0, verbose=True,
+                           cache=cache, use_cache=use_cache)

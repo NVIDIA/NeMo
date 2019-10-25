@@ -552,10 +552,11 @@ class NeuralModuleFactory(object):
         )
 
     def infer(self, tensors: List[NmTensor], checkpoint_dir=None,
-              ckpt_pattern=''):
+              ckpt_pattern='', cache=False, use_cache=False):
         return self._trainer.infer(
             tensors=tensors, checkpoint_dir=checkpoint_dir,
-            ckpt_pattern=ckpt_pattern, logger=self.logger)
+            ckpt_pattern=ckpt_pattern, logger=self.logger,
+            cache=cache, use_cache=False)
 
     def _get_trainer(self, tb_writer=None):
         if self._backend == Backend.PyTorch:
