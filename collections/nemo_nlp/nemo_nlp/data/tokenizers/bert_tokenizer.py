@@ -35,7 +35,6 @@ def remove_spaces(text):
     text = re.sub(r'([0-9])(:)( )([0-9])', '\\1\\2\\4', text)
     text = text.replace(" %", "%")
     text = text.replace("$ ", "$")
-    text = text.replace("\xa0", " ")
     text = re.sub(r'([^0-9])(,)([0-9])', '\\1\\2 \\3', text)
     return text
 

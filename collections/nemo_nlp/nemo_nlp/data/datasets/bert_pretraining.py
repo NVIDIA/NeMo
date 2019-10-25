@@ -34,6 +34,8 @@ class BertPretrainingDataset(Dataset):
                  mask_probability=0.15,
                  sentence_idx_file=None):
         self.tokenizer = tokenizer
+        self.token_cls = tokenizer.token_to_id("[CLS]")
+        self.token_sep = tokenizer.token_to_id("[SEP]")
 
         # Loading enormous datasets into RAM isn't always feasible -- for
         # example, the pubmed corpus is 200+ GB, which doesn't fit into RAM on
@@ -157,10 +159,8 @@ class BertPretrainingDataset(Dataset):
 
                 # Read line, remove newline, and decode as UTF8
                 doc_text = f.readline()[:-1].decode("utf-8", errors="ignore")
-                document = [self.tokenizer.token_to_id("[CLS]")]
-                document.extend(self.tokenizer.text_to_ids(doc_text))
-                document.append(self.tokenizer.token_to_id("[SEP]"))
 
+            document = self.tokenizer.text_to_ids(doc_text)
             assert len(document) >= self.max_seq_length
             return document
 
@@ -190,12 +190,8 @@ class BertPretrainingDataset(Dataset):
         # Process retrieved documents for use in training
         a_ids = a_document[a_start_idx:a_start_idx + a_length]
         b_ids = b_document[b_start_idx:b_start_idx + b_length]
-
-        output_ids = [self.tokenizer.special_tokens["[CLS]"]]
-        output_ids.extend(a_ids)
-        output_ids.append(self.tokenizer.special_tokens["[SEP]"])
-        output_ids.extend(b_ids)
-        output_ids.append(self.tokenizer.special_tokens["[SEP]"])
+        output_ids = [self.token_cls] + a_ids + [self.token_sep] \
+            + b_ids + [self.token_sep]
 
         input_ids, output_mask = self.mask_ids(output_ids)
 
