@@ -54,12 +54,9 @@ class BertPretrainingDataset(Dataset):
         else:
             # Otherwise, generate and store sentence indices
             sentence_indices = {}
-            total_tokens = 0
-            used_tokens = 0
 
             # Finds all of the newline indices in a string
             def find_newlines(contents):
-                nonlocal used_tokens, total_tokens
                 start = 0
 
                 while True:
@@ -68,10 +65,12 @@ class BertPretrainingDataset(Dataset):
                         new_start = contents.index(b"\n", start)
                         line = contents[start:new_start] \
                             .replace(b"\xc2\x99", b" ") \
-                            .replace(b"\xc2\xa0", b" ")
+                            .replace(b"\xc2\xa0", b" ") \
+                            .decode("utf-8", errors="ignore")
                         num_tokens = len(line.split())
 
-                        yield new_start
+                        if num_tokens > 0:
+                          yield start  # JQ: start - 1???
 
                         start = new_start + 1
 
@@ -100,8 +99,6 @@ class BertPretrainingDataset(Dataset):
             # Save sentence indices so we don't have to do this again
             with open(sentence_idx_file, "wb") as f:
                 pickle.dump(sentence_indices, f)
-
-            print(f"Used {used_tokens} of total {total_tokens} tokens")
 
         corpus_size = 0
         empty_files = []
@@ -144,16 +141,13 @@ class BertPretrainingDataset(Dataset):
         a_line_idx = random.choice(
             range(len(self.sentence_indices[a_filename])))
 
-        def get_document(filepath, line):
+        def get_document(filepath, offset):
             # Retrieve a specific line from a file and return as a document
             if os.path.isdir(self.dataset):
                 filepath = os.path.join(self.dataset, filepath)
 
             with open(filepath, "rb") as f:
-                # Add one to go to the character after the newline
-                f.seek(line + 1)
-
-                # Read line, remove newline, and decode as UTF8
+                f.seek(offset)
                 doc_text = f.readline()[:-1].decode("utf-8", errors="ignore")
                 document = self.tokenizer.text_to_ids(doc_text)
 
@@ -235,7 +229,7 @@ class BertPretrainingDataset(Dataset):
             b_filename = a_filename
             b_line_idx = a_line_idx + 1
             b_document = get_document(
-                a_filename, self.sentence_indices[a_filename][b_line_idx])
+                b_filename, self.sentence_indices[b_filename][b_line_idx])
             b_document, b_line_idx = match_target_seq_length(
                 b_document, target_seq_length_b, b_filename, b_line_idx,
                 self.sentence_indices)
@@ -249,9 +243,12 @@ class BertPretrainingDataset(Dataset):
 
                 trunc_document = a_document if len(
                     a_document) > len(b_document) else b_document
+                # TODO: unclear about the following error
+                '''
                 raise ValueError("Input text corpora probably too small. "
                                  "Failed to truncate sequence pair to "
                                  "maximum sequence length.")
+                '''
 
                 if random.random() < 0.5:
                     del trunc_document[0]
@@ -260,9 +257,9 @@ class BertPretrainingDataset(Dataset):
 
         truncate_seq_pair(a_document, b_document, max_num_tokens)
 
-        output_ids = [self.tokenizer.special_tokens["[CLS]"]] + a_document + \
-                     [self.tokenizer.special_tokens["[SEP]"]] + b_document + \
-                     [self.tokenizer.special_tokens["[SEP]"]]
+        output_ids = [self.tokenizer.bos_id()] + a_document + \
+                     [self.tokenizer.eos_id()] + b_document + \
+                     [self.tokenizer.eos_id()]
 
         input_ids, output_mask = self.mask_ids(output_ids)
 
@@ -273,6 +270,7 @@ class BertPretrainingDataset(Dataset):
         input_type_ids = np.zeros(self.max_seq_length, dtype=np.int)
         input_type_ids[len(a_document) + 2:len(output_ids) + 1] = 1
 
+        # TODO: pad with [PAD] instead of 0
         while len(input_ids) < self.max_seq_length:
             input_ids.append(0)
             output_ids.append(0)
@@ -312,13 +310,13 @@ class BertPretrainingDataset(Dataset):
         output_mask = []
         for cand_index in cand_indexes:
             if (random.random() < self.mask_probability) and \
-                  cand_index[0] != self.tokenizer.special_tokens["[CLS]"] and \
-                  cand_index[0] != self.tokenizer.special_tokens["[SEP]"]:
+                  cand_index[0] != self.tokenizer.bos_id() and \
+                  cand_index[0] != self.tokenizer.eos_id():
                 if random.random() < 0.8:
                     for _ in range(cand_index):
                         output_mask.append(1)
                         masked_ids.append(
-                            self.tokenizer.special_tokens["[MASK]"])
+                            self.tokenizer.token_to_id("[MASK]"))
                 elif random.random() < 0.5:
                     for _ in range(cand_index):
                         output_mask.append(1)
@@ -328,9 +326,9 @@ class BertPretrainingDataset(Dataset):
                         for _ in range(10):
                             random_word = random.randrange(self.vocab_size)
                             if random_word != \
-                                    self.tokenizer.special_tokens["[SEP]"] and\
+                                    self.tokenizer.eos_id() and\
                                random_word != \
-                                    self.tokenizer.special_tokens["[CLS]"]:
+                                    self.tokenizer.bos_id():
                                 break
                         masked_ids.append(random_word)
                 else:
