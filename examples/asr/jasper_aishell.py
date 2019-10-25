@@ -37,15 +37,9 @@ def parse_args():
         amp_opt_level="O1"
     )
 
-    # Overwrite default args
+    # Create new args
     parser.add_argument("--vocab_file", type=str, required=True,
                         help="vocabulary file path")
-    parser.add_argument("--train_dataset", type=str, required=True,
-                        help="training dataset path")
-    parser.add_argument("--eval_datasets", type=str, nargs=1,
-                        help="validation dataset path")
-
-    # Create new args
     parser.add_argument("--exp_name", default="Jasper Aishell", type=str)
     parser.add_argument("--beta1", default=0.95, type=float)
     parser.add_argument("--beta2", default=0.25, type=float)
@@ -208,7 +202,7 @@ def create_all_dags(args, neural_factory):
         print_func=partial(
             monitor_asr_train_progress,
             labels=vocab,
-            use_wer=False,
+            eval_metric='CER',
             logger=logger),
         step_freq=args.train_eval_freq,
         get_tb_values=lambda x: [("loss", x[0])],
@@ -249,7 +243,7 @@ def create_all_dags(args, neural_factory):
                 labels=vocab),
             user_epochs_done_callback=partial(
                 process_evaluation_epoch,
-                use_wer=False,
+                eval_metric='CER',
                 tag=tagname,
                 logger=logger),
             eval_step=args.eval_freq,
