@@ -676,11 +676,27 @@ class PtActions(Actions):
                         for key, val in vals_to_log.items():
                             callback.swriter.add_scalar(key, val, step)
 
-    def _infer(self, tensors_to_return, step, verbose=False, cache=False,
-               use_cache=False, offload_to_cpu=True):
+    def _infer(self,
+               tensors_to_return,
+               verbose=False,
+               cache=False,
+               use_cache=False,
+               offload_to_cpu=True):
         """
         Does the same as _eval() just with tensors instead of eval callback.
         """
+        # Checking that cache is used properly
+        if cache and use_cache:
+            raise ValueError("cache and use_cache were both set. However cache"
+                             " must first be created prior to using it.")
+        if cache:
+            if self.cache is not None:
+                raise ValueError("cache was set but was not empty")
+            self.cache = []
+        if use_cache:
+            if not self.cache:
+                raise ValueError("use_cache was set, but cache was empty")
+
         with torch.no_grad():
             # each call chain corresponds to a tensor in tensors_2_evaluate
             dl_nm = None
@@ -722,7 +738,9 @@ class PtActions(Actions):
                 else:
                     eval_dataloader = dl_nm.data_iterator
                 eval_dataloader.sampler.set_epoch(0)
-            elif not use_cache:  # Not distributed
+            elif not use_cache:  # Not distributed and not using cache
+                # There is no need for dataloaders if using cache
+                # Caching must then cache all outputs from dataloader
                 if dl_nm.dataset is not None:
                     # Todo: remove local_parameters
                     eval_dataloader = torch.utils.data.DataLoader(
@@ -743,25 +761,14 @@ class PtActions(Actions):
             # reset global_var_dict - results of evaluation will be stored
             # there
 
-            if cache:
-                all_tensors = set()
-                for i, mod in enumerate(call_chain):
-                    for t in mod[2].values():
-                        all_tensors.add(t.unique_name)
-            else:
-                all_tensors = tensors_to_return
-
             if not is_distributed or self.local_rank == 0:
                 values_dict = {}
-                for t in all_tensors:
-                    key = t if cache else t.unique_name
-                    values_dict[key] = []
+                for t in tensors_to_return:
+                    values_dict[t.unique_name] = []
             dl_device = dl_nm._device
 
             # Evaluation mini-batch for loop
             if use_cache:
-                if not self.cache:
-                    raise ValueError("use_cache was set, but cache was empty")
                 num_batches = len(self.cache)
                 loop_iterator = self.cache
             else:
@@ -803,15 +810,17 @@ class PtActions(Actions):
                     use_cache=use_cache
                 )
 
-                # If distributed. For the outer loop, we need to ensure that
-                # all processes loop through the elements in the same order
                 if offload_to_cpu:
+                    # Take all cuda tensors and save them to value_dict as
+                    # cpu tensors to save GPU memory
                     for name, tensor in registered_e_tensors.items():
                         if isinstance(tensor, torch.Tensor):
                             registered_e_tensors[name] = tensor.cpu()
                 if cache:
                     self.append_to_cache(registered_e_tensors)
 
+                # If distributed. For the outer loop, we need to ensure that
+                # all processes loop through the elements in the same order
                 for t2e in tensors_to_return:
                     key = t2e.unique_name
                     if key not in registered_e_tensors.keys():
@@ -879,12 +888,16 @@ class PtActions(Actions):
             # For all other ranks
             return None
 
-    def append_to_cache(self, values_dict: dict):
-        """TODO
+    def append_to_cache(self, registered_tensors: dict):
+        """Simpler helper function to add results of __nm_graph_forward_pass to
+        current cache.
         """
-        self.cache.append(values_dict)
+        self.cache.append(registered_tensors)
 
     def clear_cache(self):
+        """ Simple helpful function to clear cache by setting self.cache to
+        None
+        """
         self.cache = None
 
     def save_state_to(self, path: str):
@@ -1304,11 +1317,8 @@ class PtActions(Actions):
               cache=False,
               use_cache=False,
               offload_to_cpu=True):
-
-        if cache:
-            if self.cache is not None:
-                raise ValueError("cache was set but was not empty")
-            self.cache = []
+        """See NeuralModuleFactory.infer()
+        """
 
         if checkpoint_dir:
             # Find all modules that need to be restored
@@ -1350,6 +1360,8 @@ class PtActions(Actions):
                 )
 
         # Run infer
-        return self._infer(tensors_to_return=tensors, step=0, verbose=verbose,
-                           cache=cache, use_cache=use_cache,
+        return self._infer(tensors_to_return=tensors,
+                           verbose=verbose,
+                           cache=cache,
+                           use_cache=use_cache,
                            offload_to_cpu=offload_to_cpu)
