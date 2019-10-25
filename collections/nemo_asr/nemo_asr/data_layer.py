@@ -522,7 +522,11 @@ class TranscriptDataLayer(DataLayerNM):
         for i, s in enumerate(batch_list):
             texts[i].narrow(0, 0, s.size(0)).copy_(s)
 
-        assert len(texts.shape) == 2
+        if len(texts.shape) != 2:
+            raise ValueError(
+                f"Texts in collate function have shape {texts.shape},"
+                f" should have 2 dimensions."
+            )
 
         return texts
 
