@@ -154,10 +154,10 @@ def main():
     greedy_hypotheses = post_process_predictions(evaluated_tensors[1], vocab)
     references = post_process_transcripts(
         evaluated_tensors[2], evaluated_tensors[3], vocab)
-    wer = word_error_rate(hypotheses=greedy_hypotheses,
+    cer = word_error_rate(hypotheses=greedy_hypotheses,
                           references=references,
-                          use_wer=False)
-    logger.info("Greedy CER {:.2f}%".format(wer * 100))
+                          use_cer=True)
+    logger.info("Greedy CER {:.2f}%".format(cer * 100))
 
     if args.lm_path:
         beam_hypotheses = []
@@ -167,9 +167,9 @@ def main():
             for j in i:
                 beam_hypotheses.append(j[0][1])
 
-        wer = word_error_rate(
-            hypotheses=beam_hypotheses, references=references, use_wer=False)
-        logger.info("Beam CER {:.2f}".format(wer * 100))
+        cer = word_error_rate(
+            hypotheses=beam_hypotheses, references=references, use_cer=True)
+        logger.info("Beam CER {:.2f}".format(cer * 100))
 
     if args.save_logprob:
         # Convert logits to list of numpy arrays
