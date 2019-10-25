@@ -33,8 +33,7 @@ def parse_args():
         warmup_steps=8000,
         checkpoint_save_freq=1000,
         train_eval_freq=50,
-        eval_freq=4000,
-        amp_opt_level="O1"
+        eval_freq=4000
     )
 
     # Create new args
