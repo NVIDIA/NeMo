@@ -123,7 +123,6 @@ def main():
     evaluated_tensors = neural_factory.infer(
         tensors=eval_tensors,
         checkpoint_dir=load_dir,
-        cache=True
     )
 
     greedy_hypotheses = post_process_predictions(evaluated_tensors[1], vocab)
