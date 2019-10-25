@@ -31,6 +31,11 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
             beta will result in shorter sequences.
         lm_path (str): Path to n-gram language model
         num_cpus (int): Number of cpus to use
+        cutoff_prob (float): Cutoff probability in vocabulary pruning,
+            default 1.0, no pruning
+        cutoff_top_n (int): Cutoff number in pruning, only top cutoff_top_n
+            characters with highest probs in vocabulary will be used in
+            beam search, default 40.
     """
 
     @staticmethod
