@@ -6,7 +6,6 @@ import copy
 import os
 
 from ruamel.yaml import YAML
-import numpy as np
 
 import nemo
 import nemo_asr
@@ -157,8 +156,8 @@ def main():
 
         beam_wers = []
 
-        for alpha in np.arange(args.alpha, args.alpha_max, args.alpha_step):
-            for beta in np.arange(args.beta, args.beta_max, args.beta_step):
+        for alpha in range(args.alpha, args.alpha_max, args.alpha_step):
+            for beta in range(args.beta, args.beta_max, args.beta_step):
                 logger.info('================================')
                 logger.info(f'Infering with (alpha, beta): ({alpha}, {beta})')
                 beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
