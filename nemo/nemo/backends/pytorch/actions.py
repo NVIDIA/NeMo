@@ -392,14 +392,11 @@ class PtActions(Actions):
                                 use_cache=False):
         for ind in range(1, len(call_chain)):
             if use_cache:
-                print("Check cache")
                 in_cache = True
                 for tensor in call_chain[ind][2].values():
                     if tensor.unique_name not in registered_tensors:
-                        import ipdb; ipdb.set_trace()
                         in_cache = False
                 if in_cache:
-                    print(f"Skipping {call_chain[ind][0].unique_instance_id}")
                     continue
             call_args = call_chain[ind][1]
             # module = call_chain[ind][0]
@@ -680,7 +677,7 @@ class PtActions(Actions):
                             callback.swriter.add_scalar(key, val, step)
 
     def _infer(self, tensors_to_return, step, verbose=False, cache=False,
-               use_cache=False):
+               use_cache=False, offload_to_cpu=True):
         """
         Does the same as _eval() just with tensors instead of eval callback.
         """
@@ -808,6 +805,10 @@ class PtActions(Actions):
 
                 # If distributed. For the outer loop, we need to ensure that
                 # all processes loop through the elements in the same order
+                if offload_to_cpu:
+                    for name, tensor in registered_e_tensors.items():
+                        if isinstance(tensor, torch.Tensor):
+                            registered_e_tensors[name] = tensor.cpu()
                 if cache:
                     self.append_to_cache(registered_e_tensors)
 
@@ -1299,8 +1300,10 @@ class PtActions(Actions):
               checkpoint_dir=None,
               ckpt_pattern='',
               logger=None,
+              verbose=True,
               cache=False,
-              use_cache=False):
+              use_cache=False,
+              offload_to_cpu=True):
 
         if cache:
             if self.cache is not None:
@@ -1347,5 +1350,6 @@ class PtActions(Actions):
                 )
 
         # Run infer
-        return self._infer(tensors_to_return=tensors, step=0, verbose=True,
-                           cache=cache, use_cache=use_cache)
+        return self._infer(tensors_to_return=tensors, step=0, verbose=verbose,
+                           cache=cache, use_cache=use_cache,
+                           offload_to_cpu=offload_to_cpu)

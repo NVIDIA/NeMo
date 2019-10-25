@@ -551,12 +551,29 @@ class NeuralModuleFactory(object):
             optimization_params={'num_epochs': 1}
         )
 
-    def infer(self, tensors: List[NmTensor], checkpoint_dir=None,
-              ckpt_pattern='', cache=False, use_cache=False):
+    def infer(self,
+              tensors: List[NmTensor],
+              checkpoint_dir=None,
+              ckpt_pattern='',
+              verbose=True,
+              cache=False,
+              use_cache=False,
+              offload_to_cpu=True):
+        """Runs inference to obtain values for tensors
+
+        Args:
+          
+
+        Returns:
+            List of evaluated tensors. Each element in the list is also a list
+            where each element is now a batch of tensor values.
+        """
         return self._trainer.infer(
             tensors=tensors, checkpoint_dir=checkpoint_dir,
-            ckpt_pattern=ckpt_pattern, logger=self.logger,
-            cache=cache, use_cache=use_cache)
+            ckpt_pattern=ckpt_pattern, 
+            verbose=verbose, logger=self.logger,
+            cache=cache, use_cache=use_cache,
+            offload_to_cpu=offload_to_cpu)
 
     def clear_cache(self):
         self._trainer.clear_cache()
