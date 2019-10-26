@@ -89,9 +89,6 @@ transcript_n}
             Defaults to True.
         num_workers (int): See PyTorch DataLoader.
             Defaults to 0.
-        dataset_type (Dataset, str): The type of dataset used for this
-            data layer.
-            Defaults to AudioDataset.
         perturb_config (dict): Currently disabled.
     """
 
@@ -127,7 +124,6 @@ transcript_n}
             drop_last=False,
             shuffle=True,
             num_workers=0,
-            dataset_type=AudioDataset,
             # perturb_config=None,
             **kwargs
     ):
@@ -148,9 +144,7 @@ transcript_n}
                           'logger': self._logger,
                           'load_audio': load_audio}
 
-        if isinstance(dataset_type, str):
-            dataset_type = getattr(sys.modules[__name__], dataset_type)
-        self._dataset = dataset_type(**dataset_params)
+        self._dataset = AudioDataset(**dataset_params)
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
@@ -461,8 +455,6 @@ class TranscriptDataLayer(DataLayerNM):
         num_workers (int): Number of processes to work on data loading (0 for
             just main process).
             Defaults to 0.
-        dataset_type: The type of dataset used for this datalayer.
-            Defaults to TranscriptDataset.
     """
 
     @staticmethod
@@ -484,7 +476,6 @@ class TranscriptDataLayer(DataLayerNM):
                  batch_size,
                  drop_last=False,
                  num_workers=0,
-                 dataset_type=TranscriptDataset,
                  **kwargs):
         super().__init__(**kwargs)
 
@@ -493,9 +484,7 @@ class TranscriptDataLayer(DataLayerNM):
                           'labels': labels,
                           'eos_id': eos_id}
 
-        if isinstance(dataset_type, str):
-            dataset_type = getattr(sys.modules[__name__], dataset_type)
-        self._dataset = dataset_type(**dataset_params)
+        self._dataset = TranscriptDataset(**dataset_params)
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
