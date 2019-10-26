@@ -575,8 +575,9 @@ def get_intents_and_slots(files, slot_labels):
                     querytext = ''.join([querytext, segment['text']])
                     if 'alias' in segment:
                         for word in segment['text'].split():
-                            slots = ' '.join([slots,
-                                                slot_labels.get(segment['alias'])])
+                            slots = ' '.join(
+                                [slots,
+                                slot_labels.get(segment['alias'])])
                     else:
                         for word in segment['text'].split():
                             slots = ' '.join([slots, slot_labels.get('O')])
@@ -626,8 +627,11 @@ def partition_df_data(intent_queries, slot_tags, split=0.1):
     return train_intents, train_slots, dev_intents, dev_slots
 
 
-def process_dialogflow(data_dir, uncased, modes=['train', 'test'],
-                        dev_split=0.1):
+def process_dialogflow(
+    data_dir, 
+    uncased, 
+    modes=['train', 'test'],
+    dev_split=0.1):
     if not os.path.exists(data_dir):
         link = 'www.dialogflow.com'
         raise ValueError(f'Data not found at {data_dir}. '
@@ -645,8 +649,9 @@ def process_dialogflow(data_dir, uncased, modes=['train', 'test'],
 
     slot_labels = get_slots(files)
 
-    intent_queries, intent_names, slot_tags = get_intents_and_slots(files,
-                                                                    slot_labels)
+    intent_queries, intent_names, slot_tags = get_intents_and_slots(
+        files,
+        slot_labels)
 
     train_queries, train_slots, test_queries, test_slots = \
         partition_df_data(intent_queries, slot_tags, split=dev_split)
