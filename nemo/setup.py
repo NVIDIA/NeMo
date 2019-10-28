@@ -20,7 +20,7 @@ setuptools.setup(
     ],
     install_requires=[
         'torch==1.2.0',
-        'torchvision',
+        'torchvision==0.4.0',
         'tensorboardX',
         'pandas',
         'wget'
