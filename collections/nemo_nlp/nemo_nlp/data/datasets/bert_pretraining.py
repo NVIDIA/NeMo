@@ -68,8 +68,7 @@ class BertPretrainingDataset(Dataset):
                         new_start = contents.index(b"\n", start)
                         line = contents[start:new_start] \
                             .replace(b"\xc2\x99", b" ") \
-                            .replace(b"\xc2\xa0", b" ") \
-                            .replace(b"\xa0", b" ")
+                            .replace(b"\xc2\xa0", b" ")
                         num_tokens = len(line.split())
 
                         yield new_start
