@@ -292,6 +292,16 @@ class NeuralModuleFactory(object):
         if backend == Backend.PyTorch:
             # TODO: Move all framework specific code from this file
             import torch
+            if self._placement != DeviceType.CPU:
+                if not torch.cuda.is_available():
+                    raise ValueError("You requested to use GPUs but CUDA is "
+                                     "not installed. You can try running using"
+                                     " CPU-only. To do this, instantiate your"
+                                     " factory with placement=DeviceType.CPU"
+                                     "\n"
+                                     "Note that this is slow and is not "
+                                     "well supported.")
+
             torch.backends.cudnn.benchmark = cudnn_benchmark
             if random_seed is not None and cudnn_benchmark:
                 raise ValueError("cudnn_benchmark can not be set to True"
@@ -537,7 +547,8 @@ class NeuralModuleFactory(object):
         self.train(
             tensors_to_optimize=None,
             optimizer='sgd',
-            callbacks=callbacks
+            callbacks=callbacks,
+            optimization_params={'num_epochs': 1}
         )
 
     def infer(self, tensors: List[NmTensor], checkpoint_dir=None,

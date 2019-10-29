@@ -1,8 +1,9 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import nemo
-
-# instantiate Neural Factory with supported backend
 nf = nemo.core.NeuralModuleFactory()
+# To use CPU-only do:
+# from nemo.core import DeviceType
+# nf = nemo.core.NeuralModuleFactory(placement=DeviceType.CPU)
 
 # instantiate necessary neural modules
 # RealFunctionDataLayer defaults to f=torch.sin, sampling from x=[-4, 4]

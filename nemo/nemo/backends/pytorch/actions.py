@@ -1,4 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
+import importlib
 import itertools
 import logging
 import os
@@ -21,14 +22,10 @@ from ...core.callbacks import (ActionCallback,
 from ...core.neural_factory import Actions, ModelMode, Optimization
 from ...utils.helpers import get_checkpoint_from_dir
 
-try:
-    import apex
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.parallel.LARC import LARC
-    from apex import amp
-except ImportError:
-    raise ImportError(
-        "Please install apex from https://www.github.com/nvidia/apex")
+# these imports will happen on as-needed basis
+amp = None
+DDP = None
+LARC = None
 
 AmpOptimizations = {
     Optimization.mxprO0: "O0",
@@ -45,6 +42,28 @@ _float_2_half_req = {Optimization.mxprO1,
 class PtActions(Actions):
     def __init__(self, local_rank=None, tb_writer=None,
                  optimization_level=Optimization.mxprO0):
+        need_apex = local_rank is not None or \
+                    optimization_level != Optimization.mxprO0
+        if need_apex:
+            try:
+                apex = importlib.import_module('apex')
+                if optimization_level != Optimization.mxprO0:
+                    global amp
+                    amp = importlib.import_module('apex.amp')
+                if local_rank is not None:
+                    global DDP
+                    global LARC
+                    parallel = importlib.import_module('apex.parallel')
+                    DDP = parallel.DistributedDataParallel
+                    LARC = parallel.LARC
+
+            except ImportError:
+                raise ImportError(
+                    "NVIDIA Apex is necessary for distributed training and"
+                    "mixed precision training. It only works on GPUs."
+                    "Please install Apex from "
+                    "https://www.github.com/nvidia/apex")
+
         super(PtActions, self).__init__(
             local_rank=local_rank,
             optimization_level=optimization_level)
@@ -340,8 +359,12 @@ class PtActions(Actions):
             self, optimizer, optim_level, amp_min_loss_scale=1.0
     ):
         if optim_level not in AmpOptimizations:
-            raise ValueError("__initialize_amp() was called but optim_level "
-                             "was set to float32.")
+            raise ValueError(f"__initialize_amp() was called with unknown "
+                             "optim_level={optim_level}")
+        # in this case, nothing to do here
+        if optim_level == Optimization.mxprO0:
+            return optimizer
+
         if len(self.modules) < 1:
             raise ValueError("There were no modules to initialize")
         pt_modules = []
@@ -371,11 +394,12 @@ class PtActions(Actions):
             m_id = call_chain[ind][0].unique_instance_id
             pmodule = self.module_reference_table[m_id][1]
 
-            if isinstance(pmodule, DDP):
-                if disable_allreduce:
-                    pmodule.disable_allreduce()
-                else:
-                    pmodule.enable_allreduce()
+            if self._local_rank is not None:
+                if isinstance(pmodule, DDP):
+                    if disable_allreduce:
+                        pmodule.disable_allreduce()
+                    else:
+                        pmodule.enable_allreduce()
 
             if mode == ModelMode.train:
                 # if module.is_trainable():
@@ -635,9 +659,13 @@ class PtActions(Actions):
                 vals_to_log = callback.user_done_callback(
                     callback._global_var_dict)
                 # log results to Tensorboard
-                if vals_to_log is not None and callback._swriter is not None:
-                    for key, val in vals_to_log.items():
-                        callback._swriter.add_scalar(key, val, step)
+                if vals_to_log is not None and callback.swriter is not None:
+                    if callback.tb_writer_func is not None:
+                        callback.tb_writer_func(
+                            callback.swriter, vals_to_log, step)
+                    else:
+                        for key, val in vals_to_log.items():
+                            callback.swriter.add_scalar(key, val, step)
 
     def _infer(self, tensors_to_return, step, verbose=False):
         """
@@ -905,8 +933,10 @@ class PtActions(Actions):
               stop_on_nan_loss=False):
         if not optimization_params:
             optimization_params = {}
-        num_epochs = optimization_params.get("num_epochs", 1)
+        num_epochs = optimization_params.get("num_epochs", None)
         max_steps = optimization_params.get("max_steps", None)
+        if num_epochs is None and max_steps is None:
+            raise ValueError("You must specify either max_steps or num_epochs")
         grad_norm_clip = optimization_params.get('grad_norm_clip', None)
 
         if batches_per_step is None:
@@ -1084,8 +1114,8 @@ class PtActions(Actions):
 
         # MAIN TRAINING LOOP
         # iteration over epochs
-        for epoch_ind in range(self.epoch_num, num_epochs):
-            self.epoch_num = epoch_ind
+        self.epoch_num = 0
+        while num_epochs is None or self.epoch_num < num_epochs:
             if train_sampler is not None:
                 train_sampler.set_epoch(self.epoch_num)
             if max_steps is not None and self.step >= max_steps:
@@ -1164,7 +1194,8 @@ class PtActions(Actions):
                     final_loss += registered_tensors[tensor.unique_name]
                 if nan:
                     continue
-                if self._optim_level in AmpOptimizations:
+                if self._optim_level in AmpOptimizations \
+                        and self._optim_level != Optimization.mxprO0:
                     with amp.scale_loss(
                             final_loss,
                             curr_optimizer,
@@ -1178,10 +1209,15 @@ class PtActions(Actions):
                             continue
                         scaled_loss.backward(
                             bps_scale.to(scaled_loss.get_device()))
+                # no AMP optimizations needed
                 else:
-                    final_loss.backward(
-                        bps_scale.to(
-                            final_loss.get_device()))
+                    # multi-GPU, float32
+                    if self._local_rank is not None:
+                        final_loss.backward(
+                            bps_scale.to(final_loss.get_device()))
+                    # single device (CPU or GPU)
+                    else:
+                        final_loss.backward()
 
                 batch_counter += 1
 
@@ -1200,9 +1236,9 @@ class PtActions(Actions):
                     self._perform_on_iteration_end(callbacks=callbacks)
                     self.step += 1
             # End of epoch for loop
-
             # Register epochs end with callbacks
             self._perform_on_epoch_end(callbacks=callbacks)
+            self.epoch_num += 1
         self._perform_on_action_end(callbacks=callbacks)
 
     def infer(self,
@@ -1233,7 +1269,8 @@ class PtActions(Actions):
                 mod.restore_from(checkpoint, self._local_rank)
 
             # Init Amp
-            if self._optim_level in AmpOptimizations:
+            if self._optim_level in AmpOptimizations and \
+                    self._optim_level != Optimization.mxprO0:
                 pt_modules = []
                 for i in range(len(call_chain)):
                     if isinstance(call_chain[i][0], nn.Module):
