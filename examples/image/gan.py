@@ -19,7 +19,7 @@ parser.add_argument("--num_epochs", default=5000, type=int)
 parser.add_argument("--work_dir", default=None, type=str)
 parser.add_argument("--train_dataset",
                     # set default=os.getcwd() unless your are running test
-                    default="/home/mrjenkins/TestData", type=str)
+                    default="~/data/mnist", type=str)
 parser.add_argument("--amp_opt_level", choices=['O0', 'O1', 'O2', 'O3'],
                     default='O0')
 
@@ -38,7 +38,7 @@ neural_factory = nemo.core.NeuralModuleFactory(
     log_dir=work_dir,
     create_tb_writer=True,
     files_to_copy=[__file__]
-    )
+)
 
 mnist_data = nemo_simple_gan.MnistGanDataLayer(
     batch_size=batch_size,
