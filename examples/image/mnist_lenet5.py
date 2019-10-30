@@ -96,17 +96,19 @@ class LeNet5(TrainableNM):
         # Create the LeNet-5 model.
         self.model = torch.nn.Sequential(
             torch.nn.Conv2d(1, 6, kernel_size=(5, 5)),
+            torch.nn.ReLU(),
             torch.nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-            # torch.nn.ReLU(),
             torch.nn.Conv2d(6, 16, kernel_size=(5, 5)),
+            torch.nn.ReLU(),
             torch.nn.MaxPool2d(kernel_size=(2, 2), stride=2),
-            # torch.nn.ReLU(),
             torch.nn.Conv2d(16, 120, kernel_size=(5, 5)),
+            torch.nn.ReLU(),
             # reshape to [-1, 120]
             torch.nn.Flatten(),
             torch.nn.Linear(120, 84),
+            torch.nn.ReLU(),
             torch.nn.Linear(84, 10),
-            torch.nn.Softmax()
+            torch.nn.LogSoftmax(dim=1)
         )
         self.to(self._device)
 
@@ -142,5 +144,7 @@ callback = nemo.core.SimpleLossLoggerCallback(
 
 # Invoke "train" action
 nf.train([loss], callbacks=[callback],
-         optimization_params={"num_epochs": 3, "lr": 0.0001},
+         optimization_params={"num_epochs": 10, "lr": 0.0001},
          optimizer="adam")
+
+# How
