@@ -70,7 +70,7 @@ class BertPretrainingDataset(Dataset):
                         num_tokens = len(line.split())
 
                         if num_tokens > 0:
-                          yield start  # JQ: start - 1???
+                          yield start
 
                         start = new_start + 1
 
