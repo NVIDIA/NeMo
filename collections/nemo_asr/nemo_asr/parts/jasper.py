@@ -205,10 +205,11 @@ class JasperBlock(nn.Module):
                             normalization=normalization,
                             norm_groups=norm_groups)))
         self.out = nn.Sequential(
-            *
-            self._get_act_dropout_layer(
+            *self._get_act_dropout_layer(
                 drop_prob=dropout,
-                activation=activation))
+                activation=activation
+            )
+        )
 
     def _get_conv_bn_layer(self, in_channels, out_channels, kernel_size=11,
                            stride=1, dilation=1, padding=0, bias=False,
@@ -251,8 +252,8 @@ class JasperBlock(nn.Module):
             layers.append(nn.BatchNorm1d(out_channels, eps=1e-3, momentum=0.1))
         else:
             raise ValueError(
-                    f"Normalization method ({normalization}) does not match"
-                    f" one of [batch, layer, group, instance].")
+                f"Normalization method ({normalization}) does not match"
+                f" one of [batch, layer, group, instance].")
 
         if groups > 1:
             layers.append(GroupShuffle(groups, out_channels))
