@@ -146,7 +146,7 @@ class NumberCleaner():
     def clean(self, match):
         ws = match.group(2)
         number = match.group(3)
-        proceeding_symbol = match.group(7)
+        _proceeding_symbol = match.group(7)
 
         time_match = TIME_CHECK.match(number)
         if time_match:
@@ -178,11 +178,11 @@ class NumberCleaner():
         # Else we can output
         else:
             # Check for decimals
-            whole_num = "".join(self.curr_num)+number
+            whole_num = "".join(self.curr_num) + number
             decimal = None
             decimal_match = DECIMAL_CHECK.search(whole_num)
             if decimal_match:
                 decimal = decimal_match.group(1)[1:]
-                whole_num = whole_num[:-len(decimal)-1]
+                whole_num = whole_num[:-len(decimal) - 1]
             whole_num = re.sub(r'\.', '', whole_num)
             return ws + self.format_final_number(whole_num, decimal)
