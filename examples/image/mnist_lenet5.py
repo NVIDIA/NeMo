@@ -8,7 +8,7 @@ import nemo
 from nemo.backends.pytorch.nm import TrainableNM, NonTrainableNM, LossNM,\
     DataLayerNM
 from nemo.core import NeuralType, BatchTag, ChannelTag, HeightTag, WidthTag,\
-    AxisType, DeviceType
+    AxisType, DeviceType, LogProbabilityTag
 
 
 class MNISTDataLayer(DataLayerNM):
@@ -25,11 +25,11 @@ class MNISTDataLayer(DataLayerNM):
     def create_ports(input_size=(32, 32)):
         input_ports = {}
         output_ports = {
-            "image": NeuralType({0: AxisType(BatchTag),
-                                 1: AxisType(ChannelTag, 1),
-                                 2: AxisType(HeightTag, input_size[1]),
-                                 3: AxisType(WidthTag, input_size[0])}),
-            "label": NeuralType({0: AxisType(BatchTag)})
+            "images": NeuralType({0: AxisType(BatchTag),
+                                  1: AxisType(ChannelTag, 1),
+                                  2: AxisType(HeightTag, input_size[1]),
+                                  3: AxisType(WidthTag, input_size[0])}),
+            "targets": NeuralType({0: AxisType(BatchTag)})
         }
         return input_ports, output_ports
 
@@ -83,7 +83,7 @@ class LeNet5(TrainableNM):
         }
         output_ports = {
             "predictions": NeuralType({0: AxisType(BatchTag),
-                                       1: AxisType(ChannelTag)
+                                       1: AxisType(LogProbabilityTag)
                                        })
             # no PredictionTag!?
 
@@ -117,6 +117,29 @@ class LeNet5(TrainableNM):
         return predictions
 
 
+class NLLLoss(LossNM):
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "predictions": NeuralType(
+                {0: AxisType(BatchTag),
+                 1: AxisType(LogProbabilityTag)}),
+            "targets": NeuralType({0: AxisType(BatchTag)}),
+        }
+        output_ports = {"loss": NeuralType(None)}
+        return input_ports, output_ports
+
+    def __init__(self, **kwargs):
+        # Neural Module API specific
+        LossNM.__init__(self, **kwargs)
+        # End of Neural Module API specific
+        self._criterion = torch.nn.NLLLoss()
+
+    # You need to implement this function
+    def _loss_function(self, **kwargs):
+        return self._criterion(*(kwargs.values()))
+
+
 # 0. Instantiate Neural Factory with supported backend
 nf = nemo.core.NeuralModuleFactory()
 
@@ -130,12 +153,12 @@ dl = MNISTDataLayer(
 
 lenet5 = LeNet5()
 
-ce_loss = nemo.tutorials.CrossEntropyLoss()
+nll_loss = NLLLoss()
 
 # 2. Describe activation's flow
 x, y = dl()
 p = lenet5(images=x)
-loss = ce_loss(predictions=p, labels=y)
+loss = nll_loss(predictions=p, targets=y)
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = nemo.core.SimpleLossLoggerCallback(
@@ -144,7 +167,7 @@ callback = nemo.core.SimpleLossLoggerCallback(
 
 # Invoke "train" action
 nf.train([loss], callbacks=[callback],
-         optimization_params={"num_epochs": 10, "lr": 0.0001},
+         optimization_params={"num_epochs": 10, "lr": 0.001},
          optimizer="adam")
 
 # How
