@@ -18,6 +18,9 @@ __all__ = ['BaseTag',
            'HeightTag',
            'CategoricalTag',
            'RegressionTag',
+           'ProbabilityTag',
+           'LogProbabilityTag',
+           'LogitTag',
            'NeuralTypeComparisonResult',
            'AxisType',
            'NeuralType',
@@ -119,6 +122,32 @@ class RegressionTag(BatchTag):
 
     def __str__(self):
         return "regression"
+
+
+class LogitTag(BaseTag):
+    """Tag for logits.
+    Tag representing activations of the last layer of the model."""
+
+    def __str__(self):
+        return "logits"
+
+# Probabilities.
+
+
+class LogProbabilityTag(BaseTag):
+    """Tag for log-probabilities.
+    Usefull when training classification problems with negative log likelihood loss."""
+
+    def __str__(self):
+        return "log-probability"
+
+
+class ProbabilityTag(BaseTag):
+    """Tag for progabilities.
+    Usefull when training classification problems with cross entrophy loss."""
+
+    def __str__(self):
+        return "probability"
 
 
 class NeuralTypeComparisonResult(Enum):
