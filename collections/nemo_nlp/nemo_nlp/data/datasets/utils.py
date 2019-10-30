@@ -106,6 +106,78 @@ def process_imdb(data_dir, uncased, modes=['train', 'test']):
                     review = review.lower()
                 review = review.replace("<br />", "")
                 outfiles[mode].write(f'{review}\t{label}\n')
+                
+    for mode in modes:
+        outfiles[mode].close()
+
+    return outfold
+
+ 
+def process_thucnews(data_dir):
+    modes=['train', 'test']
+    if not os.path.exists(data_dir):
+        link = 'thuctc.thunlp.org/'
+        raise ValueError(f'Data not found at {data_dir}. '
+                         f'Please download THUC-News from {link}.')
+
+    outfold = f'{data_dir}/nemo-processed_chinese'
+
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
+        logger.info(LOGGING_TMP.format('THUC-News', outfold))
+        return outfold
+    logger.info(f'Processing THUC-News dataset and store at {outfold}')
+
+    os.makedirs(outfold, exist_ok=True)
+
+    outfiles = {}
+
+    for mode in modes:
+        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'a+', encoding='utf-8')
+        outfiles[mode].write('sentence\tlabel\n')
+    for cls in ['体育', '娱乐', '家居', '彩票', '房产', '教育', '时尚', '时政', '星座', '游戏', '社会', '科技', '股票', '财经']:
+        if cls == '体育':
+            label = 0
+        elif cls == '娱乐':
+            label = 1
+        elif cls == '家居':
+            label = 2
+        elif cls == '彩票':
+            label = 3
+        elif cls == '房产':
+            label = 4
+        elif cls == '教育':
+            label = 5
+        elif cls == '时尚':
+            label = 6
+        elif cls == '时政':
+            label = 7
+        elif cls == '星座':
+            label = 8
+        elif cls == '游戏':
+            label = 9
+        elif cls == '社会':
+            label = 10
+        elif cls == '科技':
+            label = 11
+        elif cls == '股票':
+            label = 12
+        else:
+            label = 13
+        cls_files = glob.glob(f'{data_dir}/{cls}/*.txt')
+        # take a small portion of data as training data and testing data
+        test_files = cls_files[:1000]
+        train_files = cls_files[1000: 10000]
+        for mode in modes:
+            if mode == 'test':
+                files = test_files
+            else:
+                files = train_files
+            for file in files:
+                with open(file, 'r', encoding='utf-8') as f:
+                    news = f.read().strip().replace('\r', '').replace('\n', '').replace('\t', ' ')
+                    outfiles[mode].write(f'{news}\t{label}\n')
+    for mode in modes:
+        outfiles[mode].close()
 
     return outfold
 
@@ -178,6 +250,8 @@ def process_nlu(filename,
             outfiles['train'].write(txt)
         else:
             outfiles['test'].write(txt)
+    for mode in modes:
+        outfiles[mode].close()
     return outfold
 
 
@@ -254,6 +328,8 @@ def process_nvidia_car(infold,
             outfiles[mode].write(text)
             seen.add(sentence)
         logger.info(f'{repeat} repeated sentences in {mode}')
+    for mode in modes:
+        outfiles[mode].close()
 
     return outfold, labels
 
@@ -308,6 +384,8 @@ def process_atis(infold, uncased, modes=['train', 'test'], dev_split=0):
                     f'{outfold}/dict.intents.csv')
     shutil.copyfile(f'{infold}/atis.dict.slots.csv',
                     f'{outfold}/dict.slots.csv')
+    for mode in modes:
+        outfiles[mode].close()
 
     return outfold
 
@@ -638,6 +716,10 @@ class SentenceClassificationDataDesc:
         elif dataset_name == 'imdb':
             self.num_labels = 2
             self.data_dir = process_imdb(data_dir, do_lower_case)
+            self.eval_file = self.data_dir + '/test.tsv'
+        elif dataset_name == 'thucnews':
+            self.num_labels = 14
+            self.data_dir = process_thucnews(data_dir)
             self.eval_file = self.data_dir + '/test.tsv'
         elif dataset_name.startswith('nlu-'):
             if dataset_name.endswith('chat'):
