@@ -1,12 +1,13 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import random
 import os
+
 import numpy as np
+import pandas as pd
+from sklearn.metrics import classification_report
+
 from nemo.utils.exp_logging import get_logger
-from sklearn.metrics import f1_score
 
 logger = get_logger('')
-
 
 def eval_iter_callback(tensors, global_vars, eval_data_layer, tag_ids):
     if "correct_tags" not in global_vars.keys():
@@ -88,4 +89,11 @@ def eval_epochs_done_callback(global_vars, tag_ids, output_filename):
 
     results = {"Accuracy": accuracy, "f1": f1}
     logger.info(results)
+    
+    
+    df = pd.read_csv(output_filename, header=None, sep='\t')
+    df.columns = ['word', 'labels', 'preds']
+
+    logger.info(classification_report(df.labels, df.preds, labels=list(tag_ids.keys())))
+    
     return results
