@@ -12,7 +12,8 @@ import nemo_nlp
 from nemo_nlp.utils.callbacks.translation import \
     eval_iter_callback, eval_epochs_done_callback
 
-parser = nemo.utils.NemoArgParser(description='Transformer for WMT16 En-De')
+parser = nemo.utils.NemoArgParser(
+        description='Transformer for Neural Machine Translation')
 parser.set_defaults(train_dataset="train",
                     eval_datasets=["valid"],
                     work_dir="outputs/transformer_nmt",
@@ -31,7 +32,7 @@ parser.set_defaults(train_dataset="train",
 parser.add_argument("--data_dir", default="../../tests/data/en_de", type=str)
 parser.add_argument("--dataset_name", default="wmt16", type=str)
 parser.add_argument("--src_lang", default="en", type=str)
-parser.add_argument("--tgt_lang", default="de", type=str)
+parser.add_argument("--tgt_lang", default="de", choices=['de', 'zh'], type=str)
 parser.add_argument("--d_model", default=512, type=int)
 parser.add_argument("--d_inner", default=2048, type=int)
 parser.add_argument("--num_layers", default=4, type=int)
@@ -44,7 +45,13 @@ parser.add_argument("--warmup_steps", default=1000, type=int)
 parser.add_argument("--max_seq_length", default=256, type=int)
 parser.add_argument("--label_smoothing", default=0.1, type=float)
 parser.add_argument("--beam_size", default=4, type=int)
-parser.add_argument("--tokenizer_model", default="bpe8k_yttm.model", type=str)
+# pass a YouTokenToMe model to YouTokenToMeTokenizer for en
+parser.add_argument("--src_tokenizer_model",
+                    default="bpe8k_yttm.model", type=str)
+# pass a YouTokenToMe model to YouTokenToMeTokenizer for de
+# if the target is zh, we should pass a vocabulary file, e.g. zh_vocab.txt
+parser.add_argument("--tgt_tokenizer_model",
+                    default="bpe8k_yttm.model", type=str)
 parser.add_argument("--interactive", action="store_true")
 parser.add_argument("--save_epoch_freq", default=5, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
@@ -58,16 +65,50 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    log_dir=args.work_dir,
                                    create_tb_writer=True,
                                    files_to_copy=[__file__])
-"""Define tokenizer
-In this example, we use YouTokenToMe tokenizer trained on joint
-English & German data for both source and target languages.
 
+# tie weight of embedding and log_softmax layers if use the same tokenizer
+# for the source and the target
+tie_weight = False
+
+"""Define tokenizer
 When the src and tgt languages are very different, it's better to use separate
 tokenizers.
 """
-tokenizer = nemo_nlp.YouTokenToMeTokenizer(
-    model_path=f"{args.data_dir}/{args.tokenizer_model}")
-vocab_size = tokenizer.vocab_size
+if args.src_lang == 'en' and args.tgt_lang == 'de':
+    """
+    We use YouTokenToMe tokenizer trained on joint
+    English & German data for both source and target languages.
+    """
+    src_tokenizer = nemo_nlp.YouTokenToMeTokenizer(
+            model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
+    src_vocab_size = src_tokenizer.vocab_size
+    if args.src_tokenizer_model == args.tgt_tokenizer_model:
+        tgt_tokenizer = src_tokenizer
+        # source and target use the same tokenizer, set tie_weight to True
+        tie_weight = True
+    else:
+        tgt_tokenizer = nemo_nlp.YouTokenToMeTokenizer(
+            model_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
+        # source and target use different tokenizers, set tie_weight to False
+        tie_weight = False
+    tgt_vocab_size = tgt_tokenizer.vocab_size
+elif args.src_lang == 'en' and args.tgt_lang == 'zh':
+    """
+    We use YouTokenToMeTokenizer for src since the src contains English words
+    and CharTokenizer for tgt since the tgt contains Chinese characters.
+    """
+    src_tokenizer = nemo_nlp.YouTokenToMeTokenizer(
+            model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
+    src_vocab_size = src_tokenizer.vocab_size
+    tgt_tokenizer = nemo_nlp.CharTokenizer(
+            vocab_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
+    tgt_vocab_size = tgt_tokenizer.vocab_size
+    # source and target use different tokenizers, set tie_weight to False
+    tie_weight = False
+else:
+    nf.logger.info(
+        f"Unsupported language pair:{args.src_lang}-{args.tgt_lang}.")
+    exit(1)
 
 # instantiate necessary modules for the whole translation pipeline, namely
 # data layers, encoder, decoder, output log_softmax, beam_search_translator
@@ -79,7 +120,7 @@ encoder = nemo_nlp.TransformerEncoderNM(
     embedding_dropout=args.embedding_dropout,
     num_attn_heads=args.num_attn_heads,
     ffn_dropout=args.ffn_dropout,
-    vocab_size=vocab_size,
+    vocab_size=src_vocab_size,
     attn_score_dropout=args.attn_score_dropout,
     attn_layer_dropout=args.attn_layer_dropout,
     max_seq_length=args.max_seq_length)
@@ -91,13 +132,13 @@ decoder = nemo_nlp.TransformerDecoderNM(
     embedding_dropout=args.embedding_dropout,
     num_attn_heads=args.num_attn_heads,
     ffn_dropout=args.ffn_dropout,
-    vocab_size=vocab_size,
+    vocab_size=tgt_vocab_size,
     attn_score_dropout=args.attn_score_dropout,
     attn_layer_dropout=args.attn_layer_dropout,
     max_seq_length=args.max_seq_length)
 
 log_softmax = nemo_nlp.TokenClassifier(args.d_model,
-                                       num_classes=tokenizer.vocab_size,
+                                       num_classes=tgt_tokenizer.vocab_size,
                                        num_layers=1,
                                        log_softmax=True)
 
@@ -106,19 +147,19 @@ beam_search = nemo_nlp.BeamSearchTranslatorNM(
     log_softmax=log_softmax,
     max_seq_length=args.max_seq_length,
     beam_size=args.beam_size,
-    bos_token=tokenizer.bos_id(),
-    pad_token=tokenizer.pad_id(),
-    eos_token=tokenizer.eos_id())
+    bos_token=tgt_tokenizer.bos_id(),
+    pad_token=tgt_tokenizer.pad_id(),
+    eos_token=tgt_tokenizer.eos_id())
 
 loss_fn = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(
-    pad_id=tokenizer.pad_id(),
+    pad_id=tgt_tokenizer.pad_id(),
     label_smoothing=args.label_smoothing)
 
-# tie weight of embedding and log_softmax layers
-log_softmax.mlp.last_linear_layer.weight = \
-    encoder.embedding_layer.token_embedding.weight
-decoder.embedding_layer.token_embedding.weight = \
-    encoder.embedding_layer.token_embedding.weight
+if tie_weight:
+    log_softmax.mlp.last_linear_layer.weight = \
+        encoder.embedding_layer.token_embedding.weight
+    decoder.embedding_layer.token_embedding.weight = \
+        encoder.embedding_layer.token_embedding.weight
 
 
 def create_pipeline(dataset_src,
@@ -126,8 +167,8 @@ def create_pipeline(dataset_src,
                     tokens_in_batch,
                     clean=False,
                     training=True):
-    data_layer = nemo_nlp.TranslationDataLayer(tokenizer_src=tokenizer,
-                                               tokenizer_tgt=tokenizer,
+    data_layer = nemo_nlp.TranslationDataLayer(tokenizer_src=src_tokenizer,
+                                               tokenizer_tgt=tgt_tokenizer,
                                                dataset_src=dataset_src,
                                                dataset_tgt=dataset_tgt,
                                                tokens_in_batch=tokens_in_batch,
@@ -175,7 +216,7 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
 # scores between outputs of beam search and reference translations
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
-    user_iter_callback=lambda x, y: eval_iter_callback(x, y, tokenizer),
+    user_iter_callback=lambda x, y: eval_iter_callback(x, y, tgt_tokenizer),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x, validation_dataset=eval_dataset_tgt),
     eval_step=args.eval_freq,
@@ -216,14 +257,14 @@ def translate_sentence(text):
     """ helper function that takes source text as input, tokenizes it, and
     output its translation
     """
-    ids = tokenizer.text_to_ids(text)
-    ids = [tokenizer.bos_id()] + ids + [tokenizer.eos_id()]
+    ids = src_tokenizer.text_to_ids(text)
+    ids = [src_tokenizer.bos_id()] + ids + [src_tokenizer.eos_id()]
     ids_tensor = torch.Tensor(ids).long().to(encoder._device).unsqueeze(0)
     ids_mask = torch.ones_like(ids_tensor).half()
     encoder_states = encoder.forward(ids_tensor, ids_mask).half()
     translation_ids = beam_search.forward(encoder_states, ids_mask)
     ids_list = list(translation_ids.detach().cpu().numpy()[0])
-    translation_text = tokenizer.ids_to_text(ids_list)
+    translation_text = tgt_tokenizer.ids_to_text(ids_list)
     return translation_text
 
 
