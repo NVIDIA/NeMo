@@ -9,6 +9,7 @@ __all__ = ['AudioToTextDataLayer',
            'SpectrogramAugmentation',
            'TranscriptDataLayer']
 
+from functools import partial
 import sys
 import torch
 try:
@@ -16,8 +17,6 @@ try:
 except AttributeError:
     print("Unable to import APEX. Mixed precision and distributed training "
           "will not work.")
-
-from functools import partial
 
 from nemo.backends.pytorch import DataLayerNM, TrainableNM, NonTrainableNM
 from nemo.core import Optimization, DeviceType
