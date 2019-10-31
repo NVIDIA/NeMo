@@ -24,6 +24,8 @@ from ...utils.helpers import get_checkpoint_from_dir
 
 # these imports will happen on as-needed basis
 amp = None
+convert_syncbn = None
+create_syncbn_process_group = None
 DDP = None
 LARC = None
 
@@ -51,9 +53,14 @@ class PtActions(Actions):
                     global amp
                     amp = importlib.import_module('apex.amp')
                 if local_rank is not None:
+                    global convert_syncbn
+                    global create_syncbn_process_group
                     global DDP
                     global LARC
                     parallel = importlib.import_module('apex.parallel')
+                    convert_syncbn = parallel.convert_syncbn_model
+                    create_syncbn_process_group = (
+                            parallel.create_syncbn_process_group)
                     DDP = parallel.DistributedDataParallel
                     LARC = parallel.LARC
 
@@ -930,7 +937,9 @@ class PtActions(Actions):
               callbacks: Optional[List[ActionCallback]] = None,
               lr_policy=None,
               batches_per_step=None,
-              stop_on_nan_loss=False):
+              stop_on_nan_loss=False,
+              synced_batchnorm=False,
+              synced_batchnorm_groupsize=0):
         if not optimization_params:
             optimization_params = {}
         num_epochs = optimization_params.get("num_epochs", None)
@@ -1088,6 +1097,25 @@ class PtActions(Actions):
                     if (not isinstance(pmodule, DDP) and
                             isinstance(pmodule, torch.nn.Module)):
                         pmodule = DDP(pmodule)
+
+                    # Convert batchnorm modules to synced if applicable
+                    if (synced_batchnorm and
+                            isinstance(pmodule, torch.nn.Module)):
+                        world_size = dist.get_world_size()
+                        if (synced_batchnorm_groupsize > 0 and
+                                world_size % synced_batchnorm_groupsize != 0):
+                            raise ValueError(
+                                f"Synchronized batch norm group size"
+                                f" ({synced_batchnorm_groupsize}) must be 0"
+                                f" or divide total number of GPUs"
+                                f" ({world_size})."
+                            )
+                        process_group = create_syncbn_process_group(
+                                synced_batchnorm_groupsize)
+                        pmodule = convert_syncbn(
+                                pmodule,
+                                process_group=process_group)
+
                     self.module_reference_table[key] = (
                         self.module_reference_table[key][0], pmodule
                     )
