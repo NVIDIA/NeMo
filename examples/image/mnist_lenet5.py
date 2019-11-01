@@ -1,9 +1,11 @@
+import math
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms, datasets
 
 
 import nemo
+import torch
 
 from nemo.backends.pytorch.nm import TrainableNM, NonTrainableNM, LossNM,\
     DataLayerNM
@@ -160,13 +162,50 @@ x, y = dl()
 p = lenet5(images=x)
 loss = nll_loss(predictions=p, targets=y)
 
+####
+dl_e = MNISTDataLayer(
+    batch_size=64,
+    root="~/data/mnist",
+    train=False,
+    shuffle=True
+)
+x, y = dl_e()
+p = lenet5(images=x)
+nll_loss_e = NLLLoss()
+loss_e = nll_loss_e(predictions=p, targets=y)
+
+
+def eval_iter_callback(tensors, global_vars):
+    if "eval_loss" not in global_vars.keys():
+        global_vars["eval_loss"] = []
+    for kv, v in tensors.items():
+        if kv.startswith("loss"):
+            global_vars["eval_loss"].append(torch.mean(torch.stack(v)))
+            # global_vars['eval_loss'].append(v.item())
+
+
+def eval_epochs_done_callback(global_vars):
+    eloss = torch.max(torch.tensor(global_vars["eval_loss"]))
+    print("Evaluation Loss: {0}".format(eloss))
+    return dict({"Evaluation Loss": eloss})
+
+
+ecallback = nemo.core.EvaluatorCallback(eval_tensors=[loss_e],
+                                        user_iter_callback=eval_iter_callback,
+                                        user_epochs_done_callback=eval_epochs_done_callback,
+                                        eval_step=10)
+
+###########
+
+
 # SimpleLossLoggerCallback will print loss values to console.
 callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[loss],
     print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
 
+
 # Invoke "train" action
-nf.train([loss], callbacks=[callback],
+nf.train([loss], callbacks=[callback, ecallback],
          optimization_params={"num_epochs": 10, "lr": 0.001},
          optimizer="adam")
 
