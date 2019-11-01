@@ -577,9 +577,9 @@ class NeuralModuleFactory(object):
             cache (bool): If True, cache all `tensors` and intermediate tensors
                 so that future calls that have use_cache set will avoid
                 computation. Defaults to False.
-            use_cache (bool): If True, remove all values passed to `tensors`
-                from cache. Run through the entire call chain but if there are
-                values already in cache, we can skip that Neural Module.
+            use_cache (bool): Values from `tensors` will be always re-computed. 
+                It will re-use intermediate tensors from the DAG leading to `tensors`.
+                If you want something to be re-computed, put it into `tensors` list.
                 Defaults to False.
             offload_to_cpu (bool): If True, all evaluated tensors are moved to
                 cpu memory after each inference batch. Defaults to True.
