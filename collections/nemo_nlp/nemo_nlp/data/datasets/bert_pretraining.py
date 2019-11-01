@@ -158,7 +158,6 @@ class BertPretrainingDataset(Dataset):
                                     line_idx, sentence_indices):
             # If document is shorter than target sequence length,
             # append the next line or take a random line as replacement.
-            # If it is longer, truncate to the target length.
 
             # 10 is an arbitrary choice for now searching the data to match
             # the target_seq_length.
@@ -177,9 +176,6 @@ class BertPretrainingDataset(Dataset):
                     document += get_document(filename, offset)
                 else:
                     break
-
-            if len(document) > target_seq_length:
-                document = document[:target_seq_length]
 
             return document, line_idx
 
@@ -238,19 +234,19 @@ class BertPretrainingDataset(Dataset):
                 if total_length <= max_num_tokens:
                     break
 
-                trunc_document = a_document if len(
-                    a_document) > len(b_document) else b_document
-                raise ValueError("Input text corpora probably too small. "
-                                 "Failed to truncate sequence pair to "
-                                 "maximum sequence length.")
+                # Truncate the longer sequence
+                if len(a_document) > len(b_document):
+                    trunc_document = a_document
+                else:
+                    trunc_document = b_document
 
+                # Randomly truncate from the front or the back
                 if random.random() < 0.5:
                     del trunc_document[0]
                 else:
                     trunc_document.pop()
 
-        # TODO truncate_seq_pair doesnt work properly, turn off for now
-        # truncate_seq_pair(a_document, b_document, max_num_tokens)
+        truncate_seq_pair(a_document, b_document, max_num_tokens)
         output_ids = [self.tokenizer.bos_id()] + a_document + \
                      [self.tokenizer.eos_id()] + b_document + \
                      [self.tokenizer.eos_id()]
