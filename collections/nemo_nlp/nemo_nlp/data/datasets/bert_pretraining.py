@@ -54,12 +54,9 @@ class BertPretrainingDataset(Dataset):
         else:
             # Otherwise, generate and store sentence indices
             sentence_indices = {}
-            total_tokens = 0
-            used_tokens = 0
 
             # Finds all of the newline indices in a string
             def find_newlines(contents):
-                nonlocal used_tokens, total_tokens
                 start = 0
 
                 while True:
@@ -68,10 +65,12 @@ class BertPretrainingDataset(Dataset):
                         new_start = contents.index(b"\n", start)
                         line = contents[start:new_start] \
                             .replace(b"\xc2\x99", b" ") \
-                            .replace(b"\xc2\xa0", b" ")
-                        num_tokens = len(line.split())
+                            .replace(b"\xc2\xa0", b" ") \
+                            .decode("utf-8", errors="ignore")
 
-                        yield new_start
+                        if len(line.split()) > 0:
+                            # Save the next position following the new line
+                            yield start
 
                         start = new_start + 1
 
@@ -100,8 +99,6 @@ class BertPretrainingDataset(Dataset):
             # Save sentence indices so we don't have to do this again
             with open(sentence_idx_file, "wb") as f:
                 pickle.dump(sentence_indices, f)
-
-            print(f"Used {used_tokens} of total {total_tokens} tokens")
 
         corpus_size = 0
         empty_files = []
@@ -140,20 +137,18 @@ class BertPretrainingDataset(Dataset):
             # TODO: maybe introduce an argument to control this.
             target_seq_length = random.randint(2, max_num_tokens)
 
-        a_filename = random.choice(self.filenames)
-        a_line_idx = random.choice(
-            range(len(self.sentence_indices[a_filename])))
+        # prefer the seq_a to be slightly longer than seq_b, hence 0.6
+        # TODO: perhaps give this as an argument to control.
+        target_seq_length_a = int(round(target_seq_length * 0.6))
+        target_seq_length_b = target_seq_length - target_seq_length_a
 
-        def get_document(filepath, line):
+        def get_document(filepath, offset):
             # Retrieve a specific line from a file and return as a document
             if os.path.isdir(self.dataset):
                 filepath = os.path.join(self.dataset, filepath)
 
             with open(filepath, "rb") as f:
-                # Add one to go to the character after the newline
-                f.seek(line + 1)
-
-                # Read line, remove newline, and decode as UTF8
+                f.seek(offset)
                 doc_text = f.readline()[:-1].decode("utf-8", errors="ignore")
                 document = self.tokenizer.text_to_ids(doc_text)
 
@@ -161,48 +156,50 @@ class BertPretrainingDataset(Dataset):
 
         def match_target_seq_length(document, target_seq_length, filename,
                                     line_idx, sentence_indices):
-            # match the target seq_length
+            # If document is shorter than target sequence length,
+            # append the next line or take a random line as replacement.
+            # If it is longer, truncate to the target length.
+
             # 10 is an arbitrary choice for now searching the data to match
             # the target_seq_length.
+            num_lines = len(sentence_indices[filename])
             for _ in range(10):
-                # if line_idx + 1 is larger than the file, then we don't match
-                # seq_length - it'll be a shorter seq_length.
-                if len(document) < target_seq_length and \
-                        line_idx + 1 < len(sentence_indices[filename]):
-                    if sentence_indices[filename][line_idx + 1] < \
-                            self.sentence_indices[filename][-1]:
+                if len(document) < target_seq_length:
+                    if line_idx < (num_lines - 1):
+                        # append the next line
                         line_idx += 1
-                        document += get_document(
-                           filename, self.sentence_indices[filename][line_idx])
                     else:
-                        line_idx = random.choice(
-                            range(len(sentence_indices[filename])))
-                        document = get_document(
-                            filename, sentence_indices[filename][line_idx])
-                        document, line_idx = match_target_seq_length(
-                            document, target_seq_length, filename, line_idx,
-                            sentence_indices)
+                        # current line is the last line, take a random one
+                        line_idx = random.choice(range(num_lines))
+                        document = []
+
+                    offset = sentence_indices[filename][line_idx]
+                    document += get_document(filename, offset)
                 else:
                     break
 
+            if len(document) > target_seq_length:
+                document = document[:target_seq_length]
+
             return document, line_idx
 
-        # prefer the seq_a to be slightly longer than seq_b, hence 0.6
-        # TODO: perhaps give this as an argument to control.
-        target_seq_length_a = int(round(target_seq_length * 0.6))
-        target_seq_length_b = target_seq_length - target_seq_length_a
-        a_document = get_document(
-            a_filename, self.sentence_indices[a_filename][a_line_idx])
+        # Take sequence A from a random file and a random line
+        a_filename = random.choice(self.filenames)
+        a_line_idx = random.choice(
+            range(len(self.sentence_indices[a_filename])))
+        a_line_offset = self.sentence_indices[a_filename][a_line_idx]
+        a_document = get_document(a_filename, a_line_offset)
         a_document, a_line_idx = match_target_seq_length(
             a_document, target_seq_length_a, a_filename, a_line_idx,
             self.sentence_indices)
 
-        if self.sentence_indices[a_filename][a_line_idx] >= \
-                self.sentence_indices[a_filename][-1] or \
-                random.random() < 0.5:
+        is_last_line = (self.sentence_indices[a_filename][a_line_idx] >=
+                        self.sentence_indices[a_filename][-1])
+        # About 50% of the time, B is a random sentence from the corpus
+        take_random_b = (random.random() < 0.5) or is_last_line
 
-            # About 50% of the time, B is a random sentence from the corpus
-            label = 0
+        if take_random_b:
+            is_next = 0
 
             # This should rarely go for more than one iteration for large
             # corpora. However, just to be careful, we try to make sure that
@@ -215,30 +212,24 @@ class BertPretrainingDataset(Dataset):
                 if b_filename != a_filename:
                     break
                 else:
-                    new_idx = self.sentence_indices[b_filename][b_line_idx]
-                    old_idx = self.sentence_indices[b_filename][a_line_idx]
-                    if (new_idx < old_idx - self.max_seq_length) or \
-                            (new_idx > old_idx + self.max_seq_length):
+                    # Take another line from the same file
+                    b_line_pos = self.sentence_indices[b_filename][b_line_idx]
+                    a_line_pos = self.sentence_indices[a_filename][a_line_idx]
+                    # TODO unclear about the following check
+                    if (abs(b_line_pos - a_line_pos) > max_num_tokens):
                         break
                     else:
                         pass
-
-            b_document = get_document(
-                b_filename, self.sentence_indices[b_filename][b_line_idx])
-            b_document, b_line_idx = match_target_seq_length(
-                b_document, target_seq_length_b, b_filename, b_line_idx,
-                self.sentence_indices)
-
         else:
-            label = 1
-
+            is_next = 1
             b_filename = a_filename
             b_line_idx = a_line_idx + 1
-            b_document = get_document(
-                a_filename, self.sentence_indices[a_filename][b_line_idx])
-            b_document, b_line_idx = match_target_seq_length(
-                b_document, target_seq_length_b, b_filename, b_line_idx,
-                self.sentence_indices)
+
+        b_line_pos = self.sentence_indices[b_filename][b_line_idx]
+        b_document = get_document(b_filename, b_line_pos)
+        b_document, b_line_idx = match_target_seq_length(
+            b_document, target_seq_length_b, b_filename, b_line_idx,
+            self.sentence_indices)
 
         def truncate_seq_pair(a_document, b_document, max_num_tokens):
             # Truncates a pair of sequences to a maximum sequence length
@@ -258,11 +249,11 @@ class BertPretrainingDataset(Dataset):
                 else:
                     trunc_document.pop()
 
-        truncate_seq_pair(a_document, b_document, max_num_tokens)
-
-        output_ids = [self.tokenizer.special_tokens["[CLS]"]] + a_document + \
-                     [self.tokenizer.special_tokens["[SEP]"]] + b_document + \
-                     [self.tokenizer.special_tokens["[SEP]"]]
+        # TODO truncate_seq_pair doesnt work properly, turn off for now
+        # truncate_seq_pair(a_document, b_document, max_num_tokens)
+        output_ids = [self.tokenizer.bos_id()] + a_document + \
+                     [self.tokenizer.eos_id()] + b_document + \
+                     [self.tokenizer.eos_id()]
 
         input_ids, output_mask = self.mask_ids(output_ids)
 
@@ -281,7 +272,7 @@ class BertPretrainingDataset(Dataset):
         # TODO: wrap the return value with () for consistent style.
         return np.array(input_ids), input_type_ids,\
             np.array(input_mask, dtype=np.float32), np.array(output_ids),\
-            np.array(output_mask, dtype=np.float32), label
+            np.array(output_mask, dtype=np.float32), is_next
 
     def mask_ids(self, ids):
         """
@@ -301,7 +292,6 @@ class BertPretrainingDataset(Dataset):
         # Whole-word masking by default, as it gives better performance.
         cand_indexes = []
         for (i, id) in enumerate(ids):
-
             if len(cand_indexes) >= 1 and not self.tokenizer.ids_to_tokens(
                     [id])[0].startswith('\u2581'):
                 cand_indexes[-1].append(id)
@@ -312,13 +302,12 @@ class BertPretrainingDataset(Dataset):
         output_mask = []
         for cand_index in cand_indexes:
             if (random.random() < self.mask_probability) and \
-                  cand_index[0] != self.tokenizer.special_tokens["[CLS]"] and \
-                  cand_index[0] != self.tokenizer.special_tokens["[SEP]"]:
+                  cand_index[0] != self.tokenizer.bos_id() and \
+                  cand_index[0] != self.tokenizer.eos_id():
                 if random.random() < 0.8:
                     for _ in range(cand_index):
                         output_mask.append(1)
-                        masked_ids.append(
-                            self.tokenizer.special_tokens["[MASK]"])
+                        masked_ids.append(self.tokenizer.token_to_id["[MASK]"])
                 elif random.random() < 0.5:
                     for _ in range(cand_index):
                         output_mask.append(1)
@@ -327,10 +316,8 @@ class BertPretrainingDataset(Dataset):
                         # There should be more elegant and fast way to do this.
                         for _ in range(10):
                             random_word = random.randrange(self.vocab_size)
-                            if random_word != \
-                                    self.tokenizer.special_tokens["[SEP]"] and\
-                               random_word != \
-                                    self.tokenizer.special_tokens["[CLS]"]:
+                            if random_word != self.tokenizer.eos_id() and \
+                               random_word != self.tokenizer.bos_id():
                                 break
                         masked_ids.append(random_word)
                 else:
