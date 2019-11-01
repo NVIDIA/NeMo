@@ -162,6 +162,7 @@ class BertPretrainingDataset(Dataset):
             # If document is shorter than target sequence length,
             # append the next line or take a random line as replacement.
             num_lines = len(sentence_indices[filename])
+
             while len(document) < target_seq_length:
                 if line_idx < (num_lines - 1):
                     # append the next line
@@ -237,6 +238,7 @@ class BertPretrainingDataset(Dataset):
                     trunc_document.pop()
 
         truncate_seq_pair(a_document, b_document, max_num_tokens)
+
         output_ids = [self.cls_id] + a_document + \
                      [self.sep_id] + b_document + [self.sep_id]
 
