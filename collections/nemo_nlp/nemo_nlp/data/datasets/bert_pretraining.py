@@ -273,9 +273,9 @@ class BertPretrainingDataset(Dataset):
     def mask_ids(self, ids):
         """
         Args:
-          tokens: list of tokens representing a chunk of text
+          ids: list of token ids representing a chunk of text
         Returns:
-          masked_tokens: list of input tokens with some of the entries masked
+          masked_ids: list of input tokens with some of the entries masked
             according to the following protocol from the original BERT paper:
             each token is masked with a probability of 15% and is replaced with
             1) the [MASK] token 80% of the time,
@@ -286,43 +286,42 @@ class BertPretrainingDataset(Dataset):
         """
 
         # Whole-word masking by default, as it gives better performance.
-        cand_indexes = []
-        for (i, id) in enumerate(ids):
-            if len(cand_indexes) >= 1 and not self.tokenizer.ids_to_tokens(
-                    [id])[0].startswith('\u2581'):
+        cand_indexes = [[ids[0]]]
+        for id in ids[1:]:
+            token = self.tokenizer.ids_to_tokens([id])[0]
+            is_suffix = token.startswith('\u2581')
+            if is_suffix:
+                # group together with its previous token to form a whole-word
                 cand_indexes[-1].append(id)
             else:
                 cand_indexes.append([id])
 
         masked_ids = []
         output_mask = []
-        for cand_index in cand_indexes:
-            if (random.random() < self.mask_probability) and \
-                  cand_index[0] != self.tokenizer.bos_id() and \
-                  cand_index[0] != self.tokenizer.eos_id():
-                if random.random() < 0.8:
-                    for _ in range(cand_index):
-                        output_mask.append(1)
-                        masked_ids.append(self.tokenizer.token_to_id["[MASK]"])
-                elif random.random() < 0.5:
-                    for _ in range(cand_index):
-                        output_mask.append(1)
-                        # This should rarely go for more than one iteration,
-                        # but doing 10 iterations to make sure.
-                        # There should be more elegant and fast way to do this.
-                        for _ in range(10):
-                            random_word = random.randrange(self.vocab_size)
-                            if random_word != self.tokenizer.eos_id() and \
-                               random_word != self.tokenizer.bos_id():
-                                break
-                        masked_ids.append(random_word)
-                else:
-                    for cand_index_i in cand_index:
-                        output_mask.append(1)
-                        masked_ids.append(cand_index_i)
+        mask_id = self.tokenizer.token_to_id("[MASK]")
+        for word_ids in cand_indexes:
+            is_special = (word_ids[0] == self.tokenizer.bos_id()) or \
+                         (word_ids[0] == self.tokenizer.eos_id())
+            if is_special or (random.random() > self.mask_probability):
+                output_mask += [0] * len(word_ids)
+                masked_ids += [id] * len(word_ids)
             else:
-                for cand_index_i in cand_index:
-                    masked_ids.append(cand_index_i)
-                    output_mask.append(0)
+                output_mask += [1] * len(word_ids)
+                p = random.random()
+                # for 80%, replace with mask
+                if p < 0.8:
+                    masked_ids += [mask_id] * len(word_ids)
+                # for 10%, replace by a random token
+                elif p < 0.9:
+                    for _ in word_ids:
+                        # randomly select a valid word
+                        random_word = random.randrange(self.vocab_size)
+                        while (random_word == self.tokenizer.bos_id()) or \
+                              (random_word == self.tokenizer.eos_id()):
+                            random_word = random.randrange(self.vocab_size)
+                        masked_ids.append(random_word)
+                # for 10%, use same token
+                else:
+                    masked_ids += word_ids
 
         return masked_ids, output_mask
