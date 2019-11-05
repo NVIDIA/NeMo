@@ -1018,7 +1018,7 @@ class PtActions(Actions):
         if batches_per_step is None:
             batches_per_step = 1
         # this is necessary because we average gradients over batch
-        bps_scale = torch.FloatTensor([1.0 / batches_per_step])
+        bps_scale = torch.FloatTensor([1.0 / batches_per_step]).squeeze()
 
         if tensors_to_optimize is None:
             # This is Evaluation Mode
