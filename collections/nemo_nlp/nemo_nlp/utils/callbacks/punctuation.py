@@ -93,7 +93,6 @@ def eval_epochs_done_callback(global_vars, tag_ids, output_filename):
     
     df = pd.read_csv(output_filename, header=None, sep='\t')
     df.columns = ['word', 'labels', 'preds']
-
-    logger.info(classification_report(df.labels, df.preds, labels=list(tag_ids.keys())))
+    logger.info(classification_report(df.labels, df.preds, labels=list(tag_ids.values())))
     
     return results
