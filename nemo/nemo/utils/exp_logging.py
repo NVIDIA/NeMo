@@ -106,23 +106,22 @@ class ExpManager:
             if files_to_copy and self.local_rank == 0:
                 for file in files_to_copy:
                     copy_wo_overwrite(self.work_dir, file, tm_suf)
+            if self.local_rank == 0:
+                # Create files for cmd args and git info
+                with open(os.path.join(
+                        self.work_dir, f'cmd-args_{tm_suf}.log'), 'w') as f:
+                    f.write(" ".join(sys.argv))
+
+                with open(os.path.join(
+                        self.work_dir, f'git-info_{tm_suf}.log'), 'w') as f:
+                    f.write(f'commit hash: {get_git_hash()}')
+                    f.write(get_git_diff())
 
         # Create loggers
         self.create_logger(log_file=bool(work_dir))
         if use_tb and not work_dir:
             raise ValueError("ExpManager received use_tb as True but did not "
                              "receive a work_dir")
-
-        if self.local_rank == 0:
-            # Create files for cmd args and git info
-            with open(os.path.join(self.work_dir, f'cmd-args_{tm_suf}.log'),
-                      'w') as f:
-                f.write(" ".join(sys.argv))
-
-            with open(os.path.join(self.work_dir, f'git-info_{tm_suf}.log'),
-                      'w') as f:
-                f.write(f'commit hash: {get_git_hash()}')
-                f.write(get_git_diff())
 
         if ckpt_dir:
             self.ckpt_dir = ckpt_dir
