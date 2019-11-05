@@ -191,7 +191,7 @@ See <a class="reference internal" href="../installation.html#installation"><span
 </div>
 <div class="section" id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
-<p>This Automatic Speech Recognition (ASR) tutorial is focused on Jasper <a class="bibtex reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id1">[1]</a> model. Jasper is CTC-based <a class="bibtex reference internal" href="#graves2006" id="id2">[1]</a> end-to-end model. The model is called “end-to-end” because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text.
+<p>This Automatic Speech Recognition (ASR) tutorial is focused on Jasper <a class="reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id1">[1]</a> model. Jasper is CTC-based <a class="reference internal" href="#graves2006" id="id2">[1]</a> end-to-end model. The model is called “end-to-end” because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text.
 CTC-ASR training pipeline consists of the following blocks:</p>
 <ol class="arabic">
 <li><p>audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)</p></li>
@@ -205,7 +205,7 @@ CTC-ASR training pipeline consists of the following blocks:</p>
 </div>
 <div class="section" id="get-data">
 <h2>Get data<a class="headerlink" href="#get-data" title="Permalink to this headline">¶</a></h2>
-<p>We will be using an open-source LibriSpeech <a class="bibtex reference internal" href="../nlp/asr-improvement.html#panayotov2015librispeech" id="id3">[3]</a> dataset. These scripts will download and convert LibriSpeech into format expected by <cite>nemo_asr</cite>:</p>
+<p>We will be using an open-source LibriSpeech <a class="reference internal" href="../nlp/asr-improvement.html#panayotov2015librispeech" id="id3">[3]</a> dataset. These scripts will download and convert LibriSpeech into format expected by <cite>nemo_asr</cite>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir data
 <span class="c1"># note that this script requires sox to be installed</span>
 <span class="c1"># to install sox on Ubuntu, simply do: sudo apt-get install sox</span>
@@ -234,7 +234,7 @@ Each line in json file describes a training sample - `audio_filepath</cite> cont
 </div>
 <div class="section" id="training">
 <h2>Training<a class="headerlink" href="#training" title="Permalink to this headline">¶</a></h2>
-<p>We will train a small model from the Jasper family <a class="bibtex reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id4">[1]</a>.
+<p>We will train a small model from the Jasper family <a class="reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id4">[1]</a>.
 Jasper (“Just Another SPeech Recognizer”) is a deep time delay neural network (TDNN) comprising of blocks of 1D-convolutional layers.
 Jasper family of models are denoted as Jasper_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization, ReLU, and dropout:</p>
 <blockquote>
@@ -455,12 +455,14 @@ Make sure it is installed.</p>
 <p>Training time can be dramatically reduced if starting from a good pre-trained model:</p>
 <blockquote>
 <div><ol class="arabic simple">
-<li><p>Obtain pre-trained model (jasper_encoder, jasper_decoder and configuration files) <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5">from here</a>.</p></li>
+<li><p>Obtain pre-trained model (jasper_encoder, jasper_decoder and configuration files) <a class="reference external" href="https://drive.google.com/drive/folders/1b-TQYY7o8_CQgZsVEe-8_2kHWU0lYJ-z?usp=sharing">from here</a>.</p></li>
 <li><p>load pre-trained weights right after you’ve instantiated your jasper_encoder and jasper_decoder, like this:</p></li>
 </ol>
 </div></blockquote>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">jasper_encoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/15x5SEP/JasperEncoder-STEP-247400.pt&quot;</span><span class="p">)</span>
 <span class="n">jasper_decoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/15x5SEP/JasperDecoderForCTC-STEP-247400.pt&quot;</span><span class="p">)</span>
+<span class="c1"># in case of distributed training add args.local_rank</span>
+<span class="n">jasper_decoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/15x5SEP/JasperDecoderForCTC-STEP-247400.pt&quot;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">)</span>
 </pre></div>
 </div>
 <div class="admonition tip">
@@ -470,7 +472,7 @@ Make sure it is installed.</p>
 </div>
 <div class="section" id="inference">
 <h2>Inference<a class="headerlink" href="#inference" title="Permalink to this headline">¶</a></h2>
-<p>First download pre-trained model (jasper_encoder, jasper_decoder and configuration files) <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5">from here</a> into <cite>&lt;path_to_checkpoints&gt;</cite>. We will use this pre-trained model to measure WER on LibriSpeech dev-clean dataset.</p>
+<p>First download pre-trained model (jasper_encoder, jasper_decoder and configuration files) <a class="reference external" href="https://drive.google.com/drive/folders/1b-TQYY7o8_CQgZsVEe-8_2kHWU0lYJ-z?usp=sharing">from here</a> into <cite>&lt;path_to_checkpoints&gt;</cite>. We will use this pre-trained model to measure WER on LibriSpeech dev-clean dataset.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_infer.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/jasper15x5SEP.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt;
 </pre></div>
 </div>
@@ -483,9 +485,18 @@ Make sure it is installed.</p>
 <p>Perform the following steps:</p>
 <blockquote>
 <div><ul class="simple">
-<li><p>Go to <cite>cd &lt;nemo_git_repo_root&gt;/scripts</cite></p></li>
-<li><p>Install Baidu’s CTC decoders <cite>sudo apt-get install swig</cite> and <cite>./install_decoders.sh</cite></p></li>
-<li><p>Build 6-gram KenLM model on LibriSpeech <cite>./build_6-gram_OpenSLR_lm.sh</cite></p></li>
+<li><p>Go to <code class="docutils literal notranslate"><span class="pre">cd</span> <span class="pre">&lt;nemo_git_repo_root&gt;/scripts</span></code></p></li>
+<li><dl class="simple">
+<dt>Install Baidu’s CTC decoders (NOTE: no need for “sudo” if inside the container):</dt><dd><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">update</span> <span class="pre">&amp;&amp;</span> <span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">swig</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">pkg-config</span> <span class="pre">libflac-dev</span> <span class="pre">libogg-dev</span> <span class="pre">libvorbis-dev</span> <span class="pre">libboost-dev</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">libsndfile1-dev</span> <span class="pre">python-setuptools</span> <span class="pre">libboost-all-dev</span> <span class="pre">python-dev</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">./install_decoders.sh</span></code></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p>Build 6-gram KenLM model on LibriSpeech <code class="docutils literal notranslate"><span class="pre">./build_6-gram_OpenSLR_lm.sh</span></code></p></li>
 <li><p>Run jasper_infer.py with the –lm_path flag</p></li>
 </ul>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_infer.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/jasper15x5SEP.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt; --lm_path<span class="o">=</span>&lt;path_to_6gram.binary&gt;
@@ -497,13 +508,13 @@ Make sure it is installed.</p>
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
 <p id="bibtex-bibliography-asr/tutorial-0"><dl class="citation">
-<dt class="bibtex label" id="graves2006"><span class="brackets"><a class="fn-backref" href="#id2">1</a></span></dt>
+<dt class="label" id="graves2006"><span class="brackets"><a class="fn-backref" href="#id2">1</a></span></dt>
 <dd><p>Alex Graves, Santiago Fernández, Faustino Gomez, and Jürgen Schmidhuber. Connectionist temporal classification: labelling unsegmented sequence data with recurrent neural networks. In <em>Proceedings of the 23rd international conference on Machine learning</em>, 369–376. ACM, 2006.</p>
 </dd>
-<dt class="bibtex label" id="li2019jasper"><span class="brackets">1</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id4">2</a>)</span></dt>
+<dt class="label" id="li2019jasper"><span class="brackets">1</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id4">2</a>)</span></dt>
 <dd><p>Jason Li, Vitaly Lavrukhin, Boris Ginsburg, Ryan Leary, Oleksii Kuchaiev, Jonathan M Cohen, Huyen Nguyen, and Ravi Teja Gadde. Jasper: an end-to-end convolutional neural acoustic model. <em>arXiv preprint arXiv:1904.03288</em>, 2019.</p>
 </dd>
-<dt class="bibtex label" id="panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
+<dt class="label" id="panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
 <dd><p>Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur. Librispeech: an asr corpus based on public domain audio books. In <em>Acoustics, Speech and Signal Processing (ICASSP), 2015 IEEE International Conference on</em>, 5206–5210. IEEE, 2015.</p>
 </dd>
 </dl>

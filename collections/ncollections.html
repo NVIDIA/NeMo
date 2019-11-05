@@ -175,6 +175,114 @@
 <p>This package contains Neural Modules responsible for ASR-related data
 processing</p>
 <dl class="class">
+<dt id="nemo_asr.data_layer.AudioToTextDataLayer">
+<em class="property">class </em><code class="sig-prename descclassname">nemo_asr.data_layer.</code><code class="sig-name descname">AudioToTextDataLayer</code><span class="sig-paren">(</span><em class="sig-param">*</em>, <em class="sig-param">manifest_filepath</em>, <em class="sig-param">labels</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">sample_rate=16000</em>, <em class="sig-param">int_values=False</em>, <em class="sig-param">eos_id=None</em>, <em class="sig-param">min_duration=0.1</em>, <em class="sig-param">max_duration=None</em>, <em class="sig-param">normalize_transcripts=True</em>, <em class="sig-param">trim_silence=False</em>, <em class="sig-param">load_audio=True</em>, <em class="sig-param">drop_last=False</em>, <em class="sig-param">shuffle=True</em>, <em class="sig-param">num_workers=0</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_asr/data_layer.html#AudioToTextDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_asr.data_layer.AudioToTextDataLayer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.DataLayerNM</span></code></a></p>
+<p>Data Layer for general ASR tasks.</p>
+<p>Module which reads ASR labeled data. It accepts comma-separated
+JSON manifest files describing the correspondence between wav audio files
+and their transcripts. JSON files should be of the following format:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="s2">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="n">path_to_wav_0</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">:</span> <span class="n">time_in_sec_0</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="n">transcript_0</span><span class="p">}</span>
+<span class="o">...</span>
+<span class="p">{</span><span class="s2">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="n">path_to_wav_n</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">:</span> <span class="n">time_in_sec_n</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="n">transcript_n</span><span class="p">}</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>manifest_filepath</strong> (<em>str</em>) – Dataset parameter.
+Path to JSON containing data.</p></li>
+<li><p><strong>labels</strong> (<em>list</em>) – Dataset parameter.
+List of characters that can be output by the ASR model.
+For Jasper, this is the 28 character set {a-z ‘}. The CTC blank
+symbol is automatically added later for models using ctc.</p></li>
+<li><p><strong>batch_size</strong> (<em>int</em>) – batch size</p></li>
+<li><p><strong>sample_rate</strong> (<em>int</em>) – Target sampling rate for data. Audio files will be
+resampled to sample_rate if it is not already.
+Defaults to 16000.</p></li>
+<li><p><strong>int_values</strong> (<em>bool</em>) – Bool indicating whether the audio file is saved as
+int data or float data.
+Defaults to False.</p></li>
+<li><p><strong>eos_id</strong> (<em>str</em>) – Dataset parameter.
+End of string symbol used for seq2seq models.
+Defaults to None.</p></li>
+<li><p><strong>min_duration</strong> (<em>float</em>) – Dataset parameter.
+All training files which have a duration less than min_duration
+are dropped. Note: Duration is read from the manifest JSON.
+Defaults to 0.1.</p></li>
+<li><p><strong>max_duration</strong> (<em>float</em>) – Dataset parameter.
+All training files which have a duration more than max_duration
+are dropped. Note: Duration is read from the manifest JSON.
+Defaults to None.</p></li>
+<li><p><strong>normalize_transcripts</strong> (<em>bool</em>) – Dataset parameter.
+Whether to use automatic text cleaning.
+It is highly recommended to manually clean text for best results.
+Defaults to True.</p></li>
+<li><p><strong>trim_silence</strong> (<em>bool</em>) – Whether to use trim silence from beginning and end
+of audio signal using librosa.effects.trim().
+Defaults to False.</p></li>
+<li><p><strong>load_audio</strong> (<em>bool</em>) – Dataset parameter.
+Controls whether the dataloader loads the audio signal and
+transcript or just the transcript.
+Defaults to True.</p></li>
+<li><p><strong>drop_last</strong> (<em>bool</em>) – See PyTorch DataLoader.
+Defaults to False.</p></li>
+<li><p><strong>shuffle</strong> (<em>bool</em>) – See PyTorch DataLoader.
+Defaults to True.</p></li>
+<li><p><strong>num_workers</strong> (<em>int</em>) – See PyTorch DataLoader.
+Defaults to 0.</p></li>
+<li><p><strong>perturb_config</strong> (<em>dict</em>) – Currently disabled.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>audio_signal</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>a_sig_length</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>transcripts</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>transcript_length</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="nemo_asr.data_layer.AudioToTextDataLayer.data_iterator">
+<em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo_asr.data_layer.AudioToTextDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
+<dd><p>“Iterator over the dataset. It is a good idea to return
+torch.utils.data.DataLoader here. Should implement either this or
+<cite>dataset</cite>.
+If this is implemented, <cite>dataset</cite> property should return None.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="nemo_asr.data_layer.AudioToTextDataLayer.dataset">
+<em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo_asr.data_layer.AudioToTextDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Should return an instance of torch.utils.data.Dataset. Should
+implement
+either this or <cite>data_iterator</cite>. If this is implemented, <cite>data_iterator</cite>
+should return None.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
 <dt id="nemo_asr.data_layer.AudioPreprocessing">
 <em class="property">class </em><code class="sig-prename descclassname">nemo_asr.data_layer.</code><code class="sig-name descname">AudioPreprocessing</code><span class="sig-paren">(</span><em class="sig-param">*</em>, <em class="sig-param">sample_rate=16000</em>, <em class="sig-param">window_size=0.02</em>, <em class="sig-param">window_stride=0.01</em>, <em class="sig-param">window='hann'</em>, <em class="sig-param">normalize='per_feature'</em>, <em class="sig-param">n_fft=None</em>, <em class="sig-param">preemph=0.97</em>, <em class="sig-param">features=64</em>, <em class="sig-param">lowfreq=0</em>, <em class="sig-param">highfreq=None</em>, <em class="sig-param">feat_type='logfbank'</em>, <em class="sig-param">dither=1e-05</em>, <em class="sig-param">pad_to=16</em>, <em class="sig-param">frame_splicing=1</em>, <em class="sig-param">stft_conv=False</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_asr/data_layer.html#AudioPreprocessing"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_asr.data_layer.AudioPreprocessing" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
@@ -254,109 +362,6 @@ Defaults to False</p></li>
 </ul>
 </dd>
 </dl>
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo_asr.data_layer.AudioToTextDataLayer">
-<em class="property">class </em><code class="sig-prename descclassname">nemo_asr.data_layer.</code><code class="sig-name descname">AudioToTextDataLayer</code><span class="sig-paren">(</span><em class="sig-param">*</em>, <em class="sig-param">manifest_filepath</em>, <em class="sig-param">labels</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">sample_rate=16000</em>, <em class="sig-param">int_values=False</em>, <em class="sig-param">eos_id=None</em>, <em class="sig-param">min_duration=0.1</em>, <em class="sig-param">max_duration=None</em>, <em class="sig-param">normalize_transcripts=True</em>, <em class="sig-param">trim_silence=False</em>, <em class="sig-param">load_audio=True</em>, <em class="sig-param">drop_last=False</em>, <em class="sig-param">shuffle=True</em>, <em class="sig-param">num_workers=0</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_asr/data_layer.html#AudioToTextDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_asr.data_layer.AudioToTextDataLayer" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.DataLayerNM</span></code></a></p>
-<p>Data Layer for general ASR tasks.</p>
-<p>Module which reads ASR labeled data. It accepts comma-separated
-JSON manifest files describing the correspondence between wav audio files
-and their transcripts. JSON files should be of the following format:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="s2">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="n">path_to_wav_0</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">:</span> <span class="n">time_in_sec_0</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="n">transcript_0</span><span class="p">}</span>
-<span class="o">...</span>
-<span class="p">{</span><span class="s2">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="n">path_to_wav_n</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">:</span> <span class="n">time_in_sec_n</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="n">transcript_n</span><span class="p">}</span>
-</pre></div>
-</div>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>manifest_filepath</strong> (<em>str</em>) – path to JSON containing data.</p></li>
-<li><p><strong>labels</strong> (<em>list</em>) – list of characters that can be output by the ASR model.
-For Jasper, this is the 28 character set {a-z ‘}. The CTC blank
-symbol is automatically added later for models using ctc.</p></li>
-<li><p><strong>batch_size</strong> (<em>int</em>) – batch size</p></li>
-<li><p><strong>sample_rate</strong> (<em>int</em>) – Target sampling rate for data. Audio files will be
-resampled to sample_rate if it is not already.
-Defaults to 16000.</p></li>
-<li><p><strong>int_values</strong> (<em>bool</em>) – Bool indicating whether the audio file is saved as
-int data or float data.
-Defaults to False.</p></li>
-<li><p><strong>eos_id</strong> (<em>str</em>) – End of string symbol used for seq2seq models.
-Defaults to None.</p></li>
-<li><p><strong>min_duration</strong> (<em>float</em>) – All training files which have a duration less
-than min_duration are dropped. Note: Duration is read from the
-manifest JSON.
-Defaults to 0.1.</p></li>
-<li><p><strong>max_duration</strong> (<em>float</em>) – All training files which have a duration more
-than max_duration are dropped. Note: Duration is read from the
-manifest JSON.
-Defaults to None.</p></li>
-<li><p><strong>normalize_transcripts</strong> (<em>bool</em>) – Whether to use automatic text cleaning.
-It is highly recommended to manually clean text ffor best results.
-Defaults to True.</p></li>
-<li><p><strong>trim_silence</strong> (<em>bool</em>) – Whether to use trim silence from beginning and end
-of audio signal using librosa.effects.trim().
-Defaults to False.</p></li>
-<li><p><strong>load_audio</strong> (<em>bool</em>) – Controls whether the dataloader loads the audio
-signal and transcript or just the transcript.
-Defaults to True.</p></li>
-<li><p><strong>drop_last</strong> (<em>bool</em>) – See PyTorch DataLoader.
-Defaults to False.</p></li>
-<li><p><strong>shuffle</strong> (<em>bool</em>) – See PyTorch DataLoader.
-Defaults to True.</p></li>
-<li><p><strong>num_workers</strong> (<em>int</em>) – See PyTorch DataLoader.
-Defaults to 0.</p></li>
-<li><p><strong>perturb_config</strong> (<em>dict</em>) – Currently disabled.</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="simple">
-<dt>Output Ports:</dt><dd><ul class="simple">
-<li><p><strong>audio_signal</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
-</ul>
-</li>
-<li><p><strong>a_sig_length</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-</ul>
-</li>
-<li><p><strong>transcripts</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
-</ul>
-</li>
-<li><p><strong>transcript_length</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-</ul>
-</li>
-</ul>
-</dd>
-</dl>
-<dl class="method">
-<dt id="nemo_asr.data_layer.AudioToTextDataLayer.data_iterator">
-<em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo_asr.data_layer.AudioToTextDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
-<dd><p>“Iterator over the dataset. It is a good idea to return
-torch.utils.data.DataLoader here. Should implement either this or
-<cite>dataset</cite>.
-If this is implemented, <cite>dataset</cite> property should return None.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo_asr.data_layer.AudioToTextDataLayer.dataset">
-<em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo_asr.data_layer.AudioToTextDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
-<dd><p>Should return an instance of torch.utils.data.Dataset. Should
-implement
-either this or <cite>data_iterator</cite>. If this is implemented, <cite>data_iterator</cite>
-should return None.</p>
-</dd></dl>
-
 </dd></dl>
 
 <dl class="class">
@@ -483,6 +488,56 @@ Defaults to 25.</p></li>
 </ul>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo_asr.data_layer.TranscriptDataLayer">
+<em class="property">class </em><code class="sig-prename descclassname">nemo_asr.data_layer.</code><code class="sig-name descname">TranscriptDataLayer</code><span class="sig-paren">(</span><em class="sig-param">path</em>, <em class="sig-param">labels</em>, <em class="sig-param">eos_id</em>, <em class="sig-param">pad_id</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">drop_last=False</em>, <em class="sig-param">num_workers=0</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_asr/data_layer.html#TranscriptDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_asr.data_layer.TranscriptDataLayer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.DataLayerNM</span></code></a></p>
+<p>A simple Neural Module for loading textual transcript data.
+The path, labels, and eos_id arguments are dataset parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pad_id</strong> (<em>int</em>) – Label position of padding symbol</p></li>
+<li><p><strong>batch_size</strong> (<em>int</em>) – Size of batches to generate in data loader</p></li>
+<li><p><strong>drop_last</strong> (<em>bool</em>) – Whether we drop last (possibly) incomplete batch.
+Defaults to False.</p></li>
+<li><p><strong>num_workers</strong> (<em>int</em>) – Number of processes to work on data loading (0 for
+just main process).
+Defaults to 0.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>texts</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="nemo_asr.data_layer.TranscriptDataLayer.data_iterator">
+<em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo_asr.data_layer.TranscriptDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
+<dd><p>“Iterator over the dataset. It is a good idea to return
+torch.utils.data.DataLoader here. Should implement either this or
+<cite>dataset</cite>.
+If this is implemented, <cite>dataset</cite> property should return None.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="nemo_asr.data_layer.TranscriptDataLayer.dataset">
+<em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo_asr.data_layer.TranscriptDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Should return an instance of torch.utils.data.Dataset. Should
+implement
+either this or <cite>data_iterator</cite>. If this is implemented, <cite>data_iterator</cite>
+should return None.</p>
+</dd></dl>
+
 </dd></dl>
 
 </div>

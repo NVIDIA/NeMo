@@ -156,21 +156,25 @@
   <h1>Source code for nemo.core.neural_modules</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2019 NVIDIA Corporation</span>
 <span class="sd">&quot;&quot;&quot;This file contains NeuralModule and NmTensor classes.&quot;&quot;&quot;</span>
-<span class="kn">import</span> <span class="nn">uuid</span>
-<span class="kn">import</span> <span class="nn">logging</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;WeightShareTransform&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;NeuralModule&#39;</span><span class="p">]</span>
+
 <span class="kn">from</span> <span class="nn">abc</span> <span class="k">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
 <span class="kn">from</span> <span class="nn">enum</span> <span class="k">import</span> <span class="n">Enum</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">List</span>
 <span class="kn">from</span> <span class="nn">inspect</span> <span class="k">import</span> <span class="n">getargvalues</span><span class="p">,</span> <span class="n">stack</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">List</span>
+<span class="kn">import</span> <span class="nn">uuid</span>
+
 <span class="kn">from</span> <span class="nn">nemo.core</span> <span class="k">import</span> <span class="n">NeuralModuleFactory</span>
 
 <span class="kn">from</span> <span class="nn">.neural_factory</span> <span class="k">import</span> <span class="n">Optimization</span><span class="p">,</span> <span class="n">DeviceType</span>
-<span class="kn">from</span> <span class="nn">.neural_types</span> <span class="k">import</span> <span class="n">CanNotInferResultNeuralType</span><span class="p">,</span>\
-                          <span class="n">NeuralType</span><span class="p">,</span> <span class="n">NeuralTypeComparisonResult</span><span class="p">,</span>\
-                          <span class="n">NeuralPortNameMismatchError</span><span class="p">,</span>\
-                          <span class="n">NeuralPortNmTensorMismatchError</span><span class="p">,</span>\
-                          <span class="n">NmTensor</span>
+<span class="kn">from</span> <span class="nn">.neural_types</span> <span class="k">import</span> <span class="p">(</span><span class="n">CanNotInferResultNeuralType</span><span class="p">,</span>
+                           <span class="n">NeuralType</span><span class="p">,</span> <span class="n">NeuralTypeComparisonResult</span><span class="p">,</span>
+                           <span class="n">NeuralPortNameMismatchError</span><span class="p">,</span>
+                           <span class="n">NeuralPortNmTensorMismatchError</span><span class="p">,</span>
+                           <span class="n">NmTensor</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="WeightShareTransform"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.WeightShareTransform">[docs]</a><span class="k">class</span> <span class="nc">WeightShareTransform</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>

@@ -191,6 +191,7 @@
 <span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">()</span>
 
 <span class="c1"># instantiate necessary neural modules</span>
+<span class="c1"># RealFunctionDataLayer defaults to f=torch.sin, sampling from x=[-4, 4]</span>
 <span class="n">dl</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">RealFunctionDataLayer</span><span class="p">(</span>
     <span class="n">n</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>
 <span class="n">fx</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">TaylorNet</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>

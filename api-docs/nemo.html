@@ -182,6 +182,134 @@ Neural Modules’ input and output ports are also of Neural Type.</p>
 <p>An exception will be raised when a NmTensor and input port where it goes are
 of incompatible types.</p>
 <dl class="class">
+<dt id="nemo.core.neural_types.BaseTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">BaseTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#BaseTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.BaseTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Base Neural Tag. All Tags should inherit from this.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.BatchTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">BatchTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#BatchTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.BatchTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BaseTag" title="nemo.core.neural_types.BaseTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BaseTag</span></code></a></p>
+<p>Tag for batch dimension.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.TimeTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">TimeTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#TimeTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.TimeTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BaseTag" title="nemo.core.neural_types.BaseTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BaseTag</span></code></a></p>
+<p>Tag for time dimension.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.ProcessedTimeTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">ProcessedTimeTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#ProcessedTimeTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.ProcessedTimeTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.TimeTag" title="nemo.core.neural_types.TimeTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.TimeTag</span></code></a></p>
+<p>Tag for processed time dimension.
+For example: after pre-processing, or augmentation.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.ChannelTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">ChannelTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#ChannelTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.ChannelTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BaseTag" title="nemo.core.neural_types.BaseTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BaseTag</span></code></a></p>
+<p>Tag for channel dimension.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.SpectrogramSignalTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">SpectrogramSignalTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#SpectrogramSignalTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.SpectrogramSignalTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.ChannelTag" title="nemo.core.neural_types.ChannelTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.ChannelTag</span></code></a></p>
+<p>Tag for spectrogram signal dimension.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.EncodedRepresentationTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">EncodedRepresentationTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#EncodedRepresentationTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.EncodedRepresentationTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.ChannelTag" title="nemo.core.neural_types.ChannelTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.ChannelTag</span></code></a></p>
+<p>Tag for encoded representation. This should be used to
+denote encoders’ outputs.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.ClassTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">ClassTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#ClassTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.ClassTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BaseTag" title="nemo.core.neural_types.BaseTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BaseTag</span></code></a></p>
+<p>Tag for class dimension.
+For example, number of classes in classification problem,
+vocabuary size or num of characters for ASR.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.WidthTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">WidthTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#WidthTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.WidthTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BaseTag" title="nemo.core.neural_types.BaseTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BaseTag</span></code></a></p>
+<p>Tag for width dimension.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.HeightTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">HeightTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#HeightTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.HeightTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BaseTag" title="nemo.core.neural_types.BaseTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BaseTag</span></code></a></p>
+<p>Tag for width dimension.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.CategoricalTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">CategoricalTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#CategoricalTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.CategoricalTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BatchTag" title="nemo.core.neural_types.BatchTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BatchTag</span></code></a></p>
+<p>Tag for labels for classification tasks.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.RegressionTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">RegressionTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#RegressionTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.RegressionTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BatchTag" title="nemo.core.neural_types.BatchTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BatchTag</span></code></a></p>
+<p>Tag for labels for regression tasks.
+For example, this should be used in STS-B task, where labels
+represent semantic semilarity score (float)</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.NeuralTypeComparisonResult">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">NeuralTypeComparisonResult</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#NeuralTypeComparisonResult"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
+<p>The result of comparing two neural type objects for compatibility.
+When comparing A.compare_to(B):</p>
+<dl class="attribute">
+<dt id="nemo.core.neural_types.NeuralTypeComparisonResult.DIM_INCOMPATIBLE">
+<code class="sig-name descname">DIM_INCOMPATIBLE</code><em class="property"> = 3</em><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult.DIM_INCOMPATIBLE" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_types.NeuralTypeComparisonResult.GREATER">
+<code class="sig-name descname">GREATER</code><em class="property"> = 2</em><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult.GREATER" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_types.NeuralTypeComparisonResult.INCOMPATIBLE">
+<code class="sig-name descname">INCOMPATIBLE</code><em class="property"> = 5</em><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult.INCOMPATIBLE" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_types.NeuralTypeComparisonResult.LESS">
+<code class="sig-name descname">LESS</code><em class="property"> = 1</em><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult.LESS" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_types.NeuralTypeComparisonResult.SAME">
+<code class="sig-name descname">SAME</code><em class="property"> = 0</em><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult.SAME" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_types.NeuralTypeComparisonResult.TRANSPOSE_SAME">
+<code class="sig-name descname">TRANSPOSE_SAME</code><em class="property"> = 4</em><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult.TRANSPOSE_SAME" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
 <dt id="nemo.core.neural_types.AxisType">
 <em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">AxisType</code><span class="sig-paren">(</span><em class="sig-param">semantics</em>, <em class="sig-param">dim: int = None</em>, <em class="sig-param">descriptor: str = None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_types.html#AxisType"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.AxisType" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
@@ -217,74 +345,6 @@ dimension (dim) is (optional) int and descriptor is (optional) string</p>
 <em class="property">property </em><code class="sig-name descname">semantics</code><a class="headerlink" href="#nemo.core.neural_types.AxisType.semantics" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.core.neural_types.BaseTag">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">BaseTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#BaseTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.BaseTag" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>Base Neural Tag. All Tags should inherit from this.</p>
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.core.neural_types.BatchTag">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">BatchTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#BatchTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.BatchTag" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BaseTag" title="nemo.core.neural_types.BaseTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BaseTag</span></code></a></p>
-<p>Tag for batch dimension.</p>
-</dd></dl>
-
-<dl class="exception">
-<dt id="nemo.core.neural_types.CanNotInferResultNeuralType">
-<em class="property">exception </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">CanNotInferResultNeuralType</code><span class="sig-paren">(</span><em class="sig-param">message</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_types.html#CanNotInferResultNeuralType"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.CanNotInferResultNeuralType" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.NeuralTypeError" title="nemo.core.neural_types.NeuralTypeError"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.NeuralTypeError</span></code></a></p>
-<p>Exception raised when NeuralType of output can not be inferred.</p>
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.core.neural_types.ChannelTag">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">ChannelTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#ChannelTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.ChannelTag" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BaseTag" title="nemo.core.neural_types.BaseTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BaseTag</span></code></a></p>
-<p>Tag for channel dimension.</p>
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.core.neural_types.ClassTag">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">ClassTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#ClassTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.ClassTag" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BaseTag" title="nemo.core.neural_types.BaseTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BaseTag</span></code></a></p>
-<p>Tag for class dimension.
-For example, number of classes in classification problem,
-vocabuary size or num of charachters for ASR.</p>
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.core.neural_types.EncodedRepresentationTag">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">EncodedRepresentationTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#EncodedRepresentationTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.EncodedRepresentationTag" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.ChannelTag" title="nemo.core.neural_types.ChannelTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.ChannelTag</span></code></a></p>
-<p>Tag for encoded representation. This should be used to
-denote encoders’ outputs.</p>
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.core.neural_types.HeightTag">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">HeightTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#HeightTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.HeightTag" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BaseTag" title="nemo.core.neural_types.BaseTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BaseTag</span></code></a></p>
-<p>Tag for width dimension.</p>
-</dd></dl>
-
-<dl class="exception">
-<dt id="nemo.core.neural_types.NeuralPortNameMismatchError">
-<em class="property">exception </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">NeuralPortNameMismatchError</code><span class="sig-paren">(</span><em class="sig-param">message</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_types.html#NeuralPortNameMismatchError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.NeuralPortNameMismatchError" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.NeuralTypeError" title="nemo.core.neural_types.NeuralTypeError"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.NeuralTypeError</span></code></a></p>
-<p>Exception raised when neural module is called with incorrect port
-names.</p>
-</dd></dl>
-
-<dl class="exception">
-<dt id="nemo.core.neural_types.NeuralPortNmTensorMismatchError">
-<em class="property">exception </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">NeuralPortNmTensorMismatchError</code><span class="sig-paren">(</span><em class="sig-param">message</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_types.html#NeuralPortNmTensorMismatchError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.NeuralPortNmTensorMismatchError" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.NeuralTypeError" title="nemo.core.neural_types.NeuralTypeError"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.NeuralTypeError</span></code></a></p>
-<p>Exception raised when a port is fed with a NmTensor of incompatible
-type.</p>
 </dd></dl>
 
 <dl class="class">
@@ -343,51 +403,6 @@ with n_type2</p>
 </dd></dl>
 
 <dl class="class">
-<dt id="nemo.core.neural_types.NeuralTypeComparisonResult">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">NeuralTypeComparisonResult</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#NeuralTypeComparisonResult"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
-<p>The result of comparing two neural type objects for compatibility.
-When comparing A.compare_to(B):</p>
-<dl class="attribute">
-<dt id="nemo.core.neural_types.NeuralTypeComparisonResult.DIM_INCOMPATIBLE">
-<code class="sig-name descname">DIM_INCOMPATIBLE</code><em class="property"> = 3</em><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult.DIM_INCOMPATIBLE" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="nemo.core.neural_types.NeuralTypeComparisonResult.GREATER">
-<code class="sig-name descname">GREATER</code><em class="property"> = 2</em><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult.GREATER" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="nemo.core.neural_types.NeuralTypeComparisonResult.INCOMPATIBLE">
-<code class="sig-name descname">INCOMPATIBLE</code><em class="property"> = 5</em><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult.INCOMPATIBLE" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="nemo.core.neural_types.NeuralTypeComparisonResult.LESS">
-<code class="sig-name descname">LESS</code><em class="property"> = 1</em><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult.LESS" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="nemo.core.neural_types.NeuralTypeComparisonResult.SAME">
-<code class="sig-name descname">SAME</code><em class="property"> = 0</em><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult.SAME" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="nemo.core.neural_types.NeuralTypeComparisonResult.TRANSPOSE_SAME">
-<code class="sig-name descname">TRANSPOSE_SAME</code><em class="property"> = 4</em><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeComparisonResult.TRANSPOSE_SAME" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="exception">
-<dt id="nemo.core.neural_types.NeuralTypeError">
-<em class="property">exception </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">NeuralTypeError</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#NeuralTypeError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeError" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
-<p>Base class for neural type related exceptions.</p>
-</dd></dl>
-
-<dl class="class">
 <dt id="nemo.core.neural_types.NmTensor">
 <em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">NmTensor</code><span class="sig-paren">(</span><em class="sig-param">producer</em>, <em class="sig-param">producer_args</em>, <em class="sig-param">name</em>, <em class="sig-param">ntype=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_types.html#NmTensor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.NmTensor" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.NeuralType" title="nemo.core.neural_types.NeuralType"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.NeuralType</span></code></a></p>
@@ -435,39 +450,57 @@ which created this tensor.</p>
 
 </dd></dl>
 
-<dl class="class">
-<dt id="nemo.core.neural_types.ProcessedTimeTag">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">ProcessedTimeTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#ProcessedTimeTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.ProcessedTimeTag" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.TimeTag" title="nemo.core.neural_types.TimeTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.TimeTag</span></code></a></p>
-<p>Tag for processed time dimension.
-For example: after pre-processing, or augmentation.</p>
+<dl class="exception">
+<dt id="nemo.core.neural_types.NeuralTypeError">
+<em class="property">exception </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">NeuralTypeError</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#NeuralTypeError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.NeuralTypeError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<p>Base class for neural type related exceptions.</p>
 </dd></dl>
 
-<dl class="class">
-<dt id="nemo.core.neural_types.SpectrogramSignalTag">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">SpectrogramSignalTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#SpectrogramSignalTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.SpectrogramSignalTag" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.ChannelTag" title="nemo.core.neural_types.ChannelTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.ChannelTag</span></code></a></p>
-<p>Tag for spectrogram signal dimension.</p>
+<dl class="exception">
+<dt id="nemo.core.neural_types.NeuralPortNameMismatchError">
+<em class="property">exception </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">NeuralPortNameMismatchError</code><span class="sig-paren">(</span><em class="sig-param">message</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_types.html#NeuralPortNameMismatchError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.NeuralPortNameMismatchError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.NeuralTypeError" title="nemo.core.neural_types.NeuralTypeError"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.NeuralTypeError</span></code></a></p>
+<p>Exception raised when neural module is called with incorrect port
+names.</p>
 </dd></dl>
 
-<dl class="class">
-<dt id="nemo.core.neural_types.TimeTag">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">TimeTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#TimeTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.TimeTag" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BaseTag" title="nemo.core.neural_types.BaseTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BaseTag</span></code></a></p>
-<p>Tag for time dimension.</p>
+<dl class="exception">
+<dt id="nemo.core.neural_types.NeuralPortNmTensorMismatchError">
+<em class="property">exception </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">NeuralPortNmTensorMismatchError</code><span class="sig-paren">(</span><em class="sig-param">message</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_types.html#NeuralPortNmTensorMismatchError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.NeuralPortNmTensorMismatchError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.NeuralTypeError" title="nemo.core.neural_types.NeuralTypeError"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.NeuralTypeError</span></code></a></p>
+<p>Exception raised when a port is fed with a NmTensor of incompatible
+type.</p>
 </dd></dl>
 
-<dl class="class">
-<dt id="nemo.core.neural_types.WidthTag">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">WidthTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#WidthTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.WidthTag" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.BaseTag" title="nemo.core.neural_types.BaseTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.BaseTag</span></code></a></p>
-<p>Tag for width dimension.</p>
+<dl class="exception">
+<dt id="nemo.core.neural_types.CanNotInferResultNeuralType">
+<em class="property">exception </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">CanNotInferResultNeuralType</code><span class="sig-paren">(</span><em class="sig-param">message</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_types.html#CanNotInferResultNeuralType"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.CanNotInferResultNeuralType" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.NeuralTypeError" title="nemo.core.neural_types.NeuralTypeError"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.NeuralTypeError</span></code></a></p>
+<p>Exception raised when NeuralType of output can not be inferred.</p>
 </dd></dl>
 
 </div>
 <div class="section" id="module-nemo.core.neural_modules">
 <span id="neural-modules"></span><h2>neural_modules<a class="headerlink" href="#module-nemo.core.neural_modules" title="Permalink to this headline">¶</a></h2>
 <p>This file contains NeuralModule and NmTensor classes.</p>
+<dl class="class">
+<dt id="nemo.core.neural_modules.WeightShareTransform">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_modules.</code><code class="sig-name descname">WeightShareTransform</code><a class="reference internal" href="../_modules/nemo/core/neural_modules.html#WeightShareTransform"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_modules.WeightShareTransform" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
+<p>When sharing parameters, what kind of transform to apply.</p>
+<dl class="attribute">
+<dt id="nemo.core.neural_modules.WeightShareTransform.SAME">
+<code class="sig-name descname">SAME</code><em class="property"> = 0</em><a class="headerlink" href="#nemo.core.neural_modules.WeightShareTransform.SAME" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_modules.WeightShareTransform.TRANSPOSE">
+<code class="sig-name descname">TRANSPOSE</code><em class="property"> = 1</em><a class="headerlink" href="#nemo.core.neural_modules.WeightShareTransform.TRANSPOSE" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 <dl class="class">
 <dt id="nemo.core.neural_modules.NeuralModule">
 <em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_modules.</code><code class="sig-name descname">NeuralModule</code><span class="sig-paren">(</span><em class="sig-param">*</em>, <em class="sig-param">pretrained_model_name=None</em>, <em class="sig-param">create_port_args=None</em>, <em class="sig-param">factory=None</em>, <em class="sig-param">placement=None</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_modules.html#NeuralModule"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_modules.NeuralModule" title="Permalink to this definition">¶</a></dt>
@@ -746,32 +779,93 @@ chain.</p>
 
 </dd></dl>
 
-<dl class="attribute">
-<dt id="nemo.core.neural_modules.PretrainedModelInfo">
-<code class="sig-prename descclassname">nemo.core.neural_modules.</code><code class="sig-name descname">PretrainedModelInfo</code><a class="headerlink" href="#nemo.core.neural_modules.PretrainedModelInfo" title="Permalink to this definition">¶</a></dt>
-<dd><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_modules.PretrainedModleInfo</span></code></p>
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.core.neural_modules.WeightShareTransform">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_modules.</code><code class="sig-name descname">WeightShareTransform</code><a class="reference internal" href="../_modules/nemo/core/neural_modules.html#WeightShareTransform"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_modules.WeightShareTransform" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
-<p>When sharing parameters, what kind of transform to apply.</p>
-<dl class="attribute">
-<dt id="nemo.core.neural_modules.WeightShareTransform.SAME">
-<code class="sig-name descname">SAME</code><em class="property"> = 0</em><a class="headerlink" href="#nemo.core.neural_modules.WeightShareTransform.SAME" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="nemo.core.neural_modules.WeightShareTransform.TRANSPOSE">
-<code class="sig-name descname">TRANSPOSE</code><em class="property"> = 1</em><a class="headerlink" href="#nemo.core.neural_modules.WeightShareTransform.TRANSPOSE" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
 </div>
 <div class="section" id="module-nemo.core.neural_factory">
 <span id="neural-factory"></span><h2>neural_factory<a class="headerlink" href="#module-nemo.core.neural_factory" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="nemo.core.neural_factory.Backend">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_factory.</code><code class="sig-name descname">Backend</code><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#Backend"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.Backend" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
+<p>Supported backends. For now, it is only PyTorch.</p>
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.Backend.NotSupported">
+<code class="sig-name descname">NotSupported</code><em class="property"> = 2</em><a class="headerlink" href="#nemo.core.neural_factory.Backend.NotSupported" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.Backend.PyTorch">
+<code class="sig-name descname">PyTorch</code><em class="property"> = 1</em><a class="headerlink" href="#nemo.core.neural_factory.Backend.PyTorch" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_factory.ModelMode">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_factory.</code><code class="sig-name descname">ModelMode</code><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#ModelMode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.ModelMode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
+<p>Training Mode or Evaluation/Inference</p>
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.ModelMode.eval">
+<code class="sig-name descname">eval</code><em class="property"> = 1</em><a class="headerlink" href="#nemo.core.neural_factory.ModelMode.eval" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.ModelMode.train">
+<code class="sig-name descname">train</code><em class="property"> = 0</em><a class="headerlink" href="#nemo.core.neural_factory.ModelMode.train" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_factory.Optimization">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_factory.</code><code class="sig-name descname">Optimization</code><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#Optimization"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.Optimization" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
+<p>Various levels of Apex/amp Optimization.
+WARNING: This might have effect on model accuracy.</p>
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.Optimization.mxprO0">
+<code class="sig-name descname">mxprO0</code><em class="property"> = 0</em><a class="headerlink" href="#nemo.core.neural_factory.Optimization.mxprO0" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.Optimization.mxprO1">
+<code class="sig-name descname">mxprO1</code><em class="property"> = 1</em><a class="headerlink" href="#nemo.core.neural_factory.Optimization.mxprO1" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.Optimization.mxprO2">
+<code class="sig-name descname">mxprO2</code><em class="property"> = 2</em><a class="headerlink" href="#nemo.core.neural_factory.Optimization.mxprO2" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.Optimization.mxprO3">
+<code class="sig-name descname">mxprO3</code><em class="property"> = 3</em><a class="headerlink" href="#nemo.core.neural_factory.Optimization.mxprO3" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_factory.DeviceType">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_factory.</code><code class="sig-name descname">DeviceType</code><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#DeviceType"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.DeviceType" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
+<p>Device types where Neural Modules can be placed.</p>
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.DeviceType.AllGpu">
+<code class="sig-name descname">AllGpu</code><em class="property"> = 3</em><a class="headerlink" href="#nemo.core.neural_factory.DeviceType.AllGpu" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.DeviceType.CPU">
+<code class="sig-name descname">CPU</code><em class="property"> = 2</em><a class="headerlink" href="#nemo.core.neural_factory.DeviceType.CPU" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.DeviceType.GPU">
+<code class="sig-name descname">GPU</code><em class="property"> = 1</em><a class="headerlink" href="#nemo.core.neural_factory.DeviceType.GPU" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 <dl class="class">
 <dt id="nemo.core.neural_factory.Actions">
 <em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_factory.</code><code class="sig-name descname">Actions</code><span class="sig-paren">(</span><em class="sig-param">local_rank</em>, <em class="sig-param">optimization_level=&lt;Optimization.mxprO0: 0&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#Actions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.Actions" title="Permalink to this definition">¶</a></dt>
@@ -868,62 +962,6 @@ mini-batch.</p></li>
 </dd></dl>
 
 <dl class="class">
-<dt id="nemo.core.neural_factory.Backend">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_factory.</code><code class="sig-name descname">Backend</code><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#Backend"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.Backend" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
-<p>Supported backends. For now, it is only PyTorch.</p>
-<dl class="attribute">
-<dt id="nemo.core.neural_factory.Backend.NotSupported">
-<code class="sig-name descname">NotSupported</code><em class="property"> = 2</em><a class="headerlink" href="#nemo.core.neural_factory.Backend.NotSupported" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="nemo.core.neural_factory.Backend.PyTorch">
-<code class="sig-name descname">PyTorch</code><em class="property"> = 1</em><a class="headerlink" href="#nemo.core.neural_factory.Backend.PyTorch" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.core.neural_factory.DeviceType">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_factory.</code><code class="sig-name descname">DeviceType</code><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#DeviceType"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.DeviceType" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
-<p>Device types where Neural Modules can be placed.</p>
-<dl class="attribute">
-<dt id="nemo.core.neural_factory.DeviceType.AllGpu">
-<code class="sig-name descname">AllGpu</code><em class="property"> = 3</em><a class="headerlink" href="#nemo.core.neural_factory.DeviceType.AllGpu" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="nemo.core.neural_factory.DeviceType.CPU">
-<code class="sig-name descname">CPU</code><em class="property"> = 2</em><a class="headerlink" href="#nemo.core.neural_factory.DeviceType.CPU" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="nemo.core.neural_factory.DeviceType.GPU">
-<code class="sig-name descname">GPU</code><em class="property"> = 1</em><a class="headerlink" href="#nemo.core.neural_factory.DeviceType.GPU" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.core.neural_factory.ModelMode">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_factory.</code><code class="sig-name descname">ModelMode</code><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#ModelMode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.ModelMode" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
-<p>Training Mode or Evaluation/Inference</p>
-<dl class="attribute">
-<dt id="nemo.core.neural_factory.ModelMode.eval">
-<code class="sig-name descname">eval</code><em class="property"> = 1</em><a class="headerlink" href="#nemo.core.neural_factory.ModelMode.eval" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="nemo.core.neural_factory.ModelMode.train">
-<code class="sig-name descname">train</code><em class="property"> = 0</em><a class="headerlink" href="#nemo.core.neural_factory.ModelMode.train" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="class">
 <dt id="nemo.core.neural_factory.NeuralModuleFactory">
 <em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_factory.</code><code class="sig-name descname">NeuralModuleFactory</code><span class="sig-paren">(</span><em class="sig-param">backend=&lt;Backend.PyTorch: 1&gt;</em>, <em class="sig-param">local_rank=None</em>, <em class="sig-param">optimization_level=&lt;Optimization.mxprO0: 0&gt;</em>, <em class="sig-param">placement=None</em>, <em class="sig-param">cudnn_benchmark=False</em>, <em class="sig-param">random_seed=None</em>, <em class="sig-param">set_default=True</em>, <em class="sig-param">log_dir=None</em>, <em class="sig-param">checkpoint_dir=None</em>, <em class="sig-param">tensorboard_dir=None</em>, <em class="sig-param">create_tb_writer=False</em>, <em class="sig-param">files_to_copy=None</em>, <em class="sig-param">add_time_to_log_dir=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
@@ -931,6 +969,12 @@ mini-batch.</p></li>
 <dt id="nemo.core.neural_factory.NeuralModuleFactory.checkpoint_dir">
 <em class="property">property </em><code class="sig-name descname">checkpoint_dir</code><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.checkpoint_dir" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="method">
+<dt id="nemo.core.neural_factory.NeuralModuleFactory.clear_cache">
+<code class="sig-name descname">clear_cache</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.clear_cache"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.clear_cache" title="Permalink to this definition">¶</a></dt>
+<dd><p>Helper function to clean inference cache.</p>
+</dd></dl>
 
 <dl class="method">
 <dt id="nemo.core.neural_factory.NeuralModuleFactory.create_optimizer">
@@ -976,8 +1020,36 @@ mini-batch.</p></li>
 
 <dl class="method">
 <dt id="nemo.core.neural_factory.NeuralModuleFactory.infer">
-<code class="sig-name descname">infer</code><span class="sig-paren">(</span><em class="sig-param">tensors: List[nemo.core.neural_types.NmTensor], checkpoint_dir=None, ckpt_pattern=''</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.infer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.infer" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<code class="sig-name descname">infer</code><span class="sig-paren">(</span><em class="sig-param">tensors: List[nemo.core.neural_types.NmTensor], checkpoint_dir=None, ckpt_pattern='', verbose=True, cache=False, use_cache=False, offload_to_cpu=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.infer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.infer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Runs inference to obtain values for tensors</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tensors</strong> (<em>list</em><em>[</em><a class="reference internal" href="#nemo.core.neural_types.NmTensor" title="nemo.core.neural_types.NmTensor"><em>NmTensor</em></a><em>]</em>) – List of NeMo tensors that we want to get
+values of.</p></li>
+<li><p><strong>checkpoint_dir</strong> (<em>str</em>) – Path to checkpoint directory. Default is None
+which does not load checkpoints.</p></li>
+<li><p><strong>ckpt_pattern</strong> (<em>str</em>) – Pattern used to check for checkpoints inside
+checkpoint_dir. Default is ‘’ which matches any checkpoints
+inside checkpoint_dir.</p></li>
+<li><p><strong>verbose</strong> (<em>bool</em>) – Controls printing. Defaults to True.</p></li>
+<li><p><strong>cache</strong> (<em>bool</em>) – If True, cache all <cite>tensors</cite> and intermediate tensors
+so that future calls that have use_cache set will avoid
+computation. Defaults to False.</p></li>
+<li><p><strong>use_cache</strong> (<em>bool</em>) – Values from <cite>tensors</cite> will be always re-computed.
+It will re-use intermediate tensors from the DAG leading to
+<cite>tensors</cite>. If you want something to be re-computed, put it into
+<cite>tensors</cite> list. Defaults to False.</p></li>
+<li><p><strong>offload_to_cpu</strong> (<em>bool</em>) – If True, all evaluated tensors are moved to
+cpu memory after each inference batch. Defaults to True.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>List of evaluated tensors. Each element in the list is also a list
+where each element is now a batch of tensor values.</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="method">
 <dt id="nemo.core.neural_factory.NeuralModuleFactory.logger">
@@ -1016,7 +1088,7 @@ mini-batch.</p></li>
 
 <dl class="method">
 <dt id="nemo.core.neural_factory.NeuralModuleFactory.train">
-<code class="sig-name descname">train</code><span class="sig-paren">(</span><em class="sig-param">tensors_to_optimize</em>, <em class="sig-param">optimizer=None</em>, <em class="sig-param">optimization_params=None</em>, <em class="sig-param">callbacks: Optional[List[nemo.core.callbacks.ActionCallback]] = None</em>, <em class="sig-param">lr_policy=None</em>, <em class="sig-param">batches_per_step=None</em>, <em class="sig-param">stop_on_nan_loss=False</em>, <em class="sig-param">reset=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.train" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">train</code><span class="sig-paren">(</span><em class="sig-param">tensors_to_optimize</em>, <em class="sig-param">optimizer=None</em>, <em class="sig-param">optimization_params=None</em>, <em class="sig-param">callbacks: Optional[List[nemo.core.callbacks.ActionCallback]] = None</em>, <em class="sig-param">lr_policy=None</em>, <em class="sig-param">batches_per_step=None</em>, <em class="sig-param">stop_on_nan_loss=False</em>, <em class="sig-param">synced_batchnorm=False</em>, <em class="sig-param">synced_batchnorm_groupsize=0</em>, <em class="sig-param">reset=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.train" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1027,34 +1099,6 @@ mini-batch.</p></li>
 <dl class="method">
 <dt id="nemo.core.neural_factory.NeuralModuleFactory.world_size">
 <em class="property">property </em><code class="sig-name descname">world_size</code><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.world_size" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.core.neural_factory.Optimization">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_factory.</code><code class="sig-name descname">Optimization</code><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#Optimization"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.Optimization" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
-<p>Various levels of Apex/amp Optimization.
-WARNING: This might have effect on model accuracy.</p>
-<dl class="attribute">
-<dt id="nemo.core.neural_factory.Optimization.mxprO0">
-<code class="sig-name descname">mxprO0</code><em class="property"> = 0</em><a class="headerlink" href="#nemo.core.neural_factory.Optimization.mxprO0" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="nemo.core.neural_factory.Optimization.mxprO1">
-<code class="sig-name descname">mxprO1</code><em class="property"> = 1</em><a class="headerlink" href="#nemo.core.neural_factory.Optimization.mxprO1" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="nemo.core.neural_factory.Optimization.mxprO2">
-<code class="sig-name descname">mxprO2</code><em class="property"> = 2</em><a class="headerlink" href="#nemo.core.neural_factory.Optimization.mxprO2" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="nemo.core.neural_factory.Optimization.mxprO3">
-<code class="sig-name descname">mxprO3</code><em class="property"> = 3</em><a class="headerlink" href="#nemo.core.neural_factory.Optimization.mxprO3" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -1070,6 +1114,20 @@ WARNING: This might have effect on model accuracy.</p>
 <dt id="nemo.backends.pytorch.actions.PtActions">
 <em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.actions.</code><code class="sig-name descname">PtActions</code><span class="sig-paren">(</span><em class="sig-param">local_rank=None</em>, <em class="sig-param">tb_writer=None</em>, <em class="sig-param">optimization_level=&lt;Optimization.mxprO0: 0&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_factory.Actions" title="nemo.core.neural_factory.Actions"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_factory.Actions</span></code></a></p>
+<dl class="method">
+<dt id="nemo.backends.pytorch.actions.PtActions.append_to_cache">
+<code class="sig-name descname">append_to_cache</code><span class="sig-paren">(</span><em class="sig-param">registered_tensors: dict</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.append_to_cache"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.append_to_cache" title="Permalink to this definition">¶</a></dt>
+<dd><p>Simpler helper function to add results of __nm_graph_forward_pass to
+current cache.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="nemo.backends.pytorch.actions.PtActions.clear_cache">
+<code class="sig-name descname">clear_cache</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.clear_cache"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.clear_cache" title="Permalink to this definition">¶</a></dt>
+<dd><p>Simple helpful function to clear cache by setting self.cache to
+None</p>
+</dd></dl>
+
 <dl class="method">
 <dt id="nemo.backends.pytorch.actions.PtActions.create_optimizer">
 <code class="sig-name descname">create_optimizer</code><span class="sig-paren">(</span><em class="sig-param">optimizer</em>, <em class="sig-param">things_to_optimize</em>, <em class="sig-param">optimizer_params=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.create_optimizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.create_optimizer" title="Permalink to this definition">¶</a></dt>
@@ -1098,14 +1156,8 @@ parameters are extracted and passed to the optimizer.</p></li>
 
 <dl class="method">
 <dt id="nemo.backends.pytorch.actions.PtActions.infer">
-<code class="sig-name descname">infer</code><span class="sig-paren">(</span><em class="sig-param">tensors</em>, <em class="sig-param">checkpoint_dir=None</em>, <em class="sig-param">ckpt_pattern=''</em>, <em class="sig-param">logger=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.infer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.infer" title="Permalink to this definition">¶</a></dt>
-<dd><p>This action executes inference. Nothing is optimized.
-:param tensors: which tensors to evaluate.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>None</p>
-</dd>
-</dl>
+<code class="sig-name descname">infer</code><span class="sig-paren">(</span><em class="sig-param">tensors</em>, <em class="sig-param">checkpoint_dir=None</em>, <em class="sig-param">ckpt_pattern=''</em>, <em class="sig-param">logger=None</em>, <em class="sig-param">verbose=True</em>, <em class="sig-param">cache=False</em>, <em class="sig-param">use_cache=False</em>, <em class="sig-param">offload_to_cpu=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.infer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.infer" title="Permalink to this definition">¶</a></dt>
+<dd><p>See NeuralModuleFactory.infer()</p>
 </dd></dl>
 
 <dl class="method">
@@ -1136,7 +1188,7 @@ parameters are extracted and passed to the optimizer.</p></li>
 
 <dl class="method">
 <dt id="nemo.backends.pytorch.actions.PtActions.train">
-<code class="sig-name descname">train</code><span class="sig-paren">(</span><em class="sig-param">tensors_to_optimize</em>, <em class="sig-param">optimizer=None</em>, <em class="sig-param">optimization_params=None</em>, <em class="sig-param">callbacks: Optional[List[nemo.core.callbacks.ActionCallback]] = None</em>, <em class="sig-param">lr_policy=None</em>, <em class="sig-param">batches_per_step=None</em>, <em class="sig-param">stop_on_nan_loss=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.train" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">train</code><span class="sig-paren">(</span><em class="sig-param">tensors_to_optimize</em>, <em class="sig-param">optimizer=None</em>, <em class="sig-param">optimization_params=None</em>, <em class="sig-param">callbacks: Optional[List[nemo.core.callbacks.ActionCallback]] = None</em>, <em class="sig-param">lr_policy=None</em>, <em class="sig-param">batches_per_step=None</em>, <em class="sig-param">stop_on_nan_loss=False</em>, <em class="sig-param">synced_batchnorm=False</em>, <em class="sig-param">synced_batchnorm_groupsize=0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.train" title="Permalink to this definition">¶</a></dt>
 <dd><p>This action executes training and (optionally) evaluation.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -1768,15 +1820,6 @@ returns NeuralModule’s instance.</p>
 particular modules for details of their behaviors in training/evaluation
 mode, if they are affected, e.g. <code class="xref py py-class docutils literal notranslate"><span class="pre">Dropout</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">BatchNorm</span></code>,
 etc.</p>
-<p>This is equivalent with <code class="xref py py-meth docutils literal notranslate"><span class="pre">self.train(False)</span></code>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>self</p>
-</dd>
-<dt class="field-even">Return type</dt>
-<dd class="field-even"><p>Module</p>
-</dd>
-</dl>
 </dd></dl>
 
 <dl class="method">
@@ -1951,15 +1994,11 @@ particular modules for details of their behaviors in training/evaluation
 mode, if they are affected, e.g. <code class="xref py py-class docutils literal notranslate"><span class="pre">Dropout</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">BatchNorm</span></code>,
 etc.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>mode</strong> (<em>bool</em>) – whether to set training mode (<code class="docutils literal notranslate"><span class="pre">True</span></code>) or evaluation
-mode (<code class="docutils literal notranslate"><span class="pre">False</span></code>). Default: <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p>
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>self</p>
 </dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>self</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>Module</p>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>Module</p>
 </dd>
 </dl>
 </dd></dl>

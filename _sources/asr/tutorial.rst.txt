@@ -283,13 +283,15 @@ Fine-tuning
 -----------
 Training time can be dramatically reduced if starting from a good pre-trained model:
 
-    (1) Obtain pre-trained model (jasper_encoder, jasper_decoder and configuration files) `from here <https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`_.
+    (1) Obtain pre-trained model (jasper_encoder, jasper_decoder and configuration files) `from here <https://drive.google.com/drive/folders/1b-TQYY7o8_CQgZsVEe-8_2kHWU0lYJ-z?usp=sharing>`_.
     (2) load pre-trained weights right after you've instantiated your jasper_encoder and jasper_decoder, like this:
 
 .. code-block:: python
 
     jasper_encoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperEncoder-STEP-247400.pt")
     jasper_decoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperDecoderForCTC-STEP-247400.pt")
+    # in case of distributed training add args.local_rank
+    jasper_decoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperDecoderForCTC-STEP-247400.pt", args.local_rank)
 
 .. tip::
     When fine-tuning, use smaller learning rate.
@@ -298,7 +300,7 @@ Training time can be dramatically reduced if starting from a good pre-trained mo
 Inference
 ---------
 
-First download pre-trained model (jasper_encoder, jasper_decoder and configuration files) `from here <https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`_ into `<path_to_checkpoints>`. We will use this pre-trained model to measure WER on LibriSpeech dev-clean dataset.
+First download pre-trained model (jasper_encoder, jasper_decoder and configuration files) `from here <https://drive.google.com/drive/folders/1b-TQYY7o8_CQgZsVEe-8_2kHWU0lYJ-z?usp=sharing>`_ into `<path_to_checkpoints>`. We will use this pre-trained model to measure WER on LibriSpeech dev-clean dataset.
 
 .. code-block:: bash
 
@@ -314,9 +316,13 @@ We will be using `Baidu's CTC decoder with LM implementation. <https://github.co
 
 Perform the following steps:
 
-    * Go to `cd <nemo_git_repo_root>/scripts`
-    * Install Baidu's CTC decoders `sudo apt-get install swig` and `./install_decoders.sh`
-    * Build 6-gram KenLM model on LibriSpeech `./build_6-gram_OpenSLR_lm.sh`
+    * Go to ``cd <nemo_git_repo_root>/scripts``
+    * Install Baidu's CTC decoders (NOTE: no need for "sudo" if inside the container):
+        * ``sudo apt-get update && sudo apt-get install swig``
+        * ``sudo apt-get install pkg-config libflac-dev libogg-dev libvorbis-dev libboost-dev``
+        * ``sudo apt-get install libsndfile1-dev python-setuptools libboost-all-dev python-dev``
+        * ``./install_decoders.sh``
+    * Build 6-gram KenLM model on LibriSpeech ``./build_6-gram_OpenSLR_lm.sh``
     * Run jasper_infer.py with the --lm_path flag
 
     .. code-block:: bash

@@ -155,10 +155,18 @@
             
   <h1>Source code for nemo.core.neural_factory</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2019 NVIDIA Corporation</span>
-<span class="kn">import</span> <span class="nn">random</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Backend&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;ModelMode&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;Optimization&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;DeviceType&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;Actions&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;NeuralModuleFactory&#39;</span><span class="p">]</span>
+
 <span class="kn">from</span> <span class="nn">abc</span> <span class="k">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">import</span> <span class="nn">random</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
 
+<span class="kn">from</span> <span class="nn">enum</span> <span class="k">import</span> <span class="n">Enum</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 
 <span class="kn">from</span> <span class="nn">.callbacks</span> <span class="k">import</span> <span class="n">ActionCallback</span><span class="p">,</span> <span class="n">EvaluatorCallback</span>
@@ -440,6 +448,16 @@
         <span class="k">if</span> <span class="n">backend</span> <span class="o">==</span> <span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">:</span>
             <span class="c1"># TODO: Move all framework specific code from this file</span>
             <span class="kn">import</span> <span class="nn">torch</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_placement</span> <span class="o">!=</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">CPU</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">():</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;You requested to use GPUs but CUDA is &quot;</span>
+                                     <span class="s2">&quot;not installed. You can try running using&quot;</span>
+                                     <span class="s2">&quot; CPU-only. To do this, instantiate your&quot;</span>
+                                     <span class="s2">&quot; factory with placement=DeviceType.CPU&quot;</span>
+                                     <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+                                     <span class="s2">&quot;Note that this is slow and is not &quot;</span>
+                                     <span class="s2">&quot;well supported.&quot;</span><span class="p">)</span>
+
             <span class="n">torch</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">cudnn</span><span class="o">.</span><span class="n">benchmark</span> <span class="o">=</span> <span class="n">cudnn_benchmark</span>
             <span class="k">if</span> <span class="n">random_seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cudnn_benchmark</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;cudnn_benchmark can not be set to True&quot;</span>
@@ -661,6 +679,8 @@
               <span class="n">lr_policy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
               <span class="n">batches_per_step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
               <span class="n">stop_on_nan_loss</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+              <span class="n">synced_batchnorm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+              <span class="n">synced_batchnorm_groupsize</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
               <span class="n">reset</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">reset</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">reset_trainer</span><span class="p">()</span>
@@ -671,7 +691,9 @@
             <span class="n">callbacks</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
             <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy</span><span class="p">,</span>
             <span class="n">batches_per_step</span><span class="o">=</span><span class="n">batches_per_step</span><span class="p">,</span>
-            <span class="n">stop_on_nan_loss</span><span class="o">=</span><span class="n">stop_on_nan_loss</span><span class="p">)</span></div>
+            <span class="n">stop_on_nan_loss</span><span class="o">=</span><span class="n">stop_on_nan_loss</span><span class="p">,</span>
+            <span class="n">synced_batchnorm</span><span class="o">=</span><span class="n">synced_batchnorm</span><span class="p">,</span>
+            <span class="n">synced_batchnorm_groupsize</span><span class="o">=</span><span class="n">synced_batchnorm_groupsize</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="NeuralModuleFactory.eval"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.eval">[docs]</a>    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
              <span class="n">callbacks</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">EvaluatorCallback</span><span class="p">]):</span>
@@ -685,14 +707,56 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
             <span class="n">tensors_to_optimize</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
             <span class="n">optimizer</span><span class="o">=</span><span class="s1">&#39;sgd&#39;</span><span class="p">,</span>
-            <span class="n">callbacks</span><span class="o">=</span><span class="n">callbacks</span>
+            <span class="n">callbacks</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
+            <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;num_epochs&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
         <span class="p">)</span></div>
 
-<div class="viewcode-block" id="NeuralModuleFactory.infer"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.infer">[docs]</a>    <span class="k">def</span> <span class="nf">infer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tensors</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">NmTensor</span><span class="p">],</span> <span class="n">checkpoint_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-              <span class="n">ckpt_pattern</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+<div class="viewcode-block" id="NeuralModuleFactory.infer"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.infer">[docs]</a>    <span class="k">def</span> <span class="nf">infer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+              <span class="n">tensors</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">NmTensor</span><span class="p">],</span>
+              <span class="n">checkpoint_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">ckpt_pattern</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span>
+              <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+              <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+              <span class="n">use_cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+              <span class="n">offload_to_cpu</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Runs inference to obtain values for tensors</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            tensors (list[NmTensor]): List of NeMo tensors that we want to get</span>
+<span class="sd">                values of.</span>
+<span class="sd">            checkpoint_dir (str): Path to checkpoint directory. Default is None</span>
+<span class="sd">                which does not load checkpoints.</span>
+<span class="sd">            ckpt_pattern (str): Pattern used to check for checkpoints inside</span>
+<span class="sd">                checkpoint_dir. Default is &#39;&#39; which matches any checkpoints</span>
+<span class="sd">                inside checkpoint_dir.</span>
+<span class="sd">            verbose (bool): Controls printing. Defaults to True.</span>
+<span class="sd">            cache (bool): If True, cache all `tensors` and intermediate tensors</span>
+<span class="sd">                so that future calls that have use_cache set will avoid</span>
+<span class="sd">                computation. Defaults to False.</span>
+<span class="sd">            use_cache (bool): Values from `tensors` will be always re-computed.</span>
+<span class="sd">                It will re-use intermediate tensors from the DAG leading to</span>
+<span class="sd">                `tensors`. If you want something to be re-computed, put it into</span>
+<span class="sd">                `tensors` list. Defaults to False.</span>
+<span class="sd">            offload_to_cpu (bool): If True, all evaluated tensors are moved to</span>
+<span class="sd">                cpu memory after each inference batch. Defaults to True.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            List of evaluated tensors. Each element in the list is also a list</span>
+<span class="sd">            where each element is now a batch of tensor values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trainer</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span>
-            <span class="n">tensors</span><span class="o">=</span><span class="n">tensors</span><span class="p">,</span> <span class="n">checkpoint_dir</span><span class="o">=</span><span class="n">checkpoint_dir</span><span class="p">,</span>
-            <span class="n">ckpt_pattern</span><span class="o">=</span><span class="n">ckpt_pattern</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="p">)</span></div>
+            <span class="n">tensors</span><span class="o">=</span><span class="n">tensors</span><span class="p">,</span>
+            <span class="n">checkpoint_dir</span><span class="o">=</span><span class="n">checkpoint_dir</span><span class="p">,</span>
+            <span class="n">ckpt_pattern</span><span class="o">=</span><span class="n">ckpt_pattern</span><span class="p">,</span>
+            <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span>
+            <span class="n">logger</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="p">,</span>
+            <span class="n">cache</span><span class="o">=</span><span class="n">cache</span><span class="p">,</span>
+            <span class="n">use_cache</span><span class="o">=</span><span class="n">use_cache</span><span class="p">,</span>
+            <span class="n">offload_to_cpu</span><span class="o">=</span><span class="n">offload_to_cpu</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NeuralModuleFactory.clear_cache"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.clear_cache">[docs]</a>    <span class="k">def</span> <span class="nf">clear_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Helper function to clean inference cache.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_trainer</span><span class="o">.</span><span class="n">clear_cache</span><span class="p">()</span></div>
 
     <span class="k">def</span> <span class="nf">_get_trainer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tb_writer</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_backend</span> <span class="o">==</span> <span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">:</span>

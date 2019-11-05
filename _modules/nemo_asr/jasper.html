@@ -158,7 +158,10 @@
 <span class="kn">import</span> <span class="nn">torch.nn</span> <span class="k">as</span> <span class="nn">nn</span>
 
 <span class="kn">from</span> <span class="nn">nemo.backends.pytorch.nm</span> <span class="k">import</span> <span class="n">TrainableNM</span>
-<span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="k">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="k">import</span> <span class="p">(</span><span class="n">NeuralType</span><span class="p">,</span> <span class="n">AxisType</span><span class="p">,</span> <span class="n">ChannelTag</span><span class="p">,</span> <span class="n">BatchTag</span><span class="p">,</span>
+                                    <span class="n">TimeTag</span><span class="p">,</span> <span class="n">SpectrogramSignalTag</span><span class="p">,</span>
+                                    <span class="n">ProcessedTimeTag</span><span class="p">,</span> <span class="n">EncodedRepresentationTag</span><span class="p">)</span>
+
 <span class="kn">from</span> <span class="nn">.parts.jasper</span> <span class="k">import</span> <span class="n">JasperBlock</span><span class="p">,</span> <span class="n">jasper_activations</span><span class="p">,</span> <span class="n">init_weights</span>
 
 

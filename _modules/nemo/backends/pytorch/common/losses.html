@@ -154,12 +154,18 @@
            <div itemprop="articleBody">
             
   <h1>Source code for nemo.backends.pytorch.common.losses</h1><div class="highlight"><pre>
-<span></span><span class="kn">import</span> <span class="nn">torch</span>
+<span></span><span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SequenceLoss&#39;</span><span class="p">,</span> <span class="s1">&#39;CrossEntropyLoss&#39;</span><span class="p">,</span> <span class="s1">&#39;MSELoss&#39;</span><span class="p">]</span>
+
+<span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">torch</span> <span class="k">import</span> <span class="n">nn</span>
 
 <span class="kn">from</span> <span class="nn">nemo.backends.pytorch.nm</span> <span class="k">import</span> <span class="n">LossNM</span>
-<span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="k">import</span> <span class="n">NeuralType</span><span class="p">,</span> <span class="n">AxisType</span><span class="p">,</span> <span class="n">BatchTag</span><span class="p">,</span> <span class="n">TimeTag</span><span class="p">,</span> \
-    <span class="n">ChannelTag</span>
+<span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="k">import</span> <span class="p">(</span><span class="n">NeuralType</span><span class="p">,</span>
+                                    <span class="n">AxisType</span><span class="p">,</span>
+                                    <span class="n">BatchTag</span><span class="p">,</span>
+                                    <span class="n">TimeTag</span><span class="p">,</span>
+                                    <span class="n">ChannelTag</span><span class="p">,</span>
+                                    <span class="n">RegressionTag</span><span class="p">)</span>
 
 <span class="n">EPS</span> <span class="o">=</span> <span class="mf">1e-5</span>
 
@@ -287,6 +293,32 @@
                        <span class="n">logits</span><span class="p">,</span>
                        <span class="n">labels</span><span class="p">):</span>
         <span class="n">loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_criterion</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">loss</span></div>
+
+
+<div class="viewcode-block" id="MSELoss"><a class="viewcode-back" href="../../../../../collections/core.html#nemo.backends.pytorch.common.losses.MSELoss">[docs]</a><span class="k">class</span> <span class="nc">MSELoss</span><span class="p">(</span><span class="n">LossNM</span><span class="p">):</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
+        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;preds&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">RegressionTag</span><span class="p">)</span>
+            <span class="p">}),</span>
+            <span class="s2">&quot;labels&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">RegressionTag</span><span class="p">)</span>
+            <span class="p">})</span>
+        <span class="p">}</span>
+
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;loss&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">LossNM</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_criterion</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">MSELoss</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_loss_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">preds</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_criterion</span><span class="p">(</span><span class="n">preds</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">loss</span></div>
 </pre></div>
 

@@ -154,11 +154,15 @@
            <div itemprop="articleBody">
             
   <h1>Source code for nemo.backends.pytorch.common.search</h1><div class="highlight"><pre>
-<span></span><span class="kn">import</span> <span class="nn">torch</span>
+<span></span><span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;GreedySearch&#39;</span><span class="p">,</span> <span class="s1">&#39;BeamSearch&#39;</span><span class="p">]</span>
+
+<span class="kn">import</span> <span class="nn">torch</span>
 
 <span class="kn">from</span> <span class="nn">nemo.backends.pytorch.nm</span> <span class="k">import</span> <span class="n">NonTrainableNM</span>
-<span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="k">import</span> <span class="n">NeuralType</span><span class="p">,</span> <span class="n">AxisType</span><span class="p">,</span> <span class="n">BatchTag</span><span class="p">,</span> <span class="n">TimeTag</span><span class="p">,</span> \
-    <span class="n">ChannelTag</span>
+<span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="k">import</span> <span class="p">(</span><span class="n">NeuralType</span><span class="p">,</span>
+                                    <span class="n">AxisType</span><span class="p">,</span> <span class="n">BatchTag</span><span class="p">,</span>
+                                    <span class="n">TimeTag</span><span class="p">,</span>
+                                    <span class="n">ChannelTag</span><span class="p">)</span>
 
 <span class="n">INF</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>
 <span class="n">BIG_NUM</span> <span class="o">=</span> <span class="mf">1e+4</span>

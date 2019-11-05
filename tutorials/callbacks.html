@@ -195,9 +195,10 @@ For example, a common training script will look like:</p>
 log training metrics such as loss and time per step to screen and to
 tensorboard. SimpleLossLoggerCallback has one required arguments, and two
 arguments that we recommend to overwrite. It requires tensors which is a list
-of NMTensors that print_func() and get_tb_values() will receive as input during
-training. The two reccomended arguments to override are print_func() and
-get_tb_values().</p>
+of NMTensors that print_func(), get_tb_values(), and log_to_tb_func will
+receive as input during
+training. The two reccomended arguments to override are print_func(), and
+either get_tb_values() or log_to_tb_func().</p>
 <p>print_func() should be used to log values to screen. We recommend using
 neural_factory.logger.info() in place
 of print(). For example, it can be used to print the loss value:</p>
@@ -208,6 +209,10 @@ of print(). For example, it can be used to print the loss value:</p>
         <span class="k">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Loss {tensors[0]}&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
+<p>We provide two methods to log to tensorboard: get_tb_values() and
+log_to_tb_func(). For simple use case of logging scalars, we recommend
+get_tb_values(). For advanced use cases such as pictures or audio, we
+recommend log_to_tb_func().</p>
 <p>get_tb_values() is used to return values to be logged to tensorboard. It should
 return a list of 2-element tuples, where the first element is a string
 representing the tensorboard tag, and the second element is the scalar value to
@@ -215,6 +220,15 @@ log. Note we currently only support scalar values. Note to use get_tb_values(),
 tb_writer should also be defined.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">my_get_tb_values</span><span class="p">(</span><span class="n">tensors</span><span class="p">):</span>
     <span class="k">return</span> <span class="p">[(</span><span class="s2">&quot;Train_Loss&quot;</span><span class="p">,</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">0</span><span class="p">])]</span>
+</pre></div>
+</div>
+<p>log_to_tb_func() takes three arguments: the
+<a class="reference external" href="https://tensorboardx.readthedocs.io/en/latest/tensorboard.html">tensorboardX.SummaryWriter</a>
+, a list of evaluated tensors, and the current step. The user can then use the
+SummaryWriter class to add images, audio, and more. For example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">log_to_tb_func</span><span class="p">(</span><span class="n">swriter</span><span class="p">,</span> <span class="n">tensors</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
+    <span class="n">swriter</span><span class="o">.</span><span class="n">add_scalar</span><span class="p">(</span><span class="s2">&quot;Train_Loss&quot;</span><span class="p">,</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">step</span><span class="p">)</span>
+    <span class="n">swriter</span><span class="o">.</span><span class="n">add_audio</span><span class="p">(</span><span class="s2">&quot;Train_Sample&quot;</span><span class="p">,</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">step</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>SimpleLossLoggerCallback can be constructed as follows:</p>
@@ -279,10 +293,20 @@ tensor as values for that batch. It’s main job is to copy the relevant evaluat
 tensors from values_dict to global_var_dict as global_var_dict is saved
 between batches and passed to the final user_epochs_done_callback function.</p>
 <p>user_epochs_done_callback is a function that accepts global_var_dict. It’s job
-is to log relevant information to the screen such as the evaluation loss. It
+is to log relevant information to the screen such as the evaluation loss.</p>
+<p>For simple logging of scalar values to tensorboard, user_epochs_done_callback
 should return a dictionary with strings as keys and scalar tensors as values.
 This tag -&gt; value dictionary will be parsed and each element will be logged
 to tensorboard if a tensorboard writter object is declared.</p>
+<p>To enable more complex tensorboard logging such as images or audio,
+EvaluatorCallback must be passed tb_writer_func at initialization. This
+function must accept a
+<a class="reference external" href="https://tensorboardx.readthedocs.io/en/latest/tensorboard.html">tensorboardX.SummaryWriter</a>
+, whatever is returned from user_epochs_done_callback, and the current step.
+We recommend for user_epochs_done_callback to simply return the global_var_dict
+for tb_writer_func to consume. The user must log all data of interest inside
+tb_writer_func including scalars that would otherwise be logged if
+tb_writer_func was not passed to EvaluatorCallback.</p>
 <p>For an example, please see the scripts inside &lt;nemo_dir&gt;/examples.</p>
 </div>
 </div>

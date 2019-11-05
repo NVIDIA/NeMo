@@ -14,7 +14,7 @@ NVIDIA Neural Modules: NeMo
    collections/modules
    api-docs/modules
 
-.. note:: This documentaion corresponds to NeMo version 0.8. Once you have all requirements satisfied (see below), you can either install this version using pip: ``pip install nemo_toolkit && pip install nemo_asr && pip install nemo_nlp`` or use **r0.8** branch from GitHub.
+
 
 Neural Modules (NeMo) is a framework-agnostic toolkit for building AI applications powered by Neural Modules. Current support is for PyTorch framework.
 

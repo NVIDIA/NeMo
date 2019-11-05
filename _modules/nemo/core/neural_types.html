@@ -162,6 +162,27 @@
 <span class="sd">An exception will be raised when a NmTensor and input port where it goes are</span>
 <span class="sd">of incompatible types.</span>
 <span class="sd">&quot;&quot;&quot;</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;BaseTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;BatchTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;TimeTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;ProcessedTimeTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;ChannelTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;SpectrogramSignalTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;EncodedRepresentationTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;ClassTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;WidthTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;HeightTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;CategoricalTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;RegressionTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;NeuralTypeComparisonResult&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;AxisType&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;NeuralType&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;NmTensor&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;NeuralTypeError&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;NeuralPortNameMismatchError&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;NeuralPortNmTensorMismatchError&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;CanNotInferResultNeuralType&#39;</span><span class="p">]</span>
+
 <span class="kn">from</span> <span class="nn">enum</span> <span class="k">import</span> <span class="n">Enum</span>
 <span class="kn">import</span> <span class="nn">uuid</span>
 
@@ -220,7 +241,7 @@
 <div class="viewcode-block" id="ClassTag"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_types.ClassTag">[docs]</a><span class="k">class</span> <span class="nc">ClassTag</span><span class="p">(</span><span class="n">BaseTag</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Tag for class dimension.</span>
 <span class="sd">    For example, number of classes in classification problem,</span>
-<span class="sd">    vocabuary size or num of charachters for ASR.&quot;&quot;&quot;</span>
+<span class="sd">    vocabuary size or num of characters for ASR.&quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;channel&quot;</span></div>
@@ -238,6 +259,22 @@
 
     <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;height&quot;</span></div>
+
+
+<div class="viewcode-block" id="CategoricalTag"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_types.CategoricalTag">[docs]</a><span class="k">class</span> <span class="nc">CategoricalTag</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Tag for labels for classification tasks.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;category&quot;</span></div>
+
+
+<div class="viewcode-block" id="RegressionTag"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_types.RegressionTag">[docs]</a><span class="k">class</span> <span class="nc">RegressionTag</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Tag for labels for regression tasks.</span>
+<span class="sd">    For example, this should be used in STS-B task, where labels</span>
+<span class="sd">    represent semantic semilarity score (float)&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;regression&quot;</span></div>
 
 
 <div class="viewcode-block" id="NeuralTypeComparisonResult"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_types.NeuralTypeComparisonResult">[docs]</a><span class="k">class</span> <span class="nc">NeuralTypeComparisonResult</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
@@ -267,9 +304,9 @@
 
     <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">semantics</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">semantics</span>
-                <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">dim</span>
-                <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">descriptor</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">descriptor</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">semantics</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">semantics</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">dim</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">descriptor</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">descriptor</span>
         <span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -378,7 +415,7 @@
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optional</span>
             <span class="k">else</span> <span class="s2">&quot;&quot;</span>
                  <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">-&gt;</span><span class="si">{1}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">axis</span><span class="p">,</span> <span class="n">tag</span><span class="p">)</span> <span class="k">for</span> <span class="n">axis</span><span class="p">,</span> <span class="n">tag</span> <span class="ow">in</span>
-                             <span class="bp">self</span><span class="o">.</span><span class="n">_axis2type</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
+                              <span class="bp">self</span><span class="o">.</span><span class="n">_axis2type</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
         <span class="p">)</span>
 
 <div class="viewcode-block" id="NeuralType.compare"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_types.NeuralType.compare">[docs]</a>    <span class="k">def</span> <span class="nf">compare</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_type2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NeuralTypeComparisonResult</span><span class="p">:</span>

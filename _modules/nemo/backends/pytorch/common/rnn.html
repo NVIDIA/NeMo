@@ -154,7 +154,9 @@
            <div itemprop="articleBody">
             
   <h1>Source code for nemo.backends.pytorch.common.rnn</h1><div class="highlight"><pre>
-<span></span><span class="kn">import</span> <span class="nn">random</span>
+<span></span><span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;DecoderRNN&#39;</span><span class="p">]</span>
+
+<span class="kn">import</span> <span class="nn">random</span>
 
 <span class="kn">import</span> <span class="nn">torch</span>
 <span class="c1"># noinspection PyPep8Naming</span>
@@ -231,11 +233,19 @@
         <span class="p">}</span>
         <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">voc_size</span><span class="p">,</span> <span class="n">bos_id</span><span class="p">,</span> <span class="n">hidden_size</span><span class="p">,</span>
-                 <span class="n">attention_method</span><span class="o">=</span><span class="s1">&#39;general&#39;</span><span class="p">,</span> <span class="n">attention_type</span><span class="o">=</span><span class="s1">&#39;post&#39;</span><span class="p">,</span>
-                 <span class="n">in_dropout</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">gru_dropout</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">attn_dropout</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
-                 <span class="n">teacher_forcing</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">curriculum_learning</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
-                 <span class="n">rnn_type</span><span class="o">=</span><span class="s1">&#39;gru&#39;</span><span class="p">,</span> <span class="n">n_layers</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">voc_size</span><span class="p">,</span>
+                 <span class="n">bos_id</span><span class="p">,</span>
+                 <span class="n">hidden_size</span><span class="p">,</span>
+                 <span class="n">attention_method</span><span class="o">=</span><span class="s1">&#39;general&#39;</span><span class="p">,</span>
+                 <span class="n">attention_type</span><span class="o">=</span><span class="s1">&#39;post&#39;</span><span class="p">,</span>
+                 <span class="n">in_dropout</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
+                 <span class="n">gru_dropout</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
+                 <span class="n">attn_dropout</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+                 <span class="n">teacher_forcing</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+                 <span class="n">curriculum_learning</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+                 <span class="n">rnn_type</span><span class="o">=</span><span class="s1">&#39;gru&#39;</span><span class="p">,</span>
+                 <span class="n">n_layers</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
                  <span class="n">tie_emb_out_weights</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                  <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>

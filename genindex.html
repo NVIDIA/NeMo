@@ -188,10 +188,12 @@
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.DeviceType.AllGpu">AllGpu (nemo.core.neural_factory.DeviceType attribute)</a>
 </li>
-      <li><a href="collections/ncollections.html#nemo_asr.data_layer.AudioPreprocessing">AudioPreprocessing (class in nemo_asr.data_layer)</a>
+      <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.append_to_cache">append_to_cache() (nemo.backends.pytorch.actions.PtActions method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="collections/ncollections.html#nemo_asr.data_layer.AudioPreprocessing">AudioPreprocessing (class in nemo_asr.data_layer)</a>
+</li>
       <li><a href="collections/ncollections.html#nemo_asr.data_layer.AudioToTextDataLayer">AudioToTextDataLayer (class in nemo_asr.data_layer)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralType.axis2type">axis2type() (nemo.core.neural_types.NeuralType property)</a>
@@ -224,6 +226,8 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_types.CanNotInferResultNeuralType">CanNotInferResultNeuralType</a>
 </li>
+      <li><a href="api-docs/nemo.html#nemo.core.neural_types.CategoricalTag">CategoricalTag (class in nemo.core.neural_types)</a>
+</li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_types.ChannelTag">ChannelTag (class in nemo.core.neural_types)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.checkpoint_dir">checkpoint_dir() (nemo.core.neural_factory.NeuralModuleFactory property)</a>
@@ -232,12 +236,18 @@
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_types.ClassTag">ClassTag (class in nemo.core.neural_types)</a>
 </li>
+      <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.clear_cache">clear_cache() (nemo.backends.pytorch.actions.PtActions method)</a>
+
+      <ul>
+        <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.clear_cache">(nemo.core.neural_factory.NeuralModuleFactory method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralType.compare">compare() (nemo.core.neural_types.NeuralType method)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_types.AxisType.compare_to">compare_to() (nemo.core.neural_types.AxisType method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.DeviceType.CPU">CPU (nemo.core.neural_factory.DeviceType attribute)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.create_optimizer">create_optimizer() (nemo.backends.pytorch.actions.PtActions method)</a>
@@ -262,26 +272,26 @@
 <h2 id="D">D</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/core.html#nemo.backends.pytorch.common.data.TextDataLayer.data_iterator">data_iterator() (nemo.backends.pytorch.common.data.TextDataLayer property)</a>
+      <li><a href="collections/core.html#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.data_iterator">data_iterator() (nemo.backends.pytorch.common.zero_data.ZerosDataLayer property)</a>
 
       <ul>
-        <li><a href="collections/core.html#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.data_iterator">(nemo.backends.pytorch.common.zero_data.ZerosDataLayer property)</a>
-</li>
         <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.data_iterator">(nemo.backends.pytorch.nm.DataLayerNM property)</a>
 </li>
         <li><a href="collections/ncollections.html#nemo_asr.data_layer.AudioToTextDataLayer.data_iterator">(nemo_asr.data_layer.AudioToTextDataLayer property)</a>
 </li>
+        <li><a href="collections/ncollections.html#nemo_asr.data_layer.TranscriptDataLayer.data_iterator">(nemo_asr.data_layer.TranscriptDataLayer property)</a>
+</li>
       </ul></li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM">DataLayerNM (class in nemo.backends.pytorch.nm)</a>
 </li>
-      <li><a href="collections/core.html#nemo.backends.pytorch.common.data.TextDataLayer.dataset">dataset() (nemo.backends.pytorch.common.data.TextDataLayer property)</a>
+      <li><a href="collections/core.html#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.dataset">dataset() (nemo.backends.pytorch.common.zero_data.ZerosDataLayer property)</a>
 
       <ul>
-        <li><a href="collections/core.html#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.dataset">(nemo.backends.pytorch.common.zero_data.ZerosDataLayer property)</a>
-</li>
         <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.dataset">(nemo.backends.pytorch.nm.DataLayerNM property)</a>
 </li>
         <li><a href="collections/ncollections.html#nemo_asr.data_layer.AudioToTextDataLayer.dataset">(nemo_asr.data_layer.AudioToTextDataLayer property)</a>
+</li>
+        <li><a href="collections/ncollections.html#nemo_asr.data_layer.TranscriptDataLayer.dataset">(nemo_asr.data_layer.TranscriptDataLayer property)</a>
 </li>
       </ul></li>
   </ul></td>
@@ -452,6 +462,8 @@
 </li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.modules">modules() (nemo.backends.pytorch.actions.PtActions property)</a>
 </li>
+      <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.MSELoss">MSELoss (class in nemo.backends.pytorch.common.losses)</a>
+</li>
       <li><a href="collections/ncollections.html#nemo_asr.data_layer.MultiplyBatch">MultiplyBatch (class in nemo_asr.data_layer)</a>
 </li>
   </ul></td>
@@ -476,8 +488,6 @@
 </li>
       <li><a href="api-docs/nemo.html#module-nemo.backends.pytorch.actions">nemo.backends.pytorch.actions (module)</a>
 </li>
-      <li><a href="collections/core.html#module-nemo.backends.pytorch.common.data">nemo.backends.pytorch.common.data (module)</a>
-</li>
       <li><a href="collections/core.html#module-nemo.backends.pytorch.common.losses">nemo.backends.pytorch.common.losses (module)</a>
 </li>
       <li><a href="collections/core.html#module-nemo.backends.pytorch.common.rnn">nemo.backends.pytorch.common.rnn (module)</a>
@@ -500,10 +510,10 @@
 </li>
       <li><a href="collections/ncollections.html#module-nemo_asr.jasper">nemo_asr.jasper (module)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule">NeuralModule (class in nemo.core.neural_modules)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory">NeuralModuleFactory (class in nemo.core.neural_factory)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralPortNameMismatchError">NeuralPortNameMismatchError</a>
@@ -570,8 +580,6 @@
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_modules.PretrainedModelInfo">PretrainedModelInfo (in module nemo.core.neural_modules)</a>
-</li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_types.ProcessedTimeTag">ProcessedTimeTag (class in nemo.core.neural_types)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_types.NmTensor.producer">producer() (nemo.core.neural_types.NmTensor property)</a>
@@ -588,6 +596,8 @@
 <h2 id="R">R</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api-docs/nemo.html#nemo.core.neural_types.RegressionTag">RegressionTag (class in nemo.core.neural_types)</a>
+</li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.reset_default_factory">reset_default_factory() (nemo.core.neural_factory.NeuralModuleFactory class method)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.reset_trainer">reset_trainer() (nemo.core.neural_factory.NeuralModuleFactory method)</a>
@@ -680,8 +690,6 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.tb_writer">tb_writer() (nemo.core.neural_factory.NeuralModuleFactory property)</a>
 </li>
-      <li><a href="collections/core.html#nemo.backends.pytorch.common.data.TextDataLayer">TextDataLayer (class in nemo.backends.pytorch.common.data)</a>
-</li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper.tie_weights_with">tie_weights_with() (nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper method)</a>
 
       <ul>
@@ -698,10 +706,10 @@
       </ul></li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_types.TimeTag">TimeTag (class in nemo.core.neural_types)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.ModelMode.train">train (nemo.core.neural_factory.ModelMode attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.train">train() (nemo.backends.pytorch.actions.PtActions method)</a>
 
       <ul>
@@ -715,6 +723,8 @@
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper">TrainableNeuralModuleWrapper (class in nemo.backends.pytorch.module_wrapper)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM">TrainableNM (class in nemo.backends.pytorch.nm)</a>
+</li>
+      <li><a href="collections/ncollections.html#nemo_asr.data_layer.TranscriptDataLayer">TranscriptDataLayer (class in nemo_asr.data_layer)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_modules.WeightShareTransform.TRANSPOSE">TRANSPOSE (nemo.core.neural_modules.WeightShareTransform attribute)</a>
 </li>
