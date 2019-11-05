@@ -36,6 +36,10 @@ parser.add_argument("--work_dir", default='output_punct', type=str,
 
 args = parser.parse_args()
 
+args.interactive = True
+args.bert_checkpoint = '/home/ebakhturina/20191024-183447_all/checkpoints/BERT-EPOCH-4.pt'
+args.classifier_checkpoint = '/home/ebakhturina/20191024-183447_all/checkpoints/TokenClassifier-EPOCH-4.pt'
+
 # Instantiate Neural Factory with supported backend
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    log_dir=args.work_dir)
@@ -94,6 +98,8 @@ if args.interactive:
     classifier.eval()
 
     def get_punctuation(text):
+        text = '[CLS] ' + text
+        
         ids = tokenizer.text_to_ids(text)
         tokens = tokenizer.ids_to_tokens(ids)
         input_ids = torch.Tensor(ids).long()\
@@ -104,12 +110,37 @@ if args.interactive:
         hidden_states = bert_model.forward(input_ids=input_ids,
                                            token_type_ids=input_type_ids,
                                            attention_mask=input_mask)
+        
+        '''
+        ids = tokenizer.text_to_ids(text)
+        tokens = tokenizer.ids_to_tokens(ids)
+        input_ids_orig = torch.Tensor(ids).long()\
+                                     .to(bert_model._device)\
+                                     .unsqueeze(0) 
 
+        input_ids = torch.zeros(1, args.max_seq_length)
+        input_ids = input_ids.long().to(bert_model._device)
+        input_ids[:, :input_ids_orig.shape[1]] = input_ids_orig
+        
+        input_type_ids = torch.zeros_like(input_ids)
+        input_mask = torch.zeros_like(input_ids)
+        input_mask[:,:input_ids_orig.shape[1]] = 1
+        
+        hidden_states = bert_model.forward(input_ids=input_ids,
+                                           token_type_ids=input_type_ids,
+                                           attention_mask=input_mask)
+        import pdb; pdb.set_trace()
+        ''' 
+        
         logits = classifier.forward(hidden_states=hidden_states)
         logits = logits.squeeze(0).detach().cpu().numpy()
         preds = np.argmax(logits, axis=1)
         preds = [ids_to_tags[i] for i in preds]
-
+        
+        # drop [CLS] token and its prediction
+        preds = preds[1:]
+        tokens = tokens[1:]
+        
         output = ''
         tokens_no_punct = []
         punct_tokens = []
