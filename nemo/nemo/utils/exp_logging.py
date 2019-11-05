@@ -112,10 +112,14 @@ class ExpManager:
                         self.work_dir, f'cmd-args_{tm_suf}.log'), 'w') as f:
                     f.write(" ".join(sys.argv))
 
-                with open(os.path.join(
-                        self.work_dir, f'git-info_{tm_suf}.log'), 'w') as f:
-                    f.write(f'commit hash: {get_git_hash()}')
-                    f.write(get_git_diff())
+                # Try to get git hash
+                git_repo, git_hash = get_git_hash()
+                if git_repo:
+                    git_log_file = os.path.join(
+                        self.work_dir, f'git-info_{tm_suf}.log')
+                    with open(git_log_file, 'w') as f:
+                        f.write(f'commit hash: {git_hash}')
+                        f.write(get_git_diff())
 
         # Create loggers
         self.create_logger(log_file=bool(work_dir))
@@ -181,10 +185,10 @@ class ExpManager:
 
 def get_git_hash():
     try:
-        return subprocess.check_output(['git', 'rev-parse', 'HEAD'],
-                                       stderr=subprocess.STDOUT).decode()
+        return True, subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+                                             stderr=subprocess.STDOUT).decode()
     except subprocess.CalledProcessError as e:
-        return "{}\n".format(e.output.decode("utf-8"))
+        return False, "{}\n".format(e.output.decode("utf-8"))
 
 
 def get_git_diff():
