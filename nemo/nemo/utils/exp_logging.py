@@ -1,8 +1,10 @@
+# Copyright (c) 2019 NVIDIA Corporation
 import logging
 import os
 import time
 from shutil import copyfile
-
+import subprocess
+import sys
 
 loggers = {}
 
@@ -41,11 +43,11 @@ def get_logger(name):
     return loggers[name]
 
 
-def copy_wo_overwrite(dir_, file_to_copy):
+def copy_wo_overwrite(dir_, file_to_copy, tm_suf):
     basename = os.path.basename(file_to_copy)
     i = 0
     basename, ending = os.path.splitext(basename)
-    basename = basename + "_run{}" + ending
+    basename = basename + "_run{}_" + tm_suf + ending
     while True:
         if os.path.isfile(
                 os.path.join(dir_, basename.format(i))):
@@ -67,7 +69,8 @@ class ExpManager:
             ckpt_dir=None,
             tb_dir=None,
             files_to_copy=None,
-            add_time=True):
+            add_time=True,
+            broadcast_func=None):
         self.local_rank = local_rank if local_rank is not None else 0
         self.logger = None
         self.log_file = None
@@ -80,26 +83,46 @@ class ExpManager:
         # tb_dir behaves the same as ckpt_dir except default folder name is
         # tensorboard instead of checkpoints
         self.tb_dir = tb_dir
+        tm_suf = time.strftime('%Y-%m-%d_%H-%M-%S')
+        if local_rank is not None and add_time:
+            if broadcast_func is None:
+                raise ValueError(
+                    "local rank was not None, but ExpManager was not passed a "
+                    "broadcast function to broadcast the datetime suffix")
+            if local_rank == 0:
+                broadcast_func(string=tm_suf)
+            else:
+                tm_suf = broadcast_func(str_len=len(tm_suf))
 
         # Create work_dir if specified
         if work_dir:
             self.work_dir = work_dir
             if add_time:
-                self.work_dir = os.path.join(
-                    work_dir, time.strftime('%Y%m%d-%H%M%S'))
+                self.work_dir = os.path.join(work_dir, tm_suf)
             self.make_dir(self.work_dir, exist_ok)
             if use_tb:
                 self.get_tb_writer(exist_ok=exist_ok)
             self.ckpt_dir = f'{self.work_dir}/checkpoints'
-            if files_to_copy:
+            if files_to_copy and self.local_rank == 0:
                 for file in files_to_copy:
-                    copy_wo_overwrite(self.work_dir, file)
+                    copy_wo_overwrite(self.work_dir, file, tm_suf)
 
         # Create loggers
         self.create_logger(log_file=bool(work_dir))
         if use_tb and not work_dir:
             raise ValueError("ExpManager received use_tb as True but did not "
                              "receive a work_dir")
+
+        if self.local_rank == 0:
+            # Create files for cmd args and git info
+            with open(os.path.join(self.work_dir, f'cmd-args_{tm_suf}.log'),
+                      'w') as f:
+                f.write(" ".join(sys.argv))
+
+            with open(os.path.join(self.work_dir, f'git-info_{tm_suf}.log'),
+                      'w') as f:
+                f.write(f'commit hash: {get_git_hash()}')
+                f.write(get_git_diff())
 
         if ckpt_dir:
             self.ckpt_dir = ckpt_dir
@@ -155,3 +178,19 @@ class ExpManager:
             for key in params:
                 self.logger.info(f'{key}\t{params[key]}')
             self.logger.info(f'Experiment output is stored in {self.work_dir}')
+
+
+def get_git_hash():
+    try:
+        return subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+                                       stderr=subprocess.STDOUT).decode()
+    except subprocess.CalledProcessError as e:
+        return "{}\n".format(e.output.decode("utf-8"))
+
+
+def get_git_diff():
+    try:
+        return subprocess.check_output(['git', 'diff'],
+                                       stderr=subprocess.STDOUT).decode()
+    except subprocess.CalledProcessError as e:
+        return "{}\n".format(e.output.decode("utf-8"))
