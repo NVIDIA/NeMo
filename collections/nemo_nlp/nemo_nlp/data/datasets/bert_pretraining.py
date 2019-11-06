@@ -35,6 +35,8 @@ class BertPretrainingDataset(Dataset):
                  short_seq_prob=0.1,
                  sentence_idx_file=None):
         self.tokenizer = tokenizer
+        self.bos_id = tokenizer.token_to_id("[CLS]")
+        self.eos_id = tokenizer.token_to_id("[SEP]")
 
         # Loading enormous datasets into RAM isn't always feasible -- for
         # example, the pubmed corpus is 200+ GB, which doesn't fit into RAM on
@@ -181,22 +183,19 @@ class BertPretrainingDataset(Dataset):
 
         # Take sequence A from a random file and a random line
         a_filename = random.choice(self.filenames)
-        a_line_idx = random.choice(
-            range(len(self.sentence_indices[a_filename])))
+        a_line_idx = random.randrange(len(self.sentence_indices[a_filename]))
         a_line_offset = self.sentence_indices[a_filename][a_line_idx]
         a_document = get_document(a_filename, a_line_offset)
         a_document, a_line_idx = match_target_seq_length(
             a_document, target_seq_length_a, a_filename, a_line_idx,
             self.sentence_indices)
 
-        is_last_line = (self.sentence_indices[a_filename][a_line_idx] >=
-                        self.sentence_indices[a_filename][-1])
+        is_last_line = \
+            a_line_idx >= (len(self.sentence_indices[a_filename]) - 1)
         # About 50% of the time, B is a random sentence from the corpus
         take_random_b = (random.random() < 0.5) or is_last_line
 
         if take_random_b:
-            is_next = 0
-
             # This should rarely go for more than one iteration for large
             # corpora. However, just to be careful, we try to make sure that
             # the random document is not the same as the document
@@ -217,10 +216,10 @@ class BertPretrainingDataset(Dataset):
                     else:
                         pass
         else:
-            is_next = 1
             b_filename = a_filename
             b_line_idx = a_line_idx + 1
 
+        is_next = int(not take_random_b)
         b_line_pos = self.sentence_indices[b_filename][b_line_idx]
         b_document = get_document(b_filename, b_line_pos)
         b_document, b_line_idx = match_target_seq_length(
@@ -229,10 +228,8 @@ class BertPretrainingDataset(Dataset):
 
         def truncate_seq_pair(a_document, b_document, max_num_tokens):
             # Truncates a pair of sequences to a maximum sequence length
-            while True:
-                total_length = len(a_document) + len(b_document)
-                if total_length <= max_num_tokens:
-                    break
+            total_length = len(a_document) + len(b_document)
+            while total_length > max_num_tokens:
 
                 # Truncate the longer sequence
                 if len(a_document) > len(b_document):
@@ -246,10 +243,12 @@ class BertPretrainingDataset(Dataset):
                 else:
                     trunc_document.pop()
 
+                total_length = len(a_document) + len(b_document)
+
         truncate_seq_pair(a_document, b_document, max_num_tokens)
-        output_ids = [self.tokenizer.bos_id()] + a_document + \
-                     [self.tokenizer.eos_id()] + b_document + \
-                     [self.tokenizer.eos_id()]
+        output_ids = [self.bos_id] + a_document + \
+                     [self.eos_id] + b_document + \
+                     [self.eos_id]
 
         input_ids, output_mask = self.mask_ids(output_ids)
 
@@ -300,8 +299,8 @@ class BertPretrainingDataset(Dataset):
         output_mask = []
         mask_id = self.tokenizer.token_to_id("[MASK]")
         for word_ids in cand_indexes:
-            is_special = (word_ids[0] == self.tokenizer.bos_id()) or \
-                         (word_ids[0] == self.tokenizer.eos_id())
+            is_special = (word_ids[0] == self.bos_id) or \
+                         (word_ids[0] == self.eos_id)
             if is_special or (random.random() > self.mask_probability):
                 output_mask += [0] * len(word_ids)
                 masked_ids += [id] * len(word_ids)
@@ -316,8 +315,8 @@ class BertPretrainingDataset(Dataset):
                     for _ in word_ids:
                         # randomly select a valid word
                         random_word = random.randrange(self.vocab_size)
-                        while (random_word == self.tokenizer.bos_id()) or \
-                              (random_word == self.tokenizer.eos_id()):
+                        while (random_word == self.bos_id) or \
+                              (random_word == self.eos_id):
                             random_word = random.randrange(self.vocab_size)
                         masked_ids.append(random_word)
                 # for 10%, use same token
