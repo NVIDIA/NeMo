@@ -160,24 +160,18 @@ class BertPretrainingDataset(Dataset):
                                     line_idx, sentence_indices):
             # If document is shorter than target sequence length,
             # append the next line or take a random line as replacement.
-
-            # 10 is an arbitrary choice for now searching the data to match
-            # the target_seq_length.
             num_lines = len(sentence_indices[filename])
-            for _ in range(10):
-                if len(document) < target_seq_length:
-                    if line_idx < (num_lines - 1):
-                        # append the next line
-                        line_idx += 1
-                    else:
-                        # current line is the last line, take a random one
-                        line_idx = random.choice(range(num_lines))
-                        document = []
-
-                    offset = sentence_indices[filename][line_idx]
-                    document += get_document(filename, offset)
+            while len(document) < target_seq_length:
+                if line_idx < (num_lines - 1):
+                    # append the next line
+                    line_idx += 1
                 else:
-                    break
+                    # current line is the last line, take a random one
+                    line_idx = random.randrange(num_lines)
+                    document = []
+
+                offset = sentence_indices[filename][line_idx]
+                document += get_document(filename, offset)
 
             return document, line_idx
 
