@@ -37,6 +37,7 @@ class BertPretrainingDataset(Dataset):
         self.tokenizer = tokenizer
         self.bos_id = tokenizer.token_to_id("[CLS]")
         self.eos_id = tokenizer.token_to_id("[SEP]")
+        self.pad_id = tokenizer.token_to_id("[PAD]")
 
         # Loading enormous datasets into RAM isn't always feasible -- for
         # example, the pubmed corpus is 200+ GB, which doesn't fit into RAM on
@@ -246,7 +247,6 @@ class BertPretrainingDataset(Dataset):
 
         input_ids, output_mask = self.mask_ids(output_ids)
 
-        output_mask = np.array(output_mask, dtype=np.float32)
         input_mask = np.zeros(self.max_seq_length, dtype=np.float32)
         input_mask[:len(input_ids)] = 1
 
@@ -254,9 +254,9 @@ class BertPretrainingDataset(Dataset):
         input_type_ids[len(a_document) + 2:len(output_ids) + 1] = 1
 
         while len(input_ids) < self.max_seq_length:
-            input_ids.append(0)
-            output_ids.append(0)
-            output_mask = np.append(output_mask, [0])
+            input_ids.append(self.pad_id)
+            output_ids.append(self.pad_id)
+            output_mask.append(0)
 
         # TODO: wrap the return value with () for consistent style.
         return np.array(input_ids), input_type_ids,\
@@ -297,7 +297,7 @@ class BertPretrainingDataset(Dataset):
                          (word_ids[0] == self.eos_id)
             if is_special or (random.random() > self.mask_probability):
                 output_mask += [0] * len(word_ids)
-                masked_ids += [id] * len(word_ids)
+                masked_ids += word_ids
             else:
                 output_mask += [1] * len(word_ids)
                 p = random.random()
