@@ -322,6 +322,9 @@ class BertPretrainingDataLayer(TextDataLayer):
         max_seq_length (int): maximum allowed length of the text segments
         mask_probability (float): probability of masking input sequence tokens
         batch_size (int): batch size in segments
+        short_seeq_prob (float): Probability of creating sequences which are
+            shorter than the maximum length.
+            Defualts to 0.1.
     """
 
     @staticmethod
@@ -368,13 +371,15 @@ class BertPretrainingDataLayer(TextDataLayer):
                  dataset,
                  max_seq_length,
                  mask_probability,
+                 short_seq_prob=0.1,
                  batch_size=64,
                  **kwargs):
         kwargs['batch_size'] = batch_size
         dataset_params = {'tokenizer': tokenizer,
                           'dataset': dataset,
                           'max_seq_length': max_seq_length,
-                          'mask_probability': mask_probability}
+                          'mask_probability': mask_probability,
+                          'short_seq_prob': short_seq_prob}
         super().__init__(BertPretrainingDataset, dataset_params, **kwargs)
 
 

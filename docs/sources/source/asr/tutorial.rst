@@ -290,6 +290,8 @@ Training time can be dramatically reduced if starting from a good pre-trained mo
 
     jasper_encoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperEncoder-STEP-247400.pt")
     jasper_decoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperDecoderForCTC-STEP-247400.pt")
+    # in case of distributed training add args.local_rank
+    jasper_decoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperDecoderForCTC-STEP-247400.pt", args.local_rank)
 
 .. tip::
     When fine-tuning, use smaller learning rate.

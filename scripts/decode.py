@@ -13,7 +13,7 @@ import numpy as np
 import toml
 from ctc_decoders import Scorer
 from ctc_decoders import ctc_beam_search_decoder_batch
-from nemo_asr.parts.dataset import Manifest
+from nemo_asr.parts.dataset import ManifestEN
 
 
 parser = argparse.ArgumentParser(
@@ -136,8 +136,8 @@ def get_logits(data, labels):
     if isinstance(data, np.ndarray) or isinstance(data, list):
         # convert NumPy array to dict format
         logits = {}
-        for idx, line in enumerate(labels):
-            audio_filename = line["audio_filepath"]
+        for idx, item in enumerate(labels):
+            audio_filename = item["audio_filepath"]
             logits[audio_filename] = data[idx]
     else:
         logits = data["logits"]
@@ -146,7 +146,7 @@ def get_logits(data, labels):
 
 def load_labels(csv_file, vocab):
     # labels = np.loadtxt(csv_file, skiprows=1, delimiter=',', dtype=str)
-    return Manifest([csv_file], vocab, normalize=True).data
+    return ManifestEN([csv_file], vocab, normalize=True).data
 
 
 def load_vocab(model_toml):
@@ -181,9 +181,9 @@ def evaluate_wer(logits, labels, vocab, decoder):
     wer_per_sample = np.empty(shape=len(labels))
 
     empty_preds = 0
-    for idx, line in enumerate(labels):
-        audio_filename = line["audio_filepath"]
-        label = "".join([vocab[k] for k in line["transcript"]])
+    for idx, item in enumerate(labels):
+        audio_filename = item["audio_filepath"]
+        label = "".join([vocab[k] for k in item["tokens"]])
         pred = decoder(logits[audio_filename], vocab)
         dist = levenshtein(label.lower().split(), pred.lower().split())
         if pred == "":
@@ -203,8 +203,8 @@ labels = load_labels(args.labels, vocab)
 logits = get_logits(data, labels)
 
 probs_batch = []
-for line in labels:
-    audio_filename = line["audio_filepath"]
+for item in labels:
+    audio_filename = item["audio_filepath"]
     probs_batch.append(softmax(logits[audio_filename]))
 
 if args.mode == "eval":
@@ -224,8 +224,8 @@ if args.mode == "eval":
             )
             total_dist = 0.0
             total_count = 0.0
-            for idx, line in enumerate(labels):
-                label = "".join([vocab[k] for k in line["transcript"]])
+            for idx, item in enumerate(labels):
+                label = "".join([vocab[k] for k in item["tokens"]])
                 score, text = [v for v in zip(*res[idx])]
                 pred = text[0]
                 dist = levenshtein(label.lower().split(), pred.lower().split())
@@ -264,8 +264,8 @@ elif args.mode == "infer":
         ext_scoring_func=scorer,
     )
     infer_preds = np.empty(shape=(len(labels), 2), dtype=object)
-    for idx, line in enumerate(labels):
-        filename = line["audio_filepath"]
+    for idx, item in enumerate(labels):
+        filename = item["audio_filepath"]
         score, text = [v for v in zip(*res[idx])]
         infer_preds[idx, 0] = filename
         infer_preds[idx, 1] = text[0]

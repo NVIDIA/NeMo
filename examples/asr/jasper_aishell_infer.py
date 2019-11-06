@@ -9,18 +9,37 @@ from ruamel.yaml import YAML
 import nemo
 import nemo_asr
 from nemo_asr.helpers import word_error_rate, post_process_predictions, \
-                             post_process_transcripts
+    post_process_transcripts
+
+
+def load_vocab(vocab_file):
+    """
+    :param vocab_file: one character per line
+    :return: labels: list of character
+    """
+    labels = []
+    with open(vocab_file, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            labels.append(line)
+    return labels
 
 
 def main():
     parser = argparse.ArgumentParser(description='Jasper')
     parser.add_argument("--local_rank", default=None, type=int)
-    parser.add_argument("--batch_size", default=64, type=int)
+    parser.add_argument("--batch_size", default=32, type=int)
     parser.add_argument("--model_config", type=str, required=True)
     parser.add_argument("--eval_datasets", type=str, required=True)
     parser.add_argument("--load_dir", type=str, required=True)
+    parser.add_argument("--vocab_file", type=str, required=True)
     parser.add_argument("--save_logprob", default=None, type=str)
     parser.add_argument("--lm_path", default=None, type=str)
+    parser.add_argument("--beam_width", default=50, type=int)
+    parser.add_argument("--alpha", default=2.0, type=float)
+    parser.add_argument("--beta", default=1.0, type=float)
+    parser.add_argument("--cutoff_prob", default=0.99, type=float)
+    parser.add_argument("--cutoff_top_n", default=40, type=int)
 
     args = parser.parse_args()
     batch_size = args.batch_size
@@ -49,13 +68,16 @@ def main():
     yaml = YAML(typ="safe")
     with open(args.model_config) as f:
         jasper_params = yaml.load(f)
-    vocab = jasper_params['labels']
+
+    vocab = load_vocab(args.vocab_file)
+
     sample_rate = jasper_params['sample_rate']
 
     eval_datasets = args.eval_datasets
 
     eval_dl_params = copy.deepcopy(jasper_params["AudioToTextDataLayer"])
     eval_dl_params.update(jasper_params["AudioToTextDataLayer"]["eval"])
+    eval_dl_params["normalize_transcripts"] = False
     del eval_dl_params["train"]
     del eval_dl_params["eval"]
     data_layer = nemo_asr.AudioToTextDataLayer(
@@ -65,8 +87,8 @@ def main():
         batch_size=batch_size,
         **eval_dl_params)
 
-    N = len(data_layer)
-    logger.info('Evaluating {0} examples'.format(N))
+    n = len(data_layer)
+    logger.info('Evaluating {0} examples'.format(n))
 
     data_preprocessor = nemo_asr.AudioPreprocessing(
         sample_rate=sample_rate,
@@ -80,14 +102,18 @@ def main():
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
     if args.lm_path:
-        beam_width = 128
-        alpha = 2.
-        beta = 1.5
+        beam_width = args.beam_width
+        alpha = args.alpha
+        beta = args.beta
+        cutoff_prob = args.cutoff_prob
+        cutoff_top_n = args.cutoff_top_n
         beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
             vocab=vocab,
             beam_width=beam_width,
             alpha=alpha,
             beta=beta,
+            cutoff_prob=cutoff_prob,
+            cutoff_top_n=cutoff_top_n,
             lm_path=args.lm_path,
             num_cpus=max(os.cpu_count(), 1))
 
@@ -101,7 +127,7 @@ def main():
         f"{jasper_decoder.num_weights + jasper_encoder.num_weights}")
     logger.info('================================')
 
-    audio_signal_e1, a_sig_length_e1, transcript_e1, transcript_len_e1 =\
+    audio_signal_e1, a_sig_length_e1, transcript_e1, transcript_len_e1 = \
         data_layer()
     processed_signal_e1, p_length_e1 = data_preprocessor(
         input_signal=audio_signal_e1,
@@ -128,8 +154,10 @@ def main():
     greedy_hypotheses = post_process_predictions(evaluated_tensors[1], vocab)
     references = post_process_transcripts(
         evaluated_tensors[2], evaluated_tensors[3], vocab)
-    wer = word_error_rate(hypotheses=greedy_hypotheses, references=references)
-    logger.info("Greedy WER {:.2f}%".format(wer*100))
+    cer = word_error_rate(hypotheses=greedy_hypotheses,
+                          references=references,
+                          use_cer=True)
+    logger.info("Greedy CER {:.2f}%".format(cer * 100))
 
     if args.lm_path:
         beam_hypotheses = []
@@ -139,9 +167,9 @@ def main():
             for j in i:
                 beam_hypotheses.append(j[0][1])
 
-        wer = word_error_rate(
-            hypotheses=beam_hypotheses, references=references)
-        logger.info("Beam WER {:.2f}".format(wer*100))
+        cer = word_error_rate(
+            hypotheses=beam_hypotheses, references=references, use_cer=True)
+        logger.info("Beam CER {:.2f}".format(cer * 100))
 
     if args.save_logprob:
         # Convert logits to list of numpy arrays

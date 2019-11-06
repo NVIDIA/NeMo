@@ -523,6 +523,8 @@ class NeuralModuleFactory(object):
               lr_policy=None,
               batches_per_step=None,
               stop_on_nan_loss=False,
+              synced_batchnorm=False,
+              synced_batchnorm_groupsize=0,
               reset=False):
         if reset:
             self.reset_trainer()
@@ -533,7 +535,9 @@ class NeuralModuleFactory(object):
             callbacks=callbacks,
             lr_policy=lr_policy,
             batches_per_step=batches_per_step,
-            stop_on_nan_loss=stop_on_nan_loss)
+            stop_on_nan_loss=stop_on_nan_loss,
+            synced_batchnorm=synced_batchnorm,
+            synced_batchnorm_groupsize=synced_batchnorm_groupsize)
 
     def eval(self,
              callbacks: List[EvaluatorCallback]):
@@ -551,11 +555,52 @@ class NeuralModuleFactory(object):
             optimization_params={'num_epochs': 1}
         )
 
-    def infer(self, tensors: List[NmTensor], checkpoint_dir=None,
-              ckpt_pattern=''):
+    def infer(self,
+              tensors: List[NmTensor],
+              checkpoint_dir=None,
+              ckpt_pattern='',
+              verbose=True,
+              cache=False,
+              use_cache=False,
+              offload_to_cpu=True):
+        """Runs inference to obtain values for tensors
+
+        Args:
+            tensors (list[NmTensor]): List of NeMo tensors that we want to get
+                values of.
+            checkpoint_dir (str): Path to checkpoint directory. Default is None
+                which does not load checkpoints.
+            ckpt_pattern (str): Pattern used to check for checkpoints inside
+                checkpoint_dir. Default is '' which matches any checkpoints
+                inside checkpoint_dir.
+            verbose (bool): Controls printing. Defaults to True.
+            cache (bool): If True, cache all `tensors` and intermediate tensors
+                so that future calls that have use_cache set will avoid
+                computation. Defaults to False.
+            use_cache (bool): Values from `tensors` will be always re-computed.
+                It will re-use intermediate tensors from the DAG leading to
+                `tensors`. If you want something to be re-computed, put it into
+                `tensors` list. Defaults to False.
+            offload_to_cpu (bool): If True, all evaluated tensors are moved to
+                cpu memory after each inference batch. Defaults to True.
+
+        Returns:
+            List of evaluated tensors. Each element in the list is also a list
+            where each element is now a batch of tensor values.
+        """
         return self._trainer.infer(
-            tensors=tensors, checkpoint_dir=checkpoint_dir,
-            ckpt_pattern=ckpt_pattern, logger=self.logger)
+            tensors=tensors,
+            checkpoint_dir=checkpoint_dir,
+            ckpt_pattern=ckpt_pattern,
+            verbose=verbose,
+            logger=self.logger,
+            cache=cache,
+            use_cache=use_cache,
+            offload_to_cpu=offload_to_cpu)
+
+    def clear_cache(self):
+        """Helper function to clean inference cache."""
+        self._trainer.clear_cache()
 
     def _get_trainer(self, tb_writer=None):
         if self._backend == Backend.PyTorch:

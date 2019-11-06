@@ -34,6 +34,8 @@ Here, the words and labels are separated with spaces, but in your dataset they s
 
 .. _CoNLL-2003 website: https://www.clips.uantwerpen.be/conll2003/ner/
 
+.. _Preprocessed data: https://github.com/kyzhouhzau/BERT-NER/tree/master/data
+
 Training
 --------
 
@@ -60,9 +62,9 @@ If you're using a standard BERT model, you should do it as follows. To see the f
 
         tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
         pretrained_bert_model = nemo_nlp.huggingface.BERT(
-            pretrained_model_name=args.pretrained_bert_model, factory=nf)
+            pretrained_model_name=args.pretrained_bert_model)
 
-If you're using a BERT model that you pre-trained yourself, you should do it like this. You should replace ``BERT-STEP-150000.pt`` with the path to your checkpoint file.
+If you're using a BERT model that you pre-trained yourself, you should do it like this. You should replace ``args.bert_checkpoint`` with the path to your checkpoint file.
 
     .. code-block:: python
 
@@ -70,22 +72,26 @@ If you're using a BERT model that you pre-trained yourself, you should do it lik
         tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
 
         bert_model = nemo_nlp.huggingface.BERT(
-                config_filename=args.bert_config, factory=nf)
+                config_filename=args.bert_config)
         pretrained_bert_model.restore_from(args.bert_checkpoint)
 
 Now, create the train and evaluation datasets:
 
     .. code-block:: python
 
-        train_dataset = nemo_nlp.BertNERDataset(
-            tokenizer=tokenizer,
-            input_file=f'{args.data_dir}/train.txt',
-            max_seq_length=args.max_seq_length)
+    train_data_layer = nemo_nlp.data.BertTokenClassificationDataLayer(
+        dataset_type="BertCornellNERDataset",
+        tokenizer=tokenizer,
+        input_file=os.path.join(DATA_DIR, "train.txt"),
+        max_seq_length=MAX_SEQ_LENGTH,
+        batch_size=BATCH_SIZE)
 
-        eval_dataset = nemo_nlp.BertNERDataset(
-            tokenizer=tokenizer,
-            input_file=f'{args.data_dir}/dev.txt',
-            max_seq_length=args.max_seq_length)
+    eval_data_layer = nemo_nlp.data.BertTokenClassificationDataLayer(
+        dataset_type="BertCornellNERDataset",
+        tokenizer=tokenizer,
+        input_file=os.path.join(DATA_DIR, "dev.txt"),
+        max_seq_length=MAX_SEQ_LENGTH,
+        batch_size=BATCH_SIZE)
 
 We need to create the classifier to sit on top of the pretrained model and define the loss function:
 
@@ -102,13 +108,8 @@ And create the pipeline that can be used for both training and evaluation.
 
     .. code-block:: python
 
-        def create_pipeline(dataset, batch_size=args.batch_size,
+        def create_pipeline(data_layer, batch_size=args.batch_size,
                             local_rank=args.local_rank, num_gpus=args.num_gpus):
-            data_layer = nemo_nlp.BertTokenClassificationDataLayer(
-                dataset,
-                batch_size=batch_size,
-                num_workers=0,
-                local_rank=local_rank)
             input_ids, input_type_ids, input_mask, labels, seq_ids = data_layer()
             hidden_states = pretrained_bert_model(input_ids=input_ids,
                                                   token_type_ids=input_type_ids,
@@ -118,8 +119,8 @@ And create the pipeline that can be used for both training and evaluation.
             steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
             return loss, steps_per_epoch, data_layer, [logits, seq_ids]
 
-        train_loss, steps_per_epoch, _, _ = create_pipeline(train_dataset)
-        _, _, data_layer, eval_tensors = create_pipeline(eval_dataset)
+        train_loss, steps_per_epoch, _, _ = create_pipeline(train_data_layer)
+        _, _, data_layer, eval_tensors = create_pipeline(eval_data_layer)
 
 Now, we will set up our callbacks. We will use 3 callbacks:
 
