@@ -143,7 +143,7 @@ class NLLLoss(LossNM):
 
 
 # 0. Instantiate Neural Factory with supported backend
-nf = nemo.core.NeuralModuleFactory()
+nf = nemo.core.NeuralModuleFactory(placement=DeviceType.CPU)
 
 # 1. Instantiate necessary neural modules
 dl = MNISTDataLayer(
@@ -193,7 +193,7 @@ def eval_epochs_done_callback(global_vars):
 ecallback = nemo.core.EvaluatorCallback(eval_tensors=[loss_e],
                                         user_iter_callback=eval_iter_callback,
                                         user_epochs_done_callback=eval_epochs_done_callback,
-                                        eval_step=10)
+                                        eval_step=100)
 
 ###########
 
