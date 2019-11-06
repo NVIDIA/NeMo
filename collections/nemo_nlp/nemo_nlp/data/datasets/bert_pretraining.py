@@ -237,6 +237,8 @@ class BertPretrainingDataset(Dataset):
                 else:
                     trunc_document.pop()
 
+                total_length = len(a_document) + len(b_document)
+
         truncate_seq_pair(a_document, b_document, max_num_tokens)
 
         output_ids = [self.cls_id] + a_document + \
