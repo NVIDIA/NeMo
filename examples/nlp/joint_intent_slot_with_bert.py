@@ -128,7 +128,6 @@ def create_pipeline(num_samples=-1,
     loss = loss_fn(intent_logits=intent_logits,
                    slot_logits=slot_logits,
                    input_mask=slot_mask,
-                   # input_mask=input_mask,
                    intents=intents,
                    slots=slots)
 
