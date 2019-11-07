@@ -70,7 +70,7 @@ classifier = nemo_nlp.JointIntentSlotClassifier(
     num_intents=data_desc.num_intents,
     num_slots=data_desc.num_slots)
 
-ids, type_ids, input_mask, slot_mask, intents, slots = data_layer()
+ids, type_ids, input_mask, slot_mask, real_token, intents, slots = data_layer()
 
 hidden_states = pretrained_bert_model(input_ids=ids,
                                       token_type_ids=type_ids,
@@ -82,7 +82,7 @@ intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
 # Instantiate an optimizer to perform `infer` action
 evaluated_tensors = nf.infer(
-    tensors=[intent_logits, slot_logits, slot_mask, intents, slots],
+    tensors=[intent_logits, slot_logits, slot_mask, real_token, intents, slots],
     checkpoint_dir=args.work_dir,
 )
 
@@ -95,18 +95,29 @@ def get_preds(logits):
     return np.argmax(logits, 1)
 
 
-intent_logits, slot_logits, slot_masks, intents, slots =\
+intent_logits, slot_logits, slot_masks, real_token, intents, slot_labels =\
     [concatenate(tensors) for tensors in evaluated_tensors]
 
 
 pred_intents = np.argmax(intent_logits, 1)
 nf.logger.info('Intent prediction results')
+
+intents = np.asarray(intents)
+pred_intents = np.asarray(pred_intents)
+intent_accuracy = sum(intents == pred_intents) / len(pred_intents)
+nf.logger.info(f'Intent accuracy: {intent_accuracy}')
 nf.logger.info(classification_report(intents, pred_intents))
 
-pred_slots = np.argmax(slot_logits, axis=2)
-pred_slot_list, slot_list = [], []
-for i, pred_slot in enumerate(pred_slots):
-    pred_slot_list.extend(list(pred_slot[slot_masks[i]][1:-1]))
-    slot_list.extend(list(slots[i][slot_masks[i]][1:-1]))
+
+slot_preds = np.argmax(slot_logits, axis=2)
+slot_preds_list, slot_labels_list = [], []
+for i, sp in enumerate(slot_preds):
+    slot_preds_list.extend(list(slot_preds[i][real_token[i]]))
+    slot_labels_list.extend(list(slot_labels[i][real_token[i]]))
+
 nf.logger.info('Slot prediction results')
-nf.logger.info(classification_report(slot_list, pred_slot_list))
+slot_labels_list = np.asarray(slot_labels_list)
+slot_preds_list = np.asarray(slot_preds_list)
+slot_accuracy = sum(slot_labels_list == slot_preds_list) / len(slot_labels_list)
+nf.logger.info(f'Slot accuracy: {slot_accuracy}')
+nf.logger.info(classification_report(slot_labels_list, slot_preds_list))

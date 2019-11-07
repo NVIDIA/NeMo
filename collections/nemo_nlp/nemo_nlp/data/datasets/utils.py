@@ -194,13 +194,15 @@ def process_nvidia_car(infold,
                        uncased,
                        modes=['train', 'test'],
                        test_ratio=0.02):
-    infiles = {'train': f'{infold}/pytextTrainDataPOI_1_0.tsv',
-               'test': f'{infold}/test.tsv'}
+    infiles = {'train': f'{infold}/train.tsv',
+               'test': f'{infold}/test.tsv',
+               'eval': f'{infold}/eval.tsv'}
     outfold = f'{infold}/nvidia-car-nemo-processed'
-    intent_file = f'{outfold}/intent_labels.tsv'
-
     if uncased:
         outfold = f'{outfold}_uncased'
+
+    intent_file = f'{outfold}/intent_labels.tsv'
+
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
         logger.info(LOGGING_TMP.format('NVIDIA-CAR', outfold))
@@ -224,7 +226,12 @@ def process_nvidia_car(infold,
 
         with open(infiles[mode], 'r') as f:
             for line in f:
-                intent, _, sentence = line.strip().split('\t')
+                line_splits = line.strip().split('\t')
+                if len(line_splits) == 3:
+                    intent, _, sentence = line_splits
+                else:
+                    intent, sentence = line_splits
+                #intent, _, sentence = line.strip().split('\t')
                 if uncased:
                     sentence = sentence.lower()
 
@@ -308,6 +315,109 @@ def process_atis(infold, uncased, modes=['train', 'test'], dev_split=0):
                     f'{outfold}/dict.intents.csv')
     shutil.copyfile(f'{infold}/atis.dict.slots.csv',
                     f'{outfold}/dict.slots.csv')
+
+    return outfold
+
+
+def generate_BIO(slot_tags_list, token_str, start_i, end_i):
+    for tag_start, tag_end, tag_str in slot_tags_list:
+        if start_i == tag_start:
+            return f'B-{tag_str}'
+        elif start_i > tag_start and end_i <= tag_end:
+            return f'I-{tag_str}'
+    return "O"
+
+
+def process_triple_datasets(infold, uncased, dataset_name, modes=['train', 'test', 'eval'], dev_split=0):
+    """ ???
+    """
+
+    from nltk.tokenize import WhitespaceTokenizer
+
+    outfold = f'{infold}/{dataset_name}-nemo-processed'
+    infold = f'{infold}/{dataset_name}-raw'
+
+    if uncased:
+        outfold = f'{outfold}-uncased'
+
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
+        logger.info(LOGGING_TMP.format(dataset_name, outfold))
+        return outfold
+    logger.info(f'Processing {dataset_name} dataset and store at {outfold}')
+
+    os.makedirs(outfold, exist_ok=True)
+
+    outfiles = {}
+    intents_list = {}
+    slots_list = {}
+    slots_list_all = {}
+
+    outfiles['dict_intents'] = open(f'{outfold}/dict.intents.csv', 'w')
+    outfiles['dict_slots'] = open(f'{outfold}/dict.slots.csv', 'w')
+
+    outfiles['dict_slots'].write('O\n')
+    slots_list["O"] = 0
+    slots_list_all["O"] = 0
+
+    # outfiles['dict_slots'].write('P\n')
+    # slots_list["P"] = 1
+    # slots_list_all["P"] = 1
+
+    for mode in modes:
+        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
+        outfiles[mode].write('sentence\tlabel\n')
+        outfiles[mode + '_slots'] = open(f'{outfold}/{mode}_slots.tsv', 'w')
+
+        queries = open(f'{infold}/{mode}.tsv', 'r').readlines()
+
+        for i, query in enumerate(queries):
+            [intent_str, slot_tags_str, sentence] = query.strip().split("\t")
+
+            if intent_str not in intents_list:
+                intents_list[intent_str] = len(intents_list)
+                outfiles['dict_intents'].write(f'{intent_str}\n')
+
+            #sentence = sentence[4:-4]
+            #e = new_s.find(" ")
+            #new_s = new_s[e+1:]
+
+            outfiles[mode].write(f'{sentence[4:-4]}\t{str(intents_list[intent_str])}\n')
+            #outfiles[mode].write(f'{sentence}\t{str(intents_list[intent_str])}\n')
+
+            if str.count(slot_tags_str, ":") > 0:
+                slot_tags = slot_tags_str.strip().split(",")
+                slot_tags_list = []
+                for st in slot_tags:
+                    if len(st.strip()) == 0:
+                        continue
+                    [start_i, end_i, slot_name] = st.strip().split(":")
+                    slot_tags_list.append([int(start_i), int(end_i), slot_name])
+                    if slot_name not in slots_list:
+                        slots_list[slot_name] = len(slots_list)
+                        slots_list_all[f'B-{slot_name}'] = len(slots_list_all)
+                        slots_list_all[f'I-{slot_name}'] = len(slots_list_all)
+                        outfiles['dict_slots'].write(f'B-{slot_name}\n')
+                        outfiles['dict_slots'].write(f'I-{slot_name}\n')
+            else:
+                slot_tags_list = []
+
+            span_generator = WhitespaceTokenizer().span_tokenize(sentence)
+            spans = list(span_generator)
+
+            slots = []
+            for sp_i, (start_i, end_i) in enumerate(spans):
+                #if sp_i == 0 or sp_i == 1 or sp_i == len(spans) - 1:
+                if sp_i == 0 or sp_i == len(spans) - 1:
+                    continue
+                BIO_tag = generate_BIO(slot_tags_list, sentence[start_i: end_i], start_i, end_i)
+                slots.append(str(slots_list_all[BIO_tag]))
+            slot = ' '.join(slots)
+            outfiles[mode + '_slots'].write(slot + '\n')
+        outfiles[mode + '_slots'].close()
+        outfiles[mode].close()
+
+    outfiles['dict_slots'].close()
+    outfiles['dict_intents'].close()
 
     return outfold
 
@@ -607,6 +717,8 @@ class JointIntentSlotDataDesc:
                 self.data_dir = f'{self.data_dir}/speak'
             elif dataset_name.endswith('all'):
                 self.data_dir = f'{self.data_dir}/all'
+        elif dataset_name in ['flatCar', 'flatPOI', 'weather']:
+            self.data_dir = process_triple_datasets(data_dir, do_lower_case, dataset_name)
         else:
             if not if_exist(data_dir, ['dict.intents.csv', 'dict.slots.csv']):
                 raise FileNotFoundError(
@@ -627,6 +739,7 @@ class JointIntentSlotDataDesc:
                 raise ValueError(f'none_slot_label {none_slot_label} not '
                                  f'found in {self.slot_dict_file}.')
             self.pad_label = slots[none_slot_label]
+            #self.pad_label = -1
 
 
 class SentenceClassificationDataDesc:
@@ -654,12 +767,12 @@ class SentenceClassificationDataDesc:
                                         dataset_name=dataset_name)
             self.eval_file = self.data_dir + '/test.tsv'
         elif dataset_name == 'nvidia-car':
-            self.data_dir, labels = process_nvidia_car(data_dir, do_lower_case)
+            self.data_dir, labels = process_nvidia_car(data_dir, do_lower_case, ['train', 'eval'])
             for intent in labels:
                 idx = labels[intent]
                 logger.info(f'{intent}: {idx}')
             self.num_labels = len(labels)
-            self.eval_file = self.data_dir + '/test.tsv'
+            #self.eval_file = self.data_dir + '/test.tsv'
         else:
             logger.info("Looks like you pass in a dataset name that isn't "
                         "already supported by NeMo. Please make sure that "
