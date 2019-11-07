@@ -79,10 +79,7 @@ def create_pipeline(num_samples=-1,
                     local_rank=0,
                     mode='train'):
     nf.logger.info(f"Loading {mode} data...")
-
-    #data_file = getattr(data_desc, mode + '_file')
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
-
     shuffle = args.shuffle_data if mode == 'train' else False
 
     data_layer = nemo_nlp.BertSentenceClassificationDataLayer(

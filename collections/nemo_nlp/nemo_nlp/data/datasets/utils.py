@@ -200,9 +200,7 @@ def process_nvidia_car(infold,
     outfold = f'{infold}/nvidia-car-nemo-processed'
     if uncased:
         outfold = f'{outfold}_uncased'
-
     intent_file = f'{outfold}/intent_labels.tsv'
-
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
         logger.info(LOGGING_TMP.format('NVIDIA-CAR', outfold))
@@ -231,7 +229,7 @@ def process_nvidia_car(infold,
                     intent, _, sentence = line_splits
                 else:
                     intent, sentence = line_splits
-                #intent, _, sentence = line.strip().split('\t')
+
                 if uncased:
                     sentence = sentence.lower()
 
@@ -329,7 +327,7 @@ def generate_BIO(slot_tags_list, token_str, start_i, end_i):
 
 
 def process_triple_datasets(infold, uncased, dataset_name, modes=['train', 'test', 'eval'], dev_split=0):
-    """ ???
+    """ process and import triple datasets into NeMo's format
     """
 
     from nltk.tokenize import WhitespaceTokenizer
@@ -359,10 +357,6 @@ def process_triple_datasets(infold, uncased, dataset_name, modes=['train', 'test
     slots_list["O"] = 0
     slots_list_all["O"] = 0
 
-    # outfiles['dict_slots'].write('P\n')
-    # slots_list["P"] = 1
-    # slots_list_all["P"] = 1
-
     for mode in modes:
         outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
         outfiles[mode].write('sentence\tlabel\n')
@@ -377,12 +371,7 @@ def process_triple_datasets(infold, uncased, dataset_name, modes=['train', 'test
                 intents_list[intent_str] = len(intents_list)
                 outfiles['dict_intents'].write(f'{intent_str}\n')
 
-            #sentence = sentence[4:-4]
-            #e = new_s.find(" ")
-            #new_s = new_s[e+1:]
-
             outfiles[mode].write(f'{sentence[4:-4]}\t{str(intents_list[intent_str])}\n')
-            #outfiles[mode].write(f'{sentence}\t{str(intents_list[intent_str])}\n')
 
             if str.count(slot_tags_str, ":") > 0:
                 slot_tags = slot_tags_str.strip().split(",")
@@ -406,7 +395,6 @@ def process_triple_datasets(infold, uncased, dataset_name, modes=['train', 'test
 
             slots = []
             for sp_i, (start_i, end_i) in enumerate(spans):
-                #if sp_i == 0 or sp_i == 1 or sp_i == len(spans) - 1:
                 if sp_i == 0 or sp_i == len(spans) - 1:
                     continue
                 BIO_tag = generate_BIO(slot_tags_list, sentence[start_i: end_i], start_i, end_i)
@@ -772,7 +760,6 @@ class SentenceClassificationDataDesc:
                 idx = labels[intent]
                 logger.info(f'{intent}: {idx}')
             self.num_labels = len(labels)
-            #self.eval_file = self.data_dir + '/test.tsv'
         else:
             logger.info("Looks like you pass in a dataset name that isn't "
                         "already supported by NeMo. Please make sure that "

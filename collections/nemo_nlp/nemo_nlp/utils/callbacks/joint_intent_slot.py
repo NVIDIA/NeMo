@@ -92,7 +92,6 @@ def eval_epochs_done_callback(global_vars, graph_fold):
 
     slot_labels = np.asarray(global_vars['all_slot_labels'])
     slot_preds = np.asarray(global_vars['all_slot_preds'])
-    #slot_masks = np.asarray(global_vars['all_token_masks'])
     real_token = np.asarray(global_vars['all_real_token'])
 
     slot_labels = slot_labels[real_token]
