@@ -352,9 +352,6 @@ class Tacotron2Loss(LossNM):
         mask = ~get_mask_from_lengths(target_len, max_len=max_len)
         mask = mask.expand(mel_target.shape[1], mask.size(0), mask.size(1))
         mask = mask.permute(1, 0, 2)
-        # TODO: remove debugging line
-        if mel_out.shape[2] != max_len or mel_target.shape[2] != max_len:
-            import ipdb; ipdb.set_trace()
         mel_out.data.masked_fill_(mask, self.pad_value)
         mel_out_postnet.data.masked_fill_(mask, self.pad_value)
         gate_out.data.masked_fill_(mask[:, 0, :], 1e3)
@@ -362,9 +359,6 @@ class Tacotron2Loss(LossNM):
         gate_out = gate_out.view(-1, 1)
         mel_loss = nn.MSELoss()(mel_out, mel_target) + \
             nn.MSELoss()(mel_out_postnet, mel_target)
-        # TODO: remove debugging line
-        if gate_out.shape != gate_target.shape:
-            import ipdb; ipdb.set_trace()
         gate_loss = nn.BCEWithLogitsLoss()(gate_out, gate_target)
         return mel_loss + gate_loss
 
