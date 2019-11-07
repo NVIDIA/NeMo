@@ -54,7 +54,7 @@ See `examples/start_here` to get started with the simplest example. The folder `
 You can use our `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ which already includes all the requirements above.
 
 * Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:19.08-py3``
-* Run: ``nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.08-py3``
+* Run: ``nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.09-py3``
 * ``cd /NeMo``
 
 and then continue with the following steps.
