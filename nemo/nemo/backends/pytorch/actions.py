@@ -208,7 +208,7 @@ class PtActions(Actions):
                                  "NeuralModuleFactory first and pass its "
                                  "instance as `factory` parameter to all your"
                                  "Neural Module objects."
-                                 "".format(m[0].__class__.__name__))
+                                 "".format(str(m[0])))
             key = m[0].unique_instance_id
             if key not in self.module_reference_table:
                 if isinstance(m[0], TrainableNeuralModuleWrapper):
@@ -401,6 +401,11 @@ class PtActions(Actions):
             if use_cache:
                 in_cache = True
                 for tensor in call_chain[ind][2].values():
+                    if tensor is None:
+                        # NM has an output tensor that is not used in the
+                        # current call chain, so we don't care if it's not in
+                        # cache
+                        continue
                     if tensor.unique_name not in registered_tensors:
                         in_cache = False
                 if in_cache:
@@ -796,6 +801,7 @@ class PtActions(Actions):
                     for t in tensors_to_return:
                         if t.unique_name in registered_e_tensors:
                             del registered_e_tensors[t.unique_name]
+                    # Need to check for device type mismatch
                 else:
                     if isinstance(data, torch.Tensor):
                         data = (data,)
@@ -1344,21 +1350,34 @@ class PtActions(Actions):
               verbose=True,
               cache=False,
               use_cache=False,
-              offload_to_cpu=True):
+              offload_to_cpu=True,
+              modules_to_restore=None):
         """See NeuralModuleFactory.infer()
         """
 
         if checkpoint_dir:
             # Find all modules that need to be restored
-            call_chain, _ = self.__get_top_sorted_modules_and_dataloader(
-                hook=tensors
-            )
-            modules_to_restore = []
+            if modules_to_restore is None:
+                call_chain, _ = self.__get_top_sorted_modules_and_dataloader(
+                    hook=tensors
+                )
+                modules_to_restore = []
+                modules_to_restore_name = []
+                for op in call_chain:
+                    if op[0].num_weights > 0:
+                        modules_to_restore.append(op[0])
+
+            if not isinstance(modules_to_restore, list):
+                modules_to_restore = [modules_to_restore]
             modules_to_restore_name = []
-            for op in call_chain:
-                if op[0].num_weights > 0:
-                    modules_to_restore.append(op[0])
-                    modules_to_restore_name.append(op[0].__class__.__name__)
+            for mod in modules_to_restore:
+                if not isinstance(mod, NeuralModule):
+                    raise ValueError("Found something that was not a Neural "
+                                     "Module inside modules_to_restore")
+                elif mod.num_weights == 0:
+                    raise ValueError("Found a Neural Module with 0 weights "
+                                     "inside modules_to_restore")
+                modules_to_restore_name.append(str(mod))
 
             module_checkpoints = get_checkpoint_from_dir(
                 modules_to_restore_name, checkpoint_dir, ckpt_pattern

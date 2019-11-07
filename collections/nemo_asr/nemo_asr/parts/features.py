@@ -196,7 +196,8 @@ class FilterbankFeatures(nn.Module):
                  preemph=0.97,
                  nfilt=64, lowfreq=0, highfreq=None, log=True, dither=CONSTANT,
                  pad_to=16, max_duration=16.7,
-                 frame_splicing=1, stft_conv=False, logger=None):
+                 frame_splicing=1, stft_conv=False, logger=None,
+                 pad_value=0):
         super(FilterbankFeatures, self).__init__()
         if logger:
             logger.info(f"PADDING: {pad_to}")
@@ -205,6 +206,8 @@ class FilterbankFeatures(nn.Module):
 
         self.win_length = int(sample_rate * window_size)
         self.hop_length = int(sample_rate * window_stride)
+        self.win_length = 1024
+        self.hop_length = 256
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
         self.stft_conv = stft_conv
 
@@ -263,19 +266,22 @@ class FilterbankFeatures(nn.Module):
         self.register_buffer("fb", filterbanks)
 
         # Calculate maximum sequence length
-        max_length = 1 + math.ceil(
-            (max_duration * sample_rate - self.win_length) / self.hop_length
-        )
+        max_length = self.get_seq_len(
+            torch.tensor(max_duration * sample_rate, dtype=torch.float))
         max_pad = pad_to - (max_length % pad_to)
         self.max_length = max_length + max_pad
+        self.pad_value = pad_value
 
     def get_seq_len(self, seq_len):
-        return torch.ceil(seq_len.to(dtype=torch.float) / self.hop_length).to(
-            dtype=torch.long)
+        return torch.ceil(seq_len / self.hop_length).to(dtype=torch.long)
+
+    @property
+    def filter_banks(self):
+        return self.fb
 
     @torch.no_grad()
     def forward(self, x, seq_len):
-        seq_len = self.get_seq_len(seq_len)
+        seq_len = self.get_seq_len(seq_len.float())
 
         # dither
         if self.dither > 0:
@@ -290,7 +296,7 @@ class FilterbankFeatures(nn.Module):
         x = self.stft(x)
 
         # get power spectrum
-        x = x.pow(2)
+        # x = x.pow(2)
         if not self.stft_conv:
             x = x.sum(-1)
 
@@ -299,7 +305,7 @@ class FilterbankFeatures(nn.Module):
 
         # log features if required
         if self.log:
-            x = torch.log(x + 2**-24)
+            x = torch.log(torch.clamp(x, min=1e-5))
 
         # frame splicing if required
         if self.frame_splicing > 1:
@@ -315,19 +321,20 @@ class FilterbankFeatures(nn.Module):
         mask = torch.arange(max_len).to(x.device)
         mask = mask.expand(x.size(0), max_len) >= seq_len.unsqueeze(1)
         x = x.masked_fill(
-            mask.unsqueeze(1).type(torch.bool).to(device=x.device), 0
-        )
+            mask.unsqueeze(1).type(torch.bool).to(device=x.device),
+            self.pad_value)
         del mask
         pad_to = self.pad_to
         if not self.training:
             pad_to = 16
         if pad_to == "max":
-            x = nn.functional.pad(x, (0, self.max_length - x.size(-1)))
+            x = nn.functional.pad(x, (0, self.max_length - x.size(-1)),
+                                  value=self.pad_value)
         elif pad_to > 0:
             pad_amt = x.size(-1) % pad_to
             if pad_amt != 0:
-                x = nn.functional.pad(x, (0, pad_to - pad_amt))
-
+                x = nn.functional.pad(x, (0, pad_to - pad_amt),
+                                      value=self.pad_value)
         return x
 
     @classmethod
