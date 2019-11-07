@@ -249,6 +249,7 @@ class AudioPreprocessing(TrainableNM):
             pad_to=16,
             frame_splicing=1,
             stft_conv=False,
+            pad_value=0,
             **kwargs
     ):
         if "fbank" not in feat_type:
@@ -272,7 +273,8 @@ class AudioPreprocessing(TrainableNM):
             pad_to=pad_to,
             frame_splicing=frame_splicing,
             stft_conv=stft_conv,
-            logger=self._logger
+            logger=self._logger,
+            pad_value=pad_value
         )
         # _pre_procesing_config = self.local_parameters
         # self.featurizer = FeatureFactory.from_config(_pre_procesing_config)
@@ -287,12 +289,17 @@ class AudioPreprocessing(TrainableNM):
                 if input_signal.dim() == 2:
                     processed_signal = self.featurizer(
                         input_signal.to(torch.float), length)
-                    processed_length = self.featurizer.get_seq_len(length)
+                    processed_length = self.featurizer.get_seq_len(
+                        length.float())
         else:
             if input_signal.dim() == 2:
                 processed_signal = self.featurizer(input_signal, length)
-                processed_length = self.featurizer.get_seq_len(length)
+                processed_length = self.featurizer.get_seq_len(length.float())
         return processed_signal, processed_length
+
+    @property
+    def filter_banks(self):
+        return self.featurizer.filter_banks
 
 
 class SpectrogramAugmentation(NonTrainableNM):

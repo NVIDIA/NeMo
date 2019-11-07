@@ -1,0 +1,37 @@
+model: "waveglow"
+sample_rate: &sr 22050
+n_fft: &n_fft 1024
+
+AudioDataLayer:
+    normalize_transcripts: false
+    sample_rate: *sr
+    train:
+        n_segments: 16000
+        shuffle: true
+    eval:
+        shuffle: false
+
+AudioPreprocessing:
+    normalize: null
+    # window_size: 0.02
+    # window_stride: 0.01
+    window: "hann"
+    features: &n_mels 80
+    n_fft: *n_fft
+    frame_splicing: 1
+    dither: 0.
+    feat_type: "logfbank"
+    stft_conv: true
+    sample_rate: *sr
+    highfreq: 8000
+    preemph: null
+
+WaveGlowNM:
+    n_mel_channels: *n_mels
+    n_flows: 12
+    n_group: 8
+    n_early_every: 4
+    n_early_size: 2
+    n_wn_layers: 8
+    n_wn_channels: 512
+    wn_kernel_size: 3

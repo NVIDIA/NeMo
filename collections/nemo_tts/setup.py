@@ -4,11 +4,11 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="nemo_toolkit",
-    version="0.8.1",
+    name="nemo_tts",
+    version="0.8",
     author="NVIDIA",
     author_email="nemo-toolkit@nvidia.com",
-    description="NEMO core package. Necessary for all collections.",
+    description="Collection of Neural Modules for Speech Recognition",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/nvidia/nemo",
@@ -19,11 +19,12 @@ setuptools.setup(
         "License :: OSI Approved :: Apache Software License"
     ],
     install_requires=[
-        'torch',
-        'torchvision',
-        'tensorboardX',
-        'pandas',
-        'wget'
+        'nemo_toolkit',
+        'nemo_asr',
+        'librosa',
+        'inflect',
+        'torch-stft',
+        'soundfile',
+        'ruamel.yaml'
     ]
 )
-
