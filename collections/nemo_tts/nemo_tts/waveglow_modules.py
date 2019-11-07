@@ -14,9 +14,10 @@ class WaveGlowNM(TrainableNM):
     @staticmethod
     def create_ports():
         input_ports = {
-            "mel_spectrogram": NeuralType({0: AxisType(BatchTag),
-                                           1: AxisType(MelSpectrogramSignalTag),
-                                           2: AxisType(TimeTag)}),
+            "mel_spectrogram": NeuralType(
+                {0: AxisType(BatchTag),
+                 1: AxisType(MelSpectrogramSignalTag),
+                 2: AxisType(TimeTag)}),
             "audio": NeuralType({0: AxisType(BatchTag),
                                  1: AxisType(TimeTag)})
         }
@@ -72,9 +73,10 @@ class WaveGlowInferNM(WaveGlowNM):
     @staticmethod
     def create_ports():
         input_ports = {
-            "mel_spectrogram": NeuralType({0: AxisType(BatchTag),
-                                           1: AxisType(MelSpectrogramSignalTag),
-                                           2: AxisType(TimeTag)})
+            "mel_spectrogram": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(MelSpectrogramSignalTag),
+                2: AxisType(TimeTag)})
         }
 
         output_ports = {
