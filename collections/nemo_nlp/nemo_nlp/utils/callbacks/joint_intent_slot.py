@@ -32,10 +32,15 @@ def eval_iter_callback(tensors,
         global_vars["all_slot_preds"] = []
     if "all_slot_labels" not in global_vars.keys():
         global_vars["all_slot_labels"] = []
+    if "all_token_masks" not in global_vars.keys():
+        global_vars["all_token_masks"] = []
+    if "all_real_token" not in global_vars.keys():
+        global_vars["all_real_token"] = []
 
     intent_logits_lists, intent_labels_lists = [], []
     slot_logits_lists, slot_labels_lists = [], []
-
+    token_masks_lists = []
+    real_token_lists = []
     for kv, v in tensors.items():
         if kv.startswith('intent_logits'):
             for v_tensor in v:
@@ -57,12 +62,24 @@ def eval_iter_callback(tensors,
                 for label_tensor in v_tensor:
                     slot_labels_lists.extend(tensor2list(label_tensor))
 
+        if kv.startswith('token_mask'):
+            for v_tensor in v:
+                for token_masks_tensor in v_tensor:
+                    token_masks_lists.extend(tensor2list(token_masks_tensor))
+
+        if kv.startswith('real_token'):
+            for v_tensor in v:
+                for real_token_tensor in v_tensor:
+                    real_token_lists.extend(tensor2list(real_token_tensor))
+
     intent_preds = list(np.argmax(np.asarray(intent_logits_lists), 1))
     slot_preds = list(np.argmax(np.asarray(slot_logits_lists), 2).flatten())
     global_vars["all_intent_preds"].extend(intent_preds)
     global_vars["all_intent_labels"].extend(intent_labels_lists)
     global_vars["all_slot_preds"].extend(slot_preds)
     global_vars["all_slot_labels"].extend(slot_labels_lists)
+    global_vars["all_token_masks"].extend(token_masks_lists)
+    global_vars["all_real_token"].extend(real_token_lists)
 
 
 def list2str(l):
@@ -72,14 +89,14 @@ def list2str(l):
 def eval_epochs_done_callback(global_vars, graph_fold):
     intent_labels = np.asarray(global_vars['all_intent_labels'])
     intent_preds = np.asarray(global_vars['all_intent_preds'])
-    correct_preds = sum(intent_labels == intent_preds)
-    intent_accuracy = correct_preds / intent_labels.shape[0]
-    logger.info(f'Intent accuracy: {intent_accuracy}')
 
     slot_labels = np.asarray(global_vars['all_slot_labels'])
     slot_preds = np.asarray(global_vars['all_slot_preds'])
-    slot_accuracy = sum(slot_labels == slot_preds) / slot_labels.shape[0]
-    logger.info(f'Slot accuracy: {slot_accuracy}')
+    #slot_masks = np.asarray(global_vars['all_token_masks'])
+    real_token = np.asarray(global_vars['all_real_token'])
+
+    slot_labels = slot_labels[real_token]
+    slot_preds = slot_preds[real_token]
 
     i = 0
     if intent_preds.shape[0] > 21:
@@ -99,7 +116,16 @@ def eval_epochs_done_callback(global_vars, graph_fold):
     os.makedirs(graph_fold, exist_ok=True)
     plt.savefig(os.path.join(graph_fold, time.strftime('%Y%m%d-%H%M%S')))
 
+    logger.info('Intent prediction results')
+    correct_preds = sum(intent_labels == intent_preds)
+    intent_accuracy = correct_preds / intent_labels.shape[0]
+    logger.info(f'Intent accuracy: {intent_accuracy}')
     logger.info(classification_report(intent_labels, intent_preds))
+
+    logger.info('Slot prediction results')
+    slot_accuracy = sum(slot_labels == slot_preds) / slot_labels.shape[0]
+    logger.info(f'Slot accuracy: {slot_accuracy}')
+    logger.info(classification_report(slot_labels, slot_preds))
 
     return dict({'intent_accuracy': intent_accuracy,
                  'slot_accuracy': slot_accuracy})
