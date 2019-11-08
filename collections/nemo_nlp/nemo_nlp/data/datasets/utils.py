@@ -326,7 +326,8 @@ def generate_BIO(slot_tags_list, token_str, start_i, end_i):
     return "O"
 
 
-def process_triple_datasets(infold, uncased, dataset_name, modes=['train', 'test', 'eval'], dev_split=0):
+def process_triple_datasets(infold, uncased, dataset_name,
+                            modes=['train', 'test', 'eval'], dev_split=0):
     """ process and import triple datasets into NeMo's format
     """
 
@@ -371,7 +372,8 @@ def process_triple_datasets(infold, uncased, dataset_name, modes=['train', 'test
                 intents_list[intent_str] = len(intents_list)
                 outfiles['dict_intents'].write(f'{intent_str}\n')
 
-            outfiles[mode].write(f'{sentence[4:-4]}\t{str(intents_list[intent_str])}\n')
+            outfiles[mode].write(f'{sentence[4:-4]}\t'
+                                 f'{str(intents_list[intent_str])}\n')
 
             if str.count(slot_tags_str, ":") > 0:
                 slot_tags = slot_tags_str.strip().split(",")
@@ -380,7 +382,9 @@ def process_triple_datasets(infold, uncased, dataset_name, modes=['train', 'test
                     if len(st.strip()) == 0:
                         continue
                     [start_i, end_i, slot_name] = st.strip().split(":")
-                    slot_tags_list.append([int(start_i), int(end_i), slot_name])
+                    slot_tags_list.append([int(start_i),
+                                           int(end_i),
+                                           slot_name])
                     if slot_name not in slots_list:
                         slots_list[slot_name] = len(slots_list)
                         slots_list_all[f'B-{slot_name}'] = len(slots_list_all)
@@ -397,7 +401,10 @@ def process_triple_datasets(infold, uncased, dataset_name, modes=['train', 'test
             for sp_i, (start_i, end_i) in enumerate(spans):
                 if sp_i == 0 or sp_i == len(spans) - 1:
                     continue
-                BIO_tag = generate_BIO(slot_tags_list, sentence[start_i: end_i], start_i, end_i)
+                BIO_tag = generate_BIO(slot_tags_list,
+                                       sentence[start_i: end_i],
+                                       start_i,
+                                       end_i)
                 slots.append(str(slots_list_all[BIO_tag]))
             slot = ' '.join(slots)
             outfiles[mode + '_slots'].write(slot + '\n')
@@ -706,7 +713,9 @@ class JointIntentSlotDataDesc:
             elif dataset_name.endswith('all'):
                 self.data_dir = f'{self.data_dir}/all'
         elif dataset_name in ['flatCar', 'flatPOI', 'weather']:
-            self.data_dir = process_triple_datasets(data_dir, do_lower_case, dataset_name)
+            self.data_dir = process_triple_datasets(data_dir,
+                                                    do_lower_case,
+                                                    dataset_name)
         else:
             if not if_exist(data_dir, ['dict.intents.csv', 'dict.slots.csv']):
                 raise FileNotFoundError(
@@ -755,7 +764,9 @@ class SentenceClassificationDataDesc:
                                         dataset_name=dataset_name)
             self.eval_file = self.data_dir + '/test.tsv'
         elif dataset_name == 'nvidia-car':
-            self.data_dir, labels = process_nvidia_car(data_dir, do_lower_case, ['train', 'eval'])
+            self.data_dir, labels = process_nvidia_car(data_dir,
+                                                       do_lower_case,
+                                                       ['train', 'eval'])
             for intent in labels:
                 idx = labels[intent]
                 logger.info(f'{intent}: {idx}')
