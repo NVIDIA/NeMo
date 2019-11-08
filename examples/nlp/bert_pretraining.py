@@ -33,6 +33,7 @@ parser.add_argument("--vocab_size", default=3200, type=int)
 parser.add_argument("--sample_size", default=1e7, type=int)
 parser.add_argument("--max_seq_length", default=128, type=int)
 parser.add_argument("--mask_probability", default=0.15, type=float)
+parser.add_argument("--short_seq_prob", default=0.1, type=float)
 parser.add_argument("--d_model", default=768, type=int)
 parser.add_argument("--d_inner", default=3072, type=int)
 parser.add_argument("--num_layers", default=12, type=int)
@@ -96,11 +97,13 @@ mlm_classifier.mlp.last_linear_layer.weight = \
     bert_model.bert.embeddings.word_embeddings.weight
 
 
-def create_pipeline(data_file, max_seq_length, mask_probability, batch_size):
+def create_pipeline(data_file, max_seq_length, mask_probability,
+                    short_seq_prob, batch_size):
     data_layer = nemo_nlp.BertPretrainingDataLayer(tokenizer,
                                                    data_file,
                                                    max_seq_length,
                                                    mask_probability,
+                                                   short_seq_prob,
                                                    batch_size=batch_size)
     steps_per_epoch = len(data_layer) // (batch_size * args.num_gpus)
 
@@ -123,10 +126,12 @@ def create_pipeline(data_file, max_seq_length, mask_probability, batch_size):
 train_loss, _, steps_per_epoch = create_pipeline(data_desc.train_file,
                                                  args.max_seq_length,
                                                  args.mask_probability,
+                                                 args.short_seq_prob,
                                                  args.batch_size)
 eval_loss, eval_tensors, _ = create_pipeline(data_desc.eval_file,
                                              args.max_seq_length,
                                              args.mask_probability,
+                                             args.short_seq_prob,
                                              args.eval_batch_size)
 
 # callback which prints training loss and perplexity once in a while

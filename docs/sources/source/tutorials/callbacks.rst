@@ -55,17 +55,16 @@ tb_writer should also be defined.
     def my_get_tb_values(tensors):
         return [("Train_Loss", tensors[0])]
 
-log_to_tb_func() takes two arguments: the
+log_to_tb_func() takes three arguments: the
 `tensorboardX.SummaryWriter <https://tensorboardx.readthedocs.io/en/latest/tensorboard.html>`_
-and a list
-of evaluated tensors. The user can then use the SummaryWriter class to add
-images, audio, and more. For example:
+, a list of evaluated tensors, and the current step. The user can then use the
+SummaryWriter class to add images, audio, and more. For example:
 
 .. code-block:: python
 
-    def log_to_tb_func(swriter, tensors):
-        swriter.add_scalar("Train_Loss", tensors[0])
-        swriter.add_audio("Train_Sample", tensors[1][0])
+    def log_to_tb_func(swriter, tensors, step):
+        swriter.add_scalar("Train_Loss", tensors[0], step)
+        swriter.add_audio("Train_Sample", tensors[1][0], step)
 
 SimpleLossLoggerCallback can be constructed as follows:
 
@@ -133,9 +132,21 @@ tensors from values_dict to global_var_dict as global_var_dict is saved
 between batches and passed to the final user_epochs_done_callback function.
 
 user_epochs_done_callback is a function that accepts global_var_dict. It's job
-is to log relevant information to the screen such as the evaluation loss. It
+is to log relevant information to the screen such as the evaluation loss.
+
+For simple logging of scalar values to tensorboard, user_epochs_done_callback
 should return a dictionary with strings as keys and scalar tensors as values.
 This tag -> value dictionary will be parsed and each element will be logged
 to tensorboard if a tensorboard writter object is declared.
+
+To enable more complex tensorboard logging such as images or audio,
+EvaluatorCallback must be passed tb_writer_func at initialization. This
+function must accept a
+`tensorboardX.SummaryWriter <https://tensorboardx.readthedocs.io/en/latest/tensorboard.html>`_
+, whatever is returned from user_epochs_done_callback, and the current step.
+We recommend for user_epochs_done_callback to simply return the global_var_dict
+for tb_writer_func to consume. The user must log all data of interest inside
+tb_writer_func including scalars that would otherwise be logged if
+tb_writer_func was not passed to EvaluatorCallback.
 
 For an example, please see the scripts inside <nemo_dir>/examples.

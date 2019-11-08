@@ -47,8 +47,7 @@ class SpecAugment(nn.Module):
 
                 w = int(self._rng.uniform(0, self.freq_width))
 
-                mask[idx, x_left:x_left +
-                     w, :] = 1
+                mask[idx, x_left:x_left + w, :] = 1
 
             for i in range(self.time_masks):
                 y_left = int(self._rng.uniform(
