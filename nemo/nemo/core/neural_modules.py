@@ -10,6 +10,7 @@ from inspect import getargvalues, stack
 import logging
 from typing import Optional, Dict, Set, Tuple, List
 import uuid
+import torch as t
 
 from nemo.core import NeuralModuleFactory
 
@@ -246,6 +247,7 @@ class NeuralModule(ABC):
         """
         return None
 
+    @t.jit.ignore(drop=True)
     def get_config_dict_and_checkpoint(self, pretrained_model_name):
         """WARNING: This part is work in progress"""
         return None
@@ -289,6 +291,7 @@ class NeuralModule(ABC):
         """
         pass
 
+    @t.jit.ignore(drop=True)
     def is_trainable(self) -> bool:
         """
         Checks if NeuralModule is trainable.
