@@ -579,8 +579,13 @@ class NeuralModuleFactory(object):
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
         """
-        raise NotImplemented("Deployment export is not implemented for this"
-                             "neural module.")
+        return self._trainer.deployment_export(
+            modules=modules,
+            output=output,
+            d_format=d_format,
+            input_example=input_example,
+            output_example=output_example
+        )
 
     def infer(self,
               tensors: List[NmTensor],

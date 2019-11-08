@@ -4,6 +4,7 @@ import itertools
 import logging
 import os
 from typing import List, Optional
+from pathlib import Path
 
 import torch
 import torch.distributed as dist
@@ -15,7 +16,7 @@ from nemo.backends.pytorch.nm import TrainableNM
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
 from .optimizers import Novograd, AdamW, Lamb
-from ...core import NmTensor, DeviceType, NeuralModule
+from ...core import NmTensor, DeviceType, NeuralModule, DeploymentFormat
 from ...core.callbacks import (ActionCallback,
                                EvaluatorCallback,
                                SimpleLossLoggerCallback)
@@ -996,6 +997,75 @@ class PtActions(Actions):
                             hook=callback.eval_tensors)
                     for module in callchain:
                         self.modules.add(module[0])
+
+    @staticmethod
+    def deployment_export(modules,
+                          output: str,
+                          d_format: DeploymentFormat,
+                          input_example=None,
+                          output_example=None):
+        """Exports Neural Module instance for deployment.
+
+        Args:
+            modules (list of NeuralModule): modules to export
+            output (str): where export results should be saved
+            d_format (DeploymentFormat): which deployment format to use
+            input_example: sometimes tracing will require input examples
+            output_example: Should match inference on input_example
+        """
+        if not isinstance(modules, List):
+            raise ValueError(f"modules argument should be a list of modules")
+        if len(modules) > 1:
+            raise NotImplemented(f"currently we can export only one module at "
+                                 f"a time")
+        # Check if output already exists
+        destination = Path(output)
+        if destination.exists():
+            raise FileExistsError(f"Destination {output} already exists. "
+                                  f"Aborting export.")
+
+        # Case of exporting a single module
+        module = modules[0]
+        # Remove NeMo-related things from the module
+        # We need to change __call__ method. Note that this will change the
+        # whole class, not just this object!
+
+        def new_call(self, *input, **kwargs):
+            return torch.nn.Module.__call__(self, *input, **kwargs)
+
+        __old_call = type(module).__call__
+        type(module).__call__ = new_call
+        module._logger = None
+        module._placement = None
+        module._factory = None
+        # trainable_module._input_ports = None
+        # trainable_module._output_ports = None
+        module._device = None
+        module._local_parameters = None
+
+        if d_format == DeploymentFormat.TORCHSCRIPT:
+            try:
+                # Route 1 - via torch.jit.script
+                traced_m = torch.jit.script(module)
+                traced_m.save(output)
+            except:
+                # Route 2 - via tracing
+                if input_example is not None:
+                    traced_m = torch.jit.trace(module, input_example)
+                    traced_m.save(output)
+                else:
+                    raise ValueError(f'Example input is None, but tracing was'
+                                     f' attempted')
+        elif d_format == DeploymentFormat.ONNX:
+            if input_example is None:
+                raise ValueError(f'Example input is None, but ONNX tracing was'
+                                 f' attempted')
+
+            torch.onnx.export(module, input_example, output)
+        else:
+            raise NotImplemented(f"Not supported deployment format: {d_format}")
+
+        type(module).__call__ = __old_call
 
     def train(self,
               tensors_to_optimize,
