@@ -121,7 +121,6 @@ class Tacotron2Decoder(TrainableNM):
             attention_location_kernel_size,
             **kwargs):
         super().__init__(**kwargs)
-        self.collection = collection
         self.decoder = Decoder(
             n_mel_channels=n_mel_channels,
             n_frames_per_step=n_frames_per_step,
