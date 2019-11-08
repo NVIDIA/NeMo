@@ -167,8 +167,8 @@ class ManifestEN(ManifestBase):
         return text
 
     @staticmethod
-    def english_string_normalization(s, labels, table, punctuation_to_replace,
-                                     clean_fn):
+    def english_string_normalization(
+            s, labels, table, punctuation_to_replace, clean_fn):
         """
         Normalizes string. For example:
         'call me at 8:00 pm!' -> 'call me at eight zero pm'

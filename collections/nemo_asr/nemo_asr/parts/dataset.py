@@ -3,9 +3,12 @@
 # TODO: review, and copyright and fix/add comments
 import os
 import pandas as pd
+import string
 import torch
+import torchaudio
 from torch.utils.data import Dataset
 
+from .cleaners import clean_text
 from .manifest import ManifestEN
 
 
@@ -85,6 +88,34 @@ def audio_seq_collate_fn(batch):
 
 
 class AudioDataset(Dataset):
+    """
+    Dataset that loads tensors via a json file containing paths to audio
+    files, transcripts, and durations (in seconds). Each new line is a
+    different sample. Example below:
+
+    {"audio_filepath": "/path/to/audio.wav", "text_filepath":
+    "/path/to/audio.txt", "duration": 23.147}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "text": "the
+    transcription", offset": 301.75, "duration": 0.82, "utt":
+    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
+    Args:
+        manifest_filepath: Path to manifest json as described above. Can
+            be comma-separated paths.
+        labels: String containing all the possible characters to map to
+        featurizer: Initialized featurizer class that converts paths of
+            audio to feature tensors
+        max_duration: If audio exceeds this length, do not include in dataset
+        min_duration: If audio is less than this length, do not include
+            in dataset
+        max_utts: Limit number of utterances
+        blank_index: blank character index, default = -1
+        unk_index: unk_character index, default = -1
+        normalize: whether to normalize transcript text (default): True
+        eos_id: Id of end of sequence symbol to append if not None
+        load_audio: Boolean flag indicate whether do or not load audio
+    """
     def __init__(
             self,
             manifest_filepath,
@@ -101,35 +132,6 @@ class AudioDataset(Dataset):
             logger=False,
             load_audio=True,
             manifest_class=ManifestEN):
-        """
-        Dataset that loads tensors via a json file containing paths to audio
-        files, transcripts, and durations (in seconds). Each new line is a
-        different sample. Example below:
-
-        {"audio_filepath": "/path/to/audio.wav", "text_filepath":
-        "/path/to/audio.txt", "duration": 23.147}
-        ...
-        {"audio_filepath": "/path/to/audio.wav", "text": "the
-        transcription", offset": 301.75, "duration": 0.82, "utt":
-        "utterance_id", "ctm_utt": "en_4156", "side": "A"}
-
-        Args:
-            manifest_filepath: Path to manifest json as described above. Can
-                be comma-separated paths.
-            labels: String containing all the possible characters to map to
-            featurizer: Initialized featurizer class that converts paths of
-                audio to feature tensors
-            max_duration: If audio exceeds this length, do not include in
-                dataset
-            min_duration: If audio is less than this length, do not include
-                in dataset
-            max_utts: Limit number of utterances
-            blank_index: blank character index, default = -1
-            unk_index: unk_character index, default = -1
-            normalize: whether to normalize transcript text (default): True
-            eos_id: Id of end of sequence symbol to append if not None
-            load_audio: Boolean flag indicate whether do or not load audio
-        """
         m_paths = manifest_filepath.split(',')
         self.manifest = manifest_class(m_paths, labels,
                                        max_duration=max_duration,
@@ -174,6 +176,173 @@ class AudioDataset(Dataset):
 
     def __len__(self):
         return len(self.manifest)
+
+
+class KaldiDataset(Dataset):
+    """
+    Basic Kaldi dataset loading.
+    """
+    def __init__(
+            self,
+            kaldi_dir,
+            labels,
+            min_duration=None,
+            max_duration=None,
+            max_utts=0,
+            unk_index=-1,
+            blank_index=-1,
+            normalize=True,
+            eos_id=None,
+            logger=None):
+        self.eos_id = eos_id
+        self.unk_index = unk_index
+        self.blank_index = blank_index
+        self.labels_map = {label: i for i, label in enumerate(labels)}
+
+        data = []
+        duration = 0.0
+        filtered_duration = 0.0
+
+        # Read MFCC features using feats.scp
+        feats_path = os.path.join(kaldi_dir, 'feats.scp')
+        id2feats = {
+            utt_id: mfcc_feats for utt_id, mfcc_feats in
+            torchaudio.kaldi_io.read_mat_scp(feats_path)
+        }
+
+        # Get durations, if utt2dur exists
+        utt2dur_path = os.path.join(kaldi_dir, 'utt2dur')
+        id2dur = {}
+        if os.path.exists(utt2dur_path):
+            with open(utt2dur_path, 'r') as f:
+                for line in f:
+                    utt_id, dur = line.split()
+                    id2dur[utt_id] = float(dur)
+        elif max_duration or min_duration:
+            raise ValueError(
+                f"KaldiDataset max_duration or min_duration is set but"
+                f" utt2dur file not found in {kaldi_dir}."
+            )
+        elif logger:
+            logger.info(
+                f"Did not find utt2dur when loading data from "
+                f"{kaldi_dir}. Skipping dataset duration calculations."
+            )
+
+        # Match transcripts to features
+        text_path = os.path.join(kaldi_dir, 'text')
+        with open(text_path, 'r') as f:
+            for line in f:
+                split_idx = line.find(' ')
+                utt_id = line[:split_idx]
+
+                audio_features = id2feats.get(utt_id)
+
+                if audio_features is not None:
+
+                    text = line[split_idx:].strip()
+                    if normalize:
+                        text = self.normalize_text(text, labels)
+                    dur = id2dur[utt_id] if id2dur else None
+
+                    # Filter by duration if specified & utt2dur exists
+                    if min_duration and dur < min_duration:
+                        filtered_duration += dur
+                        continue
+                    if max_duration and dur > max_duration:
+                        filtered_duration += dur
+                        continue
+
+                    sample = {
+                        'utt_id': utt_id,
+                        'text': text,
+                        'tokens': self.tokenize_transcript(text),
+                        'audio': audio_features.t(),
+                        'duration': dur
+                    }
+
+                    data.append(sample)
+                    duration += dur
+
+                    if max_utts > 0 and len(data) >= max_utts:
+                        print(f"Stop parsing due to max_utts ({max_utts})")
+                        break
+
+        if logger and id2dur:
+            # utt2dur durations are in seconds
+            logger.info(
+                    f"Dataset loaded with {duration/60 : .2f} hours. "
+                    f"Filtered {filtered_duration/60 : .2f} hours.")
+
+        self.data = data
+
+    def normalize_text(self, text, labels):
+        """
+        Standard English text normalization.
+        Same as the normalization in ManifestEN.
+        """
+        # Punctuation to remove
+        punctuation = string.punctuation
+        punctuation_to_replace = {
+            "+": "plus",
+            "&": "and",
+            "%": "percent"
+        }
+        for char in punctuation_to_replace:
+            punctuation = punctuation.replace(char, "")
+        # We might also want to consider:
+        # @ -> at
+        # -> number, pound, hashtag
+        # ~ -> tilde
+        # _ -> underscore
+
+        # If a punctuation symbol is inside our vocab, we do not remove
+        # from text
+        for l in labels:
+            punctuation = punctuation.replace(l, "")
+
+        # Turn all other punctuation to whitespace
+        table = str.maketrans(punctuation, " " * len(punctuation))
+        norm_text = clean_text(text, table, punctuation_to_replace)
+
+        return norm_text
+
+    def tokenize_transcript(self, transcript):
+        """
+        Convert words/characters to indices.
+        Same as the tokenizer in ManifestBase.
+        """
+        # allow for special labels such as "<NOISE>"
+        special_labels = set([l for l in self.labels_map.keys() if len(l) > 1])
+        tokens = []
+        # split by word to find special tokens
+        for i, word in enumerate(transcript.split(" ")):
+            if i > 0:
+                tokens.append(self.labels_map.get(" ", self.unk_index))
+            if word in special_labels:
+                tokens.append(self.labels_map.get(word))
+                continue
+            # split by character to get the rest of the tokens
+            for char in word:
+                tokens.append(self.labels_map.get(char, self.unk_index))
+        # if unk_index == blank_index, OOV tokens are removed from transcript
+        tokens = [x for x in tokens if x != self.blank_index]
+        return tokens
+
+    def __getitem__(self, index):
+        sample = self.data[index]
+        f = sample['audio']
+        fl = torch.tensor(f.shape[1]).long()
+        t, tl = sample['tokens'], len(sample['tokens'])
+
+        if self.eos_id is not None:
+            t.append(self.eos_id)
+            tl += 1
+
+        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+
+    def __len__(self):
+        return len(self.data)
 
 
 class TranscriptDataset(Dataset):
