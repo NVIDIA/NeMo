@@ -181,6 +181,10 @@ class AudioPreprocessing(TrainableNM):
             Defaults to 0.02
         window_stride (float): Stride of window for fft in seconds
             Defaults to 0.01
+        n_window_size (int): Size of window for fft in samples
+            Defaults to None. Use one of window_size or n_window_size.
+        n_window_stride (int): Stride of window for fft in samples
+            Defaults to None. Use one of window_stride or n_window_stride.
         window (str): Windowing function for fft. can be one of ['hann',
             'hamming', 'blackman', 'bartlett']
             Defaults to "hann"
@@ -237,6 +241,8 @@ class AudioPreprocessing(TrainableNM):
             sample_rate=16000,
             window_size=0.02,
             window_stride=0.01,
+            n_window_size=None,
+            n_window_stride=None,
             window="hann",
             normalize="per_feature",
             n_fft=None,
@@ -256,12 +262,23 @@ class AudioPreprocessing(TrainableNM):
             raise NotImplementedError("AudioPreprocessing currently only "
                                       "accepts 'fbank' or 'logfbank' as "
                                       "feat_type")
+        if window_size and n_window_size:
+            raise ValueError(f"{self} received both window_size and "
+                             f"n_window_size. Only one should be specified.")
+        if window_stride and n_window_stride:
+            raise ValueError(f"{self} received both window_stride and "
+                             f"n_window_stride. Only one should be specified.")
         TrainableNM.__init__(self, **kwargs)
+
+        if window_size:
+            n_window_size = int(window_size * sample_rate)
+        if window_stride:
+            n_window_stride = int(window_stride * sample_rate)
 
         self.featurizer = FilterbankFeatures(
             sample_rate=sample_rate,
-            window_size=window_size,
-            window_stride=window_stride,
+            n_window_size=n_window_size,
+            n_window_stride=n_window_stride,
             window=window,
             normalize=normalize,
             n_fft=n_fft,
@@ -276,8 +293,6 @@ class AudioPreprocessing(TrainableNM):
             logger=self._logger,
             pad_value=pad_value
         )
-        # _pre_procesing_config = self.local_parameters
-        # self.featurizer = FeatureFactory.from_config(_pre_procesing_config)
         self.featurizer.to(self._device)
 
         self.disable_casts = (self._opt_level == Optimization.mxprO1)

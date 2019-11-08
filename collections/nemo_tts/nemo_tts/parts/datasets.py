@@ -1,3 +1,4 @@
+# Copyright (c) 2019 NVIDIA Corporation
 import torch
 from torch.utils.data import Dataset
 
@@ -14,7 +15,7 @@ class AudioOnlyDataset(Dataset):
                  max_utts=0,
                  trim=False,
                  logger=False):
-        """
+        """TODO:fix docstring
         Dataset that loads tensors via a json file containing paths to audio
         files, transcripts, and durations
         (in seconds). Each new line is a different sample. Example below:
@@ -51,10 +52,9 @@ class AudioOnlyDataset(Dataset):
         self.n_segments = n_segments
         if logger:
             logger.info(
-                "Dataset loaded with {0:.2f} hours. Filtered {1:.2f} "
-                "hours.".format(
-                    self.manifest.duration / 3600,
-                    self.manifest.filtered_duration / 3600))
+                f"Dataset loaded with {self.manifest.duration / 3600:.2f} "
+                f"hours. Filtered {self.manifest.filtered_duration / 3600:.2f}"
+                f" hours.")
 
     def AudioCollateFunc(self, batch):
         def find_max_len(seq, index):
@@ -73,8 +73,8 @@ class AudioOnlyDataset(Dataset):
             else:
                 max_audio_len = find_max_len(batch, 0)
 
-            audio_signal = torch.zeros(batch_size, max_audio_len,
-                                       dtype=torch.float)
+            audio_signal = torch.zeros(
+                batch_size, max_audio_len, dtype=torch.float)
             audio_lengths = []
             for i, s in enumerate(batch):
                 audio_signal[i].narrow(0, 0, s[0].size(0)).copy_(s[0])
@@ -85,8 +85,6 @@ class AudioOnlyDataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.manifest[index]
-        duration = sample['duration'] if 'duration' in sample else 0
-        offset = sample['offset'] if 'offset' in sample else 0
         features = AudioSegment.segment_from_file(
             sample['audio_filepath'],
             n_segments=self.n_segments,

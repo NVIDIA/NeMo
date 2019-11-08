@@ -5,7 +5,7 @@ import torch
 
 from nemo.backends.pytorch.nm import TrainableNM, LossNM
 from nemo.core.neural_types import *
-from .parts.waveglow_d import WaveGlow
+from .parts.waveglow import WaveGlow
 
 
 class WaveGlowNM(TrainableNM):

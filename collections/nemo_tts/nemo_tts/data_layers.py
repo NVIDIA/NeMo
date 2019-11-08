@@ -1,18 +1,20 @@
+# Copyright (c) 2019 NVIDIA Corporation
 import torch
 try:
     from apex import amp
 except AttributeError:
     print("Unable to import APEX. Mixed precision and distributed training "
           "will not work.")
-from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM, NonTrainableNM
-from nemo.core import Optimization, DeviceType
+
+from nemo.backends.pytorch.nm import DataLayerNM
+from nemo.core import DeviceType
 from nemo.core.neural_types import *
-from nemo_asr.parts.features import FilterbankFeatures, WaveformFeaturizer
 from .parts.datasets import AudioOnlyDataset
 
 
 class AudioDataLayer(DataLayerNM):
-    """Data Layer for general ASR tasks.
+    """TODO:Fix docstring
+    Data Layer for general ASR tasks.
 
     Module which reads ASR labeled data. It accepts comma-separated
     JSON manifest files describing the correspondence between wav audio files
@@ -80,7 +82,6 @@ transcript_n}
             self, *,
             manifest_filepath,
             batch_size,
-            sample_rate=16000,
             min_duration=0.1,
             max_duration=None,
             trim_silence=False,
@@ -88,7 +89,6 @@ transcript_n}
             shuffle=True,
             num_workers=0,
             n_segments=0,
-            # perturb_config=None,
             **kwargs
     ):
         DataLayerNM.__init__(self, **kwargs)
@@ -102,12 +102,11 @@ transcript_n}
             n_segments=n_segments
         )
 
+        sampler = None
         if self._placement == DeviceType.AllGpu:
             self._logger.info('Parallelizing DATALAYER')
             sampler = torch.utils.data.distributed.DistributedSampler(
                 self._dataset)
-        else:
-            sampler = None
 
         self._dataloader = torch.utils.data.DataLoader(
             dataset=self._dataset,

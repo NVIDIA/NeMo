@@ -7,13 +7,8 @@ from torch.nn.functional import pad
 
 from nemo.backends.pytorch.nm import TrainableNM, NonTrainableNM, LossNM
 from nemo.core.neural_types import *
-from .parts.tacotron2_r import (Encoder as Encoder_r,
-                                Decoder as Decoder_r,
-                                Postnet as Postnet_r,
-                                get_mask_from_lengths)
-from .parts.tacotron2_d import (Encoder as Encoder_d,
-                                Decoder as Decoder_d,
-                                Postnet as Postnet_d)
+from .parts.tacotron2 import Encoder, Decoder, Postnet
+from .parts.layers import get_mask_from_lengths
 
 
 class TextEmbedding(TrainableNM):
@@ -68,15 +63,8 @@ class Tacotron2Encoder(TrainableNM):
             encoder_n_convolutions,
             encoder_embedding_dim,
             encoder_kernel_size,
-            collection="d",
             **kwargs):
         super().__init__(**kwargs)
-        if collection == "r":
-            Encoder = Encoder_r
-        elif collection == "d":
-            Encoder = Encoder_d
-        else:
-            raise ValueError("Encoder")
         self.encoder = Encoder(encoder_n_convolutions=encoder_n_convolutions,
                                encoder_embedding_dim=encoder_embedding_dim,
                                encoder_kernel_size=encoder_kernel_size)
@@ -131,16 +119,9 @@ class Tacotron2Decoder(TrainableNM):
             attention_dim,
             attention_location_n_filters,
             attention_location_kernel_size,
-            collection="d",
             **kwargs):
         super().__init__(**kwargs)
         self.collection = collection
-        if collection == "r":
-            Decoder = Decoder_r
-        elif collection == "d":
-            Decoder = partial(Decoder_d, early_stopping=True)
-        else:
-            raise ValueError("Decoder")
         self.decoder = Decoder(
             n_mel_channels=n_mel_channels,
             n_frames_per_step=n_frames_per_step,
@@ -162,12 +143,8 @@ class Tacotron2Decoder(TrainableNM):
             mel_output, gate_output, alignments = self.decoder(
                 char_phone_encoded, mel_target, memory_lengths=encoded_length)
         else:
-            if self.collection == "r":
-                mel_output, gate_output, alignments = self.decoder.inference(
-                    char_phone_encoded)
-            else:
-                mel_output, gate_output, alignments, _ = self.decoder.infer(
-                    char_phone_encoded, memory_lengths=encoded_length)
+            mel_output, gate_output, alignments, _ = self.decoder.infer(
+                char_phone_encoded, memory_lengths=encoded_length)
         return mel_output, gate_output, alignments
 
 
@@ -218,7 +195,6 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
             attention_dim,
             attention_location_n_filters,
             attention_location_kernel_size,
-            collection="d",
             **kwargs):
         super().__init__(
             n_mel_channels,
@@ -234,7 +210,6 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
             attention_dim,
             attention_location_n_filters,
             attention_location_kernel_size,
-            collection=collection,
             **kwargs)
 
     def forward(self, char_phone_encoded, encoded_length, mel_target):
@@ -271,15 +246,8 @@ class Tacotron2Postnet(TrainableNM):
             postnet_embedding_dim,
             postnet_kernel_size,
             postnet_n_convolutions,
-            collection="d",
             **kwargs):
         super().__init__(**kwargs)
-        if collection == "r":
-            Postnet = Postnet_r
-        elif collection == "d":
-            Postnet = Postnet_d
-        else:
-            raise ValueError("Decoder")
         self.postnet = Postnet(n_mel_channels=n_mel_channels,
                                postnet_embedding_dim=postnet_embedding_dim,
                                postnet_kernel_size=postnet_kernel_size,

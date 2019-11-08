@@ -191,23 +191,40 @@ class SpectrogramFeatures(nn.Module):
 
 
 class FilterbankFeatures(nn.Module):
-    def __init__(self, sample_rate=8000, window_size=0.02, window_stride=0.01,
-                 window="hann", normalize="per_feature", n_fft=None,
+    def __init__(self,
+                 sample_rate=8000,
+                 n_window_size=320,
+                 n_window_stride=160,
+                 window="hann",
+                 normalize="per_feature",
+                 n_fft=None,
                  preemph=0.97,
-                 nfilt=64, lowfreq=0, highfreq=None, log=True, dither=CONSTANT,
-                 pad_to=16, max_duration=16.7,
-                 frame_splicing=1, stft_conv=False, logger=None,
+                 nfilt=64,
+                 lowfreq=0,
+                 highfreq=None,
+                 log=True,
+                 dither=CONSTANT,
+                 pad_to=16,
+                 max_duration=16.7,
+                 frame_splicing=1,
+                 stft_conv=False,
+                 logger=None,
                  pad_value=0):
         super(FilterbankFeatures, self).__init__()
+        if (n_window_size is None or n_window_stride is None
+                or not isinstance(n_window_size, int)
+                or not isinstance(n_window_stride, int)
+                or n_window_size <= 0 or n_window_stride <= 0):
+            raise ValueError(
+                f"{self} got an invalid value for either n_window_size or "
+                f"n_window_stride. Both must be positive ints.")
         if logger:
             logger.info(f"PADDING: {pad_to}")
         else:
             print(f"PADDING: {pad_to}")
 
-        self.win_length = int(sample_rate * window_size)
-        self.hop_length = int(sample_rate * window_stride)
-        self.win_length = 1024
-        self.hop_length = 256
+        self.win_length = n_window_size
+        self.hop_length = n_window_stride
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
         self.stft_conv = stft_conv
 
