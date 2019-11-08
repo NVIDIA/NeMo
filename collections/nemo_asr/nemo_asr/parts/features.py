@@ -208,8 +208,9 @@ class FilterbankFeatures(nn.Module):
                  max_duration=16.7,
                  frame_splicing=1,
                  stft_conv=False,
-                 logger=None,
-                 pad_value=0):
+                 pad_value=0,
+                 mag_power=2.,
+                 logger=None):
         super(FilterbankFeatures, self).__init__()
         if (n_window_size is None or n_window_stride is None
                 or not isinstance(n_window_size, int)
@@ -288,6 +289,7 @@ class FilterbankFeatures(nn.Module):
         max_pad = pad_to - (max_length % pad_to)
         self.max_length = max_length + max_pad
         self.pad_value = pad_value
+        self.mag_power = mag_power
 
     def get_seq_len(self, seq_len):
         return torch.ceil(seq_len / self.hop_length).to(dtype=torch.long)
@@ -313,7 +315,8 @@ class FilterbankFeatures(nn.Module):
         x = self.stft(x)
 
         # get power spectrum
-        # x = x.pow(2)
+        if self.mag_power != 1.:
+            x = x.pow(self.mag_power)
         if not self.stft_conv:
             x = x.sum(-1)
 
