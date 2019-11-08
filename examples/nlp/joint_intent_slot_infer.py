@@ -82,7 +82,8 @@ intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
 # Instantiate an optimizer to perform `infer` action
 evaluated_tensors = nf.infer(
-    tensors=[intent_logits, slot_logits, slot_mask, real_token, intents, slots],
+    tensors=[intent_logits, slot_logits, slot_mask,
+             real_token, intents, slots],
     checkpoint_dir=args.work_dir,
 )
 
@@ -118,6 +119,7 @@ for i, sp in enumerate(slot_preds):
 nf.logger.info('Slot prediction results')
 slot_labels_list = np.asarray(slot_labels_list)
 slot_preds_list = np.asarray(slot_preds_list)
-slot_accuracy = sum(slot_labels_list == slot_preds_list) / len(slot_labels_list)
+slot_accuracy = sum(slot_labels_list == slot_preds_list) / \
+                len(slot_labels_list)
 nf.logger.info(f'Slot accuracy: {slot_accuracy}')
 nf.logger.info(classification_report(slot_labels_list, slot_preds_list))

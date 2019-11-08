@@ -102,7 +102,6 @@ def get_features(queries,
                 all_slots[i] = [pad_label] + all_slots[i][-max_seq_length + 1:]
             too_long_count += 1
 
-        #all_input_masks.append([1] * len(subtokens))
         all_input_ids.append([tokenizer._convert_token_to_id(t)
                               for t in subtokens])
 
