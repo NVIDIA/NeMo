@@ -12,7 +12,7 @@ import nemo_asr
 import nemo_tts
 from nemo_tts import (waveglow_log_to_tb_func,
                       waveglow_process_eval_batch,
-                      waveglow_process_final_eval,
+                      # waveglow_process_final_eval,
                       waveglow_eval_log_to_tb_func)
 
 
@@ -172,10 +172,7 @@ def create_eval_dags(neural_factory,
         eval_callback = nemo.core.EvaluatorCallback(
             eval_tensors=[audio_pred, spec_target, spec_target_len],
             user_iter_callback=waveglow_process_eval_batch,
-            user_epochs_done_callback=partial(
-                waveglow_process_final_eval,
-                tag=tagname,
-                logger=neural_factory.logger),
+            user_epochs_done_callback=lambda x: x,
             tb_writer_func=partial(
                 waveglow_eval_log_to_tb_func,
                 tag=tagname,

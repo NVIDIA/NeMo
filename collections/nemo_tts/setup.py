@@ -22,9 +22,8 @@ setuptools.setup(
         'nemo_toolkit',
         'nemo_asr',
         'librosa',
-        'inflect',
-        'torch-stft',
-        'soundfile',
+        'matplotlib',
+        'scipy',
         'ruamel.yaml'
     ]
 )

@@ -1,23 +1,5 @@
-# Taken straight from Patter https://github.com/ryanleary/patter
-# TODO: review, and copyright and fix/add comments
+# Copyright (c) 2019 NVIDIA Corporation
 import json
-import string
-
-
-def IsInt(s):
-    try:
-        int(s)
-        return True
-    except ValueError:
-        return False
-
-
-def IsFloat(s):
-    try:
-        float(s)
-        return True
-    except ValueError:
-        return False
 
 
 class AudioManifest(object):

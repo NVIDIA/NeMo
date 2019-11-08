@@ -1,3 +1,4 @@
+# Copyright (c) 2019 NVIDIA Corporation
 import torch
 from torch.autograd import Variable
 import torch.nn.functional as F

@@ -39,8 +39,6 @@ def waveglow_log_to_tb_func(swriter,
 
 
 def waveglow_process_eval_batch(tensors: dict, global_vars: dict):
-    # if 'EvalLoss' not in global_vars.keys():
-    #     global_vars['EvalLoss'] = []
     if 'tensorboard' not in global_vars.keys():
         global_vars['tensorboard'] = {}
         for k, v in tensors.items():
@@ -51,20 +49,9 @@ def waveglow_process_eval_batch(tensors: dict, global_vars: dict):
             if k.startswith("processed_length"):
                 global_vars['tensorboard']['mel_length'] = v[0]
 
-    # for k in tensors.keys():
-    #     if k.startswith("loss"):
-    #         loss_key = k
-    # global_vars['EvalLoss'].append(torch.mean(torch.stack(tensors[loss_key])))
 
-
-def waveglow_process_final_eval(global_vars: dict, tag=None, logger=None):
-    # eloss = torch.mean(torch.stack(global_vars['EvalLoss'])).item()
-    # global_vars['EvalLoss'] = eloss
-    # if logger:
-    #     logger.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
-    # else:
-    #     print(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
-    return global_vars
+# def waveglow_process_final_eval(global_vars: dict, tag=None, logger=None):
+#     return global_vars
 
 
 def waveglow_eval_log_to_tb_func(
@@ -79,7 +66,6 @@ def waveglow_eval_log_to_tb_func(
     spec_target = global_vars['tensorboard']["mel_target"]
     audio_pred = global_vars['tensorboard']["audio_pred"]
     mel_length = global_vars['tensorboard']['mel_length']
-    # swriter.add_scalar(f"{tag}.loss", global_vars['EvalLoss'], step)
     waveglow_log_to_tb_func(
         swriter,
         [None, audio_pred, spec_target, mel_length],
