@@ -27,12 +27,6 @@ class WeightShareTransform(Enum):
     TRANSPOSE = 1
 
 
-class DeploymentFormat(Enum):
-    """Which format to use when exporting a Neural Module for deployment"""
-    ONNX = 0
-    TORCHSCRIPT = 1
-
-
 PretrainedModelInfo = namedtuple("PretrainedModleInfo",
                                  ("pretrained_model_name", "description",
                                   "parameters", "location"))
@@ -200,22 +194,6 @@ class NeuralModule(ABC):
 
     def __str__(self):
         return self.__class__.__name__
-
-    def deployment_export(self,
-                          output: str,
-                          d_format: DeploymentFormat,
-                          input_example=None,
-                          output_example=None):
-        """Exports Neural Module instance for deployment.
-
-        Args:
-            output (str): where export results should be saved
-            d_format (DeploymentFormat): which deployment format to use
-            input_example: sometimes tracing will require input examples
-            output_example: Should match inference on input_example
-        """
-        raise NotImplemented("Deployment export is not implemented for this"
-                             "neural module.")
 
     @abstractmethod
     def get_weights(self) -> Optional[Dict[(str, bool)]]:

@@ -4,7 +4,8 @@ __all__ = ['Backend',
            'Optimization',
            'DeviceType',
            'Actions',
-           'NeuralModuleFactory']
+           'NeuralModuleFactory',
+           'DeploymentFormat']
 
 from abc import ABC, abstractmethod
 import random
@@ -16,6 +17,12 @@ import numpy as np
 from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *
 from ..utils import ExpManager
+
+
+class DeploymentFormat(Enum):
+    """Which format to use when exporting a Neural Module for deployment"""
+    ONNX = 0
+    TORCHSCRIPT = 1
 
 
 class Backend(Enum):
@@ -342,6 +349,8 @@ class NeuralModuleFactory(object):
         # Create trainer
         self._trainer = self._get_trainer(tb_writer=self._tb_writer)
 
+
+
     @classmethod
     def get_default_factory(cls):
         return cls._DEFAULT
@@ -554,6 +563,24 @@ class NeuralModuleFactory(object):
             callbacks=callbacks,
             optimization_params={'num_epochs': 1}
         )
+
+    def deployment_export(self,
+                          modules,
+                          output: str,
+                          d_format: DeploymentFormat,
+                          input_example=None,
+                          output_example=None):
+        """Exports Neural Module instance for deployment.
+
+        Args:
+            modules (list of NeuralModule): modules to export
+            output (str): where export results should be saved
+            d_format (DeploymentFormat): which deployment format to use
+            input_example: sometimes tracing will require input examples
+            output_example: Should match inference on input_example
+        """
+        raise NotImplemented("Deployment export is not implemented for this"
+                             "neural module.")
 
     def infer(self,
               tensors: List[NmTensor],
