@@ -736,7 +736,6 @@ class JointIntentSlotDataDesc:
                 raise ValueError(f'none_slot_label {none_slot_label} not '
                                  f'found in {self.slot_dict_file}.')
             self.pad_label = slots[none_slot_label]
-            #self.pad_label = -1
 
 
 class SentenceClassificationDataDesc:
