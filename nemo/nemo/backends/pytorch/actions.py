@@ -14,7 +14,7 @@ from nemo.backends.pytorch.nm import TrainableNM
 
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
-from .optimizers import Novograd, AdamW, Lamb
+from .optimizers import Novograd, AdamW, Lamb, master_params
 from ...core import NmTensor, DeviceType, NeuralModule
 from ...core.callbacks import (ActionCallback,
                                EvaluatorCallback,
@@ -1325,18 +1325,8 @@ class PtActions(Actions):
                 if batch_counter == batches_per_step:
                     # Ended step. Do optimizer update
                     if grad_norm_clip is not None:
-                        if self._optim_level in AmpOptimizations:
-                            torch.nn.utils.clip_grad_norm_(
-                                amp.master_params(curr_optimizer),
-                                grad_norm_clip)
-                        else:
-                            # Get params
-                            curr_params = []
-                            for group in curr_optimizer.state_dict()['param_groups']:
-                                curr_params += group['params']
-                            torch.nn.utils.clip_grad_norm_(
-                                curr_params,
-                                grad_norm_clip)
+                        torch.nn.utils.clip_grad_norm_(
+                            master_params(curr_optimizer), grad_norm_clip)
                     curr_optimizer.step()
                     batch_counter = 0
                     # Register iteration end with callbacks
