@@ -19,8 +19,8 @@ setuptools.setup(
         "License :: OSI Approved :: Apache Software License"
     ],
     install_requires=[
-        'torch==1.2.0',
-        'torchvision==0.4.0',
+        'torch>=1.3.0',
+        'torchvision',
         'tensorboardX',
         'pandas',
         'wget'
