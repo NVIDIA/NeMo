@@ -134,7 +134,8 @@ class Tacotron2Decoder(TrainableNM):
             attention_rnn_dim=attention_rnn_dim,
             attention_dim=attention_dim,
             attention_location_n_filters=attention_location_n_filters,
-            attention_location_kernel_size=attention_location_kernel_size)
+            attention_location_kernel_size=attention_location_kernel_size,
+            early_stopping=True)
         self.to(self._device)
 
     def forward(self, char_phone_encoded, encoded_length, mel_target):
