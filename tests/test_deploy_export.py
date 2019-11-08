@@ -31,5 +31,6 @@ class TestDeployExport(NeMoUnitTest):
             return torch.nn.Module.__call__(self, *input, **kwargs)
 
         type(trainable_module).__call__ = new_call
-        traced_m = torch.jit.trace(trainable_module, torch.rand(4, 1))
+        #traced_m = torch.jit.trace(trainable_module, torch.rand(4, 1))
+        traced_m = torch.jit.script(trainable_module)
         traced_m.save('trainable_module.pt')
