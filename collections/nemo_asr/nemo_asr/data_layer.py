@@ -7,6 +7,7 @@ __all__ = ['AudioToTextDataLayer',
            'AudioPreprocessing',
            'MultiplyBatch',
            'SpectrogramAugmentation',
+           'KaldiDataLayer',
            'TranscriptDataLayer']
 
 from functools import partial
@@ -22,7 +23,8 @@ from nemo.backends.pytorch import DataLayerNM, TrainableNM, NonTrainableNM
 from nemo.core import Optimization, DeviceType
 from nemo.core.neural_types import *
 from nemo.utils.misc import pad_to as nemo_pad_to
-from .parts.dataset import AudioDataset, seq_collate_fn, TranscriptDataset
+from .parts.dataset import (
+        AudioDataset, seq_collate_fn, KaldiDataset, TranscriptDataset)
 from .parts.features import FilterbankFeatures, WaveformFeaturizer
 from .parts.spectr_augment import SpecAugment, SpecCutout
 
@@ -383,6 +385,122 @@ class SpectrogramAugmentation(NonTrainableNM):
         augmented_spec = self.spec_cutout(input_spec)
         augmented_spec = self.spec_augment(augmented_spec)
         return augmented_spec
+
+
+class KaldiDataLayer(DataLayerNM):
+    """Data layer for generic Kaldi-formatted data.
+    """
+
+    @staticmethod
+    def create_ports():
+        input_ports = {}
+        output_ports = {
+            "processed_signal": NeuralType({0: AxisType(BatchTag),
+                                            1: AxisType(SpectrogramSignalTag),
+                                            2: AxisType(ProcessedTimeTag)}),
+
+            "processed_length": NeuralType({0: AxisType(BatchTag)}),
+
+            "transcripts": NeuralType({0: AxisType(BatchTag),
+                                       1: AxisType(TimeTag)}),
+
+            "transcript_length": NeuralType({0: AxisType(BatchTag)})
+        }
+        return input_ports, output_ports
+
+    def __init__(
+        self, *,
+        kaldi_dir,
+        labels,
+        batch_size,
+        eos_id=None,
+        min_duration=None,
+        max_duration=None,
+        normalize_transcripts=True,
+        drop_last=False,
+        shuffle=True,
+        num_workers=0,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+
+        # Set up dataset
+        dataset_params = {'kaldi_dir': kaldi_dir,
+                          'labels': labels,
+                          'min_duration': min_duration,
+                          'max_duration': max_duration,
+                          'normalize': normalize_transcripts,
+                          'logger': self._logger}
+        self._dataset = KaldiDataset(**dataset_params)
+
+        # Set up data loader
+        if self._placement == DeviceType.AllGpu:
+            self._logger.info('Parallelizing DATALAYER')
+            sampler = torch.utils.data.distributed.DistributedSampler(
+                self._dataset)
+        else:
+            sampler = None
+
+        self._dataloader = torch.utils.data.DataLoader(
+            dataset=self._dataset,
+            batch_size=batch_size,
+            collate_fn=self._collate_fn,
+            drop_last=drop_last,
+            shuffle=shuffle if sampler is None else False,
+            sampler=sampler,
+            num_workers=num_workers
+        )
+
+    @staticmethod
+    def _collate_fn(batch):
+        """Collate batch of (MFCC features, MFCC len, tokens, tokens len)
+
+        Args:
+            batch: A batch of elements, where each element is a tuple of
+                MFCC features, MFCC feature length, tokens, and token
+                length for a single sample.
+
+        Returns:
+            The same batch, with the MFCC features and token length padded
+            to the maximum of the batch.
+        """
+        # Find max lengths of MFCC features and tokens in the batch
+        _, mfcc_lens, _, token_lens = zip(*batch)
+        max_mfcc_len = max(mfcc_lens).item()
+        max_tokens_len = max(token_lens).item()
+
+        # Pad features and tokens to max
+        features, tokens = [], []
+        for mfcc, mfcc_len, tkns, tkns_len in batch:
+            mfcc_len = mfcc_len.item()
+            if mfcc_len < max_mfcc_len:
+                pad = (0, max_mfcc_len - mfcc_len)
+                mfcc = torch.nn.functional.pad(mfcc, pad)
+            features.append(mfcc)
+
+            tkns_len = tkns_len.item()
+            if tkns_len < max_tokens_len:
+                pad = (0, max_tokens_len - tkns_len)
+                tkns = torch.nn.functional.pad(tkns, pad)
+            tokens.append(tkns)
+
+        features = torch.stack(features)
+        feature_lens = torch.stack(mfcc_lens)
+        tokens = torch.stack(tokens)
+        token_lens = torch.stack(token_lens)
+
+        return features, feature_lens, tokens, token_lens
+
+    def __len__(self):
+        return len(self._dataset)
+
+    @property
+    def dataset(self):
+        return None
+
+    @property
+    def data_iterator(self):
+        return self._dataloader
 
 
 class MultiplyBatch(NonTrainableNM):
