@@ -40,6 +40,8 @@ def parse_args():
                         help="number of epochs to train")
     parser.add_argument("--model_config", type=str, required=True,
                         help="model configuration file: model.yaml")
+    parser.add_argument("--grad_norm_clip", type=float, default=65504.0,
+                        help="gradient clipping")
 
     # Create new args
     parser.add_argument("--exp_name", default="Waveglow", type=str)
@@ -276,7 +278,7 @@ def main():
             "max_steps": args.max_steps,
             "lr": args.lr,
             "weight_decay": args.weight_decay,
-            "grad_norm_clip": None},
+            "grad_norm_clip": args.grad_norm_clip},
         batches_per_step=args.iter_per_step)
 
 
