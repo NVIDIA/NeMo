@@ -7,6 +7,7 @@ import os
 from ruamel.yaml import YAML
 
 import nemo
+from nemo.utils.lr_policies import CosineAnnealing
 import nemo.utils.argparse as nm_argparse
 import nemo_asr
 import nemo_tts
@@ -334,10 +335,9 @@ def main():
     neural_factory.train(
         tensors_to_optimize=[train_loss],
         callbacks=callbacks,
-        # lr_policy=CosineAnnealing(
-        #     args.max_steps if args.max_steps is not None else
-        #     args.num_epochs * steps_per_epoch,
-        #     warmup_steps=args.warmup_steps),
+        lr_policy=CosineAnnealing(
+            args.max_steps if args.max_steps is not None else
+            args.num_epochs * steps_per_epoch),
         optimizer=args.optimizer,
         optimization_params={
             "num_epochs": args.num_epochs,
