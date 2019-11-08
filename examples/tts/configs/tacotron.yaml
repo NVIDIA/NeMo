@@ -33,6 +33,7 @@ AudioPreprocessing:
     highfreq: 8000
     preemph: null
     pad_value: -11.52
+    mag_power: 1.
 
 Tacotron2Encoder:
     encoder_kernel_size: 5

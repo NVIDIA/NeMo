@@ -256,6 +256,7 @@ class AudioPreprocessing(TrainableNM):
             frame_splicing=1,
             stft_conv=False,
             pad_value=0,
+            mag_power=2.,
             **kwargs
     ):
         if "fbank" not in feat_type:
@@ -290,8 +291,9 @@ class AudioPreprocessing(TrainableNM):
             pad_to=pad_to,
             frame_splicing=frame_splicing,
             stft_conv=stft_conv,
-            logger=self._logger,
-            pad_value=pad_value
+            pad_value=pad_value,
+            mag_power=mag_power,
+            logger=self._logger
         )
         self.featurizer.to(self._device)
 
