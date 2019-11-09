@@ -91,7 +91,7 @@ def parse_cfg(args):
 
 def create_dag(args, cfg, num_gpus):
     # Defining nodes
-    data = nemo.backends.pytorch.TextDataLayer(
+    data = nemo_asr.TranscriptDataLayer(
         path=args.train_dataset,
         labels=cfg['target']['labels'],
         eos_id=cfg['target']['eos_id'],
