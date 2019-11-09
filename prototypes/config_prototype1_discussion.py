@@ -14,6 +14,12 @@
 
 import inspect
 
+# Classmethod decorator for "from_config" etc.
+# https://stavshamir.github.io/python/2018/05/26/overloading-constructors-in-python.html
+
+
+#
+# https://huggingface.co/transformers/model_doc/bert.html?highlight=bertconfig#transformers.BertConfig
 
 class AbstractModel(object):
 

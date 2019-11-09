@@ -111,34 +111,7 @@ class NeuralFC(TrainableNM):
         self.gpu_compatible = False
 
 
-m1 = Module1("Geek1")  # An Object of Person
-# print(m1.get_name(), " can run on GPU: ", m1.is_gpu_compatible())
-
-
-# m2 = Module2CPUOnly("Geek2")  # An Object of Employee
-# print(m2.get_name(), " can run on GPU: ", m2.is_gpu_compatible())
-
-# Now do something with m1, e.g. "move it to GPU" and change the value of its attribute.
-print("Initial configuration")
-m1.print_configuration()
-
-print("Changes in the configuration")
-m1.device = "changed GPU"
-m1.attrib1 = "changed neo_oen"
-m1.print_configuration()
-
-# "Save configuration to checkpoint".
-m1_config_checkpoint = m1.export_configuration()
-# print("Saved configuration: ", m1_config_checkpoint)
-
-
-# Create new object and load it from config.
-m3 = Module1.from_configuration(m1_config_checkpoint)
-
-
-print("Before import")
-m3.print_configuration()
-
-print("After import")
-m3.import_configuration(m1_config_checkpoint)
-m3.print_configuration()
+# Assumption - all the "important" parameters from the point of view of operation
+# of a given NM are set in the _init_,
+# i.e. other class attributes, that have changed during the life of the object
+# from _init_ up till now are not important/will not be saved...
