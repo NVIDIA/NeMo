@@ -1,6 +1,9 @@
 # Copyright (c) 2019 NVIDIA Corporation
 from typing import Optional, List
 
+import torch
+from torch import Tensor
+
 from pytorch_transformers import (BertConfig,
                                   BertModel,
                                   BERT_PRETRAINED_MODEL_ARCHIVE_MAP,
@@ -127,5 +130,8 @@ class BERT(TrainableNM):
             pretrained_models.append(model_info)
         return pretrained_models
 
-    def forward(self, input_ids, token_type_ids, attention_mask):
+    def forward(self, input_ids, token_type_ids: Tensor = torch.empty(0),
+                attention_mask: Tensor = torch.empty(0)): # **kwargs):
+        # token_type_ids = kwargs['token_type_ids'] if 'token_type_ids' in kwargs else None
+        # attention_mask = kwargs['attention_mask'] if 'attention_mask' in kwargs else None
         return self.bert(input_ids, token_type_ids, attention_mask)[0]

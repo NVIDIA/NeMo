@@ -36,7 +36,7 @@ class TrainableNM(NeuralModule, nn.Module):
         nn.Module.__init__(self)  # For PyTorch API
         self._device = get_cuda_device(self.placement)
 
-    def __call__(self, force_pt=False, *input, **kwargs):
+    def __call__(self, *input, force_pt=False, **kwargs):
         pt_call = len(input) > 0 or force_pt
         if pt_call:
             return nn.Module.__call__(self, *input, **kwargs)
