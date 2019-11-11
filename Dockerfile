@@ -34,7 +34,9 @@ RUN pip uninstall -y apex && \
 
 # Install Jupyterlab, other dependencies
 RUN pip install ipython[all] tqdm sox ruamel.yaml && \
-    pip install -U jupyterlab
+    pip install -U jupyterlab && \
+    pip install tqdm boto3 requests six ipdb h5py html2text nltk progressbar \
+                matplotlib wget 
 
 # Assumes we are in the root of the nemo git clone
 WORKDIR /workspace/nemo

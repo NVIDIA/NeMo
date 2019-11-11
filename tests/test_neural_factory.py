@@ -17,7 +17,6 @@ class TestNeuralFactory(NeMoUnitTest):
             instance, nemo.backends.pytorch.tutorials.TaylorNet))
 
     def test_simple_example(self):
-        #######################################################################
         neural_factory = nemo.core.neural_factory.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch,
             local_rank=None,
@@ -36,5 +35,5 @@ class TestNeuralFactory(NeMoUnitTest):
 
         optimizer = neural_factory.get_trainer()
         optimizer.train([loss_tensor], optimizer="sgd",
-                        optimization_params={"lr": 1e-3})
-        #######################################################################
+                        optimization_params={"lr": 1e-3,
+                                             "num_epochs": 1})

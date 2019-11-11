@@ -6,7 +6,7 @@ import unittest
 from ruamel.yaml import YAML
 
 from nemo.core import DeviceType
-from nemo_asr.parts import Manifest, AudioDataset, WaveformFeaturizer
+from nemo_asr.parts import ManifestEN, AudioDataset, WaveformFeaturizer
 from .context import nemo, nemo_asr
 from .common_setup import NeMoUnitTest
 
@@ -108,10 +108,10 @@ class TestASRPytorch(NeMoUnitTest):
             for s in test_strings:
                 f.write('{"audio_filepath": "", "duration": 1.0, "text": '
                         f'"{s}"}}\n')
-        manifest = Manifest([manifest_paths], self.labels, normalize=True)
+        manifest = ManifestEN([manifest_paths], self.labels, normalize=True)
         for i, s in enumerate(normalized_strings):
-            self.assertTrue(manifest[i]["transcript"]
-                            == manifest.parse_transcript(s))
+            self.assertTrue(manifest[i]["tokens"]
+                            == manifest.tokenize_transcript(s))
             # print(test_strings[i])
             # print(manifest[i]["transcript_text"])
             # print(s)
