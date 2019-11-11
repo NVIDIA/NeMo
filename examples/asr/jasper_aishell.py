@@ -7,7 +7,7 @@ import os
 from ruamel.yaml import YAML
 
 import nemo
-from nemo.utils.lr_policies import CosineAnnealing
+from nemo.utils.lr_policies import SquareAnnealing
 import nemo.utils.argparse as nm_argparse
 import nemo_asr
 from nemo_asr.helpers import monitor_asr_train_progress, \
@@ -17,57 +17,62 @@ from nemo_asr.helpers import monitor_asr_train_progress, \
 def parse_args():
     parser = argparse.ArgumentParser(
         parents=[nm_argparse.NemoArgParser()],
-        description='Jasper',
+        description='Jasper Aishell',
         conflict_handler='resolve')
+
     parser.set_defaults(
-        checkpoint_dir=None,
+        model_config="./configs/jasper12x1SEP.yaml",
+        work_dir="./tmp",
+        checkpoint_dir="./tmp",
         optimizer="novograd",
-        batch_size=64,
-        eval_batch_size=64,
-        lr=0.02,
-        amp_opt_level="O1",
-        create_tb_writer=True
+        num_epochs=50,
+        batch_size=32,
+        eval_batch_size=16,
+        lr=0.015,
+        weight_decay=0.001,
+        warmup_steps=8000,
+        checkpoint_save_freq=1000,
+        train_eval_freq=50,
+        eval_freq=4000
     )
 
-    # Overwrite default args
-    parser.add_argument("--max_steps", type=int, default=None, required=False,
-                        help="max number of steps to train")
-    parser.add_argument("--num_epochs", type=int, default=None, required=False,
-                        help="number of epochs to train")
-    parser.add_argument("--model_config", type=str, required=True,
-                        help="model configuration file: model.yaml")
-
     # Create new args
-    parser.add_argument("--exp_name", default="Jasper", type=str)
+    parser.add_argument("--vocab_file", type=str, required=True,
+                        help="vocabulary file path")
+    parser.add_argument("--exp_name", default="Jasper Aishell", type=str)
     parser.add_argument("--beta1", default=0.95, type=float)
     parser.add_argument("--beta2", default=0.25, type=float)
     parser.add_argument("--warmup_steps", default=0, type=int)
 
     args = parser.parse_args()
+    if args.max_steps is not None:
+        raise ValueError("Jasper uses num_epochs instead of max_steps")
 
-    if args.max_steps is not None and args.num_epochs is not None:
-        raise ValueError("Either max_steps or num_epochs should be provided.")
     return args
 
 
-def construct_name(name, lr, batch_size, max_steps, num_epochs, wd, optimizer,
+def construct_name(name, lr, batch_size, num_epochs, wd, optimizer,
                    iter_per_step):
-    if max_steps is not None:
-        return ("{0}-lr_{1}-bs_{2}-s_{3}-wd_{4}-opt_{5}-ips_{6}".format(
-            name, lr,
-            batch_size,
-            max_steps,
-            wd,
-            optimizer,
-            iter_per_step))
-    else:
-        return ("{0}-lr_{1}-bs_{2}-e_{3}-wd_{4}-opt_{5}-ips_{6}".format(
-            name, lr,
-            batch_size,
-            num_epochs,
-            wd,
-            optimizer,
-            iter_per_step))
+    return ("{0}-lr_{1}-bs_{2}-e_{3}-wd_{4}-opt_{5}-ips_{6}".format(
+        name, lr,
+        batch_size,
+        num_epochs,
+        wd,
+        optimizer,
+        iter_per_step))
+
+
+def load_vocab(vocab_file):
+    """
+    :param vocab_file: one character per line
+    :return: labels: list of character
+    """
+    labels = []
+    with open(vocab_file, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            labels.append(line)
+    return labels
 
 
 def create_all_dags(args, neural_factory):
@@ -75,7 +80,7 @@ def create_all_dags(args, neural_factory):
     yaml = YAML(typ="safe")
     with open(args.model_config) as f:
         jasper_params = yaml.load(f)
-    vocab = jasper_params['labels']
+    vocab = load_vocab(args.vocab_file)
     sample_rate = jasper_params['sample_rate']
 
     # Calculate num_workers for dataloader
@@ -87,8 +92,7 @@ def create_all_dags(args, neural_factory):
     train_dl_params.update(jasper_params["AudioToTextDataLayer"]["train"])
     del train_dl_params["train"]
     del train_dl_params["eval"]
-    # del train_dl_params["normalize_transcripts"]
-
+    train_dl_params["normalize_transcripts"] = False
     data_layer = nemo_asr.AudioToTextDataLayer(
         manifest_filepath=args.train_dataset,
         sample_rate=sample_rate,
@@ -118,6 +122,7 @@ def create_all_dags(args, neural_factory):
 
     eval_dl_params = copy.deepcopy(jasper_params["AudioToTextDataLayer"])
     eval_dl_params.update(jasper_params["AudioToTextDataLayer"]["eval"])
+    eval_dl_params["normalize_transcripts"] = False
     del eval_dl_params["train"]
     del eval_dl_params["eval"]
     data_layers_eval = []
@@ -196,7 +201,9 @@ def create_all_dags(args, neural_factory):
         print_func=partial(
             monitor_asr_train_progress,
             labels=vocab,
+            eval_metric='CER',
             logger=logger),
+        step_freq=args.train_eval_freq,
         get_tb_values=lambda x: [("loss", x[0])],
         tb_writer=neural_factory.tb_writer,
     )
@@ -235,6 +242,7 @@ def create_all_dags(args, neural_factory):
                 labels=vocab),
             user_epochs_done_callback=partial(
                 process_evaluation_epoch,
+                eval_metric='CER',
                 tag=tagname,
                 logger=logger),
             eval_step=args.eval_freq,
@@ -245,13 +253,11 @@ def create_all_dags(args, neural_factory):
 
 
 def main():
-
     args = parse_args()
     name = construct_name(
         args.exp_name,
         args.lr,
         args.batch_size,
-        args.max_steps,
         args.num_epochs,
         args.weight_decay,
         args.optimizer,
@@ -286,14 +292,11 @@ def main():
     neural_factory.train(
         tensors_to_optimize=[train_loss],
         callbacks=callbacks,
-        lr_policy=CosineAnnealing(
-            args.max_steps if args.max_steps is not None else
-            args.num_epochs * steps_per_epoch,
-            warmup_steps=args.warmup_steps),
+        lr_policy=SquareAnnealing(args.num_epochs * steps_per_epoch,
+                                  warmup_steps=args.warmup_steps),
         optimizer=args.optimizer,
         optimization_params={
             "num_epochs": args.num_epochs,
-            "max_steps": args.max_steps,
             "lr": args.lr,
             "betas": (
                 args.beta1,
