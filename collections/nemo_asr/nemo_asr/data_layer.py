@@ -7,7 +7,7 @@ __all__ = ['AudioToTextDataLayer',
            'AudioPreprocessing',
            'MultiplyBatch',
            'SpectrogramAugmentation',
-           'KaldiDataLayer',
+           'KaldiMFCCDataLayer',
            'TranscriptDataLayer']
 
 from functools import partial
@@ -24,7 +24,7 @@ from nemo.core import Optimization, DeviceType
 from nemo.core.neural_types import *
 from nemo.utils.misc import pad_to as nemo_pad_to
 from .parts.dataset import (
-        AudioDataset, seq_collate_fn, KaldiDataset, TranscriptDataset)
+        AudioDataset, seq_collate_fn, KaldiMFCCDataset, TranscriptDataset)
 from .parts.features import FilterbankFeatures, WaveformFeaturizer
 from .parts.spectr_augment import SpecAugment, SpecCutout
 
@@ -387,7 +387,7 @@ class SpectrogramAugmentation(NonTrainableNM):
         return augmented_spec
 
 
-class KaldiDataLayer(DataLayerNM):
+class KaldiMFCCDataLayer(DataLayerNM):
     """Data layer for generic Kaldi-formatted data.
     """
 
@@ -431,7 +431,7 @@ class KaldiDataLayer(DataLayerNM):
                           'max_duration': max_duration,
                           'normalize': normalize_transcripts,
                           'logger': self._logger}
-        self._dataset = KaldiDataset(**dataset_params)
+        self._dataset = KaldiMFCCDataset(**dataset_params)
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
