@@ -178,7 +178,7 @@ class AudioDataset(Dataset):
         return len(self.manifest)
 
 
-class KaldiDataset(Dataset):
+class KaldiMFCCDataset(Dataset):
     """
     Basic Kaldi dataset loading.
     """
@@ -220,7 +220,7 @@ class KaldiDataset(Dataset):
                     id2dur[utt_id] = float(dur)
         elif max_duration or min_duration:
             raise ValueError(
-                f"KaldiDataset max_duration or min_duration is set but"
+                f"KaldiMFCCDataset max_duration or min_duration is set but"
                 f" utt2dur file not found in {kaldi_dir}."
             )
         elif logger:

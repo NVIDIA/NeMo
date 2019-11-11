@@ -16,7 +16,7 @@ from nemo.core import Backend
 
 from .data_layer import (AudioToTextDataLayer, AudioPreprocessing,
                          SpectrogramAugmentation, MultiplyBatch,
-                         KaldiDataLayer, TranscriptDataLayer)
+                         KaldiMFCCDataLayer, TranscriptDataLayer)
 from .greedy_ctc_decoder import GreedyCTCDecoder
 from .beam_search_decoder import BeamSearchDecoderWithLM
 from .jasper import JasperEncoder, JasperDecoderForCTC
@@ -28,7 +28,7 @@ __all__ = ['Backend',
            'AudioPreprocessing',
            'SpectrogramAugmentation',
            'MultiplyBatch',
-           'KaldiDataLayer',
+           'KaldiMFCCDataLayer',
            'TranscriptDataLayer',
            'GreedyCTCDecoder',
            'BeamSearchDecoderWithLM',
