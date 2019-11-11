@@ -37,8 +37,8 @@ parser.add_argument("--work_dir", default='output_punct', type=str,
 args = parser.parse_args()
 
 args.interactive = True
-args.bert_checkpoint = '/home/ebakhturina/20191024-183447_all/checkpoints/BERT-EPOCH-4.pt'
-args.classifier_checkpoint = '/home/ebakhturina/20191024-183447_all/checkpoints/TokenClassifier-EPOCH-4.pt'
+args.bert_checkpoint = '/home/ebakhturina/output/punct/dataset_33_dr0.2_lr0.0001/checkpoints/BERT-EPOCH-9.pt'
+args.classifier_checkpoint = '/home/ebakhturina/output/punct/dataset_33_dr0.2_lr0.0001/checkpoints/TokenClassifier-EPOCH-9.pt'
 
 # Instantiate Neural Factory with supported backend
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
@@ -102,6 +102,7 @@ if args.interactive:
         
         ids = tokenizer.text_to_ids(text)
         tokens = tokenizer.ids_to_tokens(ids)
+        print (tokens)
         input_ids = torch.Tensor(ids).long()\
                                      .to(bert_model._device)\
                                      .unsqueeze(0)
@@ -136,36 +137,50 @@ if args.interactive:
         logits = logits.squeeze(0).detach().cpu().numpy()
         preds = np.argmax(logits, axis=1)
         preds = [ids_to_tags[i] for i in preds]
-        
+        print (preds)
+
         # drop [CLS] token and its prediction
         preds = preds[1:]
         tokens = tokens[1:]
         
         output = ''
-        tokens_no_punct = []
-        punct_tokens = []
-        punct_mark = None
-        for i in range(len(preds)):
-            if preds[i] == 'O':
-                if punct_mark:
-                    output += tokenizer.tokens_to_text(tokens_no_punct) + ' '
-                    output += tokenizer.tokens_to_text(punct_tokens)
-                    output += punct_mark + ' '
-                    tokens_no_punct = []
-                    punct_tokens = []
-                    punct_mark = None
-                tokens_no_punct.append(tokens[i])
+        combined_tokens = ''
+        prev_token = ''
+        first_subtoken_punct_mark = ''
+        use_prev_token = True
+        delimiter = '##'
+        
+        for t in range(len(tokens)):
+            if delimiter not in tokens[t]:
+                if len(combined_tokens) > 0:
+                    if first_subtoken_punct_mark != 'O':
+                        combined_tokens += first_subtoken_punct_mark
+                    output += combined_tokens + ' '
+                    combined_tokens = ''
+                    first_subtoken_punct_mark = ''
+                output += tokens[t] + ' '
+                use_prev_token = True
             else:
-                punct_tokens.append(tokens[i])
-                if punct_mark is None:
-                    punct_mark = preds[i]
+                if use_prev_token:
+                    combined_tokens = combined_tokens.strip() + prev_token
+                    output = output[:output.find(prev_token)]
+                    first_subtoken_punct_mark = punct_mark
+                combined_tokens += tokens[t][len(delimiter):]
+                use_prev_token = False
+            prev_token = tokens[t]
+            
+            punct_mark = preds[t]
+            if use_prev_token and punct_mark != 'O':
+                output = output.strip() + punct_mark
+       
+        if len(combined_tokens) > 0:
+            if first_subtoken_punct_mark != 'O':
+                combined_tokens += first_subtoken_punct_mark
+            output += combined_tokens
+        
+        output = output.replace(" ' ", "'").strip().capitalize()
 
-        if len(tokens_no_punct) > 0:
-            output += tokenizer.tokens_to_text(tokens_no_punct)
-        if punct_mark:
-            output += ' ' + tokenizer.tokens_to_text(punct_tokens)
-            output += punct_mark + ' '
-        return (output)
+        return output
 
     print()
     print("========== Interactive translation mode ==========")
