@@ -131,11 +131,11 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            "token_mask": NeuralType({
+            "loss_mask": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            "real_token": NeuralType({
+            "subtokens_mask": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
@@ -197,11 +197,11 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            "token_mask": NeuralType({
+            "loss_mask": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            "real_token": NeuralType({
+            "subtokens_mask": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),

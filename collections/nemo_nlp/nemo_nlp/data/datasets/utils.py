@@ -334,7 +334,7 @@ def process_triple_datasets(infold, uncased, dataset_name,
     from nltk.tokenize import WhitespaceTokenizer
 
     outfold = f'{infold}/{dataset_name}-nemo-processed'
-    infold = f'{infold}/{dataset_name}-raw'
+    infold = f'{infold}/'
 
     if uncased:
         outfold = f'{outfold}-uncased'

@@ -66,7 +66,7 @@ classifier = nemo_nlp.JointIntentSlotClassifier(
     num_slots=data_desc.num_slots,
     dropout=args.fc_dropout)
 
-ids, type_ids, input_mask, slot_mask, real_token = data_layer()
+ids, type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
 
 
 hidden_states = pretrained_bert_model(input_ids=ids,
@@ -79,7 +79,7 @@ intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
 
 evaluated_tensors = nf.infer(
-    tensors=[intent_logits, slot_logits, real_token],
+    tensors=[intent_logits, slot_logits, subtokens_mask],
     checkpoint_dir=args.work_dir)
 
 
@@ -87,7 +87,7 @@ def concatenate(lists):
     return np.concatenate([t.cpu() for t in lists])
 
 
-intent_logits, slot_logits, real_token = \
+intent_logits, slot_logits, subtokens_mask = \
     [concatenate(tensors) for tensors in evaluated_tensors]
 
 read_intent_slot_outputs([query],
@@ -95,4 +95,4 @@ read_intent_slot_outputs([query],
                          data_desc.slot_dict_file,
                          intent_logits,
                          slot_logits,
-                         real_token)
+                         subtokens_mask)

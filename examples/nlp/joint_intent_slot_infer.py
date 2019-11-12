@@ -70,7 +70,7 @@ classifier = nemo_nlp.JointIntentSlotClassifier(
     num_intents=data_desc.num_intents,
     num_slots=data_desc.num_slots)
 
-ids, type_ids, input_mask, slot_mask, real_token, intents, slots = data_layer()
+ids, type_ids, input_mask, loss_mask, subtokens_mask, intents, slots = data_layer()
 
 hidden_states = pretrained_bert_model(input_ids=ids,
                                       token_type_ids=type_ids,
@@ -82,8 +82,9 @@ intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
 # Instantiate an optimizer to perform `infer` action
 evaluated_tensors = nf.infer(
-    tensors=[intent_logits, slot_logits, slot_mask,
-             real_token, intents, slots],
+    tensors=[intent_logits, slot_logits,
+             loss_mask, subtokens_mask,
+             intents, slots],
     checkpoint_dir=args.work_dir,
 )
 
@@ -96,7 +97,7 @@ def get_preds(logits):
     return np.argmax(logits, 1)
 
 
-intent_logits, slot_logits, slot_masks, real_token, intents, slot_labels =\
+intent_logits, slot_logits, loss_mask, subtokens_mask, intents, slot_labels =\
     [concatenate(tensors) for tensors in evaluated_tensors]
 
 
@@ -113,8 +114,8 @@ nf.logger.info(classification_report(intents, pred_intents))
 slot_preds = np.argmax(slot_logits, axis=2)
 slot_preds_list, slot_labels_list = [], []
 for i, sp in enumerate(slot_preds):
-    slot_preds_list.extend(list(slot_preds[i][real_token[i]]))
-    slot_labels_list.extend(list(slot_labels[i][real_token[i]]))
+    slot_preds_list.extend(list(slot_preds[i][subtokens_mask[i]]))
+    slot_labels_list.extend(list(slot_labels[i][subtokens_mask[i]]))
 
 nf.logger.info('Slot prediction results')
 slot_labels_list = np.asarray(slot_labels_list)
