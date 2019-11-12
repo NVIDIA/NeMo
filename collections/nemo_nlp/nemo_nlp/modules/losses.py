@@ -199,9 +199,11 @@ class JointIntentSlotLoss(LossNM):
         active_logits = slot_logits.view(-1, self.num_slots)[active_loss]
         active_labels = slots.view(-1)[active_loss]
 
-        # TODO: empty active_logits is not handled
-
-        slot_loss = self._criterion(active_logits, active_labels)
+        # To support empty active_labels
+        if len(active_labels) == 0:
+            slot_loss = 0.0
+        else:
+            slot_loss = self._criterion(active_logits, active_labels)
         loss = intent_loss * intent_loss_weight + \
             slot_loss * (1 - intent_loss_weight)
 
