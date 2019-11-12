@@ -388,7 +388,37 @@ class SpectrogramAugmentation(NonTrainableNM):
 
 
 class KaldiMFCCDataLayer(DataLayerNM):
-    """Data layer for generic Kaldi-formatted data.
+    """Data layer for reading generic Kaldi-formatted data.
+
+    Module that reads ASR labeled data that is in a Kaldi-compatible format.
+    It assumes that you have a directory that contains:
+
+        `feats.scp`: A mapping from utterance IDs to .ark files that
+            contain the corresponding MFCC data
+        `text`: A mapping from utterance IDs to transcripts
+        `utt2dur` (optional): A mapping from utterance IDs to audio durations,
+            needed if you want to filter based on duration
+
+    Args:
+        kaldi_dir (str): Directory that contains the above files.
+        labels (list): List of characters that can be output by the ASR model,
+            e.g. {a-z '} for Jasper. The CTC blank symbol is automatically
+            added later for models using CTC.
+        batch_size (int): batch size
+        eos_id (str): End of string symbol used for seq2seq models.
+            Defaults to None.
+        min_duration (float): All training files which have a duration less
+            than min_duration are dropped. Can't be used if the `utt2dur` file
+            does not exist. Defaults to None.
+        max_duration (float): All training files which have a duration more
+            than max_duration are dropped. Can't be used if the `utt2dur` file
+            does not exist. Defaults to None.
+        normalize_transcripts (bool): Whether to use automatic text cleaning.
+            It is highly recommended to manually clean text for best results.
+            Defaults to True.
+        drop_last (bool): See PyTorch DataLoader. Defaults to False.
+        shuffle (bool): See PyTorch DataLoader. Defaults to True.
+        num_workers (int): See PyTorch DataLoader. Defaults to 0.
     """
 
     @staticmethod
@@ -396,6 +426,7 @@ class KaldiMFCCDataLayer(DataLayerNM):
         input_ports = {}
         output_ports = {
             "processed_signal": NeuralType({0: AxisType(BatchTag),
+                                            # Make new MFCC tag?
                                             1: AxisType(SpectrogramSignalTag),
                                             2: AxisType(ProcessedTimeTag)}),
 

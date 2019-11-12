@@ -180,7 +180,22 @@ class AudioDataset(Dataset):
 
 class KaldiMFCCDataset(Dataset):
     """
-    Basic Kaldi dataset loading.
+    Dataset that provides basic Kaldi-compatible dataset loading. Assumes that
+    the files `feats.scp`, `text`, and (optionally) `utt2dur` exist, as well
+    as the .ark files that `feats.scp` points to.
+
+    Args:
+        kaldi_dir: Path to directory containing the aforementioned files.
+        labels: All possible characters to map to.
+        min_duration: If audio is shorter than this length, drop it. Only
+            available if the `utt2dur` file exists.
+        max_duration: If audio is longer than this length, drop it. Only
+            available if the `utt2dur` file exists.
+        max_utts: Limits the number of utterances.
+        unk_index: unk_character index, default = -1
+        blank_index: blank character index, default = -1
+        normalize: whether to normalize transcript text. Defaults to True.
+        eos_id: Id of end of sequence symbol to append if not None.
     """
     def __init__(
             self,
