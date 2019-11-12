@@ -32,54 +32,45 @@ def eval_iter_callback(tensors,
         global_vars["all_slot_preds"] = []
     if "all_slot_labels" not in global_vars.keys():
         global_vars["all_slot_labels"] = []
-    if "all_token_masks" not in global_vars.keys():
-        global_vars["all_token_masks"] = []
-    if "all_real_token" not in global_vars.keys():
-        global_vars["all_real_token"] = []
+    if "all_subtokens_mask" not in global_vars.keys():
+        global_vars["all_subtokens_mask"] = []
 
-    intent_logits_lists, intent_labels_lists = [], []
-    slot_logits_lists, slot_labels_lists = [], []
-    token_masks_lists = []
-    real_token_lists = []
+    all_intent_logits, all_intent_labels = [], []
+    all_slot_logits, all_slot_labels = [], []
+    all_subtokens_mask = []
     for kv, v in tensors.items():
         if kv.startswith('intent_logits'):
             for v_tensor in v:
                 for logit_tensor in v_tensor:
-                    intent_logits_lists.append(tensor2list(logit_tensor))
+                    all_intent_logits.append(tensor2list(logit_tensor))
 
         if kv.startswith('intents'):
             for v_tensor in v:
                 for label_tensor in v_tensor:
-                    intent_labels_lists.append(tensor2list(label_tensor))
+                    all_intent_labels.append(tensor2list(label_tensor))
 
         if kv.startswith('slot_logits'):
             for v_tensor in v:
                 for logit_tensor in v_tensor:
-                    slot_logits_lists.append(tensor2list(logit_tensor))
+                    all_slot_logits.append(tensor2list(logit_tensor))
 
         if kv.startswith('slots'):
             for v_tensor in v:
                 for label_tensor in v_tensor:
-                    slot_labels_lists.extend(tensor2list(label_tensor))
+                    all_slot_labels.extend(tensor2list(label_tensor))
 
-        if kv.startswith('token_mask'):
+        if kv.startswith('subtokens_mask'):
             for v_tensor in v:
-                for token_masks_tensor in v_tensor:
-                    token_masks_lists.extend(tensor2list(token_masks_tensor))
+                for subtokens_mask_tensor in v_tensor:
+                    all_subtokens_mask.extend(tensor2list(subtokens_mask_tensor))
 
-        if kv.startswith('real_token'):
-            for v_tensor in v:
-                for real_token_tensor in v_tensor:
-                    real_token_lists.extend(tensor2list(real_token_tensor))
-
-    intent_preds = list(np.argmax(np.asarray(intent_logits_lists), 1))
-    slot_preds = list(np.argmax(np.asarray(slot_logits_lists), 2).flatten())
-    global_vars["all_intent_preds"].extend(intent_preds)
-    global_vars["all_intent_labels"].extend(intent_labels_lists)
-    global_vars["all_slot_preds"].extend(slot_preds)
-    global_vars["all_slot_labels"].extend(slot_labels_lists)
-    global_vars["all_token_masks"].extend(token_masks_lists)
-    global_vars["all_real_token"].extend(real_token_lists)
+    all_intent_preds = list(np.argmax(np.asarray(all_intent_logits), 1))
+    all_slot_preds = list(np.argmax(np.asarray(all_slot_logits), 2).flatten())
+    global_vars["all_intent_preds"].extend(all_intent_preds)
+    global_vars["all_intent_labels"].extend(all_intent_labels)
+    global_vars["all_slot_preds"].extend(all_slot_preds)
+    global_vars["all_slot_labels"].extend(all_slot_labels)
+    global_vars["all_subtokens_mask"].extend(all_subtokens_mask)
 
 
 def list2str(l):
@@ -92,10 +83,10 @@ def eval_epochs_done_callback(global_vars, graph_fold):
 
     slot_labels = np.asarray(global_vars['all_slot_labels'])
     slot_preds = np.asarray(global_vars['all_slot_preds'])
-    real_token = np.asarray(global_vars['all_real_token'])
+    subtokens_mask = np.asarray(global_vars['all_subtokens_mask'])
 
-    slot_labels = slot_labels[real_token]
-    slot_preds = slot_preds[real_token]
+    slot_labels = slot_labels[subtokens_mask]
+    slot_preds = slot_preds[subtokens_mask]
 
     i = 0
     if intent_preds.shape[0] > 21:

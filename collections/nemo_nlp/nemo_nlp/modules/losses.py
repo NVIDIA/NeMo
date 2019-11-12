@@ -162,7 +162,7 @@ class JointIntentSlotLoss(LossNM):
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag)
             }),
-            "input_mask": NeuralType({
+            "loss_mask": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
@@ -189,15 +189,13 @@ class JointIntentSlotLoss(LossNM):
     def _loss_function(self,
                        intent_logits,
                        slot_logits,
-                       input_mask,
+                       loss_mask,
                        intents,
                        slots,
                        intent_loss_weight=0.6):
         intent_loss = self._criterion(intent_logits, intents)
 
-        # active_loss = input_mask.view(-1) > 0.5
-        active_loss = input_mask.view(-1)
-
+        active_loss = loss_mask.view(-1)
         active_logits = slot_logits.view(-1, self.num_slots)[active_loss]
         active_labels = slots.view(-1)[active_loss]
 

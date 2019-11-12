@@ -108,8 +108,8 @@ def create_pipeline(num_samples=-1,
         num_workers=0,
         local_rank=local_rank)
 
-    ids, type_ids, input_mask, slot_mask, \
-        real_token, intents, slots = data_layer()
+    ids, type_ids, input_mask, loss_mask, \
+        subtokens_mask, intents, slots = data_layer()
     data_size = len(data_layer)
 
     if data_size < batch_size:
@@ -128,7 +128,7 @@ def create_pipeline(num_samples=-1,
 
     loss = loss_fn(intent_logits=intent_logits,
                    slot_logits=slot_logits,
-                   input_mask=slot_mask,
+                   loss_mask=loss_mask,
                    intents=intents,
                    slots=slots)
 
@@ -136,7 +136,7 @@ def create_pipeline(num_samples=-1,
         tensors_to_evaluate = [loss, intent_logits, slot_logits]
     else:
         tensors_to_evaluate = [intent_logits, slot_logits, intents,
-                               slots, slot_mask, real_token]
+                               slots, subtokens_mask]
 
     return tensors_to_evaluate, loss, steps_per_epoch, data_layer
 
