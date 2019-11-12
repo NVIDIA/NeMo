@@ -8,6 +8,8 @@ Similarly to Jasper, QuartzNet family of models are denoted as QuartzNet_[BxR] w
     .. image:: quartz_vertical.png
         :align: center
         :alt: quartznet model
+   
+    .. note:: This checkpoint was trained on LibriSpeech and full "validated" part of En Mozilla Common Voice
 
 We are working on a QuartzNet paper and will release it soon.
 
