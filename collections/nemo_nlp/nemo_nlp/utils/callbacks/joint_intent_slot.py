@@ -62,7 +62,8 @@ def eval_iter_callback(tensors,
         if kv.startswith('subtokens_mask'):
             for v_tensor in v:
                 for subtokens_mask_tensor in v_tensor:
-                    all_subtokens_mask.extend(tensor2list(subtokens_mask_tensor))
+                    all_subtokens_mask.extend(
+                        tensor2list(subtokens_mask_tensor))
 
     all_intent_preds = list(np.argmax(np.asarray(all_intent_logits), 1))
     all_slot_preds = list(np.argmax(np.asarray(all_slot_logits), 2).flatten())
