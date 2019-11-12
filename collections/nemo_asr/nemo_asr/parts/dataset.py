@@ -1,11 +1,11 @@
 # Audio dataset and corresponding functions taken from Patter
 # https://github.com/ryanleary/patter
 # TODO: review, and copyright and fix/add comments
+import kaldi_io
 import os
 import pandas as pd
 import string
 import torch
-import torchaudio
 from torch.utils.data import Dataset
 
 from .cleaners import clean_text
@@ -221,8 +221,8 @@ class KaldiMFCCDataset(Dataset):
         # Read MFCC features using feats.scp
         feats_path = os.path.join(kaldi_dir, 'feats.scp')
         id2feats = {
-            utt_id: mfcc_feats for utt_id, mfcc_feats in
-            torchaudio.kaldi_io.read_mat_scp(feats_path)
+            utt_id: torch.from_numpy(mfcc_feats)
+            for utt_id, mfcc_feats in kaldi_io.read_mat_scp(feats_path)
         }
 
         # Get durations, if utt2dur exists
