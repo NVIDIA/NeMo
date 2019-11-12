@@ -191,7 +191,7 @@ See <a class="reference internal" href="../installation.html#installation"><span
 </div>
 <div class="section" id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
-<p>This Automatic Speech Recognition (ASR) tutorial is focused on Jasper <a class="reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id1">[1]</a> model. Jasper is CTC-based <a class="reference internal" href="#graves2006" id="id2">[1]</a> end-to-end model. The model is called “end-to-end” because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text.
+<p>This Automatic Speech Recognition (ASR) tutorial is focused on Jasper <a class="bibtex reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id1">[1]</a> model. Jasper is CTC-based <a class="bibtex reference internal" href="#graves2006" id="id2">[1]</a> end-to-end model. The model is called “end-to-end” because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text.
 CTC-ASR training pipeline consists of the following blocks:</p>
 <ol class="arabic">
 <li><p>audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)</p></li>
@@ -205,7 +205,7 @@ CTC-ASR training pipeline consists of the following blocks:</p>
 </div>
 <div class="section" id="get-data">
 <h2>Get data<a class="headerlink" href="#get-data" title="Permalink to this headline">¶</a></h2>
-<p>We will be using an open-source LibriSpeech <a class="reference internal" href="../nlp/asr-improvement.html#panayotov2015librispeech" id="id3">[3]</a> dataset. These scripts will download and convert LibriSpeech into format expected by <cite>nemo_asr</cite>:</p>
+<p>We will be using an open-source LibriSpeech <a class="bibtex reference internal" href="../nlp/asr-improvement.html#panayotov2015librispeech" id="id3">[3]</a> dataset. These scripts will download and convert LibriSpeech into format expected by <cite>nemo_asr</cite>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir data
 <span class="c1"># note that this script requires sox to be installed</span>
 <span class="c1"># to install sox on Ubuntu, simply do: sudo apt-get install sox</span>
@@ -234,7 +234,7 @@ Each line in json file describes a training sample - `audio_filepath</cite> cont
 </div>
 <div class="section" id="training">
 <h2>Training<a class="headerlink" href="#training" title="Permalink to this headline">¶</a></h2>
-<p>We will train a small model from the Jasper family <a class="reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id4">[1]</a>.
+<p>We will train a small model from the Jasper family <a class="bibtex reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id4">[1]</a>.
 Jasper (“Just Another SPeech Recognizer”) is a deep time delay neural network (TDNN) comprising of blocks of 1D-convolutional layers.
 Jasper family of models are denoted as Jasper_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization, ReLU, and dropout:</p>
 <blockquote>
@@ -440,7 +440,7 @@ Make sure it is installed.</p>
 <h3>Large Training Example<a class="headerlink" href="#large-training-example" title="Permalink to this headline">¶</a></h3>
 <p>Please refer to the <cite>&lt;nemo_git_repo_root&gt;/examples/asr/jasper.py</cite> for comprehensive example. It builds one train DAG and up to three validation DAGs to evaluate on different datasets.</p>
 <p>Assuming, you are working with Volta-based DGX, you can run training like this:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>&lt;num_gpus&gt; &lt;nemo_git_repo_root&gt;/examples/asr/jasper.py --batch_size<span class="o">=</span><span class="m">64</span> --num_epochs<span class="o">=</span><span class="m">100</span> --lr<span class="o">=</span><span class="m">0</span>.015 --warmup_steps<span class="o">=</span><span class="m">8000</span> --weight_decay<span class="o">=</span><span class="m">0</span>.001 --train_dataset<span class="o">=</span>/manifests/librivox-train-all.json --eval_datasets /manifests/librivox-dev-clean.json /manifests/librivox-dev-other.json --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/nemo/examples/asr/configs/jasper15x5SEP.yaml --exp_name<span class="o">=</span>MyLARGE-ASR-EXPERIMENT
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>&lt;num_gpus&gt; &lt;nemo_git_repo_root&gt;/examples/asr/jasper.py --batch_size<span class="o">=</span><span class="m">64</span> --num_epochs<span class="o">=</span><span class="m">100</span> --lr<span class="o">=</span><span class="m">0</span>.015 --warmup_steps<span class="o">=</span><span class="m">8000</span> --weight_decay<span class="o">=</span><span class="m">0</span>.001 --train_dataset<span class="o">=</span>/manifests/librivox-train-all.json --eval_datasets /manifests/librivox-dev-clean.json /manifests/librivox-dev-other.json --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/nemo/examples/asr/configs/quartznet15x5.yaml --exp_name<span class="o">=</span>MyLARGE-ASR-EXPERIMENT
 </pre></div>
 </div>
 <p>The command above should trigger 8-GPU training with mixed precision. In the command above various manifests (.json) files are various datasets. Substitute them with the ones containing your data.</p>
@@ -455,7 +455,7 @@ Make sure it is installed.</p>
 <p>Training time can be dramatically reduced if starting from a good pre-trained model:</p>
 <blockquote>
 <div><ol class="arabic simple">
-<li><p>Obtain pre-trained model (jasper_encoder, jasper_decoder and configuration files) <a class="reference external" href="https://drive.google.com/drive/folders/1b-TQYY7o8_CQgZsVEe-8_2kHWU0lYJ-z?usp=sharing">from here</a>.</p></li>
+<li><p>Obtain pre-trained model (jasper_encoder, jasper_decoder and configuration files) <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5">from here</a>.</p></li>
 <li><p>load pre-trained weights right after you’ve instantiated your jasper_encoder and jasper_decoder, like this:</p></li>
 </ol>
 </div></blockquote>
@@ -472,8 +472,8 @@ Make sure it is installed.</p>
 </div>
 <div class="section" id="inference">
 <h2>Inference<a class="headerlink" href="#inference" title="Permalink to this headline">¶</a></h2>
-<p>First download pre-trained model (jasper_encoder, jasper_decoder and configuration files) <a class="reference external" href="https://drive.google.com/drive/folders/1b-TQYY7o8_CQgZsVEe-8_2kHWU0lYJ-z?usp=sharing">from here</a> into <cite>&lt;path_to_checkpoints&gt;</cite>. We will use this pre-trained model to measure WER on LibriSpeech dev-clean dataset.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_infer.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/jasper15x5SEP.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt;
+<p>First download pre-trained model (jasper_encoder, jasper_decoder and configuration files) <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5">from here</a> into <cite>&lt;path_to_checkpoints&gt;</cite>. We will use this pre-trained model to measure WER on LibriSpeech dev-clean dataset.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_infer.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/quartznet15x5.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt;
 </pre></div>
 </div>
 </div>
@@ -499,7 +499,7 @@ Make sure it is installed.</p>
 <li><p>Build 6-gram KenLM model on LibriSpeech <code class="docutils literal notranslate"><span class="pre">./build_6-gram_OpenSLR_lm.sh</span></code></p></li>
 <li><p>Run jasper_infer.py with the –lm_path flag</p></li>
 </ul>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_infer.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/jasper15x5SEP.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt; --lm_path<span class="o">=</span>&lt;path_to_6gram.binary&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_infer.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/quartznet15x5.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt; --lm_path<span class="o">=</span>&lt;path_to_6gram.binary&gt;
 </pre></div>
 </div>
 </div></blockquote>
@@ -508,13 +508,13 @@ Make sure it is installed.</p>
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
 <p id="bibtex-bibliography-asr/tutorial-0"><dl class="citation">
-<dt class="label" id="graves2006"><span class="brackets"><a class="fn-backref" href="#id2">1</a></span></dt>
+<dt class="bibtex label" id="graves2006"><span class="brackets"><a class="fn-backref" href="#id2">1</a></span></dt>
 <dd><p>Alex Graves, Santiago Fernández, Faustino Gomez, and Jürgen Schmidhuber. Connectionist temporal classification: labelling unsegmented sequence data with recurrent neural networks. In <em>Proceedings of the 23rd international conference on Machine learning</em>, 369–376. ACM, 2006.</p>
 </dd>
-<dt class="label" id="li2019jasper"><span class="brackets">1</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id4">2</a>)</span></dt>
+<dt class="bibtex label" id="li2019jasper"><span class="brackets">1</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id4">2</a>)</span></dt>
 <dd><p>Jason Li, Vitaly Lavrukhin, Boris Ginsburg, Ryan Leary, Oleksii Kuchaiev, Jonathan M Cohen, Huyen Nguyen, and Ravi Teja Gadde. Jasper: an end-to-end convolutional neural acoustic model. <em>arXiv preprint arXiv:1904.03288</em>, 2019.</p>
 </dd>
-<dt class="label" id="panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
+<dt class="bibtex label" id="panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
 <dd><p>Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur. Librispeech: an asr corpus based on public domain audio books. In <em>Acoustics, Speech and Signal Processing (ICASSP), 2015 IEEE International Conference on</em>, 5206–5210. IEEE, 2015.</p>
 </dd>
 </dl>
