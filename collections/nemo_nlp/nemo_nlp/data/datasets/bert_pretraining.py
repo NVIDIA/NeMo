@@ -314,6 +314,7 @@ class BertPretrainingDataset(Dataset):
         output_mask = []
         cls_id = self.tokenizer.special_tokens["[CLS]"]
         sep_id = self.tokenizer.special_tokens["[SEP]"]
+
         for cand_index in cand_indexes:
             if (random.random() < self.mask_probability) and \
                     cand_index[0] not in (cls_id, sep_id):
@@ -330,10 +331,7 @@ class BertPretrainingDataset(Dataset):
                         # There should be more elegant and fast way to do this.
                         for _ in range(10):
                             random_word = random.randrange(self.vocab_size)
-                            if random_word != \
-                                    self.tokenizer.special_tokens["[SEP]"] and\
-                               random_word != \
-                                    self.tokenizer.special_tokens["[CLS]"]:
+                            if random_word not in (sep_id, cls_id):
                                 break
                         masked_ids.append(random_word)
                 else:
