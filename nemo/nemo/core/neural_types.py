@@ -136,7 +136,9 @@ class LogitTag(BaseTag):
 
 class LogProbabilityTag(BaseTag):
     """Tag for log-probabilities.
-    Usefull when training classification problems with negative log likelihood loss."""
+    Usefull when training classification problems with negative log likelihood
+    loss
+    """
 
     def __str__(self):
         return "log-probability"
