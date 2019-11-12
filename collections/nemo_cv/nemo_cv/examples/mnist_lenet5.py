@@ -76,10 +76,11 @@ def eval_loss_epoch_finished_callback(global_vars):
     return dict({"Evaluation Loss": eloss})
 
 
-ecallback = nemo.core.EvaluatorCallback(eval_tensors=[loss_e],
-                                        user_iter_callback=eval_loss_per_batch_callback,
-                                        user_epochs_done_callback=eval_loss_epoch_finished_callback,
-                                        eval_step=100)
+ecallback = nemo.core.EvaluatorCallback(
+    eval_tensors=[loss_e],
+    user_iter_callback=eval_loss_per_batch_callback,
+    user_epochs_done_callback=eval_loss_epoch_finished_callback,
+    eval_step=100)
 
 
 # SimpleLossLoggerCallback will print loss values to console.

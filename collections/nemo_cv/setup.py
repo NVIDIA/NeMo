@@ -21,6 +21,11 @@ setuptools.setup(
     install_requires=[
         'nemo_toolkit',
         'torch==1.2.0',
-        'torchvision==0.4.0'
+        'torchvision==0.4.0',
+        'scikit-image',
+        'Cython',
+        'pycocotools'
+        # After installing those the Coco API has to be installed manually:
+        # run make in PythonAPIpython
     ]
 )
