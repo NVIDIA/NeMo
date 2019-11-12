@@ -173,7 +173,8 @@ class BertPretrainingDataset(Dataset):
                             self.sentence_indices[filename][-1]:
                         line_idx += 1
                         document += get_document(
-                           filename, self.sentence_indices[filename][line_idx])
+                            filename,
+                            self.sentence_indices[filename][line_idx])
                     else:
                         line_idx = random.choice(
                             range(len(sentence_indices[filename])))
@@ -249,9 +250,10 @@ class BertPretrainingDataset(Dataset):
 
                 trunc_document = a_document if len(
                     a_document) > len(b_document) else b_document
-                raise ValueError("Input text corpora probably too small. "
-                                 "Failed to truncate sequence pair to "
-                                 "maximum sequence length.")
+                if len(trunc_document) <= 1:
+                    raise ValueError("Input text corpora probably too small. "
+                                     "Failed to truncate sequence pair to "
+                                     "maximum sequence length.")
 
                 if random.random() < 0.5:
                     del trunc_document[0]
@@ -310,10 +312,12 @@ class BertPretrainingDataset(Dataset):
 
         masked_ids = []
         output_mask = []
+        cls_id = self.tokenizer.special_tokens["[CLS]"]
+        sep_id = self.tokenizer.special_tokens["[SEP]"]
+
         for cand_index in cand_indexes:
             if (random.random() < self.mask_probability) and \
-                  cand_index[0] != self.tokenizer.special_tokens["[CLS]"] and \
-                  cand_index[0] != self.tokenizer.special_tokens["[SEP]"]:
+                    cand_index[0] not in (cls_id, sep_id):
                 if random.random() < 0.8:
                     for _ in range(cand_index):
                         output_mask.append(1)
@@ -327,10 +331,7 @@ class BertPretrainingDataset(Dataset):
                         # There should be more elegant and fast way to do this.
                         for _ in range(10):
                             random_word = random.randrange(self.vocab_size)
-                            if random_word != \
-                                    self.tokenizer.special_tokens["[SEP]"] and\
-                               random_word != \
-                                    self.tokenizer.special_tokens["[CLS]"]:
+                            if random_word not in (sep_id, cls_id):
                                 break
                         masked_ids.append(random_word)
                 else:
