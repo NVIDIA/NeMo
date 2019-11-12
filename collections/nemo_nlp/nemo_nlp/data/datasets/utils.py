@@ -328,7 +328,7 @@ def generate_BIO(slot_tags_list, token_str, start_i, end_i):
 
 def process_triple_datasets(infold, uncased, dataset_name,
                             modes=['train', 'test', 'eval'], dev_split=0):
-    """ process and import triple datasets into NeMo's format
+    """ process and convert triple datasets into NeMo's BIO format
     """
 
     from nltk.tokenize import WhitespaceTokenizer
