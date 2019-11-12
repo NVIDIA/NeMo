@@ -23,7 +23,7 @@ setuptools.setup(
         'librosa',
         'num2words',
         'inflect',
-        'torchaudio',
+        'kaldi-io',
         'torch-stft',
         'soundfile',
         'marshmallow',
