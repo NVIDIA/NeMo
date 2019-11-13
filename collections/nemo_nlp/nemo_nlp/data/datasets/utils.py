@@ -584,9 +584,6 @@ def get_intents_slots_dialogflow(files, slot_labels):
                 intent_queries.append(querytext)
                 slots = f'{slots.strip()}\n'
                 slot_tags.append(slots)
-                logger.warning(f'Confirm slot tag correspondence with input '
-                               f'tokens since tokenization within dialogflow'
-                               f' may be different')
     return intent_queries, intent_names, slot_tags
 
 
