@@ -7,7 +7,7 @@ __all__ = ['AudioToTextDataLayer',
            'AudioPreprocessing',
            'MultiplyBatch',
            'SpectrogramAugmentation',
-           'KaldiMFCCDataLayer',
+           'KaldiFeatureDataLayer',
            'TranscriptDataLayer']
 
 from functools import partial
@@ -24,7 +24,7 @@ from nemo.core import Optimization, DeviceType
 from nemo.core.neural_types import *
 from nemo.utils.misc import pad_to as nemo_pad_to
 from .parts.dataset import (
-        AudioDataset, seq_collate_fn, KaldiMFCCDataset, TranscriptDataset)
+        AudioDataset, seq_collate_fn, KaldiFeatureDataset, TranscriptDataset)
 from .parts.features import FilterbankFeatures, WaveformFeaturizer
 from .parts.spectr_augment import SpecAugment, SpecCutout
 
@@ -387,14 +387,14 @@ class SpectrogramAugmentation(NonTrainableNM):
         return augmented_spec
 
 
-class KaldiMFCCDataLayer(DataLayerNM):
+class KaldiFeatureDataLayer(DataLayerNM):
     """Data layer for reading generic Kaldi-formatted data.
 
     Module that reads ASR labeled data that is in a Kaldi-compatible format.
     It assumes that you have a directory that contains:
 
         `feats.scp`: A mapping from utterance IDs to .ark files that
-            contain the corresponding MFCC data
+            contain the corresponding MFCC (or other format) data
         `text`: A mapping from utterance IDs to transcripts
         `utt2dur` (optional): A mapping from utterance IDs to audio durations,
             needed if you want to filter based on duration
@@ -426,7 +426,6 @@ class KaldiMFCCDataLayer(DataLayerNM):
         input_ports = {}
         output_ports = {
             "processed_signal": NeuralType({0: AxisType(BatchTag),
-                                            # Make new MFCC tag?
                                             1: AxisType(SpectrogramSignalTag),
                                             2: AxisType(ProcessedTimeTag)}),
 
@@ -462,7 +461,7 @@ class KaldiMFCCDataLayer(DataLayerNM):
                           'max_duration': max_duration,
                           'normalize': normalize_transcripts,
                           'logger': self._logger}
-        self._dataset = KaldiMFCCDataset(**dataset_params)
+        self._dataset = KaldiFeatureDataset(**dataset_params)
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
@@ -484,30 +483,31 @@ class KaldiMFCCDataLayer(DataLayerNM):
 
     @staticmethod
     def _collate_fn(batch):
-        """Collate batch of (MFCC features, MFCC len, tokens, tokens len)
+        """Collate batch of (features, feature len, tokens, tokens len).
+        Kaldi generally uses MFCC (and PLP) features.
 
         Args:
             batch: A batch of elements, where each element is a tuple of
-                MFCC features, MFCC feature length, tokens, and token
+                features, feature length, tokens, and token
                 length for a single sample.
 
         Returns:
-            The same batch, with the MFCC features and token length padded
+            The same batch, with the features and token length padded
             to the maximum of the batch.
         """
-        # Find max lengths of MFCC features and tokens in the batch
-        _, mfcc_lens, _, token_lens = zip(*batch)
-        max_mfcc_len = max(mfcc_lens).item()
+        # Find max lengths of features and tokens in the batch
+        _, feat_lens, _, token_lens = zip(*batch)
+        max_feat_len = max(feat_lens).item()
         max_tokens_len = max(token_lens).item()
 
         # Pad features and tokens to max
         features, tokens = [], []
-        for mfcc, mfcc_len, tkns, tkns_len in batch:
-            mfcc_len = mfcc_len.item()
-            if mfcc_len < max_mfcc_len:
-                pad = (0, max_mfcc_len - mfcc_len)
-                mfcc = torch.nn.functional.pad(mfcc, pad)
-            features.append(mfcc)
+        for feat, feat_len, tkns, tkns_len in batch:
+            feat_len = feat_len.item()
+            if feat_len < max_feat_len:
+                pad = (0, max_feat_len - feat_len)
+                feat = torch.nn.functional.pad(feat, pad)
+            features.append(feat)
 
             tkns_len = tkns_len.item()
             if tkns_len < max_tokens_len:
@@ -516,7 +516,7 @@ class KaldiMFCCDataLayer(DataLayerNM):
             tokens.append(tkns)
 
         features = torch.stack(features)
-        feature_lens = torch.stack(mfcc_lens)
+        feature_lens = torch.stack(feat_lens)
         tokens = torch.stack(tokens)
         token_lens = torch.stack(token_lens)
 
