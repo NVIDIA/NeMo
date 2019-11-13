@@ -547,17 +547,16 @@ def merge(data_dir, subdirs, dataset_name, modes=['train', 'test']):
     return outfold, none_slot
 
 
-def get_intent_query_files(path):
-    files = []
-    # r=root, d=directories, f = files
-    for r, d, f in os.walk(path):
-        for file in f:
+def get_intent_query_files_dialogflow(path):
+    fileslist = []
+    for root, _, files in os.walk(path):
+        for file in files:
             if '_usersays_en.json' in file:
-                files.append(os.path.join(r, file))
-    return files
+                fileslist.append(os.path.join(root, file))
+    return fileslist
 
 
-def get_intents_and_slots(files, slot_labels):
+def get_intents_slots_dialogflow(files, slot_labels):
 
     intent_names = []
     intent_queries = []
@@ -585,15 +584,12 @@ def get_intents_and_slots(files, slot_labels):
                 intent_queries.append(querytext)
                 slots = f'{slots.strip()}\n'
                 slot_tags.append(slots)
-                # TO DO
-                # WARNING - Slot tag length and word length doesnt
-                # match at many occasions due to
-                # different tokenization from dialogflow. E.g. question marks
-                # assert len(slot_lines) == len(input_lines)
+                logger.warning(f'Confirm slot tag correspondence with input tokens'
+                   f'since tokenization within dialogflow may change')
     return intent_queries, intent_names, slot_tags
 
 
-def get_slots(files):
+def get_slots_dialogflow(files):
     slot_labels = {}
     count = 0
     for file in files:
@@ -645,11 +641,11 @@ def process_dialogflow(
 
     os.makedirs(outfold, exist_ok=True)
 
-    files = get_intent_query_files(data_dir)
+    files = get_intent_query_files_dialogflow(data_dir)
 
-    slot_labels = get_slots(files)
+    slot_labels = get_slots_dialogflow(files)
 
-    intent_queries, intent_names, slot_tags = get_intents_and_slots(
+    intent_queries, intent_names, slot_tags = get_intents_slots_dialogflow(
         files,
         slot_labels)
 
