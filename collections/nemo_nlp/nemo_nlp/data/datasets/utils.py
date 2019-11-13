@@ -669,31 +669,35 @@ class SentenceClassificationDataDesc:
 
 
 def create_vocab_lm(data_dir, do_lower_case):
-    if if_exist(data_dir, ['train.txt', 'valid.txt', 'test.txt', 'vocab.txt']):
-        logger.info(LOGGING_TMP.format('WikiText', data_dir))
-        return data_dir
-    logger.info(f'Processing WikiText dataset and store at {data_dir}')
+    if if_exist(data_dir, ['train.txt', 'vocab.txt']):
+        logger.info("Vocabulary has been created.")
+        with open(os.path.join(data_dir, 'vocab.txt'), 'r') as f:
+            vocab_size = len(f.readlines())
+        return vocab_size
 
-    with open(f'{data_dir}/train.txt', 'r') as file:
-        txt = file.read()
-        if do_lower_case:
-            txt = txt.lower()
-        lines = re.split(r'[\n]', txt)
-        sentences = [line.strip().split() for line in lines if line.strip()]
+    logger.info(f'Creating vocabulary from training data at {data_dir}')
 
-        vocab = {"[PAD]": 0, "[SEP]": 1, "[CLS]": 2, "[MASK]": 3}
-        idx = 4
-        for sentence in sentences:
-            for word in sentence:
-                if word not in vocab:
-                    vocab[word] = idx
-                    idx += 1
+    with open(f'{data_dir}/train.txt', 'r') as f:
+        txt = f.read()
+    if do_lower_case:
+        txt = txt.lower()
+    lines = re.split(r'[\n]', txt)
+    sentences = [line.strip().split() for line in lines if line.strip()]
+
+    vocab = {"[PAD]": 0, "[SEP]": 1, "[CLS]": 2, "[MASK]": 3}
+    idx = 4
+    for sentence in sentences:
+        for word in sentence:
+            if word not in vocab:
+                vocab[word] = idx
+                idx += 1
 
     with open(f'{data_dir}/vocab.txt', 'w') as f:
-        for word in vocab.keys():
+        for word in sorted(vocab.keys()):
             f.write(word + '\n')
     logger.info(f"Created vocabulary of size {len(vocab)}")
-    return data_dir
+
+    return len(vocab)
 
 
 def download_wkt2(data_dir):
@@ -710,7 +714,8 @@ class LanguageModelDataDesc:
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
                 data_dir = download_wkt2(data_dir)
-            self.data_dir = create_vocab_lm(data_dir, do_lower_case)
+            self.vocab_size = create_vocab_lm(data_dir, do_lower_case)
+            self.data_dir = data_dir
         else:
             logger.info("Looks like you pass in a dataset name that isn't "
                         "already supported by NeMo. Please make sure that "
@@ -720,7 +725,7 @@ class LanguageModelDataDesc:
 def create_vocab_mlm(data_dir,
                      vocab_size,
                      sample_size,
-                     special_tokens=['PAD', '[UNK]',
+                     special_tokens=['[PAD]', '[UNK]',
                                      '[CLS]', '[SEP]', '[MASK]'],
                      train_file=''):
     vocab = special_tokens[:]
