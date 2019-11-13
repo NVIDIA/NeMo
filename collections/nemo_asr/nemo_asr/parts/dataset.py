@@ -177,7 +177,7 @@ class AudioDataset(Dataset):
         return len(self.manifest)
 
 
-class KaldiMFCCDataset(Dataset):
+class KaldiFeatureDataset(Dataset):
     """
     Dataset that provides basic Kaldi-compatible dataset loading. Assumes that
     the files `feats.scp`, `text`, and (optionally) `utt2dur` exist, as well
@@ -217,11 +217,11 @@ class KaldiMFCCDataset(Dataset):
         duration = 0.0
         filtered_duration = 0.0
 
-        # Read MFCC features using feats.scp
+        # Read Kaldi features (MFCC, PLP) using feats.scp
         feats_path = os.path.join(kaldi_dir, 'feats.scp')
         id2feats = {
-            utt_id: torch.from_numpy(mfcc_feats)
-            for utt_id, mfcc_feats in kaldi_io.read_mat_scp(feats_path)
+            utt_id: torch.from_numpy(feats)
+            for utt_id, feats in kaldi_io.read_mat_scp(feats_path)
         }
 
         # Get durations, if utt2dur exists
@@ -234,7 +234,7 @@ class KaldiMFCCDataset(Dataset):
                     id2dur[utt_id] = float(dur)
         elif max_duration or min_duration:
             raise ValueError(
-                f"KaldiMFCCDataset max_duration or min_duration is set but"
+                f"KaldiFeatureDataset max_duration or min_duration is set but"
                 f" utt2dur file not found in {kaldi_dir}."
             )
         elif logger:
