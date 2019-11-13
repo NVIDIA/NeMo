@@ -33,6 +33,7 @@ class BertPretrainingDataset(Dataset):
                  max_seq_length=128,
                  mask_probability=0.15,
                  short_seq_prob=0.1,
+                 seq_a_ratio=0.6,
                  sentence_idx_file=None):
         self.tokenizer = tokenizer
         self.cls_id = tokenizer.token_to_id("[CLS]")
@@ -72,7 +73,6 @@ class BertPretrainingDataset(Dataset):
                             .decode("utf-8", errors="ignore")
 
                         if len(line.split()) > 0:
-                            # Save the next position following the new line
                             yield start
 
                         start = new_start + 1
@@ -125,6 +125,7 @@ class BertPretrainingDataset(Dataset):
         self.sentence_indices = sentence_indices
         self.vocab_size = self.tokenizer.vocab_size
         self.short_seq_prob = short_seq_prob
+        self.seq_a_ratio = seq_a_ratio
 
     def __len__(self):
         return self.corpus_size
@@ -140,9 +141,8 @@ class BertPretrainingDataset(Dataset):
             # TODO: maybe introduce an argument to control this.
             target_seq_length = random.randint(2, max_num_tokens)
 
-        # prefer the seq_a to be slightly longer than seq_b, hence 0.6
-        # TODO: perhaps give this as an argument to control.
-        target_seq_length_a = int(round(target_seq_length * 0.6))
+        # prefer the seq_a to be slightly longer than seq_b, 0.6 by default
+        target_seq_length_a = int(round(target_seq_length * self.seq_a_ratio))
         target_seq_length_b = target_seq_length - target_seq_length_a
 
         def get_document(filepath, offset):
@@ -231,13 +231,16 @@ class BertPretrainingDataset(Dataset):
                 else:
                     trunc_document = b
 
+                if len(trunc_document) <= 1:
+                    raise ValueError("Input text corpora probably too small. "
+                                     "Failed to truncate sequence pair to "
+                                     "maximum sequence legnth.")
+
                 # Randomly truncate from the front or the back
                 if random.random() < 0.5:
                     del trunc_document[0]
                 else:
                     trunc_document.pop()
-
-                total_length = len(a_document) + len(b_document)
 
         truncate_seq_pair(a_document, b_document, max_num_tokens)
 
@@ -252,10 +255,11 @@ class BertPretrainingDataset(Dataset):
         input_type_ids = np.zeros(self.max_seq_length, dtype=np.int)
         input_type_ids[len(a_document) + 2:len(output_ids) + 1] = 1
 
-        while len(input_ids) < self.max_seq_length:
-            input_ids.append(self.pad_id)
-            output_ids.append(self.pad_id)
-            output_mask.append(0)
+        padding_length = max(0, self.max_seq_length - len(input_ids))
+        if padding_length > 0:
+            input_ids.extend([self.pad_id] * padding_length)
+            output_ids.extend([self.pad_id] * padding_length)
+            output_mask.extend([0] * padding_length)
 
         # TODO: wrap the return value with () for consistent style.
         return np.array(input_ids), input_type_ids,\
@@ -279,14 +283,14 @@ class BertPretrainingDataset(Dataset):
 
         # Whole-word masking by default, as it gives better performance.
         cand_indexes = [[ids[0]]]
-        for id in ids[1:]:
-            token = self.tokenizer.ids_to_tokens([id])[0]
+        for tid in ids[1:]:
+            token = self.tokenizer.ids_to_tokens([tid])[0]
             is_suffix = token.startswith('\u2581')
             if is_suffix:
                 # group together with its previous token to form a whole-word
-                cand_indexes[-1].append(id)
+                cand_indexes[-1].append(tid)
             else:
-                cand_indexes.append([id])
+                cand_indexes.append([tid])
 
         masked_ids, output_mask = [], []
         mask_id = self.tokenizer.token_to_id("[MASK]")
