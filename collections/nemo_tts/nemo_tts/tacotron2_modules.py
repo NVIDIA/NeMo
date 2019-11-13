@@ -158,10 +158,7 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(EncodedRepresentationTag)}),
-            "encoded_length": NeuralType({0: AxisType(BatchTag)}),
-            "mel_target": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(MelSpectrogramSignalTag),
-                                      2: AxisType(TimeTag)})
+            "encoded_length": NeuralType({0: AxisType(BatchTag)})
         }
 
         output_ports = {
@@ -212,7 +209,7 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
             attention_location_kernel_size,
             **kwargs)
 
-    def forward(self, char_phone_encoded, encoded_length, mel_target):
+    def forward(self, char_phone_encoded, encoded_length):
         if self.training:
             raise ValueError("You are using the Tacotron 2 Infer Neural Module"
                              " in training mode.")

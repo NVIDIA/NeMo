@@ -1,5 +1,6 @@
 model: "Tacotron 2"
 sample_rate: &sr 22050
+# TODO: <PAD>, <BOS>, <EOS> are automiatcally added by relevant datalayers
 labels: [' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A', 'B',
          'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
          'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', ']', 'a', 'b',

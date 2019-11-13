@@ -203,21 +203,10 @@ def create_eval_dags(neural_factory,
         transcript_encoded = t2_enc(
             char_phone_embeddings=transcript_embedded,
             embedding_length=transcript_len)
-        if isinstance(t2_dec, nemo_tts.Tacotron2DecoderInfer):
-            mel_decoder, gate, alignments, mel_len = t2_dec(
-                char_phone_encoded=transcript_encoded,
-                encoded_length=transcript_len,
-                mel_target=spec_target)
-            decoder_infer = True
-        elif isinstance(t2_dec, nemo_tts.Tacotron2Decoder):
-            mel_decoder, gate, alignments = t2_dec(
-                char_phone_encoded=transcript_encoded,
-                encoded_length=transcript_len,
-                mel_target=spec_target)
-            decoder_infer = False
-        else:
-            raise ValueError(
-                "The Neural Module for tacotron2 decoder was not understood")
+        mel_decoder, gate, alignments = t2_dec(
+            char_phone_encoded=transcript_encoded,
+            encoded_length=transcript_len,
+            mel_target=spec_target)
         mel_postnet = t2_postnet(mel_input=mel_decoder)
         gate_target = makegatetarget(target_len=spec_target_len)
         loss = t2_loss(
@@ -233,8 +222,6 @@ def create_eval_dags(neural_factory,
         tagname = os.path.basename(eval_dataset).split(".")[0]
         eval_tensors = [loss, spec_target, mel_postnet, gate, gate_target,
                         alignments]
-        if decoder_infer:
-            eval_tensors.append(mel_len)
         eval_callback = nemo.core.EvaluatorCallback(
             eval_tensors=eval_tensors,
             user_iter_callback=tacotron2_process_eval_batch,

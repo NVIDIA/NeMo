@@ -1,5 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import argparse
+import copy
 import os
 
 import librosa
@@ -9,8 +10,9 @@ from ruamel.yaml import YAML
 from scipy.io.wavfile import write
 
 import nemo
+import nemo_asr
 import nemo_tts
-from tacotron2 import create_NMs, create_eval_dags
+from tacotron2 import create_NMs
 
 
 def parse_args():
@@ -87,6 +89,46 @@ def plot_and_save_spec(spectrogram, i, save_dir=None):
     plt.close()
 
 
+def create_infer_dags(neural_factory,
+                      neural_modules,
+                      tacotron2_params,
+                      infer_dataset,
+                      infer_batch_size,
+                      cpu_per_dl=1):
+    (_, text_embedding, t2_enc, t2_dec, t2_postnet, _, _) = neural_modules
+
+    dl_params = copy.deepcopy(tacotron2_params["AudioToTextDataLayer"])
+    dl_params.update(tacotron2_params["AudioToTextDataLayer"]["eval"])
+    del dl_params["train"]
+    del dl_params["eval"]
+
+    data_layer = nemo_asr.AudioToTextDataLayer(
+        manifest_filepath=infer_dataset,
+        labels=tacotron2_params['labels'],
+        batch_size=infer_batch_size,
+        num_workers=cpu_per_dl,
+        load_audio=False,
+        **dl_params,
+    )
+
+    _, _, transcript, transcript_len = data_layer()
+
+    transcript_embedded = text_embedding(char_phone=transcript)
+    transcript_encoded = t2_enc(
+        char_phone_embeddings=transcript_embedded,
+        embedding_length=transcript_len)
+    if isinstance(t2_dec, nemo_tts.Tacotron2DecoderInfer):
+        mel_decoder, gate, alignments, mel_len = t2_dec(
+            char_phone_encoded=transcript_encoded,
+            encoded_length=transcript_len)
+    else:
+        raise ValueError(
+            "The Neural Module for tacotron2 decoder was not understood")
+    mel_postnet = t2_postnet(mel_input=mel_decoder)
+
+    return [mel_postnet, gate, alignments, mel_len]
+
+
 def main():
     args = parse_args()
     neural_factory = nemo.core.NeuralModuleFactory(
@@ -98,19 +140,17 @@ def main():
         with open(args.spec_model_config) as file:
             tacotron2_params = yaml.load(file)
         spec_neural_modules = create_NMs(tacotron2_params, decoder_infer=True)
-        callback = create_eval_dags(
+        infer_tensors = create_infer_dags(
             neural_factory=neural_factory,
             neural_modules=spec_neural_modules,
             tacotron2_params=tacotron2_params,
-            eval_datasets=[args.eval_dataset],
-            eval_batch_size=32,
-            eval_freq=1)
-        eval_tensors = callback[0].eval_tensors
+            infer_dataset=args.eval_dataset,
+            infer_batch_size=32)
 
     print("Running Tacotron 2")
     # Run tacotron 2
     evaluated_tensors = neural_factory.infer(
-        tensors=eval_tensors,
+        tensors=infer_tensors,
         checkpoint_dir=args.spec_model_load_dir,
         cache=True,
         offload_to_cpu=False
@@ -138,7 +178,7 @@ def main():
                                    args.save_dir)
 
     elif args.vocoder == "waveglow":
-        (_, spec_target, _, _, _, _, _) = eval_tensors
+        (mel_pred, _, _, _) = infer_tensors
         if not args.vocoder_model_config or not args.vocoder_model_load_dir:
             raise ValueError(
                 "Using waveglow as the vocoder requires the "
@@ -148,7 +188,7 @@ def main():
         with open(args.vocoder_model_config) as file:
             waveglow_params = yaml.load(file)
         waveglow = nemo_tts.WaveGlowInferNM(**waveglow_params["WaveGlowNM"])
-        audio_pred = waveglow(mel_spectrogram=spec_target)
+        audio_pred = waveglow(mel_spectrogram=mel_pred)
 
         # Run waveglow
         print("Running Waveglow")
