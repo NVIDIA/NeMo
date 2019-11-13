@@ -8,8 +8,7 @@ import string
 import torch
 from torch.utils.data import Dataset
 
-from .cleaners import clean_text
-from .manifest import ManifestEN
+from .manifest import ManifestBase, ManifestEN
 
 
 def seq_collate_fn(batch):
@@ -257,7 +256,7 @@ class KaldiMFCCDataset(Dataset):
 
                     text = line[split_idx:].strip()
                     if normalize:
-                        text = self.normalize_text(text, labels)
+                        text = ManifestEN.normalize_text(text, labels)
                     dur = id2dur[utt_id] if id2dur else None
 
                     # Filter by duration if specified & utt2dur exists
@@ -271,7 +270,11 @@ class KaldiMFCCDataset(Dataset):
                     sample = {
                         'utt_id': utt_id,
                         'text': text,
-                        'tokens': self.tokenize_transcript(text),
+                        'tokens': ManifestBase.tokenize_transcript(
+                            text,
+                            self.labels_map,
+                            self.unk_index,
+                            self.blank_index),
                         'audio': audio_features.t(),
                         'duration': dur
                     }
@@ -290,59 +293,6 @@ class KaldiMFCCDataset(Dataset):
                     f"Filtered {filtered_duration/60 : .2f} hours.")
 
         self.data = data
-
-    def normalize_text(self, text, labels):
-        """
-        Standard English text normalization.
-        Same as the normalization in ManifestEN.
-        """
-        # Punctuation to remove
-        punctuation = string.punctuation
-        punctuation_to_replace = {
-            "+": "plus",
-            "&": "and",
-            "%": "percent"
-        }
-        for char in punctuation_to_replace:
-            punctuation = punctuation.replace(char, "")
-        # We might also want to consider:
-        # @ -> at
-        # -> number, pound, hashtag
-        # ~ -> tilde
-        # _ -> underscore
-
-        # If a punctuation symbol is inside our vocab, we do not remove
-        # from text
-        for l in labels:
-            punctuation = punctuation.replace(l, "")
-
-        # Turn all other punctuation to whitespace
-        table = str.maketrans(punctuation, " " * len(punctuation))
-        norm_text = clean_text(text, table, punctuation_to_replace)
-
-        return norm_text
-
-    def tokenize_transcript(self, transcript):
-        """
-        Convert words/characters to indices.
-        Same as the tokenizer in ManifestBase.
-        """
-        # allow for special labels such as "<NOISE>"
-        special_labels = set([l for l in self.labels_map.keys() if len(l) > 1])
-        tokens = []
-        # split by word to find special tokens
-        for i, word in enumerate(transcript.split(" ")):
-            if i > 0:
-                tokens.append(self.labels_map.get(" ", self.unk_index))
-            if word in special_labels:
-                tokens.append(self.labels_map.get(word))
-                continue
-            # split by character to get the rest of the tokens
-            for char in word:
-                tokens.append(self.labels_map.get(char, self.unk_index))
-        # if unk_index == blank_index, OOV tokens are removed from transcript
-        tokens = [x for x in tokens if x != self.blank_index]
-        return tokens
 
     def __getitem__(self, index):
         sample = self.data[index]
