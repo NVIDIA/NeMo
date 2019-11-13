@@ -161,35 +161,10 @@ class ManifestEN(ManifestBase):
 
         # Turn all other punctuation to whitespace
         table = str.maketrans(punctuation, " " * len(punctuation))
-        text = ManifestEN.english_string_normalization(
-            text,
-            labels=labels,
-            table=table,
-            punctuation_to_replace=punctuation_to_replace,
-            clean_fn=clean_text)
 
-        return text
-
-    @staticmethod
-    def english_string_normalization(
-            s, labels, table, punctuation_to_replace, clean_fn):
-        """
-        Normalizes string. For example:
-        'call me at 8:00 pm!' -> 'call me at eight zero pm'
-
-        Args:
-            s: string to normalize
-            labels: labels used during model training.
-            table: translation table of characters to replace
-            punctuation_to_replace: punctuation to be ignored in `table`
-            clean_fn: function to do the cleaning
-
-        Returns:
-            Normalized string
-        """
         try:
-            text = clean_fn(s, table, punctuation_to_replace)
-            return text
+            text = clean_text(text, table, punctuation_to_replace)
         except BaseException:
             print("WARNING: Normalizing {} failed".format(s))
-            return None
+
+        return text
