@@ -22,6 +22,7 @@ setuptools.setup(
         'nemo_toolkit',
         'torchtext',
         'sentencepiece',
+        'python-dateutil<2.8.1,>=2.1',
         'boto3',
         'unidecode',
         'pytorch-transformers',
