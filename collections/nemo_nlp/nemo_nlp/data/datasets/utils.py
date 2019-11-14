@@ -108,6 +108,8 @@ def process_imdb(data_dir, uncased, modes=['train', 'test']):
                     review = review.lower()
                 review = review.replace("<br />", "")
                 outfiles[mode].write(f'{review}\t{label}\n')
+    for mode in modes:
+        outfiles[mode].close()
 
     return outfold
 
@@ -180,6 +182,8 @@ def process_nlu(filename,
             outfiles['train'].write(txt)
         else:
             outfiles['test'].write(txt)
+    for mode in modes:
+        outfiles[mode].close()
     return outfold
 
 
@@ -316,6 +320,8 @@ def process_atis(infold, uncased, modes=['train', 'test'], dev_split=0):
                     f'{outfold}/dict.intents.csv')
     shutil.copyfile(f'{infold}/atis.dict.slots.csv',
                     f'{outfold}/dict.slots.csv')
+    for mode in modes:
+        outfiles[mode].close()
 
     return outfold
 
