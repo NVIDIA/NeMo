@@ -10,6 +10,7 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
+import onnx
 
 from nemo.backends.pytorch.nm import TrainableNM
 
@@ -1026,6 +1027,9 @@ class PtActions(Actions):
 
         # Case of exporting a single module
         module = modules[0]
+        module.eval()
+        module.training = False
+
         # Remove NeMo-related things from the module
         # We need to change __call__ method. Note that this will change the
         # whole class, not just this object!
@@ -1043,6 +1047,7 @@ class PtActions(Actions):
         module._device = None
         module._local_parameters = None
 
+                
         if d_format == DeploymentFormat.TORCHSCRIPT:
             try:
                 # Route 1 - via torch.jit.script
@@ -1060,8 +1065,23 @@ class PtActions(Actions):
             if input_example is None:
                 raise ValueError(f'Example input is None, but ONNX tracing was'
                                  f' attempted')
+            print ("Running export ... ")
+            torch.onnx.export(module, input_example, output,
+                              input_names = [],
+                              output_names = [],
+                              verbose=True,
+                              export_params=True,
+                              do_constant_folding=True,
+                              opset_version=10)
+            fn=output+".readable"
+            with open(fn, 'w') as f:
+                #Write human-readable graph representation to file as well.
+                tempModel = onnx.load(output)
+                onnx.save(tempModel, output+".copy")
+                onnx.checker.check_model(tempModel)
+                pgraph = onnx.helper.printable_graph(tempModel.graph)
+                f.write(pgraph)
 
-            torch.onnx.export(module, input_example, output)
         else:
             raise NotImplemented(f"Not supported deployment format: {d_format}")
 

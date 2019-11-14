@@ -5,9 +5,9 @@ import torch
 from pathlib import Path
 from ruamel.yaml import YAML
 
-from .context import nemo, nemo_asr, nemo_nlp
-from .common_setup import NeMoUnitTest
-
+from context import nemo, nemo_asr, nemo_nlp
+from common_setup import NeMoUnitTest
+import argparse
 
 class TestDeployExport(NeMoUnitTest):
     def setUp(self) -> None:
@@ -80,25 +80,43 @@ class TestDeployExport(NeMoUnitTest):
                                  mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
                                  input_example=input_example)
 
-    # def test_jasper_encoder_export(self):
-    #     out_name = "jasper_encoder.pt"
-    #     out = Path(out_name)
-    #     if out.exists():
-    #         os.remove(out)
-    #     with open("tests/data/jasper_smaller.yaml") as file:
-    #         yaml = YAML(typ="safe")
-    #         jasper_model_definition = yaml.load(file)
-    #     nf = nemo.core.NeuralModuleFactory(
-    #         placement=nemo.core.DeviceType.CPU)
-    #     jasper_encoder = nemo_asr.JasperEncoder(
-    #         conv_mask=False,
-    #         feat_in=jasper_model_definition['AudioPreprocessing']['features'],
-    #         **jasper_model_definition['JasperEncoder']
-    #     )
-    #     nf.deployment_export(modules=[jasper_encoder],
-    #                          output=out_name,
-    #                          # input_example=(torch.randn(2, 64, 2), torch.randn(2)),
-    #                          d_format=nemo.core.DeploymentFormat.TORCHSCRIPT)
-    #     self.assertTrue(out.exists())
-    #     if out.exists():
-    #         os.remove(out)
+    def test_jasper_encoder_export(self, out_name = "jasper_encoder.pt"):
+         out = Path(out_name)
+         if out.exists():
+             os.remove(out)
+         with open("tests/data/jasper_smaller.yaml") as file:
+             yaml = YAML(typ="safe")
+             jasper_model_definition = yaml.load(file)
+         nf = nemo.core.NeuralModuleFactory(
+             placement=nemo.core.DeviceType.CPU)
+         jasper_encoder = nemo_asr.JasperEncoder(
+             conv_mask=False,
+             feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+             **jasper_model_definition['JasperEncoder']
+         )
+         nf.deployment_export(modules=[jasper_encoder],
+                              output=out_name,
+                              input_example=(torch.randn(2, 64, 2), torch.randn(2)),
+                              d_format=nemo.core.DeploymentFormat.ONNX)
+         self.assertTrue(out.exists())
+         if out.exists():
+             os.remove(out)
+
+def main(args):
+    if args.onnx_path:
+        td = TestDeployExport()
+        print("ONNX. . .")
+        td.test_jasper_encoder_export(args.onnx_path)
+
+        
+def parse_args():
+    parser = argparse.ArgumentParser(description='test_deploy')
+    parser.add_argument("--onnx_path", default=None, type=str, help="Path to onnx model for engine creation")
+    parser.add_argument("--engine_path", default=None, type=str, help="Path to serialized TRT engine")
+    return parser.parse_args()
+    
+
+        
+if __name__=="__main__":
+    args = parse_args()
+    main(args)
