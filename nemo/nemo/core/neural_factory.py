@@ -23,6 +23,7 @@ class DeploymentFormat(Enum):
     """Which format to use when exporting a Neural Module for deployment"""
     ONNX = 0
     TORCHSCRIPT = 1
+    PYTORCH = 2
 
 
 class Backend(Enum):

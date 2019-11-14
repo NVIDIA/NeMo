@@ -28,57 +28,65 @@ class TestDeployExport(NeMoUnitTest):
         self.assertTrue(out.exists())
         if out.exists():
             os.remove(out)
+            os.remove(out_name + ".json")
 
-    def test_simple_module_export(self):
-        simplest_module = \
-            nemo.backends.pytorch.tutorials.TaylorNet(dim=4, factory=self.nf)
-        self.__test_export_route(module=simplest_module,
-                                 out_name="simple.pt",
-                                 mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
-                                 input_example=None)
+    # def test_simple_module_export(self):
+    #     simplest_module = \
+    #         nemo.backends.pytorch.tutorials.TaylorNet(dim=4, factory=self.nf)
+    #     self.__test_export_route(module=simplest_module,
+    #                              out_name="simple.pt",
+    #                              mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
+    #                              input_example=None)
+    #
+    # def test_simple_module_onnx_export(self):
+    #     simplest_module = \
+    #         nemo.backends.pytorch.tutorials.TaylorNet(dim=4, factory=self.nf)
+    #     self.__test_export_route(module=simplest_module,
+    #                              out_name="simple.onnx",
+    #                              mode=nemo.core.DeploymentFormat.ONNX,
+    #                              input_example=torch.randn(16, 1))
+    #
+    # def test_TokenClassifier_module_export(self):
+    #     t_class = nemo_nlp.TokenClassifier(hidden_size=512, num_classes=16,
+    #                                        use_transformer_pretrained=False)
+    #     self.__test_export_route(module=t_class,
+    #                              out_name="t_class.pt",
+    #                              mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
+    #                              input_example=torch.randn(16, 16, 512))
+    #
+    # def test_TokenClassifier_module_onnx_export(self):
+    #     t_class = nemo_nlp.TokenClassifier(hidden_size=512, num_classes=16,
+    #                                        use_transformer_pretrained=False)
+    #     self.__test_export_route(module=t_class,
+    #                              out_name="t_class.onnx",
+    #                              mode=nemo.core.DeploymentFormat.ONNX,
+    #                              input_example=torch.randn(16, 16, 512))
+    #
+    # def test_jasper_decoder_export(self):
+    #     j_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024,
+    #                                              num_classes=33)
+    #     self.__test_export_route(module=j_decoder,
+    #                              out_name="j_decoder.pt",
+    #                              mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
+    #                              input_example=None)
+    #
+    # def test_hf_bert(self):
+    #     bert = nemo_nlp.huggingface.BERT(
+    #         pretrained_model_name="bert-base-uncased")
+    #     input_example = (torch.randint(low=0, high=16, size=(2, 16)),
+    #                      torch.randint(low=0, high=1, size=(2, 16)),
+    #                      torch.randint(low=0, high=1, size=(2, 16)))
+    #     self.__test_export_route(module=bert,
+    #                              out_name="bert.pt",
+    #                              mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
+    #                              input_example=input_example)
 
-    def test_simple_module_onnx_export(self):
-        simplest_module = \
-            nemo.backends.pytorch.tutorials.TaylorNet(dim=4, factory=self.nf)
-        self.__test_export_route(module=simplest_module,
-                                 out_name="simple.onnx",
-                                 mode=nemo.core.DeploymentFormat.ONNX,
-                                 input_example=torch.randn(16, 1))
-
-    def test_TokenClassifier_module_export(self):
-        t_class = nemo_nlp.TokenClassifier(hidden_size=512, num_classes=16,
-                                           use_transformer_pretrained=False)
-        self.__test_export_route(module=t_class,
-                                 out_name="t_class.pt",
-                                 mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
-                                 input_example=torch.randn(16, 16, 512))
-
-    def test_TokenClassifier_module_onnx_export(self):
-        t_class = nemo_nlp.TokenClassifier(hidden_size=512, num_classes=16,
-                                           use_transformer_pretrained=False)
-        self.__test_export_route(module=t_class,
-                                 out_name="t_class.onnx",
-                                 mode=nemo.core.DeploymentFormat.ONNX,
-                                 input_example=torch.randn(16, 16, 512))
-
-    def test_jasper_decoder_export(self):
-        j_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024,
-                                                 num_classes=33)
-        self.__test_export_route(module=j_decoder,
-                                 out_name="j_decoder.pt",
-                                 mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
-                                 input_example=None)
-
-    def test_hf_bert(self):
+    def test_hf_bert_pt(self):
         bert = nemo_nlp.huggingface.BERT(
             pretrained_model_name="bert-base-uncased")
-        input_example = (torch.randint(low=0, high=16, size=(2, 16)),
-                         torch.randint(low=0, high=1, size=(2, 16)),
-                         torch.randint(low=0, high=1, size=(2, 16)))
         self.__test_export_route(module=bert,
                                  out_name="bert.pt",
-                                 mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
-                                 input_example=input_example)
+                                 mode=nemo.core.DeploymentFormat.PYTORCH)
 
     # def test_jasper_encoder_export(self):
     #     out_name = "jasper_encoder.pt"
