@@ -8,11 +8,11 @@ import time
 import logging
 
 import matplotlib
+matplotlib.use("TkAgg")
 from matplotlib import pyplot as plt
 import numpy as np
 from sklearn.metrics import confusion_matrix, classification_report
 
-matplotlib.use("TkAgg")
 logger = logging.getLogger('log')
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
