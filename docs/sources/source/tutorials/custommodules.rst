@@ -147,7 +147,7 @@ This example wraps PyTorch's *ImageFolder* dataset into a neural module data lay
             # Note: we define the size of the height and width of our output
             # tensors, and thus require a size parameter.
             input_ports = {}
-            self._output_ports = {
+            output_ports = {
                 "image": NeuralType({0: AxisType(BatchTag),
                                      1: AxisType(ChannelTag),
                                      2: AxisType(HeightTag, size),

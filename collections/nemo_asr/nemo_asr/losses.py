@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core import DeviceType
-from nemo.core.neural_types import *
+from nemo.core.neural_types import (NeuralType, AxisType, BatchTag, TimeTag,
+                                    ChannelTag)
 
 
 class CTCLossNM(LossNM):

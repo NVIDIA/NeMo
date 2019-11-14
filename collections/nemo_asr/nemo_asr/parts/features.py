@@ -266,7 +266,7 @@ class FilterbankFeatures(nn.Module):
         max_length = 1 + math.ceil(
             (max_duration * sample_rate - self.win_length) / self.hop_length
         )
-        max_pad = 16 - (max_length % 16)
+        max_pad = pad_to - (max_length % pad_to)
         self.max_length = max_length + max_pad
 
     def get_seq_len(self, seq_len):
