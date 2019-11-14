@@ -56,7 +56,7 @@ def get_features(queries,
     for i, query in enumerate(queries):
         words = query.strip().split()
         subtokens = ['[CLS]']
-        loss_mask = [not ignore_start_end]  # True if a token is the start of a new word
+        loss_mask = [not ignore_start_end]
         subtokens_mask = [False]
         if with_label:
             slots = [pad_label]
@@ -66,7 +66,8 @@ def get_features(queries,
             subtokens.extend(word_tokens)
 
             loss_mask.append(True)
-            loss_mask.extend([not ignore_extra_tokens] * (len(word_tokens) - 1))
+            loss_mask.extend([not ignore_extra_tokens] *
+                             (len(word_tokens) - 1))
 
             subtokens_mask.append(True)
             subtokens_mask.extend([False] * (len(word_tokens) - 1))
