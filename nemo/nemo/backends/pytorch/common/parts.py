@@ -1,38 +1,10 @@
-__all__ = ['TextDataset', 'Attention', 'MultiLayerPerceptron']
+__all__ = ['Attention', 'MultiLayerPerceptron']
 
 import os
 
-import pandas as pd
 import torch
 # noinspection PyPep8Naming
 from torch import nn
-from torch.utils.data import Dataset
-
-
-class TextDataset(Dataset):
-    def __init__(self, path, labels, eos_id):
-        _, ext = os.path.splitext(path)
-        if ext == '.csv':
-            texts = pd.read_csv(path)['transcript'].tolist()
-        else:
-            with open(path, 'r') as f:
-                texts = f.readlines()
-        texts = [l.strip().lower() for l in texts if len(l)]
-        self.texts = texts
-
-        self.char2num = {c: i for i, c in enumerate(labels)}
-        self.eos_id = eos_id
-
-    def __len__(self):
-        return len(self.texts)
-
-    def __getitem__(self, item):
-        char2num = self.char2num
-        return torch.tensor(
-            [char2num[c] for c in self.texts[item]
-             if c in char2num] + [self.eos_id],
-            dtype=torch.long
-        )
 
 
 class Attention(nn.Module):

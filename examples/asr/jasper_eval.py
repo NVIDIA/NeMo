@@ -4,15 +4,14 @@
 import argparse
 import copy
 import os
-import pickle
 
 from ruamel.yaml import YAML
+import numpy as np
 
 import nemo
 import nemo_asr
 from nemo_asr.helpers import word_error_rate, post_process_predictions, \
                              post_process_transcripts
-import numpy as np
 
 
 def main():
@@ -51,10 +50,6 @@ def main():
         required=False, default=0.1)
     parser.add_argument(
         "--beam_width", default=128, type=int)
-    parser.add_argument(
-        '--mode',
-        help='either \'eval\' (default) or \'infer\'',
-        default='infer')
 
     args = parser.parse_args()
     batch_size = args.batch_size
@@ -137,24 +132,10 @@ def main():
     eval_tensors = [log_probs_e1, predictions_e1,
                     transcript_e1, transcript_len_e1, encoded_len_e1]
 
-    if args.lm_path and args.mode == 'infer':
-        beam_width = args.beam_width
-        alpha = args.alpha
-        beta = args.beta
-        beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
-            vocab=vocab,
-            beam_width=beam_width,
-            alpha=alpha,
-            beta=beta,
-            lm_path=args.lm_path,
-            num_cpus=max(os.cpu_count(), 1))
-        beam_predictions_e1 = beam_search_with_lm(
-            log_probs=log_probs_e1, log_probs_length=encoded_len_e1)
-        eval_tensors.append(beam_predictions_e1)
-
     evaluated_tensors = neural_factory.infer(
         tensors=eval_tensors,
         checkpoint_dir=load_dir,
+        cache=True
     )
 
     greedy_hypotheses = post_process_predictions(evaluated_tensors[1], vocab)
@@ -163,30 +144,7 @@ def main():
     wer = word_error_rate(hypotheses=greedy_hypotheses, references=references)
     logger.info("Greedy WER {:.2f}%".format(wer*100))
 
-    if args.mode == 'infer':
-        if args.lm_path:
-            beam_hypotheses = []
-            # Over mini-batch
-            for i in evaluated_tensors[-1]:
-                # Over samples
-                for j in i:
-                    beam_hypotheses.append(j[0][1])
-
-            wer = word_error_rate(
-                hypotheses=beam_hypotheses, references=references)
-            logger.info("Beam WER {:.2f}".format(wer*100))
-
-        if args.save_logprob:
-            # Convert logits to list of numpy arrays
-            logprob = []
-            for i, batch in enumerate(evaluated_tensors[0]):
-                for j in range(batch.shape[0]):
-                    logprob.append(
-                        batch[j][:evaluated_tensors[4][i][j], :].cpu().numpy())
-            with open(args.save_logprob, 'wb') as f:
-                pickle.dump(logprob, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-    if args.mode == 'eval':
+    if args.lm_path:
         if args.alpha_max is None:
             args.alpha_max = args.alpha
         # include alpha_max in tuning range
@@ -198,14 +156,11 @@ def main():
         args.beta_max += args.beta_step/10.0
 
         beam_wers = []
-        checkpoints_loaded = False
 
         for alpha in np.arange(args.alpha, args.alpha_max, args.alpha_step):
             for beta in np.arange(args.beta, args.beta_max, args.beta_step):
-                logger.info(f'infering with (alpha, beta): ({alpha}, {beta})')
-                eval_tensors = [log_probs_e1, predictions_e1,
-                                transcript_e1, transcript_len_e1,
-                                encoded_len_e1]
+                logger.info('================================')
+                logger.info(f'Infering with (alpha, beta): ({alpha}, {beta})')
                 beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
                     vocab=vocab,
                     beam_width=args.beam_width,
@@ -215,20 +170,12 @@ def main():
                     num_cpus=max(os.cpu_count(), 1))
                 beam_predictions_e1 = beam_search_with_lm(
                     log_probs=log_probs_e1, log_probs_length=encoded_len_e1)
-                eval_tensors.append(beam_predictions_e1)
-                if checkpoints_loaded:
-                    checkpoint_dir = None
-                else:
-                    checkpoint_dir = load_dir
-                    checkpoints_loaded = True
 
                 evaluated_tensors = neural_factory.infer(
-                    tensors=eval_tensors,
-                    checkpoint_dir=checkpoint_dir,
+                    tensors=[beam_predictions_e1],
+                    use_cache=True,
+                    verbose=False
                 )
-
-                references = post_process_transcripts(
-                    evaluated_tensors[2], evaluated_tensors[3], vocab)
 
                 beam_hypotheses = []
                 # Over mini-batch
@@ -239,7 +186,7 @@ def main():
 
                 wer = word_error_rate(
                     hypotheses=beam_hypotheses, references=references)
-                logger.info("Beam WER {:.2f}".format(wer*100))
+                logger.info("Beam WER {:.2f}%".format(wer*100))
                 beam_wers.append(((alpha, beta), wer*100))
 
         logger.info('Beam WER for (alpha, beta)')
@@ -249,7 +196,7 @@ def main():
         best_beam_wer = min(beam_wers, key=lambda x: x[1])
         logger.info('Best (alpha, beta): '
                     f'{best_beam_wer[0]}, '
-                    f'WER: {best_beam_wer[1]:.2f}')
+                    f'WER: {best_beam_wer[1]:.2f}%')
 
 
 if __name__ == "__main__":

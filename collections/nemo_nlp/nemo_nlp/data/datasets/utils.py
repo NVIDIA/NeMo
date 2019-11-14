@@ -671,6 +671,128 @@ def merge(data_dir, subdirs, dataset_name, modes=['train', 'test']):
     return outfold, none_slot
 
 
+def get_intent_query_files_dialogflow(path):
+    fileslist = []
+    for root, _, files in os.walk(path):
+        for file in files:
+            if '_usersays_en.json' in file:
+                fileslist.append(os.path.join(root, file))
+    return fileslist
+
+
+def get_intents_slots_dialogflow(files, slot_labels):
+
+    intent_names = []
+    intent_queries = []
+    slot_tags = []
+
+    for index, file in enumerate(files):
+        intent_names.append(os.path.basename(file).split('_usersays')[0])
+
+        with open(file) as json_file:
+            intent_data = json.load(json_file)
+            for query in intent_data:
+                querytext = ""
+                slots = ""
+                for segment in query['data']:
+                    querytext = ''.join([querytext, segment['text']])
+                    if 'alias' in segment:
+                        for word in segment['text'].split():
+                            slots = ' '.join([
+                                    slots,
+                                    slot_labels.get(segment['alias'])])
+                    else:
+                        for word in segment['text'].split():
+                            slots = ' '.join([slots, slot_labels.get('O')])
+                querytext = f'{querytext.strip()}\t{index}\n'
+                intent_queries.append(querytext)
+                slots = f'{slots.strip()}\n'
+                slot_tags.append(slots)
+    return intent_queries, intent_names, slot_tags
+
+
+def get_slots_dialogflow(files):
+    slot_labels = {}
+    count = 0
+    for file in files:
+        intent_head_file = ''.join([file.split('_usersays')[0], '.json'])
+        with open(intent_head_file) as json_file:
+            intent_meta_data = json.load(json_file)
+            for params in intent_meta_data['responses'][0]['parameters']:
+                if params['name'] not in slot_labels:
+                    slot_labels[params['name']] = str(count)
+                    count += 1
+    slot_labels['O'] = str(count)
+    return slot_labels
+
+
+def partition_df_data(intent_queries, slot_tags, split=0.1):
+    n = len(intent_queries)
+    n_dev = int(n * split)
+    dev_idx = set(random.sample(range(n), n_dev))
+    dev_intents, dev_slots, train_intents, train_slots = [], [], [], []
+
+    dev_intents.append('sentence\tlabel\n')
+    train_intents.append('sentence\tlabel\n')
+
+    for i, item in enumerate(intent_queries):
+        if i in dev_idx:
+            dev_intents.append(item)
+            dev_slots.append(slot_tags[i])
+        else:
+            train_intents.append(item)
+            train_slots.append(slot_tags[i])
+    return train_intents, train_slots, dev_intents, dev_slots
+
+
+def process_dialogflow(
+        data_dir,
+        uncased,
+        modes=['train', 'test'],
+        dev_split=0.1):
+    if not os.path.exists(data_dir):
+        link = 'www.dialogflow.com'
+        raise ValueError(f'Data not found at {data_dir}. '
+                         'Export your dialogflow data from'
+                         '{link} and unzip at {data_dir}.')
+
+    outfold = f'{data_dir}/dialogflow/nemo-processed'
+
+    '''TO DO  - check for nemo-processed directory
+    already exists. If exists, skip the entire creation steps below. '''
+
+    os.makedirs(outfold, exist_ok=True)
+
+    files = get_intent_query_files_dialogflow(data_dir)
+
+    slot_labels = get_slots_dialogflow(files)
+
+    intent_queries, intent_names, slot_tags = get_intents_slots_dialogflow(
+        files,
+        slot_labels)
+
+    train_queries, train_slots, test_queries, test_slots = \
+        partition_df_data(intent_queries, slot_tags, split=dev_split)
+
+    write_df_files(train_queries, f'{outfold}/train.tsv')
+    write_df_files(train_slots, f'{outfold}/train_slots.tsv')
+
+    write_df_files(test_queries, f'{outfold}/test.tsv')
+    write_df_files(test_slots, f'{outfold}/test_slots.tsv')
+
+    write_df_files(slot_labels, f'{outfold}/dict.slots.csv')
+    write_df_files(intent_names, f'{outfold}/dict.intents.csv')
+
+    return outfold
+
+
+def write_df_files(data, outfile):
+    with open(f'{outfile}', 'w') as f:
+        for item in data:
+            item = f'{item.strip()}\n'
+            f.write(item)
+
+
 class JointIntentSlotDataDesc:
     """ Convert the raw data to the standard format supported by
     JointIntentSlotDataset.
@@ -723,6 +845,9 @@ class JointIntentSlotDataDesc:
                 ['ATIS/nemo-processed-uncased',
                  'snips/nemo-processed-uncased/all'],
                 dataset_name)
+        elif dataset_name == 'dialogflow':
+            self.data_dir = process_dialogflow(data_dir, do_lower_case)
+
         elif dataset_name in set(['snips-light', 'snips-speak', 'snips-all']):
             self.data_dir = process_snips(data_dir, do_lower_case)
             if dataset_name.endswith('light'):
@@ -797,7 +922,7 @@ class SentenceClassificationDataDesc:
             intents = get_intent_labels(f'{self.data_dir}/dict.intents.csv')
             self.num_labels = len(intents)
         else:
-            logger.info("Looks like you pass in a dataset name that isn't "
+            logger.info("Looks like you passed a dataset name that isn't "
                         "already supported by NeMo. Please make sure that "
                         "you build the preprocessing method for it.")
 
@@ -805,31 +930,35 @@ class SentenceClassificationDataDesc:
 
 
 def create_vocab_lm(data_dir, do_lower_case):
-    if if_exist(data_dir, ['train.txt', 'valid.txt', 'test.txt', 'vocab.txt']):
-        logger.info(DATABASE_EXISTS_TMP.format('WikiText', data_dir))
-        return data_dir
-    logger.info(f'Processing WikiText dataset and store at {data_dir}')
+    if if_exist(data_dir, ['train.txt', 'vocab.txt']):
+        logger.info("Vocabulary has been created.")
+        with open(os.path.join(data_dir, 'vocab.txt'), 'r') as f:
+            vocab_size = len(f.readlines())
+        return vocab_size
 
-    with open(f'{data_dir}/train.txt', 'r') as file:
-        txt = file.read()
-        if do_lower_case:
-            txt = txt.lower()
-        lines = re.split(r'[\n]', txt)
-        sentences = [line.strip().split() for line in lines if line.strip()]
+    logger.info(f'Creating vocabulary from training data at {data_dir}')
 
-        vocab = {"[PAD]": 0, "[SEP]": 1, "[CLS]": 2, "[MASK]": 3}
-        idx = 4
-        for sentence in sentences:
-            for word in sentence:
-                if word not in vocab:
-                    vocab[word] = idx
-                    idx += 1
+    with open(f'{data_dir}/train.txt', 'r') as f:
+        txt = f.read()
+    if do_lower_case:
+        txt = txt.lower()
+    lines = re.split(r'[\n]', txt)
+    sentences = [line.strip().split() for line in lines if line.strip()]
+
+    vocab = {"[PAD]": 0, "[SEP]": 1, "[CLS]": 2, "[MASK]": 3}
+    idx = 4
+    for sentence in sentences:
+        for word in sentence:
+            if word not in vocab:
+                vocab[word] = idx
+                idx += 1
 
     with open(f'{data_dir}/vocab.txt', 'w') as f:
-        for word in vocab.keys():
+        for word in sorted(vocab.keys()):
             f.write(word + '\n')
     logger.info(f"Created vocabulary of size {len(vocab)}")
-    return data_dir
+
+    return len(vocab)
 
 
 def download_wkt2(data_dir):
@@ -846,9 +975,10 @@ class LanguageModelDataDesc:
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
                 data_dir = download_wkt2(data_dir)
-            self.data_dir = create_vocab_lm(data_dir, do_lower_case)
+            self.vocab_size = create_vocab_lm(data_dir, do_lower_case)
+            self.data_dir = data_dir
         else:
-            logger.info("Looks like you pass in a dataset name that isn't "
+            logger.info("Looks like you passed a dataset name that isn't "
                         "already supported by NeMo. Please make sure that "
                         "you build the preprocessing method for it.")
 
@@ -856,7 +986,7 @@ class LanguageModelDataDesc:
 def create_vocab_mlm(data_dir,
                      vocab_size,
                      sample_size,
-                     special_tokens=['PAD', '[UNK]',
+                     special_tokens=['[PAD]', '[UNK]',
                                      '[CLS]', '[SEP]', '[MASK]'],
                      train_file=''):
     vocab = special_tokens[:]
@@ -926,7 +1056,7 @@ class BERTPretrainingDataDesc:
                 special_tokens,
                 train_file)
         else:
-            logger.info("Looks like you pass in a dataset name that isn't "
+            logger.info("Looks like you passed a dataset name that isn't "
                         "already supported by NeMo. Please make sure that "
                         "you build the preprocessing method for it.")
 

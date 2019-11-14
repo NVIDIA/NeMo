@@ -5,5 +5,5 @@ This package provides Neural Modules building blocks for building Software
 """
 from . import tutorials, torchvision
 from .actions import PtActions
-from .nm import TrainableNM, DataLayerNM, LossNM
+from .nm import TrainableNM, NonTrainableNM, DataLayerNM, LossNM
 from .common import *
