@@ -126,7 +126,7 @@ def __write_sample(
 
     # Write transcript info
     transcript = {
-        "audio_filename": audio_path,
+        "audio_filepath": audio_path,
         "duration": duration,
         "text": transcript
     }

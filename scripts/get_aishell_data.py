@@ -129,7 +129,6 @@ def main():
     print("Getting {0}".format(data_set))
     __maybe_download_file(file_path, data_set)
     print("Extracting {0}".format(data_set))
-
     data_folder = os.path.join(data_root, data_set)
     __extract_all_files(file_path, data_root, data_folder)
     print("Processing {0}".format(data_set))

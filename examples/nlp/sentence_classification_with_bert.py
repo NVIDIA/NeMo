@@ -28,10 +28,12 @@ parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-uncased",
+                    default="bert-large-uncased",
                     type=str)
 parser.add_argument("--data_dir", default='data/sc/aclImdb', type=str)
 parser.add_argument("--dataset_name", default='imdb', type=str)
+parser.add_argument("--train_file_prefix", default='train', type=str)
+parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
 parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
@@ -56,8 +58,12 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
+# pretrained_bert_model = nemo_nlp.huggingface.BERT(
+#     pretrained_model_name=args.pretrained_bert_model)
 pretrained_bert_model = nemo_nlp.huggingface.BERT(
-    pretrained_model_name=args.pretrained_bert_model, factory=nf)
+    config_filename='data/checkpoints/bert-large-uncased-config.json')
+pretrained_bert_model = pretrained_bert_model.from_pretrained(
+    'data/checkpoints/DLE_BERT_FP16_PyT_LAMB_92_hard_scaling_node.pt')
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
@@ -78,8 +84,7 @@ def create_pipeline(num_samples=-1,
                     local_rank=0,
                     mode='train'):
     nf.logger.info(f"Loading {mode} data...")
-
-    data_file = getattr(data_desc, mode + '_file')
+    data_file = f'{data_desc.data_dir}/{mode}.tsv'
     shuffle = args.shuffle_data if mode == 'train' else False
 
     data_layer = nemo_nlp.BertSentenceClassificationDataLayer(
@@ -123,13 +128,13 @@ train_tensors, train_loss, steps_per_epoch, _ =\
                     batch_size=args.batch_size,
                     num_gpus=args.num_gpus,
                     local_rank=args.local_rank,
-                    mode='train')
+                    mode=args.train_file_prefix)
 eval_tensors, _, _, data_layer =\
     create_pipeline(num_samples=args.num_eval_samples,
                     batch_size=args.batch_size,
                     num_gpus=args.num_gpus,
                     local_rank=args.local_rank,
-                    mode='eval')
+                    mode=args.eval_file_prefix)
 
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(

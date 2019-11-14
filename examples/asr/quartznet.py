@@ -43,6 +43,9 @@ def parse_args():
     parser.add_argument("--beta2", default=0.5, type=float)
     parser.add_argument("--warmup_steps", default=1000, type=int)
     parser.add_argument("--load_dir", default=None, type=str)
+    parser.add_argument("--synced_bn", action='store_true',
+                        help="Use synchronized batch norm")
+    parser.add_argument("--synced_bn_groupsize", default=0, type=int)
 
     args = parser.parse_args()
     if args.max_steps is not None:
@@ -298,7 +301,9 @@ def main():
                 args.beta2),
             "weight_decay": args.weight_decay,
             "grad_norm_clip": None},
-        batches_per_step=args.iter_per_step)
+        batches_per_step=args.iter_per_step,
+        synced_batchnorm=args.synced_bn,
+        synced_batchnorm_groupsize=args.synced_bn_groupsize)
 
 
 if __name__ == '__main__':
