@@ -43,22 +43,6 @@ def get_logger(name):
     return loggers[name]
 
 
-def copy_wo_overwrite(dir_, file_to_copy, tm_suf):
-    basename = os.path.basename(file_to_copy)
-    i = 0
-    basename, ending = os.path.splitext(basename)
-    basename = basename + "_run{}_" + tm_suf + ending
-    while True:
-        if os.path.isfile(
-                os.path.join(dir_, basename.format(i))):
-            i += 1
-            continue
-        else:
-            copyfile(file_to_copy,
-                     os.path.join(dir_, basename.format(i)))
-            break
-
-
 class ExpManager:
     def __init__(
             self,
@@ -71,6 +55,9 @@ class ExpManager:
             files_to_copy=None,
             add_time=True,
             broadcast_func=None):
+        """ Users should not call ExpManager directly, see NeuralFactory for
+        use of ExpManager.
+        """
         self.local_rank = local_rank if local_rank is not None else 0
         self.logger = None
         self.log_file = None
@@ -105,7 +92,10 @@ class ExpManager:
             self.ckpt_dir = f'{self.work_dir}/checkpoints'
             if files_to_copy and self.local_rank == 0:
                 for file in files_to_copy:
-                    copy_wo_overwrite(self.work_dir, file, tm_suf)
+                    basename = os.path.basename(file)
+                    basename, ending = os.path.splitext(basename)
+                    basename = basename + tm_suf + ending
+                    copyfile(file, os.path.join(self.work_dir, basename))
             if self.local_rank == 0:
                 # Create files for cmd args and git info
                 with open(os.path.join(
