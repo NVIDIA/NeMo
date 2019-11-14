@@ -23,7 +23,7 @@ To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. Aft
         valid.txt
 
 Create the tokenizer model
-----------------
+--------------------------
 `BERTPretrainingDataDesc` converts your dataset into the format compatible with `BertPretrainingDataset`. The most computationally intensive step is to tokenize the dataset to create a vocab file and a tokenizer model.
 
 You can also use an available vocab or tokenizer model to skip this step. If you already have a pretrained tokenizer model, copy it to the ``[data_dir]/bert``` folder under the name ``tokenizer.model`` and the script will skip this step.

@@ -2,6 +2,9 @@
 # TODO: review, and copyright and fix/add comments
 import json
 import string
+import warnings
+
+from .cleaners import clean_text
 
 
 class ManifestBase():
@@ -49,11 +52,16 @@ class ManifestBase():
             # item['text'] = text
 
             # tokenize transcript text
-            item["tokens"] = self.tokenize_transcript(text)
+            item["tokens"] = self.tokenize_transcript(
+                    text, self.labels_map, self.unk_index, self.blank_index)
 
             # support files using audio_filename
-            item['audio_filepath'] = item.get('audio_filename',
-                                              item['audio_filepath'])
+            if 'audio_filename' in item and 'audio_filepath' not in item:
+                warnings.warn(
+                    "Malformed manifest: The key audio_filepath was not "
+                    "found in the manifest. Using audio_filename instead."
+                )
+                item['audio_filepath'] = item['audio_filename']
 
             data.append(item)
             duration += item['duration']
@@ -69,27 +77,29 @@ class ManifestBase():
         self._duration = duration
         self._filtered_duration = filtered_duration
 
-    def normalize_text(self, text):
+    @staticmethod
+    def normalize_text(text, labels):
         """for the base class remove surrounding whitespace only"""
         return text.strip()
 
-    def tokenize_transcript(self, transcript):
+    @staticmethod
+    def tokenize_transcript(transcript, labels_map, unk_index, blank_index):
         """tokenize transcript to convert words/characters to indices"""
         # allow for special labels such as "<NOISE>"
-        special_labels = set([l for l in self.labels_map.keys() if len(l) > 1])
+        special_labels = set([l for l in labels_map.keys() if len(l) > 1])
         tokens = []
         # split by word to find special tokens
         for i, word in enumerate(transcript.split(" ")):
             if i > 0:
-                tokens.append(self.labels_map.get(" ", self.unk_index))
+                tokens.append(labels_map.get(" ", unk_index))
             if word in special_labels:
-                tokens.append(self.labels_map.get(word))
+                tokens.append(labels_map.get(word))
                 continue
             # split by character to get the rest of the tokens
             for char in word:
-                tokens.append(self.labels_map.get(char, self.unk_index))
+                tokens.append(labels_map.get(char, unk_index))
         # if unk_index == blank_index, OOV tokens are removed from transcript
-        tokens = [x for x in tokens if x != self.blank_index]
+        tokens = [x for x in tokens if x != blank_index]
         return tokens
 
     def __getitem__(self, item):
@@ -129,11 +139,10 @@ class ManifestBase():
 
 class ManifestEN(ManifestBase):
     def __init__(self, *args, **kwargs):
-        from .cleaners import clean_text
-        self.clean_text = clean_text
         super().__init__(*args, **kwargs)
 
-    def normalize_text(self, text, labels):
+    @staticmethod
+    def normalize_text(text, labels):
         # Punctuation to remove
         punctuation = string.punctuation
         # Define punctuation that will be handled by text cleaner
@@ -157,35 +166,11 @@ class ManifestEN(ManifestBase):
 
         # Turn all other punctuation to whitespace
         table = str.maketrans(punctuation, " " * len(punctuation))
-        text = self.english_string_normalization(
-            text,
-            labels=labels,
-            table=table,
-            punctuation_to_replace=punctuation_to_replace,
-            clean_fn=self.clean_text)
+
+        try:
+            text = clean_text(text, table, punctuation_to_replace)
+        except BaseException:
+            print("WARNING: Normalizing {} failed".format(text))
+            return None
 
         return text
-
-    @staticmethod
-    def english_string_normalization(s, labels, table, punctuation_to_replace,
-                                     clean_fn):
-        """
-        Normalizes string. For example:
-        'call me at 8:00 pm!' -> 'call me at eight zero pm'
-
-        Args:
-            s: string to normalize
-            labels: labels used during model training.
-            table: translation table of characters to replace
-            punctuation_to_replace: punctuation to be ignored in `table`
-            clean_fn: function to do the cleaning
-
-        Returns:
-            Normalized string
-        """
-        try:
-            text = clean_fn(s, table, punctuation_to_replace)
-            return text
-        except BaseException:
-            print("WARNING: Normalizing {} failed".format(s))
-            return None

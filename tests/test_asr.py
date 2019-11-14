@@ -111,7 +111,11 @@ class TestASRPytorch(NeMoUnitTest):
         manifest = ManifestEN([manifest_paths], self.labels, normalize=True)
         for i, s in enumerate(normalized_strings):
             self.assertTrue(manifest[i]["tokens"]
-                            == manifest.tokenize_transcript(s))
+                            == manifest.tokenize_transcript(
+                                s,
+                                manifest.labels_map,
+                                manifest.unk_index,
+                                manifest.blank_index))
             # print(test_strings[i])
             # print(manifest[i]["transcript_text"])
             # print(s)

@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="nemo_toolkit",
-    version="0.8",
+    version="0.8.1",
     author="NVIDIA",
     author_email="nemo-toolkit@nvidia.com",
     description="NEMO core package. Necessary for all collections.",
@@ -19,8 +19,8 @@ setuptools.setup(
         "License :: OSI Approved :: Apache Software License"
     ],
     install_requires=[
-        'torch==1.2.0',
-        'torchvision==0.4.0',
+        'torch>=1.2.0,<1.4',
+        'torchvision',
         'tensorboardX',
         'pandas',
         'wget'
