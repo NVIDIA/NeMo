@@ -23,7 +23,9 @@ from ...utils.nlp_utils import (get_vocab,
 
 
 logger = get_logger('')
-LOGGING_TMP = '{} dataset has already been processed and stored at {}'
+DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
+MODE_EXISTS_TMP = \
+    '{} mode of {} dataset has already been processed and stored at {}'
 
 
 def get_stats(lengths):
@@ -82,7 +84,7 @@ def process_imdb(data_dir, uncased, modes=['train', 'test']):
         outfold = f'{outfold}_uncased'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logger.info(LOGGING_TMP.format('IMDB', outfold))
+        logger.info(DATABASE_EXISTS_TMP.format('IMDB', outfold))
         return outfold
     logger.info(f'Processing IMDB dataset and store at {outfold}')
 
@@ -152,7 +154,7 @@ def process_nlu(filename,
         outfold = f'{outfold}_uncased'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logger.info(LOGGING_TMP.format(dataset_name.upper(), outfold))
+        logger.info(DATABASE_EXISTS_TMP.format(dataset_name.upper(), outfold))
         return outfold
     logger.info(f'Processing data and store at {outfold}')
 
@@ -181,86 +183,88 @@ def process_nlu(filename,
     return outfold
 
 
-def get_car_labels(intent_file):
+def get_intent_labels(intent_file):
     labels = {}
+    label = 0
     with open(intent_file, 'r') as f:
         for line in f:
-            intent, label = line.strip().split('\t')
-            labels[intent] = int(label)
+            intent = line.strip()
+            labels[intent] = label
+            label += 1
     return labels
 
 
-def process_nvidia_car(infold,
-                       uncased,
-                       modes=['train', 'test'],
-                       test_ratio=0.02):
-    infiles = {'train': f'{infold}/train.tsv',
-               'test': f'{infold}/test.tsv',
-               'eval': f'{infold}/eval.tsv'}
-    outfold = f'{infold}/nvidia-car-nemo-processed'
-    if uncased:
-        outfold = f'{outfold}_uncased'
-    intent_file = f'{outfold}/intent_labels.tsv'
-
-    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logger.info(LOGGING_TMP.format('NVIDIA-CAR', outfold))
-        labels = get_car_labels(intent_file)
-        return outfold, labels
-    logger.info(f'Processing this dataset and store at {outfold}')
-
-    os.makedirs(outfold, exist_ok=True)
-
-    outfiles = {}
-
-    for mode in modes:
-        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
-        outfiles[mode].write('sentence\tlabel\n')
-        intents, sentences = [], []
-        start_index = 1
-
-        if mode == 'train':
-            all_intents = set()
-            start_index = 2
-
-        with open(infiles[mode], 'r') as f:
-            for line in f:
-                line_splits = line.strip().split('\t')
-                if len(line_splits) == 3:
-                    intent, _, sentence = line_splits
-                else:
-                    intent, sentence = line_splits
-
-                if uncased:
-                    sentence = sentence.lower()
-
-                if mode == 'train':
-                    all_intents.add(intent)
-                intents.append(intent)
-                sentences.append(' '.join(sentence.split()[start_index:-1]))
-
-        if mode == 'train':
-            i = 0
-            labels = {}
-            intent_out = open(intent_file, 'w')
-            for intent in all_intents:
-                labels[intent] = i
-                logger.info(f'{intent}\t{i}')
-                intent_out.write(f'{intent}\t{i}\n')
-                i += 1
-
-        seen, repeat = set(), 0
-        for intent, sentence in zip(intents, sentences):
-            if sentence in seen:
-                if mode == 'test':
-                    print(sentence)
-                repeat += 1
-                continue
-            text = f'{sentence}\t{labels[intent]}\n'
-            outfiles[mode].write(text)
-            seen.add(sentence)
-        logger.info(f'{repeat} repeated sentences in {mode}')
-
-    return outfold, labels
+# def process_nvidia_car(infold,
+#                        uncased,
+#                        modes=['train', 'test'],
+#                        test_ratio=0.02):
+#     infiles = {'train': f'{infold}/train.tsv',
+#                'test': f'{infold}/test.tsv',
+#                'eval': f'{infold}/eval.tsv'}
+#     outfold = f'{infold}/nvidia-car-nemo-processed'
+#     if uncased:
+#         outfold = f'{outfold}_uncased'
+#     intent_file = f'{outfold}/intent_labels.tsv'
+#
+#     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
+#         logger.info(DATABASE_EXISTS_TMP.format('NVIDIA-CAR', outfold))
+#         labels = get_car_labels(intent_file)
+#         return outfold, labels
+#     logger.info(f'Processing this dataset and store at {outfold}')
+#
+#     os.makedirs(outfold, exist_ok=True)
+#
+#     outfiles = {}
+#
+#     for mode in modes:
+#         outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
+#         outfiles[mode].write('sentence\tlabel\n')
+#         intents, sentences = [], []
+#         start_index = 1
+#
+#         if mode == 'train':
+#             all_intents = set()
+#             start_index = 2
+#
+#         with open(infiles[mode], 'r') as f:
+#             for line in f:
+#                 line_splits = line.strip().split('\t')
+#                 if len(line_splits) == 3:
+#                     intent, _, sentence = line_splits
+#                 else:
+#                     intent, sentence = line_splits
+#
+#                 if uncased:
+#                     sentence = sentence.lower()
+#
+#                 if mode == 'train':
+#                     all_intents.add(intent)
+#                 intents.append(intent)
+#                 sentences.append(' '.join(sentence.split()[start_index:-1]))
+#
+#         if mode == 'train':
+#             i = 0
+#             labels = {}
+#             intent_out = open(intent_file, 'w')
+#             for intent in all_intents:
+#                 labels[intent] = i
+#                 logger.info(f'{intent}\t{i}')
+#                 intent_out.write(f'{intent}\t{i}\n')
+#                 i += 1
+#
+#         seen, repeat = set(), 0
+#         for intent, sentence in zip(intents, sentences):
+#             if sentence in seen:
+#                 if mode == 'test':
+#                     print(sentence)
+#                 repeat += 1
+#                 continue
+#             text = f'{sentence}\t{labels[intent]}\n'
+#             outfiles[mode].write(text)
+#             seen.add(sentence)
+#         logger.info(f'{repeat} repeated sentences in {mode}')
+#
+#     return outfold, labels
 
 
 def process_twitter_airline(filename, uncased, modes=['train', 'test']):
@@ -279,14 +283,13 @@ def process_atis(infold, uncased, modes=['train', 'test'], dev_split=0):
     https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk
     """
     outfold = f'{infold}/nemo-processed'
-    infold = f'{infold}/data/raw_data/ms-cntk-atis'
     vocab = get_vocab(f'{infold}/atis.dict.vocab.csv')
 
     if uncased:
         outfold = f'{outfold}-uncased'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logger.info(LOGGING_TMP.format('ATIS', outfold))
+        logger.info(DATABASE_EXISTS_TMP.format('ATIS', outfold))
         return outfold
     logger.info(f'Processing ATIS dataset and store at {outfold}')
 
@@ -317,18 +320,10 @@ def process_atis(infold, uncased, modes=['train', 'test'], dev_split=0):
     return outfold
 
 
-def generate_BIO(slot_tags_list, token_str, start_i, end_i):
-    for tag_start, tag_end, tag_str in slot_tags_list:
-        if start_i == tag_start:
-            return f'B-{tag_str}'
-        elif start_i > tag_start and end_i <= tag_end:
-            return f'I-{tag_str}'
-    return "O"
-
-
-def process_triple_datasets(infold, uncased, dataset_name,
-                            modes=['train', 'test', 'eval'], dev_split=0):
-    """ process and convert triple datasets into NeMo's BIO format
+def process_jarvis_datasets(infold, uncased, dataset_name,
+                            modes=['train', 'test', 'eval'],
+                            ignore_prev_intent=False):
+    """ process and convert Jarvis datasets into NeMo's BIO format
     """
 
     from nltk.tokenize import WhitespaceTokenizer
@@ -339,9 +334,10 @@ def process_triple_datasets(infold, uncased, dataset_name,
     if uncased:
         outfold = f'{outfold}-uncased'
 
-    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logger.info(LOGGING_TMP.format(dataset_name, outfold))
+    if if_exist(outfold, ['dict.intents.csv', 'dict.slots.csv']):
+        logger.info(DATABASE_EXISTS_TMP.format(dataset_name, outfold))
         return outfold
+
     logger.info(f'Processing {dataset_name} dataset and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
@@ -359,6 +355,16 @@ def process_triple_datasets(infold, uncased, dataset_name,
     slots_list_all["O"] = 0
 
     for mode in modes:
+        if if_exist(outfold, [f'{mode}.tsv']):
+            logger.info(
+                MODE_EXISTS_TMP.format(mode, dataset_name, outfold, mode))
+            continue
+
+        if not if_exist(infold, [f'{mode}.tsv']):
+            logger.info(f'{mode} mode of {dataset_name}'
+                        f' is skipped as it was not found.')
+            continue
+
         outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
         outfiles[mode].write('sentence\tlabel\n')
         outfiles[mode + '_slots'] = open(f'{outfold}/{mode}_slots.tsv', 'w')
@@ -366,20 +372,30 @@ def process_triple_datasets(infold, uncased, dataset_name,
         queries = open(f'{infold}/{mode}.tsv', 'r').readlines()
 
         for i, query in enumerate(queries):
-            [intent_str, slot_tags_str, sentence] = query.strip().split("\t")
+            line_splits = query.strip().split("\t")
+            if len(line_splits) == 3:
+                intent_str, slot_tags_str, sentence = line_splits
+            else:
+                intent_str, sentence = line_splits
+                slot_tags_str = ""
 
             if intent_str not in intents_list:
                 intents_list[intent_str] = len(intents_list)
                 outfiles['dict_intents'].write(f'{intent_str}\n')
 
-            outfiles[mode].write(f'{sentence[4:-4]}\t'
+            if ignore_prev_intent:
+                start_token = 2
+            else:
+                start_token = 1
+            sentence_cld = " ".join(sentence.strip().split()[start_token:-1])
+            outfiles[mode].write(f'{sentence_cld}\t'
                                  f'{str(intents_list[intent_str])}\n')
 
-            if str.count(slot_tags_str, ":") > 0:
+            slot_tags_list = []
+            if slot_tags_str.strip():
                 slot_tags = slot_tags_str.strip().split(",")
-                slot_tags_list = []
                 for st in slot_tags:
-                    if len(st.strip()) == 0:
+                    if not st.strip():
                         continue
                     [start_i, end_i, slot_name] = st.strip().split(":")
                     slot_tags_list.append([int(start_i),
@@ -391,8 +407,6 @@ def process_triple_datasets(infold, uncased, dataset_name,
                         slots_list_all[f'I-{slot_name}'] = len(slots_list_all)
                         outfiles['dict_slots'].write(f'B-{slot_name}\n')
                         outfiles['dict_slots'].write(f'I-{slot_name}\n')
-            else:
-                slot_tags_list = []
 
             span_generator = WhitespaceTokenizer().span_tokenize(sentence)
             spans = list(span_generator)
@@ -401,13 +415,18 @@ def process_triple_datasets(infold, uncased, dataset_name,
             for sp_i, (start_i, end_i) in enumerate(spans):
                 if sp_i == 0 or sp_i == len(spans) - 1:
                     continue
-                BIO_tag = generate_BIO(slot_tags_list,
-                                       sentence[start_i: end_i],
-                                       start_i,
-                                       end_i)
+                BIO_tag = "O"
+                for tag_start, tag_end, tag_str in slot_tags_list:
+                    if start_i == tag_start:
+                        BIO_tag = f'B-{tag_str}'
+                        break
+                    elif start_i > tag_start and end_i <= tag_end:
+                        BIO_tag = f'I-{tag_str}'
+                        break
                 slots.append(str(slots_list_all[BIO_tag]))
             slot = ' '.join(slots)
             outfiles[mode + '_slots'].write(slot + '\n')
+
         outfiles[mode + '_slots'].close()
         outfiles[mode].close()
 
@@ -542,7 +561,7 @@ def process_snips(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     exist = True
     for dataset in ['light', 'speak', 'all']:
         if if_exist(f'{outfold}/{dataset}', [f'{mode}.tsv' for mode in modes]):
-            logger.info(LOGGING_TMP.format(
+            logger.info(DATABASE_EXISTS_TMP.format(
                 'SNIPS-' + dataset.upper(), outfold))
         else:
             exist = False
@@ -583,7 +602,7 @@ def list2str(nums):
 def merge(data_dir, subdirs, dataset_name, modes=['train', 'test']):
     outfold = f'{data_dir}/{dataset_name}'
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logger.info(LOGGING_TMP.format('SNIPS-ATIS', outfold))
+        logger.info(DATABASE_EXISTS_TMP.format('SNIPS-ATIS', outfold))
         slots = get_vocab(f'{outfold}/dict.slots.csv')
         none_slot = 0
         for key in slots:
@@ -712,10 +731,14 @@ class JointIntentSlotDataDesc:
                 self.data_dir = f'{self.data_dir}/speak'
             elif dataset_name.endswith('all'):
                 self.data_dir = f'{self.data_dir}/all'
-        elif dataset_name in ['flatCar', 'flatPOI', 'weather']:
-            self.data_dir = process_triple_datasets(data_dir,
+        elif dataset_name in ['Car', 'POI', 'Weather']:
+            self.data_dir = process_jarvis_datasets(data_dir,
                                                     do_lower_case,
-                                                    dataset_name)
+                                                    dataset_name,
+                                                    modes=["train",
+                                                           "test",
+                                                           "eval"],
+                                                    ignore_prev_intent=False)
         else:
             if not if_exist(data_dir, ['dict.intents.csv', 'dict.slots.csv']):
                 raise FileNotFoundError(
@@ -762,14 +785,17 @@ class SentenceClassificationDataDesc:
                                         do_lower_case,
                                         dataset_name=dataset_name)
             self.eval_file = self.data_dir + '/test.tsv'
-        elif dataset_name == 'nvidia-car':
-            self.data_dir, labels = process_nvidia_car(data_dir,
-                                                       do_lower_case,
-                                                       ['train', 'eval'])
-            for intent in labels:
-                idx = labels[intent]
-                logger.info(f'{intent}: {idx}')
-            self.num_labels = len(labels)
+        elif dataset_name == 'jarvis-car':
+            self.data_dir = process_jarvis_datasets(data_dir,
+                                                    do_lower_case,
+                                                    'jarvis-car',
+                                                    modes=['train',
+                                                           'test',
+                                                           'eval'],
+                                                    ignore_prev_intent=True)
+
+            intents = get_intent_labels(f'{self.data_dir}/dict.intents.csv')
+            self.num_labels = len(intents)
         else:
             logger.info("Looks like you pass in a dataset name that isn't "
                         "already supported by NeMo. Please make sure that "
@@ -780,7 +806,7 @@ class SentenceClassificationDataDesc:
 
 def create_vocab_lm(data_dir, do_lower_case):
     if if_exist(data_dir, ['train.txt', 'valid.txt', 'test.txt', 'vocab.txt']):
-        logger.info(LOGGING_TMP.format('WikiText', data_dir))
+        logger.info(DATABASE_EXISTS_TMP.format('WikiText', data_dir))
         return data_dir
     logger.info(f'Processing WikiText dataset and store at {data_dir}')
 
@@ -836,7 +862,7 @@ def create_vocab_mlm(data_dir,
     vocab = special_tokens[:]
     bert_dir = f'{data_dir}/bert'
     if if_exist(bert_dir, ['tokenizer.model']):
-        logger.info(LOGGING_TMP.format('WikiText_BERT', bert_dir))
+        logger.info(DATABASE_EXISTS_TMP.format('WikiText_BERT', bert_dir))
         return data_dir, f'{bert_dir}/tokenizer.model'
     logger.info(f'Processing WikiText dataset and store at {bert_dir}')
     os.makedirs(bert_dir, exist_ok=True)
