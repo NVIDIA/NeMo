@@ -165,6 +165,6 @@ class ManifestEN(ManifestBase):
         try:
             text = clean_text(text, table, punctuation_to_replace)
         except BaseException:
-            print("WARNING: Normalizing {} failed".format(s))
+            print("WARNING: Normalizing {} failed".format(text))
 
         return text
