@@ -37,7 +37,9 @@ def get_features(queries,
                  max_seq_length,
                  tokenizer,
                  pad_label=128,
-                 raw_slots=None):
+                 raw_slots=None,
+                 ignore_extra_tokens=False,
+                 ignore_start_end=False):
     all_subtokens = []
     all_loss_mask = []
     all_subtokens_mask = []
@@ -54,7 +56,7 @@ def get_features(queries,
     for i, query in enumerate(queries):
         words = query.strip().split()
         subtokens = ['[CLS]']
-        loss_mask = [True]  # True if a token is the start of a new word
+        loss_mask = [not ignore_start_end]  # True if a token is the start of a new word
         subtokens_mask = [False]
         if with_label:
             slots = [pad_label]
@@ -64,7 +66,7 @@ def get_features(queries,
             subtokens.extend(word_tokens)
 
             loss_mask.append(True)
-            loss_mask.extend([True] * (len(word_tokens) - 1))
+            loss_mask.extend([not ignore_extra_tokens] * (len(word_tokens) - 1))
 
             subtokens_mask.append(True)
             subtokens_mask.extend([False] * (len(word_tokens) - 1))
@@ -73,7 +75,7 @@ def get_features(queries,
                 slots.extend([raw_slots[i][j]] * len(word_tokens))
 
         subtokens.append('[SEP]')
-        loss_mask.append(True)
+        loss_mask.append(not ignore_start_end)
         subtokens_mask.append(False)
         sent_lengths.append(len(subtokens))
         all_subtokens.append(subtokens)
@@ -93,7 +95,7 @@ def get_features(queries,
         if len(subtokens) > max_seq_length:
             subtokens = ['[CLS]'] + subtokens[-max_seq_length + 1:]
             all_input_mask[i] = [1] + all_input_mask[i][-max_seq_length + 1:]
-            all_loss_mask[i] = [False] + \
+            all_loss_mask[i] = [not ignore_start_end] + \
                 all_loss_mask[i][-max_seq_length + 1:]
             all_subtokens_mask[i] = [False] + \
                 all_subtokens_mask[i][-max_seq_length + 1:]
@@ -161,7 +163,10 @@ class BertJointIntentSlotDataset(Dataset):
                  tokenizer,
                  num_samples=-1,
                  shuffle=True,
-                 pad_label=128):
+                 pad_label=128,
+                 ignore_extra_tokens=False,
+                 ignore_start_end=False
+                 ):
         if num_samples == 0:
             raise ValueError("num_samples has to be positive", num_samples)
 
@@ -191,7 +196,9 @@ class BertJointIntentSlotDataset(Dataset):
                                 max_seq_length,
                                 tokenizer,
                                 pad_label=pad_label,
-                                raw_slots=raw_slots)
+                                raw_slots=raw_slots,
+                                ignore_extra_tokens=ignore_extra_tokens,
+                                ignore_start_end=ignore_start_end)
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
         self.all_input_mask = features[2]
