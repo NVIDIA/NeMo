@@ -112,6 +112,8 @@ nf.logger.info(f'Loading training dataset')
 train_loss, steps_per_epoch, tag_ids, _, _ = create_pipeline(
     input_file=f'{args.data_dir}/train.txt')
 
+nf.logger.info(f'tag_ids: {tag_ids}')
+
 nf.logger.info(f'Loading evaluation dataset')
 _, _, _, data_layer, eval_tensors = create_pipeline(
     input_file=f'{args.data_dir}/dev.txt')

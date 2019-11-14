@@ -67,8 +67,8 @@ class BertPunctuationDataset(Dataset):
                     nonlocal new_seq_words, new_seq_token_labels, \
                         new_seq_subtokens, new_seq_subtoken_count
 
-                    # -1 accounts if [CLS] added
-                    max_tokens_for_doc = max_seq_length - 1
+                    # -2 accounts for [CLS] and [SEP] 
+                    max_tokens_for_doc = max_seq_length - 2
 
                     if max_tokens_for_doc > (new_seq_subtoken_count +
                                              token_count):
@@ -241,12 +241,14 @@ def convert_sequences_to_features(seqs_words, seqs_subtokens,
         token_to_orig_map = {}
         token_is_max_context = {}
         segment_ids = []
+        
+        # add [CLS] token at the beginning of the input
         tokens.append("[CLS]")
         token_labels.append(0)
         segment_ids.append(0)
 
         # Ensure that we don't go over the maximum sequence length
-        for i in range(min(doc_span.length, max_seq_length - 1)):
+        for i in range(min(doc_span.length, max_seq_length - 2)):
             split_token_index = doc_span.start + i
             token_to_orig_map[len(tokens)] = \
                 tok_to_orig_index[split_token_index]
@@ -256,13 +258,18 @@ def convert_sequences_to_features(seqs_words, seqs_subtokens,
             token_is_max_context[len(tokens)] = is_max_context
             tokens.append(all_doc_tokens[split_token_index])
             segment_ids.append(0)
-
+        
         for label in seq_token_labels:
             if len(token_labels) == len(tokens):
                 break
-
+        
             token_labels.append(label)
-
+       
+        # add [SEP] token at the end of the input
+        tokens.append("[SEP]")
+        token_labels.append(0)
+        segment_ids.append(0)
+        
         input_ids = tokenizer.tokens_to_ids(tokens)
 
         # The mask has 1 for real tokens and 0 for padding tokens. Only real
