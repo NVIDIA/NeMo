@@ -13,34 +13,21 @@ from .parts.datasets import AudioOnlyDataset
 
 
 class AudioDataLayer(DataLayerNM):
-    """TODO:Fix docstring
-    Data Layer for general ASR tasks.
+    """
+    Data Layer for general speech tasks that loads only the audio.
 
-    Module which reads ASR labeled data. It accepts comma-separated
-    JSON manifest files describing the correspondence between wav audio files
-    and their transcripts. JSON files should be of the following format::
+    Module which reads speech data. It accepts comma-separated
+    JSON manifest files describing the wav audio files and their metadata.
+    JSON files should be of the following format::
 
-        {"audio_filepath": path_to_wav_0, "duration": time_in_sec_0, "text": \
-transcript_0}
+        {"audio_filepath": path_to_wav_0, "duration": time_in_sec_0}
         ...
-        {"audio_filepath": path_to_wav_n, "duration": time_in_sec_n, "text": \
-transcript_n}
+        {"audio_filepath": path_to_wav_n, "duration": time_in_sec_n}
 
 
     Args:
         manifest_filepath (str): path to JSON containing data.
-        labels (list): list of characters that can be output by the ASR model.
-            For Jasper, this is the 28 character set {a-z '}. The CTC blank
-            symbol is automatically added later for models using ctc.
-        batch_size (int): batch size
-        sample_rate (int): Target sampling rate for data. Audio files will be
-            resampled to sample_rate if it is not already.
-            Defaults to 16000.
-        int_values (bool): Bool indicating whether the audio file is saved as
-            int data or float data.
-            Defaults to False.
-        eos_id (str): End of string symbol used for seq2seq models.
-            Defaults to None.
+        batch_size (int): batch sizelse.
         min_duration (float): All training files which have a duration less
             than min_duration are dropped. Note: Duration is read from the
             manifest JSON.
@@ -49,22 +36,17 @@ transcript_n}
             than max_duration are dropped. Note: Duration is read from the
             manifest JSON.
             Defaults to None.
-        normalize_transcripts (bool): Whether to use automatic text cleaning.
-            It is highly recommended to manually clean text ffor best results.
-            Defaults to True.
         trim_silence (bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
-        load_audio (bool): Controls whether the dataloader loads the audio
-            signal and transcript or just the transcript.
-            Defaults to True.
         drop_last (bool): See PyTorch DataLoader.
             Defaults to False.
         shuffle (bool): See PyTorch DataLoader.
             Defaults to True.
         num_workers (int): See PyTorch DataLoader.
             Defaults to 0.
-        perturb_config (dict): Currently disabled.
+        n_segments (int): Number of samples to load per audiofile.
+            Defaults to 0 which indicates to load the whole file.
     """
 
     @staticmethod

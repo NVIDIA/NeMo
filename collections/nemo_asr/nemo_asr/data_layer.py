@@ -217,6 +217,11 @@ class AudioPreprocessing(TrainableNM):
         stft_conv (bool): If True, uses pytorch_stft and convolutions. If
             False, uses torch.stft.
             Defaults to False
+        pad_value (float): The value that shorter mels are padded with.
+            Defaults to 0
+        mag_power (float): The power that the linear spectrogram is raised to
+            prior to multiplication with mel basis.
+            Defaults to 2 for a power spec
     """
     @staticmethod
     def create_ports():

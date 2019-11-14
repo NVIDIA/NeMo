@@ -12,42 +12,13 @@ class AudioOnlyDataset(Dataset):
                  n_segments=0,
                  max_duration=None,
                  min_duration=None,
-                 max_utts=0,
                  trim=False,
                  logger=False):
-        """TODO:fix docstring
-        Dataset that loads tensors via a json file containing paths to audio
-        files, transcripts, and durations
-        (in seconds). Each new line is a different sample. Example below:
-
-        {"audio_filepath": "/path/to/audio.wav", "text_filepath":
-        "/path/to/audio.txt", "duration": 23.147}
-        ...
-        {"audio_filepath": "/path/to/audio.wav", "text": "the
-        transcription", offset": 301.75, "duration": 0.82, "utt":
-        "utterance_id",
-        "ctm_utt": "en_4156", "side": "A"}
-
-        Args:
-            manifest_filepath: Path to manifest json as described above. Can
-            be coma-separated paths.
-            labels: String containing all the possible characters to map to
-            featurizer: Initialized featurizer class that converts paths of
-            audio to feature tensors
-            max_duration: If audio exceeds this length, do not include in
-            dataset
-            min_duration: If audio is less than this length, do not include
-            in dataset
-            max_utts: Limit number of utterances
-            normalize: whether to normalize transcript text (default): True
-            eos_id: Id of end of sequence symbol to append if not None
-            load_audio: Boolean flag indicate whether do or not load audio
-        """
+        """See AudioDataLayer"""
         m_paths = manifest_filepath.split(',')
         self.manifest = AudioManifest(m_paths,
                                       max_duration=max_duration,
-                                      min_duration=min_duration,
-                                      max_utts=max_utts)
+                                      min_duration=min_duration)
         self.trim = trim
         self.n_segments = n_segments
         if logger:
