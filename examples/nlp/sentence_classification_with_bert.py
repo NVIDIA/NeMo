@@ -28,7 +28,7 @@ parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-uncased",
+                    default="bert-large-uncased",
                     type=str)
 parser.add_argument("--data_dir", default='data/sc/aclImdb', type=str)
 parser.add_argument("--dataset_name", default='imdb', type=str)
@@ -56,8 +56,12 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
+# pretrained_bert_model = nemo_nlp.huggingface.BERT(
+#     pretrained_model_name=args.pretrained_bert_model)
 pretrained_bert_model = nemo_nlp.huggingface.BERT(
-    pretrained_model_name=args.pretrained_bert_model, factory=nf)
+    config_filename='data/checkpoints/bert-large-uncased-config.json')
+pretrained_bert_model = pretrained_bert_model.from_pretrained(
+    'data/checkpoints/DLE_BERT_FP16_PyT_LAMB_92_hard_scaling_node.pt')
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
