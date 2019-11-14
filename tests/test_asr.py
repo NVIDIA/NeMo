@@ -153,6 +153,32 @@ class TestASRPytorch(NeMoUnitTest):
             self.assertTrue(data[2].size(0) == batch_size)
             self.assertTrue(data[3].size(0) == batch_size)
 
+    def test_preprocessor_errors(self):
+        def create_broken_preprocessor_1():
+            dl = nemo_asr.AudioPreprocessing(window_size=2, n_window_size=2)
+
+        def create_broken_preprocessor_2():
+            dl = nemo_asr.AudioPreprocessing(
+                window_stride=2, n_window_stride=2)
+
+        def create_broken_preprocessor_3():
+            dl = nemo_asr.AudioPreprocessing(n_window_stride=2)
+
+        def create_good_preprocessor_1():
+            dl = nemo_asr.AudioPreprocessing(
+                window_size=0.02, window_stride=0.01)
+
+        def create_good_preprocessor_2():
+            dl = nemo_asr.AudioPreprocessing(
+                window_size=None, window_stride=None,
+                n_window_size=256, n_window_stride=32)
+
+        self.assertRaises(ValueError, create_broken_preprocessor_1)
+        self.assertRaises(ValueError, create_broken_preprocessor_2)
+        self.assertRaises(ValueError, create_broken_preprocessor_3)
+        create_good_preprocessor_1()
+        create_good_preprocessor_2()
+
     def test_trim_silence(self):
         batch_size = 4
         normal_dl = nemo_asr.AudioToTextDataLayer(

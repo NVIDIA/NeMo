@@ -2,6 +2,7 @@
 import nemo
 import nemo_asr
 import nemo_nlp
+import nemo_tts
 import os
 import sys
 sys.path.insert(0, os.path.abspath(
