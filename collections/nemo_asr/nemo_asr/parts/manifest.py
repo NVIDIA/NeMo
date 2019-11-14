@@ -52,8 +52,8 @@ class ManifestBase():
             item["tokens"] = self.tokenize_transcript(text)
 
             # support files using audio_filename
-            item['audio_filepath'] = item.get('audio_filename',
-                                              item['audio_filepath'])
+            if 'audio_filename' in item:
+                item['audio_filepath'] = item['audio_filename']
 
             data.append(item)
             duration += item['duration']
