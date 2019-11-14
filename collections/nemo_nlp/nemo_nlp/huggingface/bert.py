@@ -108,7 +108,7 @@ class BERT(TrainableNM):
             model = BertModel(config)
         else:
             raise ValueError("Either pretrained_model_name or vocab_size must"
-                             + "be passed into the BERT constructor")
+                             + " be passed into the BERT constructor")
 
         model.to(self._device)
 
@@ -129,3 +129,11 @@ class BERT(TrainableNM):
 
     def forward(self, input_ids, token_type_ids, attention_mask):
         return self.bert(input_ids, token_type_ids, attention_mask)[0]
+
+    def from_pretrained(self, pretrained_model_name_or_path):
+        import torch
+        model = torch.load(pretrained_model_name_or_path)
+        print(model.keys())
+        return self.bert.from_pretrained(
+            pretrained_model_name_or_path,
+            state_dict=model['model'])
