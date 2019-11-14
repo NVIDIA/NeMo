@@ -32,6 +32,8 @@ parser.add_argument("--pretrained_bert_model",
                     type=str)
 parser.add_argument("--data_dir", default='data/sc/aclImdb', type=str)
 parser.add_argument("--dataset_name", default='imdb', type=str)
+parser.add_argument("--train_file_prefix", default='train', type=str)
+parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
 parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
@@ -78,8 +80,7 @@ def create_pipeline(num_samples=-1,
                     local_rank=0,
                     mode='train'):
     nf.logger.info(f"Loading {mode} data...")
-
-    data_file = getattr(data_desc, mode + '_file')
+    data_file = f'{data_desc.data_dir}/{mode}.tsv'
     shuffle = args.shuffle_data if mode == 'train' else False
 
     data_layer = nemo_nlp.BertSentenceClassificationDataLayer(
@@ -123,13 +124,13 @@ train_tensors, train_loss, steps_per_epoch, _ =\
                     batch_size=args.batch_size,
                     num_gpus=args.num_gpus,
                     local_rank=args.local_rank,
-                    mode='train')
+                    mode=args.train_file_prefix)
 eval_tensors, _, _, data_layer =\
     create_pipeline(num_samples=args.num_eval_samples,
                     batch_size=args.batch_size,
                     num_gpus=args.num_gpus,
                     local_rank=args.local_rank,
-                    mode='eval')
+                    mode=args.eval_file_prefix)
 
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(
