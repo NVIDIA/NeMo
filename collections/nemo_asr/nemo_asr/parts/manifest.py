@@ -2,6 +2,7 @@
 # TODO: review, and copyright and fix/add comments
 import json
 import string
+import warnings
 
 
 class ManifestBase():
@@ -53,6 +54,11 @@ class ManifestBase():
 
             # support files using audio_filename
             if 'audio_filename' in item:
+                if 'audio_filepath' not in item:
+                    warnings.warn(
+                        "Malformed manifest: The key audio_filepath was not "
+                        "found in the manifest. Using audio_filename instead."
+                    )
                 item['audio_filepath'] = item['audio_filename']
 
             data.append(item)
