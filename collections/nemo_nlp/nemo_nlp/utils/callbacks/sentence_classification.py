@@ -8,10 +8,10 @@ import time
 import logging
 
 import matplotlib
-matplotlib.use("TkAgg") # nopep8
-from matplotlib import pyplot as plt # nopep8
-import numpy as np # nopep8
-from sklearn.metrics import confusion_matrix, classification_report # nopep8
+matplotlib.use("TkAgg")  # nopep8
+from matplotlib import pyplot as plt  # nopep8
+import numpy as np  # nopep8
+from sklearn.metrics import confusion_matrix, classification_report  # nopep8
 
 logger = logging.getLogger('log')
 
