@@ -14,7 +14,7 @@ from nemo_nlp.utils.callbacks.sentence_classification import \
 
 # Parsing arguments
 parser = argparse.ArgumentParser(
-    description='Sentiment analysis with pretrained BERT')
+    description='Sentence classification with pretrained BERT')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=32, type=int)
 parser.add_argument("--max_seq_length", default=36, type=int)

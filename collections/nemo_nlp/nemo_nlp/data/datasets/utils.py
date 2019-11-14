@@ -844,7 +844,7 @@ class SentenceClassificationDataDesc:
                                                     modes=['train',
                                                            'test',
                                                            'eval'],
-                                                    ignore_prev_intent=True)
+                                                    ignore_prev_intent=False)
 
             intents = get_intent_labels(f'{self.data_dir}/dict.intents.csv')
             self.num_labels = len(intents)
