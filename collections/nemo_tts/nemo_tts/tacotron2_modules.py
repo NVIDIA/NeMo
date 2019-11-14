@@ -295,9 +295,7 @@ class Tacotron2Loss(LossNM):
         gate_target.requires_grad = False
         gate_target = gate_target.view(-1, 1)
 
-        max_len = torch.max(target_len).item()
-        max_pad = (16 - (max_len % 16)) % 16
-        max_len += max_pad
+        max_len = mel_target.shape[2]
 
         if max_len < mel_out.shape[2]:
             # Predicted len is larger than reference
