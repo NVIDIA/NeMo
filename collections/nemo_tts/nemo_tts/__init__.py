@@ -21,7 +21,6 @@ from .waveglow_modules import WaveGlowNM, WaveGlowInferNM, WaveGlowLoss
 from .data_layers import AudioDataLayer
 from .parts.helpers import (waveglow_log_to_tb_func,
                             waveglow_process_eval_batch,
-                            # waveglow_process_final_eval,
                             waveglow_eval_log_to_tb_func,
                             tacotron2_log_to_tb_func,
                             tacotron2_process_eval_batch,
@@ -30,4 +29,4 @@ from .parts.helpers import (waveglow_log_to_tb_func,
 
 name = "nemo_tts"
 backend = Backend.PyTorch
-__version__ = "0.8"
+__version__ = "0.9"

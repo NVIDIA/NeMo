@@ -101,7 +101,8 @@ class AudioSegment(object):
                           target_sr=None,
                           n_segments=0,
                           trim=False):
-        """
+        """Grabs n_segments number of samples from filename randomly from the
+        file as opposed to at a specified offset.
         """
         with sf.SoundFile(filename, 'r') as f:
             sample_rate = f.samplerate

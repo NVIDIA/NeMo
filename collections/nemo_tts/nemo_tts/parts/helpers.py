@@ -50,10 +50,6 @@ def waveglow_process_eval_batch(tensors: dict, global_vars: dict):
                 global_vars['tensorboard']['mel_length'] = v[0]
 
 
-# def waveglow_process_final_eval(global_vars: dict, tag=None, logger=None):
-#     return global_vars
-
-
 def waveglow_eval_log_to_tb_func(
         swriter,
         global_vars,
