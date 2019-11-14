@@ -3,6 +3,8 @@ import importlib
 import itertools
 import logging
 import os
+import json
+import copy
 from typing import List, Optional
 from pathlib import Path
 
@@ -1041,7 +1043,10 @@ class PtActions(Actions):
         # trainable_module._input_ports = None
         # trainable_module._output_ports = None
         module._device = None
+        local_parameters = copy.deepcopy(module._local_parameters)
         module._local_parameters = None
+
+        module.eval()
 
         if d_format == DeploymentFormat.TORCHSCRIPT:
             try:
@@ -1062,6 +1067,11 @@ class PtActions(Actions):
                                  f' attempted')
 
             torch.onnx.export(module, input_example, output)
+        elif d_format == DeploymentFormat.PYTORCH:
+            torch.save(module.state_dict(), output)
+            with open(output+".json", 'w') as outfile:
+                json.dump(local_parameters, outfile)
+
         else:
             raise NotImplemented(f"Not supported deployment format: {d_format}")
 
