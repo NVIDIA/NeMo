@@ -30,6 +30,10 @@ parser.add_argument("--amp_opt_level",
                     choices=["O0", "O1", "O2"])
 parser.add_argument("--weight_decay", default=0.0, type=float)
 parser.add_argument("--vocab_size", default=3200, type=int)
+parser.add_argument("--tokenizer",
+                    default="sentence-piece",
+                    type=str,
+                    choices=["sentence-piece", "nemo-bert"])
 parser.add_argument("--sample_size", default=1e7, type=int)
 parser.add_argument("--max_seq_length", default=128, type=int)
 parser.add_argument("--mask_probability", default=0.15, type=float)
@@ -45,7 +49,6 @@ parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
 args = parser.parse_args()
 
-work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
@@ -54,7 +57,7 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    files_to_copy=[__file__],
                                    add_time_to_log_dir=True)
 
-special_tokens = ['PAD', '[UNK]', '[CLS]', '[SEP]', '[MASK]']
+special_tokens = ['[PAD]', '[UNK]', '[CLS]', '[SEP]', '[MASK]']
 data_desc = BERTPretrainingDataDesc(args.dataset_name,
                                     args.data_dir,
                                     args.vocab_size,
@@ -62,9 +65,14 @@ data_desc = BERTPretrainingDataDesc(args.dataset_name,
                                     special_tokens,
                                     'train.txt')
 
-tokenizer = nemo_nlp.SentencePieceTokenizer(
-    model_path=data_desc.tokenizer_model)
-tokenizer.add_special_tokens(special_tokens)
+if args.tokenizer == "sentence-piece":
+    tokenizer = nemo_nlp.SentencePieceTokenizer(
+        model_path=data_desc.tokenizer_model)
+    tokenizer.add_special_tokens(special_tokens)
+else:
+    vocab_file = os.path.join(args.data_dir, 'vocab.txt')
+    # To train on a Chinese dataset, use NemoBertTokenizer
+    tokenizer = nemo_nlp.NemoBertTokenizer(vocab_file=vocab_file)
 
 bert_model = nemo_nlp.huggingface.BERT(
     vocab_size=tokenizer.vocab_size,
@@ -137,7 +145,7 @@ eval_loss, eval_tensors, _ = create_pipeline(data_desc.eval_file,
 # callback which prints training loss and perplexity once in a while
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
-    print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+    print_func=lambda x: nf.logger.info("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer)
 
