@@ -343,11 +343,13 @@ def process_jarvis_datasets(infold, uncased, dataset_name,
             processed_index = 0
             for tag_start, tag_end, tag_str in slot_tags_list:
                 if tag_start > processed_index:
-                    words_list = sentence[processed_index:tag_start].strip().split()
+                    words_list = \
+                        sentence[processed_index:tag_start].strip().split()
                     slots.extend([str(slots_list_all['O'])]*len(words_list))
                 words_list = sentence[tag_start:tag_end].strip().split()
                 slots.append(str(slots_list_all[f'B-{tag_str}']))
-                slots.extend([str(slots_list_all[f'I-{tag_str}'])] * (len(words_list) - 1))
+                slots.extend([str(slots_list_all[f'I-{tag_str}'])] *
+                                (len(words_list) - 1))
                 processed_index = tag_end
 
             if processed_index < len(sentence):
