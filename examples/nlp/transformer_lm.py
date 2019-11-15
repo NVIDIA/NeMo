@@ -1,249 +1,172 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import nemo
 import math
-import logging
-import argparse
-from nemo.utils.lr_policies import SquareAnnealing, CosineAnnealing, \
-    InverseSquareRootAnnealing
-from nemo_nlp.callbacks.language_modeling import eval_iter_callback, \
+
+import nemo
+from nemo.utils.lr_policies import CosineAnnealing
+import nemo_nlp
+
+from nemo_nlp.data.datasets.utils import LanguageModelDataDesc
+from nemo_nlp.utils.callbacks.language_modeling import eval_iter_callback, \
     eval_epochs_done_callback
-from nemo_nlp import WordTokenizer
 
-console = logging.StreamHandler()
-console.setLevel(logging.INFO)
-# add the handler to the root logger
-logging.getLogger('').addHandler(console)
 
-parser = argparse.ArgumentParser(description='Transformer EN-DE translation')
-parser.add_argument("--local_rank", default=None, type=int)
-parser.add_argument("--lr", default=0.002, type=float)
-parser.add_argument("--optimizer", default="novograd", type=str)
-parser.add_argument("--lr_decay_policy", default="cosine", type=str)
-parser.add_argument("--weight_decay", default=0.0, type=float)
-parser.add_argument("--warmup_steps", default=1000, type=int)
-parser.add_argument("--batch_size", default=16, type=int)
-parser.add_argument("--eval_batch_size", default=16, type=int)
-parser.add_argument("--max_sequence_length", default=128, type=int)
+parser = nemo.utils.NemoArgParser(description='LM Transformer')
+parser.set_defaults(
+    train_dataset="train.txt",
+    eval_dataset="valid.txt",
+    work_dir="outputs/transformer_lm",
+    optimizer_kind="novograd",
+    amp_opt_level='O1',
+    num_epochs=1000,
+    batch_size=32,
+    eval_batch_size=32,
+    lr=0.002,
+    beta1=0.95,
+    beta2=0.25,
+    weight_decay=0,
+    warmup_steps=1000,
+    max_steps=50000,
+    iter_per_step=1,
+    eval_freq=1000
+)
+parser.add_argument("--data_dir", default="data/lm/wikitext-2", type=str)
+parser.add_argument("--dataset_name", default="wikitext-2", type=str)
 parser.add_argument("--d_model", default=384, type=int)
-parser.add_argument("--d_inner", default=1920, type=int)
-parser.add_argument("--num_layers", default=10, type=int)
-parser.add_argument("--num_heads", default=12, type=int)
-parser.add_argument("--embedding_dropout", default=0.3, type=float)
-parser.add_argument("--ffn_dropout", default=0.3, type=float)
-parser.add_argument("--attn_score_dropout", default=0.3, type=float)
-parser.add_argument("--attn_layer_dropout", default=0.3, type=float)
-parser.add_argument("--conv_kernel_size", default=7, type=int)
-parser.add_argument("--conv_weight_dropout", default=0.1, type=float)
-parser.add_argument("--conv_layer_dropout", default=0.1, type=float)
-parser.add_argument(
-    "--encoder_first_sub_layer", default="self_attention", type=str)
-parser.add_argument("--eval_step_frequency", default=500, type=int)
-parser.add_argument("--max_num_steps", default=100000, type=int)
-parser.add_argument(
-    "--dataset_dir",
-    default="../../tests/data/wikitext-2/",
-    type=str)
-parser.add_argument("--fp16", default=0, type=int, choices=[0, 1, 2])
+parser.add_argument("--d_inner", default=1536, type=int)
+parser.add_argument("--num_layers", default=12, type=int)
+parser.add_argument("--num_attn_heads", default=6, type=int)
+parser.add_argument("--embedding_dropout", default=0.2, type=float)
+parser.add_argument("--ffn_dropout", default=0.2, type=float)
+parser.add_argument("--attn_score_dropout", default=0.2, type=float)
+parser.add_argument("--attn_layer_dropout", default=0.2, type=float)
+parser.add_argument("--max_seq_length", default=256, type=int)
+parser.add_argument("--do_lower_case", action='store_true')
+parser.add_argument("--label_smoothing", default=0.1, type=float)
 parser.add_argument("--beam_size", default=4, type=int)
-parser.add_argument("--len_pen", default=0.0, type=float)
-parser.add_argument("--batch_accumulation_steps", default=1, type=int)
-parser.add_argument("--max_num_epochs", default=1000, type=int)
-parser.add_argument("--train_dataset", default="train", type=str)
-parser.add_argument("--eval_datasets", default="test", type=str)
 parser.add_argument("--tokenizer_model", default="vocab.txt", type=str)
-parser.add_argument("--predict_last_k", default=0, type=int)
+parser.add_argument("--predict_last_k", default=16, type=int)
+parser.add_argument("--save_epoch_freq", default=1, type=int)
+parser.add_argument("--save_step_freq", default=-1, type=int)
+parser.add_argument("--interactive", action="store_true")
 args = parser.parse_args()
 
-# create TensorboardX logger to log training statistics
-name = "transformer_big-lr{0}-opt{1}-warmup{2}-{3}-bs{4}".format(
-    args.lr, args.optimizer, args.warmup_steps,
-    args.lr_decay_policy, args.batch_size)
-tb_writer = None  # SummaryWriter(name)
+"""
+To get the data, go to tests/data and run get_wt2.sh
+Then run create_vocab.py
+"""
 
-# instantiate Neural Factory with supported backend
-device = nemo.core.DeviceType.AllGpu if args.local_rank is not None \
-    else nemo.core.DeviceType.GPU
-if args.fp16 == 1:
-    optimization_level = nemo.core.Optimization.mxprO1
-elif args.fp16 == 2:
-    optimization_level = nemo.core.Optimization.mxprO2
-else:
-    optimization_level = nemo.core.Optimization.nothing
-neural_factory = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch,
-    local_rank=args.local_rank,
-    optimization_level=optimization_level,
-    placement=device)
+work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
+nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
+                                   local_rank=args.local_rank,
+                                   optimization_level=args.amp_opt_level,
+                                   log_dir=args.work_dir,
+                                   create_tb_writer=True,
+                                   files_to_copy=[__file__])
+
+data_desc = LanguageModelDataDesc(
+    args.dataset_name, args.data_dir, args.do_lower_case)
 
 # define tokenizer, in this example we use word-level tokenizer
-# we also increase the vocabulary size to make it multiple of 8 to accelerate
+# we also adjust the vocabulary size to make it multiple of 8 to accelerate
 # training in fp16 mode with the use of Tensor Cores
-tokenizer = WordTokenizer(args.dataset_dir + args.tokenizer_model)
+tokenizer = nemo_nlp.WordTokenizer(f"{args.data_dir}/{args.tokenizer_model}")
 vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 
-# instantiate necessary modules for the whole language modeling pipeline,
-# namely data layers, encoder (which is basically transformer decoder without
-# encoder-decoder attention, output log_softmax, greedy language generator
+# instantiate necessary modules for the whole translation pipeline, namely
+# data layers, encoder, decoder, output log_softmax, beam_search_translator
 # and loss function
-train_dataset = args.dataset_dir + args.train_dataset + ".txt"
-eval_datasets = args.dataset_dir + args.eval_datasets + ".txt"
 
-train_data_layer = neural_factory.get_module(
-    name="LanguageModelingDataLayer",
-    params={
-        "tokenizer": tokenizer,
-        "dataset": train_dataset,
-        "max_seq_length": args.max_sequence_length,
-        "batch_size": args.batch_size,
-        "batch_step": args.max_sequence_length // 2
-    },
-    collection="nemo_nlp"
-)
-eval_data_layer = neural_factory.get_module(
-    name="LanguageModelingDataLayer",
-    params={
-        "tokenizer": tokenizer,
-        "dataset": eval_datasets,
-        "max_seq_length": args.max_sequence_length,
-        "batch_size": args.batch_size,
-        "batch_step": args.predict_last_k
-    },
-    collection="nemo_nlp"
-)
-generation_data_layer = neural_factory.get_module(
-    name="LanguageModelingDataLayer",
-    params={
-        "tokenizer": tokenizer,
-        "dataset": eval_datasets,
-        "max_seq_length": args.max_sequence_length - args.predict_last_k,
-        "batch_size": args.batch_size,
-        "batch_step": args.predict_last_k
-    },
-    collection="nemo_nlp"
-)
+encoder = nemo_nlp.TransformerEncoderNM(
+    d_model=args.d_model,
+    d_inner=args.d_inner,
+    num_layers=args.num_layers,
+    embedding_dropout=args.embedding_dropout,
+    num_attn_heads=args.num_attn_heads,
+    ffn_dropout=args.ffn_dropout,
+    vocab_size=vocab_size,
+    mask_future=True,
+    attn_score_dropout=args.attn_score_dropout,
+    attn_layer_dropout=args.attn_layer_dropout,
+    max_seq_length=args.max_seq_length)
 
-t_encoder = neural_factory.get_module(
-    name="TransformerEncoderNM",
-    params={
-        "d_model": args.d_model,
-        "d_inner": args.d_inner,
-        "num_layers": args.num_layers,
-        "num_attn_heads": args.num_heads,
-        "ffn_dropout": args.ffn_dropout,
-        "vocab_size": vocab_size,
-        "max_seq_length": args.max_sequence_length,
-        "embedding_dropout": args.embedding_dropout,
-        "mask_future": True,
-        "first_sub_layer": args.encoder_first_sub_layer,
-        "attn_score_dropout": args.attn_score_dropout,
-        "attn_layer_dropout": args.attn_layer_dropout,
-        "conv_kernel_size": args.conv_kernel_size,
-        "conv_weight_dropout": args.conv_weight_dropout,
-        "conv_layer_dropout": args.conv_layer_dropout
-    },
-    collection="nemo_nlp"
-)
+log_softmax = nemo_nlp.TokenClassifier(args.d_model,
+                                       num_classes=vocab_size,
+                                       num_layers=1,
+                                       log_softmax=True)
 
-t_log_softmax = neural_factory.get_module(
-    name="TransformerLogSoftmaxNM",
-    params={
-        "vocab_size": vocab_size,
-        "d_model": args.d_model
-    },
-    collection="nemo_nlp"
-)
+loss = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(
+    pad_id=tokenizer.pad_id(),
+    label_smoothing=args.label_smoothing)
 
-t_loss = neural_factory.get_module(
-    name="PaddedSmoothedCrossEntropyLossNM",
-    params={
-        "pad_id": tokenizer.pad_id(),
-        "label_smoothing": 0
-    },
-    collection="nemo_nlp"
-)
-t_loss_eval = neural_factory.get_module(
-    name="PaddedSmoothedCrossEntropyLossNM",
-    params={
-        "pad_id": tokenizer.pad_id(),
-        "label_smoothing": 0,
-        "predict_last_k": args.predict_last_k
-    },
-    collection="nemo_nlp"
-)
-language_generator = neural_factory.get_module(
-    name="GreedyLanguageGeneratorNM",
-    params={
-        "decoder": t_encoder,
-        "log_softmax": t_log_softmax,
-        "max_seq_length": args.max_sequence_length,
-        "pad_token": tokenizer.pad_id(),
-        "bos_token": tokenizer.bos_id(),
-        "eos_token": tokenizer.eos_id()
-    },
-    collection="nemo_nlp"
-)
+# tie weight of embedding and log_softmax layers
+log_softmax.mlp.last_linear_layer.weight = \
+    encoder.embedding_layer.token_embedding.weight
 
-t_log_softmax.log_softmax.dense.weight = \
-    t_encoder.embedding_layer.token_embedding.weight
 
-# training pipeline
-src, src_mask, labels = train_data_layer()
-src_hiddens = t_encoder(input_ids=src, input_mask_src=src_mask)
-log_softmax = t_log_softmax(hidden_states=src_hiddens)
-train_loss = t_loss(log_probs=log_softmax, target_ids=labels)
+def create_pipeline(dataset,
+                    max_seq_length=args.max_seq_length,
+                    batch_step=args.max_seq_length,
+                    batch_size=args.batch_size):
+    data_layer = nemo_nlp.LanguageModelingDataLayer(dataset,
+                                                    tokenizer,
+                                                    max_seq_length,
+                                                    batch_step,
+                                                    batch_size=batch_size)
+    src, src_mask, labels = data_layer()
+    src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)
+    logits = log_softmax(hidden_states=src_hiddens)
+    return loss(logits=logits, target_ids=labels)
 
-# evaluation pipeline
-src_, src_mask_, labels_ = eval_data_layer()
-src_hiddens_ = t_encoder(input_ids=src_, input_mask_src=src_mask_)
-log_softmax_ = t_log_softmax(hidden_states=src_hiddens_)
-eval_loss = t_loss_eval(log_probs=log_softmax_, target_ids=labels_)
 
-# generation pipeline with greedy language generator on top of the model output
-src__, src_mask__, labels__ = generation_data_layer()
-generated_text = language_generator(input_ids=src__)
+train_loss = create_pipeline(f"{args.data_dir}/{args.train_dataset}",
+                             args.max_seq_length,
+                             batch_step=args.max_seq_length,
+                             batch_size=args.batch_size)
+eval_loss = create_pipeline(f"{args.data_dir}/{args.eval_dataset}",
+                            args.max_seq_length,
+                            batch_step=args.predict_last_k,
+                            batch_size=args.eval_batch_size)
 
 # callback which prints training loss once in a while
-callback = nemo.core.SimpleLossLoggerCallback(
-    tensor_list2str=lambda x: str(x[0].item()),
-    tb_writer=tb_writer,
-    step_freq=100)
-# callback which calculates evaluation loss without label smoothing
-# and BLEU scores between outputs of beam search and reference translations
-callback_dev = nemo.core.EvaluatorCallback(
+train_callback = nemo.core.SimpleLossLoggerCallback(
+    tensors=[train_loss],
+    step_freq=100,
+    print_func=lambda x: str(x[0].item()),
+    get_tb_values=lambda x: [["loss", x[0]]],
+    tb_writer=nf.tb_writer)
+
+# callback which calculates evaluation loss
+eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=[eval_loss],
     user_iter_callback=eval_iter_callback,
     user_epochs_done_callback=eval_epochs_done_callback,
-    eval_step=args.eval_step_frequency,
-    tb_writer=tb_writer)
+    eval_step=args.eval_freq,
+    tb_writer=nf.tb_writer)
+
+# callback which saves checkpoints once in a while
+callback_ckpt = nemo.core.CheckpointCallback(
+    folder=nf.checkpoint_dir,
+    epoch_freq=args.save_epoch_freq,
+    step_freq=args.save_step_freq,
+    checkpoints_to_keep=-1)
 
 # define learning rate decay policy
-if args.lr_decay_policy == "poly":
-    lr_policy = SquareAnnealing(
-        args.max_num_steps, warmup_steps=args.warmup_steps)
-elif args.lr_decay_policy == "cosine":
-    lr_policy = CosineAnnealing(
-        args.max_num_steps, warmup_steps=args.warmup_steps)
-elif args.lr_decay_policy == "noam":
-    lr_policy = InverseSquareRootAnnealing(
-        args.max_num_steps, warmup_steps=args.warmup_steps)
-else:
-    raise NotImplementedError
+lr_policy_fn = CosineAnnealing(args.max_steps, warmup_steps=args.warmup_steps)
 
 # define and launch training algorithm (optimizer)
-optimizer = neural_factory.get_trainer(
-    params={
-        "optimizer_kind": args.optimizer,
-        "optimization_params": {
-            "num_epochs": args.max_num_epochs,
-            "lr": args.lr,
-            "weight_decay": args.weight_decay
-        }
-    }
-)
-optimizer.train(
-    tensors_to_optimize=[train_loss],
-    tensors_to_evaluate=[],
-    lr_policy=lr_policy,
-    callbacks=[callback, callback_dev],
-    batches_per_step=args.batch_accumulation_steps
-)
+max_num_epochs = 0 if args.interactive else args.num_epochs
+
+callbacks = [callback_ckpt]
+
+if not args.interactive:
+    callbacks.extend([train_callback, eval_callback])
+
+nf.train(tensors_to_optimize=[train_loss],
+         callbacks=callbacks,
+         lr_policy=lr_policy_fn,
+         batches_per_step=args.iter_per_step,
+         optimizer=args.optimizer_kind,
+         optimization_params={"num_epochs": args.num_epochs,
+                              "lr": args.lr,
+                              "weight_decay": args.weight_decay,
+                              "betas": (args.beta1, args.beta2)})

@@ -6,7 +6,8 @@ import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core import DeviceType
-from nemo.core.neural_types import *
+from nemo.core.neural_types import (NeuralType, AxisType, BatchTag, TimeTag,
+                                    ChannelTag)
 
 
 class BeamSearchDecoderWithLM(NonTrainableNM):
@@ -30,6 +31,11 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
             beta will result in shorter sequences.
         lm_path (str): Path to n-gram language model
         num_cpus (int): Number of cpus to use
+        cutoff_prob (float): Cutoff probability in vocabulary pruning,
+            default 1.0, no pruning
+        cutoff_top_n (int): Cutoff number in pruning, only top cutoff_top_n
+            characters with highest probs in vocabulary will be used in
+            beam search, default 40.
     """
 
     @staticmethod
@@ -54,6 +60,8 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
             beta,
             lm_path,
             num_cpus,
+            cutoff_prob=1.0,
+            cutoff_top_n=40,
             **kwargs):
 
         try:
@@ -80,6 +88,8 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
         self.vocab = vocab
         self.beam_width = beam_width
         self.num_cpus = num_cpus
+        self.cutoff_prob = cutoff_prob
+        self.cutoff_top_n = cutoff_top_n
 
     def forward(self, log_probs, log_probs_length):
         probs = torch.exp(log_probs)
@@ -92,5 +102,7 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
             beam_size=self.beam_width,
             num_processes=self.num_cpus,
             ext_scoring_func=self.scorer,
+            cutoff_prob=self.cutoff_prob,
+            cutoff_top_n=self.cutoff_top_n
         )
         return [res]

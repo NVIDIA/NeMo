@@ -2,7 +2,8 @@
 import torch
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import *
+from nemo.core.neural_types import (NeuralType, AxisType, BatchTag, TimeTag,
+                                    ChannelTag)
 
 
 class GreedyCTCDecoder(TrainableNM):

@@ -34,8 +34,8 @@ def main():
     parser.add_argument("--beta2", default=0.25, type=float)
     parser.set_defaults(
         model_config="./configs/jasper_an4.yaml",
-        train_dataset="./an4data/an4_train.json",
-        eval_datasets="./an4data/an4_val.json",
+        train_dataset="/home/mrjenkins/TestData/an4_dataset/an4_train.json",
+        eval_datasets="/home/mrjenkins/TestData/an4_dataset/an4_val.json",
         work_dir="./tmp",
         checkpoint_dir="./tmp",
         optimizer="novograd",

@@ -1,4 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
+import importlib
 import itertools
 import logging
 import os
@@ -8,28 +9,25 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
+
 from nemo.backends.pytorch.nm import TrainableNM
 
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
 from .optimizers import Novograd, AdamW, Lamb
 from ...core import NmTensor, DeviceType, NeuralModule
-from ...core.callbacks import (
-    ActionCallback,
-    EvaluatorCallback,
-    SimpleLossLoggerCallback,
-)
+from ...core.callbacks import (ActionCallback,
+                               EvaluatorCallback,
+                               SimpleLossLoggerCallback)
 from ...core.neural_factory import Actions, ModelMode, Optimization
 from ...utils.helpers import get_checkpoint_from_dir
 
-try:
-    import apex
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.parallel.LARC import LARC
-    from apex import amp
-except ImportError:
-    raise ImportError(
-        "Please install apex from https://www.github.com/nvidia/apex")
+# these imports will happen on as-needed basis
+amp = None
+convert_syncbn = None
+create_syncbn_process_group = None
+DDP = None
+LARC = None
 
 AmpOptimizations = {
     Optimization.mxprO0: "O0",
@@ -46,6 +44,33 @@ _float_2_half_req = {Optimization.mxprO1,
 class PtActions(Actions):
     def __init__(self, local_rank=None, tb_writer=None,
                  optimization_level=Optimization.mxprO0):
+        need_apex = local_rank is not None or \
+                    optimization_level != Optimization.mxprO0
+        if need_apex:
+            try:
+                apex = importlib.import_module('apex')
+                if optimization_level != Optimization.mxprO0:
+                    global amp
+                    amp = importlib.import_module('apex.amp')
+                if local_rank is not None:
+                    global convert_syncbn
+                    global create_syncbn_process_group
+                    global DDP
+                    global LARC
+                    parallel = importlib.import_module('apex.parallel')
+                    convert_syncbn = parallel.convert_syncbn_model
+                    create_syncbn_process_group = (
+                            parallel.create_syncbn_process_group)
+                    DDP = parallel.DistributedDataParallel
+                    LARC = parallel.LARC
+
+            except ImportError:
+                raise ImportError(
+                    "NVIDIA Apex is necessary for distributed training and"
+                    "mixed precision training. It only works on GPUs."
+                    "Please install Apex from "
+                    "https://www.github.com/nvidia/apex")
+
         super(PtActions, self).__init__(
             local_rank=local_rank,
             optimization_level=optimization_level)
@@ -57,6 +82,7 @@ class PtActions(Actions):
         self.optimizers = []
         self.tb_writer = tb_writer
         self._modules = set()
+        self.cache = None
 
     @property
     def modules(self):
@@ -79,9 +105,8 @@ class PtActions(Actions):
                 return tuple((producer, ()))
             else:
                 return tuple(
-                    (
-                        producer,
-                        tuple([(k, v) for k, v in producer_args.items()]))
+                    (producer,
+                     tuple([(k, v) for k, v in producer_args.items()]))
                 )
 
         def is_in_degree_zero(node, processed_nodes):
@@ -94,10 +119,7 @@ class PtActions(Actions):
                     return False
             return True
 
-        if not isinstance(hook, list):
-            hooks = [hook]
-        else:
-            hooks = hook
+        hooks = hook if isinstance(hook, list) else [hook]
 
         # ensures that no tensors are processed twice
         processed_nmtensors = set()
@@ -196,12 +218,10 @@ class PtActions(Actions):
 
         return top_sorted_modules, tdataset
 
-    def create_optimizer(
-            self,
-            optimizer,
-            things_to_optimize,
-            optimizer_params=None,
-    ):
+    def create_optimizer(self,
+                         optimizer,
+                         things_to_optimize,
+                         optimizer_params=None):
         """
         Wrapper function around __setup_optimizer()
 
@@ -268,12 +288,11 @@ class PtActions(Actions):
         return optimizer
 
     @staticmethod
-    def __setup_optimizer(
-            optimizer_instance,
-            optimizer_class,
-            optimization_params,
-            params_to_optimize,
-    ):
+    def __setup_optimizer(optimizer_instance,
+                          optimizer_class,
+                          optimization_params,
+                          params_to_optimize):
+
         if optimizer_instance is None:
             # Setup optimizer instance, by default it is SGD
             lr = optimization_params["lr"]
@@ -348,8 +367,12 @@ class PtActions(Actions):
             self, optimizer, optim_level, amp_min_loss_scale=1.0
     ):
         if optim_level not in AmpOptimizations:
-            raise ValueError("__initialize_amp() was called but optim_level "
-                             "was set to float32.")
+            raise ValueError(f"__initialize_amp() was called with unknown "
+                             "optim_level={optim_level}")
+        # in this case, nothing to do here
+        if optim_level == Optimization.mxprO0:
+            return optimizer
+
         if len(self.modules) < 1:
             raise ValueError("There were no modules to initialize")
         pt_modules = []
@@ -368,24 +391,31 @@ class PtActions(Actions):
         )
         return optimizer
 
-    def __nm_graph_forward_pass(
-            self,
-            call_chain,
-            registered_tensors,
-            mode=ModelMode.train,
-            disable_allreduce=False
-    ):
+    def __nm_graph_forward_pass(self,
+                                call_chain,
+                                registered_tensors,
+                                mode=ModelMode.train,
+                                disable_allreduce=False,
+                                use_cache=False):
         for ind in range(1, len(call_chain)):
+            if use_cache:
+                in_cache = True
+                for tensor in call_chain[ind][2].values():
+                    if tensor.unique_name not in registered_tensors:
+                        in_cache = False
+                if in_cache:
+                    continue
             call_args = call_chain[ind][1]
             # module = call_chain[ind][0]
             m_id = call_chain[ind][0].unique_instance_id
             pmodule = self.module_reference_table[m_id][1]
 
-            if isinstance(pmodule, DDP):
-                if disable_allreduce:
-                    pmodule.disable_allreduce()
-                else:
-                    pmodule.enable_allreduce()
+            if self._local_rank is not None:
+                if isinstance(pmodule, DDP):
+                    if disable_allreduce:
+                        pmodule.disable_allreduce()
+                    else:
+                        pmodule.enable_allreduce()
 
             if mode == ModelMode.train:
                 # if module.is_trainable():
@@ -425,9 +455,8 @@ class PtActions(Actions):
                 if t_name not in registered_tensors:
                     registered_tensors[t_name] = t_tensor
                 else:
-                    raise ValueError(
-                        "A NMTensor was produced twice in the same DAG. "
-                        "{}".format(t_name))
+                    raise ValueError("A NMTensor was produced twice in "
+                                     f"the same DAG. {t_name}")
 
     @staticmethod
     def pad_tensor(t: torch.Tensor, target_size: torch.Size):
@@ -646,14 +675,35 @@ class PtActions(Actions):
                 vals_to_log = callback.user_done_callback(
                     callback._global_var_dict)
                 # log results to Tensorboard
-                if vals_to_log is not None and callback._swriter is not None:
-                    for key, val in vals_to_log.items():
-                        callback._swriter.add_scalar(key, val, step)
+                if vals_to_log is not None and callback.swriter is not None:
+                    if callback.tb_writer_func is not None:
+                        callback.tb_writer_func(
+                            callback.swriter, vals_to_log, step)
+                    else:
+                        for key, val in vals_to_log.items():
+                            callback.swriter.add_scalar(key, val, step)
 
-    def _infer(self, tensors_to_return, step, verbose=False):
+    def _infer(self,
+               tensors_to_return,
+               verbose=False,
+               cache=False,
+               use_cache=False,
+               offload_to_cpu=True):
         """
         Does the same as _eval() just with tensors instead of eval callback.
         """
+        # Checking that cache is used properly
+        if cache and use_cache:
+            raise ValueError("cache and use_cache were both set. However cache"
+                             " must first be created prior to using it.")
+        if cache:
+            if self.cache is not None:
+                raise ValueError("cache was set but was not empty")
+            self.cache = []
+        if use_cache:
+            if not self.cache:
+                raise ValueError("use_cache was set, but cache was empty")
+
         with torch.no_grad():
             # each call chain corresponds to a tensor in tensors_2_evaluate
             dl_nm = None
@@ -668,6 +718,9 @@ class PtActions(Actions):
             is_distributed = False
             world_size = None
             if dl_nm.placement == DeviceType.AllGpu:
+                if self.cache or self.use_cache:
+                    raise NotImplementedError(
+                        "Caching is not available for distributed training.")
                 assert dist.is_initialized()
                 is_distributed = True
                 world_size = torch.distributed.get_world_size()
@@ -692,7 +745,9 @@ class PtActions(Actions):
                 else:
                     eval_dataloader = dl_nm.data_iterator
                 eval_dataloader.sampler.set_epoch(0)
-            else:  # Not distributed
+            elif not use_cache:  # Not distributed and not using cache
+                # There is no need for dataloaders if using cache
+                # Caching must then cache all outputs from dataloader
                 if dl_nm.dataset is not None:
                     # Todo: remove local_parameters
                     eval_dataloader = torch.utils.data.DataLoader(
@@ -720,8 +775,14 @@ class PtActions(Actions):
             dl_device = dl_nm._device
 
             # Evaluation mini-batch for loop
-            num_batches = len(eval_dataloader)
-            for epoch_i, data in enumerate(eval_dataloader, 0):
+            if use_cache:
+                num_batches = len(self.cache)
+                loop_iterator = self.cache
+            else:
+                num_batches = len(eval_dataloader)
+                loop_iterator = eval_dataloader
+
+            for epoch_i, data in enumerate(loop_iterator, 0):
                 if verbose and (
                         num_batches < 10 or (
                         epoch_i % int(num_batches / 10) == 0)
@@ -729,23 +790,41 @@ class PtActions(Actions):
                     print(
                         f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
-                if isinstance(data, torch.Tensor):
-                    data = (data,)
-                for d in data:
-                    if isinstance(d, torch.Tensor):
-                        tensors.append(d.to(dl_device))
-                    else:
-                        tensors.append(d)
+                if use_cache:
+                    registered_e_tensors = data
+                    # delete tensors_to_return
+                    for t in tensors_to_return:
+                        if t.unique_name in registered_e_tensors:
+                            del registered_e_tensors[t.unique_name]
+                else:
+                    if isinstance(data, torch.Tensor):
+                        data = (data,)
+                    for d in data:
+                        if isinstance(d, torch.Tensor):
+                            tensors.append(d.to(dl_device))
+                        else:
+                            tensors.append(d)
 
-                registered_e_tensors = {t.unique_name: d for t, d in
-                                        zip(call_chain[0][2].values(), tensors)
-                                        if t is not None
-                                        }
+                    registered_e_tensors = {
+                        t.unique_name: d for t, d in
+                        zip(call_chain[0][2].values(), tensors)
+                        if t is not None
+                    }
                 self.__nm_graph_forward_pass(
                     call_chain=call_chain,
                     registered_tensors=registered_e_tensors,
                     mode=ModelMode.eval,
+                    use_cache=use_cache
                 )
+
+                if offload_to_cpu:
+                    # Take all cuda tensors and save them to value_dict as
+                    # cpu tensors to save GPU memory
+                    for name, tensor in registered_e_tensors.items():
+                        if isinstance(tensor, torch.Tensor):
+                            registered_e_tensors[name] = tensor.cpu()
+                if cache:
+                    self.append_to_cache(registered_e_tensors)
 
                 # If distributed. For the outer loop, we need to ensure that
                 # all processes loop through the elements in the same order
@@ -815,6 +894,18 @@ class PtActions(Actions):
 
             # For all other ranks
             return None
+
+    def append_to_cache(self, registered_tensors: dict):
+        """Simpler helper function to add results of __nm_graph_forward_pass to
+        current cache.
+        """
+        self.cache.append(registered_tensors)
+
+    def clear_cache(self):
+        """ Simple helpful function to clear cache by setting self.cache to
+        None
+        """
+        self.cache = None
 
     def save_state_to(self, path: str):
         """
@@ -906,26 +997,28 @@ class PtActions(Actions):
                     for module in callchain:
                         self.modules.add(module[0])
 
-    def train(
-            self,
-            tensors_to_optimize,
-            optimizer=None,
-            optimization_params=None,
-            callbacks: Optional[List[ActionCallback]] = None,
-            lr_policy=None,
-            batches_per_step=None,
-            stop_on_nan_loss=False
-    ):
+    def train(self,
+              tensors_to_optimize,
+              optimizer=None,
+              optimization_params=None,
+              callbacks: Optional[List[ActionCallback]] = None,
+              lr_policy=None,
+              batches_per_step=None,
+              stop_on_nan_loss=False,
+              synced_batchnorm=False,
+              synced_batchnorm_groupsize=0):
         if not optimization_params:
             optimization_params = {}
-        num_epochs = optimization_params.get("num_epochs", 1)
+        num_epochs = optimization_params.get("num_epochs", None)
         max_steps = optimization_params.get("max_steps", None)
+        if num_epochs is None and max_steps is None:
+            raise ValueError("You must specify either max_steps or num_epochs")
         grad_norm_clip = optimization_params.get('grad_norm_clip', None)
 
         if batches_per_step is None:
             batches_per_step = 1
         # this is necessary because we average gradients over batch
-        bps_scale = torch.FloatTensor([1.0 / batches_per_step])
+        bps_scale = torch.FloatTensor([1.0 / batches_per_step]).squeeze()
 
         if tensors_to_optimize is None:
             # This is Evaluation Mode
@@ -1071,6 +1164,25 @@ class PtActions(Actions):
                     if (not isinstance(pmodule, DDP) and
                             isinstance(pmodule, torch.nn.Module)):
                         pmodule = DDP(pmodule)
+
+                    # Convert batchnorm modules to synced if applicable
+                    if (synced_batchnorm and
+                            isinstance(pmodule, torch.nn.Module)):
+                        world_size = dist.get_world_size()
+                        if (synced_batchnorm_groupsize > 0 and
+                                world_size % synced_batchnorm_groupsize != 0):
+                            raise ValueError(
+                                f"Synchronized batch norm group size"
+                                f" ({synced_batchnorm_groupsize}) must be 0"
+                                f" or divide total number of GPUs"
+                                f" ({world_size})."
+                            )
+                        process_group = create_syncbn_process_group(
+                                synced_batchnorm_groupsize)
+                        pmodule = convert_syncbn(
+                                pmodule,
+                                process_group=process_group)
+
                     self.module_reference_table[key] = (
                         self.module_reference_table[key][0], pmodule
                     )
@@ -1097,8 +1209,8 @@ class PtActions(Actions):
 
         # MAIN TRAINING LOOP
         # iteration over epochs
-        for epoch_ind in range(self.epoch_num, num_epochs):
-            self.epoch_num = epoch_ind
+        self.epoch_num = 0
+        while num_epochs is None or self.epoch_num < num_epochs:
             if train_sampler is not None:
                 train_sampler.set_epoch(self.epoch_num)
             if max_steps is not None and self.step >= max_steps:
@@ -1177,7 +1289,8 @@ class PtActions(Actions):
                     final_loss += registered_tensors[tensor.unique_name]
                 if nan:
                     continue
-                if self._optim_level in AmpOptimizations:
+                if self._optim_level in AmpOptimizations \
+                        and self._optim_level != Optimization.mxprO0:
                     with amp.scale_loss(
                             final_loss,
                             curr_optimizer,
@@ -1191,10 +1304,15 @@ class PtActions(Actions):
                             continue
                         scaled_loss.backward(
                             bps_scale.to(scaled_loss.get_device()))
+                # no AMP optimizations needed
                 else:
-                    final_loss.backward(
-                        bps_scale.to(
-                            final_loss.get_device()))
+                    # multi-GPU, float32
+                    if self._local_rank is not None:
+                        final_loss.backward(
+                            bps_scale.to(final_loss.get_device()))
+                    # single device (CPU or GPU)
+                    else:
+                        final_loss.backward()
 
                 batch_counter += 1
 
@@ -1213,13 +1331,22 @@ class PtActions(Actions):
                     self._perform_on_iteration_end(callbacks=callbacks)
                     self.step += 1
             # End of epoch for loop
-
             # Register epochs end with callbacks
             self._perform_on_epoch_end(callbacks=callbacks)
+            self.epoch_num += 1
         self._perform_on_action_end(callbacks=callbacks)
 
-    def infer(self, tensors, checkpoint_dir=None, ckpt_pattern='',
-              logger=None):
+    def infer(self,
+              tensors,
+              checkpoint_dir=None,
+              ckpt_pattern='',
+              logger=None,
+              verbose=True,
+              cache=False,
+              use_cache=False,
+              offload_to_cpu=True):
+        """See NeuralModuleFactory.infer()
+        """
 
         if checkpoint_dir:
             # Find all modules that need to be restored
@@ -1243,7 +1370,8 @@ class PtActions(Actions):
                 mod.restore_from(checkpoint, self._local_rank)
 
             # Init Amp
-            if self._optim_level in AmpOptimizations:
+            if self._optim_level in AmpOptimizations and \
+                    self._optim_level != Optimization.mxprO0:
                 pt_modules = []
                 for i in range(len(call_chain)):
                     if isinstance(call_chain[i][0], nn.Module):
@@ -1260,4 +1388,8 @@ class PtActions(Actions):
                 )
 
         # Run infer
-        return self._infer(tensors_to_return=tensors, step=0, verbose=True)
+        return self._infer(tensors_to_return=tensors,
+                           verbose=verbose,
+                           cache=cache,
+                           use_cache=use_cache,
+                           offload_to_cpu=offload_to_cpu)

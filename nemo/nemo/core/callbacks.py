@@ -2,7 +2,6 @@
 from abc import ABC, abstractmethod
 from collections import namedtuple
 import glob
-import math
 import os
 import sys
 import time
@@ -67,7 +66,8 @@ class ActionCallback(ABC):
 
 class ModuleSaverCallback(ActionCallback):
     """
-    When step_freq = -1, don't save anything.
+    For callback documentation: please see
+    https://nvidia.github.io/NeMo/tutorials/callbacks.html
     """
 
     def __init__(self, save_modules_list, step_freq=1000, folder=None):
@@ -114,11 +114,16 @@ class ModuleSaverCallback(ActionCallback):
 
 
 class SimpleLossLoggerCallback(ActionCallback):
+    """
+    For callback documentation: please see
+    https://nvidia.github.io/NeMo/tutorials/callbacks.html
+    """
 
     def __init__(self,
                  tensors,
                  print_func=None,
                  get_tb_values=None,
+                 log_to_tb_func=None,
                  step_freq=25,
                  tb_writer=None):
 
@@ -128,6 +133,7 @@ class SimpleLossLoggerCallback(ActionCallback):
         self._tensors = tensors
         self._print_func = print_func
         self._get_tb_values = get_tb_values
+        self._log_to_tb_func = log_to_tb_func
         self._step_freq = step_freq
         self._swriter = tb_writer
         self._start_time = None
@@ -188,6 +194,9 @@ class SimpleLossLoggerCallback(ActionCallback):
                         for name, value in tb_objects:
                             value = value.item()
                             self._swriter.add_scalar(name, value, step)
+                    if self._log_to_tb_func:
+                        self._log_to_tb_func(
+                            self._swriter, tensor_values, step)
                     run_time = time.time() - self._last_iter_start
                     self._swriter.add_scalar('misc/step_time', run_time, step)
                 run_time = time.time() - self._last_iter_start
@@ -195,6 +204,10 @@ class SimpleLossLoggerCallback(ActionCallback):
 
 
 class CheckpointCallback(ActionCallback):
+    """
+    For callback documentation: please see
+    https://nvidia.github.io/NeMo/tutorials/callbacks.html
+    """
 
     def __init__(self, folder, load_from_folder=None, step_freq=-1,
                  epoch_freq=-1, checkpoints_to_keep=4, force_load=False):
@@ -224,7 +237,7 @@ class CheckpointCallback(ActionCallback):
 
     def __save_to(self, path):
         if not os.path.isdir(path):
-            print("Creating {0} folder".format(path))
+            print(f"Creating {path} folder")
             os.makedirs(path, exist_ok=True)
         unique_mod_names = set()
         for module in self.action.modules:
@@ -284,9 +297,7 @@ class CheckpointCallback(ActionCallback):
                         "force_load was set to True for checkpoint callback"
                         "but a checkpoint was not found.")
                 print(e)
-                print(
-                    "Checkpoint folder {0} present but did not restore".format(
-                        path))
+                print(f"Checkpoint folder {path} present but did not restore")
                 return
 
             try:
@@ -331,6 +342,10 @@ class CheckpointCallback(ActionCallback):
 
 
 class EvaluatorCallback(ActionCallback):
+    """
+    For callback documentation: please see
+    https://nvidia.github.io/NeMo/tutorials/callbacks.html
+    """
 
     def __init__(
             self,
@@ -338,15 +353,14 @@ class EvaluatorCallback(ActionCallback):
             user_iter_callback,
             user_epochs_done_callback,
             tb_writer=None,
+            tb_writer_func=None,
             eval_step=1,
             eval_epoch=None,
     ):
         # TODO: Eval_epoch currently does nothing
         if eval_step is None and eval_epoch is None:
-            raise ValueError(
-                "Either eval_step or eval_epoch must be set. "
-                "But got: {0} and {1}".format(eval_step, eval_epoch)
-            )
+            raise ValueError("Either eval_step or eval_epoch must be set. "
+                             f"But got: {eval_step} and {eval_epoch}")
         if (eval_step is not None and eval_step <= 0) or (
                 eval_epoch is not None and eval_epoch <= 0
         ):
@@ -357,6 +371,7 @@ class EvaluatorCallback(ActionCallback):
         super().__init__()
         self._eval_tensors = eval_tensors
         self._swriter = tb_writer
+        self._tb_writer_func = tb_writer_func
         self._eval_frequency = eval_step
         # will be passed to callbacks below
         self._global_var_dict = {}
@@ -368,6 +383,14 @@ class EvaluatorCallback(ActionCallback):
     @property
     def eval_tensors(self):
         return self._eval_tensors
+
+    @property
+    def tb_writer_func(self):
+        return self._tb_writer_func
+
+    @property
+    def swriter(self):
+        return self._swriter
 
     def on_epoch_end(self):
         pass

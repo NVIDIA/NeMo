@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="nemo_asr",
-    version="0.8",
+    version="0.8.3",
     author="NVIDIA",
     author_email="nemo-toolkit@nvidia.com",
     description="Collection of Neural Modules for Speech Recognition",
@@ -16,17 +16,19 @@ setuptools.setup(
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
-        "License :: OSI Approved :: Apache License 2.0"
+        "License :: OSI Approved :: Apache Software License"
     ],
     install_requires=[
         'nemo_toolkit',
         'librosa',
         'num2words',
         'inflect',
+        'kaldi-io',
         'torch-stft',
         'soundfile',
         'marshmallow',
         'ruamel.yaml',
-        'sox'
+        'sox',
+        'unidecode'
     ]
 )

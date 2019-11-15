@@ -6,10 +6,8 @@ from sklearn.metrics import confusion_matrix, classification_report
 
 import nemo
 import nemo_nlp
-from nemo_nlp.callbacks.joint_intent_slot import \
-    eval_iter_callback, eval_epochs_done_callback
-from nemo_nlp import read_intent_slot_outputs
-from nemo_nlp.text_data_utils import JointIntentSlotDataDesc
+from nemo_nlp.data.datasets.utils import JointIntentSlotDataDesc
+from nemo_nlp.utils.nlp_utils import read_intent_slot_outputs
 
 
 # Parsing arguments
@@ -19,13 +17,13 @@ parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--pretrained_bert_model",
                     default="bert-base-uncased",
                     type=str)
-parser.add_argument("--dataset_name", default='atis', type=str)
+parser.add_argument("--dataset_name", default='snips-all', type=str)
 parser.add_argument("--data_dir",
-                    default='data/nlu/ATIS',
+                    default='data/nlu/snips',
                     type=str)
-parser.add_argument("--query", default='what time is the flight', type=str)
+parser.add_argument("--query", default='please turn on the light', type=str)
 parser.add_argument("--work_dir",
-                    default='outputs/ATIS/20190814-152523/checkpoints',
+                    default='outputs/SNIPS-ALL/20191010-164934/checkpoints',
                     type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
@@ -46,20 +44,19 @@ pretrained_bert_model = nemo_nlp.huggingface.BERT(
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 
-data_desc = JointIntentSlotDataDesc(
-    args.dataset_name, args.data_dir, args.do_lower_case)
+data_desc = JointIntentSlotDataDesc(args.data_dir,
+                                    args.do_lower_case,
+                                    args.dataset_name)
 
 query = args.query
 if args.do_lower_case:
     query = query.lower()
 
-
-dataset = nemo_nlp.BertJointIntentSlotInferDataset(
+data_layer = nemo_nlp.BertJointIntentSlotInferDataLayer(
     queries=[query],
     tokenizer=tokenizer,
-    max_seq_length=args.max_seq_length)
-data_layer = nemo_nlp.BertJointIntentSlotInferDataLayer(dataset,
-                                                        batch_size=1)
+    max_seq_length=args.max_seq_length,
+    batch_size=1)
 
 
 # Create sentence classification loss on top
@@ -69,7 +66,7 @@ classifier = nemo_nlp.JointIntentSlotClassifier(
     num_slots=data_desc.num_slots,
     dropout=args.fc_dropout)
 
-ids, type_ids, input_mask, slot_mask = data_layer()
+ids, type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
 
 
 hidden_states = pretrained_bert_model(input_ids=ids,
@@ -82,7 +79,7 @@ intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
 
 evaluated_tensors = nf.infer(
-    tensors=[intent_logits, slot_logits, slot_mask],
+    tensors=[intent_logits, slot_logits, subtokens_mask],
     checkpoint_dir=args.work_dir)
 
 
@@ -90,13 +87,12 @@ def concatenate(lists):
     return np.concatenate([t.cpu() for t in lists])
 
 
-intent_logits = concatenate(evaluated_tensors[0])
-slot_logits = concatenate(evaluated_tensors[1])
-slot_masks = concatenate(evaluated_tensors[2])
+intent_logits, slot_logits, subtokens_mask = \
+    [concatenate(tensors) for tensors in evaluated_tensors]
 
 read_intent_slot_outputs([query],
                          data_desc.intent_dict_file,
                          data_desc.slot_dict_file,
                          intent_logits,
                          slot_logits,
-                         slot_masks)
+                         subtokens_mask)

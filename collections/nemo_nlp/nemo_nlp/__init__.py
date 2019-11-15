@@ -14,6 +14,7 @@
 # ==============================================================================
 
 from .data import *
+<<<<<<< HEAD
 from .transformer_nm import TransformerEncoderNM, TransformerDecoderNM, \
     TransformerLogSoftmaxNM, PaddedSmoothedCrossEntropyLossNM, \
     BeamSearchTranslatorNM, GreedyLanguageGeneratorNM
@@ -26,12 +27,16 @@ from .bert import MaskedLanguageModelingLossNM, \
     TokenClassificationLossClassImbalance
 from .nlp_utils import read_intent_slot_outputs
 from . import transformer, huggingface
+=======
+from .huggingface import *
+from .modules import *
+from .transformer import *
+>>>>>>> upstream/master
 
-from .callbacks import *
 
-from nemo.core import Backend
+import nemo
 
 
 name = "nemo_nlp"
-backend = Backend.PyTorch
-__version__ = "0.1"
+backend = nemo.core.Backend.PyTorch
+__version__ = "0.8.3"

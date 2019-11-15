@@ -1,12 +1,18 @@
 # Copyright (c) 2019 NVIDIA Corporation
-
-from pytorch_transformers import BertConfig, BertModel, \
-    BERT_PRETRAINED_MODEL_ARCHIVE_MAP, BERT_PRETRAINED_CONFIG_ARCHIVE_MAP
 from typing import Optional, List
+
+from pytorch_transformers import (BertConfig,
+                                  BertModel,
+                                  BERT_PRETRAINED_MODEL_ARCHIVE_MAP,
+                                  BERT_PRETRAINED_CONFIG_ARCHIVE_MAP)
+
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, \
-        NeuralType, TimeTag
 from nemo.core.neural_modules import PretrainedModelInfo
+from nemo.core.neural_types import (AxisType,
+                                    BatchTag,
+                                    ChannelTag,
+                                    NeuralType,
+                                    TimeTag)
 
 
 class BERT(TrainableNM):
@@ -102,7 +108,7 @@ class BERT(TrainableNM):
             model = BertModel(config)
         else:
             raise ValueError("Either pretrained_model_name or vocab_size must"
-                             + "be passed into the BERT constructor")
+                             + " be passed into the BERT constructor")
 
         model.to(self._device)
 

@@ -1,36 +1,10 @@
+__all__ = ['Attention', 'MultiLayerPerceptron']
+
 import os
 
-import pandas as pd
 import torch
 # noinspection PyPep8Naming
 from torch import nn
-from torch.utils.data import Dataset
-
-
-class TextDataset(Dataset):
-    def __init__(self, path, labels, eos_id):
-        _, ext = os.path.splitext(path)
-        if ext == '.csv':
-            texts = pd.read_csv(path)['transcript'].tolist()
-        else:
-            with open(path, 'r') as f:
-                texts = f.readlines()
-        texts = [l.strip().lower() for l in texts if len(l)]
-        self.texts = texts
-
-        self.char2num = {c: i for i, c in enumerate(labels)}
-        self.eos_id = eos_id
-
-    def __len__(self):
-        return len(self.texts)
-
-    def __getitem__(self, item):
-        char2num = self.char2num
-        return torch.tensor(
-            [char2num[c] for c in self.texts[item]
-             if c in char2num] + [self.eos_id],
-            dtype=torch.long
-        )
 
 
 class Attention(nn.Module):
@@ -82,3 +56,52 @@ class Attention(nn.Module):
         output = self.tanh(output)
 
         return output, attention_weights
+
+
+class MultiLayerPerceptron(nn.Module):
+    """
+    A simple MLP that can either be used independently or put on top
+    of pretrained models (such as BERT) and act as a classifier.
+
+    Args:
+        hidden_size (int): the size of each layer
+        num_classes (int): number of output classes
+        device: whether it's CPU or CUDA
+        num_layers (int): number of layers
+        activation: type of activations for layers in between
+        log_softmax (bool): whether to add a log_softmax layer before output
+    """
+
+    def __init__(self,
+                 hidden_size,
+                 num_classes,
+                 device,
+                 num_layers=2,
+                 activation='relu',
+                 log_softmax=True):
+        super().__init__()
+        self.layers = 0
+        for _ in range(num_layers - 1):
+            layer = nn.Linear(hidden_size, hidden_size).to(device)
+            setattr(self, f'layer{self.layers}', layer)
+            setattr(self, f'layer{self.layers+1}', getattr(torch, activation))
+            self.layers += 2
+        layer = nn.Linear(hidden_size, num_classes).to(device)
+        setattr(self, f'layer{self.layers}', layer)
+        self.layers += 1
+        self.log_softmax = log_softmax
+
+    @property
+    def last_linear_layer(self):
+        return getattr(self, f'layer{self.layers-1}')
+
+    def forward(self, hidden_states):
+        output_states = hidden_states[:]
+        for i in range(self.layers):
+            output_states = getattr(self, f'layer{i}')(output_states)
+
+        if self.log_softmax:
+            output_states = torch.log_softmax(
+                output_states.float(), dim=-1).to(hidden_states.dtype)
+            # TODO: make it work with float16
+        return output_states
