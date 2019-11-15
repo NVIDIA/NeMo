@@ -1067,8 +1067,8 @@ class PtActions(Actions):
     def deployment_export(modules,
                           outputs: List[str],
                           d_format: DeploymentFormat,
-                          input_example=None,
-                          output_example=None):
+                          input_examples=None,
+                          output_examples=None):
         """Exports Neural Module instance for deployment.
 
         Args:
@@ -1095,11 +1095,9 @@ class PtActions(Actions):
                 module=module,
                 output=outputs[idx],
                 d_format=d_format[idx],
-                input_example=in
+                input_example=input_examples[idx] if input_examples is not None else None,
+                output_example=output_examples[idx] if output_examples is not None else None
             )
-
-
-
 
 
     def train(self,

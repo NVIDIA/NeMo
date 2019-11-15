@@ -21,8 +21,8 @@ class TestDeployExport(NeMoUnitTest):
 
         self.nf.deployment_export(
             modules=[module],
-            output=out_name,
-            input_example=input_example,
+            outputs=[out_name],
+            input_examples=[input_example],
             d_format=mode)
 
         self.assertTrue(out.exists())

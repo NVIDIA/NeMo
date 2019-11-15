@@ -568,10 +568,10 @@ class NeuralModuleFactory(object):
 
     def deployment_export(self,
                           modules,
-                          output: str,
+                          outputs: List[str],
                           d_format: DeploymentFormat,
-                          input_example=None,
-                          output_example=None):
+                          input_examples=None,
+                          output_examples=None):
         """Exports Neural Module instance for deployment.
 
         Args:
@@ -583,10 +583,10 @@ class NeuralModuleFactory(object):
         """
         return self._trainer.deployment_export(
             modules=modules,
-            output=output,
+            outputs=outputs,
             d_format=d_format,
-            input_example=input_example,
-            output_example=output_example
+            input_examples=input_examples,
+            output_examples=output_examples
         )
 
     def infer(self,
