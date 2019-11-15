@@ -1033,18 +1033,14 @@ class PtActions(Actions):
         module.eval()
 
         if d_format == DeploymentFormat.TORCHSCRIPT:
-            try:
+            if input_example is None:
                 # Route 1 - via torch.jit.script
                 traced_m = torch.jit.script(module)
                 traced_m.save(output)
-            except:
+            else:
                 # Route 2 - via tracing
-                if input_example is not None:
-                    traced_m = torch.jit.trace(module, input_example)
-                    traced_m.save(output)
-                else:
-                    raise ValueError(f'Example input is None, but tracing was'
-                                     f' attempted')
+                traced_m = torch.jit.trace(module, input_example)
+                traced_m.save(output)
         elif d_format == DeploymentFormat.ONNX:
             if input_example is None:
                 raise ValueError(f'Example input is None, but ONNX tracing was'
@@ -1062,7 +1058,6 @@ class PtActions(Actions):
 
         type(module).__call__ = __old_call
 
-
     @staticmethod
     def deployment_export(modules,
                           outputs: List[str],
@@ -1073,10 +1068,10 @@ class PtActions(Actions):
 
         Args:
             modules (list of NeuralModule): modules to export
-            output (str): where export results should be saved
+            outputs (str): where export results should be saved
             d_format (DeploymentFormat): which deployment format to use
-            input_example: sometimes tracing will require input examples
-            output_example: Should match inference on input_example
+            input_examples: sometimes tracing will require input examples
+            output_examples: Should match inference on input_example
         """
         if not isinstance(modules, List):
             raise ValueError(f"modules argument should be a list of modules")
@@ -1095,10 +1090,11 @@ class PtActions(Actions):
                 module=module,
                 output=outputs[idx],
                 d_format=d_format[idx],
-                input_example=input_examples[idx] if input_examples is not None else None,
-                output_example=output_examples[idx] if output_examples is not None else None
+                input_example=input_examples[
+                    idx] if input_examples is not None else None,
+                output_example=output_examples[
+                    idx] if output_examples is not None else None
             )
-
 
     def train(self,
               tensors_to_optimize,
