@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>How to build Neural Module &mdash; nemo 0.8.1 documentation</title>
+  <title>How to build Neural Module &mdash; nemo 0.8.2 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.8.1
+                0.8.2
               </div>
             
           
@@ -327,7 +327,7 @@ parameters such as <code class="docutils literal notranslate"><span class="pre">
         <span class="c1"># Note: we define the size of the height and width of our output</span>
         <span class="c1"># tensors, and thus require a size parameter.</span>
         <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_output_ports</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span>
             <span class="s2">&quot;image&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
                                  <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">),</span>
                                  <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">HeightTag</span><span class="p">,</span> <span class="n">size</span><span class="p">),</span>

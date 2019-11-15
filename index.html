@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>NVIDIA Neural Modules: NeMo &mdash; nemo 0.8.1 documentation</title>
+  <title>NVIDIA Neural Modules: NeMo &mdash; nemo 0.8.2 documentation</title>
   
 
   
@@ -59,7 +59,7 @@
             
             
               <div class="version">
-                0.8.1
+                0.8.2
               </div>
             
           
@@ -184,31 +184,50 @@
 <li><p>NVIDIA APEX: <a class="reference external" href="https://github.com/NVIDIA/apex">https://github.com/NVIDIA/apex</a></p></li>
 </ol>
 <p><strong>Getting started</strong></p>
-<p>If desired, you can start with <a class="reference external" href="https://ngc.nvidia.com/catalog/containers/nvidia:pytorch">NGC PyTorch container</a> which already includes
-requirements above.</p>
-<p>You can pull it like so: <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">pull</span> <span class="pre">nvcr.io/nvidia/pytorch:19.08-py3</span></code>
-and then continue with the following steps:</p>
-<ol class="arabic simple">
-<li><p>Clone the repository</p></li>
-<li><p>Go to nemo folder and then: <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">install</span></code></p></li>
-<li><dl class="simple">
-<dt>Install collections:</dt><dd><ul class="simple">
-<li><dl class="simple">
-<dt>ASR collection from <cite>collections/nemo_asr</cite>:</dt><dd><ol class="arabic simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">libsndfile1</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">install</span></code></p></li>
-</ol>
-</dd>
-</dl>
-</li>
-<li><p>NLP collection from <cite>collections/nemo_nlp</cite>: <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">install</span></code></p></li>
+<p>You can use NVIDIA <a class="reference external" href="https://ngc.nvidia.com/catalog/containers/nvidia:pytorch">NGC PyTorch container</a> which already includes all the requirements above.</p>
+<ul class="simple">
+<li><p>Pull the docker: <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">pull</span> <span class="pre">nvcr.io/nvidia/pytorch:19.10-py3</span></code></p></li>
+<li><p>Run: <code class="docutils literal notranslate"><span class="pre">nvidia-docker</span> <span class="pre">run</span> <span class="pre">-it</span> <span class="pre">--rm</span> <span class="pre">-v</span> <span class="pre">&lt;nemo_github_folder&gt;:/NeMo</span> <span class="pre">--shm-size=1g</span> <span class="pre">-p</span> <span class="pre">8888:8888</span> <span class="pre">-p</span> <span class="pre">6006:6006</span> <span class="pre">--ulimit</span> <span class="pre">memlock=-1</span> <span class="pre">--ulimit</span> <span class="pre">stack=67108864</span> <span class="pre">nvcr.io/nvidia/pytorch:19.10-py3</span></code></p></li>
+<li><p>(If your docker version is &gt;=19.03) Run: <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">run</span> <span class="pre">--runtime=nvidia</span> <span class="pre">-it</span> <span class="pre">--rm</span> <span class="pre">-v</span> <span class="pre">&lt;nemo_github_folder&gt;:/NeMo</span> <span class="pre">--shm-size=1g</span> <span class="pre">-p</span> <span class="pre">8888:8888</span> <span class="pre">-p</span> <span class="pre">6006:6006</span> <span class="pre">--ulimit</span> <span class="pre">memlock=-1</span> <span class="pre">--ulimit</span> <span class="pre">stack=67108864</span> <span class="pre">nvcr.io/nvidia/pytorch:19.10-py3</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cd</span> <span class="pre">/NeMo</span></code></p></li>
 </ul>
-</dd>
-</dl>
-</li>
-<li><p>For development you will need to: <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">develop</span></code> instead of <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">install</span></code> in Step (3.2) above</p></li>
-<li><p>Go to <cite>examples/start_here</cite> to get started with few simple examples</p></li>
+<p>and then continue with the following steps.</p>
+<p>If you have all requirements installed (or are using <a class="reference external" href="https://ngc.nvidia.com/catalog/containers/nvidia:pytorch">NGC PyTorch container</a> ),
+then you can simply use pip to install the latest released version (<strong>currently 0.8.2</strong>) of NeMo and its collections:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip install nemo-toolkit  <span class="c1"># installs NeMo Core</span>
+pip install nemo-asr <span class="c1"># installs NeMo ASR collection</span>
+pip install nemo-nlp <span class="c1"># installs NeMo NLP collection</span>
+</pre></div>
+</div>
+<p><strong>Tutorials</strong></p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://nvidia.github.io/NeMo/asr/intro.html">Speech recognition</a></p></li>
+<li><p><a class="reference external" href="https://nvidia.github.io/NeMo/nlp/intro.html">Natural language processing</a></p></li>
+</ul>
+<p><strong>Installing From Github</strong></p>
+<p>If you prefer to use NeMo’s latest development version (from GitHub) follow the steps below:</p>
+<p><em>Note</em>: For step 2 and 3, if you want to use NeMo in development mode, use: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code> instead of <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">.</span></code></p>
+<ol class="arabic simple">
+<li><p>Clone the repository <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">clone</span> <span class="pre">https://github.com/NVIDIA/NeMo.git</span></code></p></li>
+<li><p>Go to NeMo folder and install the toolkit:</p></li>
 </ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> NeMo/nemo
+pip install .
+</pre></div>
+</div>
+<ol class="arabic simple" start="3">
+<li><p>Install the collection(s) you want.</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install the ASR collection from collections/nemo_asr</span>
+apt-get install libsndfile1
+<span class="nb">cd</span> NeMo/collections/nemo_asr
+pip install .
+
+<span class="c1"># Install the NLP collection from collections/nemo_nlp</span>
+<span class="nb">cd</span> NeMo/collections/nemo_nlp
+pip install .
+</pre></div>
+</div>
 <p><strong>Unittests</strong></p>
 <p>This command runs unittests:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./reinstall.sh
