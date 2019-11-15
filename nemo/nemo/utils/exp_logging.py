@@ -44,6 +44,41 @@ def get_logger(name):
 
 
 class ExpManager:
+    """ Note: Users should not have to call ExpManager as it is done
+    automically inside NeuralFactory. Not all defaults match NeuralFactory
+    defaults.
+    ExpManager helps create a work directory used to log experiment
+    files. It additionally creates a checkpoint directory, tensboard
+    directory, tensorboardX.SummaryWriter object,
+    copies any files passed with files_to_copy to the work
+    directory, and creates loggers used to print to screen and file.
+
+    Args:
+    work_dir (str): Directory that Expmanager should either create or
+        save log files and directories to.
+        Defaults to None and does not create a work directory.
+    local_rank (int): None for single-gpu, else the id for distributed
+        setups.
+        Defaults to None
+    use_tb (bool): Whether to create a tensorboardX.SummaryWriter object
+        Defaults to True.
+    exist_ok (bool): If False, ExpManager will crash if the work_dir
+        already exists. Must be false for distributed runs.
+    ckpt_dir (str). Whether to create a subdir called ckpt_dir.
+        Defaults to which creates a subdir called "checkpoints".
+    tb_dir (str): Whether to create a subdir called tb_dir.
+        Defaults to which creates a subdir called "tensorboard".
+    files_to_copy (list): Should be a list of paths of files that you
+        want to copy to work_dir. Useful for copying configs and model
+        scrtips.
+        Defaults to None which copies no files.
+    add_time (bool): Whether to add a datetime ending to work_dir
+        Defaults to True.
+    broadcast_func (func): Only required if add_time is True and
+        distributed. broadcast_func should accept a string that contains
+        the datetime suffix such that all ranks are consistent on work_dir
+        name.
+    """
     def __init__(
             self,
             work_dir=None,
@@ -55,9 +90,6 @@ class ExpManager:
             files_to_copy=None,
             add_time=True,
             broadcast_func=None):
-        """ Users should not call ExpManager directly, see NeuralFactory for
-        use of ExpManager.
-        """
         self.local_rank = local_rank if local_rank is not None else 0
         self.logger = None
         self.log_file = None
