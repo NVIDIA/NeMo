@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="nemo_asr",
-    version="0.8.1",
+    version="0.8.2",
     author="NVIDIA",
     author_email="nemo-toolkit@nvidia.com",
     description="Collection of Neural Modules for Speech Recognition",
@@ -23,6 +23,7 @@ setuptools.setup(
         'librosa',
         'num2words',
         'inflect',
+        'kaldi-io',
         'torch-stft',
         'soundfile',
         'marshmallow',

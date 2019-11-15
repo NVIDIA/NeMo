@@ -30,7 +30,7 @@ def read_intent_slot_outputs(queries,
             logger.info(
                 f'True intent:\t{intents[i]}\t{intent_dict[intents[i]]}')
 
-        pred_slot = pred_slots[i][slot_masks[i]][1:-1]
+        pred_slot = pred_slots[i][slot_masks[i]]
         tokens = query.strip().split()
 
         if len(pred_slot) != len(tokens):
