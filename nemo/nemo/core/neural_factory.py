@@ -351,8 +351,6 @@ class NeuralModuleFactory(object):
         # Create trainer
         self._trainer = self._get_trainer(tb_writer=self._tb_writer)
 
-
-
     @classmethod
     def get_default_factory(cls):
         return cls._DEFAULT
