@@ -14,24 +14,9 @@
 # ==============================================================================
 
 from .data import *
-<<<<<<< HEAD
-from .transformer_nm import TransformerEncoderNM, TransformerDecoderNM, \
-    TransformerLogSoftmaxNM, PaddedSmoothedCrossEntropyLossNM, \
-    BeamSearchTranslatorNM, GreedyLanguageGeneratorNM
-from .bert import MaskedLanguageModelingLossNM, \
-    SentenceClassificationLogSoftmaxNM, NextSentencePredictionLossNM, \
-    LossAggregatorNM, QuestionAnsweringPredictionLoss, \
-    TokenClassificationLoss, SequenceClassifier, \
-    JointIntentSlotLoss, ZerosLikeNM, \
-    JointIntentSlotClassifier, \
-    TokenClassificationLossClassImbalance
-from .nlp_utils import read_intent_slot_outputs
-from . import transformer, huggingface
-=======
 from .huggingface import *
 from .modules import *
 from .transformer import *
->>>>>>> upstream/master
 
 
 import nemo
