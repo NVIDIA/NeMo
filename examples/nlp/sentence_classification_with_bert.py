@@ -63,6 +63,13 @@ pretrained_bert_model = nemo_nlp.huggingface.BERT(
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
+"""A processor function can be passed to SentenceClassificationDataDesc
+for customized data preparation. An example processor can be found at
+the bottom of this script.
+
+data_desc = SentenceClassificationDataDesc(args.dataset_name, 
+    args.data_dir, args.do_lower_case, process_dataset)
+"""
 data_desc = SentenceClassificationDataDesc(
     args.dataset_name, args.data_dir, args.do_lower_case)
 
@@ -166,3 +173,45 @@ nf.train(tensors_to_optimize=[train_loss],
          optimization_params={"num_epochs": args.num_epochs,
                               "lr": args.lr,
                               "weight_decay": args.weight_decay})
+
+                              
+""" Example of a customized data processor
+Note that the input of processor should be data_dir
+and the output should be just the same order as this example
+
+def process_dataset(data_dir):
+    modes = ['train', 'eval']
+    train_path = data_dir + '/train.tsv'
+    eval_path = data_dir + '/eval.tsv'
+    categories = ['class_1', 'class_2', 'class_3']
+    num_labels = len(categories)
+    if not os.path.exists(data_dir):
+        raise ValueError(f'Data not found at {data_dir}. ')
+    outfold = f'{data_dir}/nemo-processed'
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
+        return outfold, num_labels, train_path, eval_path
+    os.makedirs(outfold, exist_ok=True)
+    outfiles = {}
+    for mode in modes:
+        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'a+',
+                              encoding='utf-8')
+        outfiles[mode].write('sentence\tlabel\n')
+    for category in categories:
+        label = categories.index(category)
+        category_files = glob.glob(f'{data_dir}/{category}/*.txt')
+        eval_size = 0.2
+        eval_num = int(len(category_files) * eval_size)
+        eval_files = category_files[:eval_num]
+        train_files = category_files[eval_num:]
+        for mode in modes:
+            files = eval_files if mode == 'eval' else train_files
+            for file in files:
+                with open(file, 'r', encoding='utf-8') as f:
+                    sen = f.read().strip().replace('\r', '')
+                    sen = sen.replace('\n', '').replace('\t', ' ')
+                    outfiles[mode].write(f'{sen}\t{label}\n')
+    for mode in modes:
+        outfiles[mode].close()
+    # return outfold, num_labels, train_path, eval_path in order
+    return outfold, num_labels, train_path, eval_path
+"""
