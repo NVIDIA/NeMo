@@ -732,7 +732,8 @@ def get_slots_dialogflow(files):
     return slot_labels
 
 
-def partition_df_data(intent_queries, slot_tags, split=0.1):
+# The following works for the specified DialogFlow and Mturk output format
+def partition_data(intent_queries, slot_tags, split=0.1):
     n = len(intent_queries)
     n_dev = int(n * split)
     dev_idx = set(random.sample(range(n), n_dev))
@@ -750,6 +751,13 @@ def partition_df_data(intent_queries, slot_tags, split=0.1):
             train_slots.append(slot_tags[i])
     return train_intents, train_slots, dev_intents, dev_slots
 
+
+# The following works for the specified DialogFlow and Mturk output format
+def write_files(data, outfile):
+    with open(f'{outfile}', 'w') as f:
+        for item in data:
+            item = f'{item.strip()}\n'
+            f.write(item)
 
 def process_dialogflow(
         data_dir,
@@ -778,26 +786,253 @@ def process_dialogflow(
         slot_labels)
 
     train_queries, train_slots, test_queries, test_slots = \
-        partition_df_data(intent_queries, slot_tags, split=dev_split)
+        partition_data(intent_queries, slot_tags, split=dev_split)
 
-    write_df_files(train_queries, f'{outfold}/train.tsv')
-    write_df_files(train_slots, f'{outfold}/train_slots.tsv')
+    write_files(train_queries, f'{outfold}/train.tsv')
+    write_files(train_slots, f'{outfold}/train_slots.tsv')
 
-    write_df_files(test_queries, f'{outfold}/test.tsv')
-    write_df_files(test_slots, f'{outfold}/test_slots.tsv')
+    write_files(test_queries, f'{outfold}/test.tsv')
+    write_files(test_slots, f'{outfold}/test_slots.tsv')
 
-    write_df_files(slot_labels, f'{outfold}/dict.slots.csv')
-    write_df_files(intent_names, f'{outfold}/dict.intents.csv')
+    write_files(slot_labels, f'{outfold}/dict.slots.csv')
+    write_files(intent_names, f'{outfold}/dict.intents.csv')
+
+    return outfold
+
+def readCSV(file_path):
+    rows = []
+    with open(file_path, 'r') as csvfile:
+        readCSV = csv.reader(csvfile, delimiter=',')
+        for row in readCSV:
+            rows.append(row)
+    return rows
+
+def get_intents_mturk(utterances, outfold):
+
+    intent_names = {}
+    intent_count = 0
+
+    agreedallDict = {}
+
+    print('Printing all intent_labels')
+    intent_dict = f'{outfold}/dict.intents.csv'
+    if os.path.exists(intent_dict):
+        with open(intent_dict, 'r') as f:
+            for intent_name in f.readlines():
+                intent_names[intent_name.strip()] = str(intent_count)
+                intent_count += 1
+    print(intent_names)
+
+    for i, utterance in enumerate(utterances[1:]):
+
+        if utterance[1] not in agreedallDict:
+            agreedallDict[utterance[0]] = utterance[1]
+
+        if utterance[1] not in intent_names:
+            intent_names[utterance[1]] = str(intent_count)
+            intent_count += 1
+
+    print('x eval mechanism:')
+    print(len(agreedallDict))
+
+    # print(len(agreedallDict))
+    # print(agreedallDict.get('How many point do I need before my first reward?'))
+
+    return agreedallDict, intent_names
+
+def get_slot_labels(slot_annotations, task_name):
+
+    slot_labels = json.loads(slot_annotations[0])
+
+    all_labels = {}
+    count = 0
+    # Generating labels with the IOB format.
+    for label in slot_labels[task_name]['annotations']['labels']:
+        b_slot = ''.join(["B-", label['label']])
+        i_slot = ''.join(["I-", label['label']])
+        all_labels[b_slot] = str(count)
+        count += 1
+        all_labels[i_slot] = str(count)
+        count += 1
+    all_labels['O'] = str(count)
+
+    return all_labels
+
+def process_intent_slot_mturk(slot_annotations, agreedallDict, intent_names, task_name):
+
+    slot_tags = []
+    inorder_utterances = []
+    all_labels = get_slot_labels(slot_annotations, task_name)
+    print(f'agreedallDict - {len(agreedallDict)}')
+    print(f'Slot annotations - {len(slot_annotations)}')
+
+
+    for annotation in slot_annotations[0:]:
+        an = json.loads(annotation)
+        utterance = an['source']
+        if utterance.startswith('"') and utterance.endswith('"'):
+            utterance = utterance[1:-1]
+
+        if utterance in agreedallDict:
+            entities = {}
+            
+            # TO DO - Change the below name (retail-test) :
+            for i, each_anno in enumerate(an[task_name]['annotations']['entities']):
+                entities[int(each_anno['startOffset'])] = i
+
+            lastptr = 0
+            slots = ""
+            #sorting annotations by the start offset
+            for i in sorted(entities.keys()):
+                tags = an[task_name]['annotations']['entities'][entities.get(i)]
+                untagged_words = utterance[lastptr:tags['startOffset']] #utterance.substr(lastptr, tags['startOffset'])
+                for word in untagged_words.split():
+                    slots = ' '.join([slots, all_labels.get('O')])
+                anno_words = utterance[tags['startOffset']:tags['endOffset']]
+                # tagging with the IOB format.
+                for i, word in enumerate(anno_words.split()):
+                    if i == 0:
+                        b_slot = ''.join(["B-", tags['label']])
+                        slots = ' '.join([slots, all_labels.get(b_slot)])
+                    else:
+                        i_slot = ''.join(["I-", tags['label']])
+                        slots = ' '.join([slots, all_labels.get(i_slot)])
+                lastptr = tags['endOffset']
+
+            untagged_words = utterance[lastptr:len(utterance)]
+            for word in untagged_words.split():
+                slots = ' '.join([slots, all_labels.get('O')])
+            slots = f'{slots.strip()}\n'
+            slot_tags.append(slots)
+            intent_num = intent_names.get(agreedallDict.get(utterance))
+            querytext = f'{utterance.strip()}\t{intent_num}\n'
+            inorder_utterances.append(querytext)
+        # else:
+        #     print(utterance)
+    print(f'inorder utterances - {len(inorder_utterances)}')
+
+    return all_labels, inorder_utterances, slot_tags
+
+def process_mturk(
+        data_dir,
+        uncased,
+        modes=['train', 'test'],
+        dev_split=0.1):
+    if not os.path.exists(data_dir):
+        link = 'www.mturk.com'
+        raise ValueError(f'Data not found at {data_dir}. '
+                         'Export your mturk data from'
+                         '{link} and unzip at {data_dir}.')
+
+    outfold = f'{data_dir}/nemo-processed'
+
+    # vocab = get_vocab(f'{infold}/atis.dict.vocab.csv')
+
+    # if uncased:
+    #     outfold = f'{outfold}-uncased'
+
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
+        logger.info(DATABASE_EXISTS_TMP.format('mturk', outfold))
+        return outfold
+
+
+    logger.info(f'Processing dataset from mturk and storing at {outfold}')
+
+    os.makedirs(outfold, exist_ok=True)
+
+    print("Need to move all files in here.")
+
+    # outfiles = {}
+
+    # for mode in modes:
+    #     outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
+    #     outfiles[mode].write('sentence\tlabel\n')
+    #     outfiles[mode + '_slots'] = open(f'{outfold}/{mode}_slots.tsv', 'w')
+
+    #     queries = open(f'{infold}/atis.{mode}.query.csv', 'r').readlines()
+    #     intents = open(f'{infold}/atis.{mode}.intent.csv', 'r').readlines()
+    #     slots = open(f'{infold}/atis.{mode}.slots.csv', 'r').readlines()
+
+    #     for i, query in enumerate(queries):
+    #         sentence = ids2text(query.strip().split()[1:-1], vocab)
+    #         outfiles[mode].write(f'{sentence}\t{intents[i].strip()}\n')
+    #         slot = ' '.join(slots[i].strip().split()[1:-1])
+    #         outfiles[mode + '_slots'].write(slot + '\n')
+
+    # shutil.copyfile(f'{infold}/atis.dict.intent.csv',
+    #                 f'{outfold}/dict.intents.csv')
+    # shutil.copyfile(f'{infold}/atis.dict.slots.csv',
+    #                 f'{outfold}/dict.slots.csv')
+    # for mode in modes:
+    #     outfiles[mode].close()
+
+#----------------------------
+
+    classification_data_file = f'{data_dir}/classification.csv'
+    annotation_data_file = f'{data_dir}/annotation.manifest'
+
+    if not os.path.exists(classification_data_file):
+        raise ValueError(f'Data not found at {classification_data_file}')
+
+    if not os.path.exists(annotation_data_file):
+        raise ValueError(f'Data not found at {annotation_data_file}')
+
+    utterances = []
+    utterances = readCSV(classification_data_file)
+
+    # This function assumes that the intent classification data has been reviewed
+    # and cleaned and only one label per utterance is present.
+    agreedallDict, intent_names = get_intents_mturk(utterances, outfold)
+
+    with open(annotation_data_file, 'r') as f:
+        slot_annotations = f.readlines()
+
+    # This function assumes that the preprocess step would have made 
+    # the task_name of all the annotations generic
+    task_name = 'mturk-processed'
+
+    # It is assumed that every utterances will have corresponding 
+    # slot annotation information
+    assert(len(slot_annotations)) >= len(agreedallDict)
+
+    slot_labels, intent_queries, slot_tags = process_intent_slot_mturk(
+            slot_annotations,
+            agreedallDict, 
+            intent_names,
+            task_name)
+
+    assert len(slot_tags) == len(intent_queries)
+
+    dev_split = 0.1
+
+    train_queries, train_slots, test_queries, test_slots = \
+        partition_data(intent_queries, slot_tags, split=dev_split)
+
+    # print(len(train_queries))
+    # print(len(test_queries))
+    # print(len(train_slots))
+    # print(len(test_slots))
+
+
+    write_files(train_queries, f'{outfold}/train.tsv')
+    write_files(train_slots, f'{outfold}/train_slots.tsv')
+
+    write_files(test_queries, f'{outfold}/test.tsv')
+    write_files(test_slots, f'{outfold}/test_slots.tsv')
+
+    write_files(slot_labels, f'{outfold}/dict.slots.csv')
+    write_files(intent_names, f'{outfold}/dict.intents.csv')
+
 
     return outfold
 
 
-def write_df_files(data, outfile):
+# The following works for the DialogFlow and Mturk output format
+def write_files(data, outfile):
     with open(f'{outfile}', 'w') as f:
         for item in data:
             item = f'{item.strip()}\n'
             f.write(item)
-
 
 class JointIntentSlotDataDesc:
     """ Convert the raw data to the standard format supported by
@@ -853,6 +1088,8 @@ class JointIntentSlotDataDesc:
                 dataset_name)
         elif dataset_name == 'dialogflow':
             self.data_dir = process_dialogflow(data_dir, do_lower_case)
+        elif dataset_name == 'mturk-processed':
+            self.data_dir =  process_mturk(data_dir, do_lower_case) #'/NeMo/scripts/data/mturk/mturk/nemo-processed'
 
         elif dataset_name in set(['snips-light', 'snips-speak', 'snips-all']):
             self.data_dir = process_snips(data_dir, do_lower_case)
