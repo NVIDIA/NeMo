@@ -2,6 +2,7 @@
 import os
 import tarfile
 import unittest
+import shutil
 
 from ruamel.yaml import YAML
 
@@ -31,8 +32,9 @@ class TestASRPytorch(NeMoUnitTest):
                          'window_size': 0.02}
     yaml = YAML(typ="safe")
 
-    def setUp(self) -> None:
-        super().setUp()
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
         data_folder = "tests/data/"
         print("Looking up for test ASR data")
         if not os.path.exists(data_folder + "asr"):
@@ -42,6 +44,14 @@ class TestASRPytorch(NeMoUnitTest):
             tar.close()
         else:
             print("ASR data found in: {0}".format(data_folder + "asr"))
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        super().tearDownClass()
+        data_folder = "tests/data/"
+        print("Looking up for test ASR data")
+        if os.path.exists(data_folder + "asr"):
+            shutil.rmtree(data_folder + "asr")
 
     def test_transcript_normalizers(self):
         # Create test json
@@ -156,6 +166,32 @@ class TestASRPytorch(NeMoUnitTest):
             self.assertTrue(data[1].size(0) == batch_size)
             self.assertTrue(data[2].size(0) == batch_size)
             self.assertTrue(data[3].size(0) == batch_size)
+
+    def test_kaldi_dataloader(self):
+        batch_size = 4
+        dl = nemo_asr.KaldiFeatureDataLayer(
+            kaldi_dir='tests/data/asr/kaldi_an4/',
+            labels=self.labels,
+            batch_size=batch_size
+        )
+        for data in dl.data_iterator:
+            self.assertTrue(data[0].size(0) == batch_size)
+
+        dl_test_min = nemo_asr.KaldiFeatureDataLayer(
+            kaldi_dir='tests/data/asr/kaldi_an4/',
+            labels=self.labels,
+            batch_size=batch_size,
+            min_duration=1.0
+        )
+        self.assertTrue(len(dl_test_min) == 18)
+
+        dl_test_max = nemo_asr.KaldiFeatureDataLayer(
+            kaldi_dir='tests/data/asr/kaldi_an4/',
+            labels=self.labels,
+            batch_size=batch_size,
+            max_duration=5.0
+        )
+        self.assertTrue(len(dl_test_max) == 19)
 
     def test_trim_silence(self):
         batch_size = 4
