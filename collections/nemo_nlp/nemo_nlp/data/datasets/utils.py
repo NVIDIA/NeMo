@@ -258,9 +258,6 @@ def process_jarvis_datasets(infold, uncased, dataset_name,
                             ignore_prev_intent=False):
     """ process and convert Jarvis datasets into NeMo's BIO format
     """
-
-    from nltk.tokenize import WhitespaceTokenizer
-
     outfold = f'{infold}/{dataset_name}-nemo-processed'
     infold = f'{infold}/'
 
@@ -341,22 +338,23 @@ def process_jarvis_datasets(infold, uncased, dataset_name,
                         outfiles['dict_slots'].write(f'B-{slot_name}\n')
                         outfiles['dict_slots'].write(f'I-{slot_name}\n')
 
-            span_generator = WhitespaceTokenizer().span_tokenize(sentence)
-            spans = list(span_generator)
-
+            slot_tags_list.sort(key=lambda x: x[0])
             slots = []
-            for sp_i, (start_i, end_i) in enumerate(spans):
-                if sp_i == 0 or sp_i == len(spans) - 1:
-                    continue
-                BIO_tag = "O"
-                for tag_start, tag_end, tag_str in slot_tags_list:
-                    if start_i == tag_start:
-                        BIO_tag = f'B-{tag_str}'
-                        break
-                    elif start_i > tag_start and end_i <= tag_end:
-                        BIO_tag = f'I-{tag_str}'
-                        break
-                slots.append(str(slots_list_all[BIO_tag]))
+            processed_index = 0
+            for tag_start, tag_end, tag_str in slot_tags_list:
+                if tag_start > processed_index:
+                    words_list = sentence[processed_index:tag_start].strip().split()
+                    slots.extend([str(slots_list_all['O'])]*len(words_list))
+                words_list = sentence[tag_start:tag_end].strip().split()
+                slots.append(str(slots_list_all[f'B-{tag_str}']))
+                slots.extend([str(slots_list_all[f'I-{tag_str}'])] * (len(words_list) - 1))
+                processed_index = tag_end
+
+            if processed_index < len(sentence):
+                words_list = sentence[processed_index:].strip().split()
+                slots.extend([str(slots_list_all['O'])] * len(words_list))
+
+            slots = slots[1:-1]
             slot = ' '.join(slots)
             outfiles[mode + '_slots'].write(slot + '\n')
 
