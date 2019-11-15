@@ -19,7 +19,10 @@ class TestDeployExport(NeMoUnitTest):
         if out.exists():
             os.remove(out)
 
-        self.nf.deployment_export(
+        nf = nemo.core.NeuralModuleFactory(
+             placement=nemo.core.DeviceType.CPU)
+
+        nf.deployment_export(
             modules=[module],
             output=out_name,
             input_example=input_example,
@@ -65,8 +68,8 @@ class TestDeployExport(NeMoUnitTest):
         j_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024,
                                                  num_classes=33)
         self.__test_export_route(module=j_decoder,
-                                 out_name="j_decoder.pt",
-                                 mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
+                                 out_name="j_decoder.onnx",
+                                 mode=nemo.core.DeploymentFormat.ONNX,
                                  input_example=None)
 
     def test_hf_bert(self):
@@ -80,7 +83,7 @@ class TestDeployExport(NeMoUnitTest):
                                  mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
                                  input_example=input_example)
 
-    def test_jasper_encoder_export(self, out_name = "jasper_encoder.pt"):
+    def test_jasper_encoder_export(self, out_name, d_format=nemo.core.DeploymentFormat.ONNX):
          out = Path(out_name)
          if out.exists():
              os.remove(out)
@@ -94,25 +97,32 @@ class TestDeployExport(NeMoUnitTest):
              feat_in=jasper_model_definition['AudioPreprocessing']['features'],
              **jasper_model_definition['JasperEncoder']
          )
+         print (jasper_model_definition['JasperEncoder'])
+         
          nf.deployment_export(modules=[jasper_encoder],
                               output=out_name,
-                              input_example=(torch.randn(2, 64, 2), torch.randn(2)),
-                              d_format=nemo.core.DeploymentFormat.ONNX)
+                              input_example=(torch.randn(16, 64, 256), torch.randn(256)),
+                              d_format=d_format)
          self.assertTrue(out.exists())
-         if out.exists():
-             os.remove(out)
+
 
 def main(args):
-    if args.onnx_path:
-        td = TestDeployExport()
-        print("ONNX. . .")
-        td.test_jasper_encoder_export(args.onnx_path)
+    td = TestDeployExport()
+    print("ONNX. . .")
+    
+    if args.pyt_path:
+        td.test_jasper_encoder_export(d_format=nemo.core.DeploymentFormat.TORCHSCRIPT, out_name = "jasper_encoder.pt")
 
+    if args.onnx_path:
+        td.test_jasper_encoder_export(out_name = args.onnx_path)
+        
         
 def parse_args():
     parser = argparse.ArgumentParser(description='test_deploy')
     parser.add_argument("--onnx_path", default=None, type=str, help="Path to onnx model for engine creation")
+    parser.add_argument("--pyt_path", default=None, type=str, help="Path to TS saved engine")
     parser.add_argument("--engine_path", default=None, type=str, help="Path to serialized TRT engine")
+    parser.add_argument("--decoder", action="store_true", help="Path to serialized TRT engine")
     return parser.parse_args()
     
 

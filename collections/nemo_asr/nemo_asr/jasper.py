@@ -66,7 +66,7 @@ class JasperEncoder(TrainableNM):
             'kaiming_uniform','kaiming_normal'].
             Defaults to "xavier_uniform".
     """
-
+    
     @staticmethod
     def create_ports():
         input_ports = {

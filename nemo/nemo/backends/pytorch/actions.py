@@ -1028,17 +1028,14 @@ class PtActions(Actions):
         # Case of exporting a single module
         module = modules[0]
         module.eval()
-        module.training = False
 
         # Remove NeMo-related things from the module
         # We need to change __call__ method. Note that this will change the
         # whole class, not just this object!
 
-        def new_call(self, *input, **kwargs):
-            return torch.nn.Module.__call__(self, *input, **kwargs)
-
         __old_call = type(module).__call__
-        type(module).__call__ = new_call
+        type(module).__call__ = torch.nn.Module.__call__
+
         module._logger = None
         module._placement = None
         module._factory = None
@@ -1047,13 +1044,14 @@ class PtActions(Actions):
         module._device = None
         module._local_parameters = None
 
-                
+        res = module.forward(*input_example)                
         if d_format == DeploymentFormat.TORCHSCRIPT:
             try:
                 # Route 1 - via torch.jit.script
                 traced_m = torch.jit.script(module)
                 traced_m.save(output)
-            except:
+            except Exception as e:
+                print ("torch.jit.script() failed, trying torch.jit.trace():\n", e)
                 # Route 2 - via tracing
                 if input_example is not None:
                     traced_m = torch.jit.trace(module, input_example)
