@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 
 from nemo_nlp.data.datasets.utils import if_exist
 
@@ -124,7 +125,7 @@ def get_summary_belief_state(bstate, get_goal=False):
                 domain_active = True
             summary_bstate += slot_enc
 
-        if domain_active: # quasi domain-tracker
+        if domain_active:  # quasi domain-tracker
             summary_bstate += [1]
             active_domain.append(domain)
         else:
@@ -285,9 +286,13 @@ def partition_data(data, infold, outfold):
     based on the list of val and test specified in the dataset.
     """
     if if_exist(outfold, ['trainListFile.json', 'val_dialogs.json',
-                          'test_dialogs.json', 'train_dialogs.json']):
+                          'test_dialogs.json', 'train_dialogs.json',
+                          'ontology.json']):
+        print(f'Data is already processed and stored at {outfold}')
         return
     os.makedirs(outfold, exist_ok=True)
+    shutil.copyfile(f'{infold}/ontology.json', f'{outfold}/ontology.json')
+
     with open(f'{infold}/testListFile.json', 'r') as fin:
         test_files = [line.strip() for line in fin.readlines()]
 

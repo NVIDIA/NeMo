@@ -1,4 +1,5 @@
 from .bert_pretraining import BertPretrainingDataset
+from .dst import DSTDataset
 from .glue import GLUEDataset
 from .joint_intent_slot import (BertJointIntentSlotDataset,
                                 BertJointIntentSlotInferDataset)

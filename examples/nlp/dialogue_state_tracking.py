@@ -4,9 +4,10 @@ for Task-Oriented Dialogue Systems" (Wu et al., 2019)
 
 """
 import argparse
+import os
 
-
-from nemo_nlp.data.datasets.woz_utils import *
+import nemo
+import nemo_nlp
 
 parser = argparse.ArgumentParser(
     description='Multi-domain dialogue state tracking')
@@ -57,3 +58,20 @@ parser.add_argument("--shuffle_data", action='store_false')
 # parser.add_argument('-eb', '--eval_batch', help='Evaluation Batch_size',
 #                     type=int, default=0)
 
+args = parser.parse_args()
+EXPERIMENT_DOMAINS = ["hotel", "train", "restaurant", "attraction", "taxi"]
+
+if not os.path.exists(args.data_dir):
+    raise ValueError(f'Data not found at {args.data_dir}')
+
+work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
+nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
+                                   local_rank=args.local_rank,
+                                   optimization_level=args.amp_opt_level,
+                                   log_dir=work_dir,
+                                   create_tb_writer=True,
+                                   files_to_copy=[__file__],
+                                   add_time_to_log_dir=True)
+
+dataset = nemo_nlp.data.datasets.DSTDataset(args.data_dir, EXPERIMENT_DOMAINS)
+dataset.prepare_data()
