@@ -1001,33 +1001,17 @@ class PtActions(Actions):
                         self.modules.add(module[0])
 
     @staticmethod
-    def deployment_export(modules,
-                          output: str,
-                          d_format: DeploymentFormat,
-                          input_example=None,
-                          output_example=None):
-        """Exports Neural Module instance for deployment.
-
-        Args:
-            modules (list of NeuralModule): modules to export
-            output (str): where export results should be saved
-            d_format (DeploymentFormat): which deployment format to use
-            input_example: sometimes tracing will require input examples
-            output_example: Should match inference on input_example
-        """
-        if not isinstance(modules, List):
-            raise ValueError(f"modules argument should be a list of modules")
-        if len(modules) > 1:
-            raise NotImplemented(f"currently we can export only one module at "
-                                 f"a time")
+    def __module_export(module,
+                        output,
+                        d_format: DeploymentFormat,
+                        input_example=None,
+                        output_example=None):
         # Check if output already exists
         destination = Path(output)
         if destination.exists():
             raise FileExistsError(f"Destination {output} already exists. "
                                   f"Aborting export.")
 
-        # Case of exporting a single module
-        module = modules[0]
         # Remove NeMo-related things from the module
         # We need to change __call__ method. Note that this will change the
         # whole class, not just this object!
@@ -1069,13 +1053,54 @@ class PtActions(Actions):
             torch.onnx.export(module, input_example, output)
         elif d_format == DeploymentFormat.PYTORCH:
             torch.save(module.state_dict(), output)
-            with open(output+".json", 'w') as outfile:
+            with open(output + ".json", 'w') as outfile:
                 json.dump(local_parameters, outfile)
 
         else:
-            raise NotImplemented(f"Not supported deployment format: {d_format}")
+            raise NotImplemented(
+                f"Not supported deployment format: {d_format}")
 
         type(module).__call__ = __old_call
+
+
+    @staticmethod
+    def deployment_export(modules,
+                          outputs: List[str],
+                          d_format: DeploymentFormat,
+                          input_example=None,
+                          output_example=None):
+        """Exports Neural Module instance for deployment.
+
+        Args:
+            modules (list of NeuralModule): modules to export
+            output (str): where export results should be saved
+            d_format (DeploymentFormat): which deployment format to use
+            input_example: sometimes tracing will require input examples
+            output_example: Should match inference on input_example
+        """
+        if not isinstance(modules, List):
+            raise ValueError(f"modules argument should be a list of modules")
+        size = len(modules)
+        if not isinstance(d_format, List):
+            d_format = [d_format] * size
+        if len(d_format) != size:
+            raise ValueError(f"modules and d_format sizes must match but got"
+                             f" {size} and {len(d_format)}")
+
+        for idx, module in enumerate(modules):
+            if not isinstance(module, TrainableNM):
+                raise NotImplemented(f"We currently can export only trainable"
+                                     f" neural modules")
+            PtActions.__module_export(
+                module=module,
+                output=outputs[idx],
+                d_format=d_format[idx],
+                input_example=in
+            )
+
+
+
+
 
     def train(self,
               tensors_to_optimize,
