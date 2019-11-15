@@ -29,6 +29,8 @@ parser.add_argument("--lr", default=2e-5, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
+parser.add_argument("--ignore_start_end", action='store_false')
+parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--pretrained_bert_model",
                     default="bert-base-uncased", type=str)
 parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
@@ -106,9 +108,13 @@ def create_pipeline(num_samples=-1,
         shuffle=shuffle,
         batch_size=batch_size,
         num_workers=0,
-        local_rank=local_rank)
+        local_rank=local_rank,
+        ignore_extra_tokens=args.ignore_extra_tokens,
+        ignore_start_end=args.ignore_start_end
+        )
 
-    ids, type_ids, input_mask, slot_mask, intents, slots = data_layer()
+    ids, type_ids, input_mask, loss_mask, \
+        subtokens_mask, intents, slots = data_layer()
     data_size = len(data_layer)
 
     if data_size < batch_size:
@@ -127,14 +133,15 @@ def create_pipeline(num_samples=-1,
 
     loss = loss_fn(intent_logits=intent_logits,
                    slot_logits=slot_logits,
-                   input_mask=input_mask,
+                   loss_mask=loss_mask,
                    intents=intents,
                    slots=slots)
 
     if mode == 'train':
         tensors_to_evaluate = [loss, intent_logits, slot_logits]
     else:
-        tensors_to_evaluate = [intent_logits, slot_logits, intents, slots]
+        tensors_to_evaluate = [intent_logits, slot_logits, intents,
+                               slots, subtokens_mask]
 
     return tensors_to_evaluate, loss, steps_per_epoch, data_layer
 

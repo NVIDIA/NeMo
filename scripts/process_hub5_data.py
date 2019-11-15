@@ -163,7 +163,7 @@ def write_one_segment(
 
     # Write transcript
     transcript = {
-        "audio_filename": audio_path,
+        "audio_filepath": audio_path,
         "duration": duration,
         "text": transcript
     }
