@@ -80,6 +80,9 @@ Example 1
             self._dim = self.local_parameters["dim"]
             self.fc1 = nn.Linear(self._dim, 1)
             t.nn.init.xavier_uniform_(self.fc1.weight)
+            self._device = t.device(
+                "cuda" if self.placement == DeviceType.GPU else "cpu")
+            self.to(self._device)
 
         # IMPORTANT: input arguments to forward must match input input ports' names
         def forward(self, x):
@@ -147,7 +150,7 @@ This example wraps PyTorch's *ImageFolder* dataset into a neural module data lay
             # Note: we define the size of the height and width of our output
             # tensors, and thus require a size parameter.
             input_ports = {}
-            self._output_ports = {
+            output_ports = {
                 "image": NeuralType({0: AxisType(BatchTag),
                                      1: AxisType(ChannelTag),
                                      2: AxisType(HeightTag, size),
