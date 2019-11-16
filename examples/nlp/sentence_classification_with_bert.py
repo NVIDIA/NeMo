@@ -14,14 +14,14 @@ from nemo_nlp.utils.callbacks.sentence_classification import \
 
 # Parsing arguments
 parser = argparse.ArgumentParser(
-    description='Sentiment analysis with pretrained BERT')
+    description='Sentence classification with pretrained BERT')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=32, type=int)
 parser.add_argument("--max_seq_length", default=36, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
-parser.add_argument("--num_train_samples", default=1000, type=int)
-parser.add_argument("--num_eval_samples", default=100, type=int)
+parser.add_argument("--num_train_samples", default=-1, type=int)
+parser.add_argument("--num_eval_samples", default=-1, type=int)
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
 parser.add_argument("--lr", default=2e-5, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)

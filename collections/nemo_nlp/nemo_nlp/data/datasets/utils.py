@@ -198,79 +198,6 @@ def get_intent_labels(intent_file):
     return labels
 
 
-# def process_nvidia_car(infold,
-#                        uncased,
-#                        modes=['train', 'test'],
-#                        test_ratio=0.02):
-#     infiles = {'train': f'{infold}/train.tsv',
-#                'test': f'{infold}/test.tsv',
-#                'eval': f'{infold}/eval.tsv'}
-#     outfold = f'{infold}/nvidia-car-nemo-processed'
-#     if uncased:
-#         outfold = f'{outfold}_uncased'
-#     intent_file = f'{outfold}/intent_labels.tsv'
-#
-#     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-#         logger.info(DATABASE_EXISTS_TMP.format('NVIDIA-CAR', outfold))
-#         labels = get_car_labels(intent_file)
-#         return outfold, labels
-#     logger.info(f'Processing this dataset and store at {outfold}')
-#
-#     os.makedirs(outfold, exist_ok=True)
-#
-#     outfiles = {}
-#
-#     for mode in modes:
-#         outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
-#         outfiles[mode].write('sentence\tlabel\n')
-#         intents, sentences = [], []
-#         start_index = 1
-#
-#         if mode == 'train':
-#             all_intents = set()
-#             start_index = 2
-#
-#         with open(infiles[mode], 'r') as f:
-#             for line in f:
-#                 line_splits = line.strip().split('\t')
-#                 if len(line_splits) == 3:
-#                     intent, _, sentence = line_splits
-#                 else:
-#                     intent, sentence = line_splits
-#
-#                 if uncased:
-#                     sentence = sentence.lower()
-#
-#                 if mode == 'train':
-#                     all_intents.add(intent)
-#                 intents.append(intent)
-#                 sentences.append(' '.join(sentence.split()[start_index:-1]))
-#
-#         if mode == 'train':
-#             i = 0
-#             labels = {}
-#             intent_out = open(intent_file, 'w')
-#             for intent in all_intents:
-#                 labels[intent] = i
-#                 logger.info(f'{intent}\t{i}')
-#                 intent_out.write(f'{intent}\t{i}\n')
-#                 i += 1
-#
-#         seen, repeat = set(), 0
-#         for intent, sentence in zip(intents, sentences):
-#             if sentence in seen:
-#                 if mode == 'test':
-#                     print(sentence)
-#                 repeat += 1
-#                 continue
-#             text = f'{sentence}\t{labels[intent]}\n'
-#             outfiles[mode].write(text)
-#             seen.add(sentence)
-#         logger.info(f'{repeat} repeated sentences in {mode}')
-#
-#     return outfold, labels
-
-
 def process_twitter_airline(filename, uncased, modes=['train', 'test']):
     """ Dataset from Kaggle:
     https://www.kaggle.com/crowdflower/twitter-airline-sentiment
@@ -331,9 +258,6 @@ def process_jarvis_datasets(infold, uncased, dataset_name,
                             ignore_prev_intent=False):
     """ process and convert Jarvis datasets into NeMo's BIO format
     """
-
-    from nltk.tokenize import WhitespaceTokenizer
-
     outfold = f'{infold}/{dataset_name}-nemo-processed'
     infold = f'{infold}/'
 
@@ -414,22 +338,26 @@ def process_jarvis_datasets(infold, uncased, dataset_name,
                         outfiles['dict_slots'].write(f'B-{slot_name}\n')
                         outfiles['dict_slots'].write(f'I-{slot_name}\n')
 
-            span_generator = WhitespaceTokenizer().span_tokenize(sentence)
-            spans = list(span_generator)
-
+            slot_tags_list.sort(key=lambda x: x[0])
             slots = []
-            for sp_i, (start_i, end_i) in enumerate(spans):
-                if sp_i == 0 or sp_i == len(spans) - 1:
-                    continue
-                BIO_tag = "O"
-                for tag_start, tag_end, tag_str in slot_tags_list:
-                    if start_i == tag_start:
-                        BIO_tag = f'B-{tag_str}'
-                        break
-                    elif start_i > tag_start and end_i <= tag_end:
-                        BIO_tag = f'I-{tag_str}'
-                        break
-                slots.append(str(slots_list_all[BIO_tag]))
+            processed_index = 0
+            for tag_start, tag_end, tag_str in slot_tags_list:
+                if tag_start > processed_index:
+                    words_list = \
+                        sentence[processed_index:tag_start].strip().split()
+                    slots.extend([str(slots_list_all['O'])]*len(words_list))
+                words_list = sentence[tag_start:tag_end].strip().split()
+                slots.append(str(slots_list_all[f'B-{tag_str}']))
+                slots.extend(
+                        [str(slots_list_all[f'I-{tag_str}'])] *
+                        (len(words_list) - 1))
+                processed_index = tag_end
+
+            if processed_index < len(sentence):
+                words_list = sentence[processed_index:].strip().split()
+                slots.extend([str(slots_list_all['O'])] * len(words_list))
+
+            slots = slots[1:-1]
             slot = ' '.join(slots)
             outfiles[mode + '_slots'].write(slot + '\n')
 
@@ -923,7 +851,7 @@ class SentenceClassificationDataDesc:
                                                     modes=['train',
                                                            'test',
                                                            'eval'],
-                                                    ignore_prev_intent=True)
+                                                    ignore_prev_intent=False)
 
             intents = get_intent_labels(f'{self.data_dir}/dict.intents.csv')
             self.num_labels = len(intents)
