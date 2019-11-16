@@ -641,7 +641,7 @@ class DSTDataLayer(TextDataLayer):
                  dataset_type=WOZDSTDataset,
                  **kwargs):
 
-        # kwargs['batch_size'] = batch_size
+        kwargs['batch_size'] = batch_size
         # dataset_params = {'data_dir': data_dir,
         #                   'output_mode': 'regression',
         #                   'processor': processor,

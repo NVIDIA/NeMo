@@ -75,4 +75,4 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
 
 dataset = nemo_nlp.data.datasets.WOZDSTDataset(args.data_dir,
                                                EXPERIMENT_DOMAINS,
-                                               training=True)
+                                               mode='train')
