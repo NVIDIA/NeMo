@@ -73,5 +73,6 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    files_to_copy=[__file__],
                                    add_time_to_log_dir=True)
 
-dataset = nemo_nlp.data.datasets.DSTDataset(args.data_dir, EXPERIMENT_DOMAINS)
-dataset.prepare_data()
+dataset = nemo_nlp.data.datasets.WOZDSTDataset(args.data_dir,
+                                               EXPERIMENT_DOMAINS,
+                                               training=True)
