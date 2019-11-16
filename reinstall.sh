@@ -8,12 +8,12 @@ pip uninstall -y nemo_simple_gan
 
 echo 'Installing stuff'
 cd nemo
-python setup.py develop
+pip install -e .
 cd ../collections/nemo_asr
-python setup.py develop
+pip install -e .
 cd ../nemo_nlp
-python setup.py develop
+pip install -e .
 cd ../nemo_simple_gan
-python setup.py develop
+pip install -e .
 
 echo 'All done!'
