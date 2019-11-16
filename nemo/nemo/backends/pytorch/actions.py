@@ -12,6 +12,7 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
+import onnx
 
 from nemo.backends.pytorch.nm import TrainableNM
 
@@ -1032,6 +1033,7 @@ class PtActions(Actions):
 
         module.eval()
 
+        res = module.forward(*input_example)
         if d_format == DeploymentFormat.TORCHSCRIPT:
             if input_example is None:
                 # Route 1 - via torch.jit.script
@@ -1045,8 +1047,23 @@ class PtActions(Actions):
             if input_example is None:
                 raise ValueError(f'Example input is None, but ONNX tracing was'
                                  f' attempted')
+            print ("Running export ... ")
+            torch.onnx.export(module, input_example, output,
+                              input_names = [],
+                              output_names = [],
+                              verbose=True,
+                              export_params=True,
+                              do_constant_folding=True,
+                              opset_version=10)
+            fn=output+".readable"
+            with open(fn, 'w') as f:
+                #Write human-readable graph representation to file as well.
+                tempModel = onnx.load(output)
+                onnx.save(tempModel, output+".copy")
+                onnx.checker.check_model(tempModel)
+                pgraph = onnx.helper.printable_graph(tempModel.graph)
+                f.write(pgraph)
 
-            torch.onnx.export(module, input_example, output)
         elif d_format == DeploymentFormat.PYTORCH:
             torch.save(module.state_dict(), output)
             with open(output + ".json", 'w') as outfile:
