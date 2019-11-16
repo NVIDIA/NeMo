@@ -95,21 +95,26 @@ class SquareAnnealing(WarmupPolicy):
         )
 
 
-def _cosine_annealing(initial_lr, step, total_steps):
+def _cosine_annealing(initial_lr, step, total_steps, min_lr):
     mult = 0.5 * (1 + math.cos(math.pi * step / total_steps))
-    out_lr = initial_lr * mult
+    out_lr = (initial_lr - min_lr) * mult + min_lr
     return out_lr
 
 
 class CosineAnnealing(WarmupPolicy):
-    def __init__(self, total_steps, **kwargs):
+    def __init__(self, total_steps, min_lr=0, **kwargs):
+        self.min_lr = 0
         super().__init__(total_steps=total_steps, **kwargs)
 
     def _get_lr(self, initial_lr, step, epoch):
+        if initial_lr < self.min_lr:
+            raise ValueError(f"{self} received an initial learning rate that "
+                             f"was lower than the minimum learning rate.")
         return _cosine_annealing(
             initial_lr=initial_lr,
             step=step - self.warmup_steps,
-            total_steps=self.total_steps - self.warmup_steps
+            total_steps=self.total_steps - self.warmup_steps,
+            min_lr=self.min_lr
         )
 
 
