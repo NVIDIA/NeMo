@@ -625,3 +625,56 @@ class GlueDataLayerRegression(TextDataLayer):
                           'max_seq_length': max_seq_length}
 
         super().__init__(dataset_type, dataset_params, **kwargs)
+
+
+class DSTDataLayer(TextDataLayer):
+    def __init__(self,
+                 data_dir,
+                 tokenizer,
+                 max_seq_length,
+                 processor,
+                 evaluate=False,
+                 token_params={},
+                 num_samples=-1,
+                 shuffle=False,
+                 batch_size=64,
+                 dataset_type=WOZDSTDataset,
+                 **kwargs):
+
+        # kwargs['batch_size'] = batch_size
+        # dataset_params = {'data_dir': data_dir,
+        #                   'output_mode': 'regression',
+        #                   'processor': processor,
+        #                   'evaluate': evaluate,
+        #                   'token_params': token_params,
+        #                   'tokenizer': tokenizer,
+        #                   'max_seq_length': max_seq_length}
+
+        # super().__init__(dataset_type, dataset_params, **kwargs)
+
+
+    def get_data_loader(self, pairs):
+        data_info = {}
+        data_keys = pairs[0].keys()
+        for k in data_keys:
+            data_info[k] = []
+
+        for pair in pairs:
+            for k in data_keys:
+                data_info[k].append(pair[k])
+
+        dataset = Dataset(data_info, lang.word2index,
+                          lang.word2index, sequicity, mem_lang.word2index)
+
+        if args["imbalance_sampler"] and type:
+            data_loader = torch.utils.data.DataLoader(dataset=dataset,
+                                                      batch_size=batch_size,
+                                                      # shuffle=type,
+                                                      collate_fn=collate_fn,
+                                                      sampler=ImbalancedDatasetSampler(dataset))
+        else:
+            data_loader = torch.utils.data.DataLoader(dataset=dataset,
+                                                      batch_size=batch_size,
+                                                      shuffle=type,
+                                                      collate_fn=collate_fn)
+        self._data_loader
