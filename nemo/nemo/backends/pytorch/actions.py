@@ -1017,11 +1017,9 @@ class PtActions(Actions):
         # We need to change __call__ method. Note that this will change the
         # whole class, not just this object!
 
-        def new_call(self, *input, **kwargs):
-            return torch.nn.Module.__call__(self, *input, **kwargs)
-
         __old_call = type(module).__call__
-        type(module).__call__ = new_call
+        type(module).__call__ = torch.nn.Module.__call__
+
         module._logger = None
         module._placement = None
         module._factory = None
