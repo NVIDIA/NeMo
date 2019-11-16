@@ -27,23 +27,33 @@ NeMo supports the following models:
 Get data
 --------
 Both Tacotron 2 and Waveglow are trained using the LJSpeech (citation) dataset.
-<I should write a script for this>.
+
+<I should write a script to grab the data>.
 
 Training
 ---------
-Training tacotron 2 is pretty easy. Try it here!
+<Should talk about how to train Tacotron 2>
 
 
 Mixed Precision training
 -------------------------
-For mixed precision training, I need to change the code.
+Enabling or disabling mixed precision training can be changed through a command
+line argument --amp_opt_level. Recommended and default values for Tacotron 2
+and Waveglow are O1. It can be:
+
+- O0: float32 training
+- O1: mixed precision training
+- O2: mixed precision training
+- O3: float16 training
 
 
 Multi-GPU training
 -------------------
 `python -m torch.distributed.launch --nproc_per_node=<num_gpus> <nemo_git_repo_root>/examples/tts/tacotron2.py ...`
+<I need to describe this section in detail>
 
 
 Inference
 ---------
 Use the tts_infer script.
+<I need to describe this section in detail>
