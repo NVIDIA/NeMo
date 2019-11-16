@@ -7,6 +7,7 @@ __all__ = ['AudioToTextDataLayer',
            'AudioPreprocessing',
            'MultiplyBatch',
            'SpectrogramAugmentation',
+           'KaldiFeatureDataLayer',
            'TranscriptDataLayer']
 
 from functools import partial
@@ -22,7 +23,8 @@ from nemo.backends.pytorch import DataLayerNM, TrainableNM, NonTrainableNM
 from nemo.core import Optimization, DeviceType
 from nemo.core.neural_types import *
 from nemo.utils.misc import pad_to as nemo_pad_to
-from .parts.dataset import AudioDataset, seq_collate_fn, TranscriptDataset
+from .parts.dataset import (
+        AudioDataset, seq_collate_fn, KaldiFeatureDataset, TranscriptDataset)
 from .parts.features import FilterbankFeatures, WaveformFeaturizer
 from .parts.spectr_augment import SpecAugment, SpecCutout
 
@@ -412,6 +414,153 @@ class SpectrogramAugmentation(NonTrainableNM):
         augmented_spec = self.spec_cutout(input_spec)
         augmented_spec = self.spec_augment(augmented_spec)
         return augmented_spec
+
+
+class KaldiFeatureDataLayer(DataLayerNM):
+    """Data layer for reading generic Kaldi-formatted data.
+
+    Module that reads ASR labeled data that is in a Kaldi-compatible format.
+    It assumes that you have a directory that contains:
+
+        `feats.scp`: A mapping from utterance IDs to .ark files that
+            contain the corresponding MFCC (or other format) data
+        `text`: A mapping from utterance IDs to transcripts
+        `utt2dur` (optional): A mapping from utterance IDs to audio durations,
+            needed if you want to filter based on duration
+
+    Args:
+        kaldi_dir (str): Directory that contains the above files.
+        labels (list): List of characters that can be output by the ASR model,
+            e.g. {a-z '} for Jasper. The CTC blank symbol is automatically
+            added later for models using CTC.
+        batch_size (int): batch size
+        eos_id (str): End of string symbol used for seq2seq models.
+            Defaults to None.
+        min_duration (float): All training files which have a duration less
+            than min_duration are dropped. Can't be used if the `utt2dur` file
+            does not exist. Defaults to None.
+        max_duration (float): All training files which have a duration more
+            than max_duration are dropped. Can't be used if the `utt2dur` file
+            does not exist. Defaults to None.
+        normalize_transcripts (bool): Whether to use automatic text cleaning.
+            It is highly recommended to manually clean text for best results.
+            Defaults to True.
+        drop_last (bool): See PyTorch DataLoader. Defaults to False.
+        shuffle (bool): See PyTorch DataLoader. Defaults to True.
+        num_workers (int): See PyTorch DataLoader. Defaults to 0.
+    """
+
+    @staticmethod
+    def create_ports():
+        input_ports = {}
+        output_ports = {
+            "processed_signal": NeuralType({0: AxisType(BatchTag),
+                                            1: AxisType(SpectrogramSignalTag),
+                                            2: AxisType(ProcessedTimeTag)}),
+
+            "processed_length": NeuralType({0: AxisType(BatchTag)}),
+
+            "transcripts": NeuralType({0: AxisType(BatchTag),
+                                       1: AxisType(TimeTag)}),
+
+            "transcript_length": NeuralType({0: AxisType(BatchTag)})
+        }
+        return input_ports, output_ports
+
+    def __init__(
+        self, *,
+        kaldi_dir,
+        labels,
+        batch_size,
+        eos_id=None,
+        min_duration=None,
+        max_duration=None,
+        normalize_transcripts=True,
+        drop_last=False,
+        shuffle=True,
+        num_workers=0,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+
+        # Set up dataset
+        dataset_params = {'kaldi_dir': kaldi_dir,
+                          'labels': labels,
+                          'min_duration': min_duration,
+                          'max_duration': max_duration,
+                          'normalize': normalize_transcripts,
+                          'logger': self._logger}
+        self._dataset = KaldiFeatureDataset(**dataset_params)
+
+        # Set up data loader
+        if self._placement == DeviceType.AllGpu:
+            self._logger.info('Parallelizing DATALAYER')
+            sampler = torch.utils.data.distributed.DistributedSampler(
+                self._dataset)
+        else:
+            sampler = None
+
+        self._dataloader = torch.utils.data.DataLoader(
+            dataset=self._dataset,
+            batch_size=batch_size,
+            collate_fn=self._collate_fn,
+            drop_last=drop_last,
+            shuffle=shuffle if sampler is None else False,
+            sampler=sampler,
+            num_workers=num_workers
+        )
+
+    @staticmethod
+    def _collate_fn(batch):
+        """Collate batch of (features, feature len, tokens, tokens len).
+        Kaldi generally uses MFCC (and PLP) features.
+
+        Args:
+            batch: A batch of elements, where each element is a tuple of
+                features, feature length, tokens, and token
+                length for a single sample.
+
+        Returns:
+            The same batch, with the features and token length padded
+            to the maximum of the batch.
+        """
+        # Find max lengths of features and tokens in the batch
+        _, feat_lens, _, token_lens = zip(*batch)
+        max_feat_len = max(feat_lens).item()
+        max_tokens_len = max(token_lens).item()
+
+        # Pad features and tokens to max
+        features, tokens = [], []
+        for feat, feat_len, tkns, tkns_len in batch:
+            feat_len = feat_len.item()
+            if feat_len < max_feat_len:
+                pad = (0, max_feat_len - feat_len)
+                feat = torch.nn.functional.pad(feat, pad)
+            features.append(feat)
+
+            tkns_len = tkns_len.item()
+            if tkns_len < max_tokens_len:
+                pad = (0, max_tokens_len - tkns_len)
+                tkns = torch.nn.functional.pad(tkns, pad)
+            tokens.append(tkns)
+
+        features = torch.stack(features)
+        feature_lens = torch.stack(feat_lens)
+        tokens = torch.stack(tokens)
+        token_lens = torch.stack(token_lens)
+
+        return features, feature_lens, tokens, token_lens
+
+    def __len__(self):
+        return len(self._dataset)
+
+    @property
+    def dataset(self):
+        return None
+
+    @property
+    def data_iterator(self):
+        return self._dataloader
 
 
 class MultiplyBatch(NonTrainableNM):
