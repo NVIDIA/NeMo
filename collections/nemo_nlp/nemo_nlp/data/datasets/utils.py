@@ -759,6 +759,7 @@ def write_files(data, outfile):
             item = f'{item.strip()}\n'
             f.write(item)
 
+
 def process_dialogflow(
         data_dir,
         uncased,
@@ -799,6 +800,7 @@ def process_dialogflow(
 
     return outfold
 
+
 def readCSV(file_path):
     rows = []
     with open(file_path, 'r') as csvfile:
@@ -806,6 +808,7 @@ def readCSV(file_path):
         for row in readCSV:
             rows.append(row)
     return rows
+
 
 def get_intents_mturk(utterances, outfold):
 
@@ -835,10 +838,8 @@ def get_intents_mturk(utterances, outfold):
     print('x eval mechanism:')
     print(len(agreedallDict))
 
-    # print(len(agreedallDict))
-    # print(agreedallDict.get('How many point do I need before my first reward?'))
-
     return agreedallDict, intent_names
+
 
 def get_slot_labels(slot_annotations, task_name):
 
@@ -858,14 +859,15 @@ def get_slot_labels(slot_annotations, task_name):
 
     return all_labels
 
-def process_intent_slot_mturk(slot_annotations, agreedallDict, intent_names, task_name):
+
+def process_intent_slot_mturk(slot_annotations, agreedallDict, intent_names,
+                              task_name):
 
     slot_tags = []
     inorder_utterances = []
     all_labels = get_slot_labels(slot_annotations, task_name)
     print(f'agreedallDict - {len(agreedallDict)}')
     print(f'Slot annotations - {len(slot_annotations)}')
-
 
     for annotation in slot_annotations[0:]:
         an = json.loads(annotation)
@@ -875,17 +877,17 @@ def process_intent_slot_mturk(slot_annotations, agreedallDict, intent_names, tas
 
         if utterance in agreedallDict:
             entities = {}
-            
-            # TO DO - Change the below name (retail-test) :
-            for i, each_anno in enumerate(an[task_name]['annotations']['entities']):
+            annotated_entities = an[task_name]['annotations']['entities']
+            for i, each_anno in enumerate(annotated_entities):
                 entities[int(each_anno['startOffset'])] = i
 
             lastptr = 0
             slots = ""
-            #sorting annotations by the start offset
+            # sorting annotations by the start offset
             for i in sorted(entities.keys()):
-                tags = an[task_name]['annotations']['entities'][entities.get(i)]
-                untagged_words = utterance[lastptr:tags['startOffset']] #utterance.substr(lastptr, tags['startOffset'])
+                annotated_entities = an[task_name]['annotations']['entities']
+                tags = annotated_entities[entities.get(i)]
+                untagged_words = utterance[lastptr:tags['startOffset']]
                 for word in untagged_words.split():
                     slots = ' '.join([slots, all_labels.get('O')])
                 anno_words = utterance[tags['startOffset']:tags['endOffset']]
@@ -913,6 +915,7 @@ def process_intent_slot_mturk(slot_annotations, agreedallDict, intent_names, tas
 
     return all_labels, inorder_utterances, slot_tags
 
+
 def process_mturk(
         data_dir,
         uncased,
@@ -926,47 +929,13 @@ def process_mturk(
 
     outfold = f'{data_dir}/nemo-processed'
 
-    # vocab = get_vocab(f'{infold}/atis.dict.vocab.csv')
-
-    # if uncased:
-    #     outfold = f'{outfold}-uncased'
-
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
         logger.info(DATABASE_EXISTS_TMP.format('mturk', outfold))
         return outfold
 
-
     logger.info(f'Processing dataset from mturk and storing at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
-
-    print("Need to move all files in here.")
-
-    # outfiles = {}
-
-    # for mode in modes:
-    #     outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
-    #     outfiles[mode].write('sentence\tlabel\n')
-    #     outfiles[mode + '_slots'] = open(f'{outfold}/{mode}_slots.tsv', 'w')
-
-    #     queries = open(f'{infold}/atis.{mode}.query.csv', 'r').readlines()
-    #     intents = open(f'{infold}/atis.{mode}.intent.csv', 'r').readlines()
-    #     slots = open(f'{infold}/atis.{mode}.slots.csv', 'r').readlines()
-
-    #     for i, query in enumerate(queries):
-    #         sentence = ids2text(query.strip().split()[1:-1], vocab)
-    #         outfiles[mode].write(f'{sentence}\t{intents[i].strip()}\n')
-    #         slot = ' '.join(slots[i].strip().split()[1:-1])
-    #         outfiles[mode + '_slots'].write(slot + '\n')
-
-    # shutil.copyfile(f'{infold}/atis.dict.intent.csv',
-    #                 f'{outfold}/dict.intents.csv')
-    # shutil.copyfile(f'{infold}/atis.dict.slots.csv',
-    #                 f'{outfold}/dict.slots.csv')
-    # for mode in modes:
-    #     outfiles[mode].close()
-
-#----------------------------
 
     classification_data_file = f'{data_dir}/classification.csv'
     annotation_data_file = f'{data_dir}/annotation.manifest'
@@ -980,24 +949,24 @@ def process_mturk(
     utterances = []
     utterances = readCSV(classification_data_file)
 
-    # This function assumes that the intent classification data has been reviewed
-    # and cleaned and only one label per utterance is present.
+    # This function assumes that the intent classification data has been
+    # reviewed and cleaned and only one label per utterance is present.
     agreedallDict, intent_names = get_intents_mturk(utterances, outfold)
 
     with open(annotation_data_file, 'r') as f:
         slot_annotations = f.readlines()
 
-    # This function assumes that the preprocess step would have made 
+    # This function assumes that the preprocess step would have made
     # the task_name of all the annotations generic
     task_name = 'mturk-processed'
 
-    # It is assumed that every utterances will have corresponding 
+    # It is assumed that every utterances will have corresponding
     # slot annotation information
     assert(len(slot_annotations)) >= len(agreedallDict)
 
     slot_labels, intent_queries, slot_tags = process_intent_slot_mturk(
             slot_annotations,
-            agreedallDict, 
+            agreedallDict,
             intent_names,
             task_name)
 
@@ -1008,12 +977,6 @@ def process_mturk(
     train_queries, train_slots, test_queries, test_slots = \
         partition_data(intent_queries, slot_tags, split=dev_split)
 
-    # print(len(train_queries))
-    # print(len(test_queries))
-    # print(len(train_slots))
-    # print(len(test_slots))
-
-
     write_files(train_queries, f'{outfold}/train.tsv')
     write_files(train_slots, f'{outfold}/train_slots.tsv')
 
@@ -1022,7 +985,6 @@ def process_mturk(
 
     write_files(slot_labels, f'{outfold}/dict.slots.csv')
     write_files(intent_names, f'{outfold}/dict.intents.csv')
-
 
     return outfold
 
@@ -1033,6 +995,7 @@ def write_files(data, outfile):
         for item in data:
             item = f'{item.strip()}\n'
             f.write(item)
+
 
 class JointIntentSlotDataDesc:
     """ Convert the raw data to the standard format supported by
@@ -1089,8 +1052,7 @@ class JointIntentSlotDataDesc:
         elif dataset_name == 'dialogflow':
             self.data_dir = process_dialogflow(data_dir, do_lower_case)
         elif dataset_name == 'mturk-processed':
-            self.data_dir =  process_mturk(data_dir, do_lower_case) #'/NeMo/scripts/data/mturk/mturk/nemo-processed'
-
+            self.data_dir = process_mturk(data_dir, do_lower_case)
         elif dataset_name in set(['snips-light', 'snips-speak', 'snips-all']):
             self.data_dir = process_snips(data_dir, do_lower_case)
             if dataset_name.endswith('light'):
