@@ -74,7 +74,9 @@ def parse_args():
 def create_NMs(tacotron2_params, logger=None, decoder_infer=False):
     data_preprocessor = nemo_asr.AudioPreprocessing(
         **tacotron2_params["AudioPreprocessing"])
-    text_embedding = nemo_tts.TextEmbedding(80, 512)
+    text_embedding = nemo_tts.TextEmbedding(
+        len(tacotron2_params["labels"]),
+        **tacotron2_params["TextEmbedding"])
     t2_enc = nemo_tts.Tacotron2Encoder(**tacotron2_params["Tacotron2Encoder"])
     if decoder_infer:
         t2_dec = nemo_tts.Tacotron2DecoderInfer(
