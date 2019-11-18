@@ -175,8 +175,8 @@ def main():
     print("Done Running Tacotron 2")
     filterbank = librosa.filters.mel(
         sr=tacotron2_params["sample_rate"],
-        n_nfft=tacotron2_params["n_fft"],
-        n_mels=tacotron2_params["n_mel"],
+        n_fft=tacotron2_params["n_fft"],
+        n_mels=tacotron2_params["n_mels"],
         fmax=tacotron2_params["fmax"])
 
     if args.vocoder == "griffin-lim":

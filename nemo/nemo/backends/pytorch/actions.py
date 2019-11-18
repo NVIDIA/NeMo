@@ -1355,12 +1355,12 @@ class PtActions(Actions):
         """See NeuralModuleFactory.infer()
         """
 
+        call_chain, _ = self.__get_top_sorted_modules_and_dataloader(
+            hook=tensors
+        )
         if checkpoint_dir:
             # Find all modules that need to be restored
             if modules_to_restore is None:
-                call_chain, _ = self.__get_top_sorted_modules_and_dataloader(
-                    hook=tensors
-                )
                 modules_to_restore = []
                 modules_to_restore_name = []
                 for op in call_chain:
@@ -1388,23 +1388,23 @@ class PtActions(Actions):
                     logger.info(f"Restoring {mod} from {checkpoint}")
                 mod.restore_from(checkpoint, self._local_rank)
 
-            # Init Amp
-            if self._optim_level in AmpOptimizations and \
-                    self._optim_level != Optimization.mxprO0:
-                pt_modules = []
-                for i in range(len(call_chain)):
-                    if isinstance(call_chain[i][0], nn.Module):
-                        pt_modules.append(call_chain[i][0])
-                    elif isinstance(call_chain[i][0],
-                                    TrainableNeuralModuleWrapper):
-                        pt_modules.append(call_chain[i][0]._pt_module)
+        # Init Amp
+        if self._optim_level in AmpOptimizations and \
+                self._optim_level != Optimization.mxprO0:
+            pt_modules = []
+            for i in range(len(call_chain)):
+                if isinstance(call_chain[i][0], nn.Module):
+                    pt_modules.append(call_chain[i][0])
+                elif isinstance(call_chain[i][0],
+                                TrainableNeuralModuleWrapper):
+                    pt_modules.append(call_chain[i][0]._pt_module)
 
-                amp.initialize(
-                    min_loss_scale=1.0,
-                    models=pt_modules,
-                    optimizers=None,
-                    opt_level=AmpOptimizations[self._optim_level],
-                )
+            amp.initialize(
+                min_loss_scale=1.0,
+                models=pt_modules,
+                optimizers=None,
+                opt_level=AmpOptimizations[self._optim_level],
+            )
 
         # Run infer
         return self._infer(tensors_to_return=tensors,
