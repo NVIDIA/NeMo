@@ -1,3 +1,4 @@
+# Copyright (c) 2019 NVIDIA Corporation
 __all__ = ['WarmupPolicy', 'SquareAnnealing', 'CosineAnnealing',
            'WarmupAnnealing', 'InverseSquareRootAnnealing']
 
