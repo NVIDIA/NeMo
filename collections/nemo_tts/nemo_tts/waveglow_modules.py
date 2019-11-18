@@ -98,7 +98,9 @@ class WaveGlowInferNM(WaveGlowNM):
             n_wn_layers=8,
             n_wn_channels=512,
             wn_kernel_size=3,
+            sigma=0.6,
             **kwargs):
+        self._sigma = sigma
         super().__init__(
             n_mel_channels=n_mel_channels,
             n_flows=n_flows,
@@ -133,7 +135,7 @@ class WaveGlowInferNM(WaveGlowNM):
             raise ValueError("You are using the WaveGlow Infer Neural Module "
                              "in training mode.")
         with torch.no_grad():
-            audio = self.waveglow.infer(mel_spectrogram)
+            audio = self.waveglow.infer(mel_spectrogram, sigma=self._sigma)
         return audio
 
 

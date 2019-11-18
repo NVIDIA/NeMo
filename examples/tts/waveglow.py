@@ -12,7 +12,6 @@ import nemo_asr
 import nemo_tts
 from nemo_tts import (waveglow_log_to_tb_func,
                       waveglow_process_eval_batch,
-                      # waveglow_process_final_eval,
                       waveglow_eval_log_to_tb_func)
 
 
