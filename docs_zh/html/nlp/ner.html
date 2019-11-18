@@ -1,0 +1,415 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Tutorial &mdash; nemo 0.8.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Tutorial" href="joint_intent_slot_filling.html" />
+    <link rel="prev" title="Transformer Language Model" href="transformer_language_model.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.8.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">自然语言处理</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="intro.html#nmt">神经网络机器翻译 (NMT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#bert">BERT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#transformer">Transformer语言模型</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="intro.html#id2">命名实体识别</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Tutorial</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#download-dataset">Download Dataset</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#training">Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#using-other-bert-models">Using Other BERT Models</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#bertx2">用BERTx2后处理模型来提升语音识别性能</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">自然语言处理</a> &raquo;</li>
+        
+      <li>Tutorial</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/nlp/ner.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="tutorial">
+<h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+<p>Make sure you have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> installed before starting this
+tutorial. See the <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">如何安装</span></a> section for more details.</p>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>This tutorial explains how to implement named entity recognition (NER) in NeMo. We’ll show how to do this with a pre-trained BERT model, or with one that you trained yourself! For more details, check out our BERT pretraining tutorial.</p>
+</div>
+<div class="section" id="download-dataset">
+<h2>Download Dataset<a class="headerlink" href="#download-dataset" title="Permalink to this headline">¶</a></h2>
+<p><a class="reference external" href="https://www.clips.uantwerpen.be/conll2003/ner/">CoNLL-2003</a> is a standard evaluation dataset for NER, but any NER dataset will work. The only requirement is that the files are formatted like this:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Jennifer</span>    <span class="n">B</span><span class="o">-</span><span class="n">PER</span>
+<span class="ow">is</span>          <span class="n">O</span>
+<span class="kn">from</span>        <span class="nn">O</span>
+<span class="n">New</span>         <span class="n">B</span><span class="o">-</span><span class="n">LOC</span>
+<span class="n">York</span>        <span class="n">I</span><span class="o">-</span><span class="n">LOC</span>
+<span class="n">City</span>        <span class="n">I</span><span class="o">-</span><span class="n">LOC</span>
+<span class="o">.</span>           <span class="n">O</span>
+
+<span class="n">She</span>         <span class="n">O</span>
+<span class="n">likes</span>       <span class="n">O</span>
+<span class="o">...</span>
+</pre></div>
+</div>
+<p>Here, the words and labels are separated with spaces, but in your dataset they should be separated with tabs. Each line should follow the format: [WORD] [TAB] [LABEL] (without spaces in between). There can be columns in between for part-of-speech tags, as shown on the <a class="reference external" href="https://www.clips.uantwerpen.be/conll2003/ner/">CoNLL-2003 website</a>. There should also be empty lines separating each sequence, as shown above.</p>
+</div>
+<div class="section" id="training">
+<h2>Training<a class="headerlink" href="#training" title="Permalink to this headline">¶</a></h2>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>We recommend you try this out in a Jupyter notebook. It’ll make debugging much easier!</p>
+</div>
+<p>First, we need to create our neural factory with the supported backend. How you should define it depends on whether you’d like to multi-GPU or mixed-precision training. This tutorial assumes that you’re training on one GPU, without mixed precision. If you want to use mixed precision, set <code class="docutils literal notranslate"><span class="pre">amp_opt_level</span></code> to <code class="docutils literal notranslate"><span class="pre">O1</span></code> or <code class="docutils literal notranslate"><span class="pre">O2</span></code>.</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
+                                   <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+                                   <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
+                                   <span class="n">log_dir</span><span class="o">=</span><span class="n">work_dir</span><span class="p">,</span>
+                                   <span class="n">create_tb_writer</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                                   <span class="n">files_to_copy</span><span class="o">=</span><span class="p">[</span><span class="vm">__file__</span><span class="p">])</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>Next, we’ll need to define our tokenizer and our BERT model. There are a couple of different ways you can do this. Keep in mind that NER benefits from casing (“New York City” is easier to identify than “new york city”), so we recommend you use cased models.</p>
+<p>If you’re using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out <code class="docutils literal notranslate"><span class="pre">nemo_nlp.huggingface.BERT.list_pretrained_models()</span></code></p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">NemoBertTokenizer</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">pretrained_bert_model</span><span class="p">)</span>
+<span class="n">pretrained_bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span>
+    <span class="n">pretrained_model_name</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">pretrained_bert_model</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>If you’re using a BERT model that you pre-trained yourself, you should do it like this. You should replace <code class="docutils literal notranslate"><span class="pre">args.bert_checkpoint</span></code> with the path to your checkpoint file.</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">SentencePieceTokenizer</span><span class="p">(</span><span class="n">model_path</span><span class="o">=</span><span class="n">tokenizer_model</span><span class="p">)</span>
+<span class="n">tokenizer</span><span class="o">.</span><span class="n">add_special_tokens</span><span class="p">([</span><span class="s2">&quot;[MASK]&quot;</span><span class="p">,</span> <span class="s2">&quot;[CLS]&quot;</span><span class="p">,</span> <span class="s2">&quot;[SEP]&quot;</span><span class="p">])</span>
+
+<span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span>
+        <span class="n">config_filename</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">bert_config</span><span class="p">)</span>
+<span class="n">pretrained_bert_model</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">bert_checkpoint</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>Now, create the train and evaluation datasets:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+<dl class="simple">
+<dt>train_data_layer = nemo_nlp.data.BertTokenClassificationDataLayer(</dt><dd><p>dataset_type=”BertCornellNERDataset”,
+tokenizer=tokenizer,
+input_file=os.path.join(DATA_DIR, “train.txt”),
+max_seq_length=MAX_SEQ_LENGTH,
+batch_size=BATCH_SIZE)</p>
+</dd>
+<dt>eval_data_layer = nemo_nlp.data.BertTokenClassificationDataLayer(</dt><dd><p>dataset_type=”BertCornellNERDataset”,
+tokenizer=tokenizer,
+input_file=os.path.join(DATA_DIR, “dev.txt”),
+max_seq_length=MAX_SEQ_LENGTH,
+batch_size=BATCH_SIZE)</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>We need to create the classifier to sit on top of the pretrained model and define the loss function:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">hidden_size</span> <span class="o">=</span> <span class="n">pretrained_bert_model</span><span class="o">.</span><span class="n">local_parameters</span><span class="p">[</span><span class="s2">&quot;hidden_size&quot;</span><span class="p">]</span>
+<span class="n">tag_ids</span> <span class="o">=</span> <span class="n">train_dataset</span><span class="o">.</span><span class="n">tag_ids</span>
+<span class="n">ner_classifier</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TokenClassifier</span><span class="p">(</span><span class="n">hidden_size</span><span class="o">=</span><span class="n">hidden_size</span><span class="p">,</span>
+                                          <span class="n">num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">tag_ids</span><span class="p">),</span>
+                                          <span class="n">dropout</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">fc_dropout</span><span class="p">)</span>
+<span class="n">ner_loss</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TokenClassificationLoss</span><span class="p">(</span><span class="n">num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">tag_ids</span><span class="p">))</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>And create the pipeline that can be used for both training and evaluation.</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">create_pipeline</span><span class="p">(</span><span class="n">data_layer</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+                    <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span> <span class="n">num_gpus</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_gpus</span><span class="p">):</span>
+    <span class="n">input_ids</span><span class="p">,</span> <span class="n">input_type_ids</span><span class="p">,</span> <span class="n">input_mask</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">seq_ids</span> <span class="o">=</span> <span class="n">data_layer</span><span class="p">()</span>
+    <span class="n">hidden_states</span> <span class="o">=</span> <span class="n">pretrained_bert_model</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">input_ids</span><span class="p">,</span>
+                                          <span class="n">token_type_ids</span><span class="o">=</span><span class="n">input_type_ids</span><span class="p">,</span>
+                                          <span class="n">attention_mask</span><span class="o">=</span><span class="n">input_mask</span><span class="p">)</span>
+    <span class="n">logits</span> <span class="o">=</span> <span class="n">ner_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+    <span class="n">loss</span> <span class="o">=</span> <span class="n">ner_loss</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">logits</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">input_mask</span><span class="o">=</span><span class="n">input_mask</span><span class="p">)</span>
+    <span class="n">steps_per_epoch</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data_layer</span><span class="p">)</span> <span class="o">//</span> <span class="p">(</span><span class="n">batch_size</span> <span class="o">*</span> <span class="n">num_gpus</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">loss</span><span class="p">,</span> <span class="n">steps_per_epoch</span><span class="p">,</span> <span class="n">data_layer</span><span class="p">,</span> <span class="p">[</span><span class="n">logits</span><span class="p">,</span> <span class="n">seq_ids</span><span class="p">]</span>
+
+<span class="n">train_loss</span><span class="p">,</span> <span class="n">steps_per_epoch</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span><span class="n">train_data_layer</span><span class="p">)</span>
+<span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">data_layer</span><span class="p">,</span> <span class="n">eval_tensors</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span><span class="n">eval_data_layer</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>Now, we will set up our callbacks. We will use 3 callbacks:</p>
+<ul class="simple">
+<li><p><cite>SimpleLossLoggerCallback</cite> to print loss values during training</p></li>
+<li><p><cite>EvaluatorCallback</cite> to evaluate our F1 score on the dev dataset. In this example, <cite>EvaluatorCallback</cite> will also output predictions to <cite>output.txt</cite>, which can be helpful with debugging what our model gets wrong.</p></li>
+<li><p><cite>CheckpointCallback</cite> to save and restore checkpoints.</p></li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><a class="reference external" href="https://www.tensorflow.org/tensorboard">Tensorboard</a> is a great debugging tool. It’s not a requirement for this tutorial, but if you’d like to use it, you should install <a class="reference external" href="https://github.com/lanpa/tensorboardX">tensorboardX</a> and run the following command during fine-tuning:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tensorboard --logdir bert_ner_tb
+</pre></div>
+</div>
+</div>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">train_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
+    <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Loss: {:.3f}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())),</span>
+    <span class="n">get_tb_values</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">[[</span><span class="s2">&quot;loss&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]]],</span>
+    <span class="n">tb_writer</span><span class="o">=</span><span class="n">nf</span><span class="o">.</span><span class="n">tb_writer</span><span class="p">)</span>
+
+<span class="n">eval_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span>
+    <span class="n">eval_tensors</span><span class="o">=</span><span class="n">eval_tensors</span><span class="p">,</span>
+    <span class="n">user_iter_callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">eval_iter_callback</span><span class="p">(</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">data_layer</span><span class="p">,</span> <span class="n">tag_ids</span><span class="p">),</span>
+    <span class="n">user_epochs_done_callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">eval_epochs_done_callback</span><span class="p">(</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">tag_ids</span><span class="p">,</span> <span class="n">output_file</span><span class="p">),</span>
+    <span class="n">tb_writer</span><span class="o">=</span><span class="n">nf</span><span class="o">.</span><span class="n">tb_writer</span><span class="p">,</span>
+    <span class="n">eval_step</span><span class="o">=</span><span class="n">steps_per_epoch</span><span class="p">)</span>
+
+<span class="n">ckpt_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span>
+    <span class="n">folder</span><span class="o">=</span><span class="n">nf</span><span class="o">.</span><span class="n">checkpoint_dir</span><span class="p">,</span>
+    <span class="n">epoch_freq</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">save_epoch_freq</span><span class="p">,</span>
+    <span class="n">step_freq</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">save_step_freq</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>Finally, we will define our learning rate policy and our optimizer, and start training.</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">lr_policy_fn</span> <span class="o">=</span> <span class="n">get_lr_policy</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">lr_policy</span><span class="p">,</span>
+                             <span class="n">total_steps</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span> <span class="o">*</span> <span class="n">steps_per_epoch</span><span class="p">,</span>
+                             <span class="n">warmup_ratio</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">lr_warmup_proportion</span><span class="p">)</span>
+
+
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
+         <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">train_callback</span><span class="p">,</span> <span class="n">eval_callback</span><span class="p">,</span> <span class="n">ckpt_callback</span><span class="p">],</span>
+         <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy_fn</span><span class="p">,</span>
+         <span class="n">optimizer</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">optimizer_kind</span><span class="p">,</span>
+         <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span><span class="p">,</span>
+                              <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">lr</span><span class="p">})</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<div class="section" id="using-other-bert-models">
+<h2>Using Other BERT Models<a class="headerlink" href="#using-other-bert-models" title="Permalink to this headline">¶</a></h2>
+<p>In addition to using pre-trained BERT models from Google and BERT models that you’ve trained yourself, in NeMo it’s possible to use other third-party BERT models as well, as long as the weights were exported with PyTorch. For example, if you want to fine-tune an NER task with <a class="reference external" href="https://github.com/allenai/scibert">SciBERT</a>…</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wget https://s3-us-west-2.amazonaws.com/ai2-s2-research/scibert/pytorch_models/scibert_scivocab_cased.tar
+tar -xf scibert_scivocab_cased.tar
+<span class="nb">cd</span> scibert_scivocab_cased
+tar -xzf weights.tar.gz
+mv bert_config.json config.json
+<span class="nb">cd</span> ..
+</pre></div>
+</div>
+<p>And then, when you load your BERT model, you should specify the name of the directory for the model name.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">NemoBertTokenizer</span><span class="p">(</span><span class="n">pretrained_model</span><span class="o">=</span><span class="s2">&quot;scibert_scivocab_cased&quot;</span><span class="p">)</span>
+<span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span>
+    <span class="n">pretrained_model_name</span><span class="o">=</span><span class="s2">&quot;scibert_scivocab_cased&quot;</span><span class="p">,</span>
+    <span class="n">factory</span><span class="o">=</span><span class="n">neural_factory</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>If you want to use a TensorFlow-based model, such as BioBERT, you should be able to use it in NeMo by first using this <a class="reference external" href="https://github.com/huggingface/pytorch-transformers/blob/master/pytorch_transformers/convert_tf_checkpoint_to_pytorch.py">model conversion script</a> provided by Hugging Face.</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="joint_intent_slot_filling.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="transformer_language_model.html" class="btn btn-neutral float-left" title="Transformer Language Model" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, AI Applications team
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
