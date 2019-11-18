@@ -27,7 +27,7 @@ logger = get_logger('')
 
 
 class BertPunctuationDataset(Dataset):
-    def __init__(self, input_file, max_seq_length, tokenizer):
+    def __init__(self, input_file, max_seq_length, tokenizer, bos_token="[CLS]", eos_token=None):
         # Cache features and tag_ids
         data_dir = os.path.dirname(input_file)
         filename = os.path.basename(input_file)[:-4]
@@ -67,8 +67,8 @@ class BertPunctuationDataset(Dataset):
                     nonlocal new_seq_words, new_seq_token_labels, \
                         new_seq_subtokens, new_seq_subtoken_count
 
-                    # -2 accounts for [CLS] and [SEP] 
-                    max_tokens_for_doc = max_seq_length - 2
+                    # accounts for bos and eos tokens
+                    max_tokens_for_doc = max_seq_length - (bos_token == None) - (eos_token == None) 
 
                     if max_tokens_for_doc > (new_seq_subtoken_count +
                                              token_count):
@@ -128,9 +128,13 @@ class BertPunctuationDataset(Dataset):
                     token_tags.extend([tag_id] * len(word_tokens))
                     token_count += len(word_tokens)
 
-                self.features = convert_sequences_to_features(
-                    self.seq_words, self.seq_subtokens, self.seq_token_labels,
-                    tokenizer, max_seq_length)
+                self.features = convert_sequences_to_features(self.seq_words,
+                                                              self.seq_subtokens, 
+                                                              self.seq_token_labels,
+                                                              tokenizer,
+                                                              max_seq_length,
+                                                              bos_token,
+                                                              eos_token)
 
                 self.tag_ids = tag_ids
                 self.tokenizer = tokenizer
@@ -204,10 +208,13 @@ class BertPunctuationDataset(Dataset):
         return correct_tags, total_tags, predicted_tags, correct_labels, \
             token_count, lines
 
-
-def convert_sequences_to_features(seqs_words, seqs_subtokens,
-                                  seqs_token_labels, tokenizer,
-                                  max_seq_length):
+def convert_sequences_to_features(seqs_words, 
+                                  seqs_subtokens,
+                                  seqs_token_labels, 
+                                  tokenizer,
+                                  max_seq_length,
+                                  bos_token,
+                                  eos_token):
     """Loads a data file into a list of `InputBatch`s."""
     features = []
     for seq_id, (words, seq_subtokens, seq_token_labels) in \
@@ -242,10 +249,11 @@ def convert_sequences_to_features(seqs_words, seqs_subtokens,
         token_is_max_context = {}
         segment_ids = []
         
-        # add [CLS] token at the beginning of the input
-        tokens.append("[CLS]")
-        token_labels.append(0)
-        segment_ids.append(0)
+        # add bos token at the beginning of the input
+        if bos_token:
+            tokens.append(bos_token)
+            token_labels.append(0)
+            segment_ids.append(0)
 
         # Ensure that we don't go over the maximum sequence length
         for i in range(min(doc_span.length, max_seq_length - 2)):
@@ -265,10 +273,11 @@ def convert_sequences_to_features(seqs_words, seqs_subtokens,
         
             token_labels.append(label)
        
-        # add [SEP] token at the end of the input
-        tokens.append("[SEP]")
-        token_labels.append(0)
-        segment_ids.append(0)
+        # add eos token at the end of the input
+        if eos_token:
+            tokens.append(eos_token)
+            token_labels.append(0)
+            segment_ids.append(0)
         
         input_ids = tokenizer.tokens_to_ids(tokens)
 
