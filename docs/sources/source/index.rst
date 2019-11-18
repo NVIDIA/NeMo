@@ -1,4 +1,4 @@
-NVIDIA Neural Modules: NeMo
+NVIDIA Neural Modules: NeMo 
 ===========================
 
 .. toctree::
@@ -14,6 +14,7 @@ NVIDIA Neural Modules: NeMo
    tts/intro
    collections/modules
    api-docs/modules
+   chinese/intro
 
 
 
