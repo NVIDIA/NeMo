@@ -136,6 +136,7 @@ def process(data_dir, output_dir=None, min_frequency=3, max_dirs=-1):
     output_dir = data_dir if not output_dir
     save(output_dir, lines)
 
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(

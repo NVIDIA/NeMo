@@ -66,13 +66,18 @@ data_desc = BERTPretrainingDataDesc(args.dataset_name,
                                     'train.txt')
 
 if args.tokenizer == "sentence-piece":
+    nf.logger.info("To use SentencePieceTokenizer.")
     tokenizer = nemo_nlp.SentencePieceTokenizer(
         model_path=data_desc.tokenizer_model)
     tokenizer.add_special_tokens(special_tokens)
-else:
+elif args.tokenizer == "nemo-bert":
+    nf.logger.info("To use NemoBertTokenizer.")
     vocab_file = os.path.join(args.data_dir, 'vocab.txt')
     # To train on a Chinese dataset, use NemoBertTokenizer
     tokenizer = nemo_nlp.NemoBertTokenizer(vocab_file=vocab_file)
+else:
+    raise ValueError(f"{args.tokenizer} Tokenizer not supported! "
+                     "Please use sentence-piece or nemo-bert")
 
 bert_model = nemo_nlp.huggingface.BERT(
     vocab_size=tokenizer.vocab_size,
