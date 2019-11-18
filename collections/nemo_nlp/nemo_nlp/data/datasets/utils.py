@@ -821,8 +821,13 @@ class JointIntentSlotDataDesc:
 
 
 class SentenceClassificationDataDesc:
-    def __init__(self, dataset_name, data_dir, do_lower_case):
-        if dataset_name == 'sst-2':
+    def __init__(self, dataset_name, data_dir, do_lower_case, processor=None):
+        # if the user passes a customized data processor
+        if processor is not None:
+            self.data_dir, self.num_labels, self.eval_file, \
+                self.train_file = processor(data_dir)
+                return
+        elif dataset_name == 'sst-2':
             self.data_dir = process_sst_2(data_dir)
             self.num_labels = 2
             self.eval_file = self.data_dir + '/dev.tsv'
