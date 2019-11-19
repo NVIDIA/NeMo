@@ -134,8 +134,10 @@ class DecoderRNN(TrainableNM):
 
         return log_probs, attention_weights
 
-    def forward_step(self, decoder_inputs,
-                     encoder_outputs=None, decoder_hidden=None):
+    def forward_step(self,
+                     decoder_inputs,
+                     encoder_outputs=None,
+                     decoder_hidden=None):
         """(BT, BTC@?, hBC@?) -> (BTC, hBC, BTT@?)"""
 
         # Inputs

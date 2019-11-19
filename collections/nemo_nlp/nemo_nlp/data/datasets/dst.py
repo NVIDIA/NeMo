@@ -90,8 +90,8 @@ class WOZDSTDataset(Dataset):
         else:
             self.create_vocab()
 
-        print('Mem vocab length', len(self.mem_vocab))
-        print('Vocab length', len(self.vocab))
+        print('Mem vocab size', len(self.mem_vocab))
+        print('Vocab size', len(self.vocab))
 
     def get_slots(self):
         used_domains = [
@@ -144,12 +144,6 @@ class WOZDSTDataset(Dataset):
         max_resp_len, max_value_len = 0, 0
 
         for dialog_dict in dialogs:
-            # if self.mode == 'train':
-            #     for turn in dialog_dict['dialog']:
-            #         self.vocab.add_words(turn['sys_transcript'], 'utterance')
-            #         self.vocab.add_words(turn['transcript'], 'utterance')
-
-            # for dialog_dict in dialogs:
             dialog_histories = []
             for domain in dialog_dict['domains']:
                 if domain not in self.domains:
@@ -168,9 +162,6 @@ class WOZDSTDataset(Dataset):
                 turn_belief_list = [f'{k}-{v}'
                                     for k, v in turn_beliefs.items()]
 
-                # if self.mode == 'train':
-                #     self.mem_vocab.add_words(turn_beliefs, 'belief')
-
                 gating_label, generate_y = [], []
 
                 for slot in self.slots:
@@ -180,8 +171,6 @@ class WOZDSTDataset(Dataset):
 
                     if slot in turn_beliefs:
                         generate_y.append(turn_beliefs[slot])
-                        # max_value_len = max(max_value_len,
-                        #                     len(turn_beliefs[slot]))
                     else:
                         generate_y.append('none')
                         gating_slot = 'none'
@@ -201,17 +190,13 @@ class WOZDSTDataset(Dataset):
                 resp_len = len(data_detail['dialog_history'].split())
                 max_resp_len = max(max_resp_len, resp_len)
 
-        # if f'f{max_value_len-1}' not in self.mem_vocab.word2idx:
-        #     for time_i in range(max_value_len):
-        #         self.mem_vocab.add_words(f't{time_i}', 'utterance')
-
         print('Domain count', domain_count)
         print('Max response length', max_resp_len)
+        print(f'Processing {len(data)} pairs')
         return data, max_resp_len
 
     def prepare_data(self):
         self.pairs, self.max_len = self.read_vocab()
-
 
 def fix_general_label_error(labels, type, slots):
     label_dict = dict([(l[0], l[1]) for l in labels]) if type else dict(
