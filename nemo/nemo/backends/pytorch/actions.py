@@ -1,19 +1,18 @@
 # Copyright (c) 2019 NVIDIA Corporation
+import copy
 import importlib
 import itertools
+import json
 import logging
 import os
-import json
-import copy
-from typing import List, Optional
 from pathlib import Path
+from typing import List, Optional
 
+import onnx
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
-import onnx
-
 from nemo.backends.pytorch.nm import TrainableNM
 
 from .module_wrapper import TrainableNeuralModuleWrapper
@@ -64,7 +63,7 @@ class PtActions(Actions):
                     parallel = importlib.import_module('apex.parallel')
                     convert_syncbn = parallel.convert_syncbn_model
                     create_syncbn_process_group = (
-                            parallel.create_syncbn_process_group)
+                        parallel.create_syncbn_process_group)
                     DDP = parallel.DistributedDataParallel
                     LARC = parallel.LARC
 
@@ -1045,25 +1044,27 @@ class PtActions(Actions):
             if input_example is None:
                 raise ValueError(f'Example input is None, but ONNX tracing was'
                                  f' attempted')
-            print ("Running export ... ")
+            print("Running export ... ")
             torch.onnx.export(module, input_example, output,
                               #   Oleksii: we need to use real I/O names
-                              input_names = [],
-                              output_names = [],
+                              input_names=[],
+                              output_names=[],
                               verbose=True,
                               export_params=True,
                               do_constant_folding=True,
                               dynamic_axes={
-                              #   Oleksii: we need to infer that info, too
-                              #    "FEATURES" : {0 : "BATCHSIZE", 2 : "NUM_FEATURES"},
-                              #    "LOGITS" : { 0: "BATCHSIZE", 1 : "NUM_LOGITS"}
+                                  #   Oleksii: we need to infer that info, too
+                                  #    "FEATURES" : {0 : "BATCHSIZE",
+                                  #    2 : "NUM_FEATURES"},
+                                  #    "LOGITS" : { 0: "BATCHSIZE",
+                                  #    1 : "NUM_LOGITS"}
                               },
                               opset_version=10)
-            fn=output+".readable"
+            fn = output + ".readable"
             with open(fn, 'w') as f:
-                #Write human-readable graph representation to file as well.
+                # Write human-readable graph representation to file as well.
                 tempModel = onnx.load(output)
-                onnx.save(tempModel, output+".copy")
+                onnx.save(tempModel, output + ".copy")
                 onnx.checker.check_model(tempModel)
                 pgraph = onnx.helper.printable_graph(tempModel.graph)
                 f.write(pgraph)
@@ -1150,7 +1151,7 @@ class PtActions(Actions):
         elif tensors_to_optimize is not None and (
                 isinstance(tensors_to_optimize[0],
                            NmTensor) and PtActions._check_all_tensors(
-                tensors_to_optimize)):
+            tensors_to_optimize)):
             # Parse graph into a topologically sorted sequence of neural
             # modules' calls
             opt_call_chain, t_dataset = \
@@ -1298,10 +1299,10 @@ class PtActions(Actions):
                                 f" ({world_size})."
                             )
                         process_group = create_syncbn_process_group(
-                                synced_batchnorm_groupsize)
+                            synced_batchnorm_groupsize)
                         pmodule = convert_syncbn(
-                                pmodule,
-                                process_group=process_group)
+                            pmodule,
+                            process_group=process_group)
 
                     self.module_reference_table[key] = (
                         self.module_reference_table[key][0], pmodule
