@@ -76,8 +76,8 @@ elif args.tokenizer == "nemo-bert":
     # To train on a Chinese dataset, use NemoBertTokenizer
     tokenizer = nemo_nlp.NemoBertTokenizer(vocab_file=vocab_file)
 else:
-    raise ValueError(f"{args.tokenizer} Tokenizer not supported! "
-                     "Please use sentence-piece or nemo-bert")
+    raise ValueError("Please add your tokenizer"
+                     " or use sentence-piece or nemo-bert.")
 
 bert_model = nemo_nlp.huggingface.BERT(
     vocab_size=tokenizer.vocab_size,

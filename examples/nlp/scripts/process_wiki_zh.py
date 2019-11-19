@@ -20,13 +20,14 @@ import json
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 import re
+import glob
 
 
 def create_vocab(lines,
                  vocab_file,
                  min_frequency=3,
-                 special_symbols=("[PAD]", "[SEP]", "[CLS]",
-                                  "[MASK]", "[UNK]")):
+                 special_symbols=["[PAD]", "[SEP]", "[CLS]",
+                                  "[MASK]", "[UNK]"]):
     """Create vocabulary from lines"""
     # Count word occurency
     vocab = {}
@@ -39,17 +40,14 @@ def create_vocab(lines,
                     vocab[w] = 1
 
     # Remove rare words
-    for w in vocab.keys():
-        if vocab[w] < min_frequency:
-            del vocab[w]
-            print("Remove rare word {} from vocab".format(w))
+    new_vocab = {w: c for w, c in vocab.items() if c >= min_frequency}
 
     # Include special symbols and write to file
-    vocab = list(special_symbols) + sorted(vocab.keys())
+    vocab = special_symbols + sorted(new_vocab.keys())
     with open(vocab_file, 'w') as f:
         for w in vocab:
             f.write(w + '\n')
-    print(f"Created vocabulary of size {len(vocab)}")
+    print(f"Created vocabulary file: {vocab_file}, with size {len(vocab)}")
 
     return len(vocab)
 
@@ -65,59 +63,57 @@ def read(filename, regex):
     for i, line in enumerate(documents):
         text = json.loads(line)['text']
         text = text.replace('\\n', '\n').strip()
-        text = r.findall(text)
-        text = ' '.join([c for c in text])  # separate char by space
-        documents[i] = text
+        res = ''
+        for c in text:
+            c = r.match(c)
+            if c:
+                res += ' ' + c.string
+        documents[i] = res
 
     return documents
 
 
-def read_files(data_dir, regex, max_dirs=-1):
+def read_files(data_dir, regex, max_files=-1):
     """Read text in all sub-directories, filter by regex and return lines"""
     executor = ProcessPoolExecutor(max_workers=4)
 
     tasks = []
-    sub_dirs = [name for name in os.listdir(data_dir)
-                if os.path.isdir(os.path.join(data_dir, name))]
-    for sub_dir in sub_dirs[:max_dirs]:
-        p_dir = os.path.join(data_dir, sub_dir)
-        print("To process files in dir: "+p_dir)
-        files = os.listdir(p_dir)
-        for f in files:
-            fullpath = os.path.join(data_dir, sub_dir, f)
-            tasks.append(executor.submit(partial(read, fullpath, regex)))
-    print('Preprocessing texts, please wait...', flush=True)
+    files = glob.glob(data_dir+'/*/wiki*')
+    for f in files[:max_files]:
+        tasks.append(executor.submit(partial(read, f, regex)))
+    print(f'Preprocessing wiki texts in {data_dir}, please wait...')
 
     # Collect text
     lines = []
     for t in tasks:
         for doc in t.result():
-            splitted = re.split(r'[\n]', doc)
-            lines += splitted
+            lines += doc.split('\n')
 
     return lines
 
 
-def save(output_dir, lines, train_p=0.95):
-    """Save lines into two files within output dir: train.txt and val.txt"""
+def save(output_dir, lines, train_ratio=0.95):
+    """Save a large portion (train_ratio) of lines as the training set,
+    the rest as the validation set.
+    """
     # Take large portino as training set
     train_file = os.path.join(output_dir, 'train.txt')
-    num_train_doc = int(train_p * len(lines))
+    num_train_lines = int(train_ratio * len(lines))
     with open(train_file, 'w', encoding='utf-8') as f:
-        for l in lines[:num_train_doc]:
-            f.write(l+'\n')
+        for l in lines[:num_train_lines]:
+            f.write(l + '\n')
 
     # Take remainings as validation set
     val_file = os.path.join(output_dir, 'valid.txt')
     with open(val_file, 'w', encoding='utf-8') as f:
-        for l in lines[num_train_doc:]:
-            f.write(l+'\n')
+        for l in lines[num_train_lines:]:
+            f.write(l + '\n')
 
     print("Finished processing.")
-    print("Processed text saved to {} and {}".format(train_file, val_file))
+    print(f"Processed text saved to {train_file} and {val_file}.")
 
 
-def process(data_dir, output_dir=None, min_frequency=3, max_dirs=-1):
+def process(data_dir, output_dir=None, min_frequency=3, max_files=-1):
     # Define filter rule
     regex = []
     regex += ['[a-zA-Z0-9]']        # English and numerics
@@ -127,13 +123,14 @@ def process(data_dir, output_dir=None, min_frequency=3, max_dirs=-1):
     regex += ['[\n]']
     regex = "|".join(regex)
 
-    lines = read_files(data_dir, regex, max_dirs)
+    lines = read_files(data_dir, regex, max_files)
 
     # Create Vocab
     vocab_file = os.path.join(output_dir, "vocab.txt")
     vocab_size = create_vocab(lines, vocab_file, min_frequency)
 
-    output_dir = data_dir if not output_dir
+    if not output_dir:
+        output_dir = data_dir
     save(output_dir, lines)
 
 
@@ -147,9 +144,9 @@ if __name__ == "__main__":
     parser.add_argument("--min_frequency", default=0, type=int,
                         help="Characters occuring less frequently "
                              "will be filtered out")
-    parser.add_argument("--max_dirs", default=-1, type=int,
+    parser.add_argument("--max_files", default=-1, type=int,
                         help="Max number of dirs to process")
     args = parser.parse_args()
 
     process(args.data_dir, args.output_dir, args.min_frequency,
-            args.max_dirs)
+            args.max_files)
