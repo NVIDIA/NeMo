@@ -117,11 +117,6 @@ class GroupShuffle(nn.Module):
 
 
 class JasperBlock(nn.Module):
-    mconv: nn.ModuleList
-    res: nn.ModuleList
-    conv_mask: bool
-    separable: bool
-    residual_mode: bool
     __constants__  = ["conv_mask", "separable", "residual_mode", "res", "mconv"] 
     def __init__(self, inplanes, planes, repeat=3, kernel_size=11, stride=1,
                  dilation=1, padding='same', dropout=0.2, activation=None,
@@ -202,7 +197,24 @@ class JasperBlock(nn.Module):
                 drop_prob=dropout,
                 activation=activation)
         )
-                        
+
+    def _get_conv(self, in_channels, out_channels, kernel_size=11,
+                  stride=1, dilation=1, padding=0, bias=False,
+                  groups=1, heads=-1, separable=False):
+        use_mask=self.conv_mask
+        if use_mask:
+            return MaskedConv1d(in_channels, out_channels, kernel_size,
+                                stride=stride,
+                                dilation=dilation, padding=padding, bias=bias,
+                                groups=groups, heads=heads,
+                                use_mask=use_mask)
+        else:
+            return nn.Conv1d(in_channels, out_channels, kernel_size,
+                             stride=stride,
+                             dilation=dilation, padding=padding, bias=bias,
+                             groups=groups)
+        
+        
     def _get_conv_bn_layer(self, in_channels, out_channels, kernel_size=11,
                            stride=1, dilation=1, padding=0, bias=False,
                            groups=1, heads=-1, separable=False,
@@ -212,23 +224,20 @@ class JasperBlock(nn.Module):
 
         if separable:
             layers = [
-                MaskedConv1d(in_channels, in_channels, kernel_size,
-                             stride=stride,
-                             dilation=dilation, padding=padding, bias=bias,
-                             groups=in_channels, heads=heads,
-                             use_mask=self.conv_mask),
-                MaskedConv1d(in_channels, out_channels, kernel_size=1,
-                             stride=1,
-                             dilation=1, padding=0, bias=bias, groups=groups,
-                             use_mask=self.conv_mask)
+                self._get_conv(in_channels, in_channels, kernel_size,
+                               stride=stride,
+                               dilation=dilation, padding=padding, bias=bias,
+                               groups=in_channels, heads=heads),
+                self._get_conv(in_channels, out_channels, kernel_size,
+                               stride=1,
+                               dilation=1, padding=0, bias=bias, groups=groups)
             ]
         else:
             layers = [
-                MaskedConv1d(in_channels, out_channels, kernel_size,
-                             stride=stride,
-                             dilation=dilation, padding=padding, bias=bias,
-                             groups=groups,
-                             use_mask=self.conv_mask)
+                self._get_conv(in_channels, out_channels, kernel_size,
+                               stride=stride,
+                               dilation=dilation, padding=padding, bias=bias,
+                               groups=groups)
             ]
 
         if normalization == "group":
