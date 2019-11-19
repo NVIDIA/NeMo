@@ -185,14 +185,14 @@
   <div class="section" id="tutorial">
 <h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
 <p>Make sure you have installed <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code> collection.
-See <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section.</p>
+See <a class="reference internal" href="../zh/installation.html#installation"><span class="std std-ref">如何安装</span></a> section.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>You only need <cite>nemo</cite> and <cite>nemo_asr</cite> collection for this tutorial.</p>
 </div>
 <div class="section" id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
-<p>This Automatic Speech Recognition (ASR) tutorial is focused on Jasper <a class="bibtex reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id1">[1]</a> model. Jasper is CTC-based <a class="bibtex reference internal" href="#graves2006" id="id2">[1]</a> end-to-end model. The model is called “end-to-end” because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text.
+<p>This Automatic Speech Recognition (ASR) tutorial is focused on Jasper <a class="bibtex reference internal" href="../zh/nlp/asr-improvement.html#li2019jasper" id="id1">[1]</a> model. Jasper is CTC-based <a class="bibtex reference internal" href="../zh/asr/tutorial.html#graves2006" id="id2">[1]</a> end-to-end model. The model is called “end-to-end” because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text.
 CTC-ASR training pipeline consists of the following blocks:</p>
 <ol class="arabic">
 <li><p>audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)</p></li>
@@ -206,7 +206,7 @@ CTC-ASR training pipeline consists of the following blocks:</p>
 </div>
 <div class="section" id="get-data">
 <h2>Get data<a class="headerlink" href="#get-data" title="Permalink to this headline">¶</a></h2>
-<p>We will be using an open-source LibriSpeech <a class="bibtex reference internal" href="../nlp/asr-improvement.html#panayotov2015librispeech" id="id3">[3]</a> dataset. These scripts will download and convert LibriSpeech into format expected by <cite>nemo_asr</cite>:</p>
+<p>We will be using an open-source LibriSpeech <a class="bibtex reference internal" href="../zh/nlp/asr-improvement.html#panayotov2015librispeech" id="id3">[3]</a> dataset. These scripts will download and convert LibriSpeech into format expected by <cite>nemo_asr</cite>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir data
 <span class="c1"># note that this script requires sox to be installed</span>
 <span class="c1"># to install sox on Ubuntu, simply do: sudo apt-get install sox</span>
@@ -235,7 +235,7 @@ Each line in json file describes a training sample - `audio_filepath</cite> cont
 </div>
 <div class="section" id="training">
 <h2>Training<a class="headerlink" href="#training" title="Permalink to this headline">¶</a></h2>
-<p>We will train a small model from the Jasper family <a class="bibtex reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id4">[1]</a>.
+<p>We will train a small model from the Jasper family <a class="bibtex reference internal" href="../zh/nlp/asr-improvement.html#li2019jasper" id="id4">[1]</a>.
 Jasper (“Just Another SPeech Recognizer”) is a deep time delay neural network (TDNN) comprising of blocks of 1D-convolutional layers.
 Jasper family of models are denoted as Jasper_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization, ReLU, and dropout:</p>
 <blockquote>
