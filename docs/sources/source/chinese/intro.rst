@@ -3,6 +3,6 @@
 Mandarin Support
 ==================
 
-`中文版支持戳这里 <../../../docs_zh/html/index.html>`_
+`中文版支持戳这里 <../zh/index.html>`_
 
 

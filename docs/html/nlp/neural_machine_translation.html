@@ -180,7 +180,7 @@
             
   <div class="section" id="tutorial">
 <h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
-<p>In this tutorial we are going to implement Neural Machine Translation (NMT) system based on <a class="reference external" href="https://arxiv.org/abs/1706.03762">Transformer encoder-decoder architecture</a> <a class="bibtex reference internal" href="#vaswani2017attention" id="id1">[6]</a>. All code used in this tutorial is based on <code class="docutils literal notranslate"><span class="pre">examples/nlp/nmt_tutorial.py</span></code>.</p>
+<p>In this tutorial we are going to implement Neural Machine Translation (NMT) system based on <a class="reference external" href="https://arxiv.org/abs/1706.03762">Transformer encoder-decoder architecture</a> <a class="bibtex reference internal" href="../zh/nlp/neural_machine_translation.html#vaswani2017attention" id="id1">[6]</a>. All code used in this tutorial is based on <code class="docutils literal notranslate"><span class="pre">examples/nlp/nmt_tutorial.py</span></code>.</p>
 <div class="section" id="preliminaries">
 <h2>Preliminaries<a class="headerlink" href="#preliminaries" title="Permalink to this headline">¶</a></h2>
 <p><strong>Dataset.</strong> We use WMT16 English-German dataset which consists of approximately 4.5 million sentence pairs before preprocessing. To clean the dataset we remove all sentence pairs such that:</p>
@@ -189,11 +189,11 @@
 <li><p>The length of either source or target is greater than 128 or smaller than 3 tokens.</p></li>
 <li><p>Absolute difference between source and target is greater than 25 tokens.</p></li>
 <li><p>One sentence is more than 2.5 times longer than the other.</p></li>
-<li><p>Target sentence is the exact copy of the source sentence <a class="bibtex reference internal" href="#ott2018analyzing" id="id2">[1]</a>.</p></li>
+<li><p>Target sentence is the exact copy of the source sentence <a class="bibtex reference internal" href="../zh/nlp/neural_machine_translation.html#ott2018analyzing" id="id2">[1]</a>.</p></li>
 </ul>
 </div></blockquote>
 <p>We use newstest2013 for development and newstest2014 for testing. All datasets, as well as the tokenizer model can be downloaded from <a class="reference external" href="https://drive.google.com/open?id=1AErD1hEg16Yt28a-IGflZnwGTg9O27DT">here</a>. In the following steps, we assume that all data is located at <strong>&lt;path_to_data&gt;</strong>.</p>
-<p><strong>Resources.</strong> Training script <code class="docutils literal notranslate"><span class="pre">examples/nlp/nmt_tutorial.py</span></code> used in this tutorial allows to train Transformer-big architecture to <strong>29.2</strong> BLEU / <strong>28.5</strong> SacreBLEU on newstest2014 in approximately 15 hours on NVIDIA’s DGX-1 with 16GB Volta GPUs. This setup can also be replicated with fewer resources by using more steps of gradient accumulation <a class="bibtex reference internal" href="#ott2018scaling" id="id3">[2]</a>.</p>
+<p><strong>Resources.</strong> Training script <code class="docutils literal notranslate"><span class="pre">examples/nlp/nmt_tutorial.py</span></code> used in this tutorial allows to train Transformer-big architecture to <strong>29.2</strong> BLEU / <strong>28.5</strong> SacreBLEU on newstest2014 in approximately 15 hours on NVIDIA’s DGX-1 with 16GB Volta GPUs. This setup can also be replicated with fewer resources by using more steps of gradient accumulation <a class="bibtex reference internal" href="../zh/nlp/neural_machine_translation.html#ott2018scaling" id="id3">[2]</a>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>Launching training script without any arguments will run training on much smaller dataset (newstest2013) of 3000 sentence pairs and validate on the subset of this dataset consisting of 100 sentence pairs. This is useful for debugging purposes: if everything is set up correctly, validation BLEU will reach &gt;99 and training / validation losses will go to &lt;1.5 pretty fast.</p>
@@ -212,7 +212,7 @@
 </pre></div>
 </div>
 </div></blockquote>
-<p>We define tokenizer which allows to transform input text into tokens. In this tutorial, we use joint <a class="reference external" href="https://arxiv.org/abs/1508.07909">Byte Pair Encodings (BPE)</a> <a class="bibtex reference internal" href="#sennrich2015neural" id="id4">[5]</a> trained on WMT16 En-De corpus with <a class="reference external" href="https://github.com/VKCOM/YouTokenToMe">YouTokenToMe library</a>. In contrast to the models presented in the literature (which usually have vocabularies of size 30000+), we work with 4x smaller vocabulary of 8192 BPEs. It achieves the same level of performance but allows to increase the batch size by 20% which in turn leads to faster convergence.</p>
+<p>We define tokenizer which allows to transform input text into tokens. In this tutorial, we use joint <a class="reference external" href="https://arxiv.org/abs/1508.07909">Byte Pair Encodings (BPE)</a> <a class="bibtex reference internal" href="../zh/nlp/neural_machine_translation.html#sennrich2015neural" id="id4">[5]</a> trained on WMT16 En-De corpus with <a class="reference external" href="https://github.com/VKCOM/YouTokenToMe">YouTokenToMe library</a>. In contrast to the models presented in the literature (which usually have vocabularies of size 30000+), we work with 4x smaller vocabulary of 8192 BPEs. It achieves the same level of performance but allows to increase the batch size by 20% which in turn leads to faster convergence.</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">YouTokenToMeTokenizer</span><span class="p">(</span>
     <span class="n">model_path</span><span class="o">=</span><span class="n">f</span><span class="s2">&quot;{args.data_dir}/{args.tokenizer_model}&quot;</span><span class="p">)</span>
@@ -240,7 +240,7 @@
 </pre></div>
 </div>
 </div></blockquote>
-<p>Following <a class="reference external" href="https://arxiv.org/abs/1608.05859">Press and Wolf, 2016</a> <a class="bibtex reference internal" href="#press2016using" id="id5">[4]</a>, we also tie the parameters of embedding and softmax layers:</p>
+<p>Following <a class="reference external" href="https://arxiv.org/abs/1608.05859">Press and Wolf, 2016</a> <a class="bibtex reference internal" href="../zh/nlp/neural_machine_translation.html#press2016using" id="id5">[4]</a>, we also tie the parameters of embedding and softmax layers:</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">log_softmax</span><span class="o">.</span><span class="n">log_softmax</span><span class="o">.</span><span class="n">dense</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">encoder</span><span class="o">.</span><span class="n">embedding_layer</span><span class="o">.</span><span class="n">token_embedding</span><span class="o">.</span><span class="n">weight</span>
 <span class="n">decoder</span><span class="o">.</span><span class="n">embedding_layer</span><span class="o">.</span><span class="n">token_embedding</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">encoder</span><span class="o">.</span><span class="n">embedding_layer</span><span class="o">.</span><span class="n">token_embedding</span><span class="o">.</span><span class="n">weight</span>
@@ -295,7 +295,7 @@
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The BLEU score is calculated between detokenized translation (generated with beam search) and genuine evaluation dataset. For the sake of completeness, we report both  <a class="reference external" href="https://github.com/mjpost/sacreBLEU">SacreBLEU</a> <a class="bibtex reference internal" href="#post2018call" id="id6">[3]</a> and <a class="reference external" href="https://github.com/moses-smt/mosesdecoder/blob/master/scripts/generic/multi-bleu.perl">tokenized BLEU score</a> commonly used in the literature.</p>
+<p>The BLEU score is calculated between detokenized translation (generated with beam search) and genuine evaluation dataset. For the sake of completeness, we report both  <a class="reference external" href="https://github.com/mjpost/sacreBLEU">SacreBLEU</a> <a class="bibtex reference internal" href="../zh/nlp/neural_machine_translation.html#post2018call" id="id6">[3]</a> and <a class="reference external" href="https://github.com/moses-smt/mosesdecoder/blob/master/scripts/generic/multi-bleu.perl">tokenized BLEU score</a> commonly used in the literature.</p>
 </div>
 </div></blockquote>
 </li>

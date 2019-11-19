@@ -180,14 +180,14 @@
             
   <div class="section" id="pretraining-bert">
 <h1>Pretraining BERT<a class="headerlink" href="#pretraining-bert" title="Permalink to this headline">¶</a></h1>
-<p>In this tutorial, we will build and train a masked language model, either from scratch or from a pretrained BERT model, using the BERT architecture <a class="bibtex reference internal" href="#devlin2018bert" id="id1">[2]</a>. Make sure you have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> installed before starting this tutorial. See the <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section for more details.</p>
+<p>In this tutorial, we will build and train a masked language model, either from scratch or from a pretrained BERT model, using the BERT architecture <a class="bibtex reference internal" href="../zh/nlp/bert_pretraining.html#devlin2018bert" id="id1">[2]</a>. Make sure you have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> installed before starting this tutorial. See the <a class="reference internal" href="../zh/installation.html#installation"><span class="std std-ref">如何安装</span></a> section for more details.</p>
 <div class="section" id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
-<p>Creating domain-specific BERT models can be advantageous for a wide range of applications. One notable is domain-specific BERT in a biomedical setting, similar to BioBERT <a class="bibtex reference internal" href="#lee2019biobert" id="id2">[3]</a> and SciBERT <a class="bibtex reference internal" href="#beltagy2019scibert" id="id3">[1]</a>.</p>
+<p>Creating domain-specific BERT models can be advantageous for a wide range of applications. One notable is domain-specific BERT in a biomedical setting, similar to BioBERT <a class="bibtex reference internal" href="../zh/nlp/bert_pretraining.html#lee2019biobert" id="id2">[3]</a> and SciBERT <a class="bibtex reference internal" href="../zh/nlp/bert_pretraining.html#beltagy2019scibert" id="id3">[1]</a>.</p>
 </div>
 <div class="section" id="download-corpus">
 <h2>Download Corpus<a class="headerlink" href="#download-corpus" title="Permalink to this headline">¶</a></h2>
-<p>For demonstration purposes, we will be using the very small WikiText-2 dataset <a class="bibtex reference internal" href="#merity2016pointer" id="id4">[4]</a>.</p>
+<p>For demonstration purposes, we will be using the very small WikiText-2 dataset <a class="bibtex reference internal" href="../zh/nlp/bert_pretraining.html#merity2016pointer" id="id4">[4]</a>.</p>
 <p>To download the dataset, run the script <code class="docutils literal notranslate"><span class="pre">examples/nlp/scripts/get_wt2.sh</span></code>. After downloading and unzipping, the folder should include 3 files that look like this:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>test.txt
