@@ -1,13 +1,13 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import unittest
+import argparse
 import os
-import torch
 from pathlib import Path
+
+import torch
+from common_setup import NeMoUnitTest
+from context import nemo, nemo_asr, nemo_nlp
 from ruamel.yaml import YAML
 
-from context import nemo, nemo_asr, nemo_nlp
-from common_setup import NeMoUnitTest
-import argparse
 
 class TestDeployExport(NeMoUnitTest):
     def setUp(self) -> None:
@@ -20,7 +20,7 @@ class TestDeployExport(NeMoUnitTest):
             os.remove(out)
 
         nf = nemo.core.NeuralModuleFactory(
-             placement=nemo.core.DeviceType.CPU)
+            placement=nemo.core.DeviceType.CPU)
 
         nf.deployment_export(
             modules=[module],
@@ -83,50 +83,57 @@ class TestDeployExport(NeMoUnitTest):
                                  mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
                                  input_example=input_example)
 
-    def test_jasper_encoder_export(self, out_name, d_format=nemo.core.DeploymentFormat.ONNX):
-         out = Path(out_name)
-         if out.exists():
-             os.remove(out)
-         with open("tests/data/jasper_smaller.yaml") as file:
-             yaml = YAML(typ="safe")
-             jasper_model_definition = yaml.load(file)
-         nf = nemo.core.NeuralModuleFactory(
-             placement=nemo.core.DeviceType.CPU)
-         jasper_encoder = nemo_asr.JasperEncoder(
-             conv_mask=False,
-             feat_in=jasper_model_definition['AudioPreprocessing']['features'],
-             **jasper_model_definition['JasperEncoder']
-         )
+    def test_jasper_encoder_export(self, out_name,
+                                   d_format=nemo.core.DeploymentFormat.ONNX):
+        out = Path(out_name)
+        if out.exists():
+            os.remove(out)
+        with open("tests/data/jasper_smaller.yaml") as file:
+            yaml = YAML(typ="safe")
+            jasper_model_definition = yaml.load(file)
+        nf = nemo.core.NeuralModuleFactory(
+            placement=nemo.core.DeviceType.CPU)
+        jasper_encoder = nemo_asr.JasperEncoder(
+            conv_mask=False,
+            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            **jasper_model_definition['JasperEncoder']
+        )
 
-         with torch.no_grad():
-             nf.deployment_export(modules=[jasper_encoder],
-                                  output=out_name,
-                                  input_example=(torch.randn(16, 64, 256), torch.randn(256)),
-                                  d_format=d_format)
-             self.assertTrue(out.exists())
+        with torch.no_grad():
+            nf.deployment_export(modules=[jasper_encoder],
+                                 output=out_name,
+                                 input_example=(
+                                 torch.randn(16, 64, 256), torch.randn(256)),
+                                 d_format=d_format)
+            self.assertTrue(out.exists())
 
 
 def main(args):
     td = TestDeployExport()
     print("ONNX. . .")
-    
+
     if args.pyt_path:
-        td.test_jasper_encoder_export(d_format=nemo.core.DeploymentFormat.TORCHSCRIPT, out_name = "jasper_encoder.pt")
+        td.test_jasper_encoder_export(
+            d_format=nemo.core.DeploymentFormat.TORCHSCRIPT,
+            out_name="jasper_encoder.pt")
 
     if args.onnx_path:
-        td.test_jasper_encoder_export(out_name = args.onnx_path)
-        
-        
+        td.test_jasper_encoder_export(out_name=args.onnx_path)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='test_deploy')
-    parser.add_argument("--onnx_path", default=None, type=str, help="Path to onnx model for engine creation")
-    parser.add_argument("--pyt_path", default=None, type=str, help="Path to TS saved engine")
-    parser.add_argument("--engine_path", default=None, type=str, help="Path to serialized TRT engine")
-    parser.add_argument("--decoder", action="store_true", help="Path to serialized TRT engine")
+    parser.add_argument("--onnx_path", default=None, type=str,
+                        help="Path to onnx model for engine creation")
+    parser.add_argument("--pyt_path", default=None, type=str,
+                        help="Path to TS saved engine")
+    parser.add_argument("--engine_path", default=None, type=str,
+                        help="Path to serialized TRT engine")
+    parser.add_argument("--decoder", action="store_true",
+                        help="Path to serialized TRT engine")
     return parser.parse_args()
-    
 
-        
-if __name__=="__main__":
+
+if __name__ == "__main__":
     args = parse_args()
     main(args)
