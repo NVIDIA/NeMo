@@ -38,12 +38,19 @@ RUN pip install ipython[all] tqdm sox ruamel.yaml && \
     pip install tqdm boto3 requests six ipdb h5py html2text nltk progressbar \
                 matplotlib wget 
 
-RUN pip install tqdm boto3 requests six ipdb h5py html2text nltk progressbar \
-  torchtext torchvision sentencepiece boto3 unidecode pytorch-transformers \
-  matplotlib youtokentome opencv-python wget
-
 # Assumes we are in the root of the nemo git clone
 WORKDIR /workspace/nemo
 COPY . .
 
-ENV PYTHONPATH "/workspace/nemo/nemo:/workspace/nemo/collections/nemo_nlp:$PYTHONPATH"
+#RUN pip install --disable-pip-version-check -U -r requirements.txt
+
+RUN cd nemo && \
+    python setup.py install && \
+    cd ../collections/nemo_asr && \
+    python setup.py install && \
+    cd ../nemo_nlp && \
+    python setup.py install
+
+RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
+    chmod +x start-jupyter.sh
+
