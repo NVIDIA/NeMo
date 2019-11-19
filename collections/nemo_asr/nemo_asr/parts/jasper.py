@@ -1,9 +1,22 @@
-# Taken straight from Patter https://github.com/ryanleary/patter
-# TODO: review, and copyright and fix/add comments
+# Copyright (C) NVIDIA CORPORATION. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from typing import Tuple
+
 import torch
-from torch import Tensor
 import torch.nn as nn
-from typing import Tuple, List
+from torch import Tensor
 
 jasper_activations = {
     "hardtanh": nn.Hardtanh,
@@ -46,6 +59,7 @@ def get_same_padding(kernel_size, stride, dilation):
 
 class MaskedConv1d(nn.Module):
     __constants__ = ["use_conv_mask", "real_out_channels", "heads"]
+
     def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                  padding=0, dilation=1, groups=1, heads=-1, bias=False,
                  use_mask=True):
@@ -76,7 +90,7 @@ class MaskedConv1d(nn.Module):
         if self.use_mask:
             lens = lens.to(dtype=torch.long)
             max_len = x.size(2)
-            mask = torch.arange(max_len).to(lens.device)\
+            mask = torch.arange(max_len).to(lens.device) \
                 .expand(len(lens), max_len) >= lens.unsqueeze(1)
             x = x.masked_fill(
                 mask.unsqueeze(1).to(device=x.device), 0
@@ -84,7 +98,7 @@ class MaskedConv1d(nn.Module):
             # del mask
             lens = self.get_seq_len(lens)
 
-        sh = x.shape            
+        sh = x.shape
         if self.heads != -1:
             x = x.view(-1, self.heads, sh[-1])
 
@@ -117,7 +131,8 @@ class GroupShuffle(nn.Module):
 
 
 class JasperBlock(nn.Module):
-    __constants__  = ["conv_mask", "separable", "residual_mode", "res", "mconv"] 
+    __constants__ = ["conv_mask", "separable", "residual_mode", "res", "mconv"]
+
     def __init__(self, inplanes, planes, repeat=3, kernel_size=11, stride=1,
                  dilation=1, padding='same', dropout=0.2, activation=None,
                  residual=True, groups=1, separable=False,
@@ -133,28 +148,28 @@ class JasperBlock(nn.Module):
         self.conv_mask = conv_mask
         self.separable = separable
         self.residual_mode = residual_mode
-        
+
         inplanes_loop = inplanes
         conv = nn.ModuleList()
 
         for _ in range(repeat - 1):
             conv.extend(self._get_conv_bn_layer(
-                    inplanes_loop,
-                    planes,
-                    kernel_size=kernel_size,
-                    stride=stride,
-                    dilation=dilation,
-                    padding=padding_val,
-                    groups=groups,
-                    heads=heads,
-                    separable=separable,
-                    normalization=normalization,
-                    norm_groups=norm_groups))
-                
+                inplanes_loop,
+                planes,
+                kernel_size=kernel_size,
+                stride=stride,
+                dilation=dilation,
+                padding=padding_val,
+                groups=groups,
+                heads=heads,
+                separable=separable,
+                normalization=normalization,
+                norm_groups=norm_groups))
+
             conv.extend(self._get_act_dropout_layer(
                 drop_prob=dropout,
                 activation=activation))
-            
+
             inplanes_loop = planes
 
         conv.extend(self._get_conv_bn_layer(
@@ -169,10 +184,9 @@ class JasperBlock(nn.Module):
             separable=separable,
             normalization=normalization,
             norm_groups=norm_groups))
-        
 
         self.mconv = conv
-        
+
         res_panes = residual_panes.copy()
         self.dense_residual = residual
 
@@ -187,8 +201,8 @@ class JasperBlock(nn.Module):
                     planes,
                     kernel_size=1,
                     normalization=normalization,
-                    norm_groups=norm_groups)))           
-            self.res = res_list   
+                    norm_groups=norm_groups)))
+            self.res = res_list
         else:
             self.res = None
 
@@ -201,7 +215,7 @@ class JasperBlock(nn.Module):
     def _get_conv(self, in_channels, out_channels, kernel_size=11,
                   stride=1, dilation=1, padding=0, bias=False,
                   groups=1, heads=-1, separable=False):
-        use_mask=self.conv_mask
+        use_mask = self.conv_mask
         if use_mask:
             return MaskedConv1d(in_channels, out_channels, kernel_size,
                                 stride=stride,
@@ -213,8 +227,7 @@ class JasperBlock(nn.Module):
                              stride=stride,
                              dilation=dilation, padding=padding, bias=bias,
                              groups=groups)
-        
-        
+
     def _get_conv_bn_layer(self, in_channels, out_channels, kernel_size=11,
                            stride=1, dilation=1, padding=0, bias=False,
                            groups=1, heads=-1, separable=False,
@@ -269,7 +282,7 @@ class JasperBlock(nn.Module):
         ]
         return layers
 
-    def forward(self, input_ : Tuple[Tensor,Tensor] ):
+    def forward(self, input_: Tuple[Tensor, Tensor]):
         xs, lens_orig = input_
         # compute forward convolutions
         out = xs[-1]
@@ -293,7 +306,7 @@ class JasperBlock(nn.Module):
                         res_out, _ = res_layer(res_out, lens_orig)
                     else:
                         res_out = res_layer(res_out)
-                        
+
                 if self.residual_mode == 'add':
                     out = out + res_out
                 else:
