@@ -1047,11 +1047,17 @@ class PtActions(Actions):
                                  f' attempted')
             print ("Running export ... ")
             torch.onnx.export(module, input_example, output,
+                              #   Oleksii: we need to use real I/O names
                               input_names = [],
                               output_names = [],
                               verbose=True,
                               export_params=True,
                               do_constant_folding=True,
+                              dynamic_axes={
+                              #   Oleksii: we need to infer that info, too
+                              #    "FEATURES" : {0 : "BATCHSIZE", 2 : "NUM_FEATURES"},
+                              #    "LOGITS" : { 0: "BATCHSIZE", 1 : "NUM_LOGITS"}
+                              },
                               opset_version=10)
             fn=output+".readable"
             with open(fn, 'w') as f:
