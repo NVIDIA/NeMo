@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-import onnx
+import torch.onnx as onnx
 import torch
 import torch.distributed as dist
 import torch.nn as nn
