@@ -76,6 +76,9 @@ class EncoderRNN(TrainableNM):
         if input_lengths is not None:
             outputs, _ = nn.utils.rnn.pad_packed_sequence(outputs,
                                                           batch_first=True)
+        else:
+            outputs = outputs.transpose(0, 1)
+        # outputs of shape: (batch, seq_len, num_directions * hidden_size)
 
         batch_size = hidden.size()[1]
 
@@ -84,6 +87,9 @@ class EncoderRNN(TrainableNM):
                              2 if self.rnn.bidirectional else 1,
                              batch_size,
                              self.rnn.hidden_size)
+        hidden = hidden.tranpose(2, 0).tranpose(1, 2)
+        hidden = hidden.reshape(batch_size, self.rnn.num_layers, -1)
+        # hidden is now of shape (batch, seq_len, num_directions * hidden_size)
         self.to(self._device)
         return outputs, hidden
 
