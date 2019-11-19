@@ -1,4 +1,4 @@
-.. _asr-docs:
+.. _tts-docs:
 
 Speech Synthesis
 =================
