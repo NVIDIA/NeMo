@@ -111,6 +111,7 @@ class WaveGlowInferNM(WaveGlowNM):
             n_wn_channels=n_wn_channels,
             wn_kernel_size=wn_kernel_size,
             **kwargs)
+        self._removed_weight_norm = False
 
     def setup_denoiser(self):
         with torch.no_grad():
@@ -131,6 +132,10 @@ class WaveGlowInferNM(WaveGlowNM):
         return audio_denoised, audio_spec_denoised
 
     def forward(self, mel_spectrogram):
+        if not self._removed_weight_norm:
+            print("remove WN")
+            self.waveglow = self.waveglow.remove_weightnorm(self.waveglow)
+            self._removed_weight_norm = True
         if self.training:
             raise ValueError("You are using the WaveGlow Infer Neural Module "
                              "in training mode.")

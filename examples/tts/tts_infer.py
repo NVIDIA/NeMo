@@ -210,12 +210,14 @@ def main():
             sigma=args.waveglow_sigma,
             **waveglow_params["WaveGlowNM"])
         audio_pred = waveglow(mel_spectrogram=mel_pred)
+        # waveglow.restore_from(args.vocoder_model_load_dir)
 
         # Run waveglow
         print("Running Waveglow")
         evaluated_tensors = neural_factory.infer(
             tensors=[audio_pred],
             checkpoint_dir=args.vocoder_model_load_dir,
+            # checkpoint_dir=None,
             modules_to_restore=[waveglow],
             use_cache=True
         )
