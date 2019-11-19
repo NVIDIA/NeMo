@@ -97,13 +97,13 @@ class TestDeployExport(NeMoUnitTest):
              feat_in=jasper_model_definition['AudioPreprocessing']['features'],
              **jasper_model_definition['JasperEncoder']
          )
-         print (jasper_model_definition['JasperEncoder'])
-         
-         nf.deployment_export(modules=[jasper_encoder],
-                              output=out_name,
-                              input_example=(torch.randn(16, 64, 256), torch.randn(256)),
-                              d_format=d_format)
-         self.assertTrue(out.exists())
+
+         with torch.no_grad():
+             nf.deployment_export(modules=[jasper_encoder],
+                                  output=out_name,
+                                  input_example=(torch.randn(16, 64, 256), torch.randn(256)),
+                                  d_format=d_format)
+             self.assertTrue(out.exists())
 
 
 def main(args):
