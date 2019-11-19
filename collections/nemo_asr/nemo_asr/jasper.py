@@ -139,7 +139,6 @@ class JasperEncoder(TrainableNM):
                             conv_mask=conv_mask))
             feat_in = lcfg['filters']
 
-        # self.featurizer = FeatureFactory.from_config(cfg['input'])
         self.encoder = nn.Sequential(*encoder_layers)
         self.apply(lambda x: init_weights(x, mode=init_mode))
         self.to(self._device)

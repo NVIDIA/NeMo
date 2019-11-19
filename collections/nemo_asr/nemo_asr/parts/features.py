@@ -3,6 +3,7 @@
 import math
 import librosa
 import torch
+import torchaudio
 import torch.nn as nn
 from .perturb import AudioAugmentor
 from .segment import AudioSegment
@@ -191,12 +192,68 @@ class SpectrogramFeatures(nn.Module):
 
 
 class FilterbankFeatures(nn.Module):
-    def __init__(self, sample_rate=8000, window_size=0.02, window_stride=0.01,
-                 window="hann", normalize="per_feature", n_fft=None,
-                 preemph=0.97,
-                 nfilt=64, lowfreq=0, highfreq=None, log=True, dither=CONSTANT,
-                 pad_to=16, max_duration=16.7,
-                 frame_splicing=1, stft_conv=False, logger=None):
+    """Featurizer that converts wavs to Mel Spectrograms.
+
+    Args:
+        sample_rate (int): Sample rate of the input audio data.
+            Defaults to 16000
+        window_size (float): Size of window for fft in seconds
+            Defaults to 0.02
+        window_stride (float): Stride of window for fft in seconds
+            Defaults to 0.01
+        window (str): Windowing function for fft. can be one of ['hann',
+            'hamming', 'blackman', 'bartlett']
+            Defaults to "hann"
+        normalize (str): Can be one of ['per_feature', 'all_features']; all
+            other options disable feature normalization. 'all_features'
+            normalizes the entire spectrogram to be mean 0 with std 1.
+            'pre_features' normalizes per channel / freq instead.
+            Defaults to "per_feature"
+        n_fft (int): Length of FT window. If None, it uses the smallest power
+            of 2 that is larger than n_window_size.
+            Defaults to None
+        preemph (float): Amount of pre emphasis to add to audio. Can be
+            disabled by passing None.
+            Defaults to 0.97
+        nfilt (int): Number of mel spectrogram freq bins to output.
+            Defaults to 64
+        lowfreq (int): Lower bound on mel basis in Hz.
+            Defaults to 0
+        highfreq  (int): Lower bound on mel basis in Hz.
+            Defaults to None
+        log (bool): Log features.
+            Defaults to True
+        dither (float): Amount of white-noise dithering.
+            Defaults to 1e-5
+        pad_to (int): Ensures that the output size of the time dimension is
+            a multiple of pad_to.
+            Defaults to 16
+        max_duration (float): Loose ceiling on max audio duration
+        frame_splicing (int): Defaults to 1
+        stft_conv (bool): If True, uses pytorch_stft and convolutions. If
+            False, uses torch.stft.
+            Defaults to False
+    """
+    def __init__(
+            self, *,
+            sample_rate=16000,
+            window_size=0.02,
+            window_stride=0.01,
+            window="hann",
+            normalize="per_feature",
+            n_fft=None,
+            preemph=0.97,
+            nfilt=64,
+            lowfreq=0,
+            highfreq=None,
+            log=True,
+            dither=CONSTANT,
+            pad_to=16,
+            max_duration=16.7,
+            frame_splicing=1,
+            stft_conv=False,
+            logger=None
+    ):
         super(FilterbankFeatures, self).__init__()
         if logger:
             logger.info(f"PADDING: {pad_to}")
@@ -332,7 +389,7 @@ class FilterbankFeatures(nn.Module):
 
     @classmethod
     def from_config(cls, cfg, log=False):
-        return cls(sample_rate=cfg.get('sample_rate', 8000),
+        return cls(sample_rate=cfg.get('sample_rate', 16000),
                    window_size=cfg.get('window_size', 0.02),
                    window_stride=cfg.get('window_stride', 0.01),
                    n_fft=cfg.get('n_fft', None),
@@ -346,13 +403,70 @@ class FilterbankFeatures(nn.Module):
                    stft_conv=cfg.get("stft_conv", False))
 
 
+class MFCCFeatures(nn.Module):
+    """Featurizer that converts wavs to MFCCs.
+    Uses torchaudio.transforms.MFCC, and arguments are the same.
+
+    Args:
+        sample_rate: The sample rate of the audio
+        n_mfcc: Number of coefficients to retain
+        dct_type: Type of discrete cosine transform to use
+        norm: Type of norm to use
+        log: Whether to use log-mel spectrograms instead of db-scaled.
+            Defaults to True.
+        mel_kwargs: Dict of arguments for torchaudio.transforms.MelSpectrogram
+    """
+    def __init__(
+            self, *,
+            sample_rate=16000,
+            n_mfcc=40,
+            dct_type=2,
+            norm='ortho',
+            log=True,
+            mel_kwargs=None
+    ):
+        super(MFCCFeatures, self).__init__()
+
+        # Use the sample rate given to MFCCFeatures instead of in mel_kwargs
+        if mel_kwargs and 'sample_rate' in mel_kwargs:
+            del mel_kwargs['sample_rate']
+
+        self.mfcc = torchaudio.transforms.MFCC(
+            sample_rate=sample_rate,
+            n_mfcc=n_mfcc,
+            dct_type=dct_type,
+            norm=norm,
+            log_mels=log,
+            melkwargs=mel_kwargs
+        )
+
+    def get_seq_len(self, seq_len):
+        return torch.ceil(
+                seq_len.to(dtype=torch.float) /
+                self.mfcc.MelSpectrogram.hop_length).to(dtype=torch.long)
+
+    @torch.no_grad()
+    def forward(self, x, seq_len):
+        return self.mfcc(x)
+
+    @classmethod
+    def from_config(cls, cfg, log=False):
+        return cls(sample_rate=cfg.get('sample_rate', 16000),
+                   n_mfcc=cfg.get('n_mfcc', 40),
+                   dct_type=cfg.get('dct_type', 2),
+                   norm=cfg.get('norm', 'ortho'),
+                   log=log,
+                   mel_kwargs=cfg.get('mel_kwargs', None))
+
+
 class FeatureFactory(object):
     featurizers = {
         "logfbank": FilterbankFeatures,
         "fbank": FilterbankFeatures,
         "stft": SpectrogramFeatures,
         "logspect": SpectrogramFeatures,
-        "logstft": SpectrogramFeatures
+        "logstft": SpectrogramFeatures,
+        "mfcc": MFCCFeatures
     }
 
     def __init__(self):
