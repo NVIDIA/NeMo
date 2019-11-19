@@ -14,7 +14,8 @@ from ruamel.yaml import YAML
 #         self.nf = nemo.core.NeuralModuleFactory(
 #             placement=nemo.core.DeviceType.CPU)
 #
-#     def __test_export_route(self, module, out_name, mode, input_example=None):
+#     def __test_export_route(self, module, out_name, mode,
+#     input_example=None):
 #         out = Path(out_name)
 #         if out.exists():
 #             os.remove(out)
