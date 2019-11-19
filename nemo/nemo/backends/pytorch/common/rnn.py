@@ -1,4 +1,5 @@
-__all__ = ['DecoderRNN']
+__all__ = ['DecoderRNN',
+           'EncoderRNN']
 
 import random
 
@@ -14,11 +15,91 @@ from nemo.core.neural_types import NeuralType, AxisType, BatchTag, TimeTag, \
 from nemo.utils.misc import pad_to
 
 
+class EncoderRNN(TrainableNM):
+    """ Simple RNN-based encoder using GRU cells
+    """
+
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            'inputs': NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            })
+        }
+        output_ports = {
+            'outputs': NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(ChannelTag)
+            }),
+            'hidden': NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(ChannelTag)
+            })
+        }
+
+    def __init__(self,
+                 input_dim,
+                 emb_dim,
+                 hid_dim,
+                 dropout,
+                 pad_idx=1,
+                 n_layers=1,
+                 embedding_to_load=None):
+        super().__init__()
+        self.dropout = nn.Dropout(dropout)
+        self.emb = nn.Embedding(input_dim, emb_dim, padding_idx=pad_idx)
+        if embedding_to_load is not None:
+            self.embedding.weight.data.copy_(embedding_to_load)
+        else:
+            self.embedding.weight.data.normal_(0, 0.1)
+        self.rnn = nn.GRU(emb_dim,
+                          hid_dim,
+                          n_layers,
+                          batch_first=True,
+                          dropout=dropout,
+                          bidirectional=True)
+
+    def forward(self, inputs, input_lengths=None):
+        embedded = self.emb(inputs)
+        embedded = self.dropout(embedded)
+        if input_lengths is not None:
+            embedded = nn.utils.rnn.pack_padded_sequence(embedded,
+                                                         input_lengths,
+                                                         batch_first=True)
+
+        outputs, hidden = self.rnn(embedded)
+        # outputs of shape (seq_len, batch, num_directions * hidden_size)
+        # hidden of shape (num_layers * num_directions, batch, hidden_size)
+        if input_lengths is not None:
+            outputs, _ = nn.utils.rnn.pad_packed_sequence(outputs,
+                                                          batch_first=True)
+        else:
+            outputs = outputs.transpose(0, 1)
+        # outputs of shape: (batch, seq_len, num_directions * hidden_size)
+
+        batch_size = hidden.size()[1]
+
+        # separate final hidden states by layer and direction
+        hidden = hidden.view(self.rnn.num_layers,
+                             2 if self.rnn.bidirectional else 1,
+                             batch_size,
+                             self.rnn.hidden_size)
+        hidden = hidden.tranpose(2, 0).tranpose(1, 2)
+        hidden = hidden.reshape(batch_size, self.rnn.num_layers, -1)
+        # hidden is now of shape (batch, seq_len, num_directions * hidden_size)
+        self.to(self._device)
+        return outputs, hidden
+
+
 class DecoderRNN(TrainableNM):
     """Simple RNN-based decoder with attention.
 
     Args:
-        voc_size (int): Total number of symbols to use
+        input_dim (int): Total number of symbols to use.
+                         This is usually the vocabulary size.
         bos_id (int): Label position of start of string symbol
         hidden_size (int): Size of hidden vector to use in RNN
         attention_method (str): Method of using attention to pass in
@@ -78,7 +159,7 @@ class DecoderRNN(TrainableNM):
         return input_ports, output_ports
 
     def __init__(self,
-                 voc_size,
+                 input_dim,
                  bos_id,
                  hidden_size,
                  attention_method='general',
@@ -100,15 +181,15 @@ class DecoderRNN(TrainableNM):
         self.curriculum_learning = curriculum_learning
         self.rnn_type = rnn_type
 
-        voc_size = pad_to(voc_size, 8)  # 8-divisors trick
-        self.embedding = nn.Embedding(voc_size, hidden_size)
+        input_dim = pad_to(input_dim, 8)  # 8-divisors trick
+        self.embedding = nn.Embedding(input_dim, hidden_size)
         # noinspection PyTypeChecker
         self.in_dropout = nn.Dropout(in_dropout)
         rnn_class = getattr(nn, rnn_type.upper())
         self.rnn = rnn_class(hidden_size, hidden_size, n_layers,
                              dropout=(0 if n_layers == 1 else gru_dropout),
                              batch_first=True)
-        self.out = nn.Linear(hidden_size, voc_size)
+        self.out = nn.Linear(hidden_size, input_dim)
         if tie_emb_out_weights:
             self.out.weight = self.embedding.weight  # Weight tying
         self.attention = Attention(hidden_size, attention_method,
