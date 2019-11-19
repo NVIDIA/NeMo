@@ -12,9 +12,9 @@ __all__ = ['TextDataLayer',
            'BertPretrainingDataLayer',
            'TranslationDataLayer',
            'GlueDataLayerClassification',
-           'GlueDataLayerRegression']
+           'GlueDataLayerRegression',
+           'WOZDSTDataLayer']
 
-# from abc import abstractmethod
 import sys
 
 import torch
@@ -627,54 +627,65 @@ class GlueDataLayerRegression(TextDataLayer):
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 
-class DSTDataLayer(TextDataLayer):
+class WOZDSTDataLayer(TextDataLayer):
+
+    @staticmethod
+    def create_ports():
+        output_ports = {
+            "input_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_type_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "labels": NeuralType({
+                0: AxisType(RegressionTag),
+            }),
+        }
+        return {}, output_ports
+
     def __init__(self,
                  data_dir,
-                 tokenizer,
-                 max_seq_length,
-                 processor,
-                 evaluate=False,
-                 token_params={},
-                 num_samples=-1,
-                 shuffle=False,
+                 domains,
+                 mode='train',
                  batch_size=64,
                  dataset_type=WOZDSTDataset,
                  **kwargs):
 
         kwargs['batch_size'] = batch_size
-        # dataset_params = {'data_dir': data_dir,
-        #                   'output_mode': 'regression',
-        #                   'processor': processor,
-        #                   'evaluate': evaluate,
-        #                   'token_params': token_params,
-        #                   'tokenizer': tokenizer,
-        #                   'max_seq_length': max_seq_length}
+        dataset_params = {'data_dir': data_dir,
+                          'domains': domains,
+                          'mode': mode}
+        super().__init__(dataset_type, dataset_params, **kwargs)
 
-        # super().__init__(dataset_type, dataset_params, **kwargs)
+    # def get_data_loader(self, pairs):
+    #     data_info = {}
+    #     data_keys = pairs[0].keys()
+    #     for k in data_keys:
+    #         data_info[k] = []
 
+    #     for pair in pairs:
+    #         for k in data_keys:
+    #             data_info[k].append(pair[k])
 
-    def get_data_loader(self, pairs):
-        data_info = {}
-        data_keys = pairs[0].keys()
-        for k in data_keys:
-            data_info[k] = []
+    #     dataset = Dataset(data_info, lang.word2index,
+    #                       lang.word2index, sequicity, mem_lang.word2index)
 
-        for pair in pairs:
-            for k in data_keys:
-                data_info[k].append(pair[k])
-
-        dataset = Dataset(data_info, lang.word2index,
-                          lang.word2index, sequicity, mem_lang.word2index)
-
-        if args["imbalance_sampler"] and type:
-            data_loader = torch.utils.data.DataLoader(dataset=dataset,
-                                                      batch_size=batch_size,
-                                                      # shuffle=type,
-                                                      collate_fn=collate_fn,
-                                                      sampler=ImbalancedDatasetSampler(dataset))
-        else:
-            data_loader = torch.utils.data.DataLoader(dataset=dataset,
-                                                      batch_size=batch_size,
-                                                      shuffle=type,
-                                                      collate_fn=collate_fn)
-        self._data_loader
+    #     if args["imbalance_sampler"] and type:
+    #         data_loader = torch.utils.data.DataLoader(dataset=dataset,
+    #                                                   batch_size=batch_size,
+    #                                                   # shuffle=type,
+    #                                                   collate_fn=collate_fn,
+    #                                                   sampler=ImbalancedDatasetSampler(dataset))
+    #     else:
+    #         data_loader = torch.utils.data.DataLoader(dataset=dataset,
+    #                                                   batch_size=batch_size,
+    #                                                   shuffle=type,
+    #                                                   collate_fn=collate_fn)
+    #     self._data_loader

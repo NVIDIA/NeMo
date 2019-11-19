@@ -10,22 +10,18 @@ import nemo
 import nemo_nlp
 
 parser = argparse.ArgumentParser(
-    description='Multi-domain dialogue state tracking')
+    description='TRADE for MultiWOZ 2.1 dialog state tracking')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=32, type=int)
 parser.add_argument("--eval_batch_size", default=24, type=int)
 parser.add_argument("--max_seq_length", default=50, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
-parser.add_argument("--num_train_samples", default=-1, type=int)
-parser.add_argument("--num_eval_samples", default=-1, type=int)
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
 parser.add_argument("--lr", default=2e-5, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
-parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-uncased", type=str)
 parser.add_argument("--data_dir", default='data/dialog/multiwoz', type=str)
 parser.add_argument("--dataset_name", default='multiwoz', type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
@@ -73,6 +69,8 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    files_to_copy=[__file__],
                                    add_time_to_log_dir=True)
 
-dataset = nemo_nlp.data.datasets.WOZDSTDataset(args.data_dir,
-                                               EXPERIMENT_DOMAINS,
-                                               mode='train')
+data = nemo_nlp.WOZDSTDataLayer(args.data_dir,
+                                EXPERIMENT_DOMAINS,
+                                mode='train')
+encoder = 
+print(vars(dataset).keys())
