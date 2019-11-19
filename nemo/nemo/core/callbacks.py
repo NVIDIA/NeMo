@@ -9,8 +9,21 @@ import time
 from ..utils.exp_logging import get_logger
 from ..utils import get_checkpoint_from_dir
 
+import torch
+import torch.distributed as dist
 
 logger = get_logger('')
+
+
+def get_rank():
+    if not dist.is_available():
+        return 0
+    if not dist.is_initialized():
+        return 0
+    return dist.get_rank()
+
+def is_main_process():
+    return get_rank() == 0
 
 
 class ActionCallback(ABC):
@@ -236,6 +249,9 @@ class CheckpointCallback(ActionCallback):
         self._force_load = force_load
 
     def __save_to(self, path):
+        if not is_main_process():
+          return 0
+
         if not os.path.isdir(path):
             print(f"Creating {path} folder")
             os.makedirs(path, exist_ok=True)
