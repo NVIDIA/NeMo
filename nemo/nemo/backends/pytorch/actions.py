@@ -8,12 +8,11 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-import torch.onnx as onnx
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+import torch.onnx as onnx
 import torch.optim as optim
-import types
 from nemo.backends.pytorch.nm import TrainableNM
 
 from .module_wrapper import TrainableNeuralModuleWrapper
@@ -1017,7 +1016,6 @@ class PtActions(Actions):
         # We need to change __call__ method. Note that this will change the
         # whole class, not just this object!
 
-
         type(module).__call__ = torch.nn.Module.__call__
 
         module._logger = None
@@ -1040,8 +1038,9 @@ class PtActions(Actions):
                     traced_m.save(output)
             elif d_format == DeploymentFormat.ONNX:
                 if input_example is None:
-                    raise ValueError(f'Example input is None, but ONNX tracing was'
-                                     f' attempted')
+                    raise ValueError(
+                        f'Example input is None, but ONNX tracing was'
+                        f' attempted')
                 print("Running export ... ")
                 torch.onnx.export(module, input_example, output,
                                   #   Oleksii: we need to use real I/O names
@@ -1051,7 +1050,8 @@ class PtActions(Actions):
                                   export_params=True,
                                   do_constant_folding=True,
                                   dynamic_axes={
-                                      #   Oleksii: we need to infer that info, too
+                                      #   Oleksii: we need to infer that
+                                      #   info, too
                                       #    "FEATURES" : {0 : "BATCHSIZE",
                                       #    2 : "NUM_FEATURES"},
                                       #    "LOGITS" : { 0: "BATCHSIZE",
@@ -1060,7 +1060,8 @@ class PtActions(Actions):
                                   opset_version=10)
                 # fn = output + ".readable"
                 # with open(fn, 'w') as f:
-                #     # Write human-readable graph representation to file as well.
+                #     # Write human-readable graph representation to file as
+                #     well.
                 #     tempModel = onnx.load(output)
                 #     onnx.save(tempModel, output + ".copy")
                 #     onnx.checker.check_model(tempModel)
@@ -1142,7 +1143,7 @@ class PtActions(Actions):
         elif tensors_to_optimize is not None and (
                 isinstance(tensors_to_optimize[0],
                            NmTensor) and PtActions._check_all_tensors(
-                tensors_to_optimize)):
+            tensors_to_optimize)):
             # Parse graph into a topologically sorted sequence of neural
             # module' calls
             opt_call_chain, t_dataset = \
