@@ -50,7 +50,7 @@ parser.add_argument("--loss_step_freq", default=250, type=int,
                     help="Frequency of printing loss")
 
 args = parser.parse_args()
-print (args)
+
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
@@ -58,6 +58,8 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    create_tb_writer=True,
                                    files_to_copy=[__file__],
                                    add_time_to_log_dir=True)
+
+nf.logger.info(args)
 
 output_file = f'{nf.work_dir}/output.txt'
 
@@ -88,7 +90,6 @@ punct_loss = nemo_nlp.TokenClassificationLoss(num_classes=args.num_classes)
 
 def create_pipeline(num_samples=-1,
                     pad_label=args.none_label,
-                    shuffle=args.shuffle,
                     max_seq_length=args.max_seq_length,
                     batch_size=args.batch_size,
                     local_rank=args.local_rank,
