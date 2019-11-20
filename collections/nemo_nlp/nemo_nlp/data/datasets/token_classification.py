@@ -237,10 +237,10 @@ class BertTokenClassificationDataset(Dataset):
                 dataset = dataset[:num_samples]
 
             dataset = list(zip(*dataset))
-            inputs = dataset[0]
+            text_lines = dataset[0]
             labels_lines = dataset[1]
 
-        features = get_features(inputs,
+        features = get_features(text_lines,
                                 max_seq_length,
                                 tokenizer,
                                 pad_label=pad_label,
