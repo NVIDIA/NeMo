@@ -19,7 +19,7 @@ AudioToTextDataLayer:
         shuffle: false
         max_duration: null
 
-AudioPreprocessing:
+AudioToMelSpectrogramPreprocessor:
     window_size: 0.02
     window_stride: 0.01
     window: "hann"

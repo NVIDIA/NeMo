@@ -16,8 +16,8 @@ from nemo.core import Backend
 
 from .audio_preprocessing import *
 from .beam_search_decoder import BeamSearchDecoderWithLM
-from .data_layer import (AudioToTextDataLayer, AudioPreprocessing,
-                         KaldiFeatureDataLayer, TranscriptDataLayer)
+from .data_layer import (
+        AudioToTextDataLayer, KaldiFeatureDataLayer, TranscriptDataLayer)
 from .greedy_ctc_decoder import GreedyCTCDecoder
 from .jasper import JasperEncoder, JasperDecoderForCTC
 from .las.misc import JasperRNNConnector

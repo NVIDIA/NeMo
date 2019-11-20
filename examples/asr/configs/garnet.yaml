@@ -45,7 +45,7 @@ AudioToTextDataLayer:
         max_duration: null
         drop_last: false
 
-AudioPreprocessing:
+AudioToMelSpectrogramPreprocessor:
     sample_rate: *sr
     window_size: 0.02
     window_stride: 0.01

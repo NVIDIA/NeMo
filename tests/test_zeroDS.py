@@ -78,7 +78,8 @@ class TestZeroDL(NeMoUnitTest):
             })
 
         jasper_encoder = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition["JasperEncoder"])
         jasper_decoder = nemo_asr.JasperDecoderForCTC(
             feat_in=1024,

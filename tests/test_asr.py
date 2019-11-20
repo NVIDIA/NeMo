@@ -155,7 +155,7 @@ class TestASRPytorch(NeMoUnitTest):
         )
         for ind, data in enumerate(dl.data_iterator):
             # With num_workers update, this is no longer true
-            # Moving to GPU is handled by AudioPreprocessing
+            # Moving to GPU is handled by AudioPreprocessor
             # data is on GPU
             # self.assertTrue(data[0].is_cuda)
             # self.assertTrue(data[1].is_cuda)
@@ -236,10 +236,11 @@ class TestASRPytorch(NeMoUnitTest):
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
                               'window_stride': 0.01}
-        preprocessing = nemo_asr.AudioPreprocessing(
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **pre_process_params)
         jasper_encoder = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder']
         )
         jasper_decoder = nemo_asr.JasperDecoderForCTC(
@@ -290,14 +291,16 @@ class TestASRPytorch(NeMoUnitTest):
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
                               'window_stride': 0.01}
-        preprocessing = nemo_asr.AudioPreprocessing(
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **pre_process_params)
         jasper_encoder1 = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder']
         )
         jasper_encoder2 = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder']
         )
         mx_max1 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
@@ -360,10 +363,11 @@ class TestASRPytorch(NeMoUnitTest):
                               'normalize': 'per_feature',
                               'window_stride': 0.01,
                               'stft_conv': True}
-        preprocessing = nemo_asr.AudioPreprocessing(
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **pre_process_params)
         jasper_encoder = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder']
         )
         jasper_decoder = nemo_asr.JasperDecoderForCTC(
@@ -416,7 +420,7 @@ class TestASRPytorch(NeMoUnitTest):
                               'normalize': 'per_feature',
                               'window_stride': 0.01,
                               'stft_conv': True}
-        preprocessing = nemo_asr.AudioPreprocessing(
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **pre_process_params
         )
         encoder = nemo_asr.JasperEncoder(
@@ -474,11 +478,11 @@ class TestASRPytorch(NeMoUnitTest):
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
                               'window_stride': 0.01}
-        preprocessing = nemo_asr.AudioPreprocessing(
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **pre_process_params)
         jasper_encoder = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioPreprocessing'][
-                'features'],
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder']
         )
         jasper_decoder = nemo_asr.JasperDecoderForCTC(
