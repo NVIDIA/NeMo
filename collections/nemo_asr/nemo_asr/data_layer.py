@@ -4,27 +4,19 @@ This package contains Neural Modules responsible for ASR-related
 data layers.
 """
 __all__ = ['AudioToTextDataLayer',
-           'AudioPreprocessing',
            'KaldiFeatureDataLayer',
            'TranscriptDataLayer']
 
 from functools import partial
 import torch
-try:
-    from apex import amp
-except AttributeError:
-    print("Unable to import APEX. Mixed precision and distributed training "
-          "will not work.")
 
-from nemo.backends.pytorch import DataLayerNM, TrainableNM, NonTrainableNM
-from nemo.core import Optimization, DeviceType
+from nemo.backends.pytorch import DataLayerNM
+from nemo.core import DeviceType
 from nemo.core.neural_types import *
-from nemo.utils.misc import pad_to as nemo_pad_to
+from nemo.utils.misc import pad_to
 from .parts.dataset import (
         AudioDataset, seq_collate_fn, KaldiFeatureDataset, TranscriptDataset)
-from .parts.features import (
-        FilterbankFeatures, WaveformFeaturizer, MFCCFeatures)
-from .parts.spectr_augment import SpecAugment, SpecCutout
+from .parts.features import WaveformFeaturizer
 
 
 class AudioToTextDataLayer(DataLayerNM):
@@ -167,100 +159,6 @@ transcript_n}
     @property
     def data_iterator(self):
         return self._dataloader
-
-
-class AudioPreprocessing(TrainableNM):
-    """
-    Neural Module that does batch processing of audio files and converts them
-    to spectrogram representations
-
-    Args:
-        sample_rate (int): Sample rate of the input audio data.
-            Defaults to 16000
-        feat_type (str): Can be one of ['logfbank', 'fbank', 'mfcc'].
-            Defaults to "logfbank"
-        feat_args (dict): Arguments to featurizer. If None, uses defaults.
-            Defaults to None
-    """
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "input_signal": NeuralType({0: AxisType(BatchTag),
-                                        1: AxisType(TimeTag)}),
-
-            "length": NeuralType({0: AxisType(BatchTag)}),
-        }
-
-        output_ports = {
-            "processed_signal": NeuralType({0: AxisType(BatchTag),
-                                            1: AxisType(SpectrogramSignalTag),
-                                            2: AxisType(ProcessedTimeTag)}),
-
-            "processed_length": NeuralType({0: AxisType(BatchTag)})
-        }
-        return input_ports, output_ports
-
-    def __init__(
-            self, *,
-            sample_rate=16000,
-            feat_type="logfbank",
-            feat_args=None,
-            **kwargs
-    ):
-        if feat_type == "logfbank" or feat_type == "fbank":
-            self.featurizer = FilterbankFeatures(
-                sample_rate=sample_rate,
-                logger=self._logger,
-                **feat_args
-            )
-        elif feat_type == 'mfcc':
-            self.featurizer = MFCCFeatures(
-                sample_rate=sample_rate,
-                **feat_args
-            )
-        else:
-            raise NotImplementedError(
-                "AudioPreprocessing currently only accepts one of "
-                "['fbank', 'logfbank', 'mfcc'] as feat_type."
-            )
-        TrainableNM.__init__(self, **kwargs)
-
-        ###############
-        """
-        melspect_args = {
-            'sample_rate': sample_rate,
-            'n_fft': n_fft,
-            'win_length': int(sample_rate * window_size),
-            'hop_length': int(sample_rate * window_stride),
-            'f_min': float(lowfreq),
-            #'f_max': highfreq,
-            'pad': pad_to,
-            'n_mels': 64
-            # Got rid of window for now
-        }
-        self.featurizer = MFCCFeatures(
-                sample_rate=sample_rate, n_mfcc=13, mel_kwargs=melspect_args)
-        """
-        ###############
-
-        self.featurizer.to(self._device)
-
-        self.disable_casts = (self._opt_level == Optimization.mxprO1)
-
-    def forward(self, input_signal, length):
-        length.requires_grad_(False)
-        if self.disable_casts:
-            with amp.disable_casts():
-                if input_signal.dim() == 2:
-                    processed_signal = self.featurizer(
-                        input_signal.to(torch.float), length)
-                    processed_length = self.featurizer.get_seq_len(length)
-        else:
-            if input_signal.dim() == 2:
-                processed_signal = self.featurizer(input_signal, length)
-                processed_length = self.featurizer.get_seq_len(length)
-
-        return processed_signal, processed_length
 
 
 class KaldiFeatureDataLayer(DataLayerNM):
@@ -475,7 +373,7 @@ class TranscriptDataLayer(DataLayerNM):
     def _collate_fn(batch_list, pad_id, pad8=False):
         max_len = max(len(s) for s in batch_list)
         if pad8:
-            max_len = nemo_pad_to(max_len, 8)
+            max_len = pad_to(max_len, 8)
 
         texts = torch.empty(len(batch_list), max_len,
                             dtype=torch.long)

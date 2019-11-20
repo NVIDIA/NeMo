@@ -14,14 +14,285 @@
 """
 This file contains neural modules responsible for preprocessing audio data.
 """
-__all__ = [#'AudioPreprocessing',
+__all__ = ['AudioPreprocessor',
+           'AudioToMFCCPreprocessor',
+           'AudioToMelSpectrogramPreprocessor',
+           'AudioToSpectrogramPreprocessor',
            'MultiplyBatch',
            'SpectrogramAugmentation']
 
+import math
 import torch
+import torchaudio
+try:
+    from apex import amp
+except AttributeError:
+    print("Unable to import APEX. Mixed precision and distributed training "
+          "will not work.")
 
 from nemo.backends.pytorch import NonTrainableNM
+from nemo.core import Optimization
 from nemo.core.neural_types import *
+from .parts.features import FilterbankFeatures
+from .parts.spectr_augment import SpecAugment, SpecCutout
+
+
+class AudioPreprocessor(NonTrainableNM):
+    """
+    A base class for Neural Modules that performs audio preprocessing,
+    transforming the wav files to features.
+    """
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "input_signal": NeuralType({0: AxisType(BatchTag),
+                                        1: AxisType(TimeTag)}),
+
+            "length": NeuralType({0: AxisType(BatchTag)}),
+        }
+
+        output_ports = {
+            "processed_signal": NeuralType({0: AxisType(BatchTag),
+                                            1: AxisType(SpectrogramSignalTag),
+                                            2: AxisType(ProcessedTimeTag)}),
+
+            "processed_length": NeuralType({0: AxisType(BatchTag)})
+        }
+        return input_ports, output_ports
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.disable_casts = (self._opt_level == Optimization.mxprO1)
+
+    @torch.no_grad()
+    def forward(self, input_signal, length):
+        if self.disable_casts:
+            with amp.disable_casts():
+                processed_signal = self.featurizer(
+                        input_signal.to(torch.float), length)
+        else:
+            processed_signal = self.featurizer(input_signal, length)
+
+        processed_length = self.get_seq_len(length)
+        return processed_signal, processed_length
+
+    def get_seq_len(self, *input):
+        raise NotImplementedError
+
+
+class AudioToSpectrogramPreprocessor(AudioPreprocessor):
+    """Preprocessor that converts wavs to spectrograms.
+    Uses torchaudio's Spectrogram class as a featurizer.
+
+    Args:
+        sample_rate (int): Sample rate of the input audio data.
+            Defaults to 16000
+        window_size (float): Size of window for fft in seconds
+            Defaults to 0.02
+        window_stride (float): Stride of window for fft in seconds
+            Defaults to 0.01
+        n_fft (int): Length of FT window. If None, it uses the smallest power
+            of 2 that is larger than n_window_size.
+            Defaults to None
+        window (str): Windowing function for fft. can be one of ['hann',
+            'hamming', 'blackman', 'bartlett']
+            Defaults to "hamming"
+        normalized (bool): Whether to normalize by magnitude after stft
+        pad (int): Two sided padding
+    """
+    def __init__(
+            self, *,
+            sample_rate=16000,
+            window_size=0.02,
+            window_stride=0.01,
+            n_fft=None,
+            window="hamming",
+            normalized=True,
+            pad=8
+    ):
+        super().__init__(**kwargs)
+
+        self.win_length = int(sample_rate * window_size)
+        self.hop_length = int(sample_rate * window_stride)
+        self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
+
+        torch_windows = {
+            'hann': torch.hann_window,
+            'hamming': torch.hamming_window,
+            'blackman': torch.blackman_window,
+            'bartlett': torch.bartlett_window,
+            'none': None,
+        }
+        window_fn = torch_windows.get(window, None)
+
+        # Create featurizer
+        self.featurizer = torchaudio.transform.Spectrogram(
+            n_fft=self.n_fft,
+            win_length=self.win_length,
+            hop_length=self.hop_length,
+            pad=pad,
+            window_fn=window_fn,
+            normalized=normalized
+        )
+        self.featurizer.to(self._device)
+
+    def get_seq_len(self, seq_len):
+        return torch.ceil(
+                seq_len.to(dtype=torch.float) / self.hop_length).to(
+                        dtype=torch.long)
+
+
+class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
+    """Featurizer that converts wavs to mel spectrograms.
+
+    Args:
+        sample_rate (int): Sample rate of the input audio data.
+            Defaults to 16000
+        window_size (float): Size of window for fft in seconds
+            Defaults to 0.02
+        window_stride (float): Stride of window for fft in seconds
+            Defaults to 0.01
+        window (str): Windowing function for fft. can be one of ['hann',
+            'hamming', 'blackman', 'bartlett']
+            Defaults to "hann"
+        normalize (str): Can be one of ['per_feature', 'all_features']; all
+            other options disable feature normalization. 'all_features'
+            normalizes the entire spectrogram to be mean 0 with std 1.
+            'pre_features' normalizes per channel / freq instead.
+            Defaults to "per_feature"
+        n_fft (int): Length of FT window. If None, it uses the smallest power
+            of 2 that is larger than n_window_size.
+            Defaults to None
+        preemph (float): Amount of pre emphasis to add to audio. Can be
+            disabled by passing None.
+            Defaults to 0.97
+        nfilt (int): Number of mel spectrogram freq bins to output.
+            Defaults to 64
+        lowfreq (int): Lower bound on mel basis in Hz.
+            Defaults to 0
+        highfreq  (int): Lower bound on mel basis in Hz.
+            Defaults to None
+        log (bool): Log features.
+            Defaults to True
+        dither (float): Amount of white-noise dithering.
+            Defaults to 1e-5
+        pad_to (int): Ensures that the output size of the time dimension is
+            a multiple of pad_to.
+            Defaults to 16
+        frame_splicing (int): Defaults to 1
+        stft_conv (bool): If True, uses pytorch_stft and convolutions. If
+            False, uses torch.stft.
+            Defaults to False
+    """
+    def __init__(
+            self, *,
+            sample_rate=16000,
+            window_size=0.02,
+            window_stride=0.01,
+            window="hann",
+            normalize="per_feature",
+            n_fft=None,
+            preemph=0.97,
+            nfilt=64,
+            lowfreq=0,
+            highfreq=None,
+            log=True,
+            dither=1e-5,
+            pad_to=16,
+            frame_splicing=1,
+            stft_conv=False,
+            **kwargs
+    ):
+        super().__init__(**kwargs)
+
+        self.featurizer = FilterbankFeatures(
+            sample_rate=sample_rate,
+            window_size=window_size,
+            window_stride=window_stride,
+            window=window,
+            normalize=normalize,
+            n_fft=n_fft,
+            preemph=preemph,
+            nfilt=nfilt,
+            lowfreq=lowfreq,
+            highfreq=highfreq,
+            log=log,
+            dither=dither,
+            pad_to=pad_to,
+            frame_splicing=frame_splicing,
+            stft_conv=stft_conv,
+            logger=self._logger
+        )
+        self.featurizer.to(self._device)
+
+    def get_seq_len(self, seq_len):
+        return self.featurizer.get_seq_len(seq_len)
+
+
+class AudioToMFCCPreprocessor(AudioPreprocessor):
+    """Preprocessor that converts wavs to MFCCs.
+    Uses torchaudio.transforms.MFCC, and several arguments are the same.
+
+    Args:
+        sample_rate: The sample rate of the audio.
+            Defaults to 16000.
+        window_size: Size of window for fft in seconds. Used to calculate the
+            win_length arg for mel spectrogram, overrides mel_kwargs if set.
+            Defaults to None
+        window_stride: Stride of window for fft in seconds. Used to caculate
+            the hop_length arg for mel spect, overrides mel_kwargs if set.
+            Defaults to None
+        n_mfcc: Number of coefficients to retain
+            Defaults to 64
+        dct_type: Type of discrete cosine transform to use
+        norm: Type of norm to use
+        log: Whether to use log-mel spectrograms instead of db-scaled.
+            Defaults to True.
+        mel_kwargs: Dict of arguments for torchaudio.transforms.MelSpectrogram
+    """
+    def __init__(
+            self, *,
+            sample_rate=16000,
+            window_size=None,
+            window_stride=None,
+            n_mfcc=64,
+            dct_type=2,
+            norm='ortho',
+            log=True,
+            mel_kwargs=None,
+            **kwargs):
+        super().__init__(**kwargs)
+
+        # Use the sample rate given instead of in mel_kwargs
+        if mel_kwargs and 'sample_rate' in mel_kwargs:
+            del mel_kwargs['sample_rate']
+
+        # Override mel_kwargs if window_size or window_stride are set
+        if window_size is not None:
+            if not mel_kwargs:
+                mel_kwargs = {}
+            mel_kwargs['win_length'] = int(sample_rate * window_size)
+        if window_stride is not None:
+            if not mel_kwargs:
+                mel_kwargs = {}
+            mel_kwargs['hop_length'] = int(sample_rate * window_stride)
+
+        # Use torchaudio's implementation of MFCCs as featurizer
+        self.featurizer = torchaudio.transforms.MFCC(
+            sample_rate=sample_rate,
+            n_mfcc=n_mfcc,
+            dct_type=dct_type,
+            norm=norm,
+            log_mels=log,
+            melkwargs=mel_kwargs
+        )
+        self.featurizer.to(self._device)
+
+    def get_seq_len(self, seq_len):
+        return torch.ceil(
+                seq_len.to(dtype=torch.float) /
+                self.mfcc.MelSpectrogram.hop_length).to(dtype=torch.long)
 
 
 class SpectrogramAugmentation(NonTrainableNM):
@@ -163,6 +434,3 @@ class MultiplyBatch(NonTrainableNM):
         out_y_len = in_y_len.repeat(self.mult)
 
         return out_x, out_x_len, out_y, out_y_len
-
-
-
