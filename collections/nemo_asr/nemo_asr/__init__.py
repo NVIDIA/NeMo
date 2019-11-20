@@ -14,7 +14,7 @@
 # ==============================================================================
 from nemo.core import Backend
 
-from .audio_preprocessing import (MultiplyBatch, SpectrogramAugmentation)
+from .audio_preprocessing import *
 from .beam_search_decoder import BeamSearchDecoderWithLM
 from .data_layer import (AudioToTextDataLayer, AudioPreprocessing,
                          KaldiFeatureDataLayer, TranscriptDataLayer)
@@ -25,9 +25,12 @@ from .losses import CTCLossNM
 
 __all__ = ['Backend',
            'AudioToTextDataLayer',
-           'AudioPreprocessing',
-           'SpectrogramAugmentation',
+           'AudioPreprocessor',
+           'AudioToMFCCPreprocessor',
+           'AudioToMelSpectrogramPreprocessor',
+           'AudioToSpectrogramPreprocessor',
            'MultiplyBatch',
+           'SpectrogramAugmentation',
            'KaldiFeatureDataLayer',
            'TranscriptDataLayer',
            'GreedyCTCDecoder',
