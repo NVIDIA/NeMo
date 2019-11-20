@@ -1,5 +1,5 @@
 model: "QuartzNet-AN4"
-sample_rate: &sr 16000
+sample_rate: 16000
 dropout: &drop 0.0 
 repeat:  &rep  1
 
@@ -15,7 +15,6 @@ repeat:  &rep  1
 
 AudioToTextDataLayer:
     train:
-        sample_rate:  *sr
         trim_silence: &ts true
         normalize_transcripts: &nt true
         shuffle: true
@@ -23,7 +22,6 @@ AudioToTextDataLayer:
         drop_last: true
 
     eval:
-        sample_rate: *sr
         trim_silence: *ts
         normalize_transcripts: *nt
         shuffle: false
