@@ -167,7 +167,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         preemph (float): Amount of pre emphasis to add to audio. Can be
             disabled by passing None.
             Defaults to 0.97
-        nfilt (int): Number of mel spectrogram freq bins to output.
+        features (int): Number of mel spectrogram freq bins to output.
             Defaults to 64
         lowfreq (int): Lower bound on mel basis in Hz.
             Defaults to 0
@@ -194,7 +194,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             normalize="per_feature",
             n_fft=None,
             preemph=0.97,
-            nfilt=64,
+            features=64,
             lowfreq=0,
             highfreq=None,
             log=True,
@@ -214,7 +214,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             normalize=normalize,
             n_fft=n_fft,
             preemph=preemph,
-            nfilt=nfilt,
+            nfilt=features,
             lowfreq=lowfreq,
             highfreq=highfreq,
             log=log,

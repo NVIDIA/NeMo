@@ -121,10 +121,11 @@ class TestWeightSharing(NeMoUnitTest):
             'window_size': 0.02, 'n_fft': 512, 'dither': 1e-05,
             'window': 'hann', 'feat_type': 'logfbank', 'sample_rate': 16000,
             'normalize': 'per_feature', 'window_stride': 0.01}
-        preprocessing = nemo_asr.AudioPreprocessing(
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **pre_process_params)
         jasper_encoder = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder'])
         jasper_decoder = nemo_asr.JasperDecoderForCTC(
             feat_in=1024,

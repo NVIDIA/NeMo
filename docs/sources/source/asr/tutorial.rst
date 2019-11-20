@@ -117,7 +117,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
         manifest_filepath=eval_datasets,
         labels=labels, batch_size=32, shuffle=False)
 
-    data_preprocessor = nemo_asr.AudioPreprocessing()
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor()
     spec_augment = nemo_asr.SpectrogramAugmentation(rect_masks=5)
 
     jasper_encoder = nemo_asr.JasperEncoder(

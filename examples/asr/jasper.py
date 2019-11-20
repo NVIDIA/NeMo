@@ -103,9 +103,9 @@ def create_all_dags(args, neural_factory):
     steps_per_epoch = int(N / (args.batch_size * args.num_gpus))
     logger.info('Have {0} examples to train on.'.format(N))
 
-    data_preprocessor = nemo_asr.AudioPreprocessing(
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         sample_rate=sample_rate,
-        **jasper_params["AudioPreprocessing"])
+        **jasper_params["AudioToMelSpectrogramPreprocessor"])
 
     multiply_batch_config = jasper_params.get('MultiplyBatch', None)
     if multiply_batch_config:
@@ -138,7 +138,7 @@ def create_all_dags(args, neural_factory):
         neural_factory.logger.info("There were no val datasets passed")
 
     jasper_encoder = nemo_asr.JasperEncoder(
-        feat_in=jasper_params["AudioPreprocessing"]["features"],
+        feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"],
         **jasper_params["JasperEncoder"])
 
     jasper_decoder = nemo_asr.JasperDecoderForCTC(
