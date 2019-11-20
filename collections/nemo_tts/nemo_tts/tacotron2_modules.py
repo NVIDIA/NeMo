@@ -419,6 +419,9 @@ class MakeGate(NonTrainableNM):
     def create_ports():
         input_ports = {
             "target_len": NeuralType({0: AxisType(BatchTag)}),
+            "mel_target": NeuralType({0: AxisType(BatchTag),
+                                      1: AxisType(MelSpectrogramSignalTag),
+                                      2: AxisType(TimeTag)}),
         }
 
         output_ports = {
@@ -430,10 +433,8 @@ class MakeGate(NonTrainableNM):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def forward(self, target_len):
-        max_len = torch.max(target_len)
-        max_pad = (16 - (max_len % 16)) % 16
-        max_len += max_pad
+    def forward(self, target_len, mel_target):
+        max_len = mel_target.shape[2]
         gate_padded = torch.FloatTensor(target_len.shape[0], max_len)
         gate_padded.zero_()
         for i, length in enumerate(target_len):

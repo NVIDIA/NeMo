@@ -143,7 +143,8 @@ def create_train_dag(neural_factory,
         encoded_length=transcript_len,
         mel_target=spec_target)
     mel_postnet = t2_postnet(mel_input=mel_decoder)
-    gate_target = makegatetarget(target_len=spec_target_len)
+    gate_target = makegatetarget(
+        mel_target=spec_target, target_len=spec_target_len)
     loss_t = t2_loss(
         mel_out=mel_decoder,
         mel_out_postnet=mel_postnet,
@@ -212,7 +213,9 @@ def create_eval_dags(neural_factory,
             encoded_length=transcript_len,
             mel_target=spec_target)
         mel_postnet = t2_postnet(mel_input=mel_decoder)
-        gate_target = makegatetarget(target_len=spec_target_len)
+        gate_target = makegatetarget(
+            mel_target=spec_target,
+            target_len=spec_target_len)
         loss = t2_loss(
             mel_out=mel_decoder,
             mel_out_postnet=mel_postnet,
