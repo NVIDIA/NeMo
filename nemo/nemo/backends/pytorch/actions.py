@@ -1030,7 +1030,6 @@ class PtActions(Actions):
         module._factory = None
         module._device = None
 
-
         module.eval()
         try:
             if d_format == DeploymentFormat.TORCHSCRIPT:
