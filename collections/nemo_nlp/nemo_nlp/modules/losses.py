@@ -104,7 +104,7 @@ class TokenClassificationLoss(LossNM):
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            "input_mask": NeuralType({
+            "loss_mask": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             })
@@ -120,12 +120,16 @@ class TokenClassificationLoss(LossNM):
         self._criterion = nn.CrossEntropyLoss()
         self.num_classes = num_classes
 
-    def _loss_function(self, logits, labels, input_mask):
-        active_loss = input_mask.view(-1) > 0.5
+    def _loss_function(self, logits, labels, loss_mask):
+        active_loss = loss_mask.view(-1)
         active_logits = logits.view(-1, self.num_classes)[active_loss]
         active_labels = labels.view(-1)[active_loss]
-
-        loss = self._criterion(active_logits, active_labels)
+        
+        # To support empty active_labels
+        if len(active_labels) == 0:
+            loss = 0.0
+        else:
+            loss = self._criterion(active_logits, active_labels)
         return loss
 
 

@@ -8,11 +8,11 @@ from nemo.utils.lr_policies import get_lr_policy
 
 import nemo_nlp
 from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
-from nemo_nlp.utils.callbacks.punctuation import \
+from nemo_nlp.utils.callbacks.token_classification import \
     eval_iter_callback, eval_epochs_done_callback
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description="Punctuation_with_pretrainedBERT")
+parser = argparse.ArgumentParser(description="NER with pretrainedBERT")
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=8, type=int)
 parser.add_argument("--max_seq_length", default=128, type=int)
@@ -26,16 +26,17 @@ parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--data_dir", default="/data", type=str)
-parser.add_argument("--dataset_type", default="BertPunctuationDataset",
-                    type=str)
-parser.add_argument("--num_classes", default=4, type=int)
+parser.add_argument("--num_classes", default=9, type=int)
 parser.add_argument("--fc_dropout", default=0.5, type=float)
+parser.add_argument("--ignore_start_end", action='store_false')
+parser.add_argument("--ignore_extra_tokens", action='store_false')
+parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument("--pretrained_bert_model",
                     default="bert-base-uncased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str)
 parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str)
-parser.add_argument("--work_dir", default='output_punctuation', type=str,
+parser.add_argument("--work_dir", default='output_ner', type=str,
                     help="The output directory where the model prediction\
                     and checkpoints will be written.")
 parser.add_argument("--save_epoch_freq", default=1, type=int,
@@ -84,55 +85,70 @@ classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
 punct_loss = nemo_nlp.TokenClassificationLoss(num_classes=args.num_classes)
 
 
-def create_pipeline(input_file,
+def create_pipeline(num_samples=-1,
                     max_seq_length=args.max_seq_length,
                     batch_size=args.batch_size,
                     local_rank=args.local_rank,
-                    num_gpus=args.num_gpus):
+                    num_gpus=args.num_gpus,
+                    mode='train',
+                    ignore_extra_tokens=args.ignore_extra_tokens,
+                    ignore_start_end=args.ignore_start_end):
+    
+    text_file = f'{args.data_dir}/text_{mode}.txt'
+    label_file = f'{args.data_dir}/labels_{mode}.txt'
+
     data_layer = nemo_nlp.BertTokenClassificationDataLayer(
         tokenizer=tokenizer,
-        input_file=input_file,
+        text_file=text_file,
+        label_file=label_file,
+        pad_label=args.none_label,
         max_seq_length=max_seq_length,
-        dataset_type=args.dataset_type,
         batch_size=batch_size,
         num_workers=0,
-        local_rank=local_rank)
-    tag_ids = data_layer.dataset.tag_ids
-    input_ids, input_type_ids, input_mask, labels, seq_ids = data_layer()
+        local_rank=local_rank,
+        shuffle=True)
+    label_ids = data_layer.dataset.label_ids
+    
+    output = data_layer()
+    input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = data_layer()
+
     hidden_states = bert_model(input_ids=input_ids,
                                token_type_ids=input_type_ids,
                                attention_mask=input_mask)
+
     logits = classifier(hidden_states=hidden_states)
-    loss = punct_loss(logits=logits, labels=labels, input_mask=input_mask)
+
+    loss = punct_loss(logits=logits, labels=labels, loss_mask=loss_mask)
+
     steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
-    return loss, steps_per_epoch, tag_ids, data_layer, [logits, seq_ids]
+
+    if mode == 'train':
+         tensors_to_evaluate = [loss, logits]
+    else:
+         tensors_to_evaluate = [logits, labels, subtokens_mask]
+
+    return tensors_to_evaluate, loss, steps_per_epoch, label_ids, data_layer
 
 
 nf.logger.info(f'Loading training dataset')
-train_loss, steps_per_epoch, tag_ids, _, _ = create_pipeline(
-    input_file=f'{args.data_dir}/train.txt')
-
-nf.logger.info(f'tag_ids: {tag_ids}')
+train_tensors, train_loss, steps_per_epoch, label_ids, _ = create_pipeline()
 
 nf.logger.info(f'Loading evaluation dataset')
-_, _, _, data_layer, eval_tensors = create_pipeline(
-    input_file=f'{args.data_dir}/dev.txt')
+eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev')
 
 nf.logger.info(f"steps_per_epoch = {steps_per_epoch}")
 
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=[train_loss],
+    tensors=train_tensors,
     print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer)
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
-    user_iter_callback=lambda x, y: eval_iter_callback(
-        x, y, data_layer, tag_ids),
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, tag_ids, output_file),
+    user_iter_callback=lambda x, y: eval_iter_callback(x, y),
+    user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, label_ids),
     tb_writer=nf.tb_writer,
     eval_step=steps_per_epoch)
 

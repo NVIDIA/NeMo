@@ -9,6 +9,7 @@ __all__ = ['TextDataLayer',
            'BertJointIntentSlotInferDataLayer',
            'LanguageModelingDataLayer',
            'BertTokenClassificationDataLayer',
+           'BertTokenClassificationInferDataLayer',
            'BertPretrainingDataLayer',
            'TranslationDataLayer',
            'GlueDataLayerClassification',
@@ -269,29 +270,82 @@ class BertTokenClassificationDataLayer(TextDataLayer):
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            "labels": NeuralType({
+             "loss_mask": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            "seq_ids": NeuralType({0: AxisType(BatchTag)})
+            "subtokens_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "labels": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            })
         }
         return input_ports, output_ports
-
+    
     def __init__(self,
-                 input_file,
+                 text_file,
+                 label_file,
+                 pad_label,
                  tokenizer,
                  max_seq_length,
+                 shuffle=False,
                  batch_size=64,
                  dataset_type=BertTokenClassificationDataset,
                  **kwargs):
         kwargs['batch_size'] = batch_size
-        dataset_params = {'input_file': input_file,
+        dataset_params = {'text_file': text_file,
+                          'label_file': label_file,
+                          'pad_label': pad_label,
+                          'tokenizer': tokenizer,
+                          'max_seq_length': max_seq_length,
+                          'shuffle':shuffle}
+        super().__init__(dataset_type, dataset_params, **kwargs)
+
+
+class BertTokenClassificationInferDataLayer(TextDataLayer):
+    @staticmethod
+    def create_ports():
+        input_ports = {}
+        output_ports = {
+            "input_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_type_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+             "loss_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "subtokens_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            })
+        }
+        return input_ports, output_ports
+ 
+    def __init__(self,
+                 queries,
+                 tokenizer,
+                 max_seq_length,
+                 batch_size=1,
+                 dataset_type=BertTokenClassificationInferDataset,
+                 **kwargs):
+        kwargs['batch_size'] = batch_size
+        dataset_params = {'queries': queries,
                           'tokenizer': tokenizer,
                           'max_seq_length': max_seq_length}
         super().__init__(dataset_type, dataset_params, **kwargs)
-
-    def eval_preds(self, logits, seq_ids, tag_ids):
-        return self._dataset.eval_preds(logits, seq_ids, tag_ids)
+   
 
 
 class BertPretrainingDataLayer(TextDataLayer):
