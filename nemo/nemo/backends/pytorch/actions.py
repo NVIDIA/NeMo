@@ -1024,7 +1024,7 @@ class PtActions(Actions):
         module._device = None
         # local_parameters = copy.deepcopy(module._local_parameters)
         local_parameters = {}
-        for key, value in module._local_parameters.item():
+        for key, value in module._local_parameters.items():
             local_parameters[key] = value
         module._local_parameters = None
 
