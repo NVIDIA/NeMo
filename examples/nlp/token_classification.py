@@ -12,7 +12,7 @@ from nemo_nlp.utils.callbacks.token_classification import \
     eval_iter_callback, eval_epochs_done_callback
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description="NER with pretrainedBERT")
+parser = argparse.ArgumentParser(description="Token classification with pretrainedBERT")
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=8, type=int)
 parser.add_argument("--max_seq_length", default=128, type=int)
@@ -31,6 +31,7 @@ parser.add_argument("--fc_dropout", default=0.5, type=float)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
+parser.add_argument("--shuffle_data", action='store_false')
 parser.add_argument("--pretrained_bert_model",
                     default="bert-base-uncased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
@@ -49,7 +50,7 @@ parser.add_argument("--loss_step_freq", default=250, type=int,
                     help="Frequency of printing loss")
 
 args = parser.parse_args()
-
+print (args)
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
@@ -86,6 +87,8 @@ punct_loss = nemo_nlp.TokenClassificationLoss(num_classes=args.num_classes)
 
 
 def create_pipeline(num_samples=-1,
+                    pad_label=args.none_label,
+                    shuffle=args.shuffle,
                     max_seq_length=args.max_seq_length,
                     batch_size=args.batch_size,
                     local_rank=args.local_rank,
@@ -94,19 +97,24 @@ def create_pipeline(num_samples=-1,
                     ignore_extra_tokens=args.ignore_extra_tokens,
                     ignore_start_end=args.ignore_start_end):
     
+    nf.logger.info(f"Loading {mode} data...")
+    shuffle = args.shuffle_data if mode == 'train' else False
+
     text_file = f'{args.data_dir}/text_{mode}.txt'
     label_file = f'{args.data_dir}/labels_{mode}.txt'
-
+    
     data_layer = nemo_nlp.BertTokenClassificationDataLayer(
         tokenizer=tokenizer,
         text_file=text_file,
         label_file=label_file,
-        pad_label=args.none_label,
+        pad_label=pad_label,
         max_seq_length=max_seq_length,
         batch_size=batch_size,
         num_workers=0,
         local_rank=local_rank,
-        shuffle=True)
+        shuffle=shuffle,
+        ignore_extra_tokens=args.ignore_extra_tokens,
+        ignore_start_end=args.ignore_start_end)
     label_ids = data_layer.dataset.label_ids
     
     output = data_layer()
@@ -130,10 +138,8 @@ def create_pipeline(num_samples=-1,
     return tensors_to_evaluate, loss, steps_per_epoch, label_ids, data_layer
 
 
-nf.logger.info(f'Loading training dataset')
 train_tensors, train_loss, steps_per_epoch, label_ids, _ = create_pipeline()
 
-nf.logger.info(f'Loading evaluation dataset')
 eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev')
 
 nf.logger.info(f"steps_per_epoch = {steps_per_epoch}")

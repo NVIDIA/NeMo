@@ -37,11 +37,23 @@ def get_features(queries,
                  max_seq_length,
                  tokenizer,
                  pad_label='O',
-                 raw_slots=None,
-                 all_labels=None,
+                 raw_labels=None,
+                 unique_labels=None,
                  ignore_extra_tokens=False,
                  ignore_start_end=False):
-
+    """
+    Args:
+        queries (list of str): 
+        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer (Tokenizer): such as NemoBertTokenizer
+        pad_label (str): pad value use for labels.
+            by default, it's the neutral label.
+        raw_labels (list of str): list of labels for every work in sequence
+        unique_labels (set): set of all labels available in the data
+        ignore_extra_tokens (bool): whether to ignore extra tokens in the loss_mask,
+        if True, 
+        ignore_start_end (bool): whether to ignore bos and eos tokens in the loss_mask
+    """
     all_subtokens = []
     all_loss_mask = []
     all_subtokens_mask = []
@@ -49,21 +61,21 @@ def get_features(queries,
     all_input_ids = []
     all_input_mask = []
     sent_lengths = []
-    all_slots = []
+    all_labels = []
     with_label = False
 
     # Create mapping of labels to label ids that starts with pad_label->0 and
     # then increases in alphabetical order
-    label_ids = {pad_label: 0} if raw_slots else None
+    label_ids = {pad_label: 0} if raw_labels else None
 
-    if raw_slots is not None:
+    if raw_labels is not None:
         with_label = True
 
-        # add pad_label to the set of all_labels if not already present
-        all_labels.add(pad_label)
+        # add pad_label to the set of unique_labels if not already present
+        unique_labels.add(pad_label)
 
-        all_labels.remove(pad_label)
-        for label in sorted(all_labels):
+        unique_labels.remove(pad_label)
+        for label in sorted(unique_labels):
             label_ids[label] = len(label_ids)
 
     for i, query in enumerate(queries):
@@ -75,8 +87,8 @@ def get_features(queries,
         subtokens_mask = [False]
         if with_label:
             pad_id = label_ids[pad_label]
-            slots = [pad_id]
-            query_labels = [label_ids[slot] for slot in raw_slots[i]]
+            labels = [pad_id]
+            query_labels = [label_ids[lab] for lab in raw_labels[i]]
 
         for j, word in enumerate(words):
             word_tokens = tokenizer.text_to_tokens(word)
@@ -90,8 +102,7 @@ def get_features(queries,
             subtokens_mask.extend([False] * (len(word_tokens) - 1))
 
             if with_label:
-                slots.extend([query_labels[j]] * len(word_tokens))
-
+                labels.extend([query_labels[j]] * len(word_tokens))
         subtokens.append('[SEP]')
         loss_mask.append(not ignore_start_end)
         subtokens_mask.append(False)
@@ -102,8 +113,8 @@ def get_features(queries,
         all_input_mask.append([1] * len(subtokens))
 
         if with_label:
-            slots.append(pad_id)
-            all_slots.append(slots)
+            labels.append(pad_id)
+            all_labels.append(labels)
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
     logger.info(f'Max length: {max_seq_length}')
@@ -120,7 +131,7 @@ def get_features(queries,
                 all_subtokens_mask[i][-max_seq_length + 1:]
 
             if with_label:
-                all_slots[i] = [pad_id] + all_slots[i][-max_seq_length + 1:]
+                all_labels[i] = [pad_id] + all_labels[i][-max_seq_length + 1:]
             too_long_count += 1
 
         all_input_ids.append([tokenizer.tokens_to_ids(t)
@@ -134,7 +145,7 @@ def get_features(queries,
             all_input_mask[i] = all_input_mask[i] + [0] * extra
 
             if with_label:
-                all_slots[i] = all_slots[i] + [pad_id] * extra
+                all_labels[i] = all_labels[i] + [pad_id] * extra
 
         all_segment_ids.append([0] * max_seq_length)
 
@@ -153,14 +164,14 @@ def get_features(queries,
             "subtokens_mask: %s" % " ".join(list(map(str, all_subtokens_mask[i]))))
         if with_label:
             logger.info(
-                "slots: %s" % " ".join(list(map(str, all_slots[i]))))
+                "labels: %s" % " ".join(list(map(str, all_labels[i]))))
 
     return (all_input_ids,
             all_segment_ids,
             all_input_mask,
             all_loss_mask,
             all_subtokens_mask,
-            all_slots,
+            all_labels,
             label_ids)
 
 class BertTokenClassificationDataset(Dataset):
@@ -196,7 +207,10 @@ class BertTokenClassificationDataset(Dataset):
                  tokenizer,
                  num_samples=-1,
                  shuffle=False,
-                 pad_label='O'):
+                 pad_label='O',
+                 ignore_extra_tokens=False,
+                 ignore_start_end=False):
+
         if num_samples == 0:
             raise ValueError("num_samples has to be positive", num_samples)
         
@@ -204,13 +218,13 @@ class BertTokenClassificationDataset(Dataset):
             text_lines = f.readlines()
         
         # Collect all possible labels
-        all_labels = set([])
+        unique_labels = set([])
         labels_lines = []
         with open(label_file, 'r') as f:
             for line in f:
                 line = line.strip().split()
                 labels_lines.append(line)
-                all_labels.update(line)
+                unique_labels.update(line)
 
         if len(labels_lines) != len(text_lines):
             raise ValueError("Labels file should contain labels for every word")
@@ -226,25 +240,27 @@ class BertTokenClassificationDataset(Dataset):
             inputs = dataset[0]
             labels_lines = dataset[1]
 
-        features = get_features(text_lines,
+        features = get_features(inputs,
                                 max_seq_length,
                                 tokenizer,
                                 pad_label=pad_label,
-                                raw_slots=labels_lines,
-                                all_labels=all_labels)
+                                raw_labels=labels_lines,
+                                unique_labels=unique_labels,
+                                ignore_extra_tokens=ignore_extra_tokens,
+                                ignore_start_end=ignore_start_end)
         
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
         self.all_input_mask = features[2]
         self.all_loss_mask = features[3]
         self.all_subtokens_mask = features[4]
-        self.all_slots = features[5]
+        self.all_labels = features[5]
         self.label_ids = features[6]
    
         infold = text_file[:text_file.rfind('/')]
-        merged_slots = itertools.chain.from_iterable(self.all_slots)
-        logger.info('Three most popular slots')
-        utils.get_label_stats(merged_slots, infold + '/slot_stats.tsv')
+        merged_labels = itertools.chain.from_iterable(self.all_labels)
+        logger.info('Three most popular labels')
+        utils.get_label_stats(merged_labels, infold + '/label_stats.tsv')
 
         # save label_ids 
         out = open(infold + '/label_ids.csv', 'w')
@@ -262,7 +278,7 @@ class BertTokenClassificationDataset(Dataset):
                 np.array(self.all_input_mask[idx], dtype=np.float32),
                 np.array(self.all_loss_mask[idx]),
                 np.array(self.all_subtokens_mask[idx]),
-                np.array(self.all_slots[idx]))
+                np.array(self.all_labels[idx]))
 
 
 class BertTokenClassificationInferDataset(Dataset):
