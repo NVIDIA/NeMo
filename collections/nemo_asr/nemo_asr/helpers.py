@@ -28,7 +28,10 @@ def __ctc_decoder_predictions_tensor(tensor, labels):
     return hypotheses
 
 
-def monitor_asr_train_progress(tensors: list, labels: list, tb_logger=None,
+def monitor_asr_train_progress(tensors: list,
+                               labels: list,
+                               eval_metric='WER',
+                               tb_logger=None,
                                logger=None):
     """
     Takes output of greedy ctc decoder and performs ctc decoding algorithm to
@@ -37,8 +40,9 @@ def monitor_asr_train_progress(tensors: list, labels: list, tb_logger=None,
     Args:
       tensors: A list of 3 tensors (predictions, targets, target_lengths)
       labels: A list of labels
+      eval_metric: An optional string from 'WER', 'CER'. Defaults to 'WER'.
       tb_logger: Tensorboard logging object
-
+      logger:
     Returns:
       None
     """
@@ -58,8 +62,14 @@ def monitor_asr_train_progress(tensors: list, labels: list, tb_logger=None,
             references.append(reference)
         hypotheses = __ctc_decoder_predictions_tensor(
             tensors[1], labels=labels)
-    tag = "training_batch_WER"
-    wer = word_error_rate(hypotheses, references)
+
+    eval_metric = eval_metric.upper()
+    if eval_metric not in {'WER', 'CER'}:
+        raise ValueError('eval_metric must be \'WER\' or \'CER\'')
+    use_cer = True if eval_metric == 'CER' else False
+
+    tag = f'training_batch_{eval_metric}'
+    wer = word_error_rate(hypotheses, references, use_cer=use_cer)
     if tb_logger is not None:
         tb_logger.add_scalar(tag, wer)
     if logger:
@@ -134,7 +144,10 @@ def process_evaluation_batch(tensors: dict, global_vars: dict, labels: list):
                                                        labels=labels)
 
 
-def process_evaluation_epoch(global_vars: dict, tag=None, logger=None):
+def process_evaluation_epoch(global_vars: dict,
+                             eval_metric='WER',
+                             tag=None,
+                             logger=None):
     """
     Calculates the aggregated loss and WER across the entire evaluation dataset
     """
@@ -142,24 +155,36 @@ def process_evaluation_epoch(global_vars: dict, tag=None, logger=None):
     hypotheses = global_vars['predictions']
     references = global_vars['transcripts']
 
-    wer = word_error_rate(hypotheses=hypotheses, references=references)
+    eval_metric = eval_metric.upper()
+    if eval_metric not in {'WER', 'CER'}:
+        raise ValueError('eval_metric must be \'WER\' or \'CER\'')
+    use_cer = True if eval_metric == 'CER' else False
+
+    wer = word_error_rate(hypotheses=hypotheses,
+                          references=references,
+                          use_cer=use_cer)
+
     if tag is None:
         if logger:
             logger.info(f"==========>>>>>>Evaluation Loss: {eloss}")
-            logger.info(f"==========>>>>>>Evaluation WER: {wer*100 : 5.2f}%")
+            logger.info(f"==========>>>>>>Evaluation {eval_metric}: "
+                        f"{wer*100 : 5.2f}%")
         else:
             print(f"==========>>>>>>Evaluation Loss: {eloss}")
-            print(f"==========>>>>>>Evaluation WER: {wer*100 : 5.2f}%")
-        return {"Evaluation_Loss": eloss, "Evaluation_WER": wer}
+            print(f"==========>>>>>>Evaluation {eval_metric}: "
+                  f"{wer*100 : 5.2f}%")
+        return {"Evaluation_Loss": eloss, f"Evaluation_{eval_metric}": wer}
     else:
         if logger:
             logger.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
-            logger.info(f"==========>>>>>>Evaluation WER {tag}: "
+            logger.info(f"==========>>>>>>Evaluation {eval_metric} {tag}: "
                         f"{wer*100 : 5.2f}%")
         else:
             print(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
-            print(f"==========>>>>>>Evaluation WER {tag}: {wer*100 : 5.2f}%")
-        return {f"Evaluation_Loss_{tag}": eloss, f"Evaluation_WER_{tag}": wer}
+            print(f"==========>>>>>>Evaluation {eval_metric} {tag}:"
+                  f" {wer*100 : 5.2f}%")
+        return {f"Evaluation_Loss_{tag}": eloss,
+                f"Evaluation_{eval_metric}_{tag}": wer}
 
 
 def post_process_predictions(predictions, labels):

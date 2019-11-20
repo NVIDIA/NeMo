@@ -38,7 +38,7 @@ See `this video <https://nvidia.github.io/NeMo/>`_ for a quick walk-through.
 **Requirements**
 
 1) Python 3.6 or 3.7
-2) PyTorch 1.2 with GPU support
+2) PyTorch 1.2 or 1.3 with GPU support
 3) NVIDIA APEX. Install from here: https://github.com/NVIDIA/apex
 
 
@@ -51,20 +51,21 @@ See `examples/start_here` to get started with the simplest example. The folder `
 
 **Getting started**
 
-You can use our `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ which already includes all the requirements above.
+You can use NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ which already includes all the requirements above.
 
-* Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:19.08-py3``
-* Run: ``nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.08-py3``
+* Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:19.10-py3``
+* Run: ``nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.10-py3``
+* (If your docker version is >=19.03) Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.10-py3``
 * ``cd /NeMo``
 
 and then continue with the following steps.
 
 If you have all requirements installed (or are using `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ ),
-then you can simply use pip to install the latest released version (**currently 0.8**) of NeMo and its collections:
+then you can simply use pip to install the latest released version (**currently 0.8.2**) of NeMo and its collections:
 
 .. code-block:: bash
 
-    pip install nemo-toolkit  # install NeMo Core
+    pip install nemo-toolkit  # installs NeMo Core
     pip install nemo-asr # installs NeMo ASR collection
     pip install nemo-nlp # installs NeMo NLP collection
     

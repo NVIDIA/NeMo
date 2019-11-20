@@ -37,14 +37,18 @@ def get_features(queries,
                  max_seq_length,
                  tokenizer,
                  pad_label=128,
-                 raw_slots=None):
+                 raw_slots=None,
+                 ignore_extra_tokens=False,
+                 ignore_start_end=False):
     all_subtokens = []
-    all_slot_masks = []
+    all_loss_mask = []
+    all_subtokens_mask = []
     all_segment_ids = []
     all_input_ids = []
-    all_input_masks = []
+    all_input_mask = []
     sent_lengths = []
     all_slots = []
+
     with_label = False
     if raw_slots is not None:
         with_label = True
@@ -52,24 +56,33 @@ def get_features(queries,
     for i, query in enumerate(queries):
         words = query.strip().split()
         subtokens = ['[CLS]']
-        slot_mask = [True]  # True if a token is the start of a new word
+        loss_mask = [not ignore_start_end]
+        subtokens_mask = [False]
         if with_label:
             slots = [pad_label]
 
         for j, word in enumerate(words):
             word_tokens = tokenizer.tokenize(word)
             subtokens.extend(word_tokens)
-            slot_mask.append(True)
-            slot_mask.extend([False] * (len(word_tokens) - 1))
+
+            loss_mask.append(True)
+            loss_mask.extend([not ignore_extra_tokens] *
+                             (len(word_tokens) - 1))
+
+            subtokens_mask.append(True)
+            subtokens_mask.extend([False] * (len(word_tokens) - 1))
+
             if with_label:
                 slots.extend([raw_slots[i][j]] * len(word_tokens))
 
         subtokens.append('[SEP]')
-        slot_mask.append(True)
+        loss_mask.append(not ignore_start_end)
+        subtokens_mask.append(False)
         sent_lengths.append(len(subtokens))
         all_subtokens.append(subtokens)
-        all_slot_masks.append(slot_mask)
-        all_input_masks.append([1] * len(subtokens))
+        all_loss_mask.append(loss_mask)
+        all_subtokens_mask.append(subtokens_mask)
+        all_input_mask.append([1] * len(subtokens))
         if with_label:
             slots.append(pad_label)
             all_slots.append(slots)
@@ -82,9 +95,11 @@ def get_features(queries,
     for i, subtokens in enumerate(all_subtokens):
         if len(subtokens) > max_seq_length:
             subtokens = ['[CLS]'] + subtokens[-max_seq_length + 1:]
-            all_input_masks[i] = [1] + all_input_masks[i][-max_seq_length + 1:]
-            all_slot_masks[i] = [True] + \
-                all_slot_masks[i][-max_seq_length + 1:]
+            all_input_mask[i] = [1] + all_input_mask[i][-max_seq_length + 1:]
+            all_loss_mask[i] = [not ignore_start_end] + \
+                all_loss_mask[i][-max_seq_length + 1:]
+            all_subtokens_mask[i] = [False] + \
+                all_subtokens_mask[i][-max_seq_length + 1:]
 
             if with_label:
                 all_slots[i] = [pad_label] + all_slots[i][-max_seq_length + 1:]
@@ -92,13 +107,13 @@ def get_features(queries,
 
         all_input_ids.append([tokenizer._convert_token_to_id(t)
                               for t in subtokens])
-        all_input_masks.append([1] * len(subtokens))
 
         if len(subtokens) < max_seq_length:
             extra = (max_seq_length - len(subtokens))
             all_input_ids[i] = all_input_ids[i] + [0] * extra
-            all_slot_masks[i] = all_slot_masks[i] + [False] * extra
-            all_input_masks[i] = all_input_masks[i] + [0] * extra
+            all_loss_mask[i] = all_loss_mask[i] + [False] * extra
+            all_subtokens_mask[i] = all_subtokens_mask[i] + [False] * extra
+            all_input_mask[i] = all_input_mask[i] + [0] * extra
 
             if with_label:
                 all_slots[i] = all_slots[i] + [pad_label] * extra
@@ -109,8 +124,9 @@ def get_features(queries,
 
     return (all_input_ids,
             all_segment_ids,
-            all_input_masks,
-            all_slot_masks,
+            all_input_mask,
+            all_loss_mask,
+            all_subtokens_mask,
             all_slots)
 
 
@@ -148,7 +164,10 @@ class BertJointIntentSlotDataset(Dataset):
                  tokenizer,
                  num_samples=-1,
                  shuffle=True,
-                 pad_label=128):
+                 pad_label=128,
+                 ignore_extra_tokens=False,
+                 ignore_start_end=False
+                 ):
         if num_samples == 0:
             raise ValueError("num_samples has to be positive", num_samples)
 
@@ -178,12 +197,15 @@ class BertJointIntentSlotDataset(Dataset):
                                 max_seq_length,
                                 tokenizer,
                                 pad_label=pad_label,
-                                raw_slots=raw_slots)
+                                raw_slots=raw_slots,
+                                ignore_extra_tokens=ignore_extra_tokens,
+                                ignore_start_end=ignore_start_end)
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
-        self.all_input_masks = features[2]
-        self.all_slot_masks = features[3]
-        self.all_slots = features[4]
+        self.all_input_mask = features[2]
+        self.all_loss_mask = features[3]
+        self.all_subtokens_mask = features[4]
+        self.all_slots = features[5]
         self.all_intents = raw_intents
 
         infold = input_file[:input_file.rfind('/')]
@@ -199,8 +221,9 @@ class BertJointIntentSlotDataset(Dataset):
     def __getitem__(self, idx):
         return (np.array(self.all_input_ids[idx]),
                 np.array(self.all_segment_ids[idx]),
-                np.array(self.all_input_masks[idx], dtype=np.float32),
-                np.array(self.all_slot_masks[idx]),
+                np.array(self.all_input_mask[idx], dtype=np.float32),
+                np.array(self.all_loss_mask[idx]),
+                np.array(self.all_subtokens_mask[idx]),
                 self.all_intents[idx],
                 np.array(self.all_slots[idx]))
 
@@ -237,8 +260,9 @@ class BertJointIntentSlotInferDataset(Dataset):
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
-        self.all_input_masks = features[2]
-        self.all_slot_masks = features[3]
+        self.all_input_mask = features[2]
+        self.all_loss_mask = features[3]
+        self.all_subtokens_mask = features[4]
 
     def __len__(self):
         return len(self.all_input_ids)
@@ -246,5 +270,6 @@ class BertJointIntentSlotInferDataset(Dataset):
     def __getitem__(self, idx):
         return (np.array(self.all_input_ids[idx]),
                 np.array(self.all_segment_ids[idx]),
-                np.array(self.all_input_masks[idx], dtype=np.float32),
-                np.array(self.all_slot_masks[idx]))
+                np.array(self.all_input_mask[idx], dtype=np.float32),
+                np.array(self.all_loss_mask[idx]),
+                np.array(self.all_subtokens_mask[idx]))

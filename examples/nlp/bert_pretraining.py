@@ -30,9 +30,14 @@ parser.add_argument("--amp_opt_level",
                     choices=["O0", "O1", "O2"])
 parser.add_argument("--weight_decay", default=0.0, type=float)
 parser.add_argument("--vocab_size", default=3200, type=int)
+parser.add_argument("--tokenizer",
+                    default="sentence-piece",
+                    type=str,
+                    choices=["sentence-piece", "nemo-bert"])
 parser.add_argument("--sample_size", default=1e7, type=int)
 parser.add_argument("--max_seq_length", default=128, type=int)
 parser.add_argument("--mask_probability", default=0.15, type=float)
+parser.add_argument("--short_seq_prob", default=0.1, type=float)
 parser.add_argument("--d_model", default=768, type=int)
 parser.add_argument("--d_inner", default=3072, type=int)
 parser.add_argument("--num_layers", default=12, type=int)
@@ -44,7 +49,6 @@ parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
 args = parser.parse_args()
 
-work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
@@ -53,7 +57,7 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    files_to_copy=[__file__],
                                    add_time_to_log_dir=True)
 
-special_tokens = ['PAD', '[UNK]', '[CLS]', '[SEP]', '[MASK]']
+special_tokens = ['[PAD]', '[UNK]', '[CLS]', '[SEP]', '[MASK]']
 data_desc = BERTPretrainingDataDesc(args.dataset_name,
                                     args.data_dir,
                                     args.vocab_size,
@@ -61,9 +65,19 @@ data_desc = BERTPretrainingDataDesc(args.dataset_name,
                                     special_tokens,
                                     'train.txt')
 
-tokenizer = nemo_nlp.SentencePieceTokenizer(
-    model_path=data_desc.tokenizer_model)
-tokenizer.add_special_tokens(special_tokens)
+if args.tokenizer == "sentence-piece":
+    nf.logger.info("To use SentencePieceTokenizer.")
+    tokenizer = nemo_nlp.SentencePieceTokenizer(
+        model_path=data_desc.tokenizer_model)
+    tokenizer.add_special_tokens(special_tokens)
+elif args.tokenizer == "nemo-bert":
+    nf.logger.info("To use NemoBertTokenizer.")
+    vocab_file = os.path.join(args.data_dir, 'vocab.txt')
+    # To train on a Chinese dataset, use NemoBertTokenizer
+    tokenizer = nemo_nlp.NemoBertTokenizer(vocab_file=vocab_file)
+else:
+    raise ValueError("Please add your tokenizer"
+                     " or use sentence-piece or nemo-bert.")
 
 bert_model = nemo_nlp.huggingface.BERT(
     vocab_size=tokenizer.vocab_size,
@@ -96,11 +110,13 @@ mlm_classifier.mlp.last_linear_layer.weight = \
     bert_model.bert.embeddings.word_embeddings.weight
 
 
-def create_pipeline(data_file, max_seq_length, mask_probability, batch_size):
+def create_pipeline(data_file, max_seq_length, mask_probability,
+                    short_seq_prob, batch_size):
     data_layer = nemo_nlp.BertPretrainingDataLayer(tokenizer,
                                                    data_file,
                                                    max_seq_length,
                                                    mask_probability,
+                                                   short_seq_prob,
                                                    batch_size=batch_size)
     steps_per_epoch = len(data_layer) // (batch_size * args.num_gpus)
 
@@ -123,16 +139,18 @@ def create_pipeline(data_file, max_seq_length, mask_probability, batch_size):
 train_loss, _, steps_per_epoch = create_pipeline(data_desc.train_file,
                                                  args.max_seq_length,
                                                  args.mask_probability,
+                                                 args.short_seq_prob,
                                                  args.batch_size)
 eval_loss, eval_tensors, _ = create_pipeline(data_desc.eval_file,
                                              args.max_seq_length,
                                              args.mask_probability,
+                                             args.short_seq_prob,
                                              args.eval_batch_size)
 
 # callback which prints training loss and perplexity once in a while
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
-    print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+    print_func=lambda x: nf.logger.info("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer)
 
