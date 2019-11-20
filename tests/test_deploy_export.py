@@ -12,7 +12,7 @@ from .context import nemo, nemo_asr, nemo_nlp
 class TestDeployExport(NeMoUnitTest):
     def setUp(self) -> None:
         self.nf = nemo.core.NeuralModuleFactory(
-            placement=nemo.core.DeviceType.CPU)
+            placement=nemo.core.DeviceType.GPU)
 
     def __test_export_route(self, module, out_name, mode,
                             input_example=None):
@@ -20,10 +20,7 @@ class TestDeployExport(NeMoUnitTest):
         if out.exists():
             os.remove(out)
 
-        nf = nemo.core.NeuralModuleFactory(
-            placement=nemo.core.DeviceType.CPU)
-
-        nf.deployment_export(
+        self.nf.deployment_export(
             module=module,
             output=out_name,
             input_example=input_example,
@@ -47,7 +44,7 @@ class TestDeployExport(NeMoUnitTest):
         self.__test_export_route(module=simplest_module,
                                  out_name="simple.onnx",
                                  mode=nemo.core.DeploymentFormat.ONNX,
-                                 input_example=torch.randn(16, 1))
+                                 input_example=torch.randn(16, 1).cuda())
 
     def test_TokenClassifier_module_export(self):
         t_class = nemo_nlp.TokenClassifier(hidden_size=512, num_classes=16,
@@ -55,7 +52,7 @@ class TestDeployExport(NeMoUnitTest):
         self.__test_export_route(module=t_class,
                                  out_name="t_class.pt",
                                  mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
-                                 input_example=torch.randn(16, 16, 512))
+                                 input_example=torch.randn(16, 16, 512).cuda())
 
     def test_TokenClassifier_module_onnx_export(self):
         t_class = nemo_nlp.TokenClassifier(hidden_size=512, num_classes=16,
@@ -63,7 +60,7 @@ class TestDeployExport(NeMoUnitTest):
         self.__test_export_route(module=t_class,
                                  out_name="t_class.onnx",
                                  mode=nemo.core.DeploymentFormat.ONNX,
-                                 input_example=torch.randn(16, 16, 512))
+                                 input_example=torch.randn(16, 16, 512).cuda())
 
     def test_jasper_decoder_export_ts(self):
         j_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024,
@@ -73,16 +70,23 @@ class TestDeployExport(NeMoUnitTest):
                                  mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
                                  input_example=None)
 
-    def test_hf_bert(self):
+    def test_hf_bert_ts(self):
         bert = nemo_nlp.huggingface.BERT(
             pretrained_model_name="bert-base-uncased")
-        input_example = (torch.randint(low=0, high=16, size=(2, 16)),
-                         torch.randint(low=0, high=1, size=(2, 16)),
-                         torch.randint(low=0, high=1, size=(2, 16)))
+        input_example = (torch.randint(low=0, high=16, size=(2, 16)).cuda(),
+                         torch.randint(low=0, high=1, size=(2, 16)).cuda(),
+                         torch.randint(low=0, high=1, size=(2, 16)).cuda())
         self.__test_export_route(module=bert,
-                                 out_name="bert.pt",
+                                 out_name="bert.ts",
                                  mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
                                  input_example=input_example)
+
+    def test_hf_bert_pt(self):
+        bert = nemo_nlp.huggingface.BERT(
+            pretrained_model_name="bert-base-uncased")
+        self.__test_export_route(module=bert,
+                                 out_name="bert.pt",
+                                 mode=nemo.core.DeploymentFormat.PYTORCH)
 
     def test_jasper_encoder_to_onnx(self):
         with open("tests/data/jasper_smaller.yaml") as file:
@@ -100,5 +104,5 @@ class TestDeployExport(NeMoUnitTest):
                                  out_name="jasper_encoder.onnx",
                                  mode=nemo.core.DeploymentFormat.ONNX,
                                  input_example=(
-                                     torch.randn(16, 64, 256),
-                                     torch.randn(256)))
+                                     torch.randn(16, 64, 256).cuda(),
+                                     torch.randn(256).cuda()))
