@@ -1,58 +1,79 @@
 # Copyright (c) 2019 NVIDIA Corporation
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
+import os
+import random
+import time
 
-def eval_iter_callback(tensors, global_vars, eval_data_layer):
-    if "correct_labels" not in global_vars.keys():
-        global_vars["correct_labels"] = 0
-    if "incorrect_labels" not in global_vars.keys():
-        global_vars["incorrect_labels"] = 0
-    if "correct_preds" not in global_vars.keys():
-        global_vars["correct_preds"] = 0
-    if "total_preds" not in global_vars.keys():
-        global_vars["total_preds"] = 0
-    if "total_correct" not in global_vars.keys():
-        global_vars["total_correct"] = 0
+import matplotlib
+from matplotlib import pyplot as plt
+import numpy as np
+from sklearn.metrics import classification_report
 
-    logits_lists = []
-    seq_ids = []
+from nemo.utils.exp_logging import get_logger
+matplotlib.use("TkAgg")
 
+
+logger = get_logger('')
+
+
+def tensor2list(tensor):
+    return tensor.detach().cpu().tolist()
+
+
+def eval_iter_callback(tensors, global_vars):
+    if "all_preds" not in global_vars.keys():
+        global_vars["all_preds"] = []
+    if "all_labels" not in global_vars.keys():
+        global_vars["all_labels"] = []
+    if "all_subtokens_mask" not in global_vars.keys():
+        global_vars["all_subtokens_mask"] = []
+ 
+    all_subtokens_mask, all_logits, all_labels = [], [], []
+    
     for kv, v in tensors.items():
-        if 'logits' in kv:
+        if kv.startswith('logits'):
             for v_tensor in v:
                 for logit_tensor in v_tensor:
-                    logits_lists.append(logit_tensor.detach().cpu().tolist())
+                    all_logits.append(tensor2list(logit_tensor))
 
-        if 'seq_ids' in kv:
+        if kv.startswith('labels'):
             for v_tensor in v:
-                for seq_id_tensor in v_tensor:
-                    seq_ids.append(seq_id_tensor.detach().cpu().tolist())
+                for label_tensor in v_tensor:
+                    all_labels.extend(tensor2list(label_tensor))
 
-    correct_labels, incorrect_labels, correct_preds, total_preds, \
-        total_correct = eval_data_layer.eval_preds(logits_lists, seq_ids)
+        if kv.startswith('subtokens_mask'):
+            for v_tensor in v:
+                for subtokens_mask_tensor in v_tensor:
+                    all_subtokens_mask.extend(
+                        tensor2list(subtokens_mask_tensor))
 
-    global_vars["correct_labels"] += correct_labels
-    global_vars["incorrect_labels"] += incorrect_labels
-    global_vars["correct_preds"] += correct_preds
-    global_vars["total_preds"] += total_preds
-    global_vars["total_correct"] += total_correct
+    all_preds = list(np.argmax(np.asarray(all_logits), 2).flatten())
+    global_vars["all_preds"].extend(all_preds)
+    global_vars["all_labels"].extend(all_labels)
+    global_vars["all_subtokens_mask"].extend(all_subtokens_mask)
 
 
-def eval_epochs_done_callback(global_vars):
+def list2str(l):
+    return ' '.join([str(j) for j in l])
 
-    correct_labels = global_vars["correct_labels"]
-    incorrect_labels = global_vars["incorrect_labels"]
-    correct_preds = global_vars["correct_preds"]
-    total_preds = global_vars["total_preds"]
-    total_correct = global_vars["total_correct"]
 
-    accuracy = correct_labels / (correct_labels + incorrect_labels)
+def eval_epochs_done_callback(global_vars, label_ids, none_label_id=0):
+    labels = np.asarray(global_vars['all_labels'])
+    preds = np.asarray(global_vars['all_preds'])
+    subtokens_mask = np.asarray(global_vars['all_subtokens_mask'])
 
-    p = correct_preds / total_preds
-    r = correct_preds / total_correct
-    f1 = 2 * p * r / (p + r)
+    labels = labels[subtokens_mask]
+    preds = preds[subtokens_mask]
 
-    print(f"Accuracy = {accuracy}")
-    print(f"F1= {f1}")
+    accuracy = sum(labels == preds) / labels.shape[0]
+    logger.info(f'Accuracy: {accuracy}')
+    
+    i = 0
+    if preds.shape[0] > 21:
+        i = random.randint(0, preds.shape[0] - 21)
+    logger.info("Sampled preds: [%s]" % list2str(preds[i:i+20]))
+    logger.info("Sampled labels: [%s]" % list2str(labels[i:i+20]))
 
-    return dict({"accuracy": accuracy, "f1": f1})
+    logger.info(classification_report(labels, preds, target_names=label_ids))
+    return dict({'Accuracy': accuracy})
