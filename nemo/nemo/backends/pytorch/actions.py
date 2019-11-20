@@ -13,6 +13,7 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
+import types
 from nemo.backends.pytorch.nm import TrainableNM
 
 from .module_wrapper import TrainableNeuralModuleWrapper
@@ -1016,7 +1017,7 @@ class PtActions(Actions):
         # We need to change __call__ method. Note that this will change the
         # whole class, not just this object!
 
-        __old_call = type(module).__call__
+
         type(module).__call__ = torch.nn.Module.__call__
 
         module._logger = None
@@ -1027,55 +1028,64 @@ class PtActions(Actions):
         module._local_parameters = None
 
         module.eval()
+        try:
+            if d_format == DeploymentFormat.TORCHSCRIPT:
+                if input_example is None:
+                    # Route 1 - via torch.jit.script
+                    traced_m = torch.jit.script(module)
+                    traced_m.save(output)
+                else:
+                    # Route 2 - via tracing
+                    traced_m = torch.jit.trace(module, input_example)
+                    traced_m.save(output)
+            elif d_format == DeploymentFormat.ONNX:
+                if input_example is None:
+                    raise ValueError(f'Example input is None, but ONNX tracing was'
+                                     f' attempted')
+                print("Running export ... ")
+                torch.onnx.export(module, input_example, output,
+                                  #   Oleksii: we need to use real I/O names
+                                  input_names=[],
+                                  output_names=[],
+                                  verbose=True,
+                                  export_params=True,
+                                  do_constant_folding=True,
+                                  dynamic_axes={
+                                      #   Oleksii: we need to infer that info, too
+                                      #    "FEATURES" : {0 : "BATCHSIZE",
+                                      #    2 : "NUM_FEATURES"},
+                                      #    "LOGITS" : { 0: "BATCHSIZE",
+                                      #    1 : "NUM_LOGITS"}
+                                  },
+                                  opset_version=10)
+                # fn = output + ".readable"
+                # with open(fn, 'w') as f:
+                #     # Write human-readable graph representation to file as well.
+                #     tempModel = onnx.load(output)
+                #     onnx.save(tempModel, output + ".copy")
+                #     onnx.checker.check_model(tempModel)
+                #     pgraph = onnx.helper.printable_graph(tempModel.graph)
+                #     f.write(pgraph)
 
-        if d_format == DeploymentFormat.TORCHSCRIPT:
-            if input_example is None:
-                # Route 1 - via torch.jit.script
-                traced_m = torch.jit.script(module)
-                traced_m.save(output)
+            elif d_format == DeploymentFormat.PYTORCH:
+                torch.save(module.state_dict(), output)
+                with open(output + ".json", 'w') as outfile:
+                    json.dump(local_parameters, outfile)
+
             else:
-                # Route 2 - via tracing
-                traced_m = torch.jit.trace(module, input_example)
-                traced_m.save(output)
-        elif d_format == DeploymentFormat.ONNX:
-            if input_example is None:
-                raise ValueError(f'Example input is None, but ONNX tracing was'
-                                 f' attempted')
-            print("Running export ... ")
-            torch.onnx.export(module, input_example, output,
-                              #   Oleksii: we need to use real I/O names
-                              input_names=[],
-                              output_names=[],
-                              verbose=True,
-                              export_params=True,
-                              do_constant_folding=True,
-                              dynamic_axes={
-                                  #   Oleksii: we need to infer that info, too
-                                  #    "FEATURES" : {0 : "BATCHSIZE",
-                                  #    2 : "NUM_FEATURES"},
-                                  #    "LOGITS" : { 0: "BATCHSIZE",
-                                  #    1 : "NUM_LOGITS"}
-                              },
-                              opset_version=10)
-            # fn = output + ".readable"
-            # with open(fn, 'w') as f:
-            #     # Write human-readable graph representation to file as well.
-            #     tempModel = onnx.load(output)
-            #     onnx.save(tempModel, output + ".copy")
-            #     onnx.checker.check_model(tempModel)
-            #     pgraph = onnx.helper.printable_graph(tempModel.graph)
-            #     f.write(pgraph)
+                raise NotImplemented(
+                    f"Not supported deployment format: {d_format}")
+        except:  # nopep8
+            print('OOOOOO')
+        finally:
+            def __old_call__(self, force_pt=False, *input, **kwargs):
+                pt_call = len(input) > 0 or force_pt
+                if pt_call:
+                    return nn.Module.__call__(self, *input, **kwargs)
+                else:
+                    return NeuralModule.__call__(self, **kwargs)
 
-        elif d_format == DeploymentFormat.PYTORCH:
-            torch.save(module.state_dict(), output)
-            with open(output + ".json", 'w') as outfile:
-                json.dump(local_parameters, outfile)
-
-        else:
-            raise NotImplemented(
-                f"Not supported deployment format: {d_format}")
-
-        type(module).__call__ = __old_call
+            type(module).__call__ = __old_call__
 
     @staticmethod
     def deployment_export(module,
