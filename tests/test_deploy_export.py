@@ -1,12 +1,12 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import argparse
 import os
 from pathlib import Path
 
 import torch
+from ruamel.yaml import YAML
+
 from .common_setup import NeMoUnitTest
 from .context import nemo, nemo_asr, nemo_nlp
-from ruamel.yaml import YAML
 
 
 class TestDeployExport(NeMoUnitTest):
@@ -15,7 +15,7 @@ class TestDeployExport(NeMoUnitTest):
             placement=nemo.core.DeviceType.CPU)
 
     def __test_export_route(self, module, out_name, mode,
-    input_example=None):
+                            input_example=None):
         out = Path(out_name)
         if out.exists():
             os.remove(out)
@@ -31,7 +31,7 @@ class TestDeployExport(NeMoUnitTest):
 
         self.assertTrue(out.exists())
         if out.exists():
-           os.remove(out)
+            os.remove(out)
 
     def test_simple_module_export(self):
         simplest_module = \
@@ -92,7 +92,7 @@ class TestDeployExport(NeMoUnitTest):
         jasper_encoder = nemo_asr.JasperEncoder(
             conv_mask=False,
             feat_in=jasper_model_definition['AudioPreprocessing'][
-            'features'],
+                'features'],
             **jasper_model_definition['JasperEncoder']
         )
 
@@ -100,4 +100,5 @@ class TestDeployExport(NeMoUnitTest):
                                  out_name="jasper_encoder.onnx",
                                  mode=nemo.core.DeploymentFormat.ONNX,
                                  input_example=(
-                                 torch.randn(16, 64, 256), torch.randn(256)))
+                                     torch.randn(16, 64, 256),
+                                     torch.randn(256)))
