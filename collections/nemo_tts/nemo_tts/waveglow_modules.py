@@ -9,7 +9,30 @@ from .parts.waveglow import WaveGlow
 
 
 class WaveGlowNM(TrainableNM):
-    """ TODO: Docstring for Tacotron2Encdoer
+    """
+    WaveGlowNM implements the Waveglow model in whole. This NM is meant to
+    be used during training
+    
+    Args:
+        n_mel_channels (int): Size of input mel spectrogram
+            Defaults to 80.
+        n_flows (int): Number of normalizing flows/layers of waveglow.
+            Defaults to 12
+        n_group (int): Each audio/spec pair is split in n_group number of
+            groups. It must be divisible by 2 as halves are split this way.
+            Defaults to 8
+        n_early_every (int): After n_early_every layers, n_early_size number of
+            groups are skipped to the output of the Neural Module.
+            Defaults to 4
+        n_early_size (int): The number of groups to skip to the output at every
+            n_early_every layers.
+            Defaults to 2
+        n_wn_layers (int): The number of layers of the wavenet submodule.
+            Defaults to 8
+        n_wn_channels (int): The number of channels of the wavenet submodule.
+            Defaults to 512
+        wn_kernel_size (int): The kernel size of the wavenet submodule.
+            Defaults to 3
     """
     @staticmethod
     def create_ports():
@@ -68,7 +91,34 @@ class WaveGlowNM(TrainableNM):
 
 
 class WaveGlowInferNM(WaveGlowNM):
-    """ TODO: Docstring for Tacotron2Encdoer
+    """
+    WaveGlowInferNM is the inference Neural Module for WaveGlowNM. This NM is
+    meant to be used during inference. Keep in mind, the inference module
+    runs in the reverse order of the training module.
+    
+    Args:
+        n_mel_channels (int): Size of input mel spectrogram
+            Defaults to 80.
+        n_flows (int): Number of normalizing flows/layers of waveglow.
+            Defaults to 12
+        n_group (int): Each audio/spec pair is split in n_group number of
+            groups. It must be divisible by 2 as halves are split this way.
+            Defaults to 8
+        n_early_every (int): After n_early_every layers, n_early_size number of
+            groups are added as input to the current layer.
+            Defaults to 4
+        n_early_size (int): The number of groups to sample at every
+            n_early_every layers. The sampled values are then passed through the
+            remaining layer.
+            Defaults to 2
+        n_wn_layers (int): The number of layers of the wavenet submodule.
+            Defaults to 8
+        n_wn_channels (int): The number of channels of the wavenet submodule.
+            Defaults to 512
+        wn_kernel_size (int): The kernel size of the wavenet submodule.
+            Defaults to 3
+        sigma (float): Standard deviation of the normal distribution from which
+            we sample z. Defaults to 0.6.
     """
     @staticmethod
     def create_ports():
@@ -145,7 +195,19 @@ class WaveGlowInferNM(WaveGlowNM):
 
 
 class WaveGlowLoss(LossNM):
-    """TODO
+    """
+    WaveGlowLoss implements the waveglow loss which aims to maximize the
+    log-likelihood of the audio given the mel spectrogram. This loss is
+    expressed as the log-likelihood of a standard normal distribution and the
+    sum of the log of the determinant of the Jacobians of the mapping from
+    x, audio, to z, the normal distribution. The second term can be further
+    split in the contribution by the affine coupling layer, log_s, and the 1x1
+    invertible convolution layer, log_det_W.
+    
+    Args:
+        sigma (float): Standard deviation of the normal distribution that we
+            are aiming to model.
+            Defaults to 1.
     """
     @staticmethod
     def create_ports():
