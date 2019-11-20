@@ -1012,21 +1012,24 @@ class PtActions(Actions):
             raise FileExistsError(f"Destination {output} already exists. "
                                   f"Aborting export.")
 
+        input_names = list(module.input_ports.keys())
+        output_names = list(module.output_ports.keys())
+        local_parameters = {}
+        for key, value in module._local_parameters.items():
+            local_parameters[key] = value
+
         # Remove NeMo-related things from the module
         # We need to change __call__ method. Note that this will change the
-        # whole class, not just this object!
-
+        # whole class, not just this object! Which is why we need to repair it
+        # in the finally block
         type(module).__call__ = torch.nn.Module.__call__
 
+        module._local_parameters = None
         module._logger = None
         module._placement = None
         module._factory = None
         module._device = None
-        # local_parameters = copy.deepcopy(module._local_parameters)
-        local_parameters = {}
-        for key, value in module._local_parameters.items():
-            local_parameters[key] = value
-        module._local_parameters = None
+
 
         module.eval()
         try:
@@ -1044,11 +1047,10 @@ class PtActions(Actions):
                     raise ValueError(
                         f'Example input is None, but ONNX tracing was'
                         f' attempted')
-                print("Running export ... ")
                 torch.onnx.export(module, input_example, output,
                                   #   Oleksii: we need to use real I/O names
-                                  input_names=[],
-                                  output_names=[],
+                                  input_names=input_names,
+                                  output_names=output_names,
                                   verbose=True,
                                   export_params=True,
                                   do_constant_folding=True,
@@ -1080,7 +1082,7 @@ class PtActions(Actions):
                 raise NotImplemented(
                     f"Not supported deployment format: {d_format}")
         except:  # nopep8
-            print('OOOOOO')
+            pass
         finally:
             def __old_call__(self, force_pt=False, *input, **kwargs):
                 pt_call = len(input) > 0 or force_pt
