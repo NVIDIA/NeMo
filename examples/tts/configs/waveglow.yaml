@@ -13,8 +13,8 @@ AudioDataLayer:
 
 AudioPreprocessing:
     normalize: null
-    # window_size: 0.02
-    # window_stride: 0.01
+    n_window_size: 1024
+    n_window_stride: 256
     window: "hann"
     features: &n_mels 80
     n_fft: *n_fft
