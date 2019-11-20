@@ -13,6 +13,8 @@ AudioDataLayer:
 
 AudioPreprocessing:
     normalize: null
+    window_size: null
+    window_stride: null
     n_window_size: 1024
     n_window_stride: 256
     window: "hann"
