@@ -1143,7 +1143,7 @@ class PtActions(Actions):
         elif tensors_to_optimize is not None and (
                 isinstance(tensors_to_optimize[0],
                            NmTensor) and PtActions._check_all_tensors(
-            tensors_to_optimize)):
+                tensors_to_optimize)):
             # Parse graph into a topologically sorted sequence of neural
             # module' calls
             opt_call_chain, t_dataset = \
