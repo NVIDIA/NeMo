@@ -330,17 +330,24 @@ class BertTokenClassificationDataLayer(TextDataLayer):
                  pad_label,
                  tokenizer,
                  max_seq_length,
+                 num_samples=-1,
                  shuffle=False,
                  batch_size=64,
+                 ignore_extra_tokens=False,
+                 ignore_start_end=False,
                  dataset_type=BertTokenClassificationDataset,
                  **kwargs):
+
         kwargs['batch_size'] = batch_size
         dataset_params = {'text_file': text_file,
                           'label_file': label_file,
-                          'pad_label': pad_label,
-                          'tokenizer': tokenizer,
                           'max_seq_length': max_seq_length,
-                          'shuffle':shuffle}
+                          'tokenizer': tokenizer,
+                          'num_samples': num_samples,
+                          'shuffle':shuffle,
+                          'pad_label': pad_label,
+                          'ignore_extra_tokens': ignore_extra_tokens,
+                          'ignore_start_end': ignore_start_end}
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 
