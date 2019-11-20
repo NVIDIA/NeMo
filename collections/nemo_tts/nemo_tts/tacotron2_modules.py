@@ -12,7 +12,13 @@ from .parts.layers import get_mask_from_lengths
 
 
 class TextEmbedding(TrainableNM):
-    """ TODO: Docstring for Tacotron2Encdoer
+    """
+    TextEmbedding embeds the encoded character labels to an embedding space
+    
+    Args:
+        n_symbols (int): The number of character labels. The input char_phone's
+            second axis dim size should be n_symbols.
+        symbols_embedding_dim (int): The size of the embedding dimension.
     """
     @staticmethod
     def create_ports():
@@ -39,7 +45,17 @@ class TextEmbedding(TrainableNM):
 
 
 class Tacotron2Encoder(TrainableNM):
-    """ TODO: Docstring for Tacotron2Encdoer
+    """
+    Tacotron2Encoder is the encoder part of Tacotron 2. It takes embedded text
+    as input and creates an encoded representation of the text that can be used
+    with downstream attention and decoders.
+    
+    Args:
+        encoder_n_convolutions (int): The number of convolution layers inside
+            the encoder.
+        encoder_embedding_dim (int): The size of the embedded text. It will
+            also be the output size of the encoded text.
+        encoder_kernel_size (int): The kernel size of the convolution layers
     """
     @staticmethod
     def create_ports():
@@ -77,7 +93,33 @@ class Tacotron2Encoder(TrainableNM):
 
 
 class Tacotron2Decoder(TrainableNM):
-    """ TODO: Docstring for Tacotron2Decoder
+    """
+    Tacotron2Decoder implements the attention, decoder, and prenet parts of
+    Tacotron 2. It takes the encoded text and produces mel spectrograms. The
+    decoder contains two rnns, one is called the decoder rnn and the other is
+    called the attention rnn.
+    
+    Args:
+        n_mel_channels (int): The size or dimensionality of the mel spectrogram
+        n_frames_per_step (int): The number of frames we predict at each
+            decoder time step.
+        encoder_embedding_dim (int): The size of the encoded text.
+        gate_threshold (float): A number in [0, 1). When teacher forcing is
+            not used, the model predict a stopping value at each model time
+            step. The model will stop if the value is greater than
+            gate_threshold.
+        prenet_dim (int): The hidden dimension of the prenet.
+        max_decoder_steps (int): When not teacher forcing, the maximum number
+            of frames to predict.
+        decoder_rnn_dim (int): The hidden dimension of the decoder rnn.
+        p_decoder_dropout (float): Dropout probability for the decoder rnn.
+        p_attention_dropout (float): Dropout probability for the attention rnn.
+        attention_rnn_dim (int): The hidden dimension of the attention rnn.
+        attention_dim (int): The hidden dimension of the attention mechanism.
+        attention_location_n_filters (int): The number of convolution filters
+            for the location part of the attention mechanism.
+        attention_location_kernel_size (int): The kernel size of the convolution
+            for the location part of the attention mechanism.
     """
     @staticmethod
     def create_ports():
@@ -149,7 +191,31 @@ class Tacotron2Decoder(TrainableNM):
 
 
 class Tacotron2DecoderInfer(Tacotron2Decoder):
-    """ TODO: Docstring for Tacotron2Decoder
+    """
+    Tacotron2DecoderInfer is an inference Neural Module used in place
+    of the Tacotron2Decoder NM.
+    
+    Args:
+        n_mel_channels (int): The size or dimensionality of the mel spectrogram
+        n_frames_per_step (int): The number of frames we predict at each
+            decoder time step.
+        encoder_embedding_dim (int): The size of the encoded text.
+        gate_threshold (float): A number in [0, 1). When teacher forcing is
+            not used, the model predict a stopping value at each model time
+            step. The model will stop if the value is greater than
+            gate_threshold.
+        prenet_dim (int): The hidden dimension of the prenet.
+        max_decoder_steps (int): When not teacher forcing, the maximum number
+            of frames to predict.
+        decoder_rnn_dim (int): The hidden dimension of the decoder rnn.
+        p_decoder_dropout (float): Dropout probability for the decoder rnn.
+        p_attention_dropout (float): Dropout probability for the attention rnn.
+        attention_rnn_dim (int): The hidden dimension of the attention rnn.
+        attention_dim (int): The hidden dimension of the attention mechanism.
+        attention_location_n_filters (int): The number of convolution filters
+            for the location part of the attention mechanism.
+        attention_location_kernel_size (int): The kernel size of the convolution
+            for the location part of the attention mechanism.
     """
     @staticmethod
     def create_ports():
@@ -220,7 +286,16 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
 
 
 class Tacotron2Postnet(TrainableNM):
-    """ TODO: Docstring for Tacotron2Postnet
+    """
+    Tacotron2Postnet implements the postnet part of Tacotron 2. It takes a mel
+    spectrogram as generated by the decoder and corrects errors within the
+    generated mel spectrogram.
+    
+    Args:
+        n_mel_channels (int): The size or dimensionality of the mel spectrogram
+        postnet_embedding_dim (int): Hidden size of convolutions
+        postnet_kernel_size (int): Kernel size of convolutions
+        postnet_n_convolutions (int): Number of convolution layers
     """
     @staticmethod
     def create_ports():
@@ -256,7 +331,18 @@ class Tacotron2Postnet(TrainableNM):
 
 
 class Tacotron2Loss(LossNM):
-    """TODO
+    """
+    Tacoton2Loss implements the loss function of Tacotron 2. The loss function
+    is the mean squared error between the reference mel spectrogram and the
+    mel spectrogram predicted by the decoder + the mean squared error between
+    the reference mel spectrogram and the mel spectrogram predicted by the
+    post net + the cross entropy error between the stop values and the reference
+    mel length.
+    
+    Args:
+        pad_value (float): In the evaluation case, when we don't use teacher
+            forcing, if the generated mel is shorter than the reference mel,
+            we pad the generated mel with this value. Default is ~log(1e-5).
     """
     @staticmethod
     def create_ports():
@@ -327,7 +413,7 @@ class Tacotron2Loss(LossNM):
 
 
 class MakeGate(NonTrainableNM):
-    """TODO
+    """MakeGate is a helper Neural Module that makes the target stop value.
     """
     @staticmethod
     def create_ports():
