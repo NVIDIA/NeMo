@@ -100,7 +100,7 @@ class PtActions(Actions):
           in DAG
 
         Returns:
-          list of modules with their call arguments and outputs, and dataset
+          list of module with their call arguments and output, and dataset
         """
 
         def create_node(producer, producer_args):
@@ -377,7 +377,7 @@ class PtActions(Actions):
             return optimizer
 
         if len(self.modules) < 1:
-            raise ValueError("There were no modules to initialize")
+            raise ValueError("There were no module to initialize")
         pt_modules = []
         for module in self.modules:
             if isinstance(module, nn.Module):
@@ -750,7 +750,7 @@ class PtActions(Actions):
                 eval_dataloader.sampler.set_epoch(0)
             elif not use_cache:  # Not distributed and not using cache
                 # There is no need for dataloaders if using cache
-                # Caching must then cache all outputs from dataloader
+                # Caching must then cache all output from dataloader
                 if dl_nm.dataset is not None:
                     # Todo: remove local_parameters
                     eval_dataloader = torch.utils.data.DataLoader(
@@ -974,8 +974,8 @@ class PtActions(Actions):
 
     def _get_all_modules(
             self, training_loop, callbacks, logging_callchain=None):
-        """Gets all neural modules that will be used by train() and eval() via
-        EvaluatorCallbacks. Saves all modules to self.modules
+        """Gets all neural module that will be used by train() and eval() via
+        EvaluatorCallbacks. Saves all module to self.module
         """
         # If there is a SimpleLossLoggerCallback, create an logger_callchain
         # with all callchains from training_loop and
@@ -990,7 +990,7 @@ class PtActions(Actions):
                 for module in step[2]:
                     self.modules.add(module[0])
 
-        # Lastly, grab all eval modules
+        # Lastly, grab all eval module
         if callbacks is not None:
             for callback in callbacks:
                 if isinstance(callback, EvaluatorCallback):
@@ -1022,15 +1022,12 @@ class PtActions(Actions):
         module._logger = None
         module._placement = None
         module._factory = None
-        # trainable_module._input_ports = None
-        # trainable_module._output_ports = None
         module._device = None
         local_parameters = copy.deepcopy(module._local_parameters)
         module._local_parameters = None
 
         module.eval()
 
-        res = module.forward(*input_example)
         if d_format == DeploymentFormat.TORCHSCRIPT:
             if input_example is None:
                 # Route 1 - via torch.jit.script
@@ -1060,14 +1057,14 @@ class PtActions(Actions):
                                   #    1 : "NUM_LOGITS"}
                               },
                               opset_version=10)
-            fn = output + ".readable"
-            with open(fn, 'w') as f:
-                # Write human-readable graph representation to file as well.
-                tempModel = onnx.load(output)
-                onnx.save(tempModel, output + ".copy")
-                onnx.checker.check_model(tempModel)
-                pgraph = onnx.helper.printable_graph(tempModel.graph)
-                f.write(pgraph)
+            # fn = output + ".readable"
+            # with open(fn, 'w') as f:
+            #     # Write human-readable graph representation to file as well.
+            #     tempModel = onnx.load(output)
+            #     onnx.save(tempModel, output + ".copy")
+            #     onnx.checker.check_model(tempModel)
+            #     pgraph = onnx.helper.printable_graph(tempModel.graph)
+            #     f.write(pgraph)
 
         elif d_format == DeploymentFormat.PYTORCH:
             torch.save(module.state_dict(), output)
@@ -1081,42 +1078,26 @@ class PtActions(Actions):
         type(module).__call__ = __old_call
 
     @staticmethod
-    def deployment_export(modules,
-                          outputs: List[str],
+    def deployment_export(module,
+                          output: str,
                           d_format: DeploymentFormat,
-                          input_examples=None,
-                          output_examples=None):
+                          input_example=None,
+                          output_example=None):
         """Exports Neural Module instance for deployment.
 
         Args:
-            modules (list of NeuralModule): modules to export
-            outputs (str): where export results should be saved
+            module: neural module to export
+            output (str): where export results should be saved
             d_format (DeploymentFormat): which deployment format to use
-            input_examples: sometimes tracing will require input examples
-            output_examples: Should match inference on input_example
+            input_example: sometimes tracing will require input examples
+            output_example: Should match inference on input_example
         """
-        if not isinstance(modules, List):
-            raise ValueError(f"modules argument should be a list of modules")
-        size = len(modules)
-        if not isinstance(d_format, List):
-            d_format = [d_format] * size
-        if len(d_format) != size:
-            raise ValueError(f"modules and d_format sizes must match but got"
-                             f" {size} and {len(d_format)}")
-
-        for idx, module in enumerate(modules):
-            if not isinstance(module, TrainableNM):
-                raise NotImplemented(f"We currently can export only trainable"
-                                     f" neural modules")
-            PtActions.__module_export(
-                module=module,
-                output=outputs[idx],
-                d_format=d_format[idx],
-                input_example=input_examples[
-                    idx] if input_examples is not None else None,
-                output_example=output_examples[
-                    idx] if output_examples is not None else None
-            )
+        PtActions.__module_export(
+            module=module,
+            output=output,
+            d_format=d_format,
+            input_example=input_example,
+            output_example=output_example)
 
     def train(self,
               tensors_to_optimize,
@@ -1153,7 +1134,7 @@ class PtActions(Actions):
                            NmTensor) and PtActions._check_all_tensors(
                 tensors_to_optimize)):
             # Parse graph into a topologically sorted sequence of neural
-            # modules' calls
+            # module' calls
             opt_call_chain, t_dataset = \
                 self.__get_top_sorted_modules_and_dataloader(
                     hook=tensors_to_optimize
@@ -1286,7 +1267,7 @@ class PtActions(Actions):
                             isinstance(pmodule, torch.nn.Module)):
                         pmodule = DDP(pmodule)
 
-                    # Convert batchnorm modules to synced if applicable
+                    # Convert batchnorm module to synced if applicable
                     if (synced_batchnorm and
                             isinstance(pmodule, torch.nn.Module)):
                         world_size = dist.get_world_size()
@@ -1470,7 +1451,7 @@ class PtActions(Actions):
         """
 
         if checkpoint_dir:
-            # Find all modules that need to be restored
+            # Find all module that need to be restored
             call_chain, _ = self.__get_top_sorted_modules_and_dataloader(
                 hook=tensors
             )
