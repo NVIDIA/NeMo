@@ -12,7 +12,7 @@ class WaveGlowNM(TrainableNM):
     """
     WaveGlowNM implements the Waveglow model in whole. This NM is meant to
     be used during training
-    
+
     Args:
         n_mel_channels (int): Size of input mel spectrogram
             Defaults to 80.
@@ -95,7 +95,7 @@ class WaveGlowInferNM(WaveGlowNM):
     WaveGlowInferNM is the inference Neural Module for WaveGlowNM. This NM is
     meant to be used during inference. Keep in mind, the inference module
     runs in the reverse order of the training module.
-    
+
     Args:
         n_mel_channels (int): Size of input mel spectrogram
             Defaults to 80.
@@ -108,8 +108,8 @@ class WaveGlowInferNM(WaveGlowNM):
             groups are added as input to the current layer.
             Defaults to 4
         n_early_size (int): The number of groups to sample at every
-            n_early_every layers. The sampled values are then passed through the
-            remaining layer.
+            n_early_every layers. The sampled values are then passed through
+            the remaining layer.
             Defaults to 2
         n_wn_layers (int): The number of layers of the wavenet submodule.
             Defaults to 8
@@ -203,7 +203,7 @@ class WaveGlowLoss(LossNM):
     x, audio, to z, the normal distribution. The second term can be further
     split in the contribution by the affine coupling layer, log_s, and the 1x1
     invertible convolution layer, log_det_W.
-    
+
     Args:
         sigma (float): Standard deviation of the normal distribution that we
             are aiming to model.
