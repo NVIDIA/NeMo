@@ -157,7 +157,7 @@ class Actions(ABC):
 
         Args:
             optimizer: Specifies which optimizer to use.
-            things_to_optimize: A list of neural modules or tensors to be
+            things_to_optimize: A list of neural module or tensors to be
                 optimized.
             optimizer_params: Specifies the parameters of the optimizer
 
@@ -239,14 +239,14 @@ class NeuralModuleFactory(object):
     _DEFAULT = None
 
     """
-    Neural Module Factory instance is used to create neural modules and
+    Neural Module Factory instance is used to create neural module and
     trainers
 
     Args:
         backend (Backend): Currently only Backend.PyTorch is supported
         local_rank (int): Process rank. Should be set by distributed runner
         optimization_level (Optimization): Level of optimization to use. Will
-            be passed to neural modules and actions created by this factory.
+            be passed to neural module and actions created by this factory.
         placement (DeviceType: where to place NeuralModule instances by default
         cudnn_benchmark (bool): (default False) If set to True it will use
             cudnnFind method to find the best kernels instead of using
@@ -261,7 +261,7 @@ class NeuralModuleFactory(object):
         master_process (bool): (default True) Flag for master process
             indication
         set_default (bool): (default True) True if should set this instance as
-            default factory for modules instantiating.
+            default factory for module instantiating.
     """
 
     def __init__(
@@ -587,26 +587,26 @@ class NeuralModuleFactory(object):
         )
 
     def deployment_export(self,
-                          modules,
-                          outputs: List[str],
+                          module,
+                          output: str,
                           d_format: DeploymentFormat,
-                          input_examples=None,
-                          output_examples=None):
+                          input_example=None,
+                          output_example=None):
         """Exports Neural Module instance for deployment.
 
         Args:
-            modules (list of NeuralModule): modules to export
+            module: neural module to export
             output (str): where export results should be saved
             d_format (DeploymentFormat): which deployment format to use
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
         """
         return self._trainer.deployment_export(
-            modules=modules,
-            outputs=outputs,
+            module=module,
+            output=output,
             d_format=d_format,
-            input_examples=input_examples,
-            output_examples=output_examples
+            input_example=input_example,
+            output_example=output_example
         )
 
     def infer(self,
