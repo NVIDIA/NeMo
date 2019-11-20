@@ -32,8 +32,13 @@ class BertPretrainingDataset(Dataset):
                  dataset,
                  max_seq_length=128,
                  mask_probability=0.15,
+                 short_seq_prob=0.1,
+                 seq_a_ratio=0.6,
                  sentence_idx_file=None):
         self.tokenizer = tokenizer
+        self.cls_id = tokenizer.token_to_id("[CLS]")
+        self.sep_id = tokenizer.token_to_id("[SEP]")
+        self.pad_id = tokenizer.token_to_id("[PAD]")
 
         # Loading enormous datasets into RAM isn't always feasible -- for
         # example, the pubmed corpus is 200+ GB, which doesn't fit into RAM on
@@ -43,7 +48,7 @@ class BertPretrainingDataset(Dataset):
 
         if sentence_idx_file is None:
             data_dir = dataset[:dataset.rfind('/')]
-            mode = dataset[dataset.rfind('/')+1:dataset.rfind('.')]
+            mode = dataset[dataset.rfind('/') + 1:dataset.rfind('.')]
             sentence_idx_file = f"{data_dir}/{mode}_sentence_indices.pkl"
 
         if os.path.isfile(sentence_idx_file):
@@ -53,12 +58,9 @@ class BertPretrainingDataset(Dataset):
         else:
             # Otherwise, generate and store sentence indices
             sentence_indices = {}
-            total_tokens = 0
-            used_tokens = 0
 
             # Finds all of the newline indices in a string
             def find_newlines(contents):
-                nonlocal used_tokens, total_tokens
                 start = 0
 
                 while True:
@@ -68,16 +70,13 @@ class BertPretrainingDataset(Dataset):
                         line = contents[start:new_start] \
                             .replace(b"\xc2\x99", b" ") \
                             .replace(b"\xc2\xa0", b" ") \
-                            .replace(b"\xa0", b" ")
-                        num_tokens = len(line.split())
+                            .decode("utf-8", errors="ignore")
 
-                        # Ensure the line has at least max_seq_length tokens
-                        if num_tokens >= max_seq_length:
-                            yield start - 1
-                            used_tokens += num_tokens
+                        if len(line.split()) > 0:
+                            yield start
 
-                        total_tokens += num_tokens
                         start = new_start + 1
+
                     except ValueError:
                         break
 
@@ -104,8 +103,6 @@ class BertPretrainingDataset(Dataset):
             with open(sentence_idx_file, "wb") as f:
                 pickle.dump(sentence_indices, f)
 
-            print(f"Used {used_tokens} of total {total_tokens} tokens")
-
         corpus_size = 0
         empty_files = []
 
@@ -127,6 +124,8 @@ class BertPretrainingDataset(Dataset):
         self.max_seq_length = max_seq_length
         self.sentence_indices = sentence_indices
         self.vocab_size = self.tokenizer.vocab_size
+        self.short_seq_prob = short_seq_prob
+        self.seq_a_ratio = seq_a_ratio
 
     def __len__(self):
         return self.corpus_size
@@ -136,90 +135,143 @@ class BertPretrainingDataset(Dataset):
         # [CLS] <document a> [SEP] <document b> [SEP]
         num_special_tokens = 3
 
-        # TODO: Make seq_length = 512 for the last 10% of epochs, as specified
-        # in BERT paper
-        seq_length = self.max_seq_length - num_special_tokens
+        max_num_tokens = self.max_seq_length - num_special_tokens
+        target_seq_length = max_num_tokens
+        if random.random() < self.short_seq_prob:
+            # TODO: maybe introduce an argument to control this.
+            target_seq_length = random.randint(2, max_num_tokens)
 
-        a_length = random.randrange(min_doc_length,
-                                    seq_length - min_doc_length + 1)
-        b_length = seq_length - a_length
+        # prefer the seq_a to be slightly longer than seq_b, 0.6 by default
+        target_seq_length_a = int(round(target_seq_length * self.seq_a_ratio))
+        target_seq_length_b = target_seq_length - target_seq_length_a
 
-        a_filename = random.choice(self.filenames)
-        a_line = random.choice(self.sentence_indices[a_filename])
-
-        def get_document(filepath, line):
+        def get_document(filepath, offset):
             # Retrieve a specific line from a file and return as a document
             if os.path.isdir(self.dataset):
                 filepath = os.path.join(self.dataset, filepath)
 
             with open(filepath, "rb") as f:
-                # Add one to go to the character after the newline
-                f.seek(line + 1)
-
-                # Read line, remove newline, and decode as UTF8
+                f.seek(offset)
                 doc_text = f.readline()[:-1].decode("utf-8", errors="ignore")
-                document = [self.tokenizer.token_to_id("[CLS]")]
-                document.extend(self.tokenizer.text_to_ids(doc_text))
-                document.append(self.tokenizer.token_to_id("[SEP]"))
+                document = self.tokenizer.text_to_ids(doc_text)
 
-            assert len(document) >= self.max_seq_length
             return document
 
-        a_document = get_document(a_filename, a_line)
+        def match_target_seq_length(document, target_seq_length, filename,
+                                    line_idx, sentence_indices):
+            # If document is shorter than target sequence length,
+            # append the next line or take a random line as replacement.
+            num_lines = len(sentence_indices[filename])
 
-        if random.random() < 0.5:
-            # 50% of the time, B is the sentence that follows A
-            label = 1
+            while len(document) < target_seq_length:
+                if line_idx < (num_lines - 1):
+                    # append the next line
+                    line_idx += 1
+                else:
+                    # current line is the last line, take a random one
+                    line_idx = random.randrange(num_lines)
+                    document = []
 
-            a_start_idx = random.randrange(len(a_document) - seq_length)
-            b_start_idx = a_start_idx + a_length
+                offset = sentence_indices[filename][line_idx]
+                document += get_document(filename, offset)
 
-            b_filename = a_filename
-            b_line = a_line
-            b_document = a_document
+            return document, line_idx
+
+        # Take sequence A from a random file and a random line
+        a_filename = random.choice(self.filenames)
+        a_line_idx = random.randrange(len(self.sentence_indices[a_filename]))
+        a_line_offset = self.sentence_indices[a_filename][a_line_idx]
+        a_document = get_document(a_filename, a_line_offset)
+        a_document, a_line_idx = match_target_seq_length(
+            a_document, target_seq_length_a, a_filename, a_line_idx,
+            self.sentence_indices)
+
+        is_last_line = \
+            a_line_idx >= (len(self.sentence_indices[a_filename]) - 1)
+        # About 50% of the time, B is a random sentence from the corpus
+        take_random_b = (random.random() < 0.5) or is_last_line
+
+        if take_random_b:
+            # This should rarely go for more than one iteration for large
+            # corpora. However, just to be careful, we try to make sure that
+            # the random document is not the same as the document
+            # we're processing.
+            for _ in range(10):
+                b_filename = random.choice(self.filenames)
+                b_line_idx = random.choice(
+                    range(len(self.sentence_indices[b_filename])))
+                if b_filename != a_filename:
+                    break
+                else:
+                    # Take another line from the same file
+                    b_line_pos = self.sentence_indices[b_filename][b_line_idx]
+                    a_line_pos = self.sentence_indices[a_filename][a_line_idx]
+                    # TODO unclear about the following check
+                    if (abs(b_line_pos - a_line_pos) > max_num_tokens):
+                        break
+                    else:
+                        pass
         else:
-            # The rest of the time, B is a random sentence from the corpus
-            label = 0
+            b_filename = a_filename
+            b_line_idx = a_line_idx + 1
 
-            a_start_idx = random.randrange(len(a_document) - a_length)
+        is_next = int(not take_random_b)
+        b_line_pos = self.sentence_indices[b_filename][b_line_idx]
+        b_document = get_document(b_filename, b_line_pos)
+        b_document, b_line_idx = match_target_seq_length(
+            b_document, target_seq_length_b, b_filename, b_line_idx,
+            self.sentence_indices)
 
-            b_filename = random.choice(self.filenames)
-            b_line = random.choice(self.sentence_indices[b_filename])
-            b_document = get_document(b_filename, b_line)
-            b_start_idx = random.randrange(len(b_document) - b_length)
+        def truncate_seq_pair(a, b, max_num_tokens):
+            # Truncates a pair of sequences to a maximum sequence length
+            while (len(a) + len(b)) > max_num_tokens:
+                # Truncate the longer sequence
+                if len(a) > len(b):
+                    trunc_document = a
+                else:
+                    trunc_document = b
 
-        # Process retrieved documents for use in training
-        a_ids = a_document[a_start_idx:a_start_idx + a_length]
-        b_ids = b_document[b_start_idx:b_start_idx + b_length]
+                if len(trunc_document) <= 1:
+                    raise ValueError("Input text corpora probably too small. "
+                                     "Failed to truncate sequence pair to "
+                                     "maximum sequence legnth.")
 
-        output_ids = [self.tokenizer.special_tokens["[CLS]"]]
-        output_ids.extend(a_ids)
-        output_ids.append(self.tokenizer.special_tokens["[SEP]"])
-        output_ids.extend(b_ids)
-        output_ids.append(self.tokenizer.special_tokens["[SEP]"])
+                # Randomly truncate from the front or the back
+                if random.random() < 0.5:
+                    del trunc_document[0]
+                else:
+                    trunc_document.pop()
+
+        truncate_seq_pair(a_document, b_document, max_num_tokens)
+
+        output_ids = [self.cls_id] + a_document + \
+                     [self.sep_id] + b_document + [self.sep_id]
 
         input_ids, output_mask = self.mask_ids(output_ids)
 
-        output_mask = np.array(output_mask, dtype=np.float32)
-        input_mask = np.ones(self.max_seq_length, dtype=np.float32)
+        input_mask = np.zeros(self.max_seq_length, dtype=np.float32)
+        input_mask[:len(input_ids)] = 1
 
         input_type_ids = np.zeros(self.max_seq_length, dtype=np.int)
-        input_type_ids[a_length + 2:seq_length + 3] = 1
+        input_type_ids[len(a_document) + 2:len(output_ids) + 1] = 1
 
-        return (np.array(input_ids),
-                input_type_ids,
-                input_mask,
-                np.array(output_ids),
-                output_mask,
-                label)
+        padding_length = max(0, self.max_seq_length - len(input_ids))
+        if padding_length > 0:
+            input_ids.extend([self.pad_id] * padding_length)
+            output_ids.extend([self.pad_id] * padding_length)
+            output_mask.extend([0] * padding_length)
+
+        # TODO: wrap the return value with () for consistent style.
+        return np.array(input_ids), input_type_ids,\
+            np.array(input_mask, dtype=np.float32), np.array(output_ids),\
+            np.array(output_mask, dtype=np.float32), is_next
 
     def mask_ids(self, ids):
         """
         Args:
-          tokens: list of tokens representing a chunk of text
-
+          ids: list of token ids representing a chunk of text
         Returns:
-          masked_tokens: list of input tokens with some of the entries masked
+          masked_ids: list of input tokens with some of the entries masked
             according to the following protocol from the original BERT paper:
             each token is masked with a probability of 15% and is replaced with
             1) the [MASK] token 80% of the time,
@@ -228,18 +280,43 @@ class BertPretrainingDataset(Dataset):
           output_mask: list of binary variables which indicate what tokens has
             been masked (to calculate the loss function for these tokens only)
         """
-        masked_ids = []
-        output_mask = []
-        for i in ids:
-            if random.random() < self.mask_probability:
-                output_mask.append(1)
-                if random.random() < 0.8:
-                    masked_ids.append(self.tokenizer.special_tokens["[MASK]"])
-                elif random.random() < 0.5:
-                    masked_ids.append(random.randrange(self.vocab_size))
-                else:
-                    masked_ids.append(i)
+
+        # Whole-word masking by default, as it gives better performance.
+        cand_indexes = [[ids[0]]]
+        for tid in ids[1:]:
+            token = self.tokenizer.ids_to_tokens([tid])[0]
+            is_suffix = token.startswith('\u2581')
+            if is_suffix:
+                # group together with its previous token to form a whole-word
+                cand_indexes[-1].append(tid)
             else:
-                masked_ids.append(i)
-                output_mask.append(0)
+                cand_indexes.append([tid])
+
+        masked_ids, output_mask = [], []
+        mask_id = self.tokenizer.token_to_id("[MASK]")
+
+        for word_ids in cand_indexes:
+            is_special = (word_ids[0] == self.cls_id) or \
+                         (word_ids[0] == self.sep_id)
+            if is_special or (random.random() > self.mask_probability):
+                output_mask.extend([0] * len(word_ids))
+                masked_ids.extend(word_ids)
+            else:
+                output_mask.extend([1] * len(word_ids))
+                p = random.random()
+                # for 80%, replace with mask
+                if p < 0.8:
+                    masked_ids.extend([mask_id] * len(word_ids))
+                # for 10%, replace by a random token
+                elif p < 0.9:
+                    for _ in word_ids:
+                        # randomly select a valid word
+                        random_word = random.randrange(self.vocab_size)
+                        while random_word in (self.cls_id, self.sep_id):
+                            random_word = random.randrange(self.vocab_size)
+                        masked_ids.append(random_word)
+                # for 10%, use same token
+                else:
+                    masked_ids.extend(word_ids)
+
         return masked_ids, output_mask

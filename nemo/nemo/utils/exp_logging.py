@@ -1,8 +1,10 @@
+# Copyright (c) 2019 NVIDIA Corporation
 import logging
 import os
 import time
 from shutil import copyfile
-
+import subprocess
+import sys
 
 loggers = {}
 
@@ -41,23 +43,42 @@ def get_logger(name):
     return loggers[name]
 
 
-def copy_wo_overwrite(dir_, file_to_copy):
-    basename = os.path.basename(file_to_copy)
-    i = 0
-    basename, ending = os.path.splitext(basename)
-    basename = basename + "_run{}" + ending
-    while True:
-        if os.path.isfile(
-                os.path.join(dir_, basename.format(i))):
-            i += 1
-            continue
-        else:
-            copyfile(file_to_copy,
-                     os.path.join(dir_, basename.format(i)))
-            break
-
-
 class ExpManager:
+    """ Note: Users should not have to call ExpManager as it is done
+    automically inside NeuralFactory. Not all defaults match NeuralFactory
+    defaults.
+    ExpManager helps create a work directory used to log experiment
+    files. It additionally creates a checkpoint directory, tensboard
+    directory, tensorboardX.SummaryWriter object,
+    copies any files passed with files_to_copy to the work
+    directory, and creates loggers used to print to screen and file.
+
+    Args:
+    work_dir (str): Directory that Expmanager should either create or
+        save log files and directories to.
+        Defaults to None and does not create a work directory.
+    local_rank (int): None for single-gpu, else the id for distributed
+        setups.
+        Defaults to None
+    use_tb (bool): Whether to create a tensorboardX.SummaryWriter object
+        Defaults to True.
+    exist_ok (bool): If False, ExpManager will crash if the work_dir
+        already exists. Must be false for distributed runs.
+    ckpt_dir (str). Whether to create a subdir called ckpt_dir.
+        Defaults to which creates a subdir called "checkpoints".
+    tb_dir (str): Whether to create a subdir called tb_dir.
+        Defaults to which creates a subdir called "tensorboard".
+    files_to_copy (list): Should be a list of paths of files that you
+        want to copy to work_dir. Useful for copying configs and model
+        scrtips.
+        Defaults to None which copies no files.
+    add_time (bool): Whether to add a datetime ending to work_dir
+        Defaults to True.
+    broadcast_func (func): Only required if add_time is True and
+        distributed. broadcast_func should accept a string that contains
+        the datetime suffix such that all ranks are consistent on work_dir
+        name.
+    """
     def __init__(
             self,
             work_dir=None,
@@ -67,7 +88,8 @@ class ExpManager:
             ckpt_dir=None,
             tb_dir=None,
             files_to_copy=None,
-            add_time=True):
+            add_time=True,
+            broadcast_func=None):
         self.local_rank = local_rank if local_rank is not None else 0
         self.logger = None
         self.log_file = None
@@ -80,20 +102,46 @@ class ExpManager:
         # tb_dir behaves the same as ckpt_dir except default folder name is
         # tensorboard instead of checkpoints
         self.tb_dir = tb_dir
+        tm_suf = time.strftime('%Y-%m-%d_%H-%M-%S')
+        if local_rank is not None and add_time:
+            if broadcast_func is None:
+                raise ValueError(
+                    "local rank was not None, but ExpManager was not passed a "
+                    "broadcast function to broadcast the datetime suffix")
+            if local_rank == 0:
+                broadcast_func(string=tm_suf)
+            else:
+                tm_suf = broadcast_func(str_len=len(tm_suf))
 
         # Create work_dir if specified
         if work_dir:
             self.work_dir = work_dir
             if add_time:
-                self.work_dir = os.path.join(
-                    work_dir, time.strftime('%Y%m%d-%H%M%S'))
+                self.work_dir = os.path.join(work_dir, tm_suf)
             self.make_dir(self.work_dir, exist_ok)
             if use_tb:
                 self.get_tb_writer(exist_ok=exist_ok)
             self.ckpt_dir = f'{self.work_dir}/checkpoints'
-            if files_to_copy:
+            if files_to_copy and self.local_rank == 0:
                 for file in files_to_copy:
-                    copy_wo_overwrite(self.work_dir, file)
+                    basename = os.path.basename(file)
+                    basename, ending = os.path.splitext(basename)
+                    basename = basename + tm_suf + ending
+                    copyfile(file, os.path.join(self.work_dir, basename))
+            if self.local_rank == 0:
+                # Create files for cmd args and git info
+                with open(os.path.join(
+                        self.work_dir, f'cmd-args_{tm_suf}.log'), 'w') as f:
+                    f.write(" ".join(sys.argv))
+
+                # Try to get git hash
+                git_repo, git_hash = get_git_hash()
+                if git_repo:
+                    git_log_file = os.path.join(
+                        self.work_dir, f'git-info_{tm_suf}.log')
+                    with open(git_log_file, 'w') as f:
+                        f.write(f'commit hash: {git_hash}')
+                        f.write(get_git_diff())
 
         # Create loggers
         self.create_logger(log_file=bool(work_dir))
@@ -144,8 +192,9 @@ class ExpManager:
                 self.tb_writer = SummaryWriter(self.tb_dir)
             except ImportError:
                 self.tb_writer = None
-                self.logger.info('Not using TensorBoard.')
-                self.logger.info('Install tensorboardX to use TensorBoard')
+                if self.logger is not None:
+                    self.logger.info('Not using TensorBoard.')
+                    self.logger.info('Install tensorboardX to use TensorBoard')
         return self.tb_writer
 
     def log_exp_info(self, params, print_everywhere=False):
@@ -154,3 +203,19 @@ class ExpManager:
             for key in params:
                 self.logger.info(f'{key}\t{params[key]}')
             self.logger.info(f'Experiment output is stored in {self.work_dir}')
+
+
+def get_git_hash():
+    try:
+        return True, subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+                                             stderr=subprocess.STDOUT).decode()
+    except subprocess.CalledProcessError as e:
+        return False, "{}\n".format(e.output.decode("utf-8"))
+
+
+def get_git_diff():
+    try:
+        return subprocess.check_output(['git', 'diff'],
+                                       stderr=subprocess.STDOUT).decode()
+    except subprocess.CalledProcessError as e:
+        return "{}\n".format(e.output.decode("utf-8"))

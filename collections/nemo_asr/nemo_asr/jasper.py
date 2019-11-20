@@ -2,7 +2,10 @@
 import torch.nn as nn
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import *
+from nemo.core.neural_types import (NeuralType, AxisType, ChannelTag, BatchTag,
+                                    TimeTag, SpectrogramSignalTag,
+                                    ProcessedTimeTag, EncodedRepresentationTag)
+
 from .parts.jasper import JasperBlock, jasper_activations, init_weights
 
 

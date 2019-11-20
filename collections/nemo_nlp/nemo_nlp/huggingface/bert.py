@@ -108,7 +108,7 @@ class BERT(TrainableNM):
             model = BertModel(config)
         else:
             raise ValueError("Either pretrained_model_name or vocab_size must"
-                             + "be passed into the BERT constructor")
+                             + " be passed into the BERT constructor")
 
         model.to(self._device)
 
