@@ -138,10 +138,10 @@ class TestTTSPytorch(NeMoUnitTest):
             input_signal=audio,
             length=audio_len)
 
-        audio_pred, log_s_list, log_det_W_list = waveglow(
+        z, log_s_list, log_det_W_list = waveglow(
             mel_spectrogram=spec_target, audio=audio)
         loss_t = waveglow_loss(
-            audio_pred=audio_pred,
+            z=z,
             log_s_list=log_s_list,
             log_det_W_list=log_det_W_list)
 

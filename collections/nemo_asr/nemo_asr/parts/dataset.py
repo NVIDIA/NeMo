@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 from .manifest import ManifestBase, ManifestEN
 
 
-def seq_collate_fn(batch):
+def seq_collate_fn(batch, pad_value=0):
     """collate batch of audio sig, audio len, tokens, tokens len
 
     Args:
