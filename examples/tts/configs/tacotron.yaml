@@ -1,6 +1,6 @@
 model: "Tacotron 2"
 sample_rate: &sr 22050
-# TODO: Add <PAD>, <BOS>, <EOS>
+# <PAD>, <BOS>, <EOS> will be added by the tacotron2.py script
 labels: [' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A', 'B',
          'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
          'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', ']', 'a', 'b',
