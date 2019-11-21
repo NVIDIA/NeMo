@@ -547,6 +547,7 @@ class NeuralModuleFactory(object):
               stop_on_nan_loss=False,
               synced_batchnorm=False,
               synced_batchnorm_groupsize=0,
+              gradient_predivide=False,
               reset=False):
         if reset:
             self.reset_trainer()
@@ -559,7 +560,8 @@ class NeuralModuleFactory(object):
             batches_per_step=batches_per_step,
             stop_on_nan_loss=stop_on_nan_loss,
             synced_batchnorm=synced_batchnorm,
-            synced_batchnorm_groupsize=synced_batchnorm_groupsize)
+            synced_batchnorm_groupsize=synced_batchnorm_groupsize,
+            gradient_predivide=gradient_predivide)
 
     def eval(self,
              callbacks: List[EvaluatorCallback]):
