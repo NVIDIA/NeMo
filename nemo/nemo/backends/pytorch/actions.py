@@ -100,7 +100,7 @@ class PtActions(Actions):
           in DAG
 
         Returns:
-          list of module with their call arguments and output, and dataset
+          list of modules with their call arguments and outputs, and dataset
         """
 
         def create_node(producer, producer_args):
