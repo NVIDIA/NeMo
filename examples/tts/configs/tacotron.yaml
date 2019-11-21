@@ -1,0 +1,73 @@
+model: "Tacotron 2"
+sample_rate: &sr 22050
+# TODO: Add <PAD>, <BOS>, <EOS>
+labels: [' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A', 'B',
+         'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+         'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', ']', 'a', 'b',
+         'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p',
+         'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'à', 'â', 'è', 'é',
+         'ê', 'ü', '’', '“', '”', '~', 'Ķ', 'Ĺ', 'Ļ', 'ω']
+n_fft: &n_fft 1024
+n_mels: &n_mels 80
+fmax: &fmax 8000
+n_stride: &n_window_stride 256
+
+AudioToTextDataLayer:
+    normalize_transcripts: false
+    sample_rate: *sr
+    train:
+        shuffle: true
+    eval:
+        shuffle: false
+
+AudioToMelSpectrogramPreprocessor:
+    normalize: null
+    window_size: null
+    window_stride: null
+    n_window_size: 1024
+    n_window_stride: *n_window_stride
+    window: "hann"
+    features: *n_mels
+    n_fft: *n_fft
+    frame_splicing: 1
+    dither: 0.
+    feat_type: "logfbank"
+    stft_conv: true
+    sample_rate: *sr
+    highfreq: *fmax
+    preemph: null
+    pad_value: -11.52
+    mag_power: 1.
+
+Tacotron2Encoder:
+    encoder_kernel_size: 5
+    encoder_n_convolutions: 3
+    encoder_embedding_dim: &enc_emb_dim 512
+
+TextEmbedding:
+    symbols_embedding_dim: *enc_emb_dim
+
+Tacotron2Decoder:
+    n_mel_channels: *n_mels
+    n_frames_per_step: 1 # currently only 1 is supported
+    encoder_embedding_dim: *enc_emb_dim
+    decoder_rnn_dim: 1024
+    prenet_dim: 256
+    max_decoder_steps: 1000
+    gate_threshold: 0.5
+    p_attention_dropout: 0.1
+    p_decoder_dropout: 0.1
+
+    # Attention parameters
+    attention_rnn_dim: 1024
+    attention_dim: 128
+
+    # Location Layer parameters
+    attention_location_n_filters: 32
+    attention_location_kernel_size: 31
+
+Tacotron2Postnet:
+    n_mel_channels: *n_mels
+    postnet_embedding_dim: 512
+    postnet_kernel_size: 5
+    postnet_n_convolutions: 5

@@ -14,7 +14,7 @@ from nemo.backends.pytorch.nm import TrainableNM
 
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
-from .optimizers import Novograd, AdamW, Lamb
+from .optimizers import Novograd, AdamW, Lamb, master_params
 from ...core import NmTensor, DeviceType, NeuralModule
 from ...core.callbacks import (ActionCallback,
                                EvaluatorCallback,
@@ -208,7 +208,7 @@ class PtActions(Actions):
                                  "NeuralModuleFactory first and pass its "
                                  "instance as `factory` parameter to all your"
                                  "Neural Module objects."
-                                 "".format(m[0].__class__.__name__))
+                                 "".format(str(m[0])))
             key = m[0].unique_instance_id
             if key not in self.module_reference_table:
                 if isinstance(m[0], TrainableNeuralModuleWrapper):
@@ -401,6 +401,11 @@ class PtActions(Actions):
             if use_cache:
                 in_cache = True
                 for tensor in call_chain[ind][2].values():
+                    if tensor is None:
+                        # NM has an output tensor that is not used in the
+                        # current call chain, so we don't care if it's not in
+                        # cache
+                        continue
                     if tensor.unique_name not in registered_tensors:
                         in_cache = False
                 if in_cache:
@@ -796,6 +801,7 @@ class PtActions(Actions):
                     for t in tensors_to_return:
                         if t.unique_name in registered_e_tensors:
                             del registered_e_tensors[t.unique_name]
+                    # Need to check for device type mismatch
                 else:
                     if isinstance(data, torch.Tensor):
                         data = (data,)
@@ -1320,7 +1326,7 @@ class PtActions(Actions):
                     # Ended step. Do optimizer update
                     if grad_norm_clip is not None:
                         torch.nn.utils.clip_grad_norm_(
-                            amp.master_params(curr_optimizer), grad_norm_clip)
+                            master_params(curr_optimizer), grad_norm_clip)
                     curr_optimizer.step()
                     batch_counter = 0
                     # Register iteration end with callbacks
@@ -1344,21 +1350,34 @@ class PtActions(Actions):
               verbose=True,
               cache=False,
               use_cache=False,
-              offload_to_cpu=True):
+              offload_to_cpu=True,
+              modules_to_restore=None):
         """See NeuralModuleFactory.infer()
         """
 
+        call_chain, _ = self.__get_top_sorted_modules_and_dataloader(
+            hook=tensors
+        )
         if checkpoint_dir:
             # Find all modules that need to be restored
-            call_chain, _ = self.__get_top_sorted_modules_and_dataloader(
-                hook=tensors
-            )
-            modules_to_restore = []
+            if modules_to_restore is None:
+                modules_to_restore = []
+                modules_to_restore_name = []
+                for op in call_chain:
+                    if op[0].num_weights > 0:
+                        modules_to_restore.append(op[0])
+
+            if not isinstance(modules_to_restore, list):
+                modules_to_restore = [modules_to_restore]
             modules_to_restore_name = []
-            for op in call_chain:
-                if op[0].num_weights > 0:
-                    modules_to_restore.append(op[0])
-                    modules_to_restore_name.append(op[0].__class__.__name__)
+            for mod in modules_to_restore:
+                if not isinstance(mod, NeuralModule):
+                    raise ValueError("Found something that was not a Neural "
+                                     "Module inside modules_to_restore")
+                elif mod.num_weights == 0:
+                    raise ValueError("Found a Neural Module with 0 weights "
+                                     "inside modules_to_restore")
+                modules_to_restore_name.append(str(mod))
 
             module_checkpoints = get_checkpoint_from_dir(
                 modules_to_restore_name, checkpoint_dir, ckpt_pattern
@@ -1369,23 +1388,23 @@ class PtActions(Actions):
                     logger.info(f"Restoring {mod} from {checkpoint}")
                 mod.restore_from(checkpoint, self._local_rank)
 
-            # Init Amp
-            if self._optim_level in AmpOptimizations and \
-                    self._optim_level != Optimization.mxprO0:
-                pt_modules = []
-                for i in range(len(call_chain)):
-                    if isinstance(call_chain[i][0], nn.Module):
-                        pt_modules.append(call_chain[i][0])
-                    elif isinstance(call_chain[i][0],
-                                    TrainableNeuralModuleWrapper):
-                        pt_modules.append(call_chain[i][0]._pt_module)
+        # Init Amp
+        if self._optim_level in AmpOptimizations and \
+                self._optim_level != Optimization.mxprO0:
+            pt_modules = []
+            for i in range(len(call_chain)):
+                if isinstance(call_chain[i][0], nn.Module):
+                    pt_modules.append(call_chain[i][0])
+                elif isinstance(call_chain[i][0],
+                                TrainableNeuralModuleWrapper):
+                    pt_modules.append(call_chain[i][0]._pt_module)
 
-                amp.initialize(
-                    min_loss_scale=1.0,
-                    models=pt_modules,
-                    optimizers=None,
-                    opt_level=AmpOptimizations[self._optim_level],
-                )
+            amp.initialize(
+                min_loss_scale=1.0,
+                models=pt_modules,
+                optimizers=None,
+                opt_level=AmpOptimizations[self._optim_level],
+            )
 
         # Run infer
         return self._infer(tensors_to_return=tensors,
