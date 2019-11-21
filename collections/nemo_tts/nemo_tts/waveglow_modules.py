@@ -80,6 +80,9 @@ class WaveGlowNM(TrainableNM):
         self.to(self._device)
 
     def forward(self, mel_spectrogram, audio):
+        # This function should probably be split
+        # If training, it returns the predicted normal distribution
+        # Else it returns the predicted audio
         if self.training:
             audio, log_s_list, log_det_W_list = self.waveglow(
                 (mel_spectrogram, audio))
