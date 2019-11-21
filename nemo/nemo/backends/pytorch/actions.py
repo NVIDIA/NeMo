@@ -1076,8 +1076,6 @@ class PtActions(Actions):
                                   opset_version=10)
                 # fn = output + ".readable"
                 # with open(fn, 'w') as f:
-                #     # Write human-readable graph representation to file as
-                #     well.
                 #     tempModel = onnx.load(output)
                 #     onnx.save(tempModel, output + ".copy")
                 #     onnx.checker.check_model(tempModel)
@@ -1092,8 +1090,9 @@ class PtActions(Actions):
             else:
                 raise NotImplemented(
                     f"Not supported deployment format: {d_format}")
-        except:  # nopep8
-            pass
+        except Exception as e:  # nopep8
+            print(
+                f'ERROR: module export failed for {module} with exception {e}')
         finally:
             def __old_call__(self, force_pt=False, *input, **kwargs):
                 pt_call = len(input) > 0 or force_pt
