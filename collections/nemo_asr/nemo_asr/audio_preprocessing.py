@@ -86,9 +86,11 @@ class AudioPreprocessor(NonTrainableNM):
         return processed_signal, processed_length
 
     def get_features(self, input_signal, length):
+        # Called by forward(). Subclasses should implement this.
         raise NotImplementedError
 
     def get_seq_len(self, length):
+        # Called by forward(). Subclasses should implement this.
         raise NotImplementedError
 
 
@@ -130,6 +132,9 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
 
         window_fn = self.torch_windows.get(window, None)
+        if window_fn is None:
+            raise ValueError(
+                f"Window argument for AudioProcessor is invalid: {window}")
 
         # Create featurizer
         self.featurizer = torchaudio.transforms.Spectrogram(
@@ -298,7 +303,11 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
 
         # Set window_fn if window arg is given
         if window:
-            mel_kwargs['window_fn'] = self.torch_windows.get(window, None)
+            window_fn = self.torch_windows.get(window, None)
+            if window_fn is None:
+                raise ValueError(
+                    f"Window argument for AudioProcessor is invalid: {window}")
+            mel_kwargs['window_fn'] = window_fn
 
         # Use torchaudio's implementation of MFCCs as featurizer
         self.featurizer = torchaudio.transforms.MFCC(
