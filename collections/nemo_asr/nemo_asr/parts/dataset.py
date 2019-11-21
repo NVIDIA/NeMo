@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 from .manifest import ManifestBase, ManifestEN
 
 
-def seq_collate_fn(batch):
+def seq_collate_fn(batch, token_pad_value=0):
     """collate batch of audio sig, audio len, tokens, tokens len
 
     Args:
@@ -39,7 +39,8 @@ def seq_collate_fn(batch):
         tokens_i_len = tokens_i_len.item()
         if tokens_i_len < max_tokens_len:
             pad = (0, max_tokens_len - tokens_i_len)
-            tokens_i = torch.nn.functional.pad(tokens_i, pad)
+            tokens_i = torch.nn.functional.pad(
+                tokens_i, pad, value=token_pad_value)
         tokens.append(tokens_i)
 
     if has_audio:
@@ -112,6 +113,7 @@ class AudioDataset(Dataset):
         blank_index: blank character index, default = -1
         unk_index: unk_character index, default = -1
         normalize: whether to normalize transcript text (default): True
+        bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
         load_audio: Boolean flag indicate whether do or not load audio
     """
@@ -127,6 +129,7 @@ class AudioDataset(Dataset):
             unk_index=-1,
             normalize=True,
             trim=False,
+            bos_id=None,
             eos_id=None,
             logger=False,
             load_audio=True,
@@ -142,6 +145,7 @@ class AudioDataset(Dataset):
         self.featurizer = featurizer
         self.trim = trim
         self.eos_id = eos_id
+        self.bos_id = bos_id
         self.load_audio = load_audio
         if logger:
             logger.info(
@@ -165,6 +169,9 @@ class AudioDataset(Dataset):
             f, fl = None, None
 
         t, tl = sample["tokens"], len(sample["tokens"])
+        if self.bos_id is not None:
+            t = [self.bos_id] + t
+            tl += 1
         if self.eos_id is not None:
             t = t + [self.eos_id]
             tl += 1
@@ -318,26 +325,40 @@ class TranscriptDataset(Dataset):
         labels (list): List of string labels to use when to str2int translation
         eos_id (int): Label position of end of string symbol
     """
-    def __init__(self, path, labels, eos_id):
+    def __init__(self, path, labels, bos_id=None, eos_id=None, lowercase=True):
         _, ext = os.path.splitext(path)
         if ext == '.csv':
             texts = pd.read_csv(path)['transcript'].tolist()
+        elif ext == '.json':
+            # Assume it is in ASR manifest form
+            texts = []
+            for item in ManifestBase.json_item_gen(path):
+                if 'text' in item:
+                    text = item['text']
+                elif 'text_filepath' in item:
+                    text = ManifestBase.load_transcript(item['text_filepath'])
+                else:
+                    raise ValueError(f"{self} obtained an invalid manifest.")
+                texts.append(text)
         else:
             with open(path, 'r') as f:
                 texts = f.readlines()
-        texts = [l.strip().lower() for l in texts if len(l)]
+        if lowercase:
+            texts = [l.strip().lower() for l in texts if len(l)]
         self.texts = texts
 
         self.char2num = {c: i for i, c in enumerate(labels)}
+        self.bos_id = bos_id
         self.eos_id = eos_id
 
     def __len__(self):
         return len(self.texts)
 
     def __getitem__(self, item):
-        char2num = self.char2num
-        return torch.tensor(
-            [char2num[c] for c in self.texts[item]
-             if c in char2num] + [self.eos_id],
-            dtype=torch.long
-        )
+        tokenized_text = ManifestBase.tokenize_transcript(
+            item, self.char2num, -1, -1)
+        if self.bos_id:
+            tokenized_text = [self.bos_id] + tokenized_text
+        if self.eos_id:
+            tokenized_text = tokenized_text + [self.eos_id]
+        return tokenized_text

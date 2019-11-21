@@ -11,7 +11,6 @@ __all__ = ['AudioToTextDataLayer',
            'TranscriptDataLayer']
 
 from functools import partial
-import sys
 import torch
 try:
     from apex import amp
@@ -110,7 +109,9 @@ transcript_n}
             batch_size,
             sample_rate=16000,
             int_values=False,
+            bos_id=None,
             eos_id=None,
+            pad_id=None,
             min_duration=0.1,
             max_duration=None,
             normalize_transcripts=True,
@@ -135,6 +136,7 @@ transcript_n}
                           'min_duration': min_duration,
                           'normalize': normalize_transcripts,
                           'trim': trim_silence,
+                          'bos_id': bos_id,
                           'eos_id': eos_id,
                           'logger': self._logger,
                           'load_audio': load_audio}
@@ -149,10 +151,11 @@ transcript_n}
         else:
             sampler = None
 
+        pad_id = 0 if pad_id is None else pad_id
         self._dataloader = torch.utils.data.DataLoader(
             dataset=self._dataset,
             batch_size=batch_size,
-            collate_fn=seq_collate_fn,
+            collate_fn=partial(seq_collate_fn, token_pad_value=pad_id),
             drop_last=drop_last,
             shuffle=shuffle if sampler is None else False,
             sampler=sampler,
@@ -642,9 +645,10 @@ class TranscriptDataLayer(DataLayerNM):
     def __init__(self,
                  path,
                  labels,
-                 eos_id,
-                 pad_id,
                  batch_size,
+                 bos_id=None,
+                 eos_id=None,
+                 pad_id=None,
                  drop_last=False,
                  num_workers=0,
                  **kwargs):
@@ -653,6 +657,7 @@ class TranscriptDataLayer(DataLayerNM):
         # Set up dataset
         dataset_params = {'path': path,
                           'labels': labels,
+                          'bos_id': bos_id,
                           'eos_id': eos_id}
 
         self._dataset = TranscriptDataset(**dataset_params)
@@ -663,6 +668,8 @@ class TranscriptDataLayer(DataLayerNM):
                     self._dataset)
         else:
             sampler = None
+
+        pad_id = 0 if pad_id is None else pad_id
 
         # noinspection PyTypeChecker
         self._dataloader = torch.utils.data.DataLoader(
