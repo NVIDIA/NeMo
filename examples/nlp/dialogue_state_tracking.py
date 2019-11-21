@@ -98,7 +98,7 @@ decoder = nemo_nlp.DSTGenerator(data_layer._dataset.vocab,
                                 len(data_layer._dataset.gating_dict),
                                 batch_size=args.batch_size,
                                 teacher_forcing=0.5)
-point_outputs, gate_outputs = decoder()
+point_outputs, gate_outputs = decoder(outputs, hidden)
 
 # gate_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 ptr_loss_fn = nemo_nlp.DSTMaskedCrossEntropy()
