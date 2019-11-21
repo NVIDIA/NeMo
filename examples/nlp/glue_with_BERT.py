@@ -75,6 +75,7 @@ from nemo_nlp.utils.callbacks.glue import \
     eval_iter_callback, eval_epochs_done_callback
 
 from nemo_nlp.data.datasets.utils import processors, output_modes
+from pytorch_transformers import BertConfig
 
 parser = argparse.ArgumentParser(description="GLUE_with_pretrained_BERT")
 
@@ -96,7 +97,12 @@ parser.add_argument("--bert_checkpoint", default=None, type=str,
 parser.add_argument("--bert_config", default=None, type=str,
                     help="Path to bert config file")
 parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str,
-                    help="Path to pretrained tokenizer model")
+                    help="Path to pretrained tokenizer model, \
+                    only used if --tokenizer is sentencepiece")
+parser.add_argument("--tokenizer", default="nemobert", type=str,
+                    choices=["nemobert", "sentencepiece"],
+                    help="tokenizer to use, \
+                    only relevant when using custom pretrained checkpoint.")
 parser.add_argument("--max_seq_length", default=128, type=int,
                     choices=range(1, 513),
                     help="The maximum total input sequence length after   \
@@ -178,10 +184,16 @@ else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     Replace BERT-STEP-150000.pt with the path to your checkpoint.
     """
-    tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
-    tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
+    if args.tokenizer == "sentencepiece":
+        tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
+        tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
+    elif args.tokenizer == "nemobert":
+        tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
+    else:
+        raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
+    config = BertConfig.from_json_file(args.bert_config)
 
-    model = nemo_nlp.huggingface.BERT(config_filename=args.bert_config)
+    model = nemo_nlp.huggingface.BERT(**config.to_dict())
     model.restore_from(args.bert_checkpoint)
 
 hidden_size = model.local_parameters["hidden_size"]
