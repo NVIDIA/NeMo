@@ -471,18 +471,17 @@ class KaldiFeatureDataLayer(DataLayerNM):
         return input_ports, output_ports
 
     def __init__(
-        self, *,
-        kaldi_dir,
-        labels,
-        batch_size,
-        eos_id=None,
-        min_duration=None,
-        max_duration=None,
-        normalize_transcripts=True,
-        drop_last=False,
-        shuffle=True,
-        num_workers=0,
-        **kwargs
+            self, *,
+            kaldi_dir,
+            labels,
+            batch_size,
+            min_duration=None,
+            max_duration=None,
+            normalize_transcripts=True,
+            drop_last=False,
+            shuffle=True,
+            num_workers=0,
+            **kwargs
     ):
         super().__init__(**kwargs)
 
