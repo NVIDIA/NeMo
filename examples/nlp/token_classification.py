@@ -12,7 +12,7 @@ from nemo_nlp.utils.callbacks.token_classification import \
     eval_iter_callback, eval_epochs_done_callback
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description="Token classification with pretrainedBERT")
+parser = argparse.ArgumentParser(description="NER with pretrainedBERT")
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=8, type=int)
 parser.add_argument("--max_seq_length", default=128, type=int)
@@ -40,6 +40,8 @@ parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str)
 parser.add_argument("--work_dir", default='output_ner', type=str,
                     help="The output directory where the model prediction\
                     and checkpoints will be written.")
+parser.add_argument("--use_cache", action='store_true',
+                    help="Whether to cache preprocessed data")
 parser.add_argument("--save_epoch_freq", default=1, type=int,
                     help="Frequency of saving checkpoint\
                     '-1' - step checkpoint won't be saved")
@@ -50,6 +52,11 @@ parser.add_argument("--loss_step_freq", default=250, type=int,
                     help="Frequency of printing loss")
 
 args = parser.parse_args()
+
+if not os.path.exists(args.data_dir):
+    raise FileNotFoundError("CoNLL-2003 dataset not found. Dataset can be "
+                            "obtained at https://github.com/kyzhouhzau/BERT"
+                            "-NER/tree/master/data.")
 
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
@@ -96,7 +103,8 @@ def create_pipeline(num_samples=-1,
                     num_gpus=args.num_gpus,
                     mode='train',
                     ignore_extra_tokens=args.ignore_extra_tokens,
-                    ignore_start_end=args.ignore_start_end):
+                    ignore_start_end=args.ignore_start_end,
+                    use_cache=args.use_cache):
     
     nf.logger.info(f"Loading {mode} data...")
     shuffle = args.shuffle_data if mode == 'train' else False
@@ -114,11 +122,12 @@ def create_pipeline(num_samples=-1,
         num_workers=0,
         local_rank=local_rank,
         shuffle=shuffle,
-        ignore_extra_tokens=args.ignore_extra_tokens,
-        ignore_start_end=args.ignore_start_end)
+        ignore_extra_tokens=ignore_extra_tokens,
+        ignore_start_end=ignore_start_end,
+        use_cache=use_cache)
+
     label_ids = data_layer.dataset.label_ids
     
-    output = data_layer()
     input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = data_layer()
 
     hidden_states = bert_model(input_ids=input_ids,

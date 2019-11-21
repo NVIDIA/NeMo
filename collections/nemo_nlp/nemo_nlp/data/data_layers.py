@@ -335,6 +335,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
                  batch_size=64,
                  ignore_extra_tokens=False,
                  ignore_start_end=False,
+                 use_cache=False,
                  dataset_type=BertTokenClassificationDataset,
                  **kwargs):
 
@@ -347,7 +348,8 @@ class BertTokenClassificationDataLayer(TextDataLayer):
                           'shuffle':shuffle,
                           'pad_label': pad_label,
                           'ignore_extra_tokens': ignore_extra_tokens,
-                          'ignore_start_end': ignore_start_end}
+                          'ignore_start_end': ignore_start_end,
+                          'use_cache': use_cache}
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 

@@ -10,14 +10,16 @@ from nemo_nlp import NemoBertTokenizer
 from nemo_nlp.utils.nlp_utils import get_vocab
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description='Token Classification with pretrained BERT')
+parser = argparse.ArgumentParser(description='NER with pretrained BERT')
 parser.add_argument("--max_seq_length", default=128, type=int)
 parser.add_argument("--fc_dropout", default=0, type=float)
 parser.add_argument("--pretrained_bert_model", default="bert-base-uncased", type=str)
 parser.add_argument("--num_classes", default=9, type=int)
 parser.add_argument("--none_label", default='O', type=str)
-parser.add_argument("--queries", default=['we bought four shirts from the nvidia gear store in santa clara', 'Nvidia is a company'],
-                    help="List of strings")
+parser.add_argument("--queries", action='append',
+                    default=['we bought four shirts from the nvidia gear store\
+                    in santa clara', 'Nvidia is a company'],
+                    help="Example: --queries 'San Francisco' --queries 'LA'")
 parser.add_argument("--add_brackets", action='store_false',
                     help="Whether to take predicted label in brackets or just append to word \
                     in the output")
@@ -27,7 +29,7 @@ parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
 
 args = parser.parse_args()
-
+print (args)
 if not os.path.exists(args.work_dir):
     raise ValueError(f'Work directory not found at {args.work_dir}')
 if not os.path.exists(args.labels_dict):

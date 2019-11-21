@@ -20,6 +20,8 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
 import itertools
+import os
+import pickle
 import random
 
 import numpy as np
@@ -43,16 +45,17 @@ def get_features(queries,
                  ignore_start_end=False):
     """
     Args:
-        queries (list of str): 
+        queries (list of str):
         max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
         tokenizer (Tokenizer): such as NemoBertTokenizer
         pad_label (str): pad value use for labels.
             by default, it's the neutral label.
         raw_labels (list of str): list of labels for every work in sequence
         unique_labels (set): set of all labels available in the data
-        ignore_extra_tokens (bool): whether to ignore extra tokens in the loss_mask,
-        if True, 
-        ignore_start_end (bool): whether to ignore bos and eos tokens in the loss_mask
+        ignore_extra_tokens (bool): whether to ignore extra tokens in 
+        the loss_mask,
+        ignore_start_end (bool): whether to ignore bos and eos tokens in
+        the loss_mask
     """
     all_subtokens = []
     all_loss_mask = []
@@ -209,45 +212,61 @@ class BertTokenClassificationDataset(Dataset):
                  shuffle=False,
                  pad_label='O',
                  ignore_extra_tokens=False,
-                 ignore_start_end=False):
+                 ignore_start_end=False,
+                 use_cache=False):
 
-        if num_samples == 0:
-            raise ValueError("num_samples has to be positive", num_samples)
-        
-        with open(text_file, 'r') as f:
-            text_lines = f.readlines()
-        
-        # Collect all possible labels
-        unique_labels = set([])
-        labels_lines = []
-        with open(label_file, 'r') as f:
-            for line in f:
-                line = line.strip().split()
-                labels_lines.append(line)
-                unique_labels.update(line)
+        if use_cache:
+            # Cache features 
+            data_dir = os.path.dirname(text_file)
+            filename = os.path.basename(text_file)[:-4]
+            features_pkl = os.path.join(data_dir, filename + "_features.pkl")
 
-        if len(labels_lines) != len(text_lines):
-            raise ValueError("Labels file should contain labels for every word")
+        if use_cache and os.path.exists(features_pkl):
+            # If text_file was already processed, load from pickle 
+            features = pickle.load(open(features_pkl, 'rb'))
+            logger.info(f'features restored from {features_pkl}')
+        else:
+            if num_samples == 0:
+                raise ValueError("num_samples has to be positive", num_samples)
+            
+            with open(text_file, 'r') as f:
+                text_lines = f.readlines()
+            
+            # Collect all possible labels
+            unique_labels = set([])
+            labels_lines = []
+            with open(label_file, 'r') as f:
+                for line in f:
+                    line = line.strip().split()
+                    labels_lines.append(line)
+                    unique_labels.update(line)
 
-        if shuffle or num_samples > 0:
-            dataset = list(zip(text_lines, labels_lines))
-            random.shuffle(dataset)
+            if len(labels_lines) != len(text_lines):
+                raise ValueError("Labels file should contain labels for every word")
 
-            if num_samples > 0:
-                dataset = dataset[:num_samples]
+            if shuffle or num_samples > 0:
+                dataset = list(zip(text_lines, labels_lines))
+                random.shuffle(dataset)
 
-            dataset = list(zip(*dataset))
-            text_lines = dataset[0]
-            labels_lines = dataset[1]
+                if num_samples > 0:
+                    dataset = dataset[:num_samples]
 
-        features = get_features(text_lines,
-                                max_seq_length,
-                                tokenizer,
-                                pad_label=pad_label,
-                                raw_labels=labels_lines,
-                                unique_labels=unique_labels,
-                                ignore_extra_tokens=ignore_extra_tokens,
-                                ignore_start_end=ignore_start_end)
+                dataset = list(zip(*dataset))
+                text_lines = dataset[0]
+                labels_lines = dataset[1]
+
+            features = get_features(text_lines,
+                                    max_seq_length,
+                                    tokenizer,
+                                    pad_label=pad_label,
+                                    raw_labels=labels_lines,
+                                    unique_labels=unique_labels,
+                                    ignore_extra_tokens=ignore_extra_tokens,
+                                    ignore_start_end=ignore_start_end)
+
+            if use_cache:
+                pickle.dump(features, open(features_pkl, "wb"))
+                logger.info(f'features saved to {features_pkl}')
         
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
