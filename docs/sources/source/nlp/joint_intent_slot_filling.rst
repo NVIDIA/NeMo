@@ -27,7 +27,7 @@ This model can work with any dataset that follows the format:
 
     * slot file: slot labels for all tokens in the sentence, separated by space. The length of the slot labels should be the same as the length of all tokens in sentence in input file.
 
-Currently, the datasets that we provide pre-processing script for include ATIS which can be downloaded from `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ and the SNIPS spoken language understanding research dataset which can be requested from `here <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__. You can find the pre-processing script in ``collections/nemo_nlp/nemo_nlp/text_data_utils.py``.
+Currently, the datasets that we provide pre-processing script for include ATIS which can be downloaded from `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ and the SNIPS spoken language understanding research dataset which can be requested from `here <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__. You can find the pre-processing script in ``collections/nemo_nlp/nemo_nlp/data/datasets/utils.py``.
 
 
 Code structure
