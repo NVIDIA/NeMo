@@ -82,7 +82,9 @@ class TestTTSPytorch(NeMoUnitTest):
             encoded_length=transcript_len,
             mel_target=spec_target)
         mel_postnet = t2_postnet(mel_input=mel_decoder)
-        gate_target = makegatetarget(target_len=spec_target_len)
+        gate_target = makegatetarget(
+            mel_target=spec_target,
+            target_len=spec_target_len)
         loss_t = t2_loss(
             mel_out=mel_decoder,
             mel_out_postnet=mel_postnet,
@@ -136,10 +138,10 @@ class TestTTSPytorch(NeMoUnitTest):
             input_signal=audio,
             length=audio_len)
 
-        audio_pred, log_s_list, log_det_W_list = waveglow(
+        z, log_s_list, log_det_W_list = waveglow(
             mel_spectrogram=spec_target, audio=audio)
         loss_t = waveglow_loss(
-            audio_pred=audio_pred,
+            z=z,
             log_s_list=log_s_list,
             log_det_W_list=log_det_W_list)
 
