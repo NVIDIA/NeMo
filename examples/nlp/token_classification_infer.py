@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser(description='NER with pretrained BERT')
 parser.add_argument("--max_seq_length", default=128, type=int)
 parser.add_argument("--fc_dropout", default=0, type=float)
 parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-uncased", type=str)
+                    default="bert-base-cased", type=str)
 parser.add_argument("--num_classes", default=9, type=int)
 parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument("--queries", action='append',
@@ -24,7 +24,7 @@ parser.add_argument("--queries", action='append',
 parser.add_argument("--add_brackets", action='store_false',
                     help="Whether to take predicted label in brackets or \
                     just append to word in the output")
-parser.add_argument("--work_dir", default='outputs/checkpoints', type=str)
+parser.add_argument("--work_dir", default='output/checkpoints', type=str)
 parser.add_argument("--labels_dict", default='label_ids.csv', type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
