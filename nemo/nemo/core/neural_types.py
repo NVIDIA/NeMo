@@ -70,10 +70,11 @@ class ChannelTag(BaseTag):
 
 
 class EmbeddedTextTag(ChannelTag):
-    """TODO"""
+    """Tag for any dimensions that contains text that goes through an
+    enbedding layer."""
 
     def __str__(self):
-        return "TODO"
+        return "embedded_text"
 
 
 class SpectrogramSignalTag(ChannelTag):
