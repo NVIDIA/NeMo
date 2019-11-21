@@ -309,7 +309,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-             "loss_mask": NeuralType({
+            "loss_mask": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
@@ -323,13 +323,13 @@ class BertTokenClassificationDataLayer(TextDataLayer):
             })
         }
         return input_ports, output_ports
-    
+
     def __init__(self,
                  text_file,
                  label_file,
-                 pad_label,
                  tokenizer,
                  max_seq_length,
+                 pad_label='O',
                  num_samples=-1,
                  shuffle=False,
                  batch_size=64,
@@ -345,7 +345,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
                           'max_seq_length': max_seq_length,
                           'tokenizer': tokenizer,
                           'num_samples': num_samples,
-                          'shuffle':shuffle,
+                          'shuffle': shuffle,
                           'pad_label': pad_label,
                           'ignore_extra_tokens': ignore_extra_tokens,
                           'ignore_start_end': ignore_start_end,
@@ -370,7 +370,7 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-             "loss_mask": NeuralType({
+            "loss_mask": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
@@ -380,7 +380,7 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
             })
         }
         return input_ports, output_ports
- 
+
     def __init__(self,
                  queries,
                  tokenizer,
@@ -393,7 +393,6 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
                           'tokenizer': tokenizer,
                           'max_seq_length': max_seq_length}
         super().__init__(dataset_type, dataset_params, **kwargs)
-   
 
 
 class BertPretrainingDataLayer(TextDataLayer):

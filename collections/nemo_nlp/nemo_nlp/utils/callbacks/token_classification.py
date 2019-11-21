@@ -28,9 +28,9 @@ def eval_iter_callback(tensors, global_vars):
         global_vars["all_labels"] = []
     if "all_subtokens_mask" not in global_vars.keys():
         global_vars["all_subtokens_mask"] = []
- 
+
     all_subtokens_mask, all_logits, all_labels = [], [], []
-    
+
     for kv, v in tensors.items():
         if kv.startswith('logits'):
             for v_tensor in v:
@@ -68,7 +68,7 @@ def eval_epochs_done_callback(global_vars, label_ids, none_label_id=0):
 
     accuracy = sum(labels == preds) / labels.shape[0]
     logger.info(f'Accuracy: {accuracy}')
-    
+
     i = 0
     if preds.shape[0] > 21:
         i = random.randint(0, preds.shape[0] - 21)
