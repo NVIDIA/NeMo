@@ -272,6 +272,7 @@ class NeuralModuleFactory(object):
             add_time_to_log_dir=False
     ):
         self._local_rank = local_rank
+        self._global_rank = 0
 
         if isinstance(optimization_level, str):
             optimization_level = _str_to_opt_level(optimization_level)
@@ -320,6 +321,7 @@ class NeuralModuleFactory(object):
                     backend="nccl", init_method="env://"
                 )
                 self._world_size = torch.distributed.get_world_size()
+                self._global_rank = torch.distributed.get_rank()
 
                 def torch_broadcast_wrapper(str_len=None, string=None, src=0):
                     """Wrapper function to broadcast string values across all
@@ -355,6 +357,7 @@ class NeuralModuleFactory(object):
             use_tb=create_tb_writer,
             tb_dir=tensorboard_dir,
             local_rank=local_rank,
+            global_rank=self._global_rank,
             files_to_copy=files_to_copy,
             add_time=add_time_to_log_dir,
             exist_ok=True,
