@@ -9,7 +9,7 @@ __all__ = ['TransformerEncoderNM',
 
 import math
 
-from nemo.backends.pytorch.nm import TrainableNM, LossNM
+from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import *
 
 from ..transformer import (TransformerEmbedding,
