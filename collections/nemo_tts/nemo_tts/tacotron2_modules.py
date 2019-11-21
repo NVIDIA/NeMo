@@ -19,6 +19,7 @@ class TextEmbedding(TrainableNM):
         n_symbols (int): The number of character labels. The input char_phone's
             second axis dim size should be n_symbols.
         symbols_embedding_dim (int): The size of the embedding dimension.
+            Defaults to 512.
     """
     @staticmethod
     def create_ports():
@@ -34,7 +35,7 @@ class TextEmbedding(TrainableNM):
         }
         return input_ports, output_ports
 
-    def __init__(self, n_symbols, symbols_embedding_dim, **kwargs):
+    def __init__(self, n_symbols, symbols_embedding_dim: int = 512, **kwargs):
         super().__init__(**kwargs)
         self.embedding = nn.Embedding(
             n_symbols, symbols_embedding_dim)
@@ -52,10 +53,11 @@ class Tacotron2Encoder(TrainableNM):
 
     Args:
         encoder_n_convolutions (int): The number of convolution layers inside
-            the encoder.
+            the encoder. Defaults to 5.
         encoder_embedding_dim (int): The size of the embedded text. It will
-            also be the output size of the encoded text.
-        encoder_kernel_size (int): The kernel size of the convolution layers
+            also be the output size of the encoded text. Defaults to 512.
+        encoder_kernel_size (int): The kernel size of the convolution layers.
+            Defaults to 3
     """
     @staticmethod
     def create_ports():
@@ -76,9 +78,9 @@ class Tacotron2Encoder(TrainableNM):
 
     def __init__(
             self,
-            encoder_n_convolutions,
-            encoder_embedding_dim,
-            encoder_kernel_size,
+            encoder_n_convolutions: int = 5,
+            encoder_embedding_dim: int = 512,
+            encoder_kernel_size: int = 3,
             **kwargs):
         super().__init__(**kwargs)
         self.encoder = Encoder(encoder_n_convolutions=encoder_n_convolutions,
@@ -102,24 +104,32 @@ class Tacotron2Decoder(TrainableNM):
     Args:
         n_mel_channels (int): The size or dimensionality of the mel spectrogram
         n_frames_per_step (int): The number of frames we predict at each
-            decoder time step.
+            decoder time step. Defaults to 1
         encoder_embedding_dim (int): The size of the encoded text.
+            Defaults to 512.
         gate_threshold (float): A number in [0, 1). When teacher forcing is
             not used, the model predict a stopping value at each model time
             step. The model will stop if the value is greater than
-            gate_threshold.
-        prenet_dim (int): The hidden dimension of the prenet.
+            gate_threshold. Defaults to 0.5.
+        prenet_dim (int): The hidden dimension of the prenet. Defaults to 256.
         max_decoder_steps (int): When not teacher forcing, the maximum number
-            of frames to predict.
+            of frames to predict. Defaults to 1000.
         decoder_rnn_dim (int): The hidden dimension of the decoder rnn.
+            Defaults to 1024.
         p_decoder_dropout (float): Dropout probability for the decoder rnn.
+            Defaults to 0.1.
         p_attention_dropout (float): Dropout probability for the attention rnn.
+            Defaults to 0.1.
         attention_rnn_dim (int): The hidden dimension of the attention rnn.
+            Defaults to 1024.
         attention_dim (int): The hidden dimension of the attention mechanism.
+            Defaults to 128.
         attention_location_n_filters (int): The number of convolution filters
             for the location part of the attention mechanism.
+            Defaults to 32.
         attention_location_kernel_size (int): The kernel size of the
             convolution for the location part of the attention mechanism.
+            Defaults to 31.
     """
     @staticmethod
     def create_ports():
@@ -148,19 +158,19 @@ class Tacotron2Decoder(TrainableNM):
 
     def __init__(
             self,
-            n_mel_channels,
-            n_frames_per_step,
-            encoder_embedding_dim,
-            gate_threshold,
-            prenet_dim,
-            max_decoder_steps,
-            decoder_rnn_dim,
-            p_decoder_dropout,
-            p_attention_dropout,
-            attention_rnn_dim,
-            attention_dim,
-            attention_location_n_filters,
-            attention_location_kernel_size,
+            n_mel_channels: int,
+            n_frames_per_step: int = 1,
+            encoder_embedding_dim: int = 512,
+            gate_threshold: float = 0.5,
+            prenet_dim: int = 256,
+            max_decoder_steps: int = 1000,
+            decoder_rnn_dim: int = 1024,
+            p_decoder_dropout: float = 0.1,
+            p_attention_dropout: float = 0.1,
+            attention_rnn_dim: int = 1024,
+            attention_dim: int = 128,
+            attention_location_n_filters: int = 32,
+            attention_location_kernel_size: int = 31,
             **kwargs):
         super().__init__(**kwargs)
         self.decoder = Decoder(
@@ -198,24 +208,32 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
     Args:
         n_mel_channels (int): The size or dimensionality of the mel spectrogram
         n_frames_per_step (int): The number of frames we predict at each
-            decoder time step.
+            decoder time step. Defaults to 1
         encoder_embedding_dim (int): The size of the encoded text.
+            Defaults to 512.
         gate_threshold (float): A number in [0, 1). When teacher forcing is
             not used, the model predict a stopping value at each model time
             step. The model will stop if the value is greater than
-            gate_threshold.
-        prenet_dim (int): The hidden dimension of the prenet.
+            gate_threshold. Defaults to 0.5.
+        prenet_dim (int): The hidden dimension of the prenet. Defaults to 256.
         max_decoder_steps (int): When not teacher forcing, the maximum number
-            of frames to predict.
+            of frames to predict. Defaults to 1000.
         decoder_rnn_dim (int): The hidden dimension of the decoder rnn.
+            Defaults to 1024.
         p_decoder_dropout (float): Dropout probability for the decoder rnn.
+            Defaults to 0.1.
         p_attention_dropout (float): Dropout probability for the attention rnn.
+            Defaults to 0.1.
         attention_rnn_dim (int): The hidden dimension of the attention rnn.
+            Defaults to 1024.
         attention_dim (int): The hidden dimension of the attention mechanism.
+            Defaults to 128.
         attention_location_n_filters (int): The number of convolution filters
             for the location part of the attention mechanism.
+            Defaults to 32.
         attention_location_kernel_size (int): The kernel size of the
             convolution for the location part of the attention mechanism.
+            Defaults to 31.
     """
     @staticmethod
     def create_ports():
@@ -243,38 +261,6 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
     def __str__(self):
         return "Tacotron2Decoder"
 
-    def __init__(
-            self,
-            n_mel_channels,
-            n_frames_per_step,
-            encoder_embedding_dim,
-            gate_threshold,
-            prenet_dim,
-            max_decoder_steps,
-            decoder_rnn_dim,
-            p_decoder_dropout,
-            p_attention_dropout,
-            attention_rnn_dim,
-            attention_dim,
-            attention_location_n_filters,
-            attention_location_kernel_size,
-            **kwargs):
-        super().__init__(
-            n_mel_channels,
-            n_frames_per_step,
-            encoder_embedding_dim,
-            gate_threshold,
-            prenet_dim,
-            max_decoder_steps,
-            decoder_rnn_dim,
-            p_decoder_dropout,
-            p_attention_dropout,
-            attention_rnn_dim,
-            attention_dim,
-            attention_location_n_filters,
-            attention_location_kernel_size,
-            **kwargs)
-
     def forward(self, char_phone_encoded, encoded_length):
         if self.training:
             raise ValueError("You are using the Tacotron 2 Infer Neural Module"
@@ -293,9 +279,12 @@ class Tacotron2Postnet(TrainableNM):
 
     Args:
         n_mel_channels (int): The size or dimensionality of the mel spectrogram
-        postnet_embedding_dim (int): Hidden size of convolutions
-        postnet_kernel_size (int): Kernel size of convolutions
-        postnet_n_convolutions (int): Number of convolution layers
+        postnet_embedding_dim (int): Hidden size of convolutions.
+            Defaults to 512.
+        postnet_kernel_size (int): Kernel size of convolutions.
+            Defaults to 5.
+        postnet_n_convolutions (int): Number of convolution layers.
+            Defaults to 5.
     """
     @staticmethod
     def create_ports():
@@ -314,10 +303,10 @@ class Tacotron2Postnet(TrainableNM):
 
     def __init__(
             self,
-            n_mel_channels,
-            postnet_embedding_dim,
-            postnet_kernel_size,
-            postnet_n_convolutions,
+            n_mel_channels: int,
+            postnet_embedding_dim: int = 512,
+            postnet_kernel_size: int = 5,
+            postnet_n_convolutions: int = 5,
             **kwargs):
         super().__init__(**kwargs)
         self.postnet = Postnet(n_mel_channels=n_mel_channels,
@@ -368,7 +357,7 @@ class Tacotron2Loss(LossNM):
         output_ports = {"loss": NeuralType(None)}
         return input_ports, output_ports
 
-    def __init__(self, pad_value=-11.52, **kwargs):
+    def __init__(self, pad_value: float = -11.52, **kwargs):
         super().__init__(**kwargs)
         self.pad_value = pad_value
 
@@ -429,9 +418,6 @@ class MakeGate(NonTrainableNM):
                                        1: AxisType(TimeTag)})
         }
         return input_ports, output_ports
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
 
     def forward(self, target_len, mel_target):
         max_len = mel_target.shape[2]
