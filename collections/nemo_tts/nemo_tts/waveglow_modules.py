@@ -55,14 +55,14 @@ class WaveGlowNM(TrainableNM):
 
     def __init__(
             self,
-            n_mel_channels=80,
-            n_flows=12,
-            n_group=8,
-            n_early_every=4,
-            n_early_size=2,
-            n_wn_layers=8,
-            n_wn_channels=512,
-            wn_kernel_size=3,
+            n_mel_channels: int = 80,
+            n_flows: int = 12,
+            n_group: int = 8,
+            n_early_every: int = 4,
+            n_early_size: int = 2,
+            n_wn_layers: int = 8,
+            n_wn_channels: int = 512,
+            wn_kernel_size: int = 3,
             **kwargs):
         super().__init__(**kwargs)
         wavenet_config = {
@@ -140,15 +140,15 @@ class WaveGlowInferNM(WaveGlowNM):
 
     def __init__(
             self,
-            n_mel_channels=80,
-            n_flows=12,
-            n_group=8,
-            n_early_every=4,
-            n_early_size=2,
-            n_wn_layers=8,
-            n_wn_channels=512,
-            wn_kernel_size=3,
-            sigma=0.6,
+            n_mel_channels: int = 80,
+            n_flows: int = 12,
+            n_group: int = 8,
+            n_early_every: int = 4,
+            n_early_size: int = 2,
+            n_wn_layers: int = 8,
+            n_wn_channels: int = 512,
+            wn_kernel_size: int = 3,
+            sigma: float = 0.6,
             **kwargs):
         self._sigma = sigma
         super().__init__(
@@ -212,7 +212,7 @@ class WaveGlowLoss(LossNM):
     @staticmethod
     def create_ports():
         input_ports = {
-            "audio_pred": NeuralType({0: AxisType(BatchTag),
+            "z": NeuralType({0: AxisType(BatchTag),
                                       1: AxisType(TimeTag)}),
             "log_s_list": NeuralType(),
             "log_det_W_list": NeuralType(),
@@ -221,15 +221,14 @@ class WaveGlowLoss(LossNM):
         output_ports = {"loss": NeuralType(None)}
         return input_ports, output_ports
 
-    def __init__(self, sigma=1.0, **kwargs):
+    def __init__(self, sigma: float = 1.0, **kwargs):
         super().__init__(**kwargs)
         self.sigma = sigma
 
     def _loss_function(self, **kwargs):
         return self._loss(*(kwargs.values()))
 
-    def _loss(self, audio_pred, log_s_list, log_det_W_list):
-        z = audio_pred
+    def _loss(self, z, log_s_list, log_det_W_list):
         for i, log_s in enumerate(log_s_list):
             if i == 0:
                 log_s_total = torch.sum(log_s)

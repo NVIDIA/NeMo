@@ -8,7 +8,7 @@ setuptools.setup(
     version="0.9",
     author="NVIDIA",
     author_email="nemo-toolkit@nvidia.com",
-    description="Collection of Neural Modules for Speech Recognition",
+    description="Collection of Neural Modules for Speech Synthesis",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/nvidia/nemo",

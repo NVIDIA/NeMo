@@ -1,10 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import torch
-try:
-    from apex import amp
-except AttributeError:
-    print("Unable to import APEX. Mixed precision and distributed training "
-          "will not work.")
 
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core import DeviceType
