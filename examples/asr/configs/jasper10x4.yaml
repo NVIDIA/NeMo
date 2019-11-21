@@ -29,7 +29,6 @@ AudioToMelSpectrogramPreprocessor:
     features: 64
     lowfreq: 0
     highfreq: null
-    feat_type: "logfbank"
     dither: 0.00001
     pad_to: 16
     frame_splicing: 1

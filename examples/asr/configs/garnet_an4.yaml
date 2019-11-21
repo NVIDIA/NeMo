@@ -28,7 +28,6 @@ input:
         n_fft: 512
         frame_splicing: 1
         dither: 0.00001
-        feat_type: "logfbank"
         pad_to: 16
         max_duration: 20
     eval:
@@ -41,7 +40,6 @@ input:
         n_fft: 512
         frame_splicing: 1
         dither: 0.00001
-        feat_type: "logfbank"
 
 
 spectr_augment:

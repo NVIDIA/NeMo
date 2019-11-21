@@ -36,7 +36,6 @@ AudioToMelSpectrogramPreprocessor:
     features: 64
     n_fft: 512
     dither: 0.00001
-    feat_type: "logfbank"
     pad_to: 16
     stft_conv: true
 
