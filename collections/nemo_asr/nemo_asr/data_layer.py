@@ -110,9 +110,7 @@ transcript_n}
             batch_size,
             sample_rate=16000,
             int_values=False,
-            bos_id=None,
             eos_id=None,
-            pad_id=None,
             min_duration=0.1,
             max_duration=None,
             normalize_transcripts=True,
@@ -137,9 +135,7 @@ transcript_n}
                           'min_duration': min_duration,
                           'normalize': normalize_transcripts,
                           'trim': trim_silence,
-                          'bos_id': bos_id,
                           'eos_id': eos_id,
-                          'pad_id': pad_id,
                           'logger': self._logger,
                           'load_audio': load_audio}
 
