@@ -1,12 +1,11 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import copy
 import importlib
 import itertools
 import json
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import torch
 import torch.distributed as dist
@@ -19,6 +18,7 @@ from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
 from .optimizers import Novograd, AdamW, Lamb
 from ...core import NmTensor, DeviceType, NeuralModule, DeploymentFormat
+from ...core.neural_types import *
 from ...core.callbacks import (ActionCallback,
                                EvaluatorCallback,
                                SimpleLossLoggerCallback)
@@ -1014,6 +1014,26 @@ class PtActions(Actions):
 
         input_names = list(module.input_ports.keys())
         output_names = list(module.output_ports.keys())
+        dynamic_axes = {}
+
+        def __extract_dynamic_axes(port_name: str, ntype: NeuralType,
+                                   dynamic_axes: Dict):
+            if ntype.axis2type is not None and ntype.axis2type != {}:
+                for axis_id, axistype in ntype.axis2type.items():
+                    if issubclass(axistype.semantics, BatchTag) or issubclass(
+                            axistype.semantics, TimeTag):
+                        if port_name not in dynamic_axes:
+                            dynamic_axes[port_name] = []
+                        dynamic_axes[port_name].append(axis_id)
+        # for input_ports
+        for port_name, ntype in module.input_ports.items():
+            __extract_dynamic_axes(port_name, ntype, dynamic_axes)
+        # for output_ports
+        for port_name, ntype in module.output_ports.items():
+            __extract_dynamic_axes(port_name, ntype, dynamic_axes)
+        if len(dynamic_axes) == 0:
+            dynamic_axes = None
+
         local_parameters = {}
         for key, value in module._local_parameters.items():
             local_parameters[key] = value
@@ -1047,20 +1067,12 @@ class PtActions(Actions):
                         f'Example input is None, but ONNX tracing was'
                         f' attempted')
                 torch.onnx.export(module, input_example, output,
-                                  #   Oleksii: we need to use real I/O names
                                   input_names=input_names,
                                   output_names=output_names,
                                   verbose=True,
                                   export_params=True,
                                   do_constant_folding=True,
-                                  dynamic_axes={
-                                      #   Oleksii: we need to infer that
-                                      #   info, too
-                                      #    "FEATURES" : {0 : "BATCHSIZE",
-                                      #    2 : "NUM_FEATURES"},
-                                      #    "LOGITS" : { 0: "BATCHSIZE",
-                                      #    1 : "NUM_LOGITS"}
-                                  },
+                                  dynamic_axes=dynamic_axes,
                                   opset_version=10)
                 # fn = output + ".readable"
                 # with open(fn, 'w') as f:
