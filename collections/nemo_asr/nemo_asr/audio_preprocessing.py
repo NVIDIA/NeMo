@@ -65,6 +65,14 @@ class AudioPreprocessor(NonTrainableNM):
 
         self.disable_casts = (self._opt_level == Optimization.mxprO1)
 
+        self.torch_windows = {
+            'hann': torch.hann_window,
+            'hamming': torch.hamming_window,
+            'blackman': torch.blackman_window,
+            'bartlett': torch.bartlett_window,
+            'none': None,
+        }
+
     @torch.no_grad()
     def forward(self, input_signal, length):
         if self.disable_casts:
@@ -120,14 +128,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         self.hop_length = int(sample_rate * window_stride)
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
 
-        torch_windows = {
-            'hann': torch.hann_window,
-            'hamming': torch.hamming_window,
-            'blackman': torch.blackman_window,
-            'bartlett': torch.bartlett_window,
-            'none': None,
-        }
-        window_fn = torch_windows.get(window, None)
+        window_fn = self.torch_windows.get(window, None)
 
         # Create featurizer
         self.featurizer = torchaudio.transform.Spectrogram(
@@ -151,6 +152,9 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
 
 class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
     """Featurizer that converts wavs to mel spectrograms.
+    We don't use torchaudio's implementation here because the original
+    implementation is not the same, so for the sake of backwards-compatibility
+    this will use the old FilterbankFeatures for now.
 
     Args:
         sample_rate (int): Sample rate of the input audio data.
@@ -292,14 +296,8 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
             mel_kwargs['hop_length'] = int(sample_rate * window_stride)
 
         # Set window_fn if window arg is given
-        torch_windows = {
-            'hann': torch.hann_window,
-            'hamming': torch.hamming_window,
-            'blackman': torch.blackman_window,
-            'bartlett': torch.bartlett_window,
-        }
         if window:
-            mel_kwargs['window_fn'] = torch_windows.get(window, None)
+            mel_kwargs['window_fn'] = self.torch_windows.get(window, None)
 
         # Use torchaudio's implementation of MFCCs as featurizer
         self.featurizer = torchaudio.transforms.MFCC(

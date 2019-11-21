@@ -252,18 +252,3 @@ class FilterbankFeatures(nn.Module):
                 x = nn.functional.pad(x, (0, pad_to - pad_amt))
 
         return x
-
-    @classmethod
-    def from_config(cls, cfg, log=False):
-        return cls(sample_rate=cfg.get('sample_rate', 16000),
-                   window_size=cfg.get('window_size', 0.02),
-                   window_stride=cfg.get('window_stride', 0.01),
-                   n_fft=cfg.get('n_fft', None),
-                   nfilt=cfg.get('features', 64),
-                   window=cfg.get('window', "hann"),
-                   normalize=cfg.get('normalize', "per_feature"),
-                   dither=cfg.get('dither', CONSTANT),
-                   pad_to=cfg.get("pad_to", 16),
-                   frame_splicing=cfg.get("frame_splicing", 1),
-                   log=log,
-                   stft_conv=cfg.get("stft_conv", False))
