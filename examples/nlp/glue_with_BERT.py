@@ -191,9 +191,13 @@ else:
         tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
     else:
         raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
-    config = BertConfig.from_json_file(args.bert_config)
+    if args.bert_config is not None:
+        config = BertConfig.from_json_file(args.bert_config)
+        model = nemo_nlp.huggingface.BERT(**config.to_dict())
+    else:
+        model = nemo_nlp.huggingface.BERT(
+            pretrained_model_name=args.pretrained_bert_model)
 
-    model = nemo_nlp.huggingface.BERT(**config.to_dict())
     model.restore_from(args.bert_checkpoint)
 
 hidden_size = model.local_parameters["hidden_size"]
