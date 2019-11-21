@@ -28,7 +28,6 @@ class TestASRPytorch(NeMoUnitTest):
                          'sample_rate': freq,
                          'features': 64,
                          'n_fft': 512,
-                         'feat_type': 'logfbank',
                          'window_size': 0.02}
     yaml = YAML(typ="safe")
 
@@ -232,7 +231,7 @@ class TestASRPytorch(NeMoUnitTest):
                               'features': 64,
                               'window_size': 0.02, 'n_fft': 512,
                               'dither': 1e-05,
-                              'window': 'hann', 'feat_type': 'logfbank',
+                              'window': 'hann',
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
                               'window_stride': 0.01}
@@ -287,7 +286,7 @@ class TestASRPytorch(NeMoUnitTest):
                               'features': 64,
                               'window_size': 0.02, 'n_fft': 512,
                               'dither': 1e-05,
-                              'window': 'hann', 'feat_type': 'logfbank',
+                              'window': 'hann',
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
                               'window_stride': 0.01}
@@ -358,7 +357,7 @@ class TestASRPytorch(NeMoUnitTest):
                               'features': 64,
                               'window_size': 0.02, 'n_fft': 512,
                               'dither': 1e-05,
-                              'window': 'hann', 'feat_type': 'logfbank',
+                              'window': 'hann',
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
                               'window_stride': 0.01,
@@ -415,7 +414,7 @@ class TestASRPytorch(NeMoUnitTest):
                               'features': 64,
                               'window_size': 0.02, 'n_fft': 512,
                               'dither': 1e-05,
-                              'window': 'hann', 'feat_type': 'logfbank',
+                              'window': 'hann',
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
                               'window_stride': 0.01,
@@ -474,7 +473,7 @@ class TestASRPytorch(NeMoUnitTest):
                               'features': 64,
                               'window_size': 0.02, 'n_fft': 512,
                               'dither': 1e-05,
-                              'window': 'hann', 'feat_type': 'logfbank',
+                              'window': 'hann',
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
                               'window_stride': 0.01}

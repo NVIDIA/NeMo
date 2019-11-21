@@ -26,7 +26,6 @@ class TestWeightSharing(NeMoUnitTest):
                          'sample_rate': 16000,
                          'features': 64,
                          'n_fft': 512,
-                         'feat_type': 'logfbank',
                          'window_size': 0.02}
     yaml = YAML(typ="safe")
 
@@ -119,7 +118,7 @@ class TestWeightSharing(NeMoUnitTest):
         pre_process_params = {
             'int_values': False, 'frame_splicing': 1, 'features': 64,
             'window_size': 0.02, 'n_fft': 512, 'dither': 1e-05,
-            'window': 'hann', 'feat_type': 'logfbank', 'sample_rate': 16000,
+            'window': 'hann', 'sample_rate': 16000,
             'normalize': 'per_feature', 'window_stride': 0.01}
         preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **pre_process_params)

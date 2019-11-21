@@ -20,7 +20,6 @@ AudioToMelSpectrogramPreprocessor:
     normalize: "per_feature"
     n_fft: 512
     features: 64
-    feat_type: "logfbank"
     dither: 0.00001
     pad_to: 16
     stft_conv: true
