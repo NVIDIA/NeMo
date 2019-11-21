@@ -113,21 +113,18 @@ def create_infer_dags(neural_factory,
                       cpu_per_dl=1):
     (_, text_embedding, t2_enc, t2_dec, t2_postnet, _, _) = neural_modules
 
-    dl_params = copy.deepcopy(tacotron2_params["AudioToTextDataLayer"])
-    dl_params.update(tacotron2_params["AudioToTextDataLayer"]["eval"])
-    del dl_params["train"]
-    del dl_params["eval"]
-
-    data_layer = nemo_asr.AudioToTextDataLayer(
-        manifest_filepath=infer_dataset,
+    data_layer = nemo_asr.TranscriptDataLayer(
+        path=infer_dataset,
         labels=tacotron2_params['labels'],
         batch_size=infer_batch_size,
         num_workers=cpu_per_dl,
         load_audio=False,
-        **dl_params,
+        bos_id=len(tacotron2_params['labels']),
+        eos_id=len(tacotron2_params['labels']) + 1,
+        pad_id=len(tacotron2_params['labels']) + 2,
     )
 
-    _, _, transcript, transcript_len = data_layer()
+    transcript, transcript_len = data_layer()
 
     transcript_embedded = text_embedding(char_phone=transcript)
     transcript_encoded = t2_enc(

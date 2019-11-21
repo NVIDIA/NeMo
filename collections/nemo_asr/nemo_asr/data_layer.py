@@ -637,7 +637,9 @@ class TranscriptDataLayer(DataLayerNM):
             'texts': NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
-            })
+            }),
+
+            "texts_length": NeuralType({0: AxisType(BatchTag)})
         }
         return input_ports, output_ports
 
@@ -682,16 +684,17 @@ class TranscriptDataLayer(DataLayerNM):
         )
 
     @staticmethod
-    def _collate_fn(batch_list, pad_id, pad8=False):
-        max_len = max(len(s) for s in batch_list)
+    def _collate_fn(batch, pad_id, pad8=False):
+        texts_list, texts_len = zip(*batch)
+        max_len = max(texts_len)
         if pad8:
             max_len = nemo_pad_to(max_len, 8)
 
-        texts = torch.empty(len(batch_list), max_len,
+        texts = torch.empty(len(texts_list), max_len,
                             dtype=torch.long)
         texts.fill_(pad_id)
 
-        for i, s in enumerate(batch_list):
+        for i, s in enumerate(texts_list):
             texts[i].narrow(0, 0, s.size(0)).copy_(s)
 
         if len(texts.shape) != 2:
@@ -700,7 +703,7 @@ class TranscriptDataLayer(DataLayerNM):
                 f" should have 2 dimensions."
             )
 
-        return texts
+        return texts, torch.stack(texts_len)
 
     def __len__(self):
         return len(self._dataset)

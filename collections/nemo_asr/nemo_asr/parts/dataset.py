@@ -361,4 +361,4 @@ class TranscriptDataset(Dataset):
             tokenized_text = [self.bos_id] + tokenized_text
         if self.eos_id:
             tokenized_text = tokenized_text + [self.eos_id]
-        return tokenized_text
+        return tokenized_text, len(tokenized_text)
