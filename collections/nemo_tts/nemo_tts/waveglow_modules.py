@@ -213,7 +213,7 @@ class WaveGlowLoss(LossNM):
     def create_ports():
         input_ports = {
             "z": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(TimeTag)}),
+                             1: AxisType(TimeTag)}),
             "log_s_list": NeuralType(),
             "log_det_W_list": NeuralType(),
         }
