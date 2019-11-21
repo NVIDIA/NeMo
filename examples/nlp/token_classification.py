@@ -33,11 +33,11 @@ parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument("--shuffle_data", action='store_false')
 parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-uncased", type=str)
+                    default="bert-base-cased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str)
 parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str)
-parser.add_argument("--work_dir", default='output_ner', type=str,
+parser.add_argument("--work_dir", default='output', type=str,
                     help="The output directory where the model prediction\
                     and checkpoints will be written.")
 parser.add_argument("--use_cache", action='store_true',
