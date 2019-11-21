@@ -12,7 +12,7 @@ This tutorial explains how to implement named entity recognition (NER) in NeMo. 
 Download Dataset
 ----------------
 
-`CoNLL-2003`_ is a standard evaluation dataset for NER, but any NER dataset will work. CoNLL-2003 dataset could also be found `here`_. The only requirement is that the data is split into 2 files: text.txt labels.txt. The text.txt files are formatted like this:
+`CoNLL-2003`_ is a standard evaluation dataset for NER, but any NER dataset will work. CoNLL-2003 dataset could also be found `here`_. The only requirement is that the data is splitted into 2 files: text.txt and labels.txt. The text.txt files should be formatted like this:
 
 .. _CoNLL-2003: https://www.clips.uantwerpen.be/conll2003/ner/
 .. _here: https://github.com/kyzhouhzau/BERT-NER/tree/master/data
@@ -23,7 +23,7 @@ Download Dataset
     She likes ...
     ...
 
-The labels.txt files are formatted like this:
+The labels.txt files should be formatted like this:
 
 .. code-block::
 
@@ -43,17 +43,16 @@ Training
 .. tip::
 
     We recommend you try this out in a Jupyter notebook. It'll make debugging much easier!
+    See examples/nlp/NERWithBERT.ipynb
 
 First, we need to create our neural factory with the supported backend. How you should define it depends on whether you'd like to multi-GPU or mixed-precision training. This tutorial assumes that you're training on one GPU, without mixed precision. If you want to use mixed precision, set ``amp_opt_level`` to ``O1`` or ``O2``.
 
     .. code-block:: python
 
         nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
-                                           local_rank=args.local_rank,
-                                           optimization_level=args.amp_opt_level,
-                                           log_dir=work_dir,
-                                           create_tb_writer=True,
-                                           files_to_copy=[__file__])
+                                           local_rank=None,
+                                           optimization_level=nemo.core.Optimization.mxprO0,
+                                           create_tb_writer=True)
 
 Next, we'll need to define our tokenizer and our BERT model. There are a couple of different ways you can do this. Keep in mind that NER benefits from casing ("New York City" is easier to identify than "new york city"), so we recommend you use cased models.
 
@@ -61,83 +60,50 @@ If you're using a standard BERT model, you should do it as follows. To see the f
 
     .. code-block:: python
 
-        tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-        pretrained_bert_model = nemo_nlp.huggingface.BERT(
-            pretrained_model_name=args.pretrained_bert_model)
+        tokenizer = NemoBertTokenizer(pretrained_model="bert-base-cased")
+        bert_model = nemo_nlp.huggingface.BERT(
+            pretrained_model_name="bert-base-cased",
+            factory=neural_factory)
 
 If you're using a BERT model that you pre-trained yourself, you should do it like this. You should replace ``args.bert_checkpoint`` with the path to your checkpoint file.
 
     .. code-block:: python
 
-        tokenizer = SentencePieceTokenizer(model_path=tokenizer_model)
+        tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
         tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
 
         bert_model = nemo_nlp.huggingface.BERT(
                 config_filename=args.bert_config)
         pretrained_bert_model.restore_from(args.bert_checkpoint)
 
-Now, create the train and evaluation datasets:
-
-    .. code-block:: python
-
-    train_data_layer = nemo_nlp.BertTokenClassificationDataLayer(
-        tokenizer=tokenizer,
-        text_file=os.path.join(DATA_DIR, 'text_train.txt'),
-        label_file=os.path.join(DATA_DIR, 'labels_train.txt'),
-        max_seq_length=MAX_SEQ_LENGTH,
-        batch_size=BATCH_SIZE)
-
-    eval_data_layer = nemo_nlp.BertTokenClassificationDataLayer(
-        tokenizer=tokenizer,
-        text_file=os.path.join(DATA_DIR, 'text_dev.txt'),
-        label_file=os.path.join(DATA_DIR, 'labels_dev.txt'),
-        max_seq_length=MAX_SEQ_LENGTH,
-        batch_size=BATCH_SIZE)
-
 We need to create the classifier to sit on top of the pretrained model and define the loss function:
 
     .. code-block:: python
 
         hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
-        tag_ids = train_data_layer.dataset.label_ids
+        
         ner_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
-                                                  num_classes=len(tag_ids),
-                                                  dropout=args.fc_dropout)
-        ner_loss = nemo_nlp.TokenClassificationLoss(num_classes=len(tag_ids))
+                                                  num_classes=NUM_CLASSES,
+                                                  dropout=CLASSIFICATION_DROPOUT)
+        ner_loss = nemo_nlp.TokenClassificationLoss(num_classes=NUM_CLASSES)
 
 And create the pipeline that can be used for both training and evaluation.
 
     .. code-block:: python
 
-        def create_pipeline(num_samples=-1,
-                        pad_label=args.none_label,
-                        max_seq_length=args.max_seq_length,
-                        batch_size=args.batch_size,
-                        local_rank=args.local_rank,
-                        num_gpus=args.num_gpus,
-                        mode='train',
-                        ignore_extra_tokens=args.ignore_extra_tokens,
-                        ignore_start_end=args.ignore_start_end,
-                        use_cache=args.use_cache):
+        def create_pipeline(max_seq_length=MAX_SEQ_LENGTH,
+                            batch_size=BATCH_SIZE,
+                            mode='train'):
         
-        shuffle = args.shuffle_data if mode == 'train' else False
-
-        text_file = f'{args.data_dir}/text_{mode}.txt'
-        label_file = f'{args.data_dir}/labels_{mode}.txt'
+        text_file = f'{DATA_DIR}/text_{mode}.txt'
+        label_file = f'{DATA_DIR}/labels_{mode}.txt'
         
         data_layer = nemo_nlp.BertTokenClassificationDataLayer(
             tokenizer=tokenizer,
             text_file=text_file,
             label_file=label_file,
-            pad_label=pad_label,
             max_seq_length=max_seq_length,
-            batch_size=batch_size,
-            num_workers=0,
-            local_rank=local_rank,
-            shuffle=shuffle,
-            ignore_extra_tokens=ignore_extra_tokens,
-            ignore_start_end=ignore_start_end,
-            use_cache=use_cache)
+            batch_size=batch_size)
 
         label_ids = data_layer.dataset.label_ids
         input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = data_layer()
@@ -154,6 +120,12 @@ And create the pipeline that can be used for both training and evaluation.
         else:
              tensors_to_evaluate = [logits, labels, subtokens_mask]
         return tensors_to_evaluate, loss, steps_per_epoch, label_ids, data_layer
+
+Now, create the train and evaluation datasets:
+
+.. code-block:: python
+    train_tensors, train_loss, steps_per_epoch, label_ids, _ = create_pipeline()
+    eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev')
 
 Now, we will set up our callbacks. We will use 3 callbacks:
 
@@ -183,30 +155,25 @@ Now, we will set up our callbacks. We will use 3 callbacks:
         eval_callback = nemo.core.EvaluatorCallback(
             eval_tensors=eval_tensors,
             user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-            user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, label_ids),
+            user_epochs_done_callback=lambda x:
+                eval_epochs_done_callback(x, label_ids),
             tb_writer=nf.tb_writer,
             eval_step=steps_per_epoch)
-
-        ckpt_callback = nemo.core.CheckpointCallback(
-            folder=nf.checkpoint_dir,
-            epoch_freq=args.save_epoch_freq,
-            step_freq=args.save_step_freq)
 
 Finally, we will define our learning rate policy and our optimizer, and start training.
 
     .. code-block:: python
 
-        lr_policy_fn = get_lr_policy(args.lr_policy,
-                                     total_steps=args.num_epochs * steps_per_epoch,
-                                     warmup_ratio=args.lr_warmup_proportion)
-
+        
+        lr_policy = WarmupAnnealing(NUM_EPOCHS * steps_per_epoch,
+                            warmup_ratio=LR_WARMUP_PROPORTION)
 
         nf.train(tensors_to_optimize=[train_loss],
-                 callbacks=[train_callback, eval_callback, ckpt_callback],
-                 lr_policy=lr_policy_fn,
-                 optimizer=args.optimizer_kind,
-                 optimization_params={"num_epochs": args.num_epochs,
-                                      "lr": args.lr})
+                 callbacks=[train_callback, eval_callback],
+                 lr_policy=lr_policy,
+                 optimizer=OPTIMIZER,
+                 optimization_params={"num_epochs": NUM_EPOCHS,
+                                      "lr": LEARNING_RATE})
 
 To train NEW with BERT using the provided scripts
 -----------------------
