@@ -69,15 +69,18 @@ class AudioPreprocessor(NonTrainableNM):
     def forward(self, input_signal, length):
         if self.disable_casts:
             with amp.disable_casts():
-                processed_signal = self.featurizer(
+                processed_signal = self.get_features(
                         input_signal.to(torch.float), length)
         else:
-            processed_signal = self.featurizer(input_signal, length)
+            processed_signal = self.get_features(input_signal, length)
 
         processed_length = self.get_seq_len(length)
         return processed_signal, processed_length
 
-    def get_seq_len(self, *input):
+    def get_features(self, input_signal, length):
+        raise NotImplementedError
+
+    def get_seq_len(self, length):
         raise NotImplementedError
 
 
@@ -136,6 +139,9 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             normalized=normalized
         )
         self.featurizer.to(self._device)
+
+    def get_features(self, input_signal, length):
+        return self.featurizer(input_signal)
 
     def get_seq_len(self, seq_len):
         return torch.ceil(
@@ -226,6 +232,9 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         )
         self.featurizer.to(self._device)
 
+    def get_features(self, input_signal, length):
+        return self.featurizer(input_signal, length)
+
     def get_seq_len(self, seq_len):
         return self.featurizer.get_seq_len(seq_len)
 
@@ -243,6 +252,10 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         window_stride: Stride of window for fft in seconds. Used to caculate
             the hop_length arg for mel spect, overrides mel_kwargs if set.
             Defaults to None
+        window: Windowing function for fft. can be one of ['hann',
+            'hamming', 'blackman', 'bartlett', None]. Overrides mel_kwargs
+            if set; otherwise, torchaudio defaults to hann.
+            Defaults to None
         n_mfcc: Number of coefficients to retain
             Defaults to 64
         dct_type: Type of discrete cosine transform to use
@@ -256,6 +269,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
             sample_rate=16000,
             window_size=None,
             window_stride=None,
+            window=None,
             n_mfcc=64,
             dct_type=2,
             norm='ortho',
@@ -264,19 +278,28 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
             **kwargs):
         super().__init__(**kwargs)
 
+        if mel_kwargs is None:
+            mel_kwargs = {}
+
         # Use the sample rate given instead of in mel_kwargs
-        if mel_kwargs and 'sample_rate' in mel_kwargs:
+        if 'sample_rate' in mel_kwargs:
             del mel_kwargs['sample_rate']
 
         # Override mel_kwargs if window_size or window_stride are set
         if window_size is not None:
-            if not mel_kwargs:
-                mel_kwargs = {}
             mel_kwargs['win_length'] = int(sample_rate * window_size)
         if window_stride is not None:
-            if not mel_kwargs:
-                mel_kwargs = {}
             mel_kwargs['hop_length'] = int(sample_rate * window_stride)
+
+        # Set window_fn if window arg is given
+        torch_windows = {
+            'hann': torch.hann_window,
+            'hamming': torch.hamming_window,
+            'blackman': torch.blackman_window,
+            'bartlett': torch.bartlett_window,
+        }
+        if window:
+            mel_kwargs['window_fn'] = torch_windows.get(window, None)
 
         # Use torchaudio's implementation of MFCCs as featurizer
         self.featurizer = torchaudio.transforms.MFCC(
@@ -289,10 +312,13 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         )
         self.featurizer.to(self._device)
 
+    def get_features(self, input_signal, length):
+        return self.featurizer(input_signal)
+
     def get_seq_len(self, seq_len):
         return torch.ceil(
                 seq_len.to(dtype=torch.float) /
-                self.mfcc.MelSpectrogram.hop_length).to(dtype=torch.long)
+                self.featurizer.MelSpectrogram.hop_length).to(dtype=torch.long)
 
 
 class SpectrogramAugmentation(NonTrainableNM):
