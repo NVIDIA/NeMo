@@ -377,7 +377,7 @@ class PtActions(Actions):
             return optimizer
 
         if len(self.modules) < 1:
-            raise ValueError("There were no module to initialize")
+            raise ValueError("There were no modules to initialize")
         pt_modules = []
         for module in self.modules:
             if isinstance(module, nn.Module):
@@ -974,8 +974,8 @@ class PtActions(Actions):
 
     def _get_all_modules(
             self, training_loop, callbacks, logging_callchain=None):
-        """Gets all neural module that will be used by train() and eval() via
-        EvaluatorCallbacks. Saves all module to self.module
+        """Gets all neural modules that will be used by train() and eval() via
+        EvaluatorCallbacks. Saves all modules to self.modules
         """
         # If there is a SimpleLossLoggerCallback, create an logger_callchain
         # with all callchains from training_loop and
@@ -990,7 +990,7 @@ class PtActions(Actions):
                 for module in step[2]:
                     self.modules.add(module[0])
 
-        # Lastly, grab all eval module
+        # Lastly, grab all eval modules
         if callbacks is not None:
             for callback in callbacks:
                 if isinstance(callback, EvaluatorCallback):
@@ -1161,7 +1161,7 @@ class PtActions(Actions):
                            NmTensor) and PtActions._check_all_tensors(
                 tensors_to_optimize)):
             # Parse graph into a topologically sorted sequence of neural
-            # module' calls
+            # modules' calls
             opt_call_chain, t_dataset = \
                 self.__get_top_sorted_modules_and_dataloader(
                     hook=tensors_to_optimize
@@ -1294,7 +1294,7 @@ class PtActions(Actions):
                             isinstance(pmodule, torch.nn.Module)):
                         pmodule = DDP(pmodule)
 
-                    # Convert batchnorm module to synced if applicable
+                    # Convert batchnorm modules to synced if applicable
                     if (synced_batchnorm and
                             isinstance(pmodule, torch.nn.Module)):
                         world_size = dist.get_world_size()
@@ -1478,7 +1478,7 @@ class PtActions(Actions):
         """
 
         if checkpoint_dir:
-            # Find all module that need to be restored
+            # Find all modules that need to be restored
             call_chain, _ = self.__get_top_sorted_modules_and_dataloader(
                 hook=tensors
             )

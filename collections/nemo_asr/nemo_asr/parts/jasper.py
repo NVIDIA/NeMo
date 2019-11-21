@@ -91,7 +91,7 @@ class MaskedConv1d(nn.Module):
             lens = lens.to(dtype=torch.long)
             max_len = x.size(2)
             mask = torch.arange(max_len).to(lens.device) \
-                .expand(len(lens), max_len) >= lens.unsqueeze(1)
+                       .expand(len(lens), max_len) >= lens.unsqueeze(1)
             x = x.masked_fill(
                 mask.unsqueeze(1).to(device=x.device), 0
             )
@@ -136,7 +136,7 @@ class JasperBlock(nn.Module):
     def __init__(self, inplanes, planes, repeat=3, kernel_size=11, stride=1,
                  dilation=1, padding='same', dropout=0.2, activation=None,
                  residual=True, groups=1, separable=False,
-                 heads=-1, tied=False, normalization="batch",
+                 heads=-1, normalization="batch",
                  norm_groups=1, residual_mode='add',
                  residual_panes=[], conv_mask=False):
         super(JasperBlock, self).__init__()
