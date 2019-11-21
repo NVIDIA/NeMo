@@ -18,22 +18,46 @@ Installation
 
 **Installing NeMo and Collections**
 
+*Note*: For step 2 and 3, if you want to use NeMo in development mode, use: ``pip install -e .`` instead of ``pip install .``
+
 1) Clone the repository:
 
 .. code-block:: bash
 
     git clone https://github.com/NVIDIA/nemo
 
-2) Go to ``nemo`` folder and do: ``python setup.py install``
+2) Go to ``nemo`` folder and install NeMo Core:
+
+.. code-block:: bash
+
+    cd nemo
+    pip install .
 
 3) Install collections
 
-   a) ASR collection from ``collections/nemo_asr`` do: ``sudo apt-get install libsndfile1 && python setup.py install``
-   b) NLP collection from ``collections/nemo_nlp`` do: ``python setup.py install``
-   c) LPR collection from ``collections/nemo_simple_gan`` do: ``python setup.py install`` 
+	a) To install the ASR collection from ``collections/nemo_asr``:
+	
+   	.. code-block:: bash
 
-For development do: ``python setup.py develop`` instead of ``python setup.py install``
-   
+   		cd ../collections/nemo_asr
+   		sudo apt-get install libsndfile1 && pip install .
+
+
+    b) To install the NLP collection from ``collections/nemo_nlp``:
+
+    .. code-block:: bash
+
+   		cd ../nemo_nlp
+   		pip install .
+
+    c) To install the LPR collection from ``collections/nemo_simple_gan``:
+
+    .. code-block:: bash
+
+   		cd ../nemo_simple_gan
+   		pip install .
+
+
 4) Run unittests from the nemo directory to validate installation:
 
 .. code-block:: bash

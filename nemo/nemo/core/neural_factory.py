@@ -289,6 +289,7 @@ class NeuralModuleFactory(object):
 
         self._backend = backend
         self._world_size = 1
+        broadcast_func = None
         if backend == Backend.PyTorch:
             # TODO: Move all framework specific code from this file
             import torch
@@ -319,6 +320,26 @@ class NeuralModuleFactory(object):
                     backend="nccl", init_method="env://"
                 )
                 self._world_size = torch.distributed.get_world_size()
+
+                def torch_broadcast_wrapper(str_len=None, string=None, src=0):
+                    """Wrapper function to broadcast string values across all
+                    workers
+                    """
+                    # Create byte cuda torch tensor
+                    if string is not None:
+                        string_tensor = torch.tensor(
+                            list(string.encode()), dtype=torch.uint8).cuda()
+                    else:
+                        string_tensor = torch.tensor(
+                            [0] * str_len, dtype=torch.uint8).cuda()
+                    # Run broadcast
+                    torch.distributed.broadcast(string_tensor, src)
+                    # turn byte tensor back to string
+                    return_string = string_tensor.cpu().numpy()
+                    return_string = b''.join(return_string).decode()
+                    return return_string
+
+                broadcast_func = torch_broadcast_wrapper
         else:
             raise NotImplementedError(
                 "Only Pytorch backend is currently supported.")
@@ -336,7 +357,8 @@ class NeuralModuleFactory(object):
             local_rank=local_rank,
             files_to_copy=files_to_copy,
             add_time=add_time_to_log_dir,
-            exist_ok=True)
+            exist_ok=True,
+            broadcast_func=broadcast_func)
         self._tb_writer = self._exp_manager.tb_writer
 
         # Create trainer

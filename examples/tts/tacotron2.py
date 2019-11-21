@@ -28,7 +28,7 @@ def parse_args():
         batch_size=48,
         eval_batch_size=32,
         lr=0.001,
-        amp_opt_level="O0",
+        amp_opt_level="O1",
         create_tb_writer=True,
         lr_policy=None,
         weight_decay=1e-6
@@ -43,6 +43,8 @@ def parse_args():
                         help="model configuration file: model.yaml")
     parser.add_argument("--grad_norm_clip", type=float, default=1.0,
                         help="gradient clipping")
+    parser.add_argument("--min_lr", type=float, default=1e-5,
+                        help="minimum learning rate to decay to")
 
     # Create new args
     parser.add_argument("--exp_name", default="Tacotron2", type=str)
@@ -72,7 +74,9 @@ def parse_args():
 def create_NMs(tacotron2_params, logger=None, decoder_infer=False):
     data_preprocessor = nemo_asr.AudioPreprocessing(
         **tacotron2_params["AudioPreprocessing"])
-    text_embedding = nemo_tts.TextEmbedding(80, 512)
+    text_embedding = nemo_tts.TextEmbedding(
+        len(tacotron2_params["labels"]),
+        **tacotron2_params["TextEmbedding"])
     t2_enc = nemo_tts.Tacotron2Encoder(**tacotron2_params["Tacotron2Encoder"])
     if decoder_infer:
         t2_dec = nemo_tts.Tacotron2DecoderInfer(
@@ -139,7 +143,8 @@ def create_train_dag(neural_factory,
         encoded_length=transcript_len,
         mel_target=spec_target)
     mel_postnet = t2_postnet(mel_input=mel_decoder)
-    gate_target = makegatetarget(target_len=spec_target_len)
+    gate_target = makegatetarget(
+        mel_target=spec_target, target_len=spec_target_len)
     loss_t = t2_loss(
         mel_out=mel_decoder,
         mel_out_postnet=mel_postnet,
@@ -208,7 +213,9 @@ def create_eval_dags(neural_factory,
             encoded_length=transcript_len,
             mel_target=spec_target)
         mel_postnet = t2_postnet(mel_input=mel_decoder)
-        gate_target = makegatetarget(target_len=spec_target_len)
+        gate_target = makegatetarget(
+            mel_target=spec_target,
+            target_len=spec_target_len)
         loss = t2_loss(
             mel_out=mel_decoder,
             mel_out_postnet=mel_postnet,
@@ -319,12 +326,12 @@ def main():
         eval_batch_size=args.eval_batch_size)
 
     # train model
+    total_steps = (args.max_steps if args.max_steps is not None else
+                   args.num_epochs * steps_per_epoch)
     neural_factory.train(
         tensors_to_optimize=[train_loss],
         callbacks=callbacks,
-        lr_policy=CosineAnnealing(
-            args.max_steps if args.max_steps is not None else
-            args.num_epochs * steps_per_epoch),
+        lr_policy=CosineAnnealing(total_steps, min_lr=args.min_lr),
         optimizer=args.optimizer,
         optimization_params={
             "num_epochs": args.num_epochs,
