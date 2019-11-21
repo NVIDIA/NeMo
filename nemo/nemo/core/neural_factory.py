@@ -556,6 +556,7 @@ class NeuralModuleFactory(object):
               stop_on_nan_loss=False,
               synced_batchnorm=False,
               synced_batchnorm_groupsize=0,
+              gradient_predivide=False,
               reset=False):
         if reset:
             self.reset_trainer()
@@ -568,7 +569,8 @@ class NeuralModuleFactory(object):
             batches_per_step=batches_per_step,
             stop_on_nan_loss=stop_on_nan_loss,
             synced_batchnorm=synced_batchnorm,
-            synced_batchnorm_groupsize=synced_batchnorm_groupsize)
+            synced_batchnorm_groupsize=synced_batchnorm_groupsize,
+            gradient_predivide=gradient_predivide)
 
     def eval(self,
              callbacks: List[EvaluatorCallback]):
@@ -616,7 +618,8 @@ class NeuralModuleFactory(object):
               verbose=True,
               cache=False,
               use_cache=False,
-              offload_to_cpu=True):
+              offload_to_cpu=True,
+              modules_to_restore=None):
         """Runs inference to obtain values for tensors
 
         Args:
@@ -637,6 +640,9 @@ class NeuralModuleFactory(object):
                 `tensors` list. Defaults to False.
             offload_to_cpu (bool): If True, all evaluated tensors are moved to
                 cpu memory after each inference batch. Defaults to True.
+            modules_to_restore (list): Defaults to None, in which case all
+                NMs inside callchain with weights will be restored. If
+                specified only the modules inside this list will be restored.
 
         Returns:
             List of evaluated tensors. Each element in the list is also a list
@@ -650,7 +656,8 @@ class NeuralModuleFactory(object):
             logger=self.logger,
             cache=cache,
             use_cache=use_cache,
-            offload_to_cpu=offload_to_cpu)
+            offload_to_cpu=offload_to_cpu,
+            modules_to_restore=modules_to_restore)
 
     def clear_cache(self):
         """Helper function to clean inference cache."""
