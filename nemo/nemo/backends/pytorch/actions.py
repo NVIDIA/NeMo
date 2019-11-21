@@ -1006,7 +1006,8 @@ class PtActions(Actions):
               batches_per_step=None,
               stop_on_nan_loss=False,
               synced_batchnorm=False,
-              synced_batchnorm_groupsize=0):
+              synced_batchnorm_groupsize=0,
+              gradient_predivide=False):
         if not optimization_params:
             optimization_params = {}
         num_epochs = optimization_params.get("num_epochs", None)
@@ -1163,7 +1164,10 @@ class PtActions(Actions):
                     pmodule = self.module_reference_table[key][1]
                     if (not isinstance(pmodule, DDP) and
                             isinstance(pmodule, torch.nn.Module)):
-                        pmodule = DDP(pmodule)
+                        gradient_predivide_factor = 1
+                        if gradient_predivide:
+                            gradient_predivide_factor = dist.get_world_size()
+                        pmodule = DDP(pmodule, gradient_predivide_factor=gradient_predivide_factor)
 
                     # Convert batchnorm modules to synced if applicable
                     if (synced_batchnorm and
