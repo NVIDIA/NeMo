@@ -12,29 +12,30 @@ This tutorial explains how to implement named entity recognition (NER) in NeMo. 
 Download Dataset
 ----------------
 
-`CoNLL-2003`_ is a standard evaluation dataset for NER, but any NER dataset will work. The only requirement is that the files are formatted like this:
+`CoNLL-2003`_ is a standard evaluation dataset for NER, but any NER dataset will work. CoNLL-2003 dataset could also be found `here`_. The only requirement is that the data is split into 2 files: text.txt labels.txt. The text.txt files are formatted like this:
 
 .. _CoNLL-2003: https://www.clips.uantwerpen.be/conll2003/ner/
+.. _here: https://github.com/kyzhouhzau/BERT-NER/tree/master/data
 
 .. code-block::
 
-    Jennifer	B-PER
-    is		O
-    from	O
-    New		B-LOC
-    York	I-LOC
-    City	I-LOC
-    .		O
-
-    She		O
-    likes	O
+    Jennifer is from New York City.
+    She likes ...
     ...
 
-Here, the words and labels are separated with spaces, but in your dataset they should be separated with tabs. Each line should follow the format: [WORD] [TAB] [LABEL] (without spaces in between). There can be columns in between for part-of-speech tags, as shown on the `CoNLL-2003 website`_. There should also be empty lines separating each sequence, as shown above.
+The labels.txt files are formatted like this:
+
+.. code-block::
+
+    B-PER O O B-LOC I-LOC I-LOC O
+    O O ...
+    ...
+
+Each line of the text.txt file contains text sequences, where words are separated with spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are separated with spaces. Each line of the files should follow the format: [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt). There can be columns in between for part-of-speech tags, as shown on the `CoNLL-2003 website`_.
 
 .. _CoNLL-2003 website: https://www.clips.uantwerpen.be/conll2003/ner/
 
-.. _Preprocessed data: https://github.com/kyzhouhzau/BERT-NER/tree/master/data
+
 
 Training
 --------
@@ -79,17 +80,17 @@ Now, create the train and evaluation datasets:
 
     .. code-block:: python
 
-    train_data_layer = nemo_nlp.data.BertTokenClassificationDataLayer(
-        dataset_type="BertCornellNERDataset",
+    train_data_layer = nemo_nlp.BertTokenClassificationDataLayer(
         tokenizer=tokenizer,
-        input_file=os.path.join(DATA_DIR, "train.txt"),
+        text_file=os.path.join(DATA_DIR, 'text_train.txt'),
+        label_file=os.path.join(DATA_DIR, 'labels_train.txt'),
         max_seq_length=MAX_SEQ_LENGTH,
         batch_size=BATCH_SIZE)
 
-    eval_data_layer = nemo_nlp.data.BertTokenClassificationDataLayer(
-        dataset_type="BertCornellNERDataset",
+    eval_data_layer = nemo_nlp.BertTokenClassificationDataLayer(
         tokenizer=tokenizer,
-        input_file=os.path.join(DATA_DIR, "dev.txt"),
+        text_file=os.path.join(DATA_DIR, 'text_dev.txt'),
+        label_file=os.path.join(DATA_DIR, 'labels_dev.txt'),
         max_seq_length=MAX_SEQ_LENGTH,
         batch_size=BATCH_SIZE)
 
@@ -98,7 +99,7 @@ We need to create the classifier to sit on top of the pretrained model and defin
     .. code-block:: python
 
         hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
-        tag_ids = train_dataset.tag_ids
+        tag_ids = train_data_layer.dataset.label_ids
         ner_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
                                                   num_classes=len(tag_ids),
                                                   dropout=args.fc_dropout)
@@ -108,19 +109,51 @@ And create the pipeline that can be used for both training and evaluation.
 
     .. code-block:: python
 
-        def create_pipeline(data_layer, batch_size=args.batch_size,
-                            local_rank=args.local_rank, num_gpus=args.num_gpus):
-            input_ids, input_type_ids, input_mask, labels, seq_ids = data_layer()
-            hidden_states = pretrained_bert_model(input_ids=input_ids,
-                                                  token_type_ids=input_type_ids,
-                                                  attention_mask=input_mask)
-            logits = ner_classifier(hidden_states=hidden_states)
-            loss = ner_loss(logits=logits, labels=labels, input_mask=input_mask)
-            steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
-            return loss, steps_per_epoch, data_layer, [logits, seq_ids]
+        def create_pipeline(num_samples=-1,
+                        pad_label=args.none_label,
+                        max_seq_length=args.max_seq_length,
+                        batch_size=args.batch_size,
+                        local_rank=args.local_rank,
+                        num_gpus=args.num_gpus,
+                        mode='train',
+                        ignore_extra_tokens=args.ignore_extra_tokens,
+                        ignore_start_end=args.ignore_start_end,
+                        use_cache=args.use_cache):
+        
+        shuffle = args.shuffle_data if mode == 'train' else False
 
-        train_loss, steps_per_epoch, _, _ = create_pipeline(train_data_layer)
-        _, _, data_layer, eval_tensors = create_pipeline(eval_data_layer)
+        text_file = f'{args.data_dir}/text_{mode}.txt'
+        label_file = f'{args.data_dir}/labels_{mode}.txt'
+        
+        data_layer = nemo_nlp.BertTokenClassificationDataLayer(
+            tokenizer=tokenizer,
+            text_file=text_file,
+            label_file=label_file,
+            pad_label=pad_label,
+            max_seq_length=max_seq_length,
+            batch_size=batch_size,
+            num_workers=0,
+            local_rank=local_rank,
+            shuffle=shuffle,
+            ignore_extra_tokens=ignore_extra_tokens,
+            ignore_start_end=ignore_start_end,
+            use_cache=use_cache)
+
+        label_ids = data_layer.dataset.label_ids
+        input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = data_layer()
+        hidden_states = bert_model(input_ids=input_ids,
+                                   token_type_ids=input_type_ids,
+                                   attention_mask=input_mask)
+
+        logits = classifier(hidden_states=hidden_states)
+        loss = punct_loss(logits=logits, labels=labels, loss_mask=loss_mask)
+        steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
+
+        if mode == 'train':
+             tensors_to_evaluate = [loss, logits]
+        else:
+             tensors_to_evaluate = [logits, labels, subtokens_mask]
+        return tensors_to_evaluate, loss, steps_per_epoch, label_ids, data_layer
 
 Now, we will set up our callbacks. We will use 3 callbacks:
 
@@ -142,17 +175,15 @@ Now, we will set up our callbacks. We will use 3 callbacks:
     .. code-block:: python
 
         train_callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[train_loss],
+            tensors=train_tensors,
             print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
             get_tb_values=lambda x: [["loss", x[0]]],
             tb_writer=nf.tb_writer)
 
         eval_callback = nemo.core.EvaluatorCallback(
             eval_tensors=eval_tensors,
-            user_iter_callback=lambda x, y: eval_iter_callback(
-                x, y, data_layer, tag_ids),
-            user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-                x, tag_ids, output_file),
+            user_iter_callback=lambda x, y: eval_iter_callback(x, y),
+            user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, label_ids),
             tb_writer=nf.tb_writer,
             eval_step=steps_per_epoch)
 
@@ -176,6 +207,24 @@ Finally, we will define our learning rate policy and our optimizer, and start tr
                  optimizer=args.optimizer_kind,
                  optimization_params={"num_epochs": args.num_epochs,
                                       "lr": args.lr})
+
+To train NEW with BERT using the provided scripts
+-----------------------
+
+To run the provided training script:
+
+.. code-block:: bash
+
+    python token_classification.py --num_classes 9 --data_dir /data/ner/ --work_dir output_ner
+
+To run inference:
+
+.. code-block:: bash
+
+    python token_classification_infer.py --num_classes 9 --labels_dict /data/ner/label_ids.csv
+    --work_dir output_ner/checkpoints/
+
+Note, label_ids.csv file will be generated during training and stored in the data_dir folder.
 
 Using Other BERT Models
 -----------------------
