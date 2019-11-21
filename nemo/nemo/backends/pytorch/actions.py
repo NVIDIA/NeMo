@@ -1164,10 +1164,10 @@ class PtActions(Actions):
                     pmodule = self.module_reference_table[key][1]
                     if (not isinstance(pmodule, DDP) and
                             isinstance(pmodule, torch.nn.Module)):
-                        gradient_predivide_factor = 1
+                        gpf = 1
                         if gradient_predivide:
-                            gradient_predivide_factor = dist.get_world_size()
-                        pmodule = DDP(pmodule, gradient_predivide_factor=gradient_predivide_factor)
+                            gpf = dist.get_world_size()
+                        pmodule = DDP(pmodule, gradient_predivide_factor=gpf)
 
                     # Convert batchnorm modules to synced if applicable
                     if (synced_batchnorm and
