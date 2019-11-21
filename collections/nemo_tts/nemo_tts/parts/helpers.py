@@ -28,8 +28,8 @@ def waveglow_log_to_tb_func(swriter,
             step, dataformats="HWC")
         if mel_fb is not None:
             mag, _ = librosa.core.magphase(librosa.core.stft(
-                audio_pred[0].cpu().detach().numpy(), n_fft=n_fft,
-                hop_length=hop_length, window=window))
+                np.nan_to_num(audio_pred[0].cpu().detach().numpy()),
+                n_fft=n_fft, hop_length=hop_length, window=window))
             mel_pred = np.matmul(mel_fb.cpu().numpy(), mag).squeeze()
             log_mel_pred = np.log(np.clip(mel_pred, a_min=1e-5, a_max=None))
             swriter.add_image(
