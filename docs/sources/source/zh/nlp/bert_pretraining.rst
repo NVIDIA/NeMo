@@ -1,20 +1,16 @@
-Pretraining BERT
-================
+BERT预训练
+==========
 
-In this tutorial, we will build and train a masked language model, either from scratch or from a pretrained BERT model, using the BERT architecture :cite:`devlin2018bert`. Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See the :ref:`installation` section for more details.
+在本教程中，我们会按照BERT模型结构 :cite:`devlin2018bert` 构建并训练一个掩码语言模型。训练可以完全从零开始或者在一个预训练好的模型基础上继续训练。在开始本教程之前，请先安装好``nemo``和``nemo_nlp``。关于安装``nemo``的一些步骤可以参阅 :ref:`installation` 章节。
 
-Introduction
-------------
+创建一个专门领域的BERT模型对于某些应用是更有优势的。比如一个专门针对生物医学领域的专业BERT，类似于BioBERT :cite:`lee2019biobert`和SciBERT :cite:`beltagy2019scibert`.
 
-Creating domain-specific BERT models can be advantageous for a wide range of applications. One notable is domain-specific BERT in a biomedical setting, similar to BioBERT :cite:`lee2019biobert` and SciBERT :cite:`beltagy2019scibert`.
+语料下载
+--------
 
+因为这只是一个演示，所以我们使用一个非常小的英文数据集WikiText-2 :cite:`merity2016pointer`.
 
-Download Corpus
----------------
-
-For demonstration purposes, we will be using the very small WikiText-2 dataset :cite:`merity2016pointer`.
-
-To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
+运行脚本``examples/nlp/scripts/get_wt2.sh``便可以下载这个数据集。下载后并解压，会得到如下三个文件：
 
     .. code-block:: bash
 
@@ -22,15 +18,13 @@ To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. Aft
         train.txt
         valid.txt
 
-Create the tokenizer model
---------------------------
-`BERTPretrainingDataDesc` converts your dataset into the format compatible with `BertPretrainingDataset`. The most computationally intensive step is to tokenize the dataset to create a vocab file and a tokenizer model.
+创建Tokenizer
+-------------
+首先你需要创建一个`BERTPretrainingDataDesc`对象来描述数据集的格式。这其中涉及的主要步骤包括将数据集符号化并创建词表和一个tokenizer.
 
-You can also use an available vocab or tokenizer model to skip this step. If you already have a pretrained tokenizer model, copy it to the ``[data_dir]/bert``` folder under the name ``tokenizer.model`` and the script will skip this step.
+你也可以使用一个现成的词表或者tokenizer模型来跳过这一步。如果你已经有一个预训练好的tokenizer模型，将它复制到文件夹``[data_dir]/bert``下并重命名为``tokenizer.model``。
 
-If have an available vocab, say the ``vocab.txt`` file from any `pretrained BERT model`_, copy it to the ``[data_dir]/bert`` folder under the name ``vocab.txt``.
-
-.. _pretrained BERT model: https://github.com/google-research/bert#pre-trained-models
+如果你有一个现成的词表文件，可以将它复制到文件夹``[data_dir]/bert``下并命名为``vocab.txt``。
 
     .. code-block:: python
 
@@ -41,7 +35,7 @@ If have an available vocab, say the ``vocab.txt`` file from any `pretrained BERT
                                             special_tokens,
                                             'train.txt')
 
-We need to define our tokenizer. If you'd like to use a custom vocabulary file, we strongly recommend you use our `SentencePieceTokenizer`. Otherwise, if you'll be using a vocabulary file from another pre-trained BERT model, you should use `NemoBertTokenizer`.
+接下来我们需要定义tokenizer。如果你想使用一个自定义的词表文件，我们强烈推荐使用我们的`SentencePieceTokenizer`。或者，你也可以使用`NemoBertTokenizer`。
 
     .. code-block:: python
 
@@ -52,14 +46,14 @@ We need to define our tokenizer. If you'd like to use a custom vocabulary file, 
         # Otherwise, create your tokenizer like this
         tokenizer = NemoBertTokenizer(vocab_file="vocab.txt")
 
-Create the model
-----------------
+创建模型
+--------
 
 .. tip::
 
-    We recommend you try this out in a Jupyter notebook. It'll make debugging much easier!
+    建议你在一个Jupyter notebook中尝试以下内容，以方便调试。
 
-First, we need to create our neural factory with the supported backend. How you should define it depends on whether you'd like to multi-GPU or mixed-precision training. This tutorial assumes that you're training on one GPU, without mixed precision. If you want to use mixed precision, set ``amp_opt_level`` to ``O1`` or ``O2``.
+首先，我们需要创建一个`NeuralModuleFactory`对象并调用所支持的后端。具体如何创建还取决于你是否想进行多GPU训练或者混合精度训练等。在本教程中，我们只使用一个GPU，而且没有混合精度训练。如果你想使用混合精度训练，可以将``amp_opt_level``选项设置为``O1``或者``O2``。
 
     .. code-block:: python
 
@@ -70,7 +64,7 @@ First, we need to create our neural factory with the supported backend. How you 
                                            create_tb_writer=True,
                                            files_to_copy=[__file__])
 
-We also need to define the BERT model that we will be pre-training. Here, you can configure your model size as needed. If you want to train from scratch, use this:
+接下来我们需要定义模型结构。这里我们从`huggingface`模块导入BERT的模型结构。你只需要定义一些关键参数即可。
 
     .. code-block:: python
 
@@ -83,13 +77,13 @@ We also need to define the BERT model that we will be pre-training. Here, you ca
             max_seq_length=args.max_seq_length,
             hidden_act="gelu")
 
-If you want to start pre-training from existing BERT checkpoints, use the following code. For the full list of BERT model names, check out `nemo_nlp.huggingface.BERT.list_pretrained_models()`
+如果你想从一个已有的BERT模型文件继续训练，那设置一个模型的名字即可。如果想查看完整的预训练好的BERT模型列表，可以使用`nemo_nlp.huggingface.BERT.list_pretrained_models()`。
 
     .. code-block:: python
 
         bert_model = nemo_nlp.huggingface.BERT(pretrained_model_name="bert-base-cased")
 
-Next, we will define our classifier and loss functions. We will demonstrate how to pre-train with both MLM (masked language model) and NSP (next sentence prediction) losses, but you may observe higher downstream accuracy by only pre-training with MLM loss.
+接下来，我们需要定义分类器和损失函数。在本教程中，我们会同时使用掩码语言模型和预测下一句模型这两个模型的损失函数，如果你只用掩饰语言模型作为损失的话，可能会观察到更高的准确率。
 
     .. code-block:: python
 
@@ -107,7 +101,7 @@ Next, we will define our classifier and loss functions. We will demonstrate how 
 
         bert_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
-Then, we create the pipeline gtom input to output that can be used for both training and evaluation:
+然后，我们把从输入到输出的整个计算流程封装成一个函数。有了这个函数，我们就可以很方便的分别创建训练流和评估流：
 
     .. code-block:: python
 
@@ -118,21 +112,21 @@ Then, we create the pipeline gtom input to output that can be used for both trai
 
             input_ids, input_type_ids, input_mask, \
                 output_ids, output_mask, nsp_labels = data_layer()
-            
+
             hidden_states = bert_model(input_ids=input_ids,
                                        token_type_ids=input_type_ids,
                                        attention_mask=input_mask)
-            
+
             mlm_logits = mlm_classifier(hidden_states=hidden_states)
             mlm_loss = mlm_loss_fn(logits=mlm_logits,
                                    output_ids=output_ids,
                                    output_mask=output_mask)
-            
+
             nsp_logits = nsp_classifier(hidden_states=hidden_states)
             nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=nsp_labels)
 
             loss = bert_loss(loss_1=mlm_loss, loss_2=nsp_loss)
-            
+
             return loss, [mlm_loss, nsp_loss], steps_per_epoch
 
 
@@ -144,14 +138,14 @@ Then, we create the pipeline gtom input to output that can be used for both trai
                                                      args.max_seq_length,
                                                      args.mask_probability,
                                                      args.eval_batch_size)
-    
 
 
-Next, we define necessary callbacks:
 
-1. `SimpleLossLoggerCallback`: tracking loss during training
-2. `EvaluatorCallback`: tracking metrics during evaluation at set intervals
-3. `CheckpointCallback`: saving model checkpoints at set intervals
+再然后，我们定义一些必要的回调函数：
+
+1. `SimpleLossLoggerCallback`: 跟踪训练过程中损失函数的变化
+2. `EvaluatorCallback`: 跟踪评估集上的指标变化
+3. `CheckpointCallback`: 每过一段时间间隔保存模型
 
     .. code-block:: python
 
@@ -161,7 +155,7 @@ Next, we define necessary callbacks:
 
 .. tip::
 
-    Tensorboard_ is a great debugging tool. It's not a requirement for this tutorial, but if you'd like to use it, you should install tensorboardX_ and run the following command during pre-training:
+    Tensorboard_ 是一个非常棒的调试工具。虽然不是训练的必要步骤，但是你可以安装 tensorboardX_ 并在训练过程中运行它来观察一些指标在训练过程中的变化：
 
     .. code-block:: bash
 
@@ -171,16 +165,16 @@ Next, we define necessary callbacks:
 .. _tensorboardX: https://github.com/lanpa/tensorboardX
 
 
-We also recommend you export your model's parameters to a config file. This makes it easier to load your BERT model into NeMo later, as explained in our NER tutorial.
+我们还建议把模型参数保存到一个配置文件中。这样做的话，你以后使用NeMo的时候导入BERT模型会非常方便。
 
     .. code-block:: python
 
         config_path = f'{nf.checkpoint_dir}/bert-config.json'
-        
+
         if not os.path.exists(config_path):
             bert_model.config.to_json_file(config_path)
 
-Finally, you should define your optimizer, and start training!
+最后，我们定义优化器并开始训练！
 
     .. code-block:: python
 
@@ -197,8 +191,8 @@ Finally, you should define your optimizer, and start training!
                                       "lr": args.lr,
                                       "weight_decay": args.weight_decay})
 
-References
-----------
+参考
+----
 
 .. bibliography:: bert.bib
     :style: plain
