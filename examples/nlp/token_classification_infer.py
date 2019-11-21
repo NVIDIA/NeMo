@@ -13,7 +13,8 @@ from nemo_nlp.utils.nlp_utils import get_vocab
 parser = argparse.ArgumentParser(description='NER with pretrained BERT')
 parser.add_argument("--max_seq_length", default=128, type=int)
 parser.add_argument("--fc_dropout", default=0, type=float)
-parser.add_argument("--pretrained_bert_model", default="bert-base-uncased", type=str)
+parser.add_argument("--pretrained_bert_model",
+                    default="bert-base-uncased", type=str)
 parser.add_argument("--num_classes", default=9, type=int)
 parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument("--queries", action='append',
@@ -21,19 +22,21 @@ parser.add_argument("--queries", action='append',
                     in santa clara', 'Nvidia is a company'],
                     help="Example: --queries 'San Francisco' --queries 'LA'")
 parser.add_argument("--add_brackets", action='store_false',
-                    help="Whether to take predicted label in brackets or just append to word \
-                    in the output")
+                    help="Whether to take predicted label in brackets or \
+                    just append to word in the output")
 parser.add_argument("--work_dir", default='outputs/checkpoints', type=str)
 parser.add_argument("--labels_dict", default='label_ids.csv', type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
 
 args = parser.parse_args()
-print (args)
+print(args)
+
 if not os.path.exists(args.work_dir):
     raise ValueError(f'Work directory not found at {args.work_dir}')
 if not os.path.exists(args.labels_dict):
-    raise ValueError(f'Dictionary with ids to labels not found at {args.labels_dict}')
+    raise ValueError(
+        f'Dictionary with ids to labels not found at {args.labels_dict}')
 
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    optimization_level=args.amp_opt_level,
@@ -73,6 +76,7 @@ evaluated_tensors = nf.infer(
     checkpoint_dir=args.work_dir,
 )
 
+
 def concatenate(lists):
     return np.concatenate([t.cpu() for t in lists])
 
@@ -80,15 +84,15 @@ def concatenate(lists):
 def get_preds(logits):
     return np.argmax(logits, 1)
 
+
 def add_brackets(text, add=args.add_brackets):
-  return '[' + text + ']' if add else text
+    return '[' + text + ']' if add else text
+
 
 logits, subtokens_mask = \
     [concatenate(tensors) for tensors in evaluated_tensors]
 
 preds = np.argmax(logits, axis=2)
-print (preds)
-
 labels_dict = get_vocab(args.labels_dict)
 
 for i, query in enumerate(args.queries):
@@ -96,10 +100,9 @@ for i, query in enumerate(args.queries):
 
     pred = preds[i][subtokens_mask[i]]
     words = query.strip().split()
-    
     if len(pred) != len(words):
         raise ValueError('Pred and words must be of the same length')
-    
+
     output = ''
     for j, w in enumerate(words):
         output += w

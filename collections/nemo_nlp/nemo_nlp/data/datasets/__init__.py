@@ -5,6 +5,6 @@ from .joint_intent_slot import (BertJointIntentSlotDataset,
 from .language_modeling import LanguageModelingDataset
 from .ner import BertCornellNERDataset
 from .token_classification import (BertTokenClassificationDataset,
-								   BertTokenClassificationInferDataset)
+                                   BertTokenClassificationInferDataset)
 from .sentence_classification import BertSentenceClassificationDataset
 from .translation import TranslationDataset

@@ -54,8 +54,9 @@ parser.add_argument("--loss_step_freq", default=250, type=int,
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
-    raise FileNotFoundError("CoNLL-2003 dataset not found. Dataset can be "
-                            "obtained at https://github.com/kyzhouhzau/BERT"
+    raise FileNotFoundError("Dataset not found. For NER, CoNLL-2003 dataset"
+                            "can be obtained at"
+                            "https://github.com/kyzhouhzau/BERT"
                             "-NER/tree/master/data.")
 
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
@@ -105,13 +106,13 @@ def create_pipeline(num_samples=-1,
                     ignore_extra_tokens=args.ignore_extra_tokens,
                     ignore_start_end=args.ignore_start_end,
                     use_cache=args.use_cache):
-    
+
     nf.logger.info(f"Loading {mode} data...")
     shuffle = args.shuffle_data if mode == 'train' else False
 
     text_file = f'{args.data_dir}/text_{mode}.txt'
     label_file = f'{args.data_dir}/labels_{mode}.txt'
-    
+
     data_layer = nemo_nlp.BertTokenClassificationDataLayer(
         tokenizer=tokenizer,
         text_file=text_file,
@@ -127,24 +128,20 @@ def create_pipeline(num_samples=-1,
         use_cache=use_cache)
 
     label_ids = data_layer.dataset.label_ids
-    
-    input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = data_layer()
-
+    input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, \
+        labels = data_layer()
     hidden_states = bert_model(input_ids=input_ids,
                                token_type_ids=input_type_ids,
                                attention_mask=input_mask)
 
     logits = classifier(hidden_states=hidden_states)
-
     loss = punct_loss(logits=logits, labels=labels, loss_mask=loss_mask)
-
     steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
 
     if mode == 'train':
-         tensors_to_evaluate = [loss, logits]
+        tensors_to_evaluate = [loss, logits]
     else:
-         tensors_to_evaluate = [logits, labels, subtokens_mask]
-
+        tensors_to_evaluate = [logits, labels, subtokens_mask]
     return tensors_to_evaluate, loss, steps_per_epoch, label_ids, data_layer
 
 
@@ -164,7 +161,8 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, label_ids),
+    user_epochs_done_callback=lambda x:
+        eval_epochs_done_callback(x, label_ids),
     tb_writer=nf.tb_writer,
     eval_step=steps_per_epoch)
 

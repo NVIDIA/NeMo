@@ -52,7 +52,7 @@ def get_features(queries,
             by default, it's the neutral label.
         raw_labels (list of str): list of labels for every work in sequence
         unique_labels (set): set of all labels available in the data
-        ignore_extra_tokens (bool): whether to ignore extra tokens in 
+        ignore_extra_tokens (bool): whether to ignore extra tokens in
         the loss_mask,
         ignore_start_end (bool): whether to ignore bos and eos tokens in
         the loss_mask
@@ -74,16 +74,15 @@ def get_features(queries,
     if raw_labels is not None:
         with_label = True
 
-        # add pad_label to the set of unique_labels if not already present
+        # add pad_label to the set of the unique_labels if not already present
         unique_labels.add(pad_label)
-
         unique_labels.remove(pad_label)
         for label in sorted(unique_labels):
             label_ids[label] = len(label_ids)
 
     for i, query in enumerate(queries):
         words = query.strip().split()
-        
+
         # add bos token
         subtokens = ['[CLS]']
         loss_mask = [not ignore_start_end]
@@ -96,7 +95,7 @@ def get_features(queries,
         for j, word in enumerate(words):
             word_tokens = tokenizer.text_to_tokens(word)
             subtokens.extend(word_tokens)
-            
+
             loss_mask.append(True)
             loss_mask.extend([not ignore_extra_tokens] *
                              (len(word_tokens) - 1))
@@ -106,6 +105,8 @@ def get_features(queries,
 
             if with_label:
                 labels.extend([query_labels[j]] * len(word_tokens))
+
+        # add eos token
         subtokens.append('[SEP]')
         loss_mask.append(not ignore_start_end)
         subtokens_mask.append(False)
@@ -153,7 +154,7 @@ def get_features(queries,
         all_segment_ids.append([0] * max_seq_length)
 
     logger.info(f'{too_long_count} are longer than {max_seq_length}')
-    
+
     for i in range(min(len(all_input_ids), 5)):
         logger.info("*** Example ***")
         logger.info("i: %s" % (i))
@@ -164,7 +165,8 @@ def get_features(queries,
         logger.info(
             "input_mask: %s" % " ".join(list(map(str, all_input_mask[i]))))
         logger.info(
-            "subtokens_mask: %s" % " ".join(list(map(str, all_subtokens_mask[i]))))
+            "subtokens_mask: %s" % " ".join(list(map(
+                str, all_subtokens_mask[i]))))
         if with_label:
             logger.info(
                 "labels: %s" % " ".join(list(map(str, all_labels[i]))))
@@ -177,10 +179,11 @@ def get_features(queries,
             all_labels,
             label_ids)
 
+
 class BertTokenClassificationDataset(Dataset):
     """
-    Creates dataset to use during training for a token classification
-    tasks with pretrained model.
+    Creates dataset to use during training for token classification
+    tasks with a pretrained model.
 
     Converts from raw data to an instance that can be used by
     NMDataLayer.
@@ -216,22 +219,22 @@ class BertTokenClassificationDataset(Dataset):
                  use_cache=False):
 
         if use_cache:
-            # Cache features 
+            # Cache features
             data_dir = os.path.dirname(text_file)
             filename = os.path.basename(text_file)[:-4]
             features_pkl = os.path.join(data_dir, filename + "_features.pkl")
 
         if use_cache and os.path.exists(features_pkl):
-            # If text_file was already processed, load from pickle 
+            # If text_file was already processed, load from pickle
             features = pickle.load(open(features_pkl, 'rb'))
             logger.info(f'features restored from {features_pkl}')
         else:
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
-            
+
             with open(text_file, 'r') as f:
                 text_lines = f.readlines()
-            
+
             # Collect all possible labels
             unique_labels = set([])
             labels_lines = []
@@ -242,7 +245,8 @@ class BertTokenClassificationDataset(Dataset):
                     unique_labels.update(line)
 
             if len(labels_lines) != len(text_lines):
-                raise ValueError("Labels file should contain labels for every word")
+                raise ValueError(
+                    "Labels file should contain labels for every word")
 
             if shuffle or num_samples > 0:
                 dataset = list(zip(text_lines, labels_lines))
@@ -267,7 +271,7 @@ class BertTokenClassificationDataset(Dataset):
             if use_cache:
                 pickle.dump(features, open(features_pkl, "wb"))
                 logger.info(f'features saved to {features_pkl}')
-        
+
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
         self.all_input_mask = features[2]
@@ -275,15 +279,15 @@ class BertTokenClassificationDataset(Dataset):
         self.all_subtokens_mask = features[4]
         self.all_labels = features[5]
         self.label_ids = features[6]
-   
+
         infold = text_file[:text_file.rfind('/')]
         merged_labels = itertools.chain.from_iterable(self.all_labels)
         logger.info('Three most popular labels')
         utils.get_label_stats(merged_labels, infold + '/label_stats.tsv')
 
-        # save label_ids 
+        # save label_ids
         out = open(infold + '/label_ids.csv', 'w')
-        labels, _ = zip(*sorted(self.label_ids.items() ,  key=lambda x: x[1]))
+        labels, _ = zip(*sorted(self.label_ids.items(),  key=lambda x: x[1]))
         out.write('\n'.join(labels))
         logger.info(f'Labels: {self.label_ids}')
         logger.info(f'Labels mapping saved to : {out.name}')
@@ -292,7 +296,7 @@ class BertTokenClassificationDataset(Dataset):
         return len(self.all_input_ids)
 
     def __getitem__(self, idx):
-        return  (np.array(self.all_input_ids[idx]),
+        return (np.array(self.all_input_ids[idx]),
                 np.array(self.all_segment_ids[idx]),
                 np.array(self.all_input_mask[idx], dtype=np.float32),
                 np.array(self.all_loss_mask[idx]),
@@ -302,8 +306,8 @@ class BertTokenClassificationDataset(Dataset):
 
 class BertTokenClassificationInferDataset(Dataset):
     """
-    Creates dataset to use during inference for a token classification
-    tasks with pretrained model.
+    Creates dataset to use during inference for token classification
+    tasks with a pretrained model.
 
     Converts from raw data to an instance that can be used by
     NMDataLayer.
@@ -323,7 +327,6 @@ class BertTokenClassificationInferDataset(Dataset):
         shuffle (bool): whether to shuffle your data.
         pad_label (str): pad value use for labels.
             by default, it's the neutral label.
-
     """
 
     def __init__(self,
@@ -334,7 +337,7 @@ class BertTokenClassificationInferDataset(Dataset):
         features = get_features(queries,
                                 max_seq_length,
                                 tokenizer)
-        
+
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
         self.all_input_mask = features[2]
@@ -345,7 +348,7 @@ class BertTokenClassificationInferDataset(Dataset):
         return len(self.all_input_ids)
 
     def __getitem__(self, idx):
-        return  (np.array(self.all_input_ids[idx]),
+        return (np.array(self.all_input_ids[idx]),
                 np.array(self.all_segment_ids[idx]),
                 np.array(self.all_input_mask[idx], dtype=np.float32),
                 np.array(self.all_loss_mask[idx]),
