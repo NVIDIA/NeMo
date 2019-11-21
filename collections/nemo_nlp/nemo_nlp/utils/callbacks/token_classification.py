@@ -5,13 +5,10 @@ import os
 import random
 import time
 
-import matplotlib
-from matplotlib import pyplot as plt
 import numpy as np
 from sklearn.metrics import classification_report
 
 from nemo.utils.exp_logging import get_logger
-matplotlib.use("TkAgg")
 
 
 logger = get_logger('')
