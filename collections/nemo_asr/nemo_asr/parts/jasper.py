@@ -91,7 +91,7 @@ class MaskedConv1d(nn.Module):
             lens = lens.to(dtype=torch.long)
             max_len = x.size(2)
             mask = torch.arange(max_len).to(lens.device) \
-                       .expand(len(lens), max_len) >= lens.unsqueeze(1)
+                .expand(len(lens), max_len) >= lens.unsqueeze(1)
             x = x.masked_fill(
                 mask.unsqueeze(1).to(device=x.device), 0
             )
