@@ -13,6 +13,17 @@ def _check_valid_opt_params(lr, eps, betas):
         raise ValueError(f"Betas have to be between 0 and 1: {betas}")
 
 
+def master_params(optimizer):
+    """
+    Generator expression that iterates over the params owned by ``optimizer``.
+    Args:
+        optimizer: An optimizer previously returned from ``amp.initialize``.
+    """
+    for group in optimizer.param_groups:
+        for p in group['params']:
+            yield p
+
+
 class AdamW(Optimizer):
     """Implements AdamW algorithm.
     It has been proposed in "Decoupled Weight Decay Regularization"
