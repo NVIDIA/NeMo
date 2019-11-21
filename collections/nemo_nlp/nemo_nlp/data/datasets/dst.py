@@ -16,6 +16,11 @@ class Vocab:
     def __init__(self):
         self.word2idx = {'UNK': 0, 'PAD': 1, 'EOS': 2, 'BOS': 3}
         self.idx2word = ['UNK', 'PAD', 'EOS', 'BOS']
+        self.unk_id = self.word2idx['UNK']
+        self.pad_id = self.word2idx['PAD']
+        self.eos_id = self.word2idx['EOS']
+        self.bos_id = self.word2idx['BOS']
+        self.unk, self.pad, self.eos, self.bos = 'UNK', 'PAD', 'EOS', 'BOS'
 
     def __len__(self):
         return len(self.idx2word)
@@ -49,6 +54,11 @@ class Vocab:
                 for val in value.split(' '):
                     self.add_word(val)
 
+    def tokens2ids(self, tokens):
+        """Converts list of tokens to list of ids."""
+        return [self.word2idx[w]
+                if w in self.word2idx else self.unk_id for w in tokens]
+
 
 class WOZDSTDataset(Dataset):
     """
@@ -71,7 +81,9 @@ class WOZDSTDataset(Dataset):
 
         self.get_slots()
         self.get_vocab()
-        self.get_data()
+        self.features, self.max_len = self.get_features()
+        print(vars(self).keys())
+        print('One feature', self.features[0])
 
     def get_vocab(self):
         self.vocab_file = f'{self.data_dir}/vocab.pkl'
@@ -115,8 +127,8 @@ class WOZDSTDataset(Dataset):
                 self.vocab.add_words(turn['sys_transcript'], 'utterance')
                 self.vocab.add_words(turn['transcript'], 'utterance')
 
-                turn_beliefs = fix_general_label_error(
-                    turn['belief_state'], False, self.slots)
+                turn_beliefs = fix_general_label_error(turn['belief_state'],
+                                                       self.slots)
                 self.mem_vocab.add_words(turn_beliefs, 'belief')
 
                 lengths = [len(turn_beliefs[slot])
@@ -134,7 +146,7 @@ class WOZDSTDataset(Dataset):
         with open(self.mem_vocab_file, 'wb') as handle:
             pickle.dump(self.mem_vocab, handle)
 
-    def get_data(self):
+    def get_features(self):
         filename = f'{self.data_dir}/{self.mode}_dialogs.json'
         print(f'Reading from {filename}')
         dialogs = json.load(open(filename, 'r'))
@@ -156,13 +168,13 @@ class WOZDSTDataset(Dataset):
                 turn_uttr = turn['sys_transcript'] + ' ; ' + turn['transcript']
                 turn_uttr = turn_uttr.strip()
                 dialog_histories.append(turn_uttr)
-                turn_beliefs = fix_general_label_error(
-                    turn['belief_state'], False, self.slots)
+                turn_beliefs = fix_general_label_error(turn['belief_state'],
+                                                       self.slots)
 
                 turn_belief_list = [f'{k}-{v}'
                                     for k, v in turn_beliefs.items()]
 
-                gating_label, generate_y = [], []
+                gating_label, responses = [], []
 
                 for slot in self.slots:
                     gating_slot = slot
@@ -170,38 +182,55 @@ class WOZDSTDataset(Dataset):
                         gating_slot = 'ptr'
 
                     if slot in turn_beliefs:
-                        generate_y.append(turn_beliefs[slot])
+                        responses.append(turn_beliefs[slot])
                     else:
-                        generate_y.append('none')
+                        responses.append('none')
                         gating_slot = 'none'
                     gating_label.append(self.gating_dict[gating_slot])
 
-                data_detail = {'ID': dialog_dict['dialog_idx'],
-                               'domains': dialog_dict['domains'],
-                               'turn_domain': turn['domain'],
-                               'turn_id': turn['turn_idx'],
-                               'dialog_history': ' ; '.join(dialog_histories),
-                               'turn_belief': turn_belief_list,
-                               'gating_label': gating_label,
-                               'turn_uttr': turn_uttr,
-                               'generate_y': generate_y}
-                data.append(data_detail)
+                sample = {'ID': dialog_dict['dialog_idx'],
+                          'domains': dialog_dict['domains'],
+                          'turn_domain': turn['domain'],
+                          'turn_id': turn['turn_idx'],
+                          'dialog_history': ' ; '.join(dialog_histories),
+                          'turn_belief': turn_belief_list,
+                          'gating_label': gating_label,
+                          'turn_uttr': turn_uttr,
+                          'responses': responses}
+                data.append(sample)
 
-                resp_len = len(data_detail['dialog_history'].split())
+                resp_len = len(sample['dialog_history'].split())
                 max_resp_len = max(max_resp_len, resp_len)
 
         print('Domain count', domain_count)
         print('Max response length', max_resp_len)
-        print(f'Processing {len(data)} pairs')
+        print(f'Processing {len(data)} samples')
         return data, max_resp_len
 
-    def prepare_data(self):
-        self.pairs, self.max_len = self.read_vocab()
+    def __len__(self):
+        return len(self.features)
 
-def fix_general_label_error(labels, type, slots):
-    label_dict = dict([(l[0], l[1]) for l in labels]) if type else dict(
-        [(l["slots"][0][0], l["slots"][0][1]) for l in labels])
+    def __getitem__(self, idx):
+        item = self.features[idx]
+        context_ids = self.vocab.tokens2ids(item['dialog_history'].split())
+        # feature['context_ids'] = torch.Tensor(context_ids)
+        item['context_ids'] = context_ids
+        y_ids = [self.vocab.tokens2ids(y.split() + [self.vocab.eos])
+                 for y in item['responses']]
+        item['responses'] = y_ids
+        item['turn_domain'] = self.domains[item['turn_domain']]
 
+        return (item['ID'],
+                item['turn_id'],
+                item['turn_belief'],
+                item['gating_label'],
+                item['context_ids'],
+                item['turn_domain'],
+                item['responses'])
+
+
+def fix_general_label_error(labels, slots):
+    label_dict = dict([label['slots'][0] for label in labels])
     GENERAL_TYPO = {
         # type
         "guesthouse": "guest house",

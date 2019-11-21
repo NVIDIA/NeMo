@@ -632,29 +632,34 @@ class WOZDSTDataLayer(TextDataLayer):
     @staticmethod
     def create_ports():
         output_ports = {
-            "input_ids": NeuralType({
+            "src_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            "input_type_ids": NeuralType({
+            "src_lens": NeuralType({
+                0: AxisType(BatchTag)
+            }),
+            "tgt_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(ChannelTag)
+            }),
+            "tgt_lens": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(ChannelTag)
+            }),
+            "gating_labels": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
-            }),
-            "input_mask": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-            "labels": NeuralType({
-                0: AxisType(RegressionTag),
-            }),
+            })
         }
         return {}, output_ports
 
     def __init__(self,
                  data_dir,
                  domains,
+                 batch_size=16,
                  mode='train',
-                 batch_size=64,
                  dataset_type=WOZDSTDataset,
                  **kwargs):
 
@@ -663,29 +668,94 @@ class WOZDSTDataLayer(TextDataLayer):
                           'domains': domains,
                           'mode': mode}
         super().__init__(dataset_type, dataset_params, **kwargs)
+        print('before dataloader')
 
-    # def get_data_loader(self, pairs):
-    #     data_info = {}
-    #     data_keys = pairs[0].keys()
-    #     for k in data_keys:
-    #         data_info[k] = []
+        self._dataloader = pt_data.DataLoader(dataset=self._dataset,
+                                              batch_size=batch_size,
+                                              shuffle=False,
+                                              collate_fn=self._collate_fn)
+        print('after dataloader')
+        self.pad_id = self._dataset.vocab.pad_id
 
-    #     for pair in pairs:
-    #         for k in data_keys:
-    #             data_info[k].append(pair[k])
+    def _collate_fn(self, data):
+        """ data is a list of batch_size sample
+        each sample is a dictionary of features
+        """
+        def merge(sequences):
+            '''
+            merge from batch * sent_len to batch * max_len 
+            '''
+            lengths = [len(seq) for seq in sequences]
+            max_len = 1 if max(lengths) == 0 else max(lengths)
+            padded_seqs = torch.ones(len(sequences), max_len).long()
+            for i, seq in enumerate(sequences):
+                end = lengths[i]
+                padded_seqs[i, :end] = seq[:end]
+            # padded_seqs = padded_seqs.detach()  # torch.tensor(padded_seqs)
+            return padded_seqs, lengths
 
-    #     dataset = Dataset(data_info, lang.word2index,
-    #                       lang.word2index, sequicity, mem_lang.word2index)
+        def merge_multi_response(sequences):
+            '''
+            merge from batch * nb_slot * slot_len to batch * nb_slot * max_slot_len
+            '''
+            lengths = []
+            for bsz_seq in sequences:
+                length = [len(v) for v in bsz_seq]
+                lengths.append(length)
+            max_len = max([max(l) for l in lengths])
+            padded_seqs = []
+            for bsz_seq in sequences:
+                pad_seq = []
+                for v in bsz_seq:
+                    v = v + [PAD_token] * (max_len-len(v))
+                    pad_seq.append(v)
+                padded_seqs.append(pad_seq)
+            padded_seqs = torch.tensor(padded_seqs)
+            lengths = torch.tensor(lengths)
+            print(padded_seqs.shape)
+            print(lengths.shape)
+            return padded_seqs, lengths
 
-    #     if args["imbalance_sampler"] and type:
-    #         data_loader = torch.utils.data.DataLoader(dataset=dataset,
-    #                                                   batch_size=batch_size,
-    #                                                   # shuffle=type,
-    #                                                   collate_fn=collate_fn,
-    #                                                   sampler=ImbalancedDatasetSampler(dataset))
-    #     else:
-    #         data_loader = torch.utils.data.DataLoader(dataset=dataset,
-    #                                                   batch_size=batch_size,
-    #                                                   shuffle=type,
-    #                                                   collate_fn=collate_fn)
-    #     self._data_loader
+        # sort a list by sequence length (descending order) to use pack_padded_sequence
+        print(len(data))
+        print(data)
+        data.sort(key=lambda x: len(x['context']), reverse=True)
+        item_info = {}
+        for key in data[0].keys():
+            item_info[key] = [d[key] for d in data]
+
+        # merge sequences
+        src_seqs, src_lengths = merge(item_info['context'])
+        y_seqs, y_lengths = merge_multi_response(item_info["generate_y"])
+        gating_label = torch.tensor(item_info["gating_label"])
+        turn_domain = torch.tensor(item_info["turn_domain"])
+
+        if USE_CUDA:
+            src_seqs = src_seqs.cuda()
+            gating_label = gating_label.cuda()
+            turn_domain = turn_domain.cuda()
+            y_seqs = y_seqs.cuda()
+            y_lengths = y_lengths.cuda()
+
+        item_info["context"] = src_seqs
+        item_info["context_len"] = src_lengths
+        item_info["gating_label"] = gating_label
+        item_info["turn_domain"] = turn_domain
+        item_info["generate_y"] = y_seqs
+        item_info["y_lengths"] = y_lengths
+        (item['ID'],
+         item['turn_id'],
+         item['turn_belief'],
+         item['gating_label'],
+         item['context_ids'],
+         item['turn_domain'],
+         item['responses'])
+        return item_info
+
+    @property
+    def dataset(self):
+        return None
+
+    @property
+    def data_iterator(self):
+        return self._dataloader

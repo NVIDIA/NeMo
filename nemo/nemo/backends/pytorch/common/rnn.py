@@ -10,8 +10,11 @@ from torch import nn
 
 from nemo.backends.pytorch.common.parts import Attention
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import NeuralType, AxisType, BatchTag, TimeTag, \
-    ChannelTag
+from nemo.core.neural_types import (NeuralType,
+                                    AxisType,
+                                    BatchTag,
+                                    TimeTag,
+                                    ChannelTag)
 from nemo.utils.misc import pad_to
 
 
@@ -25,7 +28,10 @@ class EncoderRNN(TrainableNM):
             'inputs': NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
-            })
+            }),
+            'input_lengths': NeuralType({
+                0: AxisType(BatchTag),
+            }, optional=True)
         }
         output_ports = {
             'outputs': NeuralType({
@@ -39,18 +45,19 @@ class EncoderRNN(TrainableNM):
                 2: AxisType(ChannelTag)
             })
         }
+        return input_ports, output_ports
 
     def __init__(self,
                  input_dim,
                  emb_dim,
                  hid_dim,
                  dropout,
-                 pad_idx=1,
                  n_layers=1,
+                 pad_idx=1,
                  embedding_to_load=None):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
-        self.emb = nn.Embedding(input_dim, emb_dim, padding_idx=pad_idx)
+        self.embedding = nn.Embedding(input_dim, emb_dim, padding_idx=pad_idx)
         if embedding_to_load is not None:
             self.embedding.weight.data.copy_(embedding_to_load)
         else:
@@ -61,9 +68,11 @@ class EncoderRNN(TrainableNM):
                           batch_first=True,
                           dropout=dropout,
                           bidirectional=True)
+        self.to(self._device)
 
     def forward(self, inputs, input_lengths=None):
-        embedded = self.emb(inputs)
+        print('TO DELETE inputs', inputs)
+        embedded = self.embedding(inputs)
         embedded = self.dropout(embedded)
         if input_lengths is not None:
             embedded = nn.utils.rnn.pack_padded_sequence(embedded,
@@ -90,7 +99,7 @@ class EncoderRNN(TrainableNM):
         hidden = hidden.tranpose(2, 0).tranpose(1, 2)
         hidden = hidden.reshape(batch_size, self.rnn.num_layers, -1)
         # hidden is now of shape (batch, seq_len, num_directions * hidden_size)
-        self.to(self._device)
+
         return outputs, hidden
 
 
