@@ -120,7 +120,8 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             n_fft=None,
             window="hamming",
             normalized=True,
-            pad=8
+            pad=8,
+            **kwargs
     ):
         super().__init__(**kwargs)
 
@@ -131,7 +132,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         window_fn = self.torch_windows.get(window, None)
 
         # Create featurizer
-        self.featurizer = torchaudio.transform.Spectrogram(
+        self.featurizer = torchaudio.transforms.Spectrogram(
             n_fft=self.n_fft,
             win_length=self.win_length,
             hop_length=self.hop_length,

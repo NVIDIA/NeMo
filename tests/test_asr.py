@@ -218,6 +218,36 @@ class TestASRPytorch(NeMoUnitTest):
             for point in range(batch_size):
                 self.assertTrue(norm[1][point].data >= trim[1][point].data)
 
+    def test_audio_preprocessors(self):
+        batch_size = 5
+        dl = nemo_asr.AudioToTextDataLayer(
+            featurizer_config=self.featurizer_config,
+            manifest_filepath=self.manifest_filepath,
+            labels=self.labels,
+            batch_size=batch_size,
+            placement=DeviceType.GPU,
+            drop_last=True,
+            shuffle=False
+        )
+
+        to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(n_fft=400)
+        to_melspec = nemo_asr.AudioToMelSpectrogramPreprocessor(features=50)
+        to_mfcc = nemo_asr.AudioToMFCCPreprocessor(n_mfcc=15)
+
+        for batch in dl.data_iterator:
+            input_signals, seq_lengths, _, _ = batch
+            input_signals = input_signals.to(to_spectrogram._device)
+            seq_lengths = seq_lengths.to(to_spectrogram._device)
+
+            spec = to_spectrogram.forward(input_signals, seq_lengths)
+            melspec = to_melspec.forward(input_signals, seq_lengths)
+            mfcc = to_mfcc.forward(input_signals, seq_lengths)
+
+            # Check that number of features is what we expect
+            self.assertTrue(spec[0].shape[1] == 201)  # n_fft // 2 + 1 bins
+            self.assertTrue(melspec[0].shape[1] == 50)
+            self.assertTrue(mfcc[0].shape[1] == 15)
+
     def test_jasper_training(self):
         with open("tests/data/jasper_smaller.yaml") as file:
             jasper_model_definition = self.yaml.load(file)
