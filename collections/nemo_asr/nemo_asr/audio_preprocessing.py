@@ -21,6 +21,7 @@ __all__ = ['AudioPreprocessor',
            'MultiplyBatch',
            'SpectrogramAugmentation']
 
+from abc import abstractmethod
 import math
 import torch
 import torchaudio
@@ -42,24 +43,6 @@ class AudioPreprocessor(NonTrainableNM):
     A base class for Neural Modules that performs audio preprocessing,
     transforming the wav files to features.
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "input_signal": NeuralType({0: AxisType(BatchTag),
-                                        1: AxisType(TimeTag)}),
-
-            "length": NeuralType({0: AxisType(BatchTag)}),
-        }
-
-        output_ports = {
-            "processed_signal": NeuralType({0: AxisType(BatchTag),
-                                            1: AxisType(SpectrogramSignalTag),
-                                            2: AxisType(ProcessedTimeTag)}),
-
-            "processed_length": NeuralType({0: AxisType(BatchTag)})
-        }
-        return input_ports, output_ports
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -85,9 +68,10 @@ class AudioPreprocessor(NonTrainableNM):
         processed_length = self.get_seq_len(length.float())
         return processed_signal, processed_length
 
+    @abstractmethod
     def get_features(self, input_signal, length):
         # Called by forward(). Subclasses should implement this.
-        raise NotImplementedError
+        pass
 
     def get_seq_len(self, length):
         # Called by forward(). Subclasses should implement this.
@@ -110,17 +94,35 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             Defaults to None
         window (str): Windowing function for fft. can be one of ['hann',
             'hamming', 'blackman', 'bartlett']
-            Defaults to "hamming"
+            Defaults to "hann"
         normalized (bool): Whether to normalize by magnitude after stft
         pad (int): Two sided padding
     """
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "input_signal": NeuralType({0: AxisType(BatchTag),
+                                        1: AxisType(TimeTag)}),
+
+            "length": NeuralType({0: AxisType(BatchTag)}),
+        }
+
+        output_ports = {
+            "processed_signal": NeuralType({0: AxisType(BatchTag),
+                                            1: AxisType(SpectrogramSignalTag),
+                                            2: AxisType(ProcessedTimeTag)}),
+
+            "processed_length": NeuralType({0: AxisType(BatchTag)})
+        }
+        return input_ports, output_ports
+
     def __init__(
             self, *,
             sample_rate=16000,
             window_size=0.02,
             window_stride=0.01,
             n_fft=None,
-            window="hamming",
+            window="hann",
             normalized=True,
             pad=8,
             **kwargs
@@ -208,6 +210,25 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             prior to multiplication with mel basis.
             Defaults to 2 for a power spec
     """
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "input_signal": NeuralType({0: AxisType(BatchTag),
+                                        1: AxisType(TimeTag)}),
+
+            "length": NeuralType({0: AxisType(BatchTag)}),
+        }
+
+        output_ports = {
+            "processed_signal": NeuralType(
+                {0: AxisType(BatchTag),
+                 1: AxisType(MelSpectrogramSignalTag),
+                 2: AxisType(ProcessedTimeTag)}),
+
+            "processed_length": NeuralType({0: AxisType(BatchTag)})
+        }
+        return input_ports, output_ports
+
     def __init__(
             self, *,
             sample_rate=16000,
@@ -302,12 +323,30 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
             Defaults to True.
         mel_kwargs: Dict of arguments for torchaudio.transforms.MelSpectrogram
     """
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "input_signal": NeuralType({0: AxisType(BatchTag),
+                                        1: AxisType(TimeTag)}),
+
+            "length": NeuralType({0: AxisType(BatchTag)}),
+        }
+
+        output_ports = {
+            "processed_signal": NeuralType({0: AxisType(BatchTag),
+                                            1: AxisType(MFCCSignalTag),
+                                            2: AxisType(ProcessedTimeTag)}),
+
+            "processed_length": NeuralType({0: AxisType(BatchTag)})
+        }
+        return input_ports, output_ports
+
     def __init__(
             self, *,
             sample_rate=16000,
             window_size=None,
             window_stride=None,
-            window=None,
+            window='hann',
             n_mfcc=64,
             dct_type=2,
             norm='ortho',
