@@ -2,6 +2,8 @@
 import unittest
 import os
 from .context import nemo
+# from nemo.backends.pytorch.nm import TrainableNM
+import torch.nn as nn
 
 
 class NeMoUnitTest(unittest.TestCase):

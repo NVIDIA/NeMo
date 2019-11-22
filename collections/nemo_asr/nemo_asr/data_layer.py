@@ -15,7 +15,7 @@ import sys
 import torch
 try:
     from apex import amp
-except AttributeError:
+except (AttributeError, ModuleNotFoundError) as e:
     print("Unable to import APEX. Mixed precision and distributed training "
           "will not work.")
 
