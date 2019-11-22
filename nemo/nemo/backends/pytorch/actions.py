@@ -1,21 +1,25 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import importlib
 import itertools
+import json
 import logging
 import os
-from typing import List, Optional
+from pathlib import Path
+from typing import List, Optional, Dict
 
+# import onnx
+from collections import defaultdict
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
-
 from nemo.backends.pytorch.nm import TrainableNM
 
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
 from .optimizers import Novograd, AdamW, Lamb, master_params
-from ...core import NmTensor, DeviceType, NeuralModule
+from ...core import NmTensor, DeviceType, NeuralModule, DeploymentFormat
+from ...core.neural_types import *
 from ...core.callbacks import (ActionCallback,
                                EvaluatorCallback,
                                SimpleLossLoggerCallback)
@@ -60,7 +64,7 @@ class PtActions(Actions):
                     parallel = importlib.import_module('apex.parallel')
                     convert_syncbn = parallel.convert_syncbn_model
                     create_syncbn_process_group = (
-                            parallel.create_syncbn_process_group)
+                        parallel.create_syncbn_process_group)
                     DDP = parallel.DistributedDataParallel
                     LARC = parallel.LARC
 
@@ -1003,6 +1007,129 @@ class PtActions(Actions):
                     for module in callchain:
                         self.modules.add(module[0])
 
+    @staticmethod
+    def __module_export(module,
+                        output,
+                        d_format: DeploymentFormat,
+                        input_example=None,
+                        output_example=None):
+        # Check if output already exists
+        destination = Path(output)
+        if destination.exists():
+            raise FileExistsError(f"Destination {output} already exists. "
+                                  f"Aborting export.")
+
+        input_names = list(module.input_ports.keys())
+        output_names = list(module.output_ports.keys())
+        dynamic_axes = defaultdict(list)
+
+        def __extract_dynamic_axes(port_name: str, ntype: NeuralType,
+                                   dynamic_axes: defaultdict):
+            if ntype.axis2type:
+                for axis_id, axistype in ntype.axis2type.items():
+                    if issubclass(axistype.semantics, BatchTag) or issubclass(
+                            axistype.semantics, TimeTag):
+                        dynamic_axes[port_name].append(axis_id)
+        # for input_ports
+        for port_name, ntype in module.input_ports.items():
+            __extract_dynamic_axes(port_name, ntype, dynamic_axes)
+        # for output_ports
+        for port_name, ntype in module.output_ports.items():
+            __extract_dynamic_axes(port_name, ntype, dynamic_axes)
+        if len(dynamic_axes) == 0:
+            dynamic_axes = None
+
+        local_parameters = {}
+        for key, value in module._local_parameters.items():
+            local_parameters[key] = value
+
+        # Remove NeMo-related things from the module
+        # We need to change __call__ method. Note that this will change the
+        # whole class, not just this object! Which is why we need to repair it
+        # in the finally block
+        type(module).__call__ = torch.nn.Module.__call__
+
+        module._local_parameters = None
+        module._logger = None
+        module._placement = None
+        module._factory = None
+        module._device = None
+
+        module.eval()
+        try:
+            if d_format == DeploymentFormat.TORCHSCRIPT:
+                if input_example is None:
+                    # Route 1 - via torch.jit.script
+                    traced_m = torch.jit.script(module)
+                    traced_m.save(output)
+                else:
+                    # Route 2 - via tracing
+                    traced_m = torch.jit.trace(module, input_example)
+                    traced_m.save(output)
+            elif d_format == DeploymentFormat.ONNX:
+                if input_example is None:
+                    raise ValueError(
+                        f'Example input is None, but ONNX tracing was'
+                        f' attempted')
+                torch.onnx.export(module, input_example, output,
+                                  input_names=input_names,
+                                  output_names=output_names,
+                                  verbose=True,
+                                  export_params=True,
+                                  do_constant_folding=True,
+                                  dynamic_axes=dynamic_axes,
+                                  opset_version=10)
+                # fn = output + ".readable"
+                # with open(fn, 'w') as f:
+                #     tempModel = onnx.load(output)
+                #     onnx.save(tempModel, output + ".copy")
+                #     onnx.checker.check_model(tempModel)
+                #     pgraph = onnx.helper.printable_graph(tempModel.graph)
+                #     f.write(pgraph)
+
+            elif d_format == DeploymentFormat.PYTORCH:
+                torch.save(module.state_dict(), output)
+                with open(output + ".json", 'w') as outfile:
+                    json.dump(local_parameters, outfile)
+
+            else:
+                raise NotImplemented(
+                    f"Not supported deployment format: {d_format}")
+        except Exception as e:  # nopep8
+            print(
+                f'ERROR: module export failed for {module} with exception {e}')
+        finally:
+            def __old_call__(self, force_pt=False, *input, **kwargs):
+                pt_call = len(input) > 0 or force_pt
+                if pt_call:
+                    return nn.Module.__call__(self, *input, **kwargs)
+                else:
+                    return NeuralModule.__call__(self, **kwargs)
+
+            type(module).__call__ = __old_call__
+
+    @staticmethod
+    def deployment_export(module,
+                          output: str,
+                          d_format: DeploymentFormat,
+                          input_example=None,
+                          output_example=None):
+        """Exports Neural Module instance for deployment.
+
+        Args:
+            module: neural module to export
+            output (str): where export results should be saved
+            d_format (DeploymentFormat): which deployment format to use
+            input_example: sometimes tracing will require input examples
+            output_example: Should match inference on input_example
+        """
+        PtActions.__module_export(
+            module=module,
+            output=output,
+            d_format=d_format,
+            input_example=input_example,
+            output_example=output_example)
+
     def train(self,
               tensors_to_optimize,
               optimizer=None,
@@ -1188,10 +1315,10 @@ class PtActions(Actions):
                                 f" ({world_size})."
                             )
                         process_group = create_syncbn_process_group(
-                                synced_batchnorm_groupsize)
+                            synced_batchnorm_groupsize)
                         pmodule = convert_syncbn(
-                                pmodule,
-                                process_group=process_group)
+                            pmodule,
+                            process_group=process_group)
 
                     self.module_reference_table[key] = (
                         self.module_reference_table[key][0], pmodule

@@ -23,7 +23,6 @@ from .neural_types import (CanNotInferResultNeuralType,
 
 class WeightShareTransform(Enum):
     """When sharing parameters, what kind of transform to apply."""
-
     SAME = 0
     TRANSPOSE = 1
 
