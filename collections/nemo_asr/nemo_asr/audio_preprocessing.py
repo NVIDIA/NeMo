@@ -89,6 +89,10 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             Defaults to 0.02
         window_stride (float): Stride of window for fft in seconds
             Defaults to 0.01
+        n_window_size (int): Size of window for fft in samples
+            Defaults to None. Use one of window_size or n_window_size.
+        n_window_stride (int): Stride of window for fft in samples
+            Defaults to None. Use one of window_stride or n_window_stride.
         n_fft (int): Length of FT window. If None, it uses the smallest power
             of 2 that is larger than n_window_size.
             Defaults to None
@@ -121,16 +125,29 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             sample_rate=16000,
             window_size=0.02,
             window_stride=0.01,
+            n_window_size=None,
+            n_window_stride=None,
             n_fft=None,
             window="hann",
             normalized=True,
             pad=8,
             **kwargs
     ):
+        if window_size and n_window_size:
+            raise ValueError(f"{self} received both window_size and "
+                             f"n_window_size. Only one should be specified.")
+        if window_stride and n_window_stride:
+            raise ValueError(f"{self} received both window_stride and "
+                             f"n_window_stride. Only one should be specified.")
         super().__init__(**kwargs)
 
-        self.win_length = int(sample_rate * window_size)
-        self.hop_length = int(sample_rate * window_stride)
+        if window_size:
+            n_window_size = int(window_size * sample_rate)
+        if window_stride:
+            n_window_stride = int(window_stride * sample_rate)
+        self.win_length = n_window_size
+        self.hop_length = n_window_stride
+
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
 
         window_fn = self.torch_windows.get(window, None)
@@ -300,28 +317,39 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
 
 class AudioToMFCCPreprocessor(AudioPreprocessor):
     """Preprocessor that converts wavs to MFCCs.
-    Uses torchaudio.transforms.MFCC, and several arguments are the same.
+    Uses torchaudio.transforms.MFCC.
 
     Args:
         sample_rate: The sample rate of the audio.
             Defaults to 16000.
         window_size: Size of window for fft in seconds. Used to calculate the
-            win_length arg for mel spectrogram, overrides mel_kwargs if set.
-            Defaults to None
+            win_length arg for mel spectrogram.
+            Defaults to 0.02
         window_stride: Stride of window for fft in seconds. Used to caculate
-            the hop_length arg for mel spect, overrides mel_kwargs if set.
-            Defaults to None
+            the hop_length arg for mel spect.
+            Defaults to 0.01
+        n_window_size: Size of window for fft in samples
+            Defaults to None. Use one of window_size or n_window_size.
+        n_window_stride: Stride of window for fft in samples
+            Defaults to None. Use one of window_stride or n_window_stride.
         window: Windowing function for fft. can be one of ['hann',
-            'hamming', 'blackman', 'bartlett', None]. Overrides mel_kwargs
-            if set; otherwise, torchaudio defaults to hann.
+            'hamming', 'blackman', 'bartlett'].
+            Defaults to 'hann'
+        n_fft: Length of FT window. If None, it uses the smallest power of 2
+            that is larger than n_window_size.
             Defaults to None
+        lowfreq (int): Lower bound on mel basis in Hz.
+            Defaults to 0
+        highfreq  (int): Lower bound on mel basis in Hz.
+            Defaults to None
+        n_mels: Number of mel filterbanks.
+            Defaults to 64
         n_mfcc: Number of coefficients to retain
             Defaults to 64
         dct_type: Type of discrete cosine transform to use
         norm: Type of norm to use
         log: Whether to use log-mel spectrograms instead of db-scaled.
             Defaults to True.
-        mel_kwargs: Dict of arguments for torchaudio.transforms.MelSpectrogram
     """
     @staticmethod
     def create_ports():
@@ -344,29 +372,43 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
     def __init__(
             self, *,
             sample_rate=16000,
-            window_size=None,
-            window_stride=None,
+            window_size=0.02,
+            window_stride=0.01,
+            n_window_size=None,
+            n_window_stride=None,
             window='hann',
+            n_fft=None,
+            lowfreq=0.,
+            highfreq=None,
+            n_mels=64,
             n_mfcc=64,
             dct_type=2,
             norm='ortho',
             log=True,
-            mel_kwargs=None,
             **kwargs):
+        if window_size and n_window_size:
+            raise ValueError(f"{self} received both window_size and "
+                             f"n_window_size. Only one should be specified.")
+        if window_stride and n_window_stride:
+            raise ValueError(f"{self} received both window_stride and "
+                             f"n_window_stride. Only one should be specified.")
         super().__init__(**kwargs)
 
-        if mel_kwargs is None:
-            mel_kwargs = {}
+        mel_kwargs = {}
 
-        # Use the sample rate given instead of in mel_kwargs
-        if 'sample_rate' in mel_kwargs:
-            del mel_kwargs['sample_rate']
+        mel_kwargs['f_min'] = lowfreq
+        mel_kwargs['f_max'] = highfreq
+        mel_kwargs['n_mels'] = n_mels
 
-        # Override mel_kwargs if window_size or window_stride are set
-        if window_size is not None:
-            mel_kwargs['win_length'] = int(sample_rate * window_size)
-        if window_stride is not None:
-            mel_kwargs['hop_length'] = int(sample_rate * window_stride)
+        # Get win_length and hop_length
+        if window_size:
+            n_window_size = int(window_size * sample_rate)
+        if window_stride:
+            n_window_stride = int(window_stride * sample_rate)
+        mel_kwargs['win_length'] = n_window_size
+        mel_kwargs['hop_length'] = n_window_stride
+
+        mel_kwargs['n_fft'] = n_fft or 2 ** math.ceil(math.log2(n_window_size))
 
         # Set window_fn if window arg is given
         if window:
