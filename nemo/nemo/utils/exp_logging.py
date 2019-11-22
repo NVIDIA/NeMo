@@ -211,6 +211,9 @@ class ExpManager:
                 self.logger.info(f'{key}\t{params[key]}')
             self.logger.info(f'Experiment output is stored in {self.work_dir}')
 
+    def reset_loggers(self):
+        self.logger.handlers = []
+
 
 def get_git_hash():
     try:

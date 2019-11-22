@@ -384,6 +384,8 @@ class NeuralModuleFactory(object):
 
     @classmethod
     def reset_default_factory(cls):
+        if cls._DEFAULT:
+            cls._DEFAULT._exp_manager.reset_loggers()
         cls._DEFAULT = None
 
     @staticmethod
