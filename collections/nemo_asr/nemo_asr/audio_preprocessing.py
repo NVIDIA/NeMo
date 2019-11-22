@@ -53,7 +53,8 @@ class AudioPreprocessor(NonTrainableNM):
             'hamming': torch.hamming_window,
             'blackman': torch.blackman_window,
             'bartlett': torch.bartlett_window,
-            'none': None,
+            'none': torch.ones,
+            'null': torch.ones
         }
 
     @torch.no_grad()
@@ -97,7 +98,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             of 2 that is larger than n_window_size.
             Defaults to None
         window (str): Windowing function for fft. can be one of ['hann',
-            'hamming', 'blackman', 'bartlett']
+            'hamming', 'blackman', 'bartlett', 'none', 'null']
             Defaults to "hann"
         normalized (bool): Whether to normalize by magnitude after stft
         pad (int): Two sided padding
@@ -153,7 +154,8 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         window_fn = self.torch_windows.get(window, None)
         if window_fn is None:
             raise ValueError(
-                f"Window argument for AudioProcessor is invalid: {window}")
+                f"Window argument for AudioProcessor is invalid: {window}."
+                f"For no window function, use 'null' or 'none'.")
 
         # Create featurizer
         self.featurizer = torchaudio.transforms.Spectrogram(
@@ -333,7 +335,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         n_window_stride: Stride of window for fft in samples
             Defaults to None. Use one of window_stride or n_window_stride.
         window: Windowing function for fft. can be one of ['hann',
-            'hamming', 'blackman', 'bartlett'].
+            'hamming', 'blackman', 'bartlett', 'none', 'null'].
             Defaults to 'hann'
         n_fft: Length of FT window. If None, it uses the smallest power of 2
             that is larger than n_window_size.
@@ -411,12 +413,12 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         mel_kwargs['n_fft'] = n_fft or 2 ** math.ceil(math.log2(n_window_size))
 
         # Set window_fn if window arg is given
-        if window:
-            window_fn = self.torch_windows.get(window, None)
-            if window_fn is None:
-                raise ValueError(
-                    f"Window argument for AudioProcessor is invalid: {window}")
-            mel_kwargs['window_fn'] = window_fn
+        window_fn = self.torch_windows.get(window, None)
+        if window_fn is None:
+            raise ValueError(
+                f"Window argument for AudioProcessor is invalid: {window}."
+                f"For no window function, use 'null' or 'none'.")
+        mel_kwargs['window_fn'] = window_fn
 
         # Use torchaudio's implementation of MFCCs as featurizer
         self.featurizer = torchaudio.transforms.MFCC(
