@@ -42,8 +42,12 @@ _float_2_half_req = {Optimization.mxprO1,
 
 
 class PtActions(Actions):
-    def __init__(self, local_rank=None, tb_writer=None,
-                 optimization_level=Optimization.mxprO0):
+    def __init__(
+            self,
+            local_rank=None,
+            global_rank=None,
+            tb_writer=None,
+            optimization_level=Optimization.mxprO0):
         need_apex = local_rank is not None or \
                     optimization_level != Optimization.mxprO0
         if need_apex:
@@ -73,6 +77,7 @@ class PtActions(Actions):
 
         super(PtActions, self).__init__(
             local_rank=local_rank,
+            global_rank=global_rank,
             optimization_level=optimization_level)
 
         # will be [unique_instance_id -> (NMModule, PTModule)]
@@ -602,7 +607,7 @@ class PtActions(Actions):
                     mode=ModelMode.eval,
                 )
 
-                if not is_distributed or self.local_rank == 0:
+                if not is_distributed or self.global_rank == 0:
                     values_dict = {}
                 # If distributed. For the outer loop, we need to ensure that
                 # all processes loop through the elements in the same order
@@ -659,14 +664,14 @@ class PtActions(Actions):
                             self.depad_tensor(t, size)
                             for t, size in zip(tensors_list, sizes)
                         ]
-                        if self.local_rank == 0:
+                        if self.global_rank == 0:
                             values_dict["IS_FROM_DIST_EVAL"] = True
                             values_dict[key] = tensors_list
                     else:  # NON-DISTRIBUTED TRAINING
                         values_dict["IS_FROM_DIST_EVAL"] = False
                         values_dict[key] = [registered_e_tensors[key]]
                 if callback.user_iter_callback and (
-                        self.local_rank is None or self.local_rank == 0
+                        self.global_rank is None or self.global_rank == 0
                 ):
                     # values_dict will contain results from all workers
                     callback.user_iter_callback(values_dict,
@@ -675,7 +680,7 @@ class PtActions(Actions):
             # final aggregation (over minibatches) and logging of results
             # should happend only on one worker
             if callback.user_done_callback and (
-                    self.local_rank is None or self.local_rank == 0
+                    self.global_rank is None or self.global_rank == 0
             ):
                 vals_to_log = callback.user_done_callback(
                     callback._global_var_dict)
@@ -773,7 +778,7 @@ class PtActions(Actions):
             # reset global_var_dict - results of evaluation will be stored
             # there
 
-            if not is_distributed or self.local_rank == 0:
+            if not is_distributed or self.global_rank == 0:
                 values_dict = {}
                 for t in tensors_to_return:
                     values_dict[t.unique_name] = []
@@ -887,12 +892,12 @@ class PtActions(Actions):
                             self.depad_tensor(t, size)
                             for t, size in zip(tensors_list, sizes)
                         ]
-                        if self.local_rank == 0:
+                        if self.global_rank == 0:
                             values_dict[key] += tensors_list
                     else:  # NON-DISTRIBUTED TRAINING
                         values_dict[key] += [registered_e_tensors[key]]
 
-            if not is_distributed or self.local_rank == 0:
+            if not is_distributed or self.global_rank == 0:
                 inferred_tensors = []
                 for t in tensors_to_return:
                     inferred_tensors.append(values_dict[t.unique_name])
