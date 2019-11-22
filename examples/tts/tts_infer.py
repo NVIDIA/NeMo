@@ -61,7 +61,9 @@ def parse_args():
         help=("denoiser strength for waveglow. Start with 0 and slowly "
               "increment"))
     parser.add_argument("--waveglow_sigma", type=float, default=0.6)
+
     parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--amp_opt_level", default="O1")
 
     args = parser.parse_args()
     if (args.vocoder == "griffin-lim" and
@@ -145,6 +147,7 @@ def create_infer_dags(neural_factory,
 def main():
     args = parse_args()
     neural_factory = nemo.core.NeuralModuleFactory(
+        optimization_level=args.amp_opt_level,
         backend=nemo.core.Backend.PyTorch)
 
     # Create text to spectrogram model
