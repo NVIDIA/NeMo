@@ -7,7 +7,8 @@ import os
 from pathlib import Path
 from typing import List, Optional, Dict
 
-import onnx
+# import onnx
+from collections import defaultdict
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -1020,16 +1021,14 @@ class PtActions(Actions):
 
         input_names = list(module.input_ports.keys())
         output_names = list(module.output_ports.keys())
-        dynamic_axes = {}
+        dynamic_axes = defaultdict(list)
 
         def __extract_dynamic_axes(port_name: str, ntype: NeuralType,
-                                   dynamic_axes: Dict):
+                                   dynamic_axes: defaultdict):
             if ntype.axis2type:
                 for axis_id, axistype in ntype.axis2type.items():
                     if issubclass(axistype.semantics, BatchTag) or issubclass(
                             axistype.semantics, TimeTag):
-                        if port_name not in dynamic_axes:
-                            dynamic_axes[port_name] = []
                         dynamic_axes[port_name].append(axis_id)
         # for input_ports
         for port_name, ntype in module.input_ports.items():
