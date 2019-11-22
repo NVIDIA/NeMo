@@ -643,10 +643,10 @@ class NeuralModuleFactory(object):
 
     def _get_trainer(self, tb_writer=None):
         if self._backend == Backend.PyTorch:
-            # constructor = NeuralModuleFactory.__name_import(
-            #     "nemo.backends.pytorch.PtActions"
-            # )
-            instance = nemo.backends.pytorch.PtActions(
+            constructor = NeuralModuleFactory.__name_import(
+                "nemo.backends.pytorch.PtActions"
+            )
+            instance = constructor(
                 local_rank=self._local_rank,
                 global_rank=self._global_rank,
                 tb_writer=tb_writer,
