@@ -38,6 +38,10 @@ class ActionCallback(ABC):
         return self.action.local_rank
 
     @property
+    def global_rank(self):
+        return self.action.global_rank
+
+    @property
     def action(self):
         return self._action
 
@@ -83,7 +87,7 @@ class ModuleSaverCallback(ActionCallback):
                 and
                 step % self._step_freq == 0
                 and step > 0
-                and (self.local_rank is None or self.local_rank == 0)
+                and (self.global_rank is None or self.global_rank == 0)
         ):
             for m in self._save_modules_list:
                 class_name = m.__class__.__name__
@@ -93,13 +97,13 @@ class ModuleSaverCallback(ActionCallback):
                     file_name = fn
                 else:
                     file_name = os.path.join(self._folder, fn)
-                print(f"Saving module {class_name} in {file_name}")
+                logger.info(f"Saving module {class_name} in {file_name}")
                 m.save_to(file_name)
-                print("Saved.")
+                logger.info("Saved.")
 
     def on_action_end(self):
         step = self.step
-        if self.local_rank is None or self.local_rank == 0:
+        if self.global_rank is None or self.global_rank == 0:
             for m in self._save_modules_list:
                 class_name = m.__class__.__name__
                 uid = m.unique_instance_id
@@ -108,9 +112,9 @@ class ModuleSaverCallback(ActionCallback):
                     file_name = fn
                 else:
                     file_name = os.path.join(self._folder, fn)
-                print(f"Saving module {class_name} in {file_name}")
+                logger.info(f"Saving module {class_name} in {file_name}")
                 m.save_to(file_name)
-                print("Saved.")
+                logger.info("Saved.")
 
 
 class SimpleLossLoggerCallback(ActionCallback):
@@ -145,26 +149,26 @@ class SimpleLossLoggerCallback(ActionCallback):
         return self._tensors
 
     def on_action_start(self):
-        if self.local_rank is None or self.local_rank == 0:
-            print("Starting .....")
+        if self.global_rank is None or self.global_rank == 0:
+            logger.info("Starting .....")
             self._start_time = time.time()
 
     def on_action_end(self):
-        if self.local_rank is None or self.local_rank == 0:
+        if self.global_rank is None or self.global_rank == 0:
             if self._swriter is not None:
                 self._swriter.close()
-            print(f"Done in {time.time() - self._start_time}")
+            logger.info(f"Done in {time.time() - self._start_time}")
 
     def on_epoch_start(self):
-        if self.local_rank is None or self.local_rank == 0:
-            print(f"Starting epoch {self.epoch_num}")
+        if self.global_rank is None or self.global_rank == 0:
+            logger.info(f"Starting epoch {self.epoch_num}")
             self._last_epoch_start = time.time()
 
     def on_epoch_end(self):
-        if self.local_rank is None or self.local_rank == 0:
+        if self.global_rank is None or self.global_rank == 0:
             step = self.step
             run_time = time.time() - self._last_epoch_start
-            print(f"Finished epoch {self.epoch_num} in {run_time}")
+            logger.info(f"Finished epoch {self.epoch_num} in {run_time}")
             if self._swriter is not None:
                 value = self.epoch_num
                 self._swriter.add_scalar('misc/epoch', value, step)
@@ -172,11 +176,11 @@ class SimpleLossLoggerCallback(ActionCallback):
                 self._swriter.add_scalar('misc/epoch_time', value, step)
 
     def on_iteration_start(self):
-        if self.local_rank is None or self.local_rank == 0:
+        if self.global_rank is None or self.global_rank == 0:
             self._last_iter_start = time.time()
 
     def on_iteration_end(self):
-        if self.local_rank is None or self.local_rank == 0:
+        if self.global_rank is None or self.global_rank == 0:
             step = self.step
             if step % self._step_freq == 0:
                 tensor_values = [
@@ -184,7 +188,7 @@ class SimpleLossLoggerCallback(ActionCallback):
                     for t in self.tensors
                 ]
 
-                print(f"Step: {step}")
+                logger.info(f"Step: {step}")
                 if self._print_func:
                     self._print_func(tensor_values)
                 sys.stdout.flush()
@@ -200,7 +204,7 @@ class SimpleLossLoggerCallback(ActionCallback):
                     run_time = time.time() - self._last_iter_start
                     self._swriter.add_scalar('misc/step_time', run_time, step)
                 run_time = time.time() - self._last_iter_start
-                print(f"Step time: {run_time} seconds")
+                logger.info(f"Step time: {run_time} seconds")
 
 
 class CheckpointCallback(ActionCallback):
@@ -236,8 +240,10 @@ class CheckpointCallback(ActionCallback):
         self._force_load = force_load
 
     def __save_to(self, path):
+        if self.global_rank is not None and self.global_rank != 0:
+            return
         if not os.path.isdir(path):
-            print(f"Creating {path} folder")
+            logger.info(f"Creating {path} folder")
             os.makedirs(path, exist_ok=True)
         unique_mod_names = set()
         for module in self.action.modules:
@@ -296,8 +302,9 @@ class CheckpointCallback(ActionCallback):
                     raise ValueError(
                         "force_load was set to True for checkpoint callback"
                         "but a checkpoint was not found.")
-                print(e)
-                print(f"Checkpoint folder {path} present but did not restore")
+                logger.warning(e)
+                logger.warning(
+                    f"Checkpoint folder {path} present but did not restore")
                 return
 
             try:
@@ -306,9 +313,8 @@ class CheckpointCallback(ActionCallback):
                 for tr, checkpoint in zip([self.action], trainer_checkpoints):
                     tr.restore_state_from(checkpoint)
             except (BaseException, ValueError) as e:
-                print(e)
-                print("Trainer state wasn't restored".format(
-                    path))
+                logger.warning(e)
+                logger.warning("Trainer state wasn't restored")
                 return
 
     def on_action_start(self):
@@ -316,25 +322,19 @@ class CheckpointCallback(ActionCallback):
 
     def on_iteration_end(self):
         step = self.step
-        if (
-                self._step_freq > 0
-                and step % self._step_freq == 0
-                and step > 0
-                and (self.local_rank is None or self.local_rank == 0)
-        ):
+        if self._step_freq > 0 and step % self._step_freq == 0 and step > 0:
             self.__save_to(path=self._folder)
 
     def on_action_end(self):
         if self._step_freq > 0 or self._epoch_freq > 0:
-            if self.local_rank is None or self.local_rank == 0:
-                self.__save_to(path=self._folder)
+            self.__save_to(path=self._folder)
 
     def on_epoch_start(self):
         self._last_epoch_start = time.time()
 
     def on_epoch_end(self):
         if self._epoch_freq > 0:
-            if self.local_rank is None or self.local_rank == 0:
+            if self.global_rank is None or self.global_rank == 0:
                 run_time = time.time() - self._last_epoch_start
                 logger.info(f'Finished epoch {self.epoch_num} in {run_time}')
                 if (self.epoch_num + 1) % self._epoch_freq == 0:
@@ -398,23 +398,23 @@ class EvaluatorCallback(ActionCallback):
     def on_iteration_end(self):
         step = self.step
         if step % self._eval_frequency == 0:
-            if self.local_rank == 0 or self.local_rank is None:
-                print('Doing Evaluation ' + '.' * 30)
+            if self.global_rank == 0 or self.global_rank is None:
+                logger.info('Doing Evaluation ' + '.' * 30)
             start_time = time.time()
             self.action._eval(self._eval_tensors, self, step)
             elapsed_time = time.time() - start_time
-            if self.local_rank == 0 or self.local_rank is None:
-                print(f'Evaluation time: {elapsed_time} seconds')
+            if self.global_rank == 0 or self.global_rank is None:
+                logger.info(f'Evaluation time: {elapsed_time} seconds')
 
     def on_action_end(self):
         step = self.step
-        if self.local_rank == 0 or self.local_rank is None:
-            print('Final Evaluation ' + '.' * 30)
+        if self.global_rank == 0 or self.global_rank is None:
+            logger.info('Final Evaluation ' + '.' * 30)
         start_time = time.time()
         self.action._eval(self._eval_tensors, self, step)
         elapsed_time = time.time() - start_time
-        if self.local_rank == 0 or self.local_rank is None:
-            print(f'Evaluation time: {elapsed_time} seconds')
+        if self.global_rank == 0 or self.global_rank is None:
+            logger.info(f'Evaluation time: {elapsed_time} seconds')
 
     def clear_global_var_dict(self):
         self._global_var_dict = {}
