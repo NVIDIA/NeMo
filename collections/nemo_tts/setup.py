@@ -24,6 +24,7 @@ setuptools.setup(
         'librosa',
         'matplotlib',
         'scipy',
-        'ruamel.yaml'
+        'ruamel.yaml',
+        'pypinyin'
     ]
 )

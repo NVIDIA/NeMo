@@ -224,7 +224,7 @@ def create_all_dags(neural_factory,
 def main():
     args, name = parse_args()
 
-    log_dir = None
+    log_dir = name
     if args.work_dir:
         log_dir = os.path.join(args.work_dir, name)
 
