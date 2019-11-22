@@ -1024,7 +1024,7 @@ class PtActions(Actions):
 
         def __extract_dynamic_axes(port_name: str, ntype: NeuralType,
                                    dynamic_axes: Dict):
-            if ntype.axis2type is not None and ntype.axis2type != {}:
+            if ntype.axis2type:
                 for axis_id, axistype in ntype.axis2type.items():
                     if issubclass(axistype.semantics, BatchTag) or issubclass(
                             axistype.semantics, TimeTag):
