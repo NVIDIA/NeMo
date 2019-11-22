@@ -7,10 +7,10 @@ import os
 from pathlib import Path
 from typing import List, Optional, Dict
 
+import onnx
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-import torch.onnx as onnx
 import torch.optim as optim
 from nemo.backends.pytorch.nm import TrainableNM
 
