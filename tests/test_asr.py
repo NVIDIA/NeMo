@@ -258,7 +258,8 @@ class TestASRPytorch(NeMoUnitTest):
             shuffle=False
         )
 
-        to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(n_fft=400)
+        to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(
+                n_fft=400, window=None)
         to_melspec = nemo_asr.AudioToMelSpectrogramPreprocessor(features=50)
         to_mfcc = nemo_asr.AudioToMFCCPreprocessor(n_mfcc=15)
 
