@@ -420,10 +420,11 @@ class TestASRPytorch(NeMoUnitTest):
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
                               'window_stride': 0.01}
-        preprocessing = nemo_asr.AudioPreprocessing(
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **pre_process_params)
         jasper_encoder = nemo_asr.JasperEncoder(
-            feat_in=quartz_model_definition['AudioPreprocessing']['features'],
+            feat_in=quartz_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **quartz_model_definition['JasperEncoder']
         )
         jasper_decoder = nemo_asr.JasperDecoderForCTC(
