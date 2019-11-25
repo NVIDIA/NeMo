@@ -332,7 +332,7 @@ class TranscriptDataset(Dataset):
         elif ext == '.json':
             # Assume it is in ASR manifest form
             texts = []
-            for item in ManifestBase.json_item_gen(path):
+            for item in ManifestBase.json_item_gen([path]):
                 if 'text' in item:
                     text = item['text']
                 elif 'text_filepath' in item:
@@ -356,9 +356,10 @@ class TranscriptDataset(Dataset):
 
     def __getitem__(self, item):
         tokenized_text = ManifestBase.tokenize_transcript(
-            item, self.char2num, -1, -1)
+            self.texts[item], self.char2num, -1, -1)
         if self.bos_id:
             tokenized_text = [self.bos_id] + tokenized_text
         if self.eos_id:
             tokenized_text = tokenized_text + [self.eos_id]
-        return tokenized_text, len(tokenized_text)
+        return (torch.tensor(tokenized_text, dtype=torch.long),
+                torch.tensor(len(tokenized_text), dtype=torch.long))
