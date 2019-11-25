@@ -33,7 +33,7 @@ want to run inference with our pre-trained models, skip to the
 Get data
 --------
 Both Tacotron 2 and Waveglow are trained using the
-`LJSpeech <https://keithito.com/LJ-Speech-Dataset/>`_ dataset.
+`LJSpeech <https://keithito.com/LJ-Speech-Dataset/>`__ dataset.
 You can use a helper script to get and process the dataset for use with NeMo.
 The script is located at NeMo/scripts and can be run like so:
 
@@ -41,7 +41,7 @@ The script is located at NeMo/scripts and can be run like so:
 
     python scripts/get_ljspeech_data.py --data_root=<where_you_want_to_save_data>
 
-For more details on the LJSpeech dataset, see :ref:`our docs here <LJSpeech>`.
+For more details on the LJSpeech dataset, see :ref:`our docs here <ljspeech>`.
 
 Training
 ---------
