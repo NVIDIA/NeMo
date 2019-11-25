@@ -131,7 +131,7 @@ class ExpManager:
                 for file in files_to_copy:
                     basename = os.path.basename(file)
                     basename, ending = os.path.splitext(basename)
-                    basename = basename + tm_suf + ending
+                    basename = basename + f"_{tm_suf}" + ending
                     copyfile(file, os.path.join(self.work_dir, basename))
             if self.global_rank == 0:
                 # Create files for cmd args and git info
