@@ -1,21 +1,25 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import importlib
 import itertools
+import json
 import logging
 import os
-from typing import List, Optional
+from pathlib import Path
+from typing import List, Optional, Dict
 
+# import onnx
+from collections import defaultdict
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
-
 from nemo.backends.pytorch.nm import TrainableNM
 
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
 from .optimizers import Novograd, AdamW, Lamb, master_params
-from ...core import NmTensor, DeviceType, NeuralModule
+from ...core import NmTensor, DeviceType, NeuralModule, DeploymentFormat
+from ...core.neural_types import *
 from ...core.callbacks import (ActionCallback,
                                EvaluatorCallback,
                                SimpleLossLoggerCallback)
@@ -42,8 +46,12 @@ _float_2_half_req = {Optimization.mxprO1,
 
 
 class PtActions(Actions):
-    def __init__(self, local_rank=None, tb_writer=None,
-                 optimization_level=Optimization.mxprO0):
+    def __init__(
+            self,
+            local_rank=None,
+            global_rank=None,
+            tb_writer=None,
+            optimization_level=Optimization.mxprO0):
         need_apex = local_rank is not None or \
                     optimization_level != Optimization.mxprO0
         if need_apex:
@@ -60,7 +68,7 @@ class PtActions(Actions):
                     parallel = importlib.import_module('apex.parallel')
                     convert_syncbn = parallel.convert_syncbn_model
                     create_syncbn_process_group = (
-                            parallel.create_syncbn_process_group)
+                        parallel.create_syncbn_process_group)
                     DDP = parallel.DistributedDataParallel
                     LARC = parallel.LARC
 
@@ -73,6 +81,7 @@ class PtActions(Actions):
 
         super(PtActions, self).__init__(
             local_rank=local_rank,
+            global_rank=global_rank,
             optimization_level=optimization_level)
 
         # will be [unique_instance_id -> (NMModule, PTModule)]
@@ -602,7 +611,7 @@ class PtActions(Actions):
                     mode=ModelMode.eval,
                 )
 
-                if not is_distributed or self.local_rank == 0:
+                if not is_distributed or self.global_rank == 0:
                     values_dict = {}
                 # If distributed. For the outer loop, we need to ensure that
                 # all processes loop through the elements in the same order
@@ -659,14 +668,14 @@ class PtActions(Actions):
                             self.depad_tensor(t, size)
                             for t, size in zip(tensors_list, sizes)
                         ]
-                        if self.local_rank == 0:
+                        if self.global_rank == 0:
                             values_dict["IS_FROM_DIST_EVAL"] = True
                             values_dict[key] = tensors_list
                     else:  # NON-DISTRIBUTED TRAINING
                         values_dict["IS_FROM_DIST_EVAL"] = False
                         values_dict[key] = [registered_e_tensors[key]]
                 if callback.user_iter_callback and (
-                        self.local_rank is None or self.local_rank == 0
+                        self.global_rank is None or self.global_rank == 0
                 ):
                     # values_dict will contain results from all workers
                     callback.user_iter_callback(values_dict,
@@ -675,7 +684,7 @@ class PtActions(Actions):
             # final aggregation (over minibatches) and logging of results
             # should happend only on one worker
             if callback.user_done_callback and (
-                    self.local_rank is None or self.local_rank == 0
+                    self.global_rank is None or self.global_rank == 0
             ):
                 vals_to_log = callback.user_done_callback(
                     callback._global_var_dict)
@@ -773,7 +782,7 @@ class PtActions(Actions):
             # reset global_var_dict - results of evaluation will be stored
             # there
 
-            if not is_distributed or self.local_rank == 0:
+            if not is_distributed or self.global_rank == 0:
                 values_dict = {}
                 for t in tensors_to_return:
                     values_dict[t.unique_name] = []
@@ -887,12 +896,12 @@ class PtActions(Actions):
                             self.depad_tensor(t, size)
                             for t, size in zip(tensors_list, sizes)
                         ]
-                        if self.local_rank == 0:
+                        if self.global_rank == 0:
                             values_dict[key] += tensors_list
                     else:  # NON-DISTRIBUTED TRAINING
                         values_dict[key] += [registered_e_tensors[key]]
 
-            if not is_distributed or self.local_rank == 0:
+            if not is_distributed or self.global_rank == 0:
                 inferred_tensors = []
                 for t in tensors_to_return:
                     inferred_tensors.append(values_dict[t.unique_name])
@@ -1003,6 +1012,129 @@ class PtActions(Actions):
                     for module in callchain:
                         self.modules.add(module[0])
 
+    @staticmethod
+    def __module_export(module,
+                        output,
+                        d_format: DeploymentFormat,
+                        input_example=None,
+                        output_example=None):
+        # Check if output already exists
+        destination = Path(output)
+        if destination.exists():
+            raise FileExistsError(f"Destination {output} already exists. "
+                                  f"Aborting export.")
+
+        input_names = list(module.input_ports.keys())
+        output_names = list(module.output_ports.keys())
+        dynamic_axes = defaultdict(list)
+
+        def __extract_dynamic_axes(port_name: str, ntype: NeuralType,
+                                   dynamic_axes: defaultdict):
+            if ntype.axis2type:
+                for axis_id, axistype in ntype.axis2type.items():
+                    if issubclass(axistype.semantics, BatchTag) or issubclass(
+                            axistype.semantics, TimeTag):
+                        dynamic_axes[port_name].append(axis_id)
+        # for input_ports
+        for port_name, ntype in module.input_ports.items():
+            __extract_dynamic_axes(port_name, ntype, dynamic_axes)
+        # for output_ports
+        for port_name, ntype in module.output_ports.items():
+            __extract_dynamic_axes(port_name, ntype, dynamic_axes)
+        if len(dynamic_axes) == 0:
+            dynamic_axes = None
+
+        local_parameters = {}
+        for key, value in module._local_parameters.items():
+            local_parameters[key] = value
+
+        # Remove NeMo-related things from the module
+        # We need to change __call__ method. Note that this will change the
+        # whole class, not just this object! Which is why we need to repair it
+        # in the finally block
+        type(module).__call__ = torch.nn.Module.__call__
+
+        module._local_parameters = None
+        module._logger = None
+        module._placement = None
+        module._factory = None
+        module._device = None
+
+        module.eval()
+        try:
+            if d_format == DeploymentFormat.TORCHSCRIPT:
+                if input_example is None:
+                    # Route 1 - via torch.jit.script
+                    traced_m = torch.jit.script(module)
+                    traced_m.save(output)
+                else:
+                    # Route 2 - via tracing
+                    traced_m = torch.jit.trace(module, input_example)
+                    traced_m.save(output)
+            elif d_format == DeploymentFormat.ONNX:
+                if input_example is None:
+                    raise ValueError(
+                        f'Example input is None, but ONNX tracing was'
+                        f' attempted')
+                torch.onnx.export(module, input_example, output,
+                                  input_names=input_names,
+                                  output_names=output_names,
+                                  verbose=True,
+                                  export_params=True,
+                                  do_constant_folding=True,
+                                  dynamic_axes=dynamic_axes,
+                                  opset_version=10)
+                # fn = output + ".readable"
+                # with open(fn, 'w') as f:
+                #     tempModel = onnx.load(output)
+                #     onnx.save(tempModel, output + ".copy")
+                #     onnx.checker.check_model(tempModel)
+                #     pgraph = onnx.helper.printable_graph(tempModel.graph)
+                #     f.write(pgraph)
+
+            elif d_format == DeploymentFormat.PYTORCH:
+                torch.save(module.state_dict(), output)
+                with open(output + ".json", 'w') as outfile:
+                    json.dump(local_parameters, outfile)
+
+            else:
+                raise NotImplemented(
+                    f"Not supported deployment format: {d_format}")
+        except Exception as e:  # nopep8
+            print(
+                f'ERROR: module export failed for {module} with exception {e}')
+        finally:
+            def __old_call__(self, force_pt=False, *input, **kwargs):
+                pt_call = len(input) > 0 or force_pt
+                if pt_call:
+                    return nn.Module.__call__(self, *input, **kwargs)
+                else:
+                    return NeuralModule.__call__(self, **kwargs)
+
+            type(module).__call__ = __old_call__
+
+    @staticmethod
+    def deployment_export(module,
+                          output: str,
+                          d_format: DeploymentFormat,
+                          input_example=None,
+                          output_example=None):
+        """Exports Neural Module instance for deployment.
+
+        Args:
+            module: neural module to export
+            output (str): where export results should be saved
+            d_format (DeploymentFormat): which deployment format to use
+            input_example: sometimes tracing will require input examples
+            output_example: Should match inference on input_example
+        """
+        PtActions.__module_export(
+            module=module,
+            output=output,
+            d_format=d_format,
+            input_example=input_example,
+            output_example=output_example)
+
     def train(self,
               tensors_to_optimize,
               optimizer=None,
@@ -1012,7 +1144,8 @@ class PtActions(Actions):
               batches_per_step=None,
               stop_on_nan_loss=False,
               synced_batchnorm=False,
-              synced_batchnorm_groupsize=0):
+              synced_batchnorm_groupsize=0,
+              gradient_predivide=False):
         if not optimization_params:
             optimization_params = {}
         num_epochs = optimization_params.get("num_epochs", None)
@@ -1169,7 +1302,10 @@ class PtActions(Actions):
                     pmodule = self.module_reference_table[key][1]
                     if (not isinstance(pmodule, DDP) and
                             isinstance(pmodule, torch.nn.Module)):
-                        pmodule = DDP(pmodule)
+                        gpf = 1
+                        if gradient_predivide:
+                            gpf = dist.get_world_size()
+                        pmodule = DDP(pmodule, gradient_predivide_factor=gpf)
 
                     # Convert batchnorm modules to synced if applicable
                     if (synced_batchnorm and
@@ -1184,10 +1320,10 @@ class PtActions(Actions):
                                 f" ({world_size})."
                             )
                         process_group = create_syncbn_process_group(
-                                synced_batchnorm_groupsize)
+                            synced_batchnorm_groupsize)
                         pmodule = convert_syncbn(
-                                pmodule,
-                                process_group=process_group)
+                            pmodule,
+                            process_group=process_group)
 
                     self.module_reference_table[key] = (
                         self.module_reference_table[key][0], pmodule

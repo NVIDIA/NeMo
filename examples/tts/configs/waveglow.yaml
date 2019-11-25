@@ -10,7 +10,7 @@ AudioDataLayer:
     eval:
         shuffle: false
 
-AudioPreprocessing:
+AudioToMelSpectrogramPreprocessor:
     normalize: null
     window_size: null
     window_stride: null

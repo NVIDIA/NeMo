@@ -97,11 +97,12 @@ def main():
     N = len(data_layer)
     logger.info('Evaluating {0} examples'.format(N))
 
-    data_preprocessor = nemo_asr.AudioPreprocessing(
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         sample_rate=sample_rate,
-        **jasper_params["AudioPreprocessing"])
+        **jasper_params["AudioToMelSpectrogramPreprocessor"])
     jasper_encoder = nemo_asr.JasperEncoder(
-        feat_in=jasper_params["AudioPreprocessing"]["features"],
+        feat_in=jasper_params[
+            "AudioToMelSpectrogramPreprocessor"]["features"],
         **jasper_params["JasperEncoder"])
     jasper_decoder = nemo_asr.JasperDecoderForCTC(
         feat_in=jasper_params["JasperEncoder"]["jasper"][-1]["filters"],

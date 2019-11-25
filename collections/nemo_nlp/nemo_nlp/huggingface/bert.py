@@ -114,6 +114,8 @@ class BERT(TrainableNM):
 
         self.add_module("bert", model)
         self.config = model.config
+        for key, value in self.config.to_dict().items():
+            self._local_parameters[key] = value
 
     @staticmethod
     def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:
