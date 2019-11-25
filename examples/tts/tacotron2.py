@@ -28,7 +28,7 @@ def parse_args():
         batch_size=48,
         eval_batch_size=32,
         lr=0.001,
-        amp_opt_level="O1",
+        amp_opt_level="O0",
         create_tb_writer=True,
         lr_policy=None,
         weight_decay=1e-6
