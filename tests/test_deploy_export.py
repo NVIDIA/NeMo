@@ -95,8 +95,8 @@ class TestDeployExport(NeMoUnitTest):
 
         jasper_encoder = nemo_asr.JasperEncoder(
             conv_mask=False,
-            feat_in=jasper_model_definition['AudioPreprocessing'][
-                'features'],
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder']
         )
 

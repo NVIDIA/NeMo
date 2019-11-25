@@ -117,14 +117,14 @@ def create_dag(args, cfg, logger, num_gpus):
             ))
     else:
         logger.info("There were no val datasets passed")
-    data_preprocessor = nemo_asr.AudioPreprocessing(
-        **cfg['AudioPreprocessing']
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+        **cfg['AudioToMelSpectrogramPreprocessor']
     )
     data_augmentation = nemo_asr.SpectrogramAugmentation(
         **cfg['SpectrogramAugmentation']
     )
     encoder = nemo_asr.JasperEncoder(
-        feat_in=cfg["AudioPreprocessing"]["features"],
+        feat_in=cfg["AudioToMelSpectrogramPreprocessor"]["features"],
         **cfg['JasperEncoder']
     )
     if args.encoder_checkpoint is not None \

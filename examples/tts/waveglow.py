@@ -66,8 +66,8 @@ def parse_args():
 
 
 def create_NMs(waveglow_params, logger=None):
-    data_preprocessor = nemo_asr.AudioPreprocessing(
-        **waveglow_params["AudioPreprocessing"])
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+        **waveglow_params["AudioToMelSpectrogramPreprocessor"])
     waveglow = nemo_tts.WaveGlowNM(**waveglow_params["WaveGlowNM"])
     waveglow_loss = nemo_tts.WaveGlowLoss()
 
