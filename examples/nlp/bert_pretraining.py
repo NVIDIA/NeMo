@@ -75,7 +75,7 @@ parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--batch_size", default=64, type=int)
 parser.add_argument("--batches_per_step", default=1, type=int)
 parser.add_argument("--lr", default=0.01, type=float)
-parser.add_argument("--lr_policy", default="CosineAnnealing", type=str)
+parser.add_argument("--lr_policy", default=None, type=str)
 parser.add_argument("--lr_warmup_proportion", default=0.05, type=float)
 parser.add_argument("--optimizer", default="novograd", type=str)
 parser.add_argument("--beta1", default=0.95, type=float)
@@ -118,6 +118,7 @@ parser.add_argument("--config_file", default=None, type=str,
                     help="The BERT model config")
 args = parser.parse_args()
 
+print(vars(args))
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
@@ -254,6 +255,7 @@ else:
                                       batch_size=args.batch_size,
                                       batches_per_step=args.batches_per_step)
 
+print("steps per epoch", steps_per_epoch)
 # callback which prints training loss and perplexity once in a while
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
@@ -267,14 +269,18 @@ ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir,
                                              step_freq=args.save_step_freq)
 
 # define learning rate decay policy
-if args.total_iterations_per_gpu < 0:
-    lr_policy_fn = get_lr_policy(args.lr_policy,
-                                 total_steps=args.num_epochs * steps_per_epoch,
-                                 warmup_ratio=args.lr_warmup_proportion)
+if args.lr_policy is not None:
+    if args.total_iterations_per_gpu < 0:
+        lr_policy_fn = get_lr_policy(
+                            args.lr_policy,
+                            total_steps=args.num_epochs * steps_per_epoch,
+                            warmup_ratio=args.lr_warmup_proportion)
+    else:
+        lr_policy_fn = get_lr_policy(args.lr_policy,
+                                     total_steps=args.total_iterations_per_gpu,
+                                     warmup_ratio=args.lr_warmup_proportion)
 else:
-    lr_policy_fn = get_lr_policy(args.lr_policy,
-                                 total_steps=args.total_iterations_per_gpu,
-                                 warmup_ratio=args.lr_warmup_proportion)
+    lr_policy_fn = None
 
 config_path = f'{nf.checkpoint_dir}/bert-config.json'
 if not os.path.exists(config_path):
