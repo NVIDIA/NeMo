@@ -124,8 +124,8 @@ def create_infer_dags(neural_factory,
         bos_id=len(tacotron2_params['labels']),
         eos_id=len(tacotron2_params['labels']) + 1,
         pad_id=len(tacotron2_params['labels']) + 2,
+        shuffle=False
     )
-
     transcript, transcript_len = data_layer()
 
     transcript_embedded = text_embedding(char_phone=transcript)

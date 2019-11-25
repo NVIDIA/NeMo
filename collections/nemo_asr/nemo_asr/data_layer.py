@@ -652,6 +652,7 @@ class TranscriptDataLayer(DataLayerNM):
                  pad_id=None,
                  drop_last=False,
                  num_workers=0,
+                 shuffle=True,
                  **kwargs):
         super().__init__(**kwargs)
 
@@ -678,7 +679,7 @@ class TranscriptDataLayer(DataLayerNM):
             batch_size=batch_size,
             collate_fn=partial(self._collate_fn, pad_id=pad_id, pad8=True),
             drop_last=drop_last,
-            shuffle=sampler is None,
+            shuffle=shuffle if sampler is None else False,
             sampler=sampler,
             num_workers=num_workers
         )
