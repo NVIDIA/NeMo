@@ -332,10 +332,37 @@ class NeuralModuleFactory(object):
                 random.seed(random_seed)
 
             if self._local_rank is not None:
-                torch.cuda.set_device(self._local_rank)
                 torch.distributed.init_process_group(
                     backend="nccl", init_method="env://"
                 )
+
+                cuda_set = True
+                # Try to set cuda device. This should fail if self._local_rank
+                # is greater than the number of available GPUs
+                try:
+                    torch.cuda.set_device(self._local_rank)
+                except RuntimeError:
+                    # Note in this case, all tensors are now sent to GPU 0
+                    # who could crash because of OOM. Thus init_process_group()
+                    # must be done before any cuda tensors are allocated
+                    cuda_set = False
+                cuda_set_t = torch.cuda.IntTensor([cuda_set])
+
+                # Do an all_reduce to ensure all workers obtained a GPU
+                # For the strangest reason, BAND doesn't work so I am resorting
+                # to MIN.
+                torch.distributed.all_reduce(
+                    cuda_set_t, op=torch.distributed.ReduceOp.MIN)
+                if cuda_set_t.item() == 0:
+                    raise RuntimeError(
+                        "There was an error initializing distributed training."
+                        " Perhaps you specified more gpus than you have "
+                        "available")
+
+                del cuda_set_t
+                torch.cuda.empty_cache()
+                # Remove test tensor from memory
+
                 self._world_size = torch.distributed.get_world_size()
                 self._global_rank = torch.distributed.get_rank()
 
