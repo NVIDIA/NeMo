@@ -72,8 +72,8 @@ def parse_args():
 
 
 def create_NMs(tacotron2_params, logger=None, decoder_infer=False):
-    data_preprocessor = nemo_asr.AudioPreprocessing(
-        **tacotron2_params["AudioPreprocessing"])
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+        **tacotron2_params["AudioToMelSpectrogramPreprocessor"])
     text_embedding = nemo_tts.TextEmbedding(
         len(tacotron2_params["labels"]),
         **tacotron2_params["TextEmbedding"])

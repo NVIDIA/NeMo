@@ -126,13 +126,13 @@ def create_all_dags(args, neural_factory):
 
     # create shared modules
 
-    data_preprocessor = nemo_asr.AudioPreprocessing(
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         sample_rate=sample_rate,
-        **quartz_params["AudioPreprocessing"])
+        **quartz_params["AudioToMelSpectrogramPreprocessor"])
 
     # (QuartzNet uses the Jasper baseline encoder and decoder)
     encoder = nemo_asr.JasperEncoder(
-        feat_in=quartz_params["AudioPreprocessing"]["features"],
+        feat_in=quartz_params["AudioToMelSpectrogramPreprocessor"]["features"],
         **quartz_params["JasperEncoder"])
 
     decoder = nemo_asr.JasperDecoderForCTC(

@@ -30,7 +30,7 @@ class TestTTSPytorch(NeMoUnitTest):
             labels=self.labels,
             batch_size=4
         )
-        preprocessing = nemo_asr.AudioPreprocessing(
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             window_size=None,
             window_stride=None,
             n_window_size=512,
@@ -111,7 +111,7 @@ class TestTTSPytorch(NeMoUnitTest):
             n_segments=4000,
             batch_size=4
         )
-        preprocessing = nemo_asr.AudioPreprocessing(
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             window_size=None,
             window_stride=None,
             n_window_size=512,
