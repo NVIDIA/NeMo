@@ -78,7 +78,6 @@ class BERT(TrainableNM):
         # Check that only one of pretrained_model_name, config_filename, and
         # vocab_size was passed in
         total = 0
-
         if pretrained_model_name is not None:
             total += 1
         if config_filename is not None:
