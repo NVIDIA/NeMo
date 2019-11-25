@@ -94,9 +94,9 @@ def main():
     total_steps = int(num_samples * args.num_epochs / args.batch_size)
     print("Train samples=", num_samples, "num_steps=", total_steps)
 
-    data_preprocessor = nemo_asr.AudioPreprocessing(
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         sample_rate=sample_rate,
-        **jasper_params["AudioPreprocessing"]
+        **jasper_params["AudioToMelSpectrogramPreprocessor"]
     )
 
     # data_augmentation = nemo_asr.SpectrogramAugmentation(
@@ -120,7 +120,7 @@ def main():
     nf.logger.info(f"Eval samples={num_samples}")
 
     jasper_encoder = nemo_asr.JasperEncoder(
-        feat_in=jasper_params["AudioPreprocessing"]["features"],
+        feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"],
         **jasper_params["JasperEncoder"])
 
     jasper_decoder = nemo_asr.JasperDecoderForCTC(

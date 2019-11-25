@@ -237,10 +237,11 @@ class TestNeuralTypes(NeMoUnitTest):
         data_layer = nemo_asr.AudioToTextDataLayer(
             manifest_filepath=self.manifest_filepath,
             labels=labels, batch_size=4)
-        data_preprocessor = nemo_asr.AudioPreprocessing(
-            **jasper_model_definition['AudioPreprocessing'])
+        data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+            **jasper_model_definition['AudioToMelSpectrogramPreprocessor'])
         jasper_encoder = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder'])
         jasper_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024,
                                                       num_classes=len(labels))
@@ -272,10 +273,11 @@ class TestNeuralTypes(NeMoUnitTest):
             data_layer = nemo_asr.AudioToTextDataLayer(
                 manifest_filepath=self.manifest_filepath,
                 labels=labels, batch_size=4)
-            data_preprocessor = nemo_asr.AudioPreprocessing(
-                **jasper_config['AudioPreprocessing'])
+            data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+                **jasper_config['AudioToMelSpectrogramPreprocessor'])
             jasper_encoder = nemo_asr.JasperEncoder(
-                feat_in=jasper_config['AudioPreprocessing']['features'],
+                feat_in=jasper_config[
+                    'AudioToMelSpectrogramPreprocessor']['features'],
                 **jasper_config['JasperEncoder']
                 )
             jasper_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024,

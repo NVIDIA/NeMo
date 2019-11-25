@@ -72,8 +72,8 @@ def parse_args():
 
 
 def create_NMs(tacotron2_params, logger=None, decoder_infer=False):
-    data_preprocessor = nemo_asr.AudioPreprocessing(
-        **tacotron2_params["AudioPreprocessing"])
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+        **tacotron2_params["AudioToMelSpectrogramPreprocessor"])
     text_embedding = nemo_tts.TextEmbedding(
         len(tacotron2_params["labels"]) + 3,  # + 3 special chars
         **tacotron2_params["TextEmbedding"])
@@ -294,7 +294,7 @@ def create_all_dags(neural_factory,
 def main():
     args, name = parse_args()
 
-    log_dir = None
+    log_dir = name
     if args.work_dir:
         log_dir = os.path.join(args.work_dir, name)
 

@@ -4,7 +4,8 @@ __all__ = ['Backend',
            'Optimization',
            'DeviceType',
            'Actions',
-           'NeuralModuleFactory']
+           'NeuralModuleFactory',
+           'DeploymentFormat']
 
 from abc import ABC, abstractmethod
 import random
@@ -16,6 +17,14 @@ import numpy as np
 from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *
 from ..utils import ExpManager
+
+
+class DeploymentFormat(Enum):
+    """Which format to use when exporting a Neural Module for deployment"""
+    AUTO = 0
+    PYTORCH = 1
+    TORCHSCRIPT = 2
+    ONNX = 3
 
 
 class Backend(Enum):
@@ -53,9 +62,13 @@ class DeviceType(Enum):
 class Actions(ABC):
     """Basic actions allowed on graphs of Neural Modules"""
 
-    def __init__(self, local_rank,
-                 optimization_level=Optimization.mxprO0):
+    def __init__(
+            self,
+            local_rank,
+            global_rank,
+            optimization_level=Optimization.mxprO0):
         self._local_rank = local_rank
+        self._global_rank = global_rank
         self._optim_level = optimization_level
         self.step = None
         self.epoch_num = None
@@ -68,6 +81,15 @@ class Actions(ABC):
             (int) rank or worker or None if not in distributed model
         """
         return self._local_rank
+
+    @property
+    def global_rank(self):
+        """Global rank during distributed execution. None if single GPU/CPU
+
+        Returns:
+            (int) rank or worker or None if not in distributed model
+        """
+        return self._global_rank
 
     @abstractmethod
     def train(
@@ -163,42 +185,36 @@ class Actions(ABC):
         if callbacks is not None and isinstance(callbacks, List) and len(
                 callbacks) > 0:
             for callback in callbacks:
-                callback._local_rank = self.local_rank
                 callback.on_iteration_start()
 
     def _perform_on_iteration_end(self, callbacks):
         if callbacks is not None and isinstance(callbacks, List) and len(
                 callbacks) > 0:
             for callback in callbacks:
-                callback._local_rank = self.local_rank
                 callback.on_iteration_end()
 
     def _perform_on_action_start(self, callbacks):
         if callbacks is not None and isinstance(callbacks, List) and len(
                 callbacks) > 0:
             for callback in callbacks:
-                callback._local_rank = self.local_rank
                 callback.on_action_start()
 
     def _perform_on_action_end(self, callbacks):
         if callbacks is not None and isinstance(callbacks, List) and len(
                 callbacks) > 0:
             for callback in callbacks:
-                callback._local_rank = self.local_rank
                 callback.on_action_end()
 
     def _perform_on_epoch_start(self, callbacks):
         if callbacks is not None and isinstance(callbacks, List) and len(
                 callbacks) > 0:
             for callback in callbacks:
-                callback._local_rank = self.local_rank
                 callback.on_epoch_start()
 
     def _perform_on_epoch_end(self, callbacks):
         if callbacks is not None and isinstance(callbacks, List) and len(
                 callbacks) > 0:
             for callback in callbacks:
-                callback._local_rank = self.local_rank
                 callback.on_epoch_end()
 
     def _init_callbacks(self, callbacks):
@@ -272,6 +288,7 @@ class NeuralModuleFactory(object):
             add_time_to_log_dir=False
     ):
         self._local_rank = local_rank
+        self._global_rank = None
 
         if isinstance(optimization_level, str):
             optimization_level = _str_to_opt_level(optimization_level)
@@ -320,6 +337,7 @@ class NeuralModuleFactory(object):
                     backend="nccl", init_method="env://"
                 )
                 self._world_size = torch.distributed.get_world_size()
+                self._global_rank = torch.distributed.get_rank()
 
                 def torch_broadcast_wrapper(str_len=None, string=None, src=0):
                     """Wrapper function to broadcast string values across all
@@ -355,6 +373,7 @@ class NeuralModuleFactory(object):
             use_tb=create_tb_writer,
             tb_dir=tensorboard_dir,
             local_rank=local_rank,
+            global_rank=self._global_rank,
             files_to_copy=files_to_copy,
             add_time=add_time_to_log_dir,
             exist_ok=True,
@@ -374,6 +393,8 @@ class NeuralModuleFactory(object):
 
     @classmethod
     def reset_default_factory(cls):
+        if cls._DEFAULT:
+            cls._DEFAULT._exp_manager.reset_loggers()
         cls._DEFAULT = None
 
     @staticmethod
@@ -547,6 +568,7 @@ class NeuralModuleFactory(object):
               stop_on_nan_loss=False,
               synced_batchnorm=False,
               synced_batchnorm_groupsize=0,
+              gradient_predivide=False,
               reset=False):
         if reset:
             self.reset_trainer()
@@ -559,7 +581,8 @@ class NeuralModuleFactory(object):
             batches_per_step=batches_per_step,
             stop_on_nan_loss=stop_on_nan_loss,
             synced_batchnorm=synced_batchnorm,
-            synced_batchnorm_groupsize=synced_batchnorm_groupsize)
+            synced_batchnorm_groupsize=synced_batchnorm_groupsize,
+            gradient_predivide=gradient_predivide)
 
     def eval(self,
              callbacks: List[EvaluatorCallback]):
@@ -575,6 +598,29 @@ class NeuralModuleFactory(object):
             optimizer='sgd',
             callbacks=callbacks,
             optimization_params={'num_epochs': 1}
+        )
+
+    def deployment_export(self,
+                          module,
+                          output: str,
+                          d_format: DeploymentFormat,
+                          input_example=None,
+                          output_example=None):
+        """Exports Neural Module instance for deployment.
+
+        Args:
+            module: neural module to export
+            output (str): where export results should be saved
+            d_format (DeploymentFormat): which deployment format to use
+            input_example: sometimes tracing will require input examples
+            output_example: Should match inference on input_example
+        """
+        return self._trainer.deployment_export(
+            module=module,
+            output=output,
+            d_format=d_format,
+            input_example=input_example,
+            output_example=output_example
         )
 
     def infer(self,
@@ -634,9 +680,11 @@ class NeuralModuleFactory(object):
             constructor = NeuralModuleFactory.__name_import(
                 "nemo.backends.pytorch.PtActions"
             )
-            instance = constructor(local_rank=self._local_rank,
-                                   tb_writer=tb_writer,
-                                   optimization_level=self._optim_level)
+            instance = constructor(
+                local_rank=self._local_rank,
+                global_rank=self._global_rank,
+                tb_writer=tb_writer,
+                optimization_level=self._optim_level)
             return instance
         else:
             raise ValueError("Only PyTorch backend is currently supported.")

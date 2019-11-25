@@ -100,24 +100,24 @@ def get_cuda_device(placement):
     return torch.device("cuda" if placement in gpu_devices else "cpu")
 
 
-def get_neural_factory(local_rank,
-                       precision,
-                       backend):
-    """
-    Helper function to create NeuralModuleFactory
-    Args:
-        local_rank:
-        precision: (nemo.core.Optimization) AMP mixed precision level
-        backend: (nemo.core.Backend) NeMo backend (defaults to Pytorch)
+# def get_neural_factory(local_rank,
+#                        precision,
+#                        backend):
+#     """
+#     Helper function to create NeuralModuleFactory
+#     Args:
+#         local_rank:
+#         precision: (nemo.core.Optimization) AMP mixed precision level
+#         backend: (nemo.core.Backend) NeMo backend (defaults to Pytorch)
 
-    Returns:
-        An instance of the NeuralModuleFactory
-    """
-    device = nemo.utils.get_device(local_rank)
-    return nemo.core.NeuralModuleFactory(backend=backend,
-                                         local_rank=local_rank,
-                                         optimization_level=precision,
-                                         placement=device)
+#     Returns:
+#         An instance of the NeuralModuleFactory
+#     """
+#     device = nemo.utils.get_device(local_rank)
+#     return nemo.core.NeuralModuleFactory(backend=backend,
+#                                          local_rank=local_rank,
+#                                          optimization_level=precision,
+#                                          placement=device)
 
 
 def maybe_download_from_cloud(url, filename, logger=None) -> str:
