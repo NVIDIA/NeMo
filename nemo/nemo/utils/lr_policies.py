@@ -1,6 +1,7 @@
 # Copyright (c) 2019 NVIDIA Corporation
 __all__ = ['WarmupPolicy', 'SquareAnnealing', 'CosineAnnealing',
-           'WarmupAnnealing', 'InverseSquareRootAnnealing']
+           'WarmupAnnealing', 'InverseSquareRootAnnealing',
+           'SquareRootAnnealing']
 
 import math
 from abc import ABC, abstractmethod
@@ -74,6 +75,13 @@ class WarmupPolicy(_LRPolicy):
         return initial_lr
 
 
+def _squareroot_annealing(initial_lr, step, total_steps, min_lr):
+    mult = ((total_steps - step) / total_steps) ** 0.5
+    out_lr = initial_lr * mult
+    out_lr = max(out_lr, min_lr)
+    return out_lr
+
+
 def _square_annealing(initial_lr, step, total_steps, min_lr):
     mult = ((total_steps - step) / total_steps) ** 2
     out_lr = initial_lr * mult
@@ -81,10 +89,15 @@ def _square_annealing(initial_lr, step, total_steps, min_lr):
     return out_lr
 
 
+def _cosine_annealing(initial_lr, step, total_steps, min_lr):
+    mult = 0.5 * (1 + math.cos(math.pi * step / total_steps))
+    out_lr = (initial_lr - min_lr) * mult + min_lr
+    return out_lr
+
+
 class SquareAnnealing(WarmupPolicy):
     def __init__(self, total_steps, min_lr=1e-5, **kwargs):
         super().__init__(total_steps=total_steps, **kwargs)
-
         self.min_lr = min_lr
 
     def _get_lr(self, initial_lr, step, epoch):
@@ -96,10 +109,18 @@ class SquareAnnealing(WarmupPolicy):
         )
 
 
-def _cosine_annealing(initial_lr, step, total_steps, min_lr):
-    mult = 0.5 * (1 + math.cos(math.pi * step / total_steps))
-    out_lr = (initial_lr - min_lr) * mult + min_lr
-    return out_lr
+class SquareRootAnnealing(WarmupPolicy):
+    def __init__(self, total_steps, min_lr=0, **kwargs):
+        super().__init__(total_steps=total_steps, **kwargs)
+        self.min_lr = min_lr
+
+    def _get_lr(self, initial_lr, step, epoch):
+        return _squareroot_annealing(
+            initial_lr=initial_lr,
+            step=step,
+            total_steps=self.total_steps,
+            min_lr=self.min_lr
+        )
 
 
 class CosineAnnealing(WarmupPolicy):
