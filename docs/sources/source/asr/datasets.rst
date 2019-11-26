@@ -122,15 +122,7 @@ Run these scripts to download Aishell1 data and convert it into format expected 
     mkdir data
     python get_aishell_data.py --data_root=data
 
-After this, your `data` folder should contain wav files and `.json` manifests for NeMo ASR datalayer:
-
-
-Each line is a training example. `audio_filepath` contains path to the wav file, `duration` it's duration in seconds and `text` it's transcript:
-
-.. code-block:: json
-
-    {"audio_filepath": "<absolute_path_to>/BAC009S0062W0157.wav", "duration": 4.474, "text": "加上两会释放出宽松信号后"}
-    {"audio_filepath": "<absolute_path_to>/BAC009S0062W0238.wav", "duration": 3.803, "text": "建设统一规范的公共资源交易市场"}
+After this, your `data` folder should contain a `data_aishell` folder which contains wav, transcript folder and related `.json` files and `vocab.txt`.
 
 Aishell2
 -----------------------------------
