@@ -15,305 +15,341 @@
 # limitations under the License.
 """
 Utility functions for Token Classification NLP tasks
-Some transformer of this code were adapted from the HuggingFace library at
+Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-# TODO: REFACTOR to maximize code reusing
-
-
-import collections
-import string
-import re
+import itertools
+import os
+import pickle
 import random
 
 import numpy as np
 from torch.utils.data import Dataset
 
-from .. import utils
+from nemo.utils.exp_logging import get_logger
+
+from . import utils
+
+
+logger = get_logger('')
+
+
+def get_features(queries,
+                 max_seq_length,
+                 tokenizer,
+                 pad_label='O',
+                 raw_labels=None,
+                 unique_labels=None,
+                 ignore_extra_tokens=False,
+                 ignore_start_end=False):
+    """
+    Args:
+        queries (list of str):
+        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer (Tokenizer): such as NemoBertTokenizer
+        pad_label (str): pad value use for labels.
+            by default, it's the neutral label.
+        raw_labels (list of str): list of labels for every work in sequence
+        unique_labels (set): set of all labels available in the data
+        ignore_extra_tokens (bool): whether to ignore extra tokens in
+        the loss_mask,
+        ignore_start_end (bool): whether to ignore bos and eos tokens in
+        the loss_mask
+    """
+    all_subtokens = []
+    all_loss_mask = []
+    all_subtokens_mask = []
+    all_segment_ids = []
+    all_input_ids = []
+    all_input_mask = []
+    sent_lengths = []
+    all_labels = []
+    with_label = False
+
+    # Create mapping of labels to label ids that starts with pad_label->0 and
+    # then increases in alphabetical order
+    label_ids = {pad_label: 0} if raw_labels else None
+
+    if raw_labels is not None:
+        with_label = True
+
+        # add pad_label to the set of the unique_labels if not already present
+        unique_labels.add(pad_label)
+        unique_labels.remove(pad_label)
+        for label in sorted(unique_labels):
+            label_ids[label] = len(label_ids)
+
+    for i, query in enumerate(queries):
+        words = query.strip().split()
+
+        # add bos token
+        subtokens = ['[CLS]']
+        loss_mask = [not ignore_start_end]
+        subtokens_mask = [False]
+        if with_label:
+            pad_id = label_ids[pad_label]
+            labels = [pad_id]
+            query_labels = [label_ids[lab] for lab in raw_labels[i]]
+
+        for j, word in enumerate(words):
+            word_tokens = tokenizer.text_to_tokens(word)
+            subtokens.extend(word_tokens)
+
+            loss_mask.append(True)
+            loss_mask.extend([not ignore_extra_tokens] *
+                             (len(word_tokens) - 1))
+
+            subtokens_mask.append(True)
+            subtokens_mask.extend([False] * (len(word_tokens) - 1))
+
+            if with_label:
+                labels.extend([query_labels[j]] * len(word_tokens))
+
+        # add eos token
+        subtokens.append('[SEP]')
+        loss_mask.append(not ignore_start_end)
+        subtokens_mask.append(False)
+        sent_lengths.append(len(subtokens))
+        all_subtokens.append(subtokens)
+        all_loss_mask.append(loss_mask)
+        all_subtokens_mask.append(subtokens_mask)
+        all_input_mask.append([1] * len(subtokens))
+
+        if with_label:
+            labels.append(pad_id)
+            all_labels.append(labels)
+
+    max_seq_length = min(max_seq_length, max(sent_lengths))
+    logger.info(f'Max length: {max_seq_length}')
+    utils.get_stats(sent_lengths)
+    too_long_count = 0
+
+    for i, subtokens in enumerate(all_subtokens):
+        if len(subtokens) > max_seq_length:
+            subtokens = ['[CLS]'] + subtokens[-max_seq_length + 1:]
+            all_input_mask[i] = [1] + all_input_mask[i][-max_seq_length + 1:]
+            all_loss_mask[i] = [not ignore_start_end] + \
+                all_loss_mask[i][-max_seq_length + 1:]
+            all_subtokens_mask[i] = [False] + \
+                all_subtokens_mask[i][-max_seq_length + 1:]
+
+            if with_label:
+                all_labels[i] = [pad_id] + all_labels[i][-max_seq_length + 1:]
+            too_long_count += 1
+
+        all_input_ids.append([tokenizer.tokens_to_ids(t)
+                              for t in subtokens])
+
+        if len(subtokens) < max_seq_length:
+            extra = (max_seq_length - len(subtokens))
+            all_input_ids[i] = all_input_ids[i] + [0] * extra
+            all_loss_mask[i] = all_loss_mask[i] + [False] * extra
+            all_subtokens_mask[i] = all_subtokens_mask[i] + [False] * extra
+            all_input_mask[i] = all_input_mask[i] + [0] * extra
+
+            if with_label:
+                all_labels[i] = all_labels[i] + [pad_id] * extra
+
+        all_segment_ids.append([0] * max_seq_length)
+
+    logger.info(f'{too_long_count} are longer than {max_seq_length}')
+
+    for i in range(min(len(all_input_ids), 5)):
+        logger.info("*** Example ***")
+        logger.info("i: %s" % (i))
+        logger.info(
+            "subtokens: %s" % " ".join(list(map(str, all_subtokens[i]))))
+        logger.info(
+            "loss_mask: %s" % " ".join(list(map(str, all_loss_mask[i]))))
+        logger.info(
+            "input_mask: %s" % " ".join(list(map(str, all_input_mask[i]))))
+        logger.info(
+            "subtokens_mask: %s" % " ".join(list(map(
+                str, all_subtokens_mask[i]))))
+        if with_label:
+            logger.info(
+                "labels: %s" % " ".join(list(map(str, all_labels[i]))))
+
+    return (all_input_ids,
+            all_segment_ids,
+            all_input_mask,
+            all_loss_mask,
+            all_subtokens_mask,
+            all_labels,
+            label_ids)
 
 
 class BertTokenClassificationDataset(Dataset):
-    def __init__(self, input_file, max_seq_length, tokenizer):
+    """
+    Creates dataset to use during training for token classification
+    tasks with a pretrained model.
 
-        # Read the sentences and group them in sequences up to max_seq_length
-        with open(input_file, "r") as f:
-            self.seq_words = []
-            self.seq_token_labels = []
-            self.seq_sentence_labels = []
-            self.seq_subtokens = []
+    Converts from raw data to an instance that can be used by
+    NMDataLayer.
 
-            new_seq_words = []
-            new_seq_token_labels = []
-            new_seq_sentence_labels = []
-            new_seq_subtokens = []
-            new_seq_subtoken_count = 0
+    For dataset to use during inference without labels, see
+    BertTokenClassificationInferDataset.
 
-            lines = f.readlines()
-            random.seed(0)
-            random.shuffle(lines)
+    Args:
+        text_file (str): file to sequences, each line should a sentence,
+            No header.
+        label_file (str): file to labels, each line corresponds to
+            word labels for a sentence in the text_file. No header.
+        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer (Tokenizer): such as NemoBertTokenizer
+        num_samples (int): number of samples you want to use for the dataset.
+            If -1, use all dataset. Useful for testing.
+        shuffle (bool): whether to shuffle your data.
+        pad_label (str): pad value use for labels.
+            by default, it's the neutral label.
 
-            for index, line in enumerate(lines):
-
-                if index % 20000 == 0:
-                    print(f"processing line {index}/{len(lines)}")
-
-                sentence_label = line.split()[0]
-                sentence = line.split()[2:]
-                sentence = " ".join(sentence)
-                # Remove punctuation
-                sentence = utils.remove_punctuation_from_sentence(sentence)
-                sentence_words = sentence.split()
-
-                sentence_subtoken_count = 0
-                sentence_subtokens = []
-                for word in sentence_words:
-                    word_tokens = tokenizer.text_to_tokens(word)
-                    sentence_subtokens.append(word_tokens)
-                    sentence_subtoken_count += len(word_tokens)
-
-                sentence_token_labels = [0] * sentence_subtoken_count
-                sentence_token_labels[0] = 1
-
-                # The -1 accounts for [CLS]
-                max_tokens_for_doc = max_seq_length - 1
-
-                if (new_seq_subtoken_count + sentence_subtoken_count) < \
-                        max_tokens_for_doc:
-
-                    new_seq_words.extend(sentence_words)
-                    new_seq_token_labels.extend(sentence_token_labels)
-                    new_seq_sentence_labels.append(sentence_label)
-                    new_seq_subtokens.append(sentence_subtokens)
-                    new_seq_subtoken_count += sentence_subtoken_count
-
-                else:
-                    self.seq_words.append(new_seq_words)
-                    self.seq_token_labels.append(new_seq_token_labels)
-                    self.seq_sentence_labels.append(new_seq_sentence_labels)
-                    self.seq_subtokens.append(new_seq_subtokens)
-
-                    new_seq_words = sentence_words
-                    new_seq_token_labels = sentence_token_labels
-                    new_seq_sentence_labels = [sentence_label]
-                    new_seq_subtokens = [sentence_subtokens]
-                    new_seq_subtoken_count = sentence_subtoken_count
-
-        self.features = convert_sequences_to_features(
-            self.seq_words, self.seq_subtokens, self.seq_token_labels,
-            self.seq_sentence_labels, tokenizer, max_seq_length)
-
-        self.tokenizer = tokenizer
-        self.max_seq_length = max_seq_length
-        self.vocab_size = self.tokenizer.vocab_size
-
-    def __len__(self):
-        return len(self.features)
-
-    def __getitem__(self, idx):
-
-        feature = self.features[idx]
-
-        return np.array(feature.input_ids), np.array(feature.segment_ids), \
-            np.array(feature.input_mask, dtype=np.float32)[..., None], \
-            np.array(feature.labels), np.array(feature.seq_id)
-
-    def eval_preds(self, logits_lists, seq_ids):
-
-        # Count the number of correct and incorrect predictions
-        correct_labels = 0
-        incorrect_labels = 0
-
-        correct_preds = 0
-        total_preds = 0
-        total_correct = 0
-
-        for logits, seq_id in zip(logits_lists, seq_ids):
-
-            feature = self.features[seq_id]
-
-            masks = feature.input_mask
-            last_mask_index = masks.index(0)
-            labels = feature.labels[:last_mask_index]
-            labels = labels[:last_mask_index]
-            logits = logits[:last_mask_index]
-
-            preds = [1 if (a[1] > a[0]) else 0 for a in logits]
-
-            correct_preds = 0
-            correct_labels = 0
-            for label, pred in zip(labels, preds):
-                if pred == label:
-                    correct_labels += 1
-                    if pred == 1:
-                        correct_preds += 1
-
-            total_preds = preds.count(1)
-            total_correct = labels.count(1)
-            incorrect_labels = len(labels) - correct_labels
-
-            if seq_id < 1:
-                previous_word_id = -1
-                predicted_seq = ""
-                correct_seq = ""
-                unpunctuated_seq = ""
-
-                for token_id, word_id in feature.token_to_orig_map.items():
-
-                    word = feature.words[word_id]
-
-                    if word_id is not previous_word_id:
-                        # New words has been found, handle it
-                        if feature.labels[token_id] is 1:
-                            if previous_word_id is not -1:
-                                correct_seq += ". "
-                            correct_seq += word.capitalize()
-                        else:
-                            correct_seq += " " + word
-
-                        if preds[token_id] is 1:
-                            if previous_word_id is not -1:
-                                predicted_seq += ". "
-                            predicted_seq += word.capitalize()
-                        else:
-                            predicted_seq += " " + word
-
-                        unpunctuated_seq += " " + word
-
-                    previous_word_id = word_id
-
-                print("unpunctuated_seq:\n", unpunctuated_seq)
-                print("correct_seq:\n", correct_seq)
-                print("pred_seq:\n", predicted_seq)
-
-        return correct_labels, incorrect_labels, correct_preds, total_preds, \
-            total_correct
-
-
-def convert_sequences_to_features(seqs_words, seqs_subtokens,
-                                  seqs_token_labels, seqs_sentence_labels,
-                                  tokenizer, max_seq_length):
-    """Loads a data file into a list of `InputBatch`s."""
-
-    features = []
-    for seq_id, (words, seq_subtokens, seq_token_labels, sentence_labels) in \
-        enumerate(zip(seqs_words, seqs_subtokens, seqs_token_labels,
-                      seqs_sentence_labels)):
-
-        tok_to_orig_index = []
-        orig_to_tok_index = []
-        all_doc_tokens = []
-
-        word_count = 0
-        for sent_subtokens in seq_subtokens:
-            for word_subtokens in sent_subtokens:
-                orig_to_tok_index.append(len(all_doc_tokens))
-                for sub_token in word_subtokens:
-                    tok_to_orig_index.append(word_count)
-                    all_doc_tokens.append(sub_token)
-                word_count += 1
-
-        _DocSpan = collections.namedtuple(  # pylint: disable=invalid-name
-            "DocSpan", ["start", "length"])
-        doc_spans = []
-        start_offset = 0
-        length = len(all_doc_tokens)
-        doc_spans.append(_DocSpan(start=start_offset, length=length))
-
-        doc_span_index = 0
-        doc_span = doc_spans[0]
-
-        tokens = []
-        token_labels = []
-        token_to_orig_map = {}
-        token_is_max_context = {}
-        segment_ids = []
-        tokens.append("[CLS]")
-        token_labels.append(0)
-        segment_ids.append(0)
-
-        for i in range(doc_span.length):
-            split_token_index = doc_span.start + i
-            token_to_orig_map[len(
-                tokens)] = tok_to_orig_index[split_token_index]
-
-            is_max_context = utils.check_is_max_context(doc_spans,
-                                                        doc_span_index,
-                                                        split_token_index)
-            token_is_max_context[len(tokens)] = is_max_context
-            tokens.append(all_doc_tokens[split_token_index])
-            segment_ids.append(0)
-
-        for label in seq_token_labels:
-            token_labels.append(label)
-
-        input_ids = tokenizer.tokens_to_ids(tokens)
-
-        # The mask has 1 for real tokens and 0 for padding tokens. Only real
-        # tokens are attended to.
-        input_mask = [1] * len(input_ids)
-
-        # Zero-pad up to the sequence length.
-        while len(input_ids) < max_seq_length:
-            input_ids.append(0)
-            input_mask.append(0)
-            segment_ids.append(0)
-            token_labels.append(0)
-
-        assert len(input_ids) == max_seq_length
-        assert len(input_mask) == max_seq_length
-        assert len(segment_ids) == max_seq_length
-        assert len(token_labels) == max_seq_length
-
-        if seq_id < 1:
-            print("*** Example ***")
-            print("example_index: %s" % seq_id)
-            print("doc_span_index: %s" % doc_span_index)
-            print("tokens: %s" % " ".join(tokens))
-            print("words: %s" % " ".join(words))
-            print("labels: %s" % " ".join(str(token_labels)))
-            print("sentence_labels: %s" % " ".join(sentence_labels))
-            print("token_to_orig_map: %s" % " ".join(
-                ["%d:%d" % (x, y) for (x, y) in token_to_orig_map.items()]))
-            print("token_is_max_context: %s" % " ".join(
-                ["%d:%s" % (x, y) for (x, y) in token_is_max_context.items()]))
-            print("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-            print("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-            print("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
-
-        features.append(
-            InputFeatures(seq_id=seq_id,
-                          doc_span_index=doc_span_index,
-                          tokens=tokens,
-                          words=words,
-                          labels=token_labels,
-                          sentence_labels=sentence_labels,
-                          token_to_orig_map=token_to_orig_map,
-                          token_is_max_context=token_is_max_context,
-                          input_ids=input_ids,
-                          input_mask=input_mask,
-                          segment_ids=segment_ids))
-
-    return features
-
-
-class InputFeatures(object):
-    """A single set of features of data."""
+    """
 
     def __init__(self,
-                 seq_id,
-                 doc_span_index,
-                 tokens,
-                 words,
-                 labels,
-                 sentence_labels,
-                 token_to_orig_map,
-                 token_is_max_context,
-                 input_ids,
-                 input_mask,
-                 segment_ids):
-        local_params = locals()
-        for key in local_params:
-            if key == 'self':
-                continue
-            setattr(self, key, local_params[key])
+                 text_file,
+                 label_file,
+                 max_seq_length,
+                 tokenizer,
+                 num_samples=-1,
+                 shuffle=False,
+                 pad_label='O',
+                 ignore_extra_tokens=False,
+                 ignore_start_end=False,
+                 use_cache=False):
+
+        if use_cache:
+            # Cache features
+            data_dir = os.path.dirname(text_file)
+            filename = os.path.basename(text_file)[:-4]
+            features_pkl = os.path.join(data_dir, filename + "_features.pkl")
+
+        if use_cache and os.path.exists(features_pkl):
+            # If text_file was already processed, load from pickle
+            features = pickle.load(open(features_pkl, 'rb'))
+            logger.info(f'features restored from {features_pkl}')
+        else:
+            if num_samples == 0:
+                raise ValueError("num_samples has to be positive", num_samples)
+
+            with open(text_file, 'r') as f:
+                text_lines = f.readlines()
+
+            # Collect all possible labels
+            unique_labels = set([])
+            labels_lines = []
+            with open(label_file, 'r') as f:
+                for line in f:
+                    line = line.strip().split()
+                    labels_lines.append(line)
+                    unique_labels.update(line)
+
+            if len(labels_lines) != len(text_lines):
+                raise ValueError(
+                    "Labels file should contain labels for every word")
+
+            if shuffle or num_samples > 0:
+                dataset = list(zip(text_lines, labels_lines))
+                random.shuffle(dataset)
+
+                if num_samples > 0:
+                    dataset = dataset[:num_samples]
+
+                dataset = list(zip(*dataset))
+                text_lines = dataset[0]
+                labels_lines = dataset[1]
+
+            features = get_features(text_lines,
+                                    max_seq_length,
+                                    tokenizer,
+                                    pad_label=pad_label,
+                                    raw_labels=labels_lines,
+                                    unique_labels=unique_labels,
+                                    ignore_extra_tokens=ignore_extra_tokens,
+                                    ignore_start_end=ignore_start_end)
+
+            if use_cache:
+                pickle.dump(features, open(features_pkl, "wb"))
+                logger.info(f'features saved to {features_pkl}')
+
+        self.all_input_ids = features[0]
+        self.all_segment_ids = features[1]
+        self.all_input_mask = features[2]
+        self.all_loss_mask = features[3]
+        self.all_subtokens_mask = features[4]
+        self.all_labels = features[5]
+        self.label_ids = features[6]
+
+        infold = text_file[:text_file.rfind('/')]
+        merged_labels = itertools.chain.from_iterable(self.all_labels)
+        logger.info('Three most popular labels')
+        utils.get_label_stats(merged_labels, infold + '/label_stats.tsv')
+
+        # save label_ids
+        out = open(infold + '/label_ids.csv', 'w')
+        labels, _ = zip(*sorted(self.label_ids.items(),  key=lambda x: x[1]))
+        out.write('\n'.join(labels))
+        logger.info(f'Labels: {self.label_ids}')
+        logger.info(f'Labels mapping saved to : {out.name}')
+
+    def __len__(self):
+        return len(self.all_input_ids)
+
+    def __getitem__(self, idx):
+        return (np.array(self.all_input_ids[idx]),
+                np.array(self.all_segment_ids[idx]),
+                np.array(self.all_input_mask[idx], dtype=np.float32),
+                np.array(self.all_loss_mask[idx]),
+                np.array(self.all_subtokens_mask[idx]),
+                np.array(self.all_labels[idx]))
+
+
+class BertTokenClassificationInferDataset(Dataset):
+    """
+    Creates dataset to use during inference for token classification
+    tasks with a pretrained model.
+
+    Converts from raw data to an instance that can be used by
+    NMDataLayer.
+
+    For dataset to use during training with labels, see
+    BertTokenClassificationDataset.
+
+    Args:
+        text_file (str): file to sequences, each line should a sentence,
+            No header.
+        label_file (str): file to labels, each line corresponds to
+            word labels for a sentence in the text_file. No header.
+        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer (Tokenizer): such as NemoBertTokenizer
+        num_samples (int): number of samples you want to use for the dataset.
+            If -1, use all dataset. Useful for testing.
+        shuffle (bool): whether to shuffle your data.
+        pad_label (str): pad value use for labels.
+            by default, it's the neutral label.
+    """
+
+    def __init__(self,
+                 queries,
+                 max_seq_length,
+                 tokenizer):
+
+        features = get_features(queries,
+                                max_seq_length,
+                                tokenizer)
+
+        self.all_input_ids = features[0]
+        self.all_segment_ids = features[1]
+        self.all_input_mask = features[2]
+        self.all_loss_mask = features[3]
+        self.all_subtokens_mask = features[4]
+
+    def __len__(self):
+        return len(self.all_input_ids)
+
+    def __getitem__(self, idx):
+        return (np.array(self.all_input_ids[idx]),
+                np.array(self.all_segment_ids[idx]),
+                np.array(self.all_input_mask[idx], dtype=np.float32),
+                np.array(self.all_loss_mask[idx]),
+                np.array(self.all_subtokens_mask[idx]))
