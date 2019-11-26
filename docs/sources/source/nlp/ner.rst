@@ -19,7 +19,7 @@ Download Dataset
 
 .. code-block::
 
-    Jennifer is from New York City.
+    Jennifer is from New York City .
     She likes ...
     ...
 
@@ -45,13 +45,13 @@ Training
     We recommend you try this out in a Jupyter notebook. It'll make debugging much easier!
     See examples/nlp/NERWithBERT.ipynb
 
-First, we need to create our neural factory with the supported backend. How you should define it depends on whether you'd like to multi-GPU or mixed-precision training. This tutorial assumes that you're training on one GPU, without mixed precision. If you want to use mixed precision, set ``amp_opt_level`` to ``O1`` or ``O2``.
+First, we need to create our neural factory with the supported backend. How you should define it depends on whether you'd like to multi-GPU or mixed-precision training. This tutorial assumes that you're training on one GPU, without mixed precision (``optimization_level="O0"``). If you want to use mixed precision, set ``optimization_level`` to ``O1`` or ``O2``.
 
     .. code-block:: python
 
         nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                            local_rank=None,
-                                           optimization_level=nemo.core.Optimization.mxprO0,
+                                           optimization_level="O0",
                                            create_tb_writer=True)
 
 Next, we'll need to define our tokenizer and our BERT model. There are a couple of different ways you can do this. Keep in mind that NER benefits from casing ("New York City" is easier to identify than "new york city"), so we recommend you use cased models.
@@ -62,8 +62,7 @@ If you're using a standard BERT model, you should do it as follows. To see the f
 
         tokenizer = NemoBertTokenizer(pretrained_model="bert-base-cased")
         bert_model = nemo_nlp.huggingface.BERT(
-            pretrained_model_name="bert-base-cased",
-            factory=neural_factory)
+            pretrained_model_name="bert-base-cased")
 
 If you're using a BERT model that you pre-trained yourself, you should do it like this. You should replace ``args.bert_checkpoint`` with the path to your checkpoint file.
 

@@ -90,6 +90,9 @@ class TokenClassificationLoss(LossNM):
     Args:
         num_classes (int): number of classes in a classifier, e.g. size
             of the vocabulary in language modeling objective
+        logits (float): output of the classifier
+        labels (long): ground truth labels
+        loss_mask (bool): to differentiate from original tokens and paddings
     """
 
     @staticmethod
@@ -125,11 +128,7 @@ class TokenClassificationLoss(LossNM):
         active_logits = logits.view(-1, self.num_classes)[active_loss]
         active_labels = labels.view(-1)[active_loss]
 
-        # To support empty active_labels
-        if len(active_labels) == 0:
-            loss = 0.0
-        else:
-            loss = self._criterion(active_logits, active_labels)
+        loss = self._criterion(active_logits, active_labels)
         return loss
 
 

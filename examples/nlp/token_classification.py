@@ -113,6 +113,17 @@ def create_pipeline(num_samples=-1,
     text_file = f'{args.data_dir}/text_{mode}.txt'
     label_file = f'{args.data_dir}/labels_{mode}.txt'
 
+    if not (os.path.exists(text_file) or (os.path.exists(label_file))):
+        raise FileNotFoundError(f'{text_file} or {label_file} not found. \
+           The data should be splitted into 2 files: text.txt and labels.txt. \
+           Each line of the text.txt file contains text sequences, where words\
+           are separated with spaces. The labels.txt file contains \
+           corresponding labels for each word in text.txt, the labels are \
+           separated with spaces. Each line of the files should follow the \
+           format:  \
+           [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
+           [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).')
+
     data_layer = nemo_nlp.BertTokenClassificationDataLayer(
         tokenizer=tokenizer,
         text_file=text_file,
@@ -162,7 +173,7 @@ eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(x, y),
     user_epochs_done_callback=lambda x:
-        eval_epochs_done_callback(x, label_ids),
+        eval_epochs_done_callback(x, label_ids, f'{nf.work_dir}/graphs'),
     tb_writer=nf.tb_writer,
     eval_step=steps_per_epoch)
 
