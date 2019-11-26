@@ -79,7 +79,7 @@ class LossAggregatorNM(LossNM):
         values = [kwargs[x] for x in sorted(kwargs.keys())]
         loss = values[0]
         for loss_i in values[1:]:
-            loss = loss.add(loss_i.item())
+            loss = loss.add(loss_i)
         return loss
 
 
