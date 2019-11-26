@@ -134,4 +134,11 @@ Each line is a training example. `audio_filepath` contains path to the wav file,
 
 Aishell2
 -----------------------------------
-xxxTO BE FILLEDxxx
+
+Run the script to process AIShell-2 dataset in order to generate files in the supported format of  `nemo_asr`. You should set the data folder of AIShell-2 using `--audio_folder` and where to push these files using `--dest_folder`.
+
+.. code-block:: bash
+
+    python process_aishell2_data.py --audio_folder=<data directory> --dest_folder=<destination directory>
+
+Then, you should have `train.json` `dev.json` `test.json` and `vocab.txt` in `dest_folder`. 
