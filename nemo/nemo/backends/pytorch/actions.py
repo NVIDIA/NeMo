@@ -760,8 +760,8 @@ class PtActions(Actions):
                     eval_dataloader = dl_nm.data_iterator
                 eval_dataloader.sampler.set_epoch(0)
             elif not use_cache:  # Not distributed and not using cache
-                # There is no need for dataloaders if using cache
-                # Caching must then cache all outputs from dataloader
+                # Dataloaders are only used if use_cache is False
+                # When caching, the DAG must cache all outputs from dataloader
                 if dl_nm.dataset is not None:
                     # Todo: remove local_parameters
                     eval_dataloader = torch.utils.data.DataLoader(
