@@ -1,20 +1,19 @@
-Transformer Language Model
-================
+Transformer语言模型
+===================
 
-In this tutorial, we will build and train a language model using the Transformer architecture :cite:`vaswani2017attention`. Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See the :ref:`installation` section for more details.
+在这个教程中，我们会用Transformer :cite:`vaswani2017attention` 的结构构建和训练一个语言模型。确保在开始这个教程之前你已经安装了 ``nemo`` 和 ``nemo_nlp`` ，详见 :ref:`installation` 。
 
-Introduction
+简介
 ------------
 
-A good language model has a wide range of applications on downstream tasks. Examples of language models being used for downstream tasks include GPT-2 :cite:`radford2019language`.
+一个好的语言模型对于下游任务有很广泛的应用。用于下游任务的语言模型例子包括 GPT-2 :cite:`radford2019language`。
 
-
-Download Corpus
+下载语料
 ---------------
 
-For demonstration purposes, we will be using the very small WikiText-2 dataset :cite:`merity2016pointer`.
+在这个实验中我们会使用非常小的WikiText-2数据集 :cite:`merity2016pointer`。
 
-To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
+下载数据集，运行脚本 ``examples/nlp/scripts/get_wt2.sh``. 下载和解压数据集后，文件夹会包括三个文件:
 
     .. code-block:: bash
 
@@ -22,16 +21,16 @@ To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. Aft
         train.txt
         valid.txt
 
-Create the tokenizer model
+创建分词器模型
 ----------------
-`LanguageModelDataDesc` converts your dataset into the format compatible with `LanguageModelingDataset`.
+`LanguageModelDataDesc` 会把你的数据集转换到和 `LanguageModelingDataset` 兼容的格式。
 
     .. code-block:: python
 
         data_desc = LanguageModelDataDesc(
             args.dataset_name, args.data_dir, args.do_lower_case)
 
-We need to define our tokenizer. We use `WordTokenizer` defined in ``nemo_nlp/data/tokenizers/word_tokenizer.py``:
+我们需要定义我们的分词器， 我们用定义在 ``nemo_nlp/data/tokenizers/word_tokenizer.py`` 中的 `WordTokenizer`:
 
     .. code-block:: python
 
@@ -39,12 +38,12 @@ We need to define our tokenizer. We use `WordTokenizer` defined in ``nemo_nlp/da
         vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 
     .. tip::
-        Making embedding size (as well as all other tensor dimensions) divisible
-        by 8 will help to get the best GPU utilization and speed-up with mixed precision training.
+        让词嵌入的大小（或者其他张量的维度）能够整除8会帮助得到最好的GPU利用率，以及混精度训练的加速。
 
-Create the model
+创建模型
 ----------------
-First, we need to create our neural factory with the supported backend. How you should define it depends on whether you'd like to multi-GPU or mixed-precision training. This tutorial assumes that you're training on one GPU, without mixed precision. If you want to use mixed precision, set ``amp_opt_level`` to ``O1`` or ``O2``.
+首先我们需要用支持的后端来创建 ``neural factory``。你如何定义它取决于你想做多GPU训练或者是混精度训练。这个教程假设你不用混精度，在一块GPU上做训练。
+如果你想做混精度训练，设置 ``amp_opt_level`` 为 ``O1`` 或者 ``O2``。
 
     .. code-block:: python
 
@@ -55,11 +54,11 @@ First, we need to create our neural factory with the supported backend. How you 
                                            create_tb_writer=True,
                                            files_to_copy=[__file__])
 
-Next, we define all Neural Modules necessary for our model 
+接着，我们定义对于我们模型的神经元模块
 
-    * Transformer Encoder (note that we don't need a decoder for language modeling)
-    * `TokenClassifier` for mapping output of the decoder into probability distribution over vocabulary.
-    * Loss function (cross entropy with label smoothing regularization).
+    * Transformer编码器 (注意，我们的语言模型不需要解码器)
+    * `TokenClassifier`  把输出映射到词汇表上的概率分布.
+    * 损失函数 (带标签平滑正则的交叉熵).
 
     .. code-block:: python
 
@@ -68,14 +67,14 @@ Next, we define all Neural Modules necessary for our model
         loss = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(**params)
 
 
-Following `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`press2016using`, we also tie the parameters of embedding and softmax layers:
+根据 `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`press2016using`, 我们也会把词嵌入的参数和softmax层连起来:
 
     .. code-block:: python
 
         log_softmax.mlp.layers[-1].weight = encoder.embedding_layer.token_embedding.weight
 
 
-Next, we create datasets for training and evaluating:
+接着，我们为训练和评估创建数据集:
 
     .. code-block:: python
 
@@ -92,7 +91,7 @@ Next, we create datasets for training and evaluating:
             batch_step=args.predict_last_k)
 
 
-Then, we create the pipeline gtom input to output that can be used for both training and evaluation:
+然后,我们创建用于训练和评估的从输入到输出的管道:
 
     .. code-block:: python
 
@@ -109,11 +108,11 @@ Then, we create the pipeline gtom input to output that can be used for both trai
         eval_loss = create_pipeline(eval_dataset, args.batch_size)
     
 
-Next, we define necessary callbacks:
+接下来，我们定义一些必要的回调:
 
-1. `SimpleLossLoggerCallback`: tracking loss during training
-2. `EvaluatorCallback`: tracking metrics during evaluation at set intervals
-3. `CheckpointCallback`: saving model checkpoints at set intervals
+1. `SimpleLossLoggerCallback`: 追踪训练中的loss
+2. `EvaluatorCallback`: 在用户设置的间隔中，追踪评估的度量指标
+3. `CheckpointCallback`: 在设置的间各种保存checkpoints
 
     .. code-block:: python
 
@@ -122,7 +121,7 @@ Next, we define necessary callbacks:
         ckpt_callback = nemo.core.CheckpointCallback(...)
 
 
-Finally, you should define your optimizer, and start training!
+最后，定义优化器，开始训练吧！
 
     .. code-block:: python
 
@@ -140,7 +139,7 @@ Finally, you should define your optimizer, and start training!
                                       "weight_decay": args.weight_decay,
                                       "betas": (args.beta1, args.beta2)})
 
-References
+参考
 ----------
 
 .. bibliography:: transformer_lm.bib

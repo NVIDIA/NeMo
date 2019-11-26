@@ -1,48 +1,46 @@
-Tutorial
+教程
 ===========================
 
-In this tutorial we will train an ASR postprocessing model to correct mistakes in
-output of end-to-end speech recognition model. This model method works similar to translation model in contrast to traditional ASR language model rescoring. The model architecture is attention based encoder-decoder where both encoder and decoder are initialized with pretrained BERT language model. To train this model we collected dataset with typical ASR errors by using pretrained Jasper ASR model :cite:`li2019jasper`.
+在这个教程中，我们会训练一个语音识别的后处理模型来纠正端到端语音识别模型的输出错误。这个模型和翻译模型很相似，但和传统语音识别模型的再打分很不一样。
+这个模型的架构是基于注意力机制的编码器解码器架构，其中编码器和解码器都是用BERT的预训练语言模型初始化的。为了训练这个模型，我们用预训练的Jasper语音识别模型 :cite:`li2019jasper` 产生的错误来收集数据集。
 
-Data
+
+数据
 -----------
-**Data collection.** We collected dataset for this tutorial with Jasper ASR model
-:cite:`li2019jasper` trained on Librispeech dataset :cite:`panayotov2015librispeech`.
-To download the Librispeech dataset, see :ref:`LibriSpeech_dataset`.
-To obtain the pretrained Jasper model, see :ref:`Jasper_model`.
-Librispeech training dataset consists of three parts: train-clean-100, train-clean-360, and train-clean-500 which give 281k training examples in total.
-To augment this data we used two techniques:
+**数据收集** 我们用Jasper :cite:`li2019jasper`  在Librispeech数据集 :cite:`panayotov2015librispeech` 上训练的模型为这个任务收集数据集。
+下载Librispeech数据集, 参考 :ref:`LibriSpeech_dataset`.
+获得Jasper预训练模型, 参考 :ref:`Jasper_model`.
+Librispeech训练数据集包含三个部分: train-clean-100, train-clean-360, 和train-clean-500 总共281000个训练样本 .
+我们用两个方法来扩增数据集:
 
-* We split all training data into 10 folds and trained 10 Jasper models in cross-validation manner: a model was trained on 9 folds and used to make ASR predictions for the remaining fold.
-* We took pretrained Jasper model and enabled dropout during inference on training data. This procedure was repeated multiple times with different random seeds.
+* 我们把所有的训练集分成10份，然后用交叉验证的方法训练10个Jasper模型: 一个模型在9份数据集上训练，然后再剩下的那份数据集上做语音识别.
+* 我们用预训练的Jasper模型，在训练集上做推理的时候，打开dropout。这个过程用不同的随机种子重复多次。
 
-**Data postprocessing.** The collected dataset was postprocessed by removing duplicates
-and examples with word error rate higher than 0.5.
-The resulting training dataset consists of 1.7M pairs of "bad" English-"good" English examples.
+**数据后处理** 收集到的数据集需要去除重复以及错词率大于0.5的样本。
+得到的数据集包含1,700,000对 "坏" 英文-"好" 英文样本对。
 
-**Dev and test datasets preparation**. Librispeech contains 2 dev datasets
-(dev-clean and dev-other) and 2 test datasets (test-clean and test-other).
-For our task we kept the same splits. We fed these datasets to a pretrained
-Jasper model with the greedy decoding to get the ASR predictions that are used
-for evaluation in our tutorial.
+**开发和测试集准备**. Librispeech包含两个开发集
+(dev-clean 和 dev-other) 以及2个测试 (test-clean 和 test-other).
+在我们的任务中，我们也这么分。我们把这些数据集放到预训练好的Jasper模型中，用greedy解码得到语音识别的输出结果。这些结果
+在我们的教程中用来做评测。
 
-Importing parameters from pretrained BERT
+从预训练BERT模型中加载参数
 -----------------------------------------
-Both encoder and decoder are initialized with pretrained BERT parameters. Since BERT language model has the same architecture as transformer encoder, there is no need to do anything additional. To prepare decoder parameters from pretrained BERT we wrote a script ``get_decoder_params_from_bert.py`` that downloads BERT parameters from the ``pytorch-transformers`` repository :cite:`huggingface2019transformers` and maps them into a transformer decoder.
-Encoder-decoder attention is initialized with self-attention parameters.
-The script is located under ``scripts`` directory and accepts 2 arguments:
+编码器和解码器都用的是预训练的BERT模型参数。 因为BERT的语言模型和Transformer的编码器结构相同，因此没有其他什么需要做的。从预训练的BERT模型中为解码器准备参数，我们写了一个脚本 ``get_decoder_params_from_bert.py`` 会从 ``pytorch-transformers`` :cite:`huggingface2019transformers` 下载参数，并把他们映射到解码器的参数上.
+编码器和解码器的注意力是用self-attention参数做初始化的。
+这个脚本位于 ``scripts`` 文件目录下，接受两个参数:
 
 * ``--model_name``: e.g. ``bert-base-cased``, ``bert-base-uncased``, etc.
-* ``--save_to``: a directory where the parameters will be saved
+* ``--save_to``: 参数将要存储的文件目录
 
     .. code-block:: bash
 
         $ python get_decoder_params_from_bert.py --model_name bert-base-uncased
 
 
-Neural modules overview
+神经模块概览
 --------------------------
-First, as with all models built in NeMo, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level, 3) local rank of the GPU, and 4) an experiment manager that creates a timestamped folder to store checkpoints, relevant outputs, log files, and TensorBoard graphs.
+首先，因为所有的模块都是由NeMo构建的, 我们需要初始化Neural Module Factory，我们需要定义 1) backend (PyTorch 还是 TensorFlow), 2) 混精度优化等级, 3) GPU的loca rank, 以及 4) 一个实验管理器，创建一个时间戳的文件夹来存储checkpoints和相关的输出，日志文件以及TensorBoard的图.
 
     .. code-block:: python
 
@@ -55,14 +53,14 @@ First, as with all models built in NeMo, we instantiate Neural Module Factory wh
                         files_to_copy=[__file__])
 
 
-Then we define tokenizer to convert tokens into indices. We will use ``bert-base-uncased`` vocabulary, since our dataset only contains uncased text:
+接着我们定义分词器把所有的词转到它们对应的序号上. 我们会使用 ``bert-base-uncased`` 模型的词表， 因为我们的数据集只包含不区分大小写的文本:
 
     .. code-block:: python
 
         tokenizer = NemoBertTokenizer(pretrained_model="bert-base-uncased")
 
 
-The encoder block is a neural module corresponding to BERT language model from
+编码器模块对应于BERT的语言模型，它来自于
 ``nemo_nlp.huggingface`` collection:
 
     .. code-block:: python
@@ -73,8 +71,7 @@ The encoder block is a neural module corresponding to BERT language model from
             local_rank=args.local_rank)
 
     .. tip::
-        Making embedding size (as well as all other tensor dimensions) divisible
-        by 8 will help to get the best GPU utilization and speed-up with mixed precision training.
+        让词嵌入的大小（包括其他的张量维度）能够整除8可以得到最好的GPU利用率和混精度训练加速。
 
     .. code-block:: python
 
@@ -88,7 +85,7 @@ The encoder block is a neural module corresponding to BERT language model from
             (encoder.bert.embeddings.word_embeddings.weight.data, zeros))
 
 
-Next, we construct transformer decoder neural module. Since we will be initializing decoder with pretrained BERT parameters, we set hidden activation to ``"hidden_act": "gelu"`` and learn positional encodings ``"learn_positional_encodings": True``:
+接着, 我们构建transformer解码器神经模块. 因为我们会用BERT预训练的参数来初始化我们的解码器, 我们设置隐藏层激活函数为 ``"hidden_act": "gelu"`` 以及设置学习位置编码 ``"learn_positional_encodings": True``:
 
     .. code-block:: python
 
@@ -105,17 +102,17 @@ Next, we construct transformer decoder neural module. Since we will be initializ
             hidden_act="gelu",
             **dec_first_sublayer_params)
 
-To load the pretrained parameters into decoder, we use ``restore_from`` attribute function of the decoder neural module:
+为了把预训练参数加载到解码器参数中, 我们用解码器神经模块的属性函数 ``restore_from`` 来加载:
 
     .. code-block:: python
 
         decoder.restore_from(args.restore_from, local_rank=args.local_rank)
 
 
-Model training
+模型训练
 --------------
 
-To train the model run ``asr_postprocessor.py.py`` located in ``examples/nlp`` directory. We train with novograd optimizer :cite:`ginsburg2019stochastic`, learning rate ``lr=0.001``, polynomial learning rate decay policy, ``1000`` warmup steps, per-gpu batch size of ``4096*8`` tokens, and ``0.25`` dropout probability. We trained on 8 GPUS. To launch the training in multi-gpu mode run the following command:
+训练模型，运行 ``asr_postprocessor.py.py``， 它位于 ``examples/nlp`` 目录中. 我们用novograd优化器来训练  :cite:`ginsburg2019stochastic`, 设置学习率 ``lr=0.001`` ，多项式学习率衰减策略, ``1000`` 步预热, 每个GPU的批量为 ``4096*8`` 符号, 以及 ``0.25`` dropout概率. 我们再8张GPU上做训练。可以用下面的方法开启多GPU训练模式:
 
     .. code-block:: bash
 
@@ -123,7 +120,7 @@ To train the model run ``asr_postprocessor.py.py`` located in ``examples/nlp`` d
 
 
 
-References
+参考
 ------------------
 
 .. bibliography:: asr_impr.bib
