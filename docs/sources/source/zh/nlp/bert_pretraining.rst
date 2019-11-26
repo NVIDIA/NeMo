@@ -3,7 +3,9 @@ BERT预训练
 
 在本教程中，我们会按照BERT模型结构 :cite:`devlin2018bert` 构建并训练一个掩码语言模型。训练可以完全从零开始或者在一个预训练好的模型基础上继续训练。在开始本教程之前，请先安装好``nemo``和``nemo_nlp``。关于安装``nemo``的一些步骤可以参阅 :ref:`installation` 章节。
 
-创建一个专门领域的BERT模型对于某些应用是更有优势的。比如一个专门针对生物医学领域的专业BERT，类似于BioBERT :cite:`lee2019biobert`和SciBERT :cite:`beltagy2019scibert`.
+创建一个专门领域的BERT模型对于某些应用是更有优势的。比如一个专门针对生物医学领域的专业BERT，类似于BioBERT :cite:`lee2019biobert` 和SciBERT :cite:`beltagy2019scibert`.
+
+本教程中所使用的代码来自于 ``examples/nlp/bert_pretraining.py``.
 
 语料下载
 --------
@@ -18,11 +20,19 @@ BERT预训练
         train.txt
         valid.txt
 
-创建Tokenizer
--------------
-首先你需要创建一个`BERTPretrainingDataDesc`对象来描述数据集的格式。这其中涉及的主要步骤包括将数据集符号化并创建词表和一个tokenizer.
+如果想尝试训练中文BERT模型，你可以下载中文维基语料 wiki2019zh_。下载后，你需要解压并用这个脚本 ``examples/nlp/scripts/process_wiki_zh.py`` 来进行预处理
 
-你也可以使用一个现成的词表或者tokenizer模型来跳过这一步。如果你已经有一个预训练好的tokenizer模型，将它复制到文件夹``[data_dir]/bert``下并重命名为``tokenizer.model``。
+.. _wiki2019zh: https://github.com/brightmart/nlp_chinese_corpus
+
+    .. code-block:: bash
+
+        python examples/nlp/scripts/process_wiki_zh.py --data_dir=./wiki_zh --output_dir=./wiki_zh --min_frequency=3
+
+创建分词器(Tokenizer)
+-------------
+首先你需要创建一个`BERTPretrainingDataDesc`对象来描述数据集的格式。这其中涉及的主要步骤包括将数据集符号化并创建词表(vocabulary)和一个分词器(tokenizer).
+
+你也可以使用一个现成的词表或者分词器模型来跳过这一步。如果你已经有一个预训练好的分词器模型，将它复制到文件夹``[data_dir]/bert``下并重命名为``tokenizer.model``。
 
 如果你有一个现成的词表文件，可以将它复制到文件夹``[data_dir]/bert``下并命名为``vocab.txt``。
 
@@ -35,7 +45,7 @@ BERT预训练
                                             special_tokens,
                                             'train.txt')
 
-接下来我们需要定义tokenizer。如果你想使用一个自定义的词表文件，我们强烈推荐使用我们的`SentencePieceTokenizer`。或者，你也可以使用`NemoBertTokenizer`。
+接下来我们需要定义tokenizer。如果你想使用一个自定义的词表文件，我们强烈推荐使用我们的`SentencePieceTokenizer`。如果要训练中文BERT模型，请使用`NemoBertTokenizer`。
 
     .. code-block:: python
 
