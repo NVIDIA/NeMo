@@ -241,7 +241,7 @@ class JasperBlock(nn.Module):
                                stride=stride,
                                dilation=dilation, padding=padding, bias=bias,
                                groups=in_channels, heads=heads),
-                self._get_conv(in_channels, out_channels, kernel_size,
+                self._get_conv(in_channels, out_channels, kernel_size=1,
                                stride=1,
                                dilation=1, padding=0, bias=bias, groups=groups)
             ]

@@ -43,8 +43,11 @@ class AudioPreprocessor(NonTrainableNM):
     A base class for Neural Modules that performs audio preprocessing,
     transforming the wav files to features.
     """
-    def __init__(self, **kwargs):
+    def __init__(self, win_length, hop_length, **kwargs):
         super().__init__(**kwargs)
+
+        self.win_length = win_length
+        self.hop_length = hop_length
 
         self.disable_casts = (self._opt_level == Optimization.mxprO1)
 
@@ -75,8 +78,8 @@ class AudioPreprocessor(NonTrainableNM):
         pass
 
     def get_seq_len(self, length):
-        # Called by forward(). Subclasses should implement this.
-        raise NotImplementedError
+        # Called by forward()
+        return torch.ceil(length / self.hop_length).to(dtype=torch.long)
 
 
 class AudioToSpectrogramPreprocessor(AudioPreprocessor):
@@ -138,12 +141,13 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         if window_stride and n_window_stride:
             raise ValueError(f"{self} received both window_stride and "
                              f"n_window_stride. Only one should be specified.")
-        super().__init__(**kwargs)
-
         if window_size:
             n_window_size = int(window_size * sample_rate)
         if window_stride:
             n_window_stride = int(window_stride * sample_rate)
+
+        super().__init__(n_window_size, n_window_stride, **kwargs)
+
         self.win_length = n_window_size
         self.hop_length = n_window_stride
 
@@ -169,9 +173,6 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
 
     def get_features(self, input_signal, length):
         return self.featurizer(input_signal)
-
-    def get_seq_len(self, seq_len):
-        return torch.ceil(seq_len / self.hop_length).to(dtype=torch.long)
 
 
 class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
@@ -276,12 +277,12 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         if window_stride and n_window_stride:
             raise ValueError(f"{self} received both window_stride and "
                              f"n_window_stride. Only one should be specified.")
-        super().__init__(**kwargs)
-
         if window_size:
             n_window_size = int(window_size * sample_rate)
         if window_stride:
             n_window_stride = int(window_stride * sample_rate)
+
+        super().__init__(n_window_size, n_window_stride, **kwargs)
 
         self.featurizer = FilterbankFeatures(
             sample_rate=sample_rate,
@@ -393,7 +394,13 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         if window_stride and n_window_stride:
             raise ValueError(f"{self} received both window_stride and "
                              f"n_window_stride. Only one should be specified.")
-        super().__init__(**kwargs)
+        # Get win_length (n_window_size) and hop_length (n_window_stride)
+        if window_size:
+            n_window_size = int(window_size * sample_rate)
+        if window_stride:
+            n_window_stride = int(window_stride * sample_rate)
+
+        super().__init__(n_window_size, n_window_stride, **kwargs)
 
         mel_kwargs = {}
 
@@ -401,15 +408,10 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         mel_kwargs['f_max'] = highfreq
         mel_kwargs['n_mels'] = n_mels
 
-        # Get win_length and hop_length
-        if window_size:
-            n_window_size = int(window_size * sample_rate)
-        if window_stride:
-            n_window_stride = int(window_stride * sample_rate)
+        mel_kwargs['n_fft'] = n_fft or 2 ** math.ceil(math.log2(n_window_size))
+
         mel_kwargs['win_length'] = n_window_size
         mel_kwargs['hop_length'] = n_window_stride
-
-        mel_kwargs['n_fft'] = n_fft or 2 ** math.ceil(math.log2(n_window_size))
 
         # Set window_fn. None defaults to torch.ones.
         window_fn = self.torch_windows.get(window, None)
@@ -432,11 +434,6 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
 
     def get_features(self, input_signal, length):
         return self.featurizer(input_signal)
-
-    def get_seq_len(self, seq_len):
-        return torch.ceil(
-            seq_len / self.featurizer.MelSpectrogram.hop_length
-            ).to(dtype=torch.long)
 
 
 class SpectrogramAugmentation(NonTrainableNM):
