@@ -403,6 +403,60 @@ class TestASRPytorch(NeMoUnitTest):
         optimizer.train([loss], callbacks=[callback], optimizer="sgd",
                         optimization_params={"num_epochs": 10, "lr": 0.0003})
 
+    def test_quartznet_training(self):
+        with open("tests/data/quartznet_test.yaml") as f:
+            quartz_model_definition = self.yaml.load(f)
+        dl = nemo_asr.AudioToTextDataLayer(
+            featurizer_config=self.featurizer_config,
+            manifest_filepath=self.manifest_filepath,
+            labels=self.labels,
+            batch_size=4
+        )
+        pre_process_params = {'int_values': False, 'frame_splicing': 1,
+                              'features': 64,
+                              'window_size': 0.02, 'n_fft': 512,
+                              'dither': 1e-05,
+                              'window': 'hann', 'feat_type': 'logfbank',
+                              'sample_rate': 16000,
+                              'normalize': 'per_feature',
+                              'window_stride': 0.01}
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
+            **pre_process_params)
+        jasper_encoder = nemo_asr.JasperEncoder(
+            feat_in=quartz_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
+            **quartz_model_definition['JasperEncoder']
+        )
+        jasper_decoder = nemo_asr.JasperDecoderForCTC(
+            feat_in=1024,
+            num_classes=len(self.labels)
+        )
+        ctc_loss = nemo_asr.CTCLossNM(num_classes=len(self.labels))
+
+        # DAG
+        audio_signal, a_sig_length, transcript, transcript_len = dl()
+        processed_signal, p_length = preprocessing(input_signal=audio_signal,
+                                                   length=a_sig_length)
+
+        encoded, encoded_len = jasper_encoder(audio_signal=processed_signal,
+                                              length=p_length)
+        log_probs = jasper_decoder(encoder_output=encoded)
+        loss = ctc_loss(log_probs=log_probs,
+                        targets=transcript,
+                        input_length=encoded_len,
+                        target_length=transcript_len)
+
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensors=[loss],
+            print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
+        # Instantiate an optimizer to perform `train` action
+        neural_factory = nemo.core.NeuralModuleFactory(
+            backend=nemo.core.Backend.PyTorch, local_rank=None,
+            create_tb_writer=False)
+        optimizer = neural_factory.get_trainer()
+        optimizer.train([loss], callbacks=[callback], optimizer="sgd",
+                        optimization_params={"num_epochs": 10, "lr": 0.0003})
+
     def test_stft_conv(self):
         with open("tests/data/jasper_smaller.yaml") as file:
             jasper_model_definition = self.yaml.load(file)
