@@ -1,49 +1,50 @@
-Tutorial
+教程
 ========
 
-Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this
-tutorial. See the :ref:`installation` section for more details.
+在教程前，请确认你已经安装了 ``nemo`` 和 ``nemo_nlp`` 。你可以通过这个部分获得更多的信息： :ref:`installation` 
 
-Introduction
+
+简介
 ------------
 
-This tutorial explains how to implement named entity recognition (NER) in NeMo. We'll show how to do this with a pre-trained BERT model, or with one that you trained yourself! For more details, check out our BERT pretraining tutorial.
+这个教程将介绍如何在NeMo中，实现命名实体识别(Named Entity Recognition, NER)。我们将通过一个预训练好的BERT模型来进行展示，或者你也可以使用一个训练好的模型！ 你可以通过BERT预训练教程获得更多的信息。
 
-Download Dataset
+
+下载数据集
 ----------------
 
-`CoNLL-2003`_ is a standard evaluation dataset for NER, but any NER dataset will work. The only requirement is that the files are formatted like this:
+`CoNLL-2003`_ 是一个NER上标准的验证集合，当然任何一个NER数据集合都可以。数据集合需要满足的条件是符合以下的格式:
 
 .. _CoNLL-2003: https://www.clips.uantwerpen.be/conll2003/ner/
 
-.. code-block::
+.. code-block:: python
 
-    Jennifer	B-PER
-    is		O
-    from	O
-    New		B-LOC
-    York	I-LOC
-    City	I-LOC
-    .		O
+    Jennifer    B-PER
+    is      O
+    from    O
+    New     B-LOC
+    York    I-LOC
+    City    I-LOC
+    .       O
 
-    She		O
-    likes	O
+    She     O
+    likes   O
     ...
 
-Here, the words and labels are separated with spaces, but in your dataset they should be separated with tabs. Each line should follow the format: [WORD] [TAB] [LABEL] (without spaces in between). There can be columns in between for part-of-speech tags, as shown on the `CoNLL-2003 website`_. There should also be empty lines separating each sequence, as shown above.
+这里，词和标注使用空格进行分隔，但是在你的数据集里，它们需要用用tab分隔。每一行需要符合这样的格式: [WORD] [TAB] [LABEL] （中间没有空格)。一如 `CoNLL-2003 website`_ 网页上，词性标签之间可能会有列。每个句子中间需要用空行进行分隔。
 
 .. _CoNLL-2003 website: https://www.clips.uantwerpen.be/conll2003/ner/
 
 .. _Preprocessed data: https://github.com/kyzhouhzau/BERT-NER/tree/master/data
 
-Training
+训练
 --------
 
 .. tip::
 
-    We recommend you try this out in a Jupyter notebook. It'll make debugging much easier!
+    我们建议试试使用Jupyter来运行这部分代码，这会使得调试更加容易!
 
-First, we need to create our neural factory with the supported backend. How you should define it depends on whether you'd like to multi-GPU or mixed-precision training. This tutorial assumes that you're training on one GPU, without mixed precision. If you want to use mixed precision, set ``amp_opt_level`` to ``O1`` or ``O2``.
+首先，我们需要使用所支持的后端，来创建我们的neural factory。你需要确认使用多GPU或者混合精度训练。这个教程中我们使用单GPU训练，不使用混合精度。如果你想使用混合精度训练，需要设置 ``amp_opt_level`` 这个参数为 ``O1`` 或者 ``O2`` 。
 
     .. code-block:: python
 
@@ -54,9 +55,10 @@ First, we need to create our neural factory with the supported backend. How you 
                                            create_tb_writer=True,
                                            files_to_copy=[__file__])
 
-Next, we'll need to define our tokenizer and our BERT model. There are a couple of different ways you can do this. Keep in mind that NER benefits from casing ("New York City" is easier to identify than "new york city"), so we recommend you use cased models.
+接着，我们需要定义我们的tokenizer和BERT模型。你可以有多种方式来实现。注意，NER是大小写敏感的("New York Ciyt"比"new york city"更容易被识别出来)，所以我们建议使用区分大小写的模型。
 
-If you're using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out ``nemo_nlp.huggingface.BERT.list_pretrained_models()``
+如果你正在使用一个标准的BERT模型，我们建议你使用下面这条命令。想获取完整的BERT列表，可以参考 ``nemo_nlp.huggingface.BERT.list_pretrained_models()`` 。
+
 
     .. code-block:: python
 
@@ -64,7 +66,7 @@ If you're using a standard BERT model, you should do it as follows. To see the f
         pretrained_bert_model = nemo_nlp.huggingface.BERT(
             pretrained_model_name=args.pretrained_bert_model)
 
-If you're using a BERT model that you pre-trained yourself, you should do it like this. You should replace ``args.bert_checkpoint`` with the path to your checkpoint file.
+如果你在使用一个自己预训练好的BERT模型，你可以使用下面这条命令。这里，你需要把 ``args.bert_checkpoint`` 这个参数改成你的checkpoint文件所在的位置。
 
     .. code-block:: python
 
@@ -75,25 +77,25 @@ If you're using a BERT model that you pre-trained yourself, you should do it lik
                 config_filename=args.bert_config)
         pretrained_bert_model.restore_from(args.bert_checkpoint)
 
-Now, create the train and evaluation datasets:
+现在，创建训练和验证数据集合:
 
     .. code-block:: python
 
-    train_data_layer = nemo_nlp.data.BertTokenClassificationDataLayer(
-        dataset_type="BertCornellNERDataset",
-        tokenizer=tokenizer,
-        input_file=os.path.join(DATA_DIR, "train.txt"),
-        max_seq_length=MAX_SEQ_LENGTH,
-        batch_size=BATCH_SIZE)
+        train_data_layer = nemo_nlp.data.BertTokenClassificationDataLayer(
+            dataset_type="BertCornellNERDataset",
+            tokenizer=tokenizer,
+            input_file=os.path.join(DATA_DIR, "train.txt"),
+            max_seq_length=MAX_SEQ_LENGTH,
+            batch_size=BATCH_SIZE)
 
-    eval_data_layer = nemo_nlp.data.BertTokenClassificationDataLayer(
-        dataset_type="BertCornellNERDataset",
-        tokenizer=tokenizer,
-        input_file=os.path.join(DATA_DIR, "dev.txt"),
-        max_seq_length=MAX_SEQ_LENGTH,
-        batch_size=BATCH_SIZE)
+        eval_data_layer = nemo_nlp.data.BertTokenClassificationDataLayer(
+            dataset_type="BertCornellNERDataset",
+            tokenizer=tokenizer,
+            input_file=os.path.join(DATA_DIR, "dev.txt"),
+            max_seq_length=MAX_SEQ_LENGTH,
+            batch_size=BATCH_SIZE)
 
-We need to create the classifier to sit on top of the pretrained model and define the loss function:
+接着，我们需要在预先训练好的模型上，创建分类器并定义损失函数:
 
     .. code-block:: python
 
@@ -104,7 +106,7 @@ We need to create the classifier to sit on top of the pretrained model and defin
                                                   dropout=args.fc_dropout)
         ner_loss = nemo_nlp.TokenClassificationLoss(num_classes=len(tag_ids))
 
-And create the pipeline that can be used for both training and evaluation.
+并创建管道用来进行训练和验证:
 
     .. code-block:: python
 
@@ -122,15 +124,15 @@ And create the pipeline that can be used for both training and evaluation.
         train_loss, steps_per_epoch, _, _ = create_pipeline(train_data_layer)
         _, _, data_layer, eval_tensors = create_pipeline(eval_data_layer)
 
-Now, we will set up our callbacks. We will use 3 callbacks:
+现在，我们需要设置callbacks，一共有3个callbacks:
 
-* `SimpleLossLoggerCallback` to print loss values during training
-* `EvaluatorCallback` to evaluate our F1 score on the dev dataset. In this example, `EvaluatorCallback` will also output predictions to `output.txt`, which can be helpful with debugging what our model gets wrong.
-* `CheckpointCallback` to save and restore checkpoints.
+* `SimpleLossLoggerCallback` 打印出训练过程中的损失函数值
+* `EvaluatorCallback` 来验证我们dev集合上F1的值。在这个例子中， `EvaluatorCallback` 也会打印出 `output.txt` 上的预测值，这有利于找出模型哪个部分出了问题。
+* `CheckpointCallback` 用于保存和读取checkpoints.
 
 .. tip::
     
-    Tensorboard_ is a great debugging tool. It's not a requirement for this tutorial, but if you'd like to use it, you should install tensorboardX_ and run the following command during fine-tuning:
+    Tensorboard_ 是一个非常好用的调试工具。它在本教程中不是一个必须安装的工具，如果你想使用的话，需要先安装 tensorboardX_ 接着在微调过程中使用如下的命令：
 
     .. code-block:: bash
     
@@ -161,7 +163,7 @@ Now, we will set up our callbacks. We will use 3 callbacks:
             epoch_freq=args.save_epoch_freq,
             step_freq=args.save_step_freq)
 
-Finally, we will define our learning rate policy and our optimizer, and start training.
+最后，我们需要定义学习率规则和优化器，并且开始训练：
 
     .. code-block:: python
 
@@ -177,10 +179,10 @@ Finally, we will define our learning rate policy and our optimizer, and start tr
                  optimization_params={"num_epochs": args.num_epochs,
                                       "lr": args.lr})
 
-Using Other BERT Models
+使用其它的BERT模型
 -----------------------
 
-In addition to using pre-trained BERT models from Google and BERT models that you've trained yourself, in NeMo it's possible to use other third-party BERT models as well, as long as the weights were exported with PyTorch. For example, if you want to fine-tune an NER task with SciBERT_...
+除了可以使用谷歌提供的预训练BERT模型和你自己训练的BERT模型外，在NeMo中，也可以使用来自第三方的BERT模型，只要这个模型的参数可以加载到Pytorch中即可。例如，如果你想使用 SciBERT_ 来微调：
 
 .. _SciBERT: https://github.com/allenai/scibert
 
@@ -193,7 +195,7 @@ In addition to using pre-trained BERT models from Google and BERT models that yo
     mv bert_config.json config.json
     cd ..
 
-And then, when you load your BERT model, you should specify the name of the directory for the model name.
+接着，当你加载你的BERT模型，你需要指定模型所在的目录名：
 
 .. code-block:: python
 
@@ -202,6 +204,6 @@ And then, when you load your BERT model, you should specify the name of the dire
         pretrained_model_name="scibert_scivocab_cased",
         factory=neural_factory)
 
-If you want to use a TensorFlow-based model, such as BioBERT, you should be able to use it in NeMo by first using this `model conversion script`_ provided by Hugging Face.
+如果你想使用TensorFlow训练好的模型，例如BioBERT，你需要首先使用Hugging Face提供的 `model conversion script`_ 进行模型转换，再在NeMo中使用这个模型。
 
 .. _model conversion script: https://github.com/huggingface/pytorch-transformers/blob/master/pytorch_transformers/convert_tf_checkpoint_to_pytorch.py
