@@ -216,7 +216,6 @@ def create_pipeline(data_file,
                             data_file,
                             max_predictions_per_seq,
                             batch_size=batch_size, training=training)
-
     steps_per_epoch = \
         len(data_layer) // (batch_size * args.num_gpus * batches_per_step)
 
@@ -255,12 +254,13 @@ else:
                                       batch_size=args.batch_size,
                                       batches_per_step=args.batches_per_step)
 
-
+print("steps_per_epoch", steps_per_epoch)
 # callback which prints training loss and perplexity once in a while
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     print_func=lambda x: nf.logger.info("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
+    step_freq=10,
     tb_writer=nf.tb_writer)
 
 ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir,

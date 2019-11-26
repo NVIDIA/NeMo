@@ -512,22 +512,23 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
 
     @property
     def data_iterator(self):
-        if self.training:
-            random.shuffle(self.files)
-        for f_id in range(self.num_files):
-            data_file = self.files[f_id]
-            train_data = BertPretrainingPreprocessedDataset(
-                            input_file=data_file,
-                            max_pred_length=self.max_pred_length)
-            train_sampler = pt_data.RandomSampler(train_data)
-            train_dataloader = pt_data.DataLoader(
-                                dataset=train_data,
-                                batch_size=self.batch_size,
-                                collate_fn=self._collate_fn,
-                                shuffle=train_sampler is None,
-                                sampler=train_sampler)
-            for x in train_dataloader:
-                yield x
+        while True:
+            if self.training:
+                random.shuffle(self.files)
+            for f_id in range(self.num_files):
+                data_file = self.files[f_id]
+                train_data = BertPretrainingPreprocessedDataset(
+                                input_file=data_file,
+                                max_pred_length=self.max_pred_length)
+                train_sampler = pt_data.RandomSampler(train_data)
+                train_dataloader = pt_data.DataLoader(
+                                    dataset=train_data,
+                                    batch_size=self.batch_size,
+                                    collate_fn=self._collate_fn,
+                                    shuffle=train_sampler is None,
+                                    sampler=train_sampler)
+                for x in train_dataloader:
+                    yield x
 
 
 class TranslationDataLayer(TextDataLayer):

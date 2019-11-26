@@ -1471,7 +1471,6 @@ class PtActions(Actions):
                         final_loss.backward()
 
                 batch_counter += 1
-
                 if batch_counter == batches_per_step:
                     # Ended step. Do optimizer update
                     if grad_norm_clip is not None:

@@ -22,6 +22,7 @@ import pickle
 import random
 import h5py
 import numpy as np
+import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
@@ -340,6 +341,9 @@ class BertPretrainingPreprocessedDataset(Dataset):
         return len(self.inputs[0])
 
     def __getitem__(self, index):
+
+        
+        print("rank {} Loading {} item {}".format(torch.distributed.get_rank(), self.input_file, index))
 
         [input_ids, input_mask, segment_ids,
          masked_lm_positions, masked_lm_ids,
