@@ -6,8 +6,8 @@
 LibriSpeech
 -----------
 
-Run these scripts to download LibriSpeech data and convert it into format expected by `nemo_asr`.
-You should have at least 110GB free space.
+运行下面的脚本下载LibriSpeech数据集，并把它转换成 `nemo_asr` 集合需要的格式.
+你至少需要110GB的空间。
 
 .. code-block:: bash
 
@@ -16,10 +16,10 @@ You should have at least 110GB free space.
     mkdir data
     python get_librispeech_data.py --data_root=data --data_set=ALL
 
-After this, your `data` folder should contain wav files and `.json` manifests for NeMo ASR datalayer:
+之后，你的 `data` 文件夹下应该包含了wav文件和给NeMo语音识别数据层的 `.json` 文件:
 
 
-Each line is a training example. `audio_filepath` contains path to the wav file, `duration` it's duration in seconds and `text` it's transcript:
+每行是一个训练样本。 `audio_filepath` 包含了wav文件的路径, `duration` 这个音频文件多少秒， `text` 是对应的抄本:
 
 .. code-block:: json
 
@@ -29,18 +29,18 @@ Each line is a training example. `audio_filepath` contains path to the wav file,
 Fisher English Training Speech
 ------------------------------
 
-Run these scripts to convert the Fisher English Training Speech data into a format expected by the `nemo_asr` collection.
+运行这些脚本把Fisher English Training Speech数据集转换成 `nemo_asr` 集合需要的格式.
 
-In brief, the following scripts convert the .sph files to .wav, slice those files into smaller audio samples, match the smaller slices with their corresponding transcripts, and split the resulting audio segments into train, validation, and test sets (with one manifest each).
+简言之，下面的脚本会把.sph文件转成.wav，把这些文件切成更小的音频样本，把这些小音频和它们相应的抄本匹配起来，接着把音频样本分成训练集，验证集和测试集。
 
 .. note::
-  You will need at least 106GB of space to run the .wav conversion, and an additional 105GB for the slicing and matching.
-  You will need to have sph2pipe installed in order to run the .wav conversion. 
+  你至少需要106GB的空间来转换成.wav，额外的105GB空间做切分和匹配.
+  你需要安装sph2pipe来运行.wav的转换. 
 
 
-**Instructions**
+**步骤**
 
-These scripts assume that you already have the Fisher dataset from the Linguistic Data Consortium, with a directory structure that looks something like this:
+下面的脚本假设你已经从Linguistic Data Consortium上获得Fisher数据集，并且数据集格式看起来这样的：
 
 .. code-block:: bash
 
@@ -58,9 +58,9 @@ These scripts assume that you already have the Fisher dataset from the Linguisti
       ├── fe_03_p2_sph3
       └── ...
 
-The transcripts that will be used are located in `fe_03_p<1,2>_transcripts/data/trans`, and the audio files (.sph) are located in the remaining directories in an `audio` subdirectory.
+抄本位于 `fe_03_p<1,2>_transcripts/data/trans`，音频文件(.sph)位于 `audio` 子目录下的剩下目录中.
 
-First, convert the audio files from .sph to .wav by running:
+首先，把音频文件从.sph转换成.wav:
 
 .. code-block:: bash
 
@@ -68,10 +68,10 @@ First, convert the audio files from .sph to .wav by running:
   python fisher_audio_to_wav.py \
     --data_root=<fisher_root> --dest_root=<conversion_target_dir>
 
-This will place the unsliced .wav files in `<conversion_target_dir>/LDC200[4,5]S13-Part[1,2]/audio-wav/`.
-It will take several minutes to run.
+这个脚本会把未切分的.wav文件放到 `<conversion_target_dir>/LDC200[4,5]S13-Part[1,2]/audio-wav/`。
+需要运行几分钟。
 
-Next, process the transcripts and slice the audio data:
+接着，处理抄本和切分音频数据:
 
 .. code-block:: bash
 
@@ -80,27 +80,27 @@ Next, process the transcripts and slice the audio data:
     --dest_root=<processing_target_dir> \
     --remove_noises
 
-This script will split the full dataset into train, validation, and test sets, and place the audio slices in the corresponding folders in the destination directory.
-One manifest will be written out per set, which includes each slice's transcript, duration, and path.
+这个脚本会把整个数据集切分成训练集，验证集和测试集，然后把切分好的音频文件放到对应的目标目录下的文件夹中。
+每个数据集都有一个清单文件（.json文件），它包括了音频的抄本，时长和路径。
 
-This will likely take around 20 minutes to run.
-Once finished, you may delete the 10 minute long .wav files if you wish.
+这里程序大概需要20分钟。
+一旦完成后，你可以删掉这些10分钟长的。
 
 2000 HUB5 English Evaluation Speech
 -----------------------------------
 
-Run the following script to convert the HUB5 data into a format expected by the `nemo_asr` collection.
+运行下面的脚本把HUB5数据集转换成 `nemo_asr` 集合需要的文件格式.
 
-Similarly to the Fisher dataset processing scripts, this script converts the .sph files to .wav, slices the audio files and transcripts into utterances, and combines them into segments of some minimum length (default is 10 seconds).
-The resulting segments are all written out to an audio directory, and the corresponding transcripts are written to a manifest JSON.
+类似于Fisher数据集处理脚本，这个脚本把.sph文件转换成.wav文件，切割音频文件和抄本，然后把他们合并成某个最小长度的音频片段(默认是10秒)。
+这些音频片段都被写到一个音频目录下，相应的抄本被写到一个Json格式的清单文件中.
 
 .. note::
-  You will need 5GB of free space to run this script.
-  You will also need to have sph2pipe installed.
+  你需要5GB的空间来运行这个脚本
+  你也需要安装sph2pipe
 
-This script assumes you already have the 2000 HUB5 dataset from the Linguistic Data Consortium.
+这个脚本假设你已经从Linguistic Data Consortium获取到了2000 HUB5数据集。
 
-Run the following to process the 2000 HUB5 English Evaluation Speech samples:
+运行下面的脚本来处理2000 HUB5 English Evaluation Speech数据集样本:
 
 .. code-block:: bash
 
@@ -108,12 +108,12 @@ Run the following to process the 2000 HUB5 English Evaluation Speech samples:
     --data_root=<path_to_HUB5_data> \
     --dest_root=<target_dir>
 
-You may optionally include `--min_slice_duration=<num_seconds>` if you would like to change the minimum audio segment duration.
+你可以选择性的加入 `--min_slice_duration=<num_seconds>` 如果你想改变最小音频片段长度.
 
 Aishell1
 -----------------------------------
 
-Run these scripts to download Aishell1 data and convert it into format expected by `nemo_asr`.
+运行下面的脚本下载Aishell1数据集并把它转换到 `nemo_asr` 集合需要的文件格式.
 
 .. code-block:: bash
 
@@ -122,10 +122,10 @@ Run these scripts to download Aishell1 data and convert it into format expected 
     mkdir data
     python get_aishell_data.py --data_root=data
 
-After this, your `data` folder should contain wav files and `.json` manifests for NeMo ASR datalayer:
+之后，你的 `data` 文件夹应该包含了wav文件和要传给NeMo语音识别数据层的`.json` 清单文件:
 
 
-Each line is a training example. `audio_filepath` contains path to the wav file, `duration` it's duration in seconds and `text` it's transcript:
+每行是一个训练样本。 `audio_filepath` 包含了wav文件的路径, `duration` 这个音频文件多少秒， `text` 是对应的抄本:
 
 .. code-block:: json
 
