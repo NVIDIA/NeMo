@@ -96,6 +96,7 @@ def eval_epochs_done_callback(global_vars, graph_fold):
     logger.info("Sampled s_preds: [%s]" % list2str(slot_preds[i:i+20]))
     logger.info("Sampled slots: [%s]" % list2str(slot_labels[i:i+20]))
     cm = confusion_matrix(intent_labels, intent_preds)
+    logger.info(f'Confusion matrix:\n{cm}')
     fig = plt.figure()
     ax = fig.add_subplot(111)
     cax = ax.matshow(cm)
@@ -110,12 +111,12 @@ def eval_epochs_done_callback(global_vars, graph_fold):
     correct_preds = sum(intent_labels == intent_preds)
     intent_accuracy = correct_preds / intent_labels.shape[0]
     logger.info(f'Intent accuracy: {intent_accuracy}')
-    logger.info(classification_report(intent_labels, intent_preds))
+    logger.info(f'Classification report:\n{classification_report(intent_labels, intent_preds)}')
 
     logger.info('Slot prediction results')
     slot_accuracy = sum(slot_labels == slot_preds) / slot_labels.shape[0]
     logger.info(f'Slot accuracy: {slot_accuracy}')
-    logger.info(classification_report(slot_labels, slot_preds))
+    logger.info(f'Classification report:\n{classification_report(slot_labels[:-2], slot_preds[:-2])}')
 
     return dict({'intent_accuracy': intent_accuracy,
                  'slot_accuracy': slot_accuracy})

@@ -5,6 +5,7 @@ __all__ = ['MaskedLanguageModelingLossNM',
            'PaddedSmoothedCrossEntropyLossNM']
 
 from torch import nn
+import torch
 
 from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import *
@@ -184,10 +185,23 @@ class JointIntentSlotLoss(LossNM):
         }
         return input_ports, output_ports
 
-    def __init__(self, num_slots, **kwargs):
+    def __init__(self, num_slots, slot_classes_loss_weights=[], intent_classes_loss_weights=[], **kwargs):
         LossNM.__init__(self, **kwargs)
         self.num_slots = num_slots
-        self._criterion = nn.CrossEntropyLoss()
+
+        # For weighted loss to tackle class imbalance
+        if len(slot_classes_loss_weights) > 0:
+            self._slot_classes_loss_weights = torch.FloatTensor(slot_classes_loss_weights).cuda()
+        else:
+            self._slot_classes_loss_weights = None
+
+        if len(intent_classes_loss_weights) > 0:
+            self._intent_classes_loss_weights = torch.FloatTensor(intent_classes_loss_weights).cuda()
+        else:
+            self._intent_classes_loss_weights = None
+
+        self._criterion_intent = nn.CrossEntropyLoss(weight=self._intent_classes_loss_weights)
+        self._criterion_slot = nn.CrossEntropyLoss(weight=self._slot_classes_loss_weights)
 
     def _loss_function(self,
                        intent_logits,
@@ -195,8 +209,8 @@ class JointIntentSlotLoss(LossNM):
                        loss_mask,
                        intents,
                        slots,
-                       intent_loss_weight=0.6):
-        intent_loss = self._criterion(intent_logits, intents)
+                       intent_loss_weight=0.2):
+        intent_loss = self._criterion_intent(intent_logits, intents)
 
         active_loss = loss_mask.view(-1)
         active_logits = slot_logits.view(-1, self.num_slots)[active_loss]
@@ -206,7 +220,7 @@ class JointIntentSlotLoss(LossNM):
         if len(active_labels) == 0:
             slot_loss = 0.0
         else:
-            slot_loss = self._criterion(active_logits, active_labels)
+            slot_loss = self._criterion_slot(active_logits, active_labels)
         loss = intent_loss * intent_loss_weight + \
             slot_loss * (1 - intent_loss_weight)
 
