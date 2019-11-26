@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import itertools
 
 import numpy as np
 from sentencepiece import SentencePieceTrainer as SPT
@@ -43,11 +44,13 @@ def get_label_stats(labels, outfile='stats.tsv'):
     total = sum(labels.values())
     out = open(outfile, 'w')
     i = 0
-    for k, v in labels.most_common():
+    label_frequencies = labels.most_common()
+    for k, v in label_frequencies:
         out.write(f'{k}\t{v/total}\n')
         if i < 3:
             logger.info(f'{i} item: {k}, {v} out of {total}, {v/total}.')
         i += 1
+    return total, label_frequencies
 
 
 def list2str(l):
@@ -1021,6 +1024,61 @@ class JointIntentSlotDataDesc:
         self.num_intents = len(get_vocab(self.intent_dict_file))
         slots = label2idx(self.slot_dict_file)
         self.num_slots = len(slots)
+
+        for mode in ['train', 'test']:
+
+            slot_file = f'{self.data_dir}/{mode}_slots.tsv'
+            with open(slot_file, 'r') as f:
+                slot_lines = f.readlines()
+
+            input_file = f'{self.data_dir}/{mode}.tsv'
+            with open(input_file, 'r') as f:
+                input_lines = f.readlines()[1:]
+
+            if len(slot_lines) != len(input_lines):
+                raise ValueError(
+                    "Make sure that the number of slot lines match the "
+                    "number of intent lines. There should be a 1-1 correspondence "
+                    "between every slot and intent lines.")
+
+            dataset = list(zip(slot_lines, input_lines))
+
+            raw_slots, queries, raw_intents = [], [], []
+            for slot_line, input_line in dataset:
+                raw_slots.append([int(slot) for slot in slot_line.strip().split()])
+                parts = input_line.strip().split()
+                raw_intents.append(int(parts[-1]))
+                queries.append(' '.join(parts[:-1]))
+
+            print(raw_slots[:50])
+            print(raw_intents[:50])
+
+            infold = input_file[:input_file.rfind('/')]
+            
+            logger.info(f'Three most popular intents during {mode}ing')
+            total_intents, intent_label_freq = get_label_stats(raw_intents, infold + f'/{mode}_intent_stats.tsv')
+            merged_slots = itertools.chain.from_iterable(raw_slots)
+
+            logger.info(f'Three most popular slots during {mode}ing')
+            slots_total, slots_label_freq = get_label_stats(merged_slots, infold + f'/{mode}_slot_stats.tsv')
+            
+            if mode == 'train':
+
+                most_common_slot = slots_label_freq[0]
+                weighted_slots = sorted([(j,most_common_slot[1]/i) for (j, i) in slots_label_freq])
+                self.slot_weights = [i for (_, i) in weighted_slots]
+                print(self.slot_weights)
+
+                most_common_intent = intent_label_freq[0]
+                weighted_intents = sorted([(j,most_common_intent[1]/i) for (j, i) in intent_label_freq])
+                self.intent_weights = [i for (_, i) in weighted_intents]
+                print(self.intent_weights)
+
+            print('total_intents, intent_label_freq')
+            print(total_intents, intent_label_freq)
+            print('slots_total, slots_label_freq')
+            print(slots_total, slots_label_freq)
+
         if pad_label != -1:
             self.pad_label = pad_label
         else:
