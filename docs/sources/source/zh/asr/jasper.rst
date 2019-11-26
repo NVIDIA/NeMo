@@ -3,11 +3,11 @@
 Jasper
 ------
 
-Jasper ("Just Another SPeech Recognizer") :cite:`li2019jasper`  is a deep time delay neural network (TDNN) comprising of blocks of 1D-convolutional layers.
-Jasper family of models are denoted as Jasper_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization, ReLU, and dropout:
+Jasper ("Just Another SPeech Recognizer") :cite:`li2019jasper`  是一个深度时延网络 (TDNN)，由包含一维卷积层的块组成.
+Jasper家族的模型可以用 Jasper_[BxR] 来表示，其中B是块的个数, R是一个块中卷积子块的个数。每个卷积子块中包含一个一维卷积,批归一化层，ReLU和dropout层:
 
     .. image:: jasper_vertical.png
         :align: center
         :alt: japer model
 
-Pretrained models can be found, `here <https://ngc.nvidia.com/catalog/models/nvidia:jaspernet10x5dr>`_.
+预训练的模型在 `这里 <https://ngc.nvidia.com/catalog/models/nvidia:jaspernet10x5dr>`_.

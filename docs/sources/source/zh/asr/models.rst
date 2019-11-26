@@ -7,7 +7,7 @@
    jasper
    quartznet
 
-References
+参考
 -------------
 
 .. bibliography:: Jasperbib.bib

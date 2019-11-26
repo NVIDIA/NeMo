@@ -38,15 +38,15 @@ Neural Modules (NeMo) 是一个用神经模块来构建AI应用的框架无关�
 
 **核心概念和特性**
 
-* `NeuralModule` class - represents and implements a neural module.
-* `NmTensor` - represents activations which flow between neural modules' ports.
-* `NeuralType` - represents types of modules' ports and NmTensors.
-* `NeuralFactory` - to create neural modules and manage training.
-* `Lazy execution` - when describing activation flow between neural modules, nothing happens until an "action" (such as `optimizer.optimize(...)` is called.
-* `Collections` - NeMo comes with collections - related group of modules such as `nemo_asr` (for Speech Recognition) and `nemo_nlp` for NLP
+* `NeuralModule` class - 表示以及执行一个神经模块。
+* `NmTensor` - 表示的是神经模块端口之间流动的激活元。
+* `NeuralType` - 表示模块端口类型和NmTensors。
+* `NeuralFactory` - 创建神经模块并且管理训练流程。
+* `Lazy execution` - 当描述神经模块之间的激活流时，在一个“action”(比如`optimizer.optimize(...)` 没有触发前，什么都不会发生。
+* `Collections` - NeMo中附带的模块集合 -  相关的模块集合，比如 `nemo_asr` (语音识别) 以及 `nemo_nlp` (自然语言处理)
 
 
-**安装要求**
+**安装依赖**
 
 1) Python 3.6 or 3.7
 2) PyTorch 1.2 with GPU support
@@ -55,22 +55,22 @@ Neural Modules (NeMo) 是一个用神经模块来构建AI应用的框架无关�
 
 **开始吧**
 
-如果需要的话， 你可以从这个docker容器开始 `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ 这里面已经包含了上面所需要的环境。
+如果需要的话，你可以从这个docker容器开始 `NGC PyTorch容器 <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ 这里面已经包含了上面所需要的环境。
 
 你可以直接运行``docker pull nvcr.io/nvidia/pytorch:19.08-py3``
 
 接着就按照下面的步骤：
 
-1) Clone the repository
-2) Go to nemo folder and then: ``python setup.py install``
-3) Install collections:
-    * ASR collection from `collections/nemo_asr`:
+1) 克隆这个仓库
+2) 切到nemo文件夹下，运行: ``python setup.py install``
+3) 安装collections:
+    * ASR collections `collections/nemo_asr`:
         1. ``apt-get install libsndfile1``
         2. ``python setup.py install``
 
-    * NLP collection from `collections/nemo_nlp`: ``python setup.py install``
-4) For development you will need to: ``python setup.py develop`` instead of ``python setup.py install`` in Step (3.2) above
-5) Go to `examples/start_here` to get started with few simple examples
+    * NLP collections `collections/nemo_nlp`: ``python setup.py install``
+4) 如果要开发，你需要: ``python setup.py develop`` 而不是 ``python setup.py install`` in Step (3.2) above
+5) 到 `examples/start_here` 下，从这几个简单的例子开始吧
 
 
 **单元测试**
