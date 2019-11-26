@@ -277,7 +277,7 @@ NeMo中的混精度和分布式训练上基于 `NVIDIA's APEX library <https://g
     你可以用逗号分割不同的数据集: `--train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json`. Here it combines 3 data sets: LibriSpeech, Mozilla Common Voice and LibriSpeech speed perturbed.
 
 
-微调（Fine-tuning）
+微调
 -----------
 如果我们从一个好的预训练模型开始训练，训练时间会大大的减小:
 

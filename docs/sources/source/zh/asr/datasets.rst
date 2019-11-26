@@ -110,10 +110,10 @@ Fisher English Training Speech
 
 你可以选择性的加入 `--min_slice_duration=<num_seconds>` 如果你想改变最小音频片段长度.
 
-Aishell1
+AISHELL-1
 -----------------------------------
 
-运行下面的脚本下载Aishell1数据集并把它转换到 `nemo_asr` 集合需要的文件格式.
+运行下面的脚本下载AISHELL-1数据集并把它转换到 `nemo_asr` 集合需要的文件格式.
 
 .. code-block:: bash
 
@@ -122,16 +122,15 @@ Aishell1
     mkdir data
     python get_aishell_data.py --data_root=data
 
-之后，你的 `data` 文件夹应该包含了wav文件和要传给NeMo语音识别数据层的`.json` 清单文件:
+之后，你的 `data` 文件夹应该包含了一个 `data_aishell` 文件夹，它下面包含了wav文件夹，transcript文件夹以及相应的 `.json` 清单文件和 `vocab.txt` 文件:
 
-
-每行是一个训练样本。 `audio_filepath` 包含了wav文件的路径, `duration` 这个音频文件多少秒， `text` 是对应的抄本:
-
-.. code-block:: json
-
-    {"audio_filepath": "<absolute_path_to>/BAC009S0062W0157.wav", "duration": 4.474, "text": "加上两会释放出宽松信号后"}
-    {"audio_filepath": "<absolute_path_to>/BAC009S0062W0238.wav", "duration": 3.803, "text": "建设统一规范的公共资源交易市场"}
-
-Aishell2
+AISHELL-2
 -----------------------------------
-xxxTO BE FILLEDxxx
+
+运行下面的脚本处理AIShell-2数据集，把它处理成 `nemo_asr` 需要的文件格式。通过设置 `--audio_folder` 指定数据目录，用 `--dest_folder` 指定处理后的文件目录
+
+.. code-block:: bash
+
+    python process_aishell2_data.py --audio_folder=<data directory> --dest_folder=<destination directory>
+
+接着在 `dest_folder` 下会生成 `train.json` `dev.json` `test.json` 以及 `vocab.txt`。 
