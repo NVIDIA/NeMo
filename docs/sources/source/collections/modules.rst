@@ -7,4 +7,6 @@ NeMo Collections API
    :maxdepth: 8
 
    core
-   ncollections
+   nemo_asr
+   nemo_tts
+   nemo_nlp

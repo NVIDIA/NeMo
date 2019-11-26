@@ -1,5 +1,5 @@
 Transformer Language Model
-================
+==========================
 
 In this tutorial, we will build and train a language model using the Transformer architecture :cite:`vaswani2017attention`. Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See the :ref:`installation` section for more details.
 
@@ -23,7 +23,7 @@ To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. Aft
         valid.txt
 
 Create the tokenizer model
-----------------
+--------------------------
 `LanguageModelDataDesc` converts your dataset into the format compatible with `LanguageModelingDataset`.
 
     .. code-block:: python
