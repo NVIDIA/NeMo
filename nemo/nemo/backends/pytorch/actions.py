@@ -14,7 +14,6 @@ import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
 from nemo.backends.pytorch.nm import TrainableNM
-from apex.optimizers import FusedLAMB
 
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
@@ -33,6 +32,7 @@ convert_syncbn = None
 create_syncbn_process_group = None
 DDP = None
 LARC = None
+FusedLAMB = None
 
 AmpOptimizations = {
     Optimization.mxprO0: "O0",
@@ -66,12 +66,15 @@ class PtActions(Actions):
                     global create_syncbn_process_group
                     global DDP
                     global LARC
+                    global FusedLAMB
                     parallel = importlib.import_module('apex.parallel')
+                    apex_optimizer = importlib.import_module('apex.optimizers')
                     convert_syncbn = parallel.convert_syncbn_model
                     create_syncbn_process_group = (
                         parallel.create_syncbn_process_group)
                     DDP = parallel.DistributedDataParallel
                     LARC = parallel.LARC
+                    FusedLAMB = apex_optimizer.FusedLAMB
 
             except ImportError:
                 raise ImportError(

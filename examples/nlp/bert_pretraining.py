@@ -81,7 +81,7 @@ parser.add_argument("--optimizer", default="novograd", type=str)
 parser.add_argument("--beta1", default=0.95, type=float)
 parser.add_argument("--beta2", default=0.25, type=float)
 parser.add_argument("--amp_opt_level",
-                    default="O2",
+                    default="O0",
                     type=str,
                     choices=["O0", "O1", "O2"])
 parser.add_argument("--weight_decay", default=0.0, type=float)
@@ -255,7 +255,7 @@ else:
                                       batch_size=args.batch_size,
                                       batches_per_step=args.batches_per_step)
 
-print("steps per epoch", steps_per_epoch)
+
 # callback which prints training loss and perplexity once in a while
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
