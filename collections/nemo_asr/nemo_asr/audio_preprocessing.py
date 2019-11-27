@@ -24,7 +24,10 @@ __all__ = ['AudioPreprocessor',
 from abc import abstractmethod
 import math
 import torch
-import torchaudio
+try:
+    import torchaudio
+except ModuleNotFoundError:
+    print('Could not import torchaudio. Some features might not work.')
 try:
     from apex import amp
 except (AttributeError, ModuleNotFoundError) as e:
