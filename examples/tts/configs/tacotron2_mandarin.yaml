@@ -5,6 +5,10 @@ labels: [' ', '!', ',', '.', '?', 'a', 'b', 'c',
         'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
         't', 'u', 'v', 'w', 'x', 'y', 'z', '0',
         '1', '2', '3', '4']
+n_fft: &n_fft 1024
+n_mels: &n_mels 80
+fmax: &fmax 8000
+n_stride: &n_window_stride 256
 
 AudioToTextDataLayer:
     normalize_transcripts: false
@@ -19,16 +23,16 @@ AudioToMelSpectrogramPreprocessor:
     window_size: null
     window_stride: null
     n_window_size: 1024
-    n_window_stride: 256
+    n_window_stride: *n_window_stride
     window: "hann"
-    features: &n_mels 80
-    n_fft: 1024
+    features: *n_mels
+    n_fft: *n_fft
     frame_splicing: 1
     dither: 0.
     feat_type: "logfbank"
     stft_conv: true
     sample_rate: *sr
-    highfreq: 8000
+    highfreq: *fmax
     preemph: null
     pad_value: -11.52
     mag_power: 1.
