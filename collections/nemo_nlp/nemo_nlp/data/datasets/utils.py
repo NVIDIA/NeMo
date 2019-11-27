@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import pandas as pd
 
 import numpy as np
 from sentencepiece import SentencePieceTrainer as SPT
@@ -698,10 +699,10 @@ def get_intents_slots_dialogflow(files, slot_labels):
         with open(file) as json_file:
             intent_data = json.load(json_file)
             for query in intent_data:
-                querytext = ""
+                query_text = ""
                 slots = ""
                 for segment in query['data']:
-                    querytext = ''.join([querytext, segment['text']])
+                    query_text = ''.join([query_text, segment['text']])
                     if 'alias' in segment:
                         for word in segment['text'].split():
                             slots = ' '.join([
@@ -710,8 +711,8 @@ def get_intents_slots_dialogflow(files, slot_labels):
                     else:
                         for word in segment['text'].split():
                             slots = ' '.join([slots, slot_labels.get('O')])
-                querytext = f'{querytext.strip()}\t{index}\n'
-                intent_queries.append(querytext)
+                query_text = f'{query_text.strip()}\t{index}\n'
+                intent_queries.append(query_text)
                 slots = f'{slots.strip()}\n'
                 slot_tags.append(slots)
     return intent_queries, intent_names, slot_tags
@@ -754,7 +755,7 @@ def partition_data(intent_queries, slot_tags, split=0.1):
 
 # The following works for the specified DialogFlow and Mturk output format
 def write_files(data, outfile):
-    with open(f'{outfile}', 'w') as f:
+    with open(outfile, 'w') as f:
         for item in data:
             item = f'{item.strip()}\n'
             f.write(item)
@@ -815,7 +816,7 @@ def get_intents_mturk(utterances, outfold):
     intent_names = {}
     intent_count = 0
 
-    agreedallDict = {}
+    agreed_all = {}
 
     print('Printing all intent_labels')
     intent_dict = f'{outfold}/dict.intents.csv'
@@ -828,17 +829,16 @@ def get_intents_mturk(utterances, outfold):
 
     for i, utterance in enumerate(utterances[1:]):
 
-        if utterance[1] not in agreedallDict:
-            agreedallDict[utterance[0]] = utterance[1]
+        if utterance[1] not in agreed_all:
+            agreed_all[utterance[0]] = utterance[1]
 
         if utterance[1] not in intent_names:
             intent_names[utterance[1]] = str(intent_count)
             intent_count += 1
 
-    print('x eval mechanism:')
-    print(len(agreedallDict))
+    print(f'Total number of utterance samples: {len(agreed_all)}')
 
-    return agreedallDict, intent_names
+    return agreed_all, intent_names
 
 
 def get_slot_labels(slot_annotations, task_name):
@@ -849,8 +849,8 @@ def get_slot_labels(slot_annotations, task_name):
     count = 0
     # Generating labels with the IOB format.
     for label in slot_labels[task_name]['annotations']['labels']:
-        b_slot = ''.join(["B-", label['label']])
-        i_slot = ''.join(["I-", label['label']])
+        b_slot = 'B-' + label['label']
+        i_slot = 'I-' + label['label']
         all_labels[b_slot] = str(count)
         count += 1
         all_labels[i_slot] = str(count)
@@ -860,13 +860,13 @@ def get_slot_labels(slot_annotations, task_name):
     return all_labels
 
 
-def process_intent_slot_mturk(slot_annotations, agreedallDict, intent_names,
+def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names,
                               task_name):
 
     slot_tags = []
     inorder_utterances = []
     all_labels = get_slot_labels(slot_annotations, task_name)
-    print(f'agreedallDict - {len(agreedallDict)}')
+    print(f'agreed_all - {len(agreed_all)}')
     print(f'Slot annotations - {len(slot_annotations)}')
 
     for annotation in slot_annotations[0:]:
@@ -875,42 +875,46 @@ def process_intent_slot_mturk(slot_annotations, agreedallDict, intent_names,
         if utterance.startswith('"') and utterance.endswith('"'):
             utterance = utterance[1:-1]
 
-        if utterance in agreedallDict:
+        if utterance in agreed_all:
             entities = {}
             annotated_entities = an[task_name]['annotations']['entities']
             for i, each_anno in enumerate(annotated_entities):
                 entities[int(each_anno['startOffset'])] = i
 
             lastptr = 0
-            slots = ""
+            slotlist = []
             # sorting annotations by the start offset
             for i in sorted(entities.keys()):
                 annotated_entities = an[task_name]['annotations']['entities']
                 tags = annotated_entities[entities.get(i)]
                 untagged_words = utterance[lastptr:tags['startOffset']]
                 for word in untagged_words.split():
-                    slots = ' '.join([slots, all_labels.get('O')])
+                    slotlist.append(all_labels.get('O'))
                 anno_words = utterance[tags['startOffset']:tags['endOffset']]
                 # tagging with the IOB format.
                 for i, word in enumerate(anno_words.split()):
                     if i == 0:
-                        b_slot = ''.join(["B-", tags['label']])
-                        slots = ' '.join([slots, all_labels.get(b_slot)])
+                        b_slot = 'B-' + tags['label']
+                        slotlist.append(all_labels.get(b_slot))
                     else:
-                        i_slot = ''.join(["I-", tags['label']])
-                        slots = ' '.join([slots, all_labels.get(i_slot)])
+                        i_slot = 'I-' + tags['label']
+                        slotlist.append(all_labels.get(i_slot))
                 lastptr = tags['endOffset']
 
             untagged_words = utterance[lastptr:len(utterance)]
             for word in untagged_words.split():
-                slots = ' '.join([slots, all_labels.get('O')])
-            slots = f'{slots.strip()}\n'
-            slot_tags.append(slots)
-            intent_num = intent_names.get(agreedallDict.get(utterance))
-            querytext = f'{utterance.strip()}\t{intent_num}\n'
-            inorder_utterances.append(querytext)
+                slotlist.append(all_labels.get('O'))
+
+            slotstr = ' '.join(slotlist)
+            slotstr = f'{slotstr.strip()}\n'
+
+            slot_tags.append(slotstr)
+            intent_num = intent_names.get(agreed_all.get(utterance))
+            query_text = f'{utterance.strip()}\t{intent_num}\n'
+            inorder_utterances.append(query_text)
         # else:
         #     print(utterance)
+
     print(f'inorder utterances - {len(inorder_utterances)}')
 
     return all_labels, inorder_utterances, slot_tags
@@ -941,17 +945,18 @@ def process_mturk(
     annotation_data_file = f'{data_dir}/annotation.manifest'
 
     if not os.path.exists(classification_data_file):
-        raise ValueError(f'Data not found at {classification_data_file}')
+        raise FileNotFoundError(f'File not found '
+                                f'at {classification_data_file}')
 
     if not os.path.exists(annotation_data_file):
-        raise ValueError(f'Data not found at {annotation_data_file}')
+        raise FileNotFoundError(f'File not found at {annotation_data_file}')
 
     utterances = []
     utterances = readCSV(classification_data_file)
 
     # This function assumes that the intent classification data has been
     # reviewed and cleaned and only one label per utterance is present.
-    agreedallDict, intent_names = get_intents_mturk(utterances, outfold)
+    agreed_all, intent_names = get_intents_mturk(utterances, outfold)
 
     with open(annotation_data_file, 'r') as f:
         slot_annotations = f.readlines()
@@ -962,11 +967,13 @@ def process_mturk(
 
     # It is assumed that every utterances will have corresponding
     # slot annotation information
-    assert(len(slot_annotations)) >= len(agreedallDict)
+    if len(slot_annotations) < len(agreed_all):
+        raise ValueError(f'Every utterance must have corresponding'
+                         f'slot annotation information')
 
     slot_labels, intent_queries, slot_tags = process_intent_slot_mturk(
             slot_annotations,
-            agreedallDict,
+            agreed_all,
             intent_names,
             task_name)
 
