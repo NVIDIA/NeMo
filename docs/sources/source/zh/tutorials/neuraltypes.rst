@@ -1,20 +1,19 @@
-Neural Types
+神经类型
 ============
 
-Neural Types are used to check input tensors to make sure that two neural modules are compatible, and catch
-semantic and dimensionality errors.
+神经类型是用来检查输入张量，确保两个神经模块是兼容的，并且捕捉语义和维度上的错误。
 
-Neural Types are implemented by :class:`NeuralType<nemo.core.neural_types.NeuralType>` class which is a mapping from Tensor's axis to :class:`AxisType<nemo.core.neural_types.AxisType>`.
+神经类型在 :class:`NeuralType<nemo.core.neural_types.NeuralType>` 类中实现，它把张量的轴映射到 :class:`AxisType<nemo.core.neural_types.AxisType>`.
 
-:class:`AxisType<nemo.core.neural_types.AxisType>` contains following information per axis:
+:class:`AxisType<nemo.core.neural_types.AxisType>` 每个轴有下列信息:
 
-* Semantic Tag, which must inherit from :class:`BaseTag<nemo.core.neural_types.BaseTag>`, for example: :class:`BatchTag<nemo.core.neural_types.BatchTag>`, :class:`ChannelTag<nemo.core.neural_types.ChannelTag>`, :class:`TimeTag<nemo.core.neural_types.TimeTag>`, etc. These tags can be related via `is-a` inheritance.
-* Dimension: unsigned integer
-* Descriptor: string
+* Semantic Tag, 必须继承自 :class:`BaseTag<nemo.core.neural_types.BaseTag>`，比如 :class:`BatchTag<nemo.core.neural_types.BatchTag>`, :class:`ChannelTag<nemo.core.neural_types.ChannelTag>`, :class:`TimeTag<nemo.core.neural_types.TimeTag>` 等。这些标签是 `is-a` 的继承关系。
+* Dimension: 无符号整形
+* Descriptor: 字符串
 
 
-To instantiate a NeuralType you should pass it a dictionary (axis2type) which will map axis to it's AxisType.
-For example, a ResNet18 input and output ports can be described as:
+初始化神经类型，你应该给它传递一个字典（轴到类型），把轴映射到它的AxisType。
+比如，ResNet18的输入和输出端口可以这么描述：
 
 .. code-block:: python
 
@@ -28,54 +27,54 @@ For example, a ResNet18 input and output ports can be described as:
 
 
 
-**Neural type comparison**
+**神经类型比较**
 
-Two :class:`NeuralType<nemo.core.neural_types.NeuralType>` objects can be compared using ``.compare`` method.
-The result is:
+两个 :class:`NeuralType<nemo.core.neural_types.NeuralType>` 对象可以通过 ``.compare`` 方法来进行比较。
+结果是:
 
 .. code-block:: python
 
     class NeuralTypeComparisonResult(Enum):
-      """The result of comparing two neural type objects for compatibility.
-      When comparing A.compare_to(B):"""
+      """比较两个神经类型兼容性的结果
+      A.compare_to(B):"""
       SAME = 0
-      LESS = 1  # A is B
-      GREATER = 2  # B is A
-      DIM_INCOMPATIBLE = 3  # Resize connector might fix incompatibility
-      TRANSPOSE_SAME = 4 # A transpose will make them same
-      INCOMPATIBLE = 5  # A and B are incompatible. Can't fix incompatibility automatically
+      LESS = 1  # A 是 B
+      GREATER = 2  # B 是 A
+      DIM_INCOMPATIBLE = 3  # 重新调整连接器也许可以修复不兼容
+      TRANSPOSE_SAME = 4 # 把A转置可以使它们相同
+      INCOMPATIBLE = 5  # A和B不兼容。不能自动修复不兼容
 
 
-**Special cases**
+**特殊例子**
 
-* *Non-tensor* objects should be denoted as ``NeuralType(None)``
-* *Optional*: input is as optional, if input is provided the type compatibility will be checked
-* *Root* type is denoted by ``NeuralType({})``: A port of ``NeuralType({})`` type must accept NmTensors of any NeuralType:
+* *Non-tensor* 对象应该用 ``NeuralType(None)`` 表示。
+* *Optional*: 输入是可选的，如果提供了类型输入，那么会自动做类型检测
+* *Root* 类型可以用 ``NeuralType({})`` 表示: ``NeuralType({})`` 类型的端口必须可以接收任意的神经类型的神经模块张量(NmTensors):
 
 .. code-block:: python
 
     root_type = NeuralType({})
     root_type.compare(any_other_neural_type) == NeuralTypeComparisonResult.SAME
 
-See "nemo/tests/test_neural_types.py" for more examples.
+参考 "nemo/tests/test_neural_types.py" 中更多的例子。
 
 
-**Neural Types help us to debug models**
+**神经类型帮助我们调试程序**
 
-There is a large class of errors, which will not produce runtime or compile exception. For example:
+有许多的错误类型在运行和编译的时候不会报错，比如：
 
 (1) "Rank matches but semantics doesn't".
 
-For example, Module A produces data in the format [Batch, Time, Dim] whereas Module B  expects format [Time, Batch, Dim]. A simple axes transpose will solve this error.
+例如，模块A的数据格式是[Batch, Time, Dim]，但是模块B期望的格式是[Time, Batch, Dim]。简单的轴转置就可以解决这个错误。
 
 (2) "Concatenating wrong dimensions".
 
-For example, module should concatenate (add) two input tensors X and Y along dimension 0. But tensor X is in format [B, T, D] while tensor Y=[T, B, D] and concat . .
+例如, 模块应该根据0号维度合并(加)两个输入张量X和Y。但是张量X格式是[B, T, D]，但是张量Y格式是[T, B, D] 然后做合并 . .
 
 (3) "Dimensionality mismatch"
 
-A module expects image of size 224x224 but gets 256x256. The type comparison will result in ``NeuralTypeComparisonResult.DIM_INCOMPATIBLE`` .
+一个模块期望图片尺寸是224x224但是得到的是256x256。这种类型比较会导致 ``NeuralTypeComparisonResult.DIM_INCOMPATIBLE`` .
 
 .. note::
-    This type mechanism is represented by Python inheritance. That is, :class:`NmTensor<nemo.core.neural_types.NmTensor>` class inherits from :class:`NeuralType<nemo.core.neural_types.NeuralType>` class.
+    这个类型机制是由Python继承表示的。也就是说 :class:`NmTensor<nemo.core.neural_types.NmTensor>` 类继承自 :class:`NeuralType<nemo.core.neural_types.NeuralType>` 类。
 

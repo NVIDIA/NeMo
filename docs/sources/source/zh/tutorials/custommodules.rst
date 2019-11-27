@@ -1,40 +1,40 @@
-How to build Neural Module
+如何构建神经模块
 ==========================
 
 .. note::
-    Currently, NeMo only support PyTorch as a backend.
+    目前，NeMo只支持Pytorch作为后端
 
-Neural Modules can be conceptually classified into 4 potentially overlapping categories:
+神经模块根据概念可以分成4个有重叠的类目:
 
-* **Trainable Modules** - modules that contain trainable weights. Inherit from
-  :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` class.
-* **Data Layers** - modules that perform (extract, transform, load, feed) ETLF of the data. Inherit from
-  :class:`DataLayerNM<nemo.backends.pytorch.nm.DataLayerNM>` class.
-* **Loss Modules** - modules that compute loss functions. Inherit from
-  :class:`LossNM<nemo.backends.pytorch.nm.LossNM>` class.
-* **Non Trainable Modules** - non-trainable module, for example, table lookup, data augmentation, greedy decoder, etc. Inherit from
-  :class:`NonTrainableNM<nemo.backends.pytorch.nm.NonTrainableNM>` class.
+* **Trainable Modules** - 包含了有可训练权重的模块。继承自
+  :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` 类。
+* **Data Layers** - 对数据做(extraction抽取, transform转换, load加载, feed接入) ETLF操作的模块。继承自
+  :class:`DataLayerNM<nemo.backends.pytorch.nm.DataLayerNM>` 类。
+* **Loss Modules** - 计算损失函数的模块。继承自
+  :class:`LossNM<nemo.backends.pytorch.nm.LossNM>` 类。
+* **Non Trainable Modules** - 不可训练模块，比如，查表，数据增强，贪心解码器等。继承自
+  :class:`NonTrainableNM<nemo.backends.pytorch.nm.NonTrainableNM>` 类。
 
-In Figure below you can see a class inheritance diagram for these helper classes.
+在下面的图片中，你可以看到这些类的继承关系
 
 .. figure:: nm_class_structure.png
    :alt: map to buried treasure
 
-   Inheritance class diagram. Provided API's classes are in green. Red classes are to be implemented by user.
+   继承类关系图。假设API's类是绿色的。红色类是用户将要执行的。
 
-Trainable Module 
+可训练模块
 -----------------
 .. note::
-    Notice that :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` class
-    has two base classes: :class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` class and ``torch.nn.Module``.
+    注意 :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` 类
+    有两个基础类：:class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` 类 和 ``torch.nn.Module``.
 
-Define module from scratch
+从头定义模块
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-(1) Inherit from :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` class.
-(2) Create the ``create_ports()`` static method that defines your input and output ports.
-    If your ``create_ports()`` method requires some params, pass it to the base class
-    constructor as part of the ``create_port_args`` param.
+(1) 首先继承 :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` 类。
+(2) 创建 ``create_ports()`` 静态方法，定义输入输出端口
+    如果你的 ``create_ports()`` 方法需要一些参数，把它作为 ``create_port_args`` 
+    的部分参数传递给基类的构造函数。
 
 .. code-block:: python
 
@@ -44,27 +44,27 @@ Define module from scratch
         output_ports = {...}
         return input_ports, output_ports
 
-(3) In the constructor, call base class constructor first
+(3) 在构造函数里，首先调用基类的构造函数
 
 .. code-block:: python
 
     def __init__(self, *, module_params, .., size, **kwargs)
         super().__init__(create_port_args={"size": size}, **kwargs)
 
-(4) Implement ``forward`` method from ``torch.nn.Module``
+(4) 实现 ``torch.nn.Module`` 模块里的 ``forward`` 方法 
 
 .. important::
-    Input argument names to your ``forward`` method must match your module's input port names exactly.
+    你的 ``forward`` 方法的输入参数名必须匹配你的模块的输入的输入端口名。
 
-Example 1
+例子 1
 ~~~~~~~~~
 
 .. code-block:: python
 
     class TaylorNet(TrainableNM): # (1) Note inheritance from TrainableNM
-        """Module which learns Taylor's coefficients."""
+        """学习Taylor系数的模块"""
 
-        # (2) Code create_ports() to define input and output ports
+        # (2) create_ports()定义输入输出端口
         @staticmethod
         def create_ports():
             input_ports = {"x": NeuralType({0: AxisType(BatchTag),
@@ -74,14 +74,14 @@ Example 1
             return input_ports, output_ports
 
         def __init__(self, **kwargs):
-            # (3) Call base constructor
+            # (3) 调用基类构造函数
             TrainableNM.__init__(self, **kwargs)
             # And of Neural Modules specific part. Rest is PyTorch code
             self._dim = self.local_parameters["dim"]
             self.fc1 = nn.Linear(self._dim, 1)
             t.nn.init.xavier_uniform_(self.fc1.weight)
 
-        # IMPORTANT: input arguments to forward must match input input ports' names
+        # IMPORTANT: 给前向参数的名字必须匹配输入端口的名字
         def forward(self, x):
             # (4) Implement the forward method
             lst = []
@@ -92,13 +92,13 @@ Example 1
 
 
 
-Converting from PyTorch's nn.Module
+转换PyTorch的nn.Module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-(1) If you already have PyTorch class which inherits from ``torch.nn.Module``, replace that inheritance with inheritance from
-    :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` class.
-(2) Create the ``create_ports()`` static method
-(3) Modify your constructor to call base class constructor first.
+(1) 如果你已经有PyTorch的类继承自 ``torch.nn.Module``，把那个继承改成继承
+    :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` 类。
+(2) 创建 ``create_ports()`` 静态方法
+(3) 修改构造函数，首先调用基类构造函数
 
 .. code-block:: python
 
@@ -112,25 +112,25 @@ Converting from PyTorch's nn.Module
         def __init__(self, *, module_params, .., **kwargs)
             TrainableNM.__init__(self, **kwargs)
 
-(4) Modify ``forward`` method so that its input arguments match your input port names exactly.
+(4) 修改 ``forward`` 方法，使得它的输入参数和你的输入端口名字匹配。
 
-Data Layer Module
+数据层模块
 ------------------------
-(1) Inherit from :class:`DataLayerNM<nemo.backends.pytorch.nm.DataLayerNM>` class.
-(2) Implement ``__len__`` method to return dataset size.
-(3) Implement either the ``dataset`` or ``data_iterator`` property to return a PyTorch Dataset object or an iterator over your dataset, respectively. (The unused property should return None.)
+(1) 继承自 :class:`DataLayerNM<nemo.backends.pytorch.nm.DataLayerNM>` 类。
+(2) 实现 ``__len__`` 方法，返回数据集大小
+(3) 实现 ``dataset`` 或者 ``data_iterator`` 属性，返回一个PyTorch数据集对象或者你的数据集的迭代器。(没有使用的属性应该返回None)
 
-When implementing constructor, you should first call base class constructor and
-define *output ports only* in create_ports().  Also, module should accept
-parameters such as ``batch_size`` and ``shuffle``.
+当实现构造函数的时候，你首先要调用基类构造函数，并且定义
+在create_ports()定义*仅输出端口* 。另外，模块应该接收像是
+``batch_size`` 和 ``shuffle``的参数。
 
-If under the hood you are using ``torch.utils.data.Dataset`` class (*recommended approach*), then you can implement the ``dataset`` property, and a DataLoader will be created for you.
-(See example below).
+如果你使用了 ``torch.utils.data.Dataset`` 类 (*推荐方法*)，接着你可以实现 ``dataset`` 属性，一个数据加载器就会自动给你创建。
+(见下面的例子).
 
-Example
+例子
 ~~~~~~~
 
-This example wraps PyTorch's *ImageFolder* dataset into a neural module data layer.
+这个例子把PyTorch的 *ImageFolder* 数据集封装成一个神经模块的数据层。
 
 
 .. code-block:: python
@@ -139,13 +139,13 @@ This example wraps PyTorch's *ImageFolder* dataset into a neural module data lay
     import torchvision
     import torchvision.transforms as transforms, datasets
 
-    """This class wraps Torchvision's ImageFolder data set API into NeuralModule."""
+    """这个类把Pytorch的ImageFolder数据集的API封装成了神经模块"""
 
     class ImageFolderDataLayer(DataLayerNM):
         @staticmethod
         def create_ports(size):
-            # Note: we define the size of the height and width of our output
-            # tensors, and thus require a size parameter.
+            # 注意，我们会定义输出的高和宽
+            # 因此需要一个size参数
             input_ports = {}
             output_ports = {
                 "image": NeuralType({0: AxisType(BatchTag),
@@ -183,13 +183,13 @@ This example wraps PyTorch's *ImageFolder* dataset into a neural module data lay
             return None
 
 
-Loss Neural Module
+损失函数神经模块
 ------------------
 
-(1) Inherit from :class:`LossNM<nemo.backends.pytorch.nm.LossNM>` class
-(2) Create create_ports() method
-(3) In your constructor, call base class constructor
-(4) Implement :meth:`_loss_function<nemo.backends.pytorch.nm.LossNM._loss_function>` method.
+(1) 继承自 :class:`LossNM<nemo.backends.pytorch.nm.LossNM>` 类
+(2) 创建create_ports()方法
+(3) 在构造函数里调用基类构造函数
+(4) 实现 :meth:`_loss_function<nemo.backends.pytorch.nm.LossNM._loss_function>` 方法。
 
 
 Example
@@ -207,13 +207,13 @@ Example
             return input_ports, output_ports
 
         def __init__(self, **kwargs):
-            # Neural Module API specific
+            # 神经模块API
             super().__init__(**kwargs)
 
-            # End of Neural Module API specific
+            # 结束神经模块API
             self._criterion = torch.nn.CrossEntropyLoss()
 
-        # You need to implement this function
+        # 你需要实现这个方法
         def _loss_function(self, **kwargs):
             return self._criterion(*(kwargs.values()))
 

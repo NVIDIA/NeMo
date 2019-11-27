@@ -1,20 +1,20 @@
-Programming Model
+编程模型
 -------------------
 
-A typical application using NeMo APIs consists of 3 logical stages:
+一个典型的而是用NeMo APIs的应用包含三个逻辑步骤：
 
-1) Creation of :class:`NeuralModuleFactory<nemo.core.neural_factory.NeuralModuleFactory>` and necessary :class:`NeuralModule<nemo.core.neural_modules.NeuralModule>`
-2) Defining a Directed Acyclic Graph (DAG) of :class:`NeuralModule<nemo.core.neural_modules.NeuralModule>`
-3) Call to "action" such as :class:`train<nemo.core.neural_factory.Actions.train>`
+1) 创建 :class:`NeuralModuleFactory<nemo.core.neural_factory.NeuralModuleFactory>` 类和必要的 :class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` 类
+2) 定义一个有向无环图(DAG)类 :class:`NeuralModule<nemo.core.neural_modules.NeuralModule>`
+3) 调用像是 :class:`train<nemo.core.neural_factory.Actions.train>` 类的操作
 
-NeMo follows *lazy execution* model - actual computation happen only after training or inference is called.
+NeMo遵循 *lazy execution* 模型 - 实际的计算只会在训练和推理的操作被调用后才会执行。
 
-:class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` is an abstraction between a layer and a neural network, for example: encoder, decoder, language model, acoustic model, etc. Each :class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` computes a set of outputs from a set of inputs.
-Every :class:`NmTensor<nemo.core.neural_types.NmTensor>` has :class:`NeuralType<nemo.core.neural_types.NeuralType>` .
-:class:`NeuralType<nemo.core.neural_types.NeuralType>` describes tensor semantics, axis' order and dimensions. These types
-are used to determine how modules should be connected together.
+:class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` 是层和神经网络的一个抽象，比如：编码器，解码器，语言模型，声学模型等。每个 :class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` 从一系列的输入计算一系列的输出。
+每个 :class:`NmTensor<nemo.core.neural_types.NmTensor>` 有 :class:`NeuralType<nemo.core.neural_types.NeuralType>` .
+:class:`NeuralType<nemo.core.neural_types.NeuralType>` 描述了张量的语义，轴的维度。这些类型
+用来确定模块之间如何连接起来。
 
-You can also pass to *callbacks* to actions which are then used for evaluation, logging and performance monitoring.
+你也可以给操作传递 *回调函数* ，这样就可以做评估验证，打印日志和做一些训练时候的性能监测。
 
 
 

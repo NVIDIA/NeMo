@@ -1,65 +1,65 @@
-Examples
+例子
 ========
 
-Nemo applications consist of 3  stages:
+NeMo应用程序包含三个步骤:
 
-    (1) create NeuralModules 
-    (2) construct model using tensors ('activations') to connect modules into graph
-    (3) start action, e.g. training or inference
+    (1) 创建神经模块
+    (2) 创建使用张量(“激活元”)的模型，把神经模块串成图
+    (3) 开始操作, e.g. 训练或者推理
 
 
 Hello World 
 ------------
 
-This example shows how to build a model which learn Taylor's coefficients for y=sin(x).
+这个例子展现了如何构建一个模型，学习y=sin(x)的泰勒系数。
 
 .. code-block:: python
 
     import nemo
 
-    # instantiate Neural Factory with supported backend
+    # 用支持的后端初始化Neural Factory
     nf = nemo.core.NeuralModuleFactory()
 
-    # instantiate necessary neural modules
-    # RealFunctionDataLayer defaults to f=torch.sin, sampling from x=[-4, 4]
+    # 初始化必要的神经模块
+    # RealFunctionDataLayer默认为f=torch.sin，从x=[-4, 4]采样
     dl = nemo.tutorials.RealFunctionDataLayer(
         n=10000, batch_size=128)
     fx = nemo.tutorials.TaylorNet(dim=4)
     loss = nemo.tutorials.MSELoss()
 
-    # describe activation's flow
+    # 描述激活流
     x, y = dl()
     p = fx(x=x)
     lss = loss(predictions=p, target=y)
 
-    # SimpleLossLoggerCallback will print loss values to console.
+    # SimpleLossLoggerCallback打印损失函数值到控制台
     callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[lss],
         print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
 
-    # Invoke "train" action
+    # 触发“训练”操作
     nf.train([lss], callbacks=[callback],
              optimization_params={"num_epochs": 3, "lr": 0.0003},
              optimizer="sgd")
 
-Simple Chatbot
+简单的聊天机器人
 ---------------
 
-This is an adaptation of `PyTorch's Chatbot tutorial <https://pytorch.org/tutorials/beginner/chatbot_tutorial.html>`_ into NeuralModule's framework. It demonstrates how to do training and evaluation.
+这个教程改编自 `PyTorch的聊天机器人教程 <https://pytorch.org/tutorials/beginner/chatbot_tutorial.html>`_ 使得它适配于NeMo框架。它解释了要如何训练和评估。
 
-Model can be describes by graph shown below. Model has:
+模型可以由下图表示，模型有:
 
-    * two data layers (one for training and another one for inference),
-    * encoder and decoder (shared by training and inference),
-    * two loss modules (one for training and another one for inference).
+    * 两个数据层 (一个做训练一个做推理),
+    * 编码器解码器(训练和推理共享),
+    * 两个损失函数模块 (一个做训练一个做推理).
 
 .. image:: chatbot.png
 
-During training model will print:
+在训练过程中，模型会打印:
 
-    * **SOURCE**:  model input
-    * **PREDICTED RESPONSE**: model output
-    * **TARGET**:  target output
+    * **SOURCE**:  模型输入
+    * **PREDICTED RESPONSE**: 模型输出
+    * **TARGET**:  目标输出
 
 .. code-block:: python
 
@@ -69,14 +69,14 @@ During training model will print:
     import shutil
     import nemo
 
-    # Get Data
+    # 获取数据
     data_file = "movie_data.txt"
     if not os.path.isfile(data_file):
         with gzip.open("../../tests/data/movie_lines.txt.gz", 'rb') as f_in:
             with open(data_file, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
 
-    # Configuration
+    # 配置
     config = {
         "corpus_name": "cornell",
         "datafile": data_file,
@@ -93,20 +93,20 @@ During training model will print:
         "tb_log_dir": "ChatBot",
     }
 
-    # instantiate neural factory
+    # 初始化 neural factory
     nf = nemo.core.NeuralModuleFactory()
 
-    # instantiate neural modules
+    # 初始化神经模块
     dl = nemo.tutorials.DialogDataLayer(**config)
     encoder = nemo.tutorials.EncoderRNN(**config)
     decoder = nemo.tutorials.LuongAttnDecoderRNN(**config)
     L = nemo.tutorials.MaskedXEntropyLoss()
     decoderInfer = nemo.tutorials.GreedyLuongAttnDecoderRNN(**config)
 
-    # PARAMETER SHARING: between training and auto-regressive inference decoders
+    # 参数共享: 在训练解码器和自回归推理解码器之间
     decoderInfer.tie_weights_with(decoder, list(decoder.get_weights().keys()))
 
-    # express activations flow
+    # 描述激活流
     src, src_lengths, tgt, mask, max_tgt_length = dl()
     encoder_outputs, encoder_hidden = encoder(input_seq=src,
                                               input_lengths=src_lengths)
@@ -114,11 +114,11 @@ During training model will print:
                               max_target_len=max_tgt_length)
     loss = L(predictions=outputs, target=tgt, mask=mask)
 
-    # run inference decoder to generate predictions
+    # 运行推理解码器得到输出
     outputs_inf, _ = decoderInfer(encoder_outputs=encoder_outputs)
 
 
-    # define callback function which prints intermediate results to console
+    # 定义回调函数打印中间结果到控制台
     def outputs2words(tensors, vocab):
         source_ids = tensors[1][:, 0].cpu().numpy().tolist()
         response_ids = tensors[2][:, 0].cpu().numpy().tolist()
@@ -139,7 +139,7 @@ During training model will print:
         print_func=lambda x: outputs2words(x, dl.voc.index2word)
     )
 
-    # start training
+    # 开始训练
     nf.train(
         tensors_to_optimize=[loss],
         callbacks=[callback],
@@ -147,5 +147,5 @@ During training model will print:
         optimization_params={"num_epochs": config["num_epochs"], "lr": 0.001})
 
 .. note::
-    Look for more examples under `nemo/examples`
+    可以在 `nemo/examples` 下面找到更多例子
 

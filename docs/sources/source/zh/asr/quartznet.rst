@@ -13,4 +13,4 @@ QuartzNet 是Jasper的一个版本 :cite:`li2019jasper` 它有可分离的卷积
 
 我们正在写QuartzNet的论文，不就就会发布。
 
-预训练的模型, `这里 <https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`_.
+预训练的模型在 `这里 <https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`_.
