@@ -104,7 +104,7 @@ def _cosine_annealing(initial_lr, step, total_steps, min_lr):
 
 class CosineAnnealing(WarmupPolicy):
     def __init__(self, total_steps, min_lr=0, **kwargs):
-        self.min_lr = 0
+        self.min_lr = min_lr
         super().__init__(total_steps=total_steps, **kwargs)
 
     def _get_lr(self, initial_lr, step, epoch):

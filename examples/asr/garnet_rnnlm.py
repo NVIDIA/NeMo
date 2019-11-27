@@ -135,7 +135,7 @@ def create_dag(args, cfg, num_gpus):
     )
 
     # Creating DAG
-    texts = data()
+    texts, _ = data()
     log_probs, _ = decoder(
         targets=texts
     )
