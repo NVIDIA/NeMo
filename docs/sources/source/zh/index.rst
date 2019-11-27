@@ -69,7 +69,7 @@ Neural Modules (NeMo) 是一个用神经模块来构建AI应用的框架无关�
         2. ``python setup.py install``
 
     * NLP collections `collections/nemo_nlp`: ``python setup.py install``
-4) 如果要开发，你需要: ``python setup.py develop`` 而不是 ``python setup.py install`` in Step (3.2) above
+4) 如果要开发，你需要运行: ``python setup.py develop`` 而不是之前步骤3.2中的 ``python setup.py install``
 5) 到 `examples/start_here` 下，从这几个简单的例子开始吧
 
 
