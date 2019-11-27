@@ -24,7 +24,6 @@ setuptools.setup(
         'num2words',
         'inflect',
         'kaldi-io',
-        'torchaudio',
         'torch-stft',
         'soundfile',
         'marshmallow',
