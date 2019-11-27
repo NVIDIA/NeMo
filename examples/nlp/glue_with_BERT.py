@@ -67,7 +67,7 @@ import sys
 import nemo
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
 from nemo.utils.lr_policies import get_lr_policy
-
+import json
 import nemo_nlp
 from nemo_nlp import GlueDataLayerClassification, GlueDataLayerRegression
 from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
@@ -75,7 +75,6 @@ from nemo_nlp.utils.callbacks.glue import \
     eval_iter_callback, eval_epochs_done_callback
 
 from nemo_nlp.data.datasets.utils import processors, output_modes
-from pytorch_transformers import BertConfig
 
 parser = argparse.ArgumentParser(description="GLUE_with_pretrained_BERT")
 
@@ -95,7 +94,7 @@ parser.add_argument("--pretrained_bert_model", default="bert-base-cased",
 parser.add_argument("--bert_checkpoint", default=None, type=str,
                     help="Path to model checkpoint")
 parser.add_argument("--bert_config", default=None, type=str,
-                    help="Path to bert config file")
+                    help="Path to bert config file in json format")
 parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str,
                     help="Path to pretrained tokenizer model, \
                     only used if --tokenizer is sentencepiece")
@@ -192,8 +191,9 @@ else:
     else:
         raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
     if args.bert_config is not None:
-        config = BertConfig.from_json_file(args.bert_config)
-        model = nemo_nlp.huggingface.BERT(**config.to_dict())
+        with open(args.bert_config) as json_file:
+            config = json.load(json_file)
+        model = nemo_nlp.huggingface.BERT(**config)
     else:
         model = nemo_nlp.huggingface.BERT(
             pretrained_model_name=args.pretrained_bert_model)
