@@ -4,7 +4,7 @@
 请确保您已经安装了 ``nemo``，``nemo_asr``，和 ``nemo_tts``
 模块。参考 :ref:`installation` 章节。
 
-.. 注意::
+.. note::
     本教程仅要求安装 `nemo`，`nemo_asr`，和 `nemo_tts` 模块
 
 介绍
@@ -65,7 +65,7 @@ NeMo/examples/tts。假设你当前已经位于 NeMo/examples/tts 目录下，
 
     python tacotron2.py --train_dataset=<data_root>/databaker_csmsc_train.json --eval_datasets <data_root>/databaker_csmsc_eval.json --model_config=configs/tacotron_mandarin.yaml --max_steps=30000
     
-.. 小建议::
+.. tip::
     Tacotron 2 通常需要约 20,000 个训练步来学习到正确的注意力（也可以理解为对齐）。
     一旦模型学习到了正确的注意力，你就可以使用该模型来合成较为清晰的语音。
 
@@ -79,7 +79,7 @@ NeMo/examples/tts。假设你当前已经位于 NeMo/examples/tts 目录下，
 - O2: 混合精度训练
 - O3: 半精度（float16）训练
 
-.. 注意::
+.. note::
     混合精度依赖 Tensor Cores ，NVIDIA 的 Volta 和 Turing 架构 GPU 支持 Tensor Cores。
 
 多 GPU 训练
