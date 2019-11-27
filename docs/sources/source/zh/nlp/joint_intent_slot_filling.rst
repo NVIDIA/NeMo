@@ -1,39 +1,39 @@
-Tutorial
+教程
 ========
 
-In this tutorial, we are going to implement a joint intent and slot filling system with pretrained BERT model based on `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`chen2019bert`. All code used in this tutorial is based on ``examples/nlp/joint_intent_slot_with_bert.py``.
+在这个教程中，我们将使用BERT模型，来实现一个意图识别（intent）和槽填充（slot filling）混合系统，参考自 `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`chen2019bert`。本教程中所有的代码全部来自 ``examples/nlp/joint_intent_slot_with_bert.py``.
 
-There are four pretrained BERT models that we can select from using the argument `--pretrained_bert_model`. We're currently using the script for loading pretrained models from `pytorch_transformers`. See the list of available pretrained models `here <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__. 
+我们可以使用 `--pretrained_bert_model` 这个参数，来选择四个预训练好的BERT模型。当前，我们使用的加载预训练模型的脚本均来自 `pytorch_transformers` 。更多预训练好的模型在 `这里 <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__ 。 
 
 
-Preliminaries
+写在开头
 -------------
 
-**Model details**
-This model jointly train the sentence-level classifier for intents and token-level classifier for slots by minimizing the combined loss of the two classifiers:
+**模型细节**
+这个模型会一起训练一个句子层面的分类器，和一个符号串层面的槽分类器，通过最小化如下的混合损失:
 
         intent_loss * intent_loss_weight + slot_loss * (1 - intent_loss_weight)
 
-When `intent_loss_weight = 0.5`, this loss jointly maximizes:
+当 `intent_loss_weight = 0.5` 时, 它等价于最大化:
 
         p(y | x)P(s1, s2, ..., sn | x)
 
-with x being the sequence of n tokens (x1, x2, ..., xn), y being the predicted intent for x, and s1, s2, ..., sn being the predicted slots corresponding to x1, x2, ..., xn.
+这里x是一个有n个符号串的序列(x1, x2, ..., xn)，y是x预测出的意图，s1, s2, ..., sn 是对应于x1, x2, ..., xn预测出的槽。
 
-**Datasets.** 
+**数据集** 
 
-This model can work with any dataset that follows the format:
-    * input file: a `tsv` file with the first line as a header [sentence][tab][label]
+这个模型可以应用到任意一个符合如下格式的数据集:
+    * 输入文件: 一个 `tsv` 文件，第一行为 [sentence][tab][label] 
 
-    * slot file: slot labels for all tokens in the sentence, separated by space. The length of the slot labels should be the same as the length of all tokens in sentence in input file.
+    * 槽文件: 句子中所有符号串的槽标注，使用空格分隔。槽标注的数量需要与句子中所有符号串的数量保持一致。
 
-Currently, the datasets that we provide pre-processing script for include ATIS which can be downloaded from `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ and the SNIPS spoken language understanding research dataset which can be requested from `here <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__. You can find the pre-processing script in ``collections/nemo_nlp/nemo_nlp/text_data_utils.py``.
+当前，我们提供多个数据集合的预处理脚本，包括: ATIS可以通过 `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ 进行下载；SNIP对话语言理解数据集，可以通过 `这里 <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__ 获取。预处理脚本在 ``collections/nemo_nlp/nemo_nlp/text_data_utils.py``。
 
 
-Code structure
+代码结构
 --------------
 
-First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level, 3) local rank of the GPU, and 4) an experiment manager that creates a timestamped folder to store checkpoints, relevant outputs, log files, and TensorBoard graphs.
+首先，我们初始化Neural Module Factory，需要定义1、后端（Pytorch或是TensorFlow)；2、混合精度优化的级别；3、本地GPU的序列号；4、一个实验的管理器，用于创建文件夹来保存相应的checkpoint、输出、日志文件和TensorBoard的图。
 
     .. code-block:: python
 
@@ -45,18 +45,18 @@ First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or
                         create_tb_writer=True,
                         files_to_copy=[__file__])
 
-We define tokenizer which transforms text into BERT tokens, using a built-in tokenizer by `pytorch_transformers`. This will tokenize text following the mapping of the original BERT model.
+我们定义分词器，它可以将文本转换成符号串，这里使用来自 `pytorch_transformers`的内置分词器。其将使用BERT模型的映射，把文本转成相应的符号串。
 
     .. code-block:: python
 
         from pytorch_transformers import BertTokenizer
         tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
-Next, we define all Neural Modules participating in our joint intent slot filling classification pipeline.
+接着，我们定义所有的神经网络模块，加入到意图识别和槽填充混合系统的流程中。
     
-    * Process data: the `JointIntentSlotDataDesc` class in `nemo_nlp/nemo_nlp/text_data_utils.py` is supposed to do the preprocessing of raw data into the format data supported by `BertJointIntentSlotDataset`. Currently, it supports SNIPS and ATIS raw datasets, but you can also write your own preprocessing scripts for any dataset.
+    * 处理数据: `nemo_nlp/nemo_nlp/text_data_utils.py` 中的 `JointIntentSlotDataDesc` 类，用于将源数据处理成 `BertJointIntentSlotDataset` 支持的类型。当前，它支持SNIPS和ATIS两种格式的数据，当你也可以实现预处理脚本，来支持任意格式的数据。 
 
-    A JointIntentSlotDataDesc object includes information such as `self.train_file`, `self.train_slot_file`, `self.eval_file`, `self.eval_slot_file`,  `self.intent_dict_file`, and `self.slot_dict_file`.
+    JointIntentSlotDataDesc 对象包含例如 `self.train_file`, `self.train_slot_file`, `self.eval_file`, `self.eval_slot_file`,  `self.intent_dict_file` 和 `self.slot_dict_file`等信息。
 
     .. code-block:: python
 
@@ -64,7 +64,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
             args.dataset_name, args.data_dir, args.do_lower_case)
 
 
-    * Dataset: convert from the formatted dataset to a dataset that can be fed into DataLayerNM.
+    * 数据集: 将数据转换成DataLayerNM可以接收的格式.
 
     .. code-block:: python
 
@@ -86,7 +86,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
         train_dataset = get_dataset(data_desc, 'train', args.num_train_samples)
         eval_dataset = get_dataset(data_desc, 'eval', args.num_eval_samples)
 
-    * DataLayer: an extra layer to do the semantic checking for your dataset and convert it into DataLayerNM. You have to define `input_ports` and `output_ports`.
+    * DataLayer: 一个单独的层，可以用于在你的数据集中进行语义检查，并将它转换到DataLayerNM中。你需要定义 `input_ports` 和 `output_ports` 。
 
     .. code-block:: python
 
@@ -98,7 +98,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
         ids, type_ids, input_mask, slot_mask, intents, slots = data_layer()
 
 
-    * Load the pretrained model and get the hidden states for the corresponding inputs.
+    * 加载预训练好的模型，并得到相应输入的隐层状态。
 
     .. code-block:: python
 
@@ -107,7 +107,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
                                               attention_mask=input_mask)
 
 
-    * Create the classifier heads for our task.
+    * 为我们的任务创建一个分类器。
 
     .. code-block:: python
 
@@ -120,7 +120,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
         intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
 
-    * Create loss function
+    * 创建损失函数。 
 
     .. code-block:: python
 
@@ -133,7 +133,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
                        slots=slots)
 
 
-    * Create relevant callbacks for saving checkpoints, printing training progresses and evaluating results
+    * 创建相应的callbacks，来保存checkpoints，打印训练过程和测试结果。
 
     .. code-block:: python
 
@@ -158,7 +158,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
             epoch_freq=args.save_epoch_freq,
             step_freq=args.save_step_freq)
 
-    * Finally, we define the optimization parameters and run the whole pipeline.
+    * 最后，我们定义优化器的参数，并开始训练流程。
 
     .. code-block:: python
 
@@ -173,10 +173,10 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
                                   "lr": args.lr,
                                   "weight_decay": args.weight_decay})
 
-Model training
+模型训练
 --------------
 
-To train a joint intent slot filling model, run ``joint_intent_slot_with_bert.py`` located at ``nemo/examples/nlp``:
+为了训练一个意图识别和槽填充的混合任务，运行 ``nemo/examples/nlp`` 下的脚本 ``joint_intent_slot_with_bert.py`` ：
 
     .. code-block:: python
 
@@ -187,7 +187,7 @@ To train a joint intent slot filling model, run ``joint_intent_slot_with_bert.py
             --optimizer_kind 
             ...
 
-To do inference, run:
+测试的话，需要运行：
 
     .. code-block:: python
 
@@ -195,8 +195,7 @@ To do inference, run:
             --data_dir <path to data> \
             --work_dir <path to checkpoint folder>
 
-
-To do inference on a single query, run:
+对一个检索进行测试，需要运行：
     
     .. code-block:: python
 
@@ -205,7 +204,7 @@ To do inference on a single query, run:
             --query <query>
 
 
-References
+参考文献
 ----------
 
 .. bibliography:: joint_intent_slot.bib
