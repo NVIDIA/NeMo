@@ -3,7 +3,7 @@ NVIDIA Neural Modules: NeMo 中文文档
 
 .. toctree::
    :hidden:
-   :maxdepth: 2
+   :maxdepth: 3
 
    简介 <self>
    installation

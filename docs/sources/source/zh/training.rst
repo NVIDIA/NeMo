@@ -51,4 +51,5 @@
 这条命令会进行8卡并行和混合精度训练，并且会在多个数据集上进行验证。
 
 .. tip::
-    你可以在选项中同时传入多个数据集，他们之间用逗号隔开，例如： `--train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json`.
+    你可以在选项中同时传入多个数据集，他们之间用逗号隔开，例如：
+    `--train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json`.
