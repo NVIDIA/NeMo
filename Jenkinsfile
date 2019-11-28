@@ -38,6 +38,11 @@ pipeline {
             sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=1 python chatbot_example.py'
           }
         }
+        stage ('NMT test') {
+          steps {
+            sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python nmt_tutorial.py'
+          }
+        }
       }
     }
 
