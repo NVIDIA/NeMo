@@ -25,21 +25,21 @@ NeMo 支持以下两个模型：
 获取数据
 --------
 Tacotron 2 和 Waveglow 都可以使用
-`LJSpeech <https://keithito.com/LJ-Speech-Dataset/>`_ 数据集来训练。
+`LJSpeech <https://keithito.com/LJ-Speech-Dataset/>`__ 数据集来训练。
 你可以使用一个辅助脚本来获得用于 NeMo 训练的数据，该脚本位于 NeMo/scripts，请按照如下方式运行该脚本：
 
 .. code-block:: bash
 
     python scripts/get_ljspeech_data.py --data_root=<where_you_want_to_save_data>
 
-想了解更多关于 LJSpeech 数据集的细节，可以参考 :ref:`这里 <LJSpeech>`。
+想了解更多关于 LJSpeech 数据集的细节，可以参考 :ref:`这里 <ljspeech>`。
 
-对于普通话语音合成的训练数据（中文标准女声音库），你也可以使用一个辅助脚本来获得，该脚本位于 NeMo/scripts，
+对于普通话语音合成的数据:`中文标准女声音库 <https://www.data-baker.com/open_source.html>`__，你也可以使用一个辅助脚本来获得，该脚本位于 NeMo/scripts，
 辅助脚本中使用的数据集下载链接由标贝（北京）科技有限公司提供。
 
 .. code-block:: bash
 
-    python scripts/get_databaker_data.py --data_root=<where_you_want_to_save_data> --output_dir=<where_you_want_to_save_manifests>
+    python scripts/get_databaker_data.py --data_root=<where_you_want_to_save_data>
 
 想了解更多关于中文标准女声音库数据集的细节，可以参考 :ref:`这里 <中文标准女声音库>`。
 
@@ -117,6 +117,6 @@ torch.distributed.launch 模块并指定 --nproc_per_node 参数为 GPU 的数�
 
 .. code-block:: bash
 
-    python tts_infer.py --spec_model=tacotron2 --spec_model_config=configs/tacotron.yaml --spec_model_load_dir=<directory_with_tacotron2_checkopints> --vocoder=waveglow --vocoder_model_config=configs/waveglow.yaml --vocoder_model_load_dir=<directory_with_waveglow_checkopints> --save_dir=<where_you_want_to_save_wav_files> --eval_dataset <mainfest_to_generate>
+    python tts_infer.py --spec_model=tacotron2 --spec_model_config=configs/tacotron2.yaml --spec_model_load_dir=<directory_with_tacotron2_checkopints> --vocoder=waveglow --vocoder_model_config=configs/waveglow.yaml --vocoder_model_load_dir=<directory_with_waveglow_checkopints> --save_dir=<where_you_want_to_save_wav_files> --eval_dataset <mainfest_to_generate>
 
-要合成普通话语音，记得将 Tacotron 2 模型配置文件更换为 tacotron_mandarin.yaml。
+要合成普通话语音，记得将 Tacotron 2 模型配置文件更换为 tacotron2_mandarin.yaml。
