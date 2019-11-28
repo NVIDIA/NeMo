@@ -135,7 +135,7 @@ def __convert_transcript(raw_transcript):
     return wavename, " ".join(pinyin_trans)
 
 
-def __prepare_databaker_csmsc(data_root, train_size, output_dir="", sr=22050):
+def __prepare_databaker_csmsc(data_root, train_size, sr=22050):
     """
     Prepare Databaker Chinese Standard Mandarin Speech Copus(10000 Sentences).
     Convert the sample rate of wav files to 22050.
@@ -208,15 +208,15 @@ def __prepare_databaker_csmsc(data_root, train_size, output_dir="", sr=22050):
         eval_lines.append(json.dumps(tmp_dict))
     del duration_dict
     del pinyin_transcripts_dist
-    tr_mani = "manifest_databaker_csmsc_train.json"
-    ev_mani = "manifest_databaker_csmsc_eval.json"
+    tr_mani = "databaker_csmsc_train.json"
+    ev_mani = "databaker_csmsc_eval.json"
     if len(train_lines) > 0:
-        with open(os.path.join(output_dir, tr_mani), "w", encoding="utf-8") \
+        with open(os.path.join(data_root, tr_mani), "w", encoding="utf-8") \
                 as f:
             for line in train_lines:
                 f.write("%s\n" % line)
     if len(eval_lines) > 0:
-        with open(os.path.join(output_dir, ev_mani), "w", encoding="utf-8") \
+        with open(os.path.join(data_root, ev_mani), "w", encoding="utf-8") \
                 as f:
             for line in eval_lines:
                 f.write("%s\n" % line)
@@ -228,7 +228,6 @@ def main():
         description="Prepare Databaker Mandarin TTS Dataset")
     parser.add_argument("--dataset_name", default='databaker_csmsc', type=str)
     parser.add_argument("--data_root", required=True, type=str)
-    parser.add_argument("--output_dir", required=True, type=str)
     parser.add_argument("--train_size", type=float, default=0.9)
     args = parser.parse_args()
 
@@ -239,8 +238,7 @@ def main():
         os.makedirs(args.data_root)
 
     if args.dataset_name == 'databaker_csmsc':
-        __prepare_databaker_csmsc(
-            args.data_root, args.train_size, args.output_dir)
+        __prepare_databaker_csmsc(args.data_root, args.train_size)
     else:
         print("Unsupported dataset.")
 
