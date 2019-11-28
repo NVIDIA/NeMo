@@ -17,7 +17,7 @@
 
 **资源.** 本教程中使用的训练脚本能够训练 Transformer-big 结构的 BERT 模型并在 newstest2014 数据集上达到 **29.2** BLEU / **28.5** SacreBLEU 的分数表现，在配备了多块 16GB Volta 架构图形处理器 的 NVIDIA's DGX-1 上仅需约 15 小时即可完成全部训练过程。同样的训练结果也能够使用更少的资源并通过增加梯度更新的次数来实现 :cite:`ott2018scaling`。
 
-.. 小建议::
+.. tip::
     在不指定任何训练参数的前提下运行训练脚本将会在一个很小的数据集（newstest2013）上开始训练，其中训练集包含 3000 个句子对，验证集包含 100 个句子对。这样训练能够更方便地对代码进行调试：如果一切设置正确，验证集的 BLEU 将很快就能 >99，验证集的损失（loss）也能很快就会 < 1.5。
 
 代码概述
@@ -44,7 +44,7 @@
         tgt_vocab_size = tgt_tokenizer.vocab_size
 
 
-    .. 小建议::
+    .. tip::
         为了达到最优的 GPU 利用和混合精度加速，请确保词汇表的大小（以及模型中所有参数的大小）都能够被 8 整除。
 
 如果源语言和目标语言相差较大，则应对源语言和目标语言使用不同的分词器（tokenizer）。例如，当源语言为英文，目标语言为中文，则源语言可以使用 YouTokenToMeTokenizer，目标语言可以使用 CharTokenizer。 这也就意味着模型的输入为英文的字节对编码（BPE），模型的输出为中文的汉字。
@@ -56,7 +56,7 @@
         tgt_tokenizer = nemo_nlp.CharTokenizer(
             vocab_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
     
-    .. 注意::
+    .. note::
         使用 CharTokenizer 时应在其构造函数的参数传入词汇表文件（vocab.txt）路径，词汇表文件中应包含对应语言数据中全部的字符。
 
 接下来，我们定义模型中使用到的所有必要的神经模块：
@@ -81,7 +81,7 @@
         log_softmax.log_softmax.dense.weight = encoder.embedding_layer.token_embedding.weight
         decoder.embedding_layer.token_embedding.weight = encoder.embedding_layer.token_embedding.weight
     
-    .. 注意::
+    .. note::
         如果源语言和目标语言使用不同的分词器（tokenizer），请勿进行参数绑定。
 
 然后，我们定义一个将输入转化为输出的管道（pipeline），它将在训练和验证的过程中用到。其中一个重要的部分是数据层（data layer），数据层能够将拥有相似长度的句子封装成批次以最小化填充符号（padding symbol）的使用。 
@@ -132,7 +132,7 @@
         eval_callback = nemo.core.EvaluatorCallback(...)
         ckpt_callback = nemo.core.CheckpointCallback(...)
 
-    .. 注意::
+    .. note::
         BLEU 分数是通过计算模型预测得到的翻译句子与验证集中真实的目标句子得到的。考虑到完整性，我们计算了两个在文献中常用的指标，分别是 `SacreBLEU <https://github.com/mjpost/sacreBLEU>`_ :cite:`post2018call` 和 `tokenized BLEU score <https://github.com/moses-smt/mosesdecoder/blob/master/scripts/generic/multi-bleu.perl>`_。
 
 最后，我们定义优化器的参数并开始训练。
@@ -169,7 +169,7 @@
             --batch_size 12288 --iter_per_step 5
 
 
-    .. 注意::
+    .. note::
         这个命令会在 8 块 GPU 上开始模型训练， 显存需求最少为 16GB。如果你的 GPU 显存较少，请适量调低 **batch_size** 参数，并适量调高 **iter_per_step** 参数。
 
 要想训练一个英文-中文的神经机器翻译模型，需要指定 **--src_lang** 为 en， **--tgt_lang** 为 zh，同时将 **--tgt_tokenizer_model** 设置为词汇表文件的路径，中文训练数据的样例格式请参考 ``/tests/data/nmt_en_zh_sample_data/zh_vocab.txt``。 
