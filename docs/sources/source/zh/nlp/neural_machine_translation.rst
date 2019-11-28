@@ -56,7 +56,7 @@
         tgt_tokenizer = nemo_nlp.CharTokenizer(
             vocab_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
     
-    .. note::
+    .. tip::
         使用 CharTokenizer 时应在其构造函数的参数传入词汇表文件（vocab.txt）路径，词汇表文件中应包含对应语言数据中全部的字符。
 
 接下来，我们定义模型中使用到的所有必要的神经模块：
