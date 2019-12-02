@@ -641,17 +641,19 @@ class WOZDSTDataLayer(TextDataLayer):
             }),
             "tgt_ids": NeuralType({
                 0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
+                1: AxisType(ChannelTag), # number of slots
+                2: AxisType(TimeTag)
+                
             }),
             "tgt_lens": NeuralType({
                 0: AxisType(BatchTag),
-                1: AxisType(ChannelTag)
+                1: AxisType(ChannelTag)  # number of slots
             }),
             "gating_labels": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
-            })
+            }),
+            'turn_domain': NeuralType(None)
         }
         return {}, output_ports
 
@@ -668,33 +670,28 @@ class WOZDSTDataLayer(TextDataLayer):
                           'domains': domains,
                           'mode': mode}
         super().__init__(dataset_type, dataset_params, **kwargs)
-        print('before dataloader')
 
         self._dataloader = pt_data.DataLoader(dataset=self._dataset,
                                               batch_size=batch_size,
                                               shuffle=False,
                                               collate_fn=self._collate_fn)
-        print('after dataloader')
         self.pad_id = self._dataset.vocab.pad_id
 
     def _collate_fn(self, data):
         """ data is a list of batch_size sample
         each sample is a dictionary of features
         """
-        def merge(sequences):
+        def pad_batch_context(sequences):
             '''
             merge from batch * sent_len to batch * max_len 
             '''
             lengths = [len(seq) for seq in sequences]
             max_len = 1 if max(lengths) == 0 else max(lengths)
-            padded_seqs = torch.ones(len(sequences), max_len).long()
             for i, seq in enumerate(sequences):
-                end = lengths[i]
-                padded_seqs[i, :end] = seq[:end]
-            # padded_seqs = padded_seqs.detach()  # torch.tensor(padded_seqs)
-            return padded_seqs, lengths
+                sequences[i] = seq + [1] * (max_len - len(seq))
+            return torch.tensor(sequences), torch.tensor(lengths)
 
-        def merge_multi_response(sequences):
+        def pad_batch_response(sequences, pad_id):
             '''
             merge from batch * nb_slot * slot_len to batch * nb_slot * max_slot_len
             '''
@@ -707,50 +704,35 @@ class WOZDSTDataLayer(TextDataLayer):
             for bsz_seq in sequences:
                 pad_seq = []
                 for v in bsz_seq:
-                    v = v + [PAD_token] * (max_len-len(v))
+                    v = v + [pad_id] * (max_len - len(v))
                     pad_seq.append(v)
                 padded_seqs.append(pad_seq)
             padded_seqs = torch.tensor(padded_seqs)
             lengths = torch.tensor(lengths)
-            print(padded_seqs.shape)
-            print(lengths.shape)
             return padded_seqs, lengths
 
-        # sort a list by sequence length (descending order) to use pack_padded_sequence
-        print(len(data))
-        print(data)
-        data.sort(key=lambda x: len(x['context']), reverse=True)
+        """ sort the lengths for pack_padded_sequence, otherwise this error
+        `lengths` array must be sorted in decreasing order when
+        `enforce_sorted` is True
+        """
+        data.sort(key=lambda x: len(x['context_ids']), reverse=True)
         item_info = {}
-        for key in data[0].keys():
-            item_info[key] = [d[key] for d in data]
+        for key in data[0]:
+            item_info[key] = [item[key] for item in data]
 
         # merge sequences
-        src_seqs, src_lengths = merge(item_info['context'])
-        y_seqs, y_lengths = merge_multi_response(item_info["generate_y"])
-        gating_label = torch.tensor(item_info["gating_label"])
-        turn_domain = torch.tensor(item_info["turn_domain"])
+        src_ids, src_lens = pad_batch_context(item_info['context_ids'])
+        tgt_ids, tgt_lens = pad_batch_response(item_info['responses'],
+                                               self._dataset.vocab.pad_id)
+        gating_label = torch.tensor(item_info['gating_label'])
+        turn_domain = torch.tensor(item_info['turn_domain'])
 
-        if USE_CUDA:
-            src_seqs = src_seqs.cuda()
-            gating_label = gating_label.cuda()
-            turn_domain = turn_domain.cuda()
-            y_seqs = y_seqs.cuda()
-            y_lengths = y_lengths.cuda()
-
-        item_info["context"] = src_seqs
-        item_info["context_len"] = src_lengths
-        item_info["gating_label"] = gating_label
-        item_info["turn_domain"] = turn_domain
-        item_info["generate_y"] = y_seqs
-        item_info["y_lengths"] = y_lengths
-        (item['ID'],
-         item['turn_id'],
-         item['turn_belief'],
-         item['gating_label'],
-         item['context_ids'],
-         item['turn_domain'],
-         item['responses'])
-        return item_info
+        return (src_ids.to(self._device),
+                src_lens.to(self._device),
+                tgt_ids.to(self._device),
+                tgt_lens.to(self._device),
+                gating_label.to(self._device),
+                turn_domain.to(self._device))
 
     @property
     def dataset(self):

@@ -69,11 +69,21 @@ class WOZDSTDataset(Dataset):
     def __init__(self,
                  data_dir,
                  domains,
+                 all_domains={'attraction': 0,
+                              'restaurant': 1,
+                              'taxi': 2,
+                              'train': 3,
+                              'hotel': 4,
+                              'hospital': 5,
+                              'bus': 6,
+                              'police': 7},
                  mode='train'):
+        print(f'Processing {mode} data')
         self.data_dir = data_dir
         self.mode = mode
         self.gating_dict = {'ptr': 0, 'dontcare': 1, 'none': 2}
         self.domains = domains
+        self.all_domains = all_domains
         self.vocab, self.mem_vocab = Vocab(), Vocab()
 
         ontology_file = open(f'{self.data_dir}/ontology.json', 'r')
@@ -82,8 +92,8 @@ class WOZDSTDataset(Dataset):
         self.get_slots()
         self.get_vocab()
         self.features, self.max_len = self.get_features()
-        print(vars(self).keys())
-        print('One feature', self.features[0])
+        print('TO DELETE: 1 feature')
+        print(self.features[0])
 
     def get_vocab(self):
         self.vocab_file = f'{self.data_dir}/vocab.pkl'
@@ -112,7 +122,6 @@ class WOZDSTDataset(Dataset):
                       else k.lower() for k in used_domains]
 
     def create_vocab(self):
-        print('Creating vocab from train files')
         self.vocab.add_words(self.slots, 'slot')
         self.mem_vocab.add_words(self.slots, 'slot')
 
@@ -218,15 +227,15 @@ class WOZDSTDataset(Dataset):
         y_ids = [self.vocab.tokens2ids(y.split() + [self.vocab.eos])
                  for y in item['responses']]
         item['responses'] = y_ids
-        item['turn_domain'] = self.domains[item['turn_domain']]
+        item['turn_domain'] = self.all_domains[item['turn_domain']]
 
-        return (item['ID'],
-                item['turn_id'],
-                item['turn_belief'],
-                item['gating_label'],
-                item['context_ids'],
-                item['turn_domain'],
-                item['responses'])
+        return {'dialog_id': item['ID'],
+                'turn_id': item['turn_id'],
+                'turn_belief': item['turn_belief'],
+                'gating_label': item['gating_label'],
+                'context_ids': item['context_ids'],
+                'turn_domain': item['turn_domain'],
+                'responses': item['responses']}
 
 
 def fix_general_label_error(labels, slots):

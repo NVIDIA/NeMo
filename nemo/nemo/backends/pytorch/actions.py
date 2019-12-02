@@ -184,9 +184,7 @@ class PtActions(Actions):
 
         # Create top_sorted_modules aka callchain
         top_sorted_modules = []
-        print('TO DELETE _top_sorted_modules', _top_sorted_modules)
         for i, m in enumerate(_top_sorted_modules):
-            print('module', i, m[0])
             top_sorted_modules.append((m[0], dict(m[1]), m[2]))
             # Ensure that there is only one dataset in callchain
             if i > 0 and isinstance(m[0], DataLayerNM):

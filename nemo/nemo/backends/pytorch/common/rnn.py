@@ -20,6 +20,9 @@ from nemo.utils.misc import pad_to
 
 class EncoderRNN(TrainableNM):
     """ Simple RNN-based encoder using GRU cells
+    Args:
+        sum_hidden (bool): sum the hidden from both direction if True
+                           otherwise concatenate
     """
 
     @staticmethod
@@ -29,7 +32,7 @@ class EncoderRNN(TrainableNM):
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            'input_lengths': NeuralType({
+            'input_lens': NeuralType({
                 0: AxisType(BatchTag),
             }, optional=True)
         }
@@ -54,7 +57,8 @@ class EncoderRNN(TrainableNM):
                  dropout,
                  n_layers=1,
                  pad_idx=1,
-                 embedding_to_load=None):
+                 embedding_to_load=None,
+                 sum_hidden=True):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(input_dim, emb_dim, padding_idx=pad_idx)
@@ -68,21 +72,21 @@ class EncoderRNN(TrainableNM):
                           batch_first=True,
                           dropout=dropout,
                           bidirectional=True)
+        self.sum_hidden = sum_hidden
         self.to(self._device)
 
-    def forward(self, inputs, input_lengths=None):
-        print('TO DELETE inputs', inputs)
+    def forward(self, inputs, input_lens=None):
         embedded = self.embedding(inputs)
         embedded = self.dropout(embedded)
-        if input_lengths is not None:
+        if input_lens is not None:
             embedded = nn.utils.rnn.pack_padded_sequence(embedded,
-                                                         input_lengths,
+                                                         input_lens,
                                                          batch_first=True)
 
         outputs, hidden = self.rnn(embedded)
         # outputs of shape (seq_len, batch, num_directions * hidden_size)
         # hidden of shape (num_layers * num_directions, batch, hidden_size)
-        if input_lengths is not None:
+        if input_lens is not None:
             outputs, _ = nn.utils.rnn.pad_packed_sequence(outputs,
                                                           batch_first=True)
         else:
@@ -96,9 +100,15 @@ class EncoderRNN(TrainableNM):
                              2 if self.rnn.bidirectional else 1,
                              batch_size,
                              self.rnn.hidden_size)
-        hidden = hidden.tranpose(2, 0).tranpose(1, 2)
-        hidden = hidden.reshape(batch_size, self.rnn.num_layers, -1)
-        # hidden is now of shape (batch, seq_len, num_directions * hidden_size)
+        hidden = hidden.transpose(2, 0).transpose(1, 2)
+        # hidden shape: batch x num_layer x num_directions x hidden_size
+        if self.sum_hidden and self.rnn.bidirectional:
+            hidden = hidden[:, :, 0, :] + hidden[:, :, 1, :]
+            outputs = outputs[:, :, :self.rnn.hidden_size] + \
+                outputs[:, :, self.rnn.hidden_size:]
+        else:
+            hidden = hidden.reshape(batch_size, self.rnn.num_layers, -1)
+        # hidden is now of shape (batch, num_layer, [num_directions] * hidden_size)
 
         return outputs, hidden
 
@@ -213,9 +223,9 @@ class DecoderRNN(TrainableNM):
                 or (random.random() <= self.teacher_forcing):  # Fast option
             # Removing last char (dont need to calculate loss) and add bos
             # noinspection PyTypeChecker
-            decoder_inputs = F.pad(
-                targets[:, :-1], (1, 0), value=self.bos_id
-            )  # BT
+            decoder_inputs = F.pad(targets[:, :-1],
+                                   (1, 0),
+                                   value=self.bos_id)  # BT
             log_probs, _, attention_weights = \
                 self.forward_step(decoder_inputs, encoder_outputs)
         else:
