@@ -9,7 +9,6 @@ import re
 import shutil
 import subprocess
 import sys
-import pandas as pd
 
 import numpy as np
 from sentencepiece import SentencePieceTrainer as SPT
@@ -802,11 +801,11 @@ def process_dialogflow(
     return outfold
 
 
-def readCSV(file_path):
+def read_csv(file_path):
     rows = []
     with open(file_path, 'r') as csvfile:
-        readCSV = csv.reader(csvfile, delimiter=',')
-        for row in readCSV:
+        read_csv = csv.reader(csvfile, delimiter=',')
+        for row in read_csv:
             rows.append(row)
     return rows
 
@@ -823,7 +822,7 @@ def get_intents_mturk(utterances, outfold):
     if os.path.exists(intent_dict):
         with open(intent_dict, 'r') as f:
             for intent_name in f.readlines():
-                intent_names[intent_name.strip()] = str(intent_count)
+                intent_names[intent_name.strip()] = intent_count
                 intent_count += 1
     print(intent_names)
 
@@ -833,7 +832,7 @@ def get_intents_mturk(utterances, outfold):
             agreed_all[utterance[0]] = utterance[1]
 
         if utterance[1] not in intent_names:
-            intent_names[utterance[1]] = str(intent_count)
+            intent_names[utterance[1]] = intent_count
             intent_count += 1
 
     print(f'Total number of utterance samples: {len(agreed_all)}')
@@ -872,7 +871,8 @@ def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names,
     for annotation in slot_annotations[0:]:
         an = json.loads(annotation)
         utterance = an['source']
-        if utterance.startswith('"') and utterance.endswith('"'):
+        if len(utterance) > 2 and utterance.startswith('"') \
+                and utterance.endswith('"'):
             utterance = utterance[1:-1]
 
         if utterance in agreed_all:
@@ -952,7 +952,7 @@ def process_mturk(
         raise FileNotFoundError(f'File not found at {annotation_data_file}')
 
     utterances = []
-    utterances = readCSV(classification_data_file)
+    utterances = read_csv(classification_data_file)
 
     # This function assumes that the intent classification data has been
     # reviewed and cleaned and only one label per utterance is present.
