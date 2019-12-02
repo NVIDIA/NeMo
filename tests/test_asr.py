@@ -28,7 +28,6 @@ class TestASRPytorch(NeMoUnitTest):
                          'sample_rate': freq,
                          'features': 64,
                          'n_fft': 512,
-                         'feat_type': 'logfbank',
                          'window_size': 0.02}
     yaml = YAML(typ="safe")
 
@@ -155,7 +154,7 @@ class TestASRPytorch(NeMoUnitTest):
         )
         for ind, data in enumerate(dl.data_iterator):
             # With num_workers update, this is no longer true
-            # Moving to GPU is handled by AudioPreprocessing
+            # Moving to GPU is handled by AudioPreprocessor
             # data is on GPU
             # self.assertTrue(data[0].is_cuda)
             # self.assertTrue(data[1].is_cuda)
@@ -169,21 +168,23 @@ class TestASRPytorch(NeMoUnitTest):
 
     def test_preprocessor_errors(self):
         def create_broken_preprocessor_1():
-            dl = nemo_asr.AudioPreprocessing(window_size=2, n_window_size=2)
+            dl = nemo_asr.AudioToMelSpectrogramPreprocessor(
+                    window_size=2, n_window_size=2)
 
         def create_broken_preprocessor_2():
-            dl = nemo_asr.AudioPreprocessing(
+            dl = nemo_asr.AudioToMelSpectrogramPreprocessor(
                 window_stride=2, n_window_stride=2)
 
         def create_broken_preprocessor_3():
-            dl = nemo_asr.AudioPreprocessing(n_window_stride=2)
+            dl = nemo_asr.AudioToMelSpectrogramPreprocessor(
+                    n_window_stride=2)
 
         def create_good_preprocessor_1():
-            dl = nemo_asr.AudioPreprocessing(
+            dl = nemo_asr.AudioToMelSpectrogramPreprocessor(
                 window_size=0.02, window_stride=0.01)
 
         def create_good_preprocessor_2():
-            dl = nemo_asr.AudioPreprocessing(
+            dl = nemo_asr.AudioToMelSpectrogramPreprocessor(
                 window_size=None, window_stride=None,
                 n_window_size=256, n_window_stride=32)
 
@@ -245,6 +246,37 @@ class TestASRPytorch(NeMoUnitTest):
             for point in range(batch_size):
                 self.assertTrue(norm[1][point].data >= trim[1][point].data)
 
+    def test_audio_preprocessors(self):
+        batch_size = 5
+        dl = nemo_asr.AudioToTextDataLayer(
+            featurizer_config=self.featurizer_config,
+            manifest_filepath=self.manifest_filepath,
+            labels=self.labels,
+            batch_size=batch_size,
+            placement=DeviceType.GPU,
+            drop_last=True,
+            shuffle=False
+        )
+
+        to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(
+                n_fft=400, window=None)
+        to_melspec = nemo_asr.AudioToMelSpectrogramPreprocessor(features=50)
+        to_mfcc = nemo_asr.AudioToMFCCPreprocessor(n_mfcc=15)
+
+        for batch in dl.data_iterator:
+            input_signals, seq_lengths, _, _ = batch
+            input_signals = input_signals.to(to_spectrogram._device)
+            seq_lengths = seq_lengths.to(to_spectrogram._device)
+
+            spec = to_spectrogram.forward(input_signals, seq_lengths)
+            melspec = to_melspec.forward(input_signals, seq_lengths)
+            mfcc = to_mfcc.forward(input_signals, seq_lengths)
+
+            # Check that number of features is what we expect
+            self.assertTrue(spec[0].shape[1] == 201)  # n_fft // 2 + 1 bins
+            self.assertTrue(melspec[0].shape[1] == 50)
+            self.assertTrue(mfcc[0].shape[1] == 15)
+
     def test_jasper_training(self):
         with open("tests/data/jasper_smaller.yaml") as file:
             jasper_model_definition = self.yaml.load(file)
@@ -258,14 +290,15 @@ class TestASRPytorch(NeMoUnitTest):
                               'features': 64,
                               'window_size': 0.02, 'n_fft': 512,
                               'dither': 1e-05,
-                              'window': 'hann', 'feat_type': 'logfbank',
+                              'window': 'hann',
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
                               'window_stride': 0.01}
-        preprocessing = nemo_asr.AudioPreprocessing(
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **pre_process_params)
         jasper_encoder = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder']
         )
         jasper_decoder = nemo_asr.JasperDecoderForCTC(
@@ -312,18 +345,20 @@ class TestASRPytorch(NeMoUnitTest):
                               'features': 64,
                               'window_size': 0.02, 'n_fft': 512,
                               'dither': 1e-05,
-                              'window': 'hann', 'feat_type': 'logfbank',
+                              'window': 'hann',
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
                               'window_stride': 0.01}
-        preprocessing = nemo_asr.AudioPreprocessing(
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **pre_process_params)
         jasper_encoder1 = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder']
         )
         jasper_encoder2 = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder']
         )
         mx_max1 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
@@ -368,9 +403,9 @@ class TestASRPytorch(NeMoUnitTest):
         optimizer.train([loss], callbacks=[callback], optimizer="sgd",
                         optimization_params={"num_epochs": 10, "lr": 0.0003})
 
-    def test_stft_conv(self):
-        with open("tests/data/jasper_smaller.yaml") as file:
-            jasper_model_definition = self.yaml.load(file)
+    def test_quartznet_training(self):
+        with open("tests/data/quartznet_test.yaml") as f:
+            quartz_model_definition = self.yaml.load(f)
         dl = nemo_asr.AudioToTextDataLayer(
             featurizer_config=self.featurizer_config,
             manifest_filepath=self.manifest_filepath,
@@ -384,12 +419,67 @@ class TestASRPytorch(NeMoUnitTest):
                               'window': 'hann', 'feat_type': 'logfbank',
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
-                              'window_stride': 0.01,
-                              'stft_conv': True}
-        preprocessing = nemo_asr.AudioPreprocessing(
+                              'window_stride': 0.01}
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **pre_process_params)
         jasper_encoder = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioPreprocessing']['features'],
+            feat_in=quartz_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
+            **quartz_model_definition['JasperEncoder']
+        )
+        jasper_decoder = nemo_asr.JasperDecoderForCTC(
+            feat_in=1024,
+            num_classes=len(self.labels)
+        )
+        ctc_loss = nemo_asr.CTCLossNM(num_classes=len(self.labels))
+
+        # DAG
+        audio_signal, a_sig_length, transcript, transcript_len = dl()
+        processed_signal, p_length = preprocessing(input_signal=audio_signal,
+                                                   length=a_sig_length)
+
+        encoded, encoded_len = jasper_encoder(audio_signal=processed_signal,
+                                              length=p_length)
+        log_probs = jasper_decoder(encoder_output=encoded)
+        loss = ctc_loss(log_probs=log_probs,
+                        targets=transcript,
+                        input_length=encoded_len,
+                        target_length=transcript_len)
+
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensors=[loss],
+            print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
+        # Instantiate an optimizer to perform `train` action
+        neural_factory = nemo.core.NeuralModuleFactory(
+            backend=nemo.core.Backend.PyTorch, local_rank=None,
+            create_tb_writer=False)
+        optimizer = neural_factory.get_trainer()
+        optimizer.train([loss], callbacks=[callback], optimizer="sgd",
+                        optimization_params={"num_epochs": 10, "lr": 0.0003})
+
+    def test_stft_conv(self):
+        with open("tests/data/jasper_smaller.yaml") as file:
+            jasper_model_definition = self.yaml.load(file)
+        dl = nemo_asr.AudioToTextDataLayer(
+            featurizer_config=self.featurizer_config,
+            manifest_filepath=self.manifest_filepath,
+            labels=self.labels,
+            batch_size=4
+        )
+        pre_process_params = {'int_values': False, 'frame_splicing': 1,
+                              'features': 64,
+                              'window_size': 0.02, 'n_fft': 512,
+                              'dither': 1e-05,
+                              'window': 'hann',
+                              'sample_rate': 16000,
+                              'normalize': 'per_feature',
+                              'window_stride': 0.01,
+                              'stft_conv': True}
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
+            **pre_process_params)
+        jasper_encoder = nemo_asr.JasperEncoder(
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder']
         )
         jasper_decoder = nemo_asr.JasperDecoderForCTC(
@@ -437,12 +527,12 @@ class TestASRPytorch(NeMoUnitTest):
                               'features': 64,
                               'window_size': 0.02, 'n_fft': 512,
                               'dither': 1e-05,
-                              'window': 'hann', 'feat_type': 'logfbank',
+                              'window': 'hann',
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
                               'window_stride': 0.01,
                               'stft_conv': True}
-        preprocessing = nemo_asr.AudioPreprocessing(
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **pre_process_params
         )
         encoder = nemo_asr.JasperEncoder(
@@ -496,15 +586,15 @@ class TestASRPytorch(NeMoUnitTest):
                               'features': 64,
                               'window_size': 0.02, 'n_fft': 512,
                               'dither': 1e-05,
-                              'window': 'hann', 'feat_type': 'logfbank',
+                              'window': 'hann',
                               'sample_rate': 16000,
                               'normalize': 'per_feature',
                               'window_stride': 0.01}
-        preprocessing = nemo_asr.AudioPreprocessing(
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **pre_process_params)
         jasper_encoder = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioPreprocessing'][
-                'features'],
+            feat_in=jasper_model_definition[
+                'AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder']
         )
         jasper_decoder = nemo_asr.JasperDecoderForCTC(

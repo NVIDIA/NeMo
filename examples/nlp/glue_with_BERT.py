@@ -67,7 +67,7 @@ import sys
 import nemo
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
 from nemo.utils.lr_policies import get_lr_policy
-
+import json
 import nemo_nlp
 from nemo_nlp import GlueDataLayerClassification, GlueDataLayerRegression
 from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
@@ -94,9 +94,14 @@ parser.add_argument("--pretrained_bert_model", default="bert-base-cased",
 parser.add_argument("--bert_checkpoint", default=None, type=str,
                     help="Path to model checkpoint")
 parser.add_argument("--bert_config", default=None, type=str,
-                    help="Path to bert config file")
+                    help="Path to bert config file in json format")
 parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str,
-                    help="Path to pretrained tokenizer model")
+                    help="Path to pretrained tokenizer model, \
+                    only used if --tokenizer is sentencepiece")
+parser.add_argument("--tokenizer", default="nemobert", type=str,
+                    choices=["nemobert", "sentencepiece"],
+                    help="tokenizer to use, \
+                    only relevant when using custom pretrained checkpoint.")
 parser.add_argument("--max_seq_length", default=128, type=int,
                     choices=range(1, 513),
                     help="The maximum total input sequence length after   \
@@ -178,10 +183,21 @@ else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     Replace BERT-STEP-150000.pt with the path to your checkpoint.
     """
-    tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
-    tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
+    if args.tokenizer == "sentencepiece":
+        tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
+        tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
+    elif args.tokenizer == "nemobert":
+        tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
+    else:
+        raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
+    if args.bert_config is not None:
+        with open(args.bert_config) as json_file:
+            config = json.load(json_file)
+        model = nemo_nlp.huggingface.BERT(**config)
+    else:
+        model = nemo_nlp.huggingface.BERT(
+            pretrained_model_name=args.pretrained_bert_model)
 
-    model = nemo_nlp.huggingface.BERT(config_filename=args.bert_config)
     model.restore_from(args.bert_checkpoint)
 
 hidden_size = model.local_parameters["hidden_size"]

@@ -116,7 +116,6 @@ class JasperEncoder(TrainableNM):
                 self.dense_residual = True
             groups = lcfg.get('groups', 1)
             separable = lcfg.get('separable', False)
-            tied = lcfg.get('tied', False)
             heads = lcfg.get('heads', -1)
             encoder_layers.append(
                 JasperBlock(feat_in,
@@ -133,13 +132,11 @@ class JasperEncoder(TrainableNM):
                             residual_mode=residual_mode,
                             normalization=normalization_mode,
                             norm_groups=norm_groups,
-                            tied=tied,
                             activation=activation,
                             residual_panes=dense_res,
                             conv_mask=conv_mask))
             feat_in = lcfg['filters']
 
-        # self.featurizer = FeatureFactory.from_config(cfg['input'])
         self.encoder = nn.Sequential(*encoder_layers)
         self.apply(lambda x: init_weights(x, mode=init_mode))
         self.to(self._device)

@@ -57,7 +57,10 @@ class ExpManager:
     work_dir (str): Directory that Expmanager should either create or
         save log files and directories to.
         Defaults to None and does not create a work directory.
-    local_rank (int): None for single-gpu, else the id for distributed
+    local_rank (int): None for single-gpu, else the local id for distributed
+        setups.
+        Defaults to None
+    global_rank (int): None for single-gpu, else the global id for distributed
         setups.
         Defaults to None
     use_tb (bool): Whether to create a tensorboardX.SummaryWriter object
@@ -83,6 +86,7 @@ class ExpManager:
             self,
             work_dir=None,
             local_rank=None,
+            global_rank=None,
             use_tb=True,
             exist_ok=True,
             ckpt_dir=None,
@@ -91,6 +95,7 @@ class ExpManager:
             add_time=True,
             broadcast_func=None):
         self.local_rank = local_rank if local_rank is not None else 0
+        self.global_rank = global_rank if global_rank is not None else 0
         self.logger = None
         self.log_file = None
         self.tb_writer = None
@@ -103,12 +108,12 @@ class ExpManager:
         # tensorboard instead of checkpoints
         self.tb_dir = tb_dir
         tm_suf = time.strftime('%Y-%m-%d_%H-%M-%S')
-        if local_rank is not None and add_time:
+        if global_rank is not None and add_time:
             if broadcast_func is None:
                 raise ValueError(
                     "local rank was not None, but ExpManager was not passed a "
                     "broadcast function to broadcast the datetime suffix")
-            if local_rank == 0:
+            if global_rank == 0:
                 broadcast_func(string=tm_suf)
             else:
                 tm_suf = broadcast_func(str_len=len(tm_suf))
@@ -122,13 +127,13 @@ class ExpManager:
             if use_tb:
                 self.get_tb_writer(exist_ok=exist_ok)
             self.ckpt_dir = f'{self.work_dir}/checkpoints'
-            if files_to_copy and self.local_rank == 0:
+            if files_to_copy and self.global_rank == 0:
                 for file in files_to_copy:
                     basename = os.path.basename(file)
                     basename, ending = os.path.splitext(basename)
-                    basename = basename + tm_suf + ending
+                    basename = basename + f"_{tm_suf}" + ending
                     copyfile(file, os.path.join(self.work_dir, basename))
-            if self.local_rank == 0:
+            if self.global_rank == 0:
                 # Create files for cmd args and git info
                 with open(os.path.join(
                         self.work_dir, f'cmd-args_{tm_suf}.log'), 'w') as f:
@@ -158,7 +163,7 @@ class ExpManager:
         logger = get_logger(name)
         tmp = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
-        if self.local_rank == 0:
+        if self.global_rank == 0:
             logger.setLevel(level)
             ch = logging.StreamHandler()
             ch.setLevel(level)
@@ -166,7 +171,9 @@ class ExpManager:
             logger.addHandler(ch)
 
         if log_file:
-            self.log_file = f'{self.work_dir}/log_{self.local_rank}.txt'
+            self.log_file = (
+                f'{self.work_dir}/log_globalrank-{self.global_rank}_'
+                f'localrank-{self.local_rank}.txt')
             fh = logging.FileHandler(self.log_file)
             fh.setLevel(level)
             fh.setFormatter(tmp)
@@ -175,11 +182,11 @@ class ExpManager:
         return logger
 
     def make_dir(self, dir_, exist_ok):
-        # We might want to limit folder creation to only local_rank 0
+        # We might want to limit folder creation to only global_rank 0
         os.makedirs(dir_, exist_ok=exist_ok)
 
     def get_tb_writer(self, tb_dir=None, exist_ok=True):
-        if self.local_rank == 0:
+        if self.global_rank == 0:
             if tb_dir is None:
                 if not hasattr(self, 'tb_dir') or self.tb_dir is None:
                     self.tb_dir = os.path.join(self.work_dir, 'tensorboard')
@@ -198,11 +205,14 @@ class ExpManager:
         return self.tb_writer
 
     def log_exp_info(self, params, print_everywhere=False):
-        if print_everywhere or self.local_rank == 0:
+        if print_everywhere or self.global_rank == 0:
             self.logger.info("NEMO MODEL'S PARAMETERS")
             for key in params:
                 self.logger.info(f'{key}\t{params[key]}')
             self.logger.info(f'Experiment output is stored in {self.work_dir}')
+
+    def reset_loggers(self):
+        self.logger.handlers = []
 
 
 def get_git_hash():

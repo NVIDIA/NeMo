@@ -54,6 +54,10 @@ def list2str(l):
     return ' '.join([str(x) for x in l])
 
 
+def tensor2list(tensor):
+    return tensor.detach().cpu().tolist()
+
+
 def if_exist(outfold, files):
     if not os.path.exists(outfold):
         return False

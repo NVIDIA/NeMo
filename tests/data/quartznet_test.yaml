@@ -1,5 +1,6 @@
 model: "QuartzNet"
 sample_rate: 16000
+dropout: &drop 0.2
 
 AudioToTextDataLayer:
     max_duration: 16.7
@@ -19,6 +20,7 @@ AudioToMelSpectrogramPreprocessor:
     normalize: "per_feature"
     n_fft: 512
     features: 64
+    feat_type: "logfbank"
     dither: 0.00001
     pad_to: 16
     stft_conv: true
@@ -38,97 +40,52 @@ JasperEncoder:
         kernel: [33]
         stride: [2]
         dilation: [1]
-        dropout: 0.0
+        dropout: *drop
         residual: false
         separable: true
 
-      - filters: 256
-        repeat: 5
-        kernel: [33]
-        stride: [1]
-        dilation: [1]
-        dropout: 0.0
-        residual: true
-        separable: true
-
-      - filters: 256
-        repeat: 5
-        kernel: [33]
-        stride: [1]
-        dilation: [1]
-        dropout: 0.0
-        residual: true
-        separable: true
-
-      - filters: 256
-        repeat: 5
-        kernel: [39]
-        stride: [1]
-        dilation: [1]
-        dropout: 0.0
-        residual: true
-        separable: true
-
-      - filters: 256
-        repeat: 5
-        kernel: [39]
-        stride: [1]
-        dilation: [1]
-        dropout: 0.0
-        residual: true
-        separable: true
-
       - filters: 512
-        repeat: 5
-        kernel: [51]
-        stride: [1]
-        dilation: [1]
-        dropout: 0.0
-        residual: true
-        separable: true
-
-      - filters: 512
-        repeat: 5
-        kernel: [51]
-        stride: [1]
-        dilation: [1]
-        dropout: 0.0
-        residual: true
-        separable: true
-
-      - filters: 512
-        repeat: 5
+        repeat: 3
         kernel: [63]
         stride: [1]
         dilation: [1]
-        dropout: 0.0
+        dropout: *drop
         residual: true
         separable: true
 
       - filters: 512
-        repeat: 5
+        repeat: 3
         kernel: [63]
         stride: [1]
         dilation: [1]
-        dropout: 0.0
+        dropout: *drop
         residual: true
         separable: true
 
       - filters: 512
-        repeat: 5
+        repeat: 3
         kernel: [75]
         stride: [1]
         dilation: [1]
-        dropout: 0.0
+        dropout: *drop
         residual: true
         separable: true
 
       - filters: 512
-        repeat: 5
+        repeat: 3
         kernel: [75]
         stride: [1]
         dilation: [1]
-        dropout: 0.0
+        dropout: *drop
+        residual: true
+        separable: true
+
+      - filters: 512
+        repeat: 3
+        kernel: [75]
+        stride: [1]
+        dilation: [1]
+        dropout: *drop
         residual: true
         separable: true
 
@@ -137,7 +94,7 @@ JasperEncoder:
         kernel: [87]
         stride: [1]
         dilation: [2]
-        dropout: 0.0
+        dropout: *drop
         residual: false
         separable: true
 
@@ -146,7 +103,7 @@ JasperEncoder:
         kernel: [1]
         stride: [1]
         dilation: [1]
-        dropout: 0.0
+        dropout: *drop
         residual: false
 
 labels: [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",

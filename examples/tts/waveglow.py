@@ -66,8 +66,8 @@ def parse_args():
 
 
 def create_NMs(waveglow_params, logger=None):
-    data_preprocessor = nemo_asr.AudioPreprocessing(
-        **waveglow_params["AudioPreprocessing"])
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+        **waveglow_params["AudioToMelSpectrogramPreprocessor"])
     waveglow = nemo_tts.WaveGlowNM(**waveglow_params["WaveGlowNM"])
     waveglow_loss = nemo_tts.WaveGlowLoss()
 
@@ -224,7 +224,7 @@ def create_all_dags(neural_factory,
 def main():
     args, name = parse_args()
 
-    log_dir = None
+    log_dir = name
     if args.work_dir:
         log_dir = os.path.join(args.work_dir, name)
 

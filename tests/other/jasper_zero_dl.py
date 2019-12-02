@@ -75,9 +75,10 @@ labels = jasper_model_definition['labels']['labels']
 train_manifest = args.train_manifest
 
 featurizer_config = jasper_model_definition['input']
-data_preprocessor = neural_factory.get_module(name="AudioPreprocessing",
-                                              collection="nemo_asr",
-                                              params=featurizer_config)
+data_preprocessor = neural_factory.get_module(
+        name="AudioToMelSpectrogramPreprocessor",
+        collection="nemo_asr",
+        params=featurizer_config)
 N = 288000
 time = 256
 dl = nemo.backends.pytorch.ZerosDataLayer(size=N, dtype=torch.FloatTensor,
