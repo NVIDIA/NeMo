@@ -43,7 +43,7 @@ Neural Modules (NeMo) 是一个用神经模块来构建AI应用的框架无关�
 * `NmTensor` - 表示的是神经模块端口之间流动的激活元。
 * `NeuralType` - 表示模块端口类型和NmTensors。
 * `NeuralFactory` - 创建神经模块并且管理训练流程。
-* `Lazy execution` - 当描述神经模块之间的激活流时，在一个“action”(比如`optimizer.optimize(...)` 没有触发前，什么都不会发生。
+* `Lazy execution` - 当描述神经模块之间的激活流时，在一个“action”(比如 `optimizer.optimize(...)` 没有触发前，什么都不会发生。
 * `Collections` - NeMo中附带的模块集合 -  相关的模块集合，比如 `nemo_asr` (语音识别) 以及 `nemo_nlp` (自然语言处理)
 
 
@@ -58,7 +58,7 @@ Neural Modules (NeMo) 是一个用神经模块来构建AI应用的框架无关�
 
 如果需要的话，你可以从这个docker容器开始 `NGC PyTorch容器 <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ 这里面已经包含了上面所需要的环境。
 
-你可以直接运行``docker pull nvcr.io/nvidia/pytorch:19.08-py3``
+你可以直接运行 ``docker pull nvcr.io/nvidia/pytorch:19.08-py3``
 
 接着就按照下面的步骤：
 
