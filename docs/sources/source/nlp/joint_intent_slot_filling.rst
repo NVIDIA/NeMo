@@ -3,7 +3,7 @@ Tutorial
 
 In this tutorial, we are going to implement a joint intent and slot filling system with pretrained BERT model based on `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`chen2019bert`. All code used in this tutorial is based on ``examples/nlp/joint_intent_slot_with_bert.py``.
 
-There are four pretrained BERT models that we can select from using the argument `--pretrained_bert_model`. We're currently using the script for loading pretrained models from `pytorch_transformers`. See the list of available pretrained models `here <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__. 
+There are four pretrained BERT models that we can select from using the argument `--pretrained_bert_model`. We're currently using the script for loading pretrained models from `transformers`. See the list of available pretrained models `here <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__.
 
 
 Preliminaries
@@ -45,11 +45,11 @@ First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or
                         create_tb_writer=True,
                         files_to_copy=[__file__])
 
-We define tokenizer which transforms text into BERT tokens, using a built-in tokenizer by `pytorch_transformers`. This will tokenize text following the mapping of the original BERT model.
+We define tokenizer which transforms text into BERT tokens, using a built-in tokenizer by `transformers`. This will tokenize text following the mapping of the original BERT model.
 
     .. code-block:: python
 
-        from pytorch_transformers import BertTokenizer
+        from transformers import BertTokenizer
         tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
 Next, we define all Neural Modules participating in our joint intent slot filling classification pipeline.
