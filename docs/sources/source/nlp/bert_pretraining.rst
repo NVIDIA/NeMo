@@ -14,7 +14,8 @@ Creating domain-specific BERT models can be advantageous for a wide range of app
 Download Corpus
 ---------------
 
-For demonstration purposes, we will be using the very small WikiText-2 dataset :cite:`merity2016pointer`.
+The training corpus can be either raw text where data preprocessing is done on the fly or an already preprocessed data set. In the following we will give examples for both.
+To showcase how to train on raw text data, we will be using the very small WikiText-2 dataset :cite:`merity2016pointer`.
 
 To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
 
@@ -32,8 +33,19 @@ To train BERT on a Chinese dataset, you may download the Chinese Wikipedia corpu
 
         python examples/nlp/scripts/process_wiki_zh.py --data_dir=./wiki_zh --output_dir=./wiki_zh --min_frequency=3
 
+For already preprocessed data, we will be using a large dataset composed of Wikipedia and BookCorpus as in the original BERT paper.
+
+To download the dataset, go to ``https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/LanguageModeling/BERT`` 
+and run the script ``./data/create_datasets_from_start.sh``.
+The downloaded folder should include a 2 sub folders with the prefix ``lower_case_1_seq_len_128_max_pred_20_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5``
+and ``lower_case_1_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5``, containing sequences of length 128 with a maximum of 20 masked tokens and sequences of length 512 with a maximum of 80 
+masked tokens respectively.
+
+
 Create the tokenizer model
 --------------------------
+A tokenizer will be used for data preprocessing and, therefore, is only required for training using raw text data.
+
 `BERTPretrainingDataDesc` converts your dataset into the format compatible with `BertPretrainingDataset`. The most computationally intensive step is to tokenize the dataset to create a vocab file and a tokenizer model.
 
 You can also use an available vocab or tokenizer model to skip this step. If you already have a pretrained tokenizer model, copy it to the ``[data_dir]/bert`` folder under the name ``tokenizer.model`` and the script will skip this step.
@@ -87,15 +99,23 @@ We also need to define the BERT model that we will be pre-training. Here, you ca
     .. code-block:: python
 
         bert_model = nemo_nlp.huggingface.BERT(
-            vocab_size=tokenizer.vocab_size,
-            num_layers=args.num_layers,
-            d_model=args.d_model,
-            num_heads=args.num_heads,
-            d_inner=args.d_inner,
-            max_seq_length=args.max_seq_length,
-            hidden_act="gelu")
+            vocab_size=args.vocab_size,
+            num_hidden_layers=args.num_hidden_layers,
+            hidden_size=args.hidden_size,
+            num_attention_heads=args.num_attention_heads,
+            intermediate_size=args.intermediate_size,
+            max_position_embeddings=args.max_seq_length,
+            hidden_act=args.hidden_act)
 
-If you want to start pre-training from existing BERT checkpoints, use the following code. For the full list of BERT model names, check out `nemo_nlp.huggingface.BERT.list_pretrained_models()`
+If you want to start pre-training from existing BERT checkpoints, specify the checkpoint folder path with the argument ``--load_dir``. 
+The following code will automatically load the checkpoints if they exist and are compatible to the previously defined model
+
+    .. code-block:: python
+
+        ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir,
+                            load_from_folder=args.load_dir)
+
+For the full list of BERT model names, check out `nemo_nlp.huggingface.BERT.list_pretrained_models()`
 
     .. code-block:: python
 
@@ -105,28 +125,46 @@ Next, we will define our classifier and loss functions. We will demonstrate how 
 
     .. code-block:: python
 
-        mlm_classifier = nemo_nlp.TokenClassifier(args.d_model,
-                                                  num_classes=tokenizer.vocab_size,
-                                                  num_layers=1,
-                                                  log_softmax=True)
+        mlm_classifier = nemo_nlp.BertTokenClassifier(
+                                    args.hidden_size,
+                                    num_classes=args.vocab_size,
+                                    activation=ACT2FN[args.hidden_act],
+                                    log_softmax=True)
+
         mlm_loss_fn = nemo_nlp.MaskedLanguageModelingLossNM()
 
-        nsp_classifier = nemo_nlp.SequenceClassifier(args.d_model,
-                                                     num_classes=2,
-                                                     num_layers=2,
-                                                     log_softmax=True)
+        nsp_classifier = nemo_nlp.SequenceClassifier(
+                                                args.hidden_size,
+                                                num_classes=2,
+                                                num_layers=2,
+                                                activation='tanh',
+                                                log_softmax=False)
+
         nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 
         bert_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
-Then, we create the pipeline gtom input to output that can be used for both training and evaluation:
+Then, we create the pipeline from input to output that can be used for both training and evaluation:
+
+For training from raw text use nemo_nlp.BertPretrainingDataLayer, for preprocessed data use nemo_nlp.BertPretrainingPreprocessedDataLayer
 
     .. code-block:: python
 
         def create_pipeline(**args):
-            dataset = nemo_nlp.BertPretrainingDataset(**params)
-            data_layer = nemo_nlp.BertPretrainingDataLayer(dataset)
-            steps_per_epoch = len(data_layer) // (batch_size * args.num_gpus)
+            data_layer = nemo_nlp.BertPretrainingDataLayer(
+                                    tokenizer,
+                                    data_file,
+                                    max_seq_length,
+                                    mask_probability,
+                                    short_seq_prob,
+                                    batch_size)
+            # for preprocessed data
+            # data_layer = nemo_nlp.BertPretrainingPreprocessedDataLayer(
+            #        data_file,
+            #        max_predictions_per_seq,
+            #        batch_size, is_training)
+
+            steps_per_epoch = len(data_layer) // (batch_size * args.num_gpus * args.batches_per_step)
 
             input_ids, input_type_ids, input_mask, \
                 output_ids, output_mask, nsp_labels = data_layer()
@@ -144,14 +182,28 @@ Then, we create the pipeline gtom input to output that can be used for both trai
             nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=nsp_labels)
 
             loss = bert_loss(loss_1=mlm_loss, loss_2=nsp_loss)
+            
+            return loss, mlm_loss, nsp_loss, steps_per_epoch
 
-            return loss, [mlm_loss, nsp_loss], steps_per_epoch
 
+        train_loss, _, _, steps_per_epoch = create_pipeline(
+                                    data_file=data_desc.train_file,
+                                    preprocessed_data=False,
+                                    max_seq_length=args.max_seq_length,
+                                    mask_probability=args.mask_probability,
+                                    short_seq_prob=args.short_seq_prob,
+                                    batch_size=args.batch_size,
+                                    batches_per_step=args.batches_per_step)
 
-        train_loss, _, steps_per_epoch = create_pipeline(data_desc.train_file,
-                                                         args.max_seq_length,
-                                                         args.mask_probability,
-                                                         args.batch_size)
+        # for preprocessed data 
+        # train_loss, _, _, steps_per_epoch = create_pipeline(
+        #                            data_file=args.data_dir,
+        #                            preprocessed_data=True,
+        #                            max_predictions_per_seq=args.max_predictions_per_seq,
+        #                            training=True,
+        #                            batch_size=args.batch_size,
+        #                            batches_per_step=args.batches_per_step)
+
         eval_loss, eval_tensors, _ = create_pipeline(data_desc.eval_file,
                                                      args.max_seq_length,
                                                      args.mask_probability,
@@ -199,6 +251,11 @@ Finally, you should define your optimizer, and start training!
                                      total_steps=args.num_epochs * steps_per_epoch,
                                      warmup_ratio=args.lr_warmup_proportion)
 
+        # if you are training is based on number of iterations rather than number of epochs, use
+        # lr_policy_fn = get_lr_policy(args.lr_policy,
+        #                           total_steps=args.total_iterations_per_gpu,
+        #                           warmup_ratio=args.lr_warmup_proportion)
+
         nf.train(tensors_to_optimize=[train_loss],
                  lr_policy=lr_policy_fn,
                  callbacks=[train_callback, eval_callback, ckpt_callback],
@@ -206,6 +263,7 @@ Finally, you should define your optimizer, and start training!
                  optimization_params={"batch_size": args.batch_size,
                                       "num_epochs": args.num_epochs,
                                       "lr": args.lr,
+                                      "betas": (args.beta1, args.beta2),
                                       "weight_decay": args.weight_decay})
 
 References
