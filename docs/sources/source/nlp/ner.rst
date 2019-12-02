@@ -204,4 +204,4 @@ And then, when you load your BERT model, you should specify the name of the dire
 
 If you want to use a TensorFlow-based model, such as BioBERT, you should be able to use it in NeMo by first using this `model conversion script`_ provided by Hugging Face.
 
-.. _model conversion script: https://github.com/huggingface/pytorch-transformers/blob/master/pytorch_transformers/convert_tf_checkpoint_to_pytorch.py
+.. _model conversion script: https://github.com/huggingface/pytorch-transformers/blob/master/transformers/convert_tf_checkpoint_to_pytorch.py

@@ -1,5 +1,5 @@
 from .tokenizer_spec import TokenizerSpec
-from pytorch_transformers import GPT2Tokenizer
+from transformers import GPT2Tokenizer
 
 
 class NemoGPT2Tokenizer(TokenizerSpec):
