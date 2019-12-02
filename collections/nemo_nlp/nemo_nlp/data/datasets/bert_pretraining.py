@@ -345,7 +345,7 @@ class BertPretrainingPreprocessedDataset(Dataset):
          masked_lm_positions, masked_lm_ids,
          next_sentence_labels] = \
          [input[index].astype(np.int64)
-          for indice, input in enumerate(self.inputs)]
+          for input in self.inputs]
 
         output_mask = np.zeros_like(input_ids)
         output_ids = input_ids.copy()
@@ -359,6 +359,6 @@ class BertPretrainingPreprocessedDataset(Dataset):
         output_ids[masked_lm_positions[:index]] = masked_lm_ids[:index]
 
         input_mask = np.asarray(input_mask, dtype=np.float32)
-        output_mask = np.array(output_mask, dtype=np.float32)
+        output_mask = np.asarray(output_mask, dtype=np.float32)
         return input_ids, segment_ids, input_mask,\
             output_ids, output_mask, next_sentence_labels

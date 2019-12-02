@@ -129,4 +129,5 @@ class BERT(TrainableNM):
         return pretrained_models
 
     def forward(self, input_ids, token_type_ids, attention_mask):
-        return self.bert(input_ids, token_type_ids, attention_mask)[0]
+        return self.bert(input_ids, token_type_ids=token_type_ids,
+                         attention_mask=attention_mask)[0]
