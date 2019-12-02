@@ -1,7 +1,7 @@
 BERT预训练
 ==========
 
-在本教程中，我们会按照BERT模型结构 :cite:`devlin2018bert` 构建并训练一个掩码语言模型。训练可以完全从零开始或者在一个预训练好的模型基础上继续训练。在开始本教程之前，请先安装好``nemo``和``nemo_nlp``。关于安装``nemo``的一些步骤可以参阅 :ref:`installation` 章节。
+在本教程中，我们会按照BERT模型结构 :cite:`devlin2018bert` 构建并训练一个掩码语言模型。训练可以完全从零开始或者在一个预训练好的模型基础上继续训练。在开始本教程之前，请先安装好 ``nemo`` 和 ``nemo_nlp`` 。关于安装 ``nemo`` 的一些步骤可以参阅 :ref:`installation` 章节。
 
 创建一个专门领域的BERT模型对于某些应用是更有优势的。比如一个专门针对生物医学领域的专业BERT，类似于BioBERT :cite:`lee2019biobert` 和SciBERT :cite:`beltagy2019scibert`.
 
@@ -12,7 +12,7 @@ BERT预训练
 
 因为这只是一个演示，所以我们使用一个非常小的英文数据集WikiText-2 :cite:`merity2016pointer`.
 
-运行脚本``examples/nlp/scripts/get_wt2.sh``便可以下载这个数据集。下载后并解压，会得到如下三个文件：
+运行脚本 ``examples/nlp/scripts/get_wt2.sh`` 便可以下载这个数据集。下载后并解压，会得到如下三个文件：
 
     .. code-block:: bash
 
@@ -29,12 +29,12 @@ BERT预训练
         python examples/nlp/scripts/process_wiki_zh.py --data_dir=./wiki_zh --output_dir=./wiki_zh --min_frequency=3
 
 创建分词器(Tokenizer)
--------------
-首先你需要创建一个`BERTPretrainingDataDesc`对象来描述数据集的格式。这其中涉及的主要步骤包括将数据集符号化并创建词表(vocabulary)和一个分词器(tokenizer).
+---------------------
+首先你需要创建一个 `BERTPretrainingDataDesc` 对象来描述数据集的格式。这其中涉及的主要步骤包括将数据集符号化并创建词表(vocabulary)和一个分词器(tokenizer).
 
-你也可以使用一个现成的词表或者分词器模型来跳过这一步。如果你已经有一个预训练好的分词器模型，将它复制到文件夹``[data_dir]/bert``下并重命名为``tokenizer.model``。
+你也可以使用一个现成的词表或者分词器模型来跳过这一步。如果你已经有一个预训练好的分词器模型，将它复制到文件夹 ``[data_dir]/bert`` 下并重命名为 ``tokenizer.model`` 。
 
-如果你有一个现成的词表文件，可以将它复制到文件夹``[data_dir]/bert``下并命名为``vocab.txt``。
+如果你有一个现成的词表文件，可以将它复制到文件夹 ``[data_dir]/bert`` 下并命名为 ``vocab.txt`` 。
 
     .. code-block:: python
 
@@ -45,7 +45,7 @@ BERT预训练
                                             special_tokens,
                                             'train.txt')
 
-接下来我们需要定义tokenizer。如果你想使用一个自定义的词表文件，我们强烈推荐使用我们的`SentencePieceTokenizer`。如果要训练中文BERT模型，请使用`NemoBertTokenizer`。
+接下来我们需要定义tokenizer。如果你想使用一个自定义的词表文件，我们强烈推荐使用 `SentencePieceTokenizer` 。如果要训练中文BERT模型，请使用 `NemoBertTokenizer` 。
 
     .. code-block:: python
 
@@ -63,7 +63,7 @@ BERT预训练
 
     建议你在一个Jupyter notebook中尝试以下内容，以方便调试。
 
-首先，我们需要创建一个`NeuralModuleFactory`对象并调用所支持的后端。具体如何创建还取决于你是否想进行多GPU训练或者混合精度训练等。在本教程中，我们只使用一个GPU，而且没有混合精度训练。如果你想使用混合精度训练，可以将``amp_opt_level``选项设置为``O1``或者``O2``。
+首先，我们需要创建一个 `NeuralModuleFactory` 对象并调用所支持的后端。具体如何创建还取决于你是否想进行多GPU训练或者混合精度训练等。在本教程中，我们只使用一个GPU，而且没有混合精度训练。如果你想使用混合精度训练，可以将 ``amp_opt_level`` 选项设置为 ``O1`` 或者 ``O2`` 。
 
     .. code-block:: python
 
@@ -74,7 +74,7 @@ BERT预训练
                                            create_tb_writer=True,
                                            files_to_copy=[__file__])
 
-接下来我们需要定义模型结构。这里我们从`huggingface`模块导入BERT的模型结构。你只需要定义一些关键参数即可。
+接下来我们需要定义模型结构。这里我们从 `huggingface` 模块导入BERT的模型结构。你只需要定义一些关键参数即可。
 
     .. code-block:: python
 
@@ -87,7 +87,7 @@ BERT预训练
             max_seq_length=args.max_seq_length,
             hidden_act="gelu")
 
-如果你想从一个已有的BERT模型文件继续训练，那设置一个模型的名字即可。如果想查看完整的预训练好的BERT模型列表，可以使用`nemo_nlp.huggingface.BERT.list_pretrained_models()`。
+如果你想从一个已有的BERT模型文件继续训练，那设置一个模型的名字即可。如果想查看完整的预训练好的BERT模型列表，可以使用 `nemo_nlp.huggingface.BERT.list_pretrained_models()` 。
 
     .. code-block:: python
 
