@@ -97,7 +97,8 @@ def create_all_dags(args, neural_factory):
     )
 
     N = len(data_layer_train)
-    steps_per_epoch = int(N / (args.batch_size * args.num_gpus))
+    steps_per_epoch = int(
+        N / (args.batch_size * args.iter_per_step * args.num_gpus))
 
     # create separate data layers for eval
     # we need separate eval dags for separate eval datasets
