@@ -6,6 +6,8 @@ for Task-Oriented Dialogue Systems" (Wu et al., 2019)
 import argparse
 import os
 
+import numpy as np
+
 import nemo
 from nemo.backends.pytorch.common import EncoderRNN
 from nemo.utils.lr_policies import get_lr_policy
@@ -20,13 +22,13 @@ parser.add_argument("--max_seq_length", default=50, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
-parser.add_argument("--lr", default=2e-5, type=float)
+parser.add_argument("--lr", default=0.001, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument("--emb_dim", default=400, type=int)
 parser.add_argument("--hid_dim", default=400, type=int)
 parser.add_argument("--n_layers", default=1, type=int)
-parser.add_argument("--dropout", default=0.1, type=float)
+parser.add_argument("--dropout", default=0.2, type=float)
 parser.add_argument("--data_dir", default='data/dialog/multiwoz', type=str)
 parser.add_argument("--dataset_name", default='multiwoz', type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
@@ -79,8 +81,9 @@ data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                       DOMAINS,
                                       batch_size=args.batch_size,
                                       mode='train')
-src_ids, src_lens, tgt_ids, tgt_lens, gating_labels = data_layer()
+src_ids, src_lens, tgt_ids, tgt_lens, gating_labels, turn_domain = data_layer()
 vocab_size = len(data_layer._dataset.vocab)
+steps_per_epoch = len(data_layer) // args.batch_size
 
 encoder = EncoderRNN(vocab_size,
                      args.emb_dim,
@@ -88,7 +91,7 @@ encoder = EncoderRNN(vocab_size,
                      args.dropout,
                      args.n_layers)
 
-outputs, hidden = encoder(inputs=src_ids, input_lengths=src_lens)
+outputs, hidden = encoder(inputs=src_ids, input_lens=src_lens)
 
 decoder = nemo_nlp.DSTGenerator(data_layer._dataset.vocab,
                                 encoder.embedding,
@@ -96,10 +99,20 @@ decoder = nemo_nlp.DSTGenerator(data_layer._dataset.vocab,
                                 args.dropout,
                                 data_layer._dataset.slots,
                                 len(data_layer._dataset.gating_dict),
-                                batch_size=args.batch_size,
+                                # batch_size=args.batch_size,
                                 teacher_forcing=0.5)
-point_outputs, gate_outputs = decoder(outputs, hidden)
 
+point_outputs, gate_outputs = decoder(encoder_hidden=hidden,
+                                      encoder_outputs=outputs,
+                                      input_lens=src_lens,
+                                      src_ids=src_ids,
+                                      targets=tgt_ids)
+
+eval_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
+                                           DOMAINS,
+                                           batch_size=args.batch_size,
+                                           mode='val')
+eval_data_layer()
 # gate_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 ptr_loss_fn = nemo_nlp.DSTMaskedCrossEntropy()
 
@@ -108,13 +121,26 @@ train_loss = ptr_loss_fn(logits=point_outputs,
                          targets=tgt_ids,
                          mask=tgt_lens)
 
-eval_tensors = [point_outputs, gate_outputs]
-steps_per_epoch = 1
+eval_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
+                                           DOMAINS,
+                                           batch_size=args.batch_size,
+                                           mode='val')
+eval_src_ids, eval_src_lens, eval_tgt_ids, eval_tgt_lens, eval_gating_labels, eval_turn_domain = eval_data_layer()
+outputs, hidden = encoder(inputs=eval_src_ids, input_lens=eval_src_lens)
+eval_point_outputs, eval_gate_outputs = decoder(encoder_hidden=hidden,
+                                      encoder_outputs=outputs,
+                                      input_lens=eval_src_lens,
+                                      src_ids=eval_src_ids,
+                                      targets=eval_tgt_ids)
+eval_loss = ptr_loss_fn(logits=eval_point_outputs,
+                         targets=eval_tgt_ids,
+                         mask=eval_tgt_lens)
+eval_tensors = [eval_loss, eval_point_outputs, eval_gate_outputs]
 
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
-    print_func=lambda x: str(np.round(x[0].item(), 3)),
+    print_func=lambda x: print('Loss:', str(np.round(x[0].item(), 3))),
     tb_writer=nf.tb_writer,
     get_tb_values=lambda x: [["loss", x[0]]],
     step_freq=steps_per_epoch)
@@ -122,8 +148,8 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
-    user_iter_callback=lambda x, y: eval_iter_callback(
-        x, y, data_layer),
+    print_func=lambda x: print('Loss:', str(np.round(x[0].item(), 3))),
+    user_iter_callback=None,
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x, f'{nf.work_dir}/graphs'),
     tb_writer=nf.tb_writer,

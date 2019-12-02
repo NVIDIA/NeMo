@@ -1,9 +1,12 @@
 __all__ = ['DSTGenerator',
            'DSTMaskedCrossEntropy']
 
+import random
+
 import numpy as np
 import torch
 from torch import nn as nn
+import torch.nn.functional as F
 
 import nemo
 from nemo.backends.pytorch.nm import TrainableNM, LossNM
@@ -28,22 +31,21 @@ class DSTGenerator(TrainableNM):
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag)
             }),
-            'input_lengths': NeuralType({
+            'input_lens': NeuralType({
                 0: AxisType(BatchTag),
             }),
-            'story': NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-            'max_res_len': NeuralType({
+            'src_ids': NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
+            # 'tgt_lens': NeuralType({
+            #     0: AxisType(BatchTag),
+            #     1: AxisType(ChannelTag)
+            # }),
             'targets': NeuralType({
                 0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag),
-
+                1: AxisType(ChannelTag),  # the number of slots
+                2: AxisType(TimeTag)
             }),
 
         }
@@ -69,14 +71,17 @@ class DSTGenerator(TrainableNM):
                  dropout,
                  slots,
                  nb_gate,
-                 batch_size=16,
+                 # batch_size=16,
                  teacher_forcing=0.5):
         super().__init__()
         self.vocab_size = len(vocab)
         self.vocab = vocab
         self.embedding = embeddings
         self.dropout = nn.Dropout(dropout)
-        self.gru = nn.GRU(hid_size, hid_size, dropout=dropout)
+        self.rnn = nn.GRU(hid_size,
+                          hid_size,
+                          dropout=dropout,
+                          batch_first=True)
         self.nb_gate = nb_gate
         self.hidden_size = hid_size
         self.w_ratio = nn.Linear(3 * hid_size, 1)
@@ -84,114 +89,116 @@ class DSTGenerator(TrainableNM):
         self.softmax = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
         self.slots = slots
+        self.teacher_forcing = teacher_forcing
 
         # Create independent slot embeddings
-        self.slot_w2i = {}
-        for slot in self.slots:
-            if slot.split("-")[0] not in self.slot_w2i.keys():
-                self.slot_w2i[slot.split("-")[0]] = len(self.slot_w2i)
-            if slot.split("-")[1] not in self.slot_w2i.keys():
-                self.slot_w2i[slot.split("-")[1]] = len(self.slot_w2i)
+        self._slots_split_to_index()
         self.slot_emb = nn.Embedding(len(self.slot_w2i), hid_size)
         self.slot_emb.weight.data.normal_(0, 0.1)
-        self.batch_size = batch_size
+        # self.batch_size = batch_size
+        self.to(self._device)
+
+    def _slots_split_to_index(self):
+        split_slots = [slot.split('-') for slot in self.slots]
+        domains = [split_slot[0] for split_slot in split_slots]
+        slots = [split_slot[1] for split_slot in split_slots]
+        split_slots = list(set(sum(split_slots, [])))
+        self.slot_w2i = {split_slots[i]: i for i in range(len(split_slots))}
+        self.domain_idx = torch.tensor(
+            [self.slot_w2i[domain] for domain in domains]).to(self._device)
+        self.subslot_idx = torch.tensor(
+            [self.slot_w2i[slot] for slot in slots]).to(self._device)
 
     def forward(self,
                 encoder_hidden,
                 encoder_outputs,
                 input_lens,
-                story,
-                max_res_len,
+                src_ids,
                 targets):
+        # encoder_hidden is batch_size x num_layers x hid_size
+        # need domain + slot emb to be of the same size
+        # domain emb + slot emb is batch_size x num_slots x slot_emb_dim
+        # print('encoder_hidden', encoder_hidden.shape)
         if (not self.training) \
                 or (random.random() <= self.teacher_forcing):
             use_teacher_forcing = False
         else:
             use_teacher_forcing = True
 
-        batch_size = self.batch_size
-        all_point_outputs = torch.zeros(len(self.slots),
-                                        batch_size,
+        max_res_len = targets.shape[2]
+        batch_size = encoder_hidden.shape[0]
+
+        all_point_outputs = torch.zeros(batch_size,
+                                        len(self.slots),
                                         max_res_len,
                                         self.vocab_size)
-        all_gate_outputs = torch.zeros(len(self.slots),
-                                       batch_size,
+        all_gate_outputs = torch.zeros(batch_size,
+                                       len(self.slots),
                                        self.nb_gate)
         all_point_outputs = all_point_outputs.to(self._device)
         all_gate_outputs = all_gate_outputs.to(self._device)
 
-        # Get the slot embedding
-        slot_emb_dict = {}
-        for i, slot in enumerate(self.slots):
-            # Domain embbeding
-            if slot.split("-")[0] in self.slot_w2i.keys():
-                domain_w2idx = [self.slot_w2i[slot.split("-")[0]]]
-                domain_w2idx = torch.tensor(domain_w2idx)
-                domain_w2idx = domain_w2idx.to(self._device)
-                domain_emb = self.slot_emb(domain_w2idx)
-            # Slot embbeding
-            if slot.split("-")[1] in self.slot_w2i.keys():
-                slot_w2idx = [self.slot_w2i[slot.split("-")[1]]]
-                slot_w2idx = torch.tensor(slot_w2idx)
-                slot_w2idx = slot_w2idx.to(self._device)
-                slot_emb = self.slot_emb(slot_w2idx)
-
-            # Combine two embeddings as one query
-            combined_emb = domain_emb + slot_emb
-            slot_emb_dict[slot] = combined_emb
-            slot_emb_exp = combined_emb.expand_as(encoder_hidden)
-            if i == 0:
-                slot_emb_arr = slot_emb_exp.clone()
-            else:
-                slot_emb_arr = torch.cat((slot_emb_arr, slot_emb_exp), dim=0)
-
-        # Compute pointer-generator output,
-        # puting all (domain, slot) in one batch
-        decoder_input = self.dropout(slot_emb_arr).view(-1, self.hidden_size)
-        # (batch*|slot|) * emb
-        hidden = encoder_hidden.repeat(1, len(self.slots), 1)
+        domain_emb = self.slot_emb(self.domain_idx).to(self._device)
+        subslot_emb = self.slot_emb(self.subslot_idx).to(self._device)
+        slot_emb = domain_emb + subslot_emb  # 30 x 400
+        slot_emb = slot_emb[None, :]  # 1 x 30 x 400
+        slot_emb = slot_emb.repeat(batch_size, 1, 1)  # 16 x 30 x 400
+        slot_emb = self.dropout(
+            slot_emb).view(-1, self.hidden_size)  # 480 x 400
+        # print('encoder_hidden', encoder_hidden.shape) # 16 x 1 x 400
+        hidden = encoder_hidden.repeat(len(self.slots), 1, 1)
+        # print('hidden', hidden.shape) # 480 x 1 x 400
+        hidden = hidden.transpose(0, 1)  # 1 x 480 x 400
         # 1 * (batch*|slot|) * emb
-
+        print('TO DELETE max_res_len', max_res_len)
+        print('slot_emb', slot_emb.shape)
+        print('hidden', hidden.shape)
         for wi in range(max_res_len):
-            dec_state, hidden = self.gru(
-                decoder_input.expand_as(hidden), hidden)
-
+            dec_state, hidden = self.rnn(slot_emb.unsqueeze(1),
+                                         hidden)
             enc_out = encoder_outputs.repeat(len(self.slots), 1, 1)
             enc_len = input_lens * len(self.slots)
-            context_vec, logits, prob = self.attend(
-                enc_out, hidden.squeeze(0), enc_len)
+            context_vec, logits, prob = self.attend(enc_out,
+                                                    hidden.squeeze(0),
+                                                    # 480 x 400
+                                                    enc_len)
 
             if wi == 0:
-                all_gate_outputs = torch.reshape(
-                    self.w_gate(context_vec), all_gate_outputs.size())
+                all_gate_outputs = torch.reshape(self.w_gate(context_vec),
+                                                 all_gate_outputs.size())
 
-            p_vocab = self.attend_vocab(
-                self.embedding.weight, hidden.squeeze(0))
+            p_vocab = self.attend_vocab(self.embedding.weight,
+                                        hidden.squeeze(0))
+            slot_emb = slot_emb.squeeze(1)
             p_gen_vec = torch.cat(
-                [dec_state.squeeze(0), context_vec, decoder_input], -1)
+                [dec_state.squeeze(1), context_vec, slot_emb], -1)
             vocab_pointer_switches = self.sigmoid(self.w_ratio(p_gen_vec))
             p_context_ptr = torch.zeros(p_vocab.size())
             p_context_ptr = p_context_ptr.to(self._device)
 
-            p_context_ptr.scatter_add_(
-                1, story.repeat(len(self.slots), 1), prob)
+            p_context_ptr.scatter_add_(1,
+                                       src_ids.repeat(len(self.slots), 1),
+                                       prob)
 
             final_p_vocab = (1 - vocab_pointer_switches).expand_as(p_context_ptr) * p_context_ptr + \
                 vocab_pointer_switches.expand_as(p_context_ptr) * p_vocab
             pred_word = torch.argmax(final_p_vocab, dim=1)
-            words = [self.lang.index2word[w_idx.item()]
+            words = [self.vocab.idx2word[w_idx.item()]
                      for w_idx in pred_word]
 
             all_point_outputs[:, :, wi, :] = torch.reshape(
-                final_p_vocab, (len(self.slots), batch_size, self.vocab_size))
+                final_p_vocab,
+                (batch_size, len(self.slots), self.vocab_size))
 
-            if use_teacher_forcing:
-                decoder_input = self.embedding(torch.flatten(
-                    targets[:, :, wi].transpose(1, 0)))
+            if use_teacher_forcing or True:
+                slot_emb = self.embedding(torch.flatten(targets[:, :, wi]))
+                # targets[:, wi, :].transpose(1, 0)))
+                # print('targets[:, wi, :]', targets[:, wi, :].shape)
+                # print('torch.flatten(targets[:, wi, :]', torch.flatten(targets[:, wi, :]).shape)
             else:
-                decoder_input = self.embedding(pred_word)
+                slot_emb = self.embedding(pred_word)
 
-            decoder_input = decoder_input.to(self._device)
+            slot_emb = slot_emb.to(self._device)
 
         return all_point_outputs, all_gate_outputs
 
@@ -233,8 +240,8 @@ class DSTMaskedCrossEntropy(LossNM):
             }),
             "targets": NeuralType({
                 0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
+                1: AxisType(ChannelTag),
+                2: AxisType(TimeTag)
             }),
             "mask": NeuralType({
                 0: AxisType(BatchTag),
