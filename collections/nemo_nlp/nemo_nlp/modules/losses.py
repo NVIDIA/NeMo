@@ -79,7 +79,7 @@ class LossAggregatorNM(LossNM):
         values = [kwargs[x] for x in sorted(kwargs.keys())]
         loss = values[0]
         for loss_i in values[1:]:
-            loss = loss.add(loss_i.item())
+            loss = loss.add(loss_i)
         return loss
 
 
@@ -90,6 +90,9 @@ class TokenClassificationLoss(LossNM):
     Args:
         num_classes (int): number of classes in a classifier, e.g. size
             of the vocabulary in language modeling objective
+        logits (float): output of the classifier
+        labels (long): ground truth labels
+        loss_mask (bool): to differentiate from original tokens and paddings
     """
 
     @staticmethod
@@ -104,7 +107,7 @@ class TokenClassificationLoss(LossNM):
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            "input_mask": NeuralType({
+            "loss_mask": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             })
@@ -120,8 +123,8 @@ class TokenClassificationLoss(LossNM):
         self._criterion = nn.CrossEntropyLoss()
         self.num_classes = num_classes
 
-    def _loss_function(self, logits, labels, input_mask):
-        active_loss = input_mask.view(-1) > 0.5
+    def _loss_function(self, logits, labels, loss_mask):
+        active_loss = loss_mask.view(-1)
         active_logits = logits.view(-1, self.num_classes)[active_loss]
         active_labels = labels.view(-1)[active_loss]
 

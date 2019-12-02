@@ -1,12 +1,10 @@
-model: "Tacotron 2"
+model: "Tacotron 2 Mandarin"
 sample_rate: &sr 22050
-# TODO: Add <PAD>, <BOS>, <EOS>
-labels: [' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A', 'B',
-         'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
-         'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', ']', 'a', 'b',
-         'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p',
-         'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'à', 'â', 'è', 'é',
-         'ê', 'ü', '’', '“', '”', '~', 'Ķ', 'Ĺ', 'Ļ', 'ω']
+labels: [' ', '!', ',', '.', '?', 'a', 'b', 'c',
+        'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
+        'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
+        't', 'u', 'v', 'w', 'x', 'y', 'z', '0',
+        '1', '2', '3', '4']
 n_fft: &n_fft 1024
 n_mels: &n_mels 80
 fmax: &fmax 8000
@@ -20,7 +18,7 @@ AudioToTextDataLayer:
     eval:
         shuffle: false
 
-AudioPreprocessing:
+AudioToMelSpectrogramPreprocessor:
     normalize: null
     window_size: null
     window_stride: null
@@ -43,9 +41,6 @@ Tacotron2Encoder:
     encoder_kernel_size: 5
     encoder_n_convolutions: 3
     encoder_embedding_dim: &enc_emb_dim 512
-
-TextEmbedding:
-    symbols_embedding_dim: *enc_emb_dim
 
 Tacotron2Decoder:
     n_mel_channels: *n_mels

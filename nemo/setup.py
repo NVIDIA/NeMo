@@ -23,7 +23,8 @@ setuptools.setup(
         'torchvision',
         'tensorboardX',
         'pandas',
-        'wget'
+        'wget',
+        'onnx'
     ]
 )
 
