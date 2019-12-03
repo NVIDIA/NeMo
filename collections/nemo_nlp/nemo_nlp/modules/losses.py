@@ -79,7 +79,7 @@ class LossAggregatorNM(LossNM):
         values = [kwargs[x] for x in sorted(kwargs.keys())]
         loss = values[0]
         for loss_i in values[1:]:
-            loss = loss.add(loss_i.item())
+            loss = loss.add(loss_i)
         return loss
 
 
@@ -162,7 +162,7 @@ class JointIntentSlotLoss(LossNM):
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag)
             }),
-            "input_mask": NeuralType({
+            "loss_mask": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
@@ -189,17 +189,21 @@ class JointIntentSlotLoss(LossNM):
     def _loss_function(self,
                        intent_logits,
                        slot_logits,
-                       input_mask,
+                       loss_mask,
                        intents,
                        slots,
                        intent_loss_weight=0.6):
         intent_loss = self._criterion(intent_logits, intents)
 
-        active_loss = input_mask.view(-1) > 0.5
+        active_loss = loss_mask.view(-1)
         active_logits = slot_logits.view(-1, self.num_slots)[active_loss]
         active_labels = slots.view(-1)[active_loss]
 
-        slot_loss = self._criterion(active_logits, active_labels)
+        # To support empty active_labels
+        if len(active_labels) == 0:
+            slot_loss = 0.0
+        else:
+            slot_loss = self._criterion(active_logits, active_labels)
         loss = intent_loss * intent_loss_weight + \
             slot_loss * (1 - intent_loss_weight)
 

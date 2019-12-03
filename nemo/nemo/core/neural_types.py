@@ -11,7 +11,10 @@ __all__ = ['BaseTag',
            'TimeTag',
            'ProcessedTimeTag',
            'ChannelTag',
+           'EmbeddedTextTag',
            'SpectrogramSignalTag',
+           'MelSpectrogramSignalTag',
+           'MFCCSignalTag',
            'EncodedRepresentationTag',
            'ClassTag',
            'WidthTag',
@@ -67,11 +70,33 @@ class ChannelTag(BaseTag):
         return "channel"
 
 
+class EmbeddedTextTag(ChannelTag):
+    """Tag for any dimensions that contains text that goes through an
+    enbedding layer."""
+
+    def __str__(self):
+        return "embedded_text"
+
+
 class SpectrogramSignalTag(ChannelTag):
     """Tag for spectrogram signal dimension."""
 
     def __str__(self):
         return "spectrogram_signal"
+
+
+class MelSpectrogramSignalTag(SpectrogramSignalTag):
+    """Tag for mel spectrogram signal dimension."""
+
+    def __str__(self):
+        return "mel_spectrogram_signal"
+
+
+class MFCCSignalTag(SpectrogramSignalTag):
+    """Tag for MFCC signal dimension."""
+
+    def __str__(self):
+        return "mfcc_signal"
 
 
 class EncodedRepresentationTag(ChannelTag):

@@ -93,9 +93,10 @@ print('Have {0} examples to train on.'.format(N))
 print('-----------------')
 step_per_epoch = int(N / (batch_size * num_gpus))
 
-data_preprocessor = neural_factory.get_module(name="AudioPreprocessing",
-                                              collection="nemo_asr",
-                                              params=featurizer_config)
+data_preprocessor = neural_factory.get_module(
+        name="AudioToMelSpectrogramPreprocessor",
+        collection="nemo_asr",
+        params=featurizer_config)
 
 data_layer_eval1 = neural_factory.get_module(name="AudioToTextDataLayer",
                                              params={

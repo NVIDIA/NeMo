@@ -1,5 +1,7 @@
 # Taken straight from Patter https://github.com/ryanleary/patter
 # TODO: review, and copyright and fix/add comments
+import random
+
 import librosa
 import numpy as np
 import soundfile as sf
@@ -89,6 +91,28 @@ class AudioSegment(object):
                 samples = f.read(int(duration * sample_rate), dtype=dtype)
             else:
                 samples = f.read(dtype=dtype)
+
+        samples = samples.transpose()
+        return cls(samples, sample_rate, target_sr=target_sr, trim=trim)
+
+    @classmethod
+    def segment_from_file(cls,
+                          filename,
+                          target_sr=None,
+                          n_segments=0,
+                          trim=False):
+        """Grabs n_segments number of samples from filename randomly from the
+        file as opposed to at a specified offset.
+        """
+        with sf.SoundFile(filename, 'r') as f:
+            sample_rate = f.samplerate
+            if n_segments > 0 and len(f) > n_segments:
+                max_audio_start = len(f) - n_segments
+                audio_start = random.randint(0, max_audio_start)
+                f.seek(audio_start)
+                samples = f.read(n_segments, dtype='float32')
+            else:
+                samples = f.read(dtype='float32')
 
         samples = samples.transpose()
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim)

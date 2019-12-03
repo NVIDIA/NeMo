@@ -108,12 +108,14 @@ class BERT(TrainableNM):
             model = BertModel(config)
         else:
             raise ValueError("Either pretrained_model_name or vocab_size must"
-                             + "be passed into the BERT constructor")
+                             + " be passed into the BERT constructor")
 
         model.to(self._device)
 
         self.add_module("bert", model)
         self.config = model.config
+        for key, value in self.config.to_dict().items():
+            self._local_parameters[key] = value
 
     @staticmethod
     def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:

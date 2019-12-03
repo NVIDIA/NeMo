@@ -45,7 +45,7 @@ AudioToTextDataLayer:
         max_duration: null
         drop_last: false
 
-AudioPreprocessing:
+AudioToMelSpectrogramPreprocessor:
     sample_rate: *sr
     window_size: 0.02
     window_stride: 0.01
@@ -53,7 +53,6 @@ AudioPreprocessing:
     normalize: "per_feature"
     n_fft: 512
     features: 64
-    feat_type: "logfbank"
     dither: 0.00001
     pad_to: 16
     stft_conv: true

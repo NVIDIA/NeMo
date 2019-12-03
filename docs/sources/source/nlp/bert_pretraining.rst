@@ -3,6 +3,8 @@ Pretraining BERT
 
 In this tutorial, we will build and train a masked language model, either from scratch or from a pretrained BERT model, using the BERT architecture :cite:`devlin2018bert`. Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See the :ref:`installation` section for more details.
 
+The code used in this tutorial can be found at ``examples/nlp/bert_pretraining.py``.
+
 Introduction
 ------------
 
@@ -22,11 +24,19 @@ To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. Aft
         train.txt
         valid.txt
 
+To train BERT on a Chinese dataset, you may download the Chinese Wikipedia corpus wiki2019zh_. After downloading, you may unzip and use the script ``examples/nlp/scripts/process_wiki_zh.py`` for preprocessing the raw text.
+
+.. _wiki2019zh: https://github.com/brightmart/nlp_chinese_corpus
+
+    .. code-block:: bash
+
+        python examples/nlp/scripts/process_wiki_zh.py --data_dir=./wiki_zh --output_dir=./wiki_zh --min_frequency=3
+
 Create the tokenizer model
 --------------------------
 `BERTPretrainingDataDesc` converts your dataset into the format compatible with `BertPretrainingDataset`. The most computationally intensive step is to tokenize the dataset to create a vocab file and a tokenizer model.
 
-You can also use an available vocab or tokenizer model to skip this step. If you already have a pretrained tokenizer model, copy it to the ``[data_dir]/bert``` folder under the name ``tokenizer.model`` and the script will skip this step.
+You can also use an available vocab or tokenizer model to skip this step. If you already have a pretrained tokenizer model, copy it to the ``[data_dir]/bert`` folder under the name ``tokenizer.model`` and the script will skip this step.
 
 If have an available vocab, say the ``vocab.txt`` file from any `pretrained BERT model`_, copy it to the ``[data_dir]/bert`` folder under the name ``vocab.txt``.
 
@@ -42,6 +52,8 @@ If have an available vocab, say the ``vocab.txt`` file from any `pretrained BERT
                                             'train.txt')
 
 We need to define our tokenizer. If you'd like to use a custom vocabulary file, we strongly recommend you use our `SentencePieceTokenizer`. Otherwise, if you'll be using a vocabulary file from another pre-trained BERT model, you should use `NemoBertTokenizer`.
+
+To train on a Chinese dataset, you should use `NemoBertTokenizer`.
 
     .. code-block:: python
 
@@ -118,21 +130,21 @@ Then, we create the pipeline gtom input to output that can be used for both trai
 
             input_ids, input_type_ids, input_mask, \
                 output_ids, output_mask, nsp_labels = data_layer()
-            
+
             hidden_states = bert_model(input_ids=input_ids,
                                        token_type_ids=input_type_ids,
                                        attention_mask=input_mask)
-            
+
             mlm_logits = mlm_classifier(hidden_states=hidden_states)
             mlm_loss = mlm_loss_fn(logits=mlm_logits,
                                    output_ids=output_ids,
                                    output_mask=output_mask)
-            
+
             nsp_logits = nsp_classifier(hidden_states=hidden_states)
             nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=nsp_labels)
 
             loss = bert_loss(loss_1=mlm_loss, loss_2=nsp_loss)
-            
+
             return loss, [mlm_loss, nsp_loss], steps_per_epoch
 
 
@@ -144,7 +156,6 @@ Then, we create the pipeline gtom input to output that can be used for both trai
                                                      args.max_seq_length,
                                                      args.mask_probability,
                                                      args.eval_batch_size)
-    
 
 
 Next, we define necessary callbacks:
@@ -176,7 +187,7 @@ We also recommend you export your model's parameters to a config file. This make
     .. code-block:: python
 
         config_path = f'{nf.checkpoint_dir}/bert-config.json'
-        
+
         if not os.path.exists(config_path):
             bert_model.config.to_json_file(config_path)
 

@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="nemo_nlp",
-    version="0.8.1",
+    version="0.8.3",
     author="NVIDIA",
     author_email="nemo-toolkit@nvidia.com",
     description="Collection of Neural Modules for Natural Language Processing",
@@ -22,6 +22,7 @@ setuptools.setup(
         'nemo_toolkit',
         'torchtext',
         'sentencepiece',
+        'python-dateutil<2.8.1,>=2.1',
         'boto3',
         'unidecode',
         'pytorch-transformers',

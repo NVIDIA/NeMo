@@ -112,6 +112,10 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
 
     All the data processing is done in BertJointIntentSlotDataset.
 
+    input_mask: used to ignore some of the input tokens like paddings
+    loss_mask: used to mask and ignore tokens in the loss function
+    subtokens_mask: used to ignore the outputs of unwanted tokens in
+                    the inference and evaluation like the start and end tokens
     Args:
         dataset (BertJointIntentSlotDataset):
                 the dataset that needs to be converted to DataLayerNM
@@ -131,7 +135,11 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            "token_mask": NeuralType({
+            "loss_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "subtokens_mask": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
@@ -154,6 +162,8 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
                  num_samples=-1,
                  shuffle=False,
                  batch_size=64,
+                 ignore_extra_tokens=False,
+                 ignore_start_end=False,
                  dataset_type=BertJointIntentSlotDataset,
                  **kwargs):
         kwargs['batch_size'] = batch_size
@@ -163,7 +173,9 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
                           'tokenizer': tokenizer,
                           'max_seq_length': max_seq_length,
                           'num_samples': num_samples,
-                          'shuffle': shuffle}
+                          'shuffle': shuffle,
+                          'ignore_extra_tokens': ignore_extra_tokens,
+                          'ignore_start_end': ignore_start_end}
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 
@@ -173,6 +185,11 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
     and slot classification with pretrained model. This is for
 
     All the data processing is done in BertJointIntentSlotInferDataset.
+
+    input_mask: used to ignore some of the input tokens like paddings
+    loss_mask: used to mask and ignore tokens in the loss function
+    subtokens_mask: used to ignore the outputs of unwanted tokens in
+                    the inference and evaluation like the start and end tokens
 
     Args:
         dataset (BertJointIntentSlotInferDataset):
@@ -193,10 +210,14 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            "token_mask": NeuralType({
+            "loss_mask": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
-            })
+            }),
+            "subtokens_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
         }
         return {}, output_ports
 
