@@ -232,7 +232,8 @@ def create_pipeline(data_file,
                             batch_size=batch_size, training=training)
 
     steps_per_epoch = \
-        math.ceil(len(data_layer) / (batch_size * args.num_gpus * batches_per_step))
+        math.ceil(len(data_layer) / (
+            batch_size * args.num_gpus * batches_per_step))
 
     input_ids, input_type_ids, input_mask, \
         output_ids, output_mask, nsp_labels = data_layer()
