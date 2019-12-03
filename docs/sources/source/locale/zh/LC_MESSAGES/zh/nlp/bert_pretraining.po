@@ -1,0 +1,151 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/zh/nlp/bert_pretraining.rst:2
+msgid "BERT预训练"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:4
+msgid ""
+"在本教程中，我们会按照BERT模型结构 :cite:`devlin2018bert` "
+"构建并训练一个掩码语言模型。训练可以完全从零开始或者在一个预训练好的模型基础上继续训练。在开始本教程之前，请先安装好 ``nemo`` 和 "
+"``nemo_nlp`` 。关于安装 ``nemo`` 的一些步骤可以参阅 :ref:`installation` 章节。"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:6
+msgid ""
+"创建一个专门领域的BERT模型对于某些应用是更有优势的。比如一个专门针对生物医学领域的专业BERT，类似于BioBERT "
+":cite:`lee2019biobert` 和SciBERT :cite:`beltagy2019scibert`."
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:8
+msgid "本教程中所使用的代码来自于 ``examples/nlp/bert_pretraining.py``."
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:11
+msgid "语料下载"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:13
+msgid "因为这只是一个演示，所以我们使用一个非常小的英文数据集WikiText-2 :cite:`merity2016pointer`."
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:15
+msgid "运行脚本 ``examples/nlp/scripts/get_wt2.sh`` 便可以下载这个数据集。下载后并解压，会得到如下三个文件："
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:23
+msgid ""
+"如果想尝试训练中文BERT模型，你可以下载中文维基语料 wiki2019zh_。下载后，你需要解压并用这个脚本 "
+"``examples/nlp/scripts/process_wiki_zh.py`` 来进行预处理"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:32
+msgid "创建分词器(Tokenizer)"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:33
+msgid ""
+"首先你需要创建一个 `BERTPretrainingDataDesc` "
+"对象来描述数据集的格式。这其中涉及的主要步骤包括将数据集符号化并创建词表(vocabulary)和一个分词器(tokenizer)."
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:35
+msgid ""
+"你也可以使用一个现成的词表或者分词器模型来跳过这一步。如果你已经有一个预训练好的分词器模型，将它复制到文件夹 "
+"``[data_dir]/bert`` 下并重命名为 ``tokenizer.model`` 。"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:37
+msgid "如果你有一个现成的词表文件，可以将它复制到文件夹 ``[data_dir]/bert`` 下并命名为 ``vocab.txt`` 。"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:48
+msgid ""
+"接下来我们需要定义tokenizer。如果你想使用一个自定义的词表文件，我们强烈推荐使用 `SentencePieceTokenizer` "
+"。如果要训练中文BERT模型，请使用 `NemoBertTokenizer` 。"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:60
+msgid "创建模型"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:64
+msgid "建议你在一个Jupyter notebook中尝试以下内容，以方便调试。"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:66
+msgid ""
+"首先，我们需要创建一个 `NeuralModuleFactory` "
+"对象并调用所支持的后端。具体如何创建还取决于你是否想进行多GPU训练或者混合精度训练等。在本教程中，我们只使用一个GPU，而且没有混合精度训练。如果你想使用混合精度训练，可以将"
+" ``amp_opt_level`` 选项设置为 ``O1`` 或者 ``O2`` 。"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:77
+msgid "接下来我们需要定义模型结构。这里我们从 `huggingface` 模块导入BERT的模型结构。你只需要定义一些关键参数即可。"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:90
+msgid ""
+"如果你想从一个已有的BERT模型文件继续训练，那设置一个模型的名字即可。如果想查看完整的预训练好的BERT模型列表，可以使用 "
+"`nemo_nlp.huggingface.BERT.list_pretrained_models()` 。"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:96
+msgid "接下来，我们需要定义分类器和损失函数。在本教程中，我们会同时使用掩码语言模型和预测下一句模型这两个模型的损失函数，如果你只用掩饰语言模型作为损失的话，可能会观察到更高的准确率。"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:114
+msgid "然后，我们把从输入到输出的整个计算流程封装成一个函数。有了这个函数，我们就可以很方便的分别创建训练流和评估流："
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:154
+msgid "再然后，我们定义一些必要的回调函数："
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:156
+msgid "`SimpleLossLoggerCallback`: 跟踪训练过程中损失函数的变化"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:157
+msgid "`EvaluatorCallback`: 跟踪评估集上的指标变化"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:158
+msgid "`CheckpointCallback`: 每过一段时间间隔保存模型"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:168
+msgid ""
+"Tensorboard_ 是一个非常棒的调试工具。虽然不是训练的必要步骤，但是你可以安装 tensorboardX_ "
+"并在训练过程中运行它来观察一些指标在训练过程中的变化："
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:178
+msgid "我们还建议把模型参数保存到一个配置文件中。这样做的话，你以后使用NeMo的时候导入BERT模型会非常方便。"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:187
+msgid "最后，我们定义优化器并开始训练！"
+msgstr ""
+
+#: ../../source/zh/nlp/bert_pretraining.rst:205
+msgid "参考"
+msgstr ""
+

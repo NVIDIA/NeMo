@@ -1,0 +1,61 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/tts/datasets.rst:2
+msgid "Datasets"
+msgstr ""
+
+#: ../../source/tts/datasets.rst:7
+msgid "LJSpeech"
+msgstr ""
+
+#: ../../source/tts/datasets.rst:9
+msgid ""
+"`LJSpeech <https://keithito.com/LJ-Speech-Dataset/>`__ is a speech "
+"dataset that consists of a single female, English speaker. It contains "
+"approximately 24 hours of speech."
+msgstr ""
+
+#: ../../source/tts/datasets.rst:13
+msgid ""
+"Obtaining and prepocessing the data for NeMo can be done with `our helper"
+" script "
+"<https://github.com/NVIDIA/NeMo/blob/master/scripts/get_ljspeech_data.py>`_:"
+msgstr ""
+
+#: ../../source/tts/datasets.rst:23
+msgid "Chinese Standard Mandarin Speech Copus(10000 Sentences)"
+msgstr ""
+
+#: ../../source/tts/datasets.rst:25
+msgid ""
+"`Chinese Standard Mandarin Speech Copus(10000 Sentences) <https://www"
+".data-baker.com/open_source.html>`__ is a speech dataset that consists of"
+" a single female, Mandarin speaker. It contains approximately 12 hours of"
+" speech. The copyright of this dataset is held by Databaker (Beijing) "
+"Technology Co.,Ltd. Support non-commercial use only."
+msgstr ""
+
+#: ../../source/tts/datasets.rst:29
+msgid ""
+"Obtaining and prepocessing the data for NeMo can be done with `our helper"
+" script "
+"<https://github.com/NVIDIA/NeMo/blob/master/scripts/get_databaker_data.py>`_:"
+msgstr ""
+

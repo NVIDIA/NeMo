@@ -1,0 +1,349 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/asr/tutorial.rst:2
+msgid "Tutorial"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:4
+msgid ""
+"Make sure you have installed ``nemo`` and ``nemo_asr`` collection. See "
+":ref:`installation` section."
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:8
+msgid "You only need `nemo` and `nemo_asr` collection for this tutorial."
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:11
+msgid "Introduction"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:13
+msgid ""
+"This Automatic Speech Recognition (ASR) tutorial is focused on Jasper "
+":cite:`li2019jasper` model. Jasper is CTC-based :cite:`graves2006` end-"
+"to-end model. The model is called \"end-to-end\" because it transcripts "
+"speech samples without any additional alignment information. CTC allows "
+"finding an alignment between audio and text. CTC-ASR training pipeline "
+"consists of the following blocks:"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:16
+msgid ""
+"audio preprocessing (feature extraction): signal normalization, "
+"windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:17
+msgid ""
+"neural acoustic model (which predicts a probability distribution P_t(c) "
+"over vocabulary characters c per each time step t given input features "
+"per each timestep)"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:18
+msgid "CTC loss function"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:27
+msgid "Get data"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:28
+msgid ""
+"We will be using an open-source LibriSpeech "
+":cite:`panayotov2015librispeech` dataset. These scripts will download and"
+" convert LibriSpeech into format expected by `nemo_asr`:"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:42
+msgid ""
+"You should have at least 26GB of disk space available if you've used "
+"``--data_set=dev_clean,train_clean_100``; and at least 110GB if you used "
+"``--data_set=ALL``. Also, it will take some time to download and process,"
+" so go grab a coffee."
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:45
+msgid ""
+"After download and conversion, your `data` folder should contain 2 json "
+"files:"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:47
+msgid "dev_clean.json"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:48
+msgid "train_clean_100.json"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:50
+msgid ""
+"In the tutorial we will use `train_clean_100.json` for training and "
+"`dev_clean.json`for evaluation. Each line in json file describes a "
+"training sample - `audio_filepath` contains path to the wav file, "
+"`duration` it's duration in seconds, and `text` is it's transcript:"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:61
+msgid "Training"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:63
+msgid ""
+"We will train a small model from the Jasper family :cite:`li2019jasper`. "
+"Jasper (\"Just Another SPeech Recognizer\") is a deep time delay neural "
+"network (TDNN) comprising of blocks of 1D-convolutional layers. Jasper "
+"family of models are denoted as Jasper_[BxR] where B is the number of "
+"blocks, and R - the number of convolutional sub-blocks within a block. "
+"Each sub-block contains a 1-D convolution, batch normalization, ReLU, and"
+" dropout:"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:72
+msgid ""
+"In the tutorial we will be using model [12x1] and will be using separable"
+" convolutions. The script below does both training (on "
+"`train_clean_100.json`) and evaluation (on `dev_clean.json`) on single "
+"GPU:"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:76
+msgid "Run Jupyter notebook and walk through this script step-by-step"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:79
+msgid "**Training script**"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:221
+msgid "This script trains should finish 50 epochs in about 7 hours on GTX 1080."
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:228
+msgid "To improve your word error rates:"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:225
+msgid "Train longer"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:226
+msgid "Train on more data"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:227
+msgid "Use larger model"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:228
+msgid ""
+"Train on several GPUs and use mixed precision (on NVIDIA Volta and Turing"
+" GPUs)"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:229
+msgid "Start with pre-trained checkpoints"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:233
+msgid "Mixed Precision training"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:234
+msgid ""
+"Mixed precision and distributed training in NeMo is based on `NVIDIA's "
+"APEX library <https://github.com/NVIDIA/apex>`_. Make sure it is "
+"installed."
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:237
+msgid ""
+"To train with mixed-precision all you need is to set `optimization_level`"
+" parameter of `nemo.core.NeuralModuleFactory`  to "
+"`nemo.core.Optimization.mxprO1`. For example:"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:249
+msgid ""
+"Because mixed precision requires Tensor Cores it only works on NVIDIA "
+"Volta and Turing based GPUs"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:252
+msgid "Multi-GPU training"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:254
+msgid "Enabling multi-GPU training with NeMo is easy:"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:256
+msgid ""
+"First set `placement` to `nemo.core.DeviceType.AllGpu` in "
+"NeuralModuleFactory and in your Neural Modules"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:257
+msgid ""
+"Have your script accept 'local_rank' argument and do not set it yourself:"
+" `parser.add_argument(\"--local_rank\", default=None, type=int)`"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:258
+msgid ""
+"Use `torch.distributed.launch` package to run your script like this "
+"(replace <num_gpus> with number of gpus):"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:266
+msgid "Large Training Example"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:268
+msgid ""
+"Please refer to the `<nemo_git_repo_root>/examples/asr/jasper.py` for "
+"comprehensive example. It builds one train DAG and up to three validation"
+" DAGs to evaluate on different datasets."
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:270
+msgid ""
+"Assuming, you are working with Volta-based DGX, you can run training like"
+" this:"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:276
+msgid ""
+"The command above should trigger 8-GPU training with mixed precision. In "
+"the command above various manifests (.json) files are various datasets. "
+"Substitute them with the ones containing your data."
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:279
+msgid ""
+"You can pass several manifests (comma-separated) to train on a combined "
+"dataset like this: `--train_manifest=/manifests/librivox-train-"
+"all.json,/manifests/librivox-train-all-"
+"sp10pcnt.json,/manifests/cv/validated.json`. Here it combines 3 data "
+"sets: LibriSpeech, Mozilla Common Voice and LibriSpeech speed perturbed."
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:283
+msgid "Fine-tuning"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:284
+msgid ""
+"Training time can be dramatically reduced if starting from a good pre-"
+"trained model:"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:286
+msgid ""
+"Obtain pre-trained model (jasper_encoder, jasper_decoder and "
+"configuration files) `from here "
+"<https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`_."
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:287
+msgid ""
+"load pre-trained weights right after you've instantiated your "
+"jasper_encoder and jasper_decoder, like this:"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:297
+msgid "When fine-tuning, use smaller learning rate."
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:301
+msgid "Inference"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:303
+msgid ""
+"First download pre-trained model (jasper_encoder, jasper_decoder and "
+"configuration files) `from here "
+"<https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`_ into "
+"`<path_to_checkpoints>`. We will use this pre-trained model to measure "
+"WER on LibriSpeech dev-clean dataset."
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:311
+msgid "Inference with Language Model"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:314
+msgid "Using KenLM"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:315
+msgid ""
+"We will be using `Baidu's CTC decoder with LM implementation. "
+"<https://github.com/PaddlePaddle/DeepSpeech>`_."
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:317
+msgid "Perform the following steps:"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:319
+msgid "Go to ``cd <nemo_git_repo_root>/scripts``"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:323
+msgid ""
+"Install Baidu's CTC decoders (NOTE: no need for \"sudo\" if inside the "
+"container):"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:321
+msgid "``sudo apt-get update && sudo apt-get install swig``"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:322
+msgid ""
+"``sudo apt-get install pkg-config libflac-dev libogg-dev libvorbis-dev "
+"libboost-dev``"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:323
+msgid ""
+"``sudo apt-get install libsndfile1-dev python-setuptools libboost-all-dev"
+" python-dev``"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:324
+msgid "``./install_decoders.sh``"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:325
+msgid "Build 6-gram KenLM model on LibriSpeech ``./build_6-gram_OpenSLR_lm.sh``"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:326
+msgid "Run jasper_infer.py with the --lm_path flag"
+msgstr ""
+
+#: ../../source/asr/tutorial.rst:334
+msgid "References"
+msgstr ""
+

@@ -1,0 +1,86 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/zh/tutorials/weightsharing.rst:2
+msgid "模块间的权重共享"
+msgstr ""
+
+#: ../../source/zh/tutorials/weightsharing.rst:4
+msgid "这里有一些在神经模块之间共享权重的方法。"
+msgstr ""
+
+#: ../../source/zh/tutorials/weightsharing.rst:7
+msgid "神经模块重用"
+msgstr ""
+
+#: ../../source/zh/tutorials/weightsharing.rst:9
+msgid "这个想法是在训练，验证评估和推理图上重用神经模块。 例如:"
+msgstr ""
+
+#: ../../source/zh/tutorials/weightsharing.rst:40
+msgid "在模块间复制权重"
+msgstr ""
+
+#: ../../source/zh/tutorials/weightsharing.rst:41
+msgid ""
+":class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` 类提供了两个方法 "
+":meth:`get_weights<nemo.core.neural_modules.NeuralModule.get_weights>` 和 "
+":meth:`set_weights<nemo.core.neural_modules.NeuralModule.set_weights>` "
+"用来做权重共享"
+msgstr ""
+
+#: ../../source/zh/tutorials/weightsharing.rst:47
+msgid ""
+":meth:`set_weights<nemo.core.neural_modules.NeuralModule.set_weights>` "
+"方法只能设置模块的部分权重"
+msgstr ""
+
+#: ../../source/zh/tutorials/weightsharing.rst:50
+msgid "这个方法只能用来复制权重。后续在一个模块中更新权重不会影响到其他模块中的权重。"
+msgstr ""
+
+#: ../../source/zh/tutorials/weightsharing.rst:52
+msgid "考虑下面这个例子:"
+msgstr ""
+
+#: ../../source/zh/tutorials/weightsharing.rst:76
+msgid "在模块间连接权重"
+msgstr ""
+
+#: ../../source/zh/tutorials/weightsharing.rst:77
+msgid ""
+":class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` 类提供 "
+":meth:`tie_weights_with<nemo.core.neural_modules.NeuralModule.tie_weights_with>`"
+" 方法在多个模块间连接权重 .. important::"
+msgstr ""
+
+#: ../../source/zh/tutorials/weightsharing.rst:81
+msgid ""
+"在下面的例子中，我们首先创建一个简单的词嵌入编码器，他的输入是[batch, time]的词序列，从词表中 ``V`` 中找到词id，把它映射到 "
+"``D`` 维空间。 这是一个查表的映射，从 ``V`` 维空间到 ``D`` 维空间。 接着我们需要创建一个解码器，从 ``D``-维空间映射到"
+" ``V``-维空间。我们想把编码器的映射矩阵在解码器中重用。 下面的代码解释了这要怎么做。"
+msgstr ""
+
+#: ../../source/zh/tutorials/weightsharing.rst:87
+msgid ""
+"权重有不同名字(``embedding.weight`` 和 ``projection.weight``) "
+"但值是一样的。对一个权重的改变会导致另一个也变化。可以理解为 ``embedding.weight`` 和 "
+"``projection.weight`` 是指向同一个张量的指针。"
+msgstr ""
+

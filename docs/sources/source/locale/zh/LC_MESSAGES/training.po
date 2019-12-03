@@ -1,0 +1,114 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/training.rst:2
+msgid "Fast Training"
+msgstr ""
+
+#: ../../source/training.rst:4
+msgid ""
+"Training large model (especially from scratch) requires significant "
+"compute. NeMo provides support for mixed precision and distributed "
+"training to speed-up training. NeMo uses `NVIDIA's APEX library "
+"<https://github.com/NVIDIA/apex>`_ to get maximum performance out of "
+"NVIDIA's GPUs. Furthermore, multi-GPU systems (such as DGX Station, DGX-1"
+" and DGX-2) have *NVLINK* to speed-up multi-GPU communication."
+msgstr ""
+
+#: ../../source/training.rst:8
+msgid "Mixed Precision"
+msgstr ""
+
+#: ../../source/training.rst:9
+msgid ""
+"NVIDIA Volta and Turing GPUs have *Tensor Cores* which can do fast matrix"
+" multiplications with values in float16 format. To enable mixed-precision"
+" in NeMo all you need to do is to set `optimization_level` parameter of "
+"`nemo.core.NeuralModuleFactory` to `nemo.core.Optimization.mxprO1`. For "
+"example:"
+msgstr ""
+
+#: ../../source/training.rst:18
+msgid ""
+"Mixed precision requires Tensor Cores, so it works only on NVIDIA Volta "
+"and Turing GPUs."
+msgstr ""
+
+#: ../../source/training.rst:21
+msgid "Multi-GPU training"
+msgstr ""
+
+#: ../../source/training.rst:23
+msgid "For multi-GPU training:"
+msgstr ""
+
+#: ../../source/training.rst:25
+msgid "Set `placement` to `nemo.core.DeviceType.AllGpu` in NeuralModuleFactory"
+msgstr ""
+
+#: ../../source/training.rst:26
+msgid ""
+"Add 'local_rank' argument to your script and do not set it yourself: "
+"`parser.add_argument(\"--local_rank\", default=None, type=int)`"
+msgstr ""
+
+#: ../../source/training.rst:35
+msgid ""
+"Use `torch.distributed.launch` package to run your script like this "
+"(assuming 8 GPUs):"
+msgstr ""
+
+#: ../../source/training.rst:43
+msgid "Example"
+msgstr ""
+
+#: ../../source/training.rst:45
+msgid ""
+"Please refer to the `<nemo_git_repo_root>/examples/asr/jasper.py` for "
+"comprehensive example. It builds one train DAG and up to three validation"
+" DAGs to evaluate on different datasets."
+msgstr ""
+
+#: ../../source/training.rst:48
+msgid ""
+"Assuming, you are working with Volta-based DGX, you can run training like"
+" this:"
+msgstr ""
+
+#: ../../source/training.rst:54
+msgid ""
+"The command above should trigger 8-GPU training with mixed precision. In "
+"the command above various manifests (.json) files are various datasets. "
+"Substitute them with the ones containing your data."
+msgstr ""
+
+#: ../../source/training.rst:57
+msgid ""
+"You can pass several manifests (comma-separated) to train on a combined "
+"dataset like this: `--train_manifest=/manifests/librivox-train-"
+"all.json,/manifests/librivox-train-all-"
+"sp10pcnt.json,/manifests/cv/validated.json`."
+msgstr ""
+
+#: ../../source/training.rst:59
+msgid ""
+"This example would train on 3 data sets: LibriSpeech, Mozilla Common "
+"Voice and LibriSpeech speed perturbed."
+msgstr ""
+

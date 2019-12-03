@@ -1,0 +1,156 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/nlp/transformer_language_model.rst:2
+msgid "Transformer Language Model"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:4
+msgid ""
+"In this tutorial, we will build and train a language model using the "
+"Transformer architecture :cite:`vaswani2017attention`. Make sure you have"
+" ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See "
+"the :ref:`installation` section for more details."
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:7
+msgid "Introduction"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:9
+msgid ""
+"A good language model has a wide range of applications on downstream "
+"tasks. Examples of language models being used for downstream tasks "
+"include GPT-2 :cite:`radford2019language`."
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:13
+msgid "Download Corpus"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:15
+msgid ""
+"For demonstration purposes, we will be using the very small WikiText-2 "
+"dataset :cite:`merity2016pointer`."
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:17
+msgid ""
+"To download the dataset, run the script "
+"``examples/nlp/scripts/get_wt2.sh``. After downloading and unzipping, the"
+" folder should include 3 files that look like this:"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:26
+msgid "Create the tokenizer model"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:27
+msgid ""
+"`LanguageModelDataDesc` converts your dataset into the format compatible "
+"with `LanguageModelingDataset`."
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:34
+msgid ""
+"We need to define our tokenizer. We use `WordTokenizer` defined in "
+"``nemo_nlp/data/tokenizers/word_tokenizer.py``:"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:42
+msgid ""
+"Making embedding size (as well as all other tensor dimensions) divisible "
+"by 8 will help to get the best GPU utilization and speed-up with mixed "
+"precision training."
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:46
+msgid "Create the model"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:47
+msgid ""
+"First, we need to create our neural factory with the supported backend. "
+"How you should define it depends on whether you'd like to multi-GPU or "
+"mixed-precision training. This tutorial assumes that you're training on "
+"one GPU, without mixed precision. If you want to use mixed precision, set"
+" ``amp_opt_level`` to ``O1`` or ``O2``."
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:58
+msgid "Next, we define all Neural Modules necessary for our model"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:60
+msgid ""
+"Transformer Encoder (note that we don't need a decoder for language "
+"modeling)"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:61
+msgid ""
+"`TokenClassifier` for mapping output of the decoder into probability "
+"distribution over vocabulary."
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:62
+msgid "Loss function (cross entropy with label smoothing regularization)."
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:71
+msgid ""
+"Following `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ "
+":cite:`press2016using`, we also tie the parameters of embedding and "
+"softmax layers:"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:78
+msgid "Next, we create datasets for training and evaluating:"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:95
+msgid ""
+"Then, we create the pipeline gtom input to output that can be used for "
+"both training and evaluation:"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:112
+msgid "Next, we define necessary callbacks:"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:114
+msgid "`SimpleLossLoggerCallback`: tracking loss during training"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:115
+msgid "`EvaluatorCallback`: tracking metrics during evaluation at set intervals"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:116
+msgid "`CheckpointCallback`: saving model checkpoints at set intervals"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:125
+msgid "Finally, you should define your optimizer, and start training!"
+msgstr ""
+
+#: ../../source/nlp/transformer_language_model.rst:144
+msgid "References"
+msgstr ""
+

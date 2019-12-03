@@ -1,0 +1,105 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/tutorials/weightsharing.rst:2
+msgid "Weight Sharing between Modules"
+msgstr ""
+
+#: ../../source/tutorials/weightsharing.rst:4
+msgid "There are several ways to share or tie weights between neural models."
+msgstr ""
+
+#: ../../source/tutorials/weightsharing.rst:7
+msgid "Neural Module reuse"
+msgstr ""
+
+#: ../../source/tutorials/weightsharing.rst:9
+msgid ""
+"The idea is to re-use neural modules between training, evaluation and "
+"inference graphs. For example:"
+msgstr ""
+
+#: ../../source/tutorials/weightsharing.rst:40
+msgid "Copy weights between modules"
+msgstr ""
+
+#: ../../source/tutorials/weightsharing.rst:41
+msgid ""
+":class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` class "
+"provides 2 methods "
+":meth:`get_weights<nemo.core.neural_modules.NeuralModule.get_weights>` "
+"and "
+":meth:`set_weights<nemo.core.neural_modules.NeuralModule.set_weights>` "
+"for sharing weights."
+msgstr ""
+
+#: ../../source/tutorials/weightsharing.rst:47
+msgid ""
+":meth:`set_weights<nemo.core.neural_modules.NeuralModule.set_weights>` "
+"method can set only part of module's weights."
+msgstr ""
+
+#: ../../source/tutorials/weightsharing.rst:50
+msgid ""
+"This approach is used only to copy weights. Subsequent update of weights "
+"in one module will not affect weights in the other module."
+msgstr ""
+
+#: ../../source/tutorials/weightsharing.rst:52
+msgid "Consider an example:"
+msgstr ""
+
+#: ../../source/tutorials/weightsharing.rst:76
+msgid "Tie weights between modules"
+msgstr ""
+
+#: ../../source/tutorials/weightsharing.rst:77
+msgid ""
+":class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` class "
+"provides "
+":meth:`tie_weights_with<nemo.core.neural_modules.NeuralModule.tie_weights_with>`"
+" method to tie weights between two or more modules."
+msgstr ""
+
+#: ../../source/tutorials/weightsharing.rst:80
+msgid ""
+"Tied weights are identical across all modules: subsequent modification of"
+" weights in one module will result in the same modification on the other."
+msgstr ""
+
+#: ../../source/tutorials/weightsharing.rst:83
+msgid ""
+"In the example below we first create a simple embedding encoder which "
+"takes [batch, time] sequences of word ids from vocabulary ``V``  and "
+"embeds them into some ``D``-dimensional space. Effectively, this is a "
+"lookup-based projection from ``V``-dimensional space to ``D``-dimensional"
+" space. We then create a decoder which projects from ``D``-dimensional "
+"space back to the ``V``-dimensional space. We want to transpose the "
+"encoder projection matrix and reuse it for decoder. The code below "
+"demonstrates how this can be achieved."
+msgstr ""
+
+#: ../../source/tutorials/weightsharing.rst:87
+msgid ""
+"The weights have different names (``embedding.weight`` and "
+"``projection.weight``) but their values are the same. Changes to one will"
+" result to changes in the other. Effectively, ``embedding.weight`` and "
+"``projection.weight`` become pointers to the same tensor."
+msgstr ""
+
