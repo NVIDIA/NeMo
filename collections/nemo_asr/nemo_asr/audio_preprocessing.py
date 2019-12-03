@@ -14,7 +14,8 @@
 """
 This file contains neural modules responsible for preprocessing audio data.
 """
-__all__ = ['AudioPreprocessor',
+__all__ = ['AudioPreprocessing',
+           'AudioPreprocessor',
            'AudioToMFCCPreprocessor',
            'AudioToMelSpectrogramPreprocessor',
            'AudioToSpectrogramPreprocessor',
@@ -590,3 +591,12 @@ class MultiplyBatch(NonTrainableNM):
         out_y_len = in_y_len.repeat(self.mult)
 
         return out_x, out_x_len, out_y, out_y_len
+
+
+def AudioPreprocessing(*args, **kwargs):
+    raise NotImplementedError(
+        "AudioPreprocessing has been deprecated and replaced by: "
+        "AudioToMFCCPreprocessor, AudioToMelSpectrogramPreprocessor, and "
+        "AudioToSpectrogramPreprocessor. For most ASR purposes "
+        "AudioToMelSpectrogramPreprocessor does the same as the old "
+        "AudioPreprocessing.")

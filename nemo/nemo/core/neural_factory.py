@@ -16,7 +16,7 @@ import numpy as np
 
 from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *
-from ..utils import ExpManager
+from ..utils import ExpManager, get_logger
 
 
 class DeploymentFormat(Enum):
@@ -66,12 +66,16 @@ class Actions(ABC):
             self,
             local_rank,
             global_rank,
-            optimization_level=Optimization.mxprO0):
+            optimization_level=Optimization.mxprO0,
+            logger=None):
         self._local_rank = local_rank
         self._global_rank = global_rank
         self._optim_level = optimization_level
         self.step = None
         self.epoch_num = None
+        self.logger = logger
+        if logger is None:
+            self.logger = get_logger('')
 
     @property
     def local_rank(self):
@@ -711,7 +715,8 @@ class NeuralModuleFactory(object):
                 local_rank=self._local_rank,
                 global_rank=self._global_rank,
                 tb_writer=tb_writer,
-                optimization_level=self._optim_level)
+                optimization_level=self._optim_level,
+                logger=self.logger)
             return instance
         else:
             raise ValueError("Only PyTorch backend is currently supported.")
