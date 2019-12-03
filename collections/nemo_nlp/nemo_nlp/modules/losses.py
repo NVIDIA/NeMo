@@ -1,17 +1,17 @@
-__all__ = ['MaskedLanguageModelingLossNM',
-           'LossAggregatorNM',
-           'TokenClassificationLoss',
-           'JointIntentSlotLoss',
-           'PaddedSmoothedCrossEntropyLossNM']
-
 from torch import nn
 import torch
-
 from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import *
 
 from .pytorch_utils import SmoothedCrossEntropyLoss
 from ..utils.nlp_utils import mask_padded_tokens
+
+
+__all__ = ['MaskedLanguageModelingLossNM',
+           'LossAggregatorNM',
+           'TokenClassificationLoss',
+           'JointIntentSlotLoss',
+           'PaddedSmoothedCrossEntropyLossNM']
 
 
 class MaskedLanguageModelingLossNM(LossNM):
@@ -185,31 +185,36 @@ class JointIntentSlotLoss(LossNM):
         }
         return input_ports, output_ports
 
-    def __init__(self, num_slots, slot_classes_loss_weights=[], intent_classes_loss_weights=[], **kwargs):
+    def __init__(self,
+                 num_slots,
+                 slot_classes_loss_weights=None,
+                 intent_classes_loss_weights=None,
+                 intent_loss_weight=0.6,
+                 **kwargs):
         LossNM.__init__(self, **kwargs)
         self.num_slots = num_slots
+        self.intent_loss_weight = intent_loss_weight
 
         # For weighted loss to tackle class imbalance
         if len(slot_classes_loss_weights) > 0:
-            self._slot_classes_loss_weights = torch.FloatTensor(slot_classes_loss_weights).cuda()
-        else:
-            self._slot_classes_loss_weights = None
+            self.slot_classes_loss_weights = \
+                torch.FloatTensor(slot_classes_loss_weights).cuda()
 
         if len(intent_classes_loss_weights) > 0:
-            self._intent_classes_loss_weights = torch.FloatTensor(intent_classes_loss_weights).cuda()
-        else:
-            self._intent_classes_loss_weights = None
+            self.intent_classes_loss_weights = \
+                torch.FloatTensor(intent_classes_loss_weights).cuda()
 
-        self._criterion_intent = nn.CrossEntropyLoss(weight=self._intent_classes_loss_weights)
-        self._criterion_slot = nn.CrossEntropyLoss(weight=self._slot_classes_loss_weights)
+        self._criterion_intent = nn.CrossEntropyLoss(
+            weight=self.intent_classes_loss_weights)
+        self._criterion_slot = nn.CrossEntropyLoss(
+            weight=self.slot_classes_loss_weights)
 
     def _loss_function(self,
                        intent_logits,
                        slot_logits,
                        loss_mask,
                        intents,
-                       slots,
-                       intent_loss_weight=0.2):
+                       slots):
         intent_loss = self._criterion_intent(intent_logits, intents)
 
         active_loss = loss_mask.view(-1)
@@ -221,8 +226,8 @@ class JointIntentSlotLoss(LossNM):
             slot_loss = 0.0
         else:
             slot_loss = self._criterion_slot(active_logits, active_labels)
-        loss = intent_loss * intent_loss_weight + \
-            slot_loss * (1 - intent_loss_weight)
+        loss = intent_loss * self.intent_loss_weight + \
+            slot_loss * (1 - self.intent_loss_weight)
 
         return loss
 

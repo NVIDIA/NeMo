@@ -48,8 +48,8 @@ parser.add_argument("--amp_opt_level", default="O0",
 parser.add_argument("--do_lower_case", action='store_false')
 parser.add_argument("--shuffle_data", action='store_false')
 parser.add_argument("--intent_loss_weight", default=0.6, type=float)
-parser.add_argument("--class_balancing", default="regular", type=str, 
-                    choices=["regular", "weighted_loss", "upsample"])
+parser.add_argument("--class_balancing", default="regular", type=str,
+                    choices=["regular", "weighted_loss"])
 
 args = parser.parse_args()
 
@@ -88,10 +88,14 @@ classifier = nemo_nlp.JointIntentSlotClassifier(
     dropout=args.fc_dropout)
 
 if args.class_balancing == 'weighted_loss':
-    # check balance which set of class, for e.g. - intent or slot
-    loss_fn = nemo_nlp.JointIntentSlotLoss(num_slots=data_desc.num_slots, 
-                                           slot_classes_loss_weights=data_desc.slot_weights,
-                                           intent_classes_loss_weights=data_desc.intent_weights)
+    # Using weighted loss will enable weighted loss for both intents and slots
+    # Use the intent_loss_weight hyperparameter to adjust intent loss to 
+    # prevent overfitting or underfitting.
+    loss_fn = nemo_nlp.JointIntentSlotLoss(
+      num_slots=data_desc.num_slots,
+      slot_classes_loss_weights=data_desc.slot_weights,
+      intent_classes_loss_weights=data_desc.intent_weights,
+      intent_loss_weight=args.intent_loss_weight)
 else:
     loss_fn = nemo_nlp.JointIntentSlotLoss(num_slots=data_desc.num_slots)
 
