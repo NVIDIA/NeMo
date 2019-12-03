@@ -98,7 +98,7 @@ class ModuleSaverCallback(ActionCallback):
             for m in self._save_modules_list:
                 class_name = m.__class__.__name__
                 uid = m.unique_instance_id
-                fn = "{0}_{1}-STEP-{2}.pt".format(class_name, uid, step)
+                fn = f"{class_name}_{uid}-STEP-{step}.pt"
                 if self._folder is None:
                     file_name = fn
                 else:
@@ -119,7 +119,7 @@ class ModuleSaverCallback(ActionCallback):
             for m in self._save_modules_list:
                 class_name = m.__class__.__name__
                 uid = m.unique_instance_id
-                fn = "{0}_{1}-STEP-{2}.pt".format(class_name, uid, step)
+                fn = f"{class_name}_{uid}-STEP-{step}.pt"
                 if self._folder is None:
                     file_name = fn
                 else:
@@ -393,8 +393,8 @@ class EvaluatorCallback(ActionCallback):
                 eval_epoch is not None and eval_epoch <= 0
         ):
             raise ValueError(
-                "Eval_step and eval_epoch must be > 0."
-                "But got: {0} and {1}".format(eval_step, eval_epoch)
+                f"Eval_step and eval_epoch must be > 0."
+                f"But got: {eval_step} and {eval_epoch}"
             )
         super().__init__()
         self._eval_tensors = eval_tensors
@@ -557,7 +557,7 @@ class ValueSetterCallback(ActionCallback):
             if self.tb_writer is not None:
                 class_name = self.module.__class__.__name__
                 # name = f'param/{class_name}.{self.arg_name}'
-                name = "param/{0}.{1}".format(class_name, self.arg_name)
+                name = f"param/{class_name}.{self.arg_name}"
                 self.tb_writer.add_scalar(name, value, self.step)
         else:
             self.cur_i += 1
