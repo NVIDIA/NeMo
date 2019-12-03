@@ -651,7 +651,8 @@ class NeuralModuleFactory(object):
             output=output,
             d_format=d_format,
             input_example=input_example,
-            output_example=output_example
+            output_example=output_example,
+            logger=self.logger
         )
 
     def infer(self,

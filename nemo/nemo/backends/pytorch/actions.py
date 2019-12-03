@@ -1019,7 +1019,8 @@ class PtActions(Actions):
                         output,
                         d_format: DeploymentFormat,
                         input_example=None,
-                        output_example=None):
+                        output_example=None,
+                        logger=None):
         # Check if output already exists
         destination = Path(output)
         if destination.exists():
@@ -1100,11 +1101,15 @@ class PtActions(Actions):
                     json.dump(local_parameters, outfile)
 
             else:
-                raise NotImplemented(
+                raise NotImplementedError(
                     f"Not supported deployment format: {d_format}")
         except Exception as e:  # nopep8
-            self.logger.error(
-                f'ERROR: module export failed for {module} with exception {e}')
+            if logger:
+                logger.error(f'ERROR: module export failed for {module} with '
+                             f'exception {e}')
+            else:
+                print(f'ERROR: module export failed for {module} with '
+                      f'exception {e}')
         finally:
             def __old_call__(self, force_pt=False, *input, **kwargs):
                 pt_call = len(input) > 0 or force_pt
@@ -1120,7 +1125,8 @@ class PtActions(Actions):
                           output: str,
                           d_format: DeploymentFormat,
                           input_example=None,
-                          output_example=None):
+                          output_example=None,
+                          logger=None):
         """Exports Neural Module instance for deployment.
 
         Args:
@@ -1135,7 +1141,8 @@ class PtActions(Actions):
             output=output,
             d_format=d_format,
             input_example=input_example,
-            output_example=output_example)
+            output_example=output_example,
+            logger=logger)
 
     def train(self,
               tensors_to_optimize,
