@@ -46,21 +46,23 @@ def get_features(queries,
                  ignore_start_end=False):
     """
     Args:
-        queries (list of str):
-        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer (Tokenizer): such as NemoBertTokenizer
-        pad_label (str): pad value use for labels.
-            by default, it's the neutral label.
-        raw_labels (list of str): list of labels for every work in sequence
-        unique_labels (set): set of all labels available in the data
-        (required if raw_labels is not None)
-        label_ids (dict): dict to map labels to label ids. Starts
+    queries (list of str): text sequences
+    max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
+    tokenizer (Tokenizer): such as NemoBertTokenizer
+    pad_label (str): pad value use for labels.
+        by default, it's the neutral label.
+    raw_labels (list of str): list of labels for every work in sequence
+    unique_labels (set): set of all labels available in the data
+        (required if raw_labels is not None, and label_ids is None)
+    label_ids (dict): dict to map labels to label ids. Starts
         with pad_label->0 and then increases in alphabetical order
         (required for dev set to support cases when not all labels are
-        present in the dev set)
-        ignore_extra_tokens (bool): whether to ignore extra tokens in
+        present in the dev set). For training set label_ids should be None,
+        while for dev set label_ids generated from the train set should be
+        used.
+    ignore_extra_tokens (bool): whether to ignore extra tokens in
         the loss_mask,
-        ignore_start_end (bool): whether to ignore bos and eos tokens in
+    ignore_start_end (bool): whether to ignore bos and eos tokens in
         the loss_mask
     """
     all_subtokens = []
@@ -262,7 +264,7 @@ class BertTokenClassificationDataset(Dataset):
                 dataset = list(zip(*dataset))
                 text_lines = dataset[0]
                 labels_lines = dataset[1]
-            
+
             features = get_features(text_lines,
                                     max_seq_length,
                                     tokenizer,
