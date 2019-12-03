@@ -31,7 +31,7 @@ parser.add_argument("--fc_dropout", default=0.5, type=float)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
-parser.add_argument("--shuffle_data", action='store_false')
+parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--pretrained_bert_model",
                     default="bert-base-cased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
@@ -93,7 +93,7 @@ hidden_size = bert_model.local_parameters["hidden_size"]
 classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
                                       num_classes=args.num_classes,
                                       dropout=args.fc_dropout)
-punct_loss = nemo_nlp.TokenClassificationLoss(num_classes=args.num_classes)
+task_loss = nemo_nlp.TokenClassificationLoss(num_classes=args.num_classes)
 
 
 def create_pipeline(num_samples=-1,
@@ -103,6 +103,7 @@ def create_pipeline(num_samples=-1,
                     local_rank=args.local_rank,
                     num_gpus=args.num_gpus,
                     mode='train',
+                    label_ids=None,
                     ignore_extra_tokens=args.ignore_extra_tokens,
                     ignore_start_end=args.ignore_start_end,
                     use_cache=args.use_cache):
@@ -129,6 +130,7 @@ def create_pipeline(num_samples=-1,
         text_file=text_file,
         label_file=label_file,
         pad_label=pad_label,
+        label_ids=label_ids,
         max_seq_length=max_seq_length,
         batch_size=batch_size,
         num_workers=0,
@@ -137,8 +139,7 @@ def create_pipeline(num_samples=-1,
         ignore_extra_tokens=ignore_extra_tokens,
         ignore_start_end=ignore_start_end,
         use_cache=use_cache)
-
-    label_ids = data_layer.dataset.label_ids
+        
     input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, \
         labels = data_layer()
     hidden_states = bert_model(input_ids=input_ids,
@@ -146,10 +147,11 @@ def create_pipeline(num_samples=-1,
                                attention_mask=input_mask)
 
     logits = classifier(hidden_states=hidden_states)
-    loss = punct_loss(logits=logits, labels=labels, loss_mask=loss_mask)
+    loss = task_loss(logits=logits, labels=labels, loss_mask=loss_mask)
     steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
 
     if mode == 'train':
+        label_ids = data_layer.dataset.label_ids
         tensors_to_evaluate = [loss, logits]
     else:
         tensors_to_evaluate = [logits, labels, subtokens_mask]
@@ -158,7 +160,7 @@ def create_pipeline(num_samples=-1,
 
 train_tensors, train_loss, steps_per_epoch, label_ids, _ = create_pipeline()
 
-eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev')
+eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev', label_ids=label_ids)
 
 nf.logger.info(f"steps_per_epoch = {steps_per_epoch}")
 

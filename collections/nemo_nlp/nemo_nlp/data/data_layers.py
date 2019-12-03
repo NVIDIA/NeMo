@@ -333,6 +333,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
                  tokenizer,
                  max_seq_length,
                  pad_label='O',
+                 label_ids=None,
                  num_samples=-1,
                  shuffle=False,
                  batch_size=64,
@@ -350,6 +351,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
                           'num_samples': num_samples,
                           'shuffle': shuffle,
                           'pad_label': pad_label,
+                          'label_ids': label_ids,
                           'ignore_extra_tokens': ignore_extra_tokens,
                           'ignore_start_end': ignore_start_end,
                           'use_cache': use_cache}
