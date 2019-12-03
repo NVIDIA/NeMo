@@ -74,11 +74,11 @@ def eval_epochs_done_callback(global_vars,
 
     # remove labels from label_ids that don't appear in the dev set
     missing_labels = set(label_ids.values()) - set(labels) - set(preds)
-    label_ids = \
-        {k:label_ids[k] for k, v in label_ids.items() if v not in missing_labels}
-    
+    label_ids = {k: label_ids[k]
+                 for k, v in label_ids.items() if v not in missing_labels}
+
     logger.info(classification_report(labels, preds, target_names=label_ids))
-    
+
     # calculate and plot confusion_matrix
     if graph_fold:
         ids_to_labels = {label_ids[k]: k for k in label_ids}

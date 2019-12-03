@@ -31,7 +31,7 @@ parser.add_argument("--fc_dropout", default=0.5, type=float)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
-parser.add_argument("--shuffle_data", action='store_true')
+parser.add_argument("--shuffle_data", action='store_false')
 parser.add_argument("--pretrained_bert_model",
                     default="bert-base-cased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
@@ -139,7 +139,7 @@ def create_pipeline(num_samples=-1,
         ignore_extra_tokens=ignore_extra_tokens,
         ignore_start_end=ignore_start_end,
         use_cache=use_cache)
-        
+
     input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, \
         labels = data_layer()
     hidden_states = bert_model(input_ids=input_ids,
@@ -160,7 +160,8 @@ def create_pipeline(num_samples=-1,
 
 train_tensors, train_loss, steps_per_epoch, label_ids, _ = create_pipeline()
 
-eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev', label_ids=label_ids)
+eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev',
+                                                    label_ids=label_ids)
 
 nf.logger.info(f"steps_per_epoch = {steps_per_epoch}")
 
