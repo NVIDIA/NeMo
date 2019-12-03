@@ -175,7 +175,7 @@ Finally, we will define our learning rate policy and our optimizer, and start tr
                                       "lr": LEARNING_RATE})
 
 To train NEW with BERT using the provided scripts
------------------------
+-------------------------------------------------
 
 To run the provided training script:
 
