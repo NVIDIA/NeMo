@@ -89,7 +89,7 @@ classifier = nemo_nlp.JointIntentSlotClassifier(
 
 if args.class_balancing == 'weighted_loss':
     # Using weighted loss will enable weighted loss for both intents and slots
-    # Use the intent_loss_weight hyperparameter to adjust intent loss to 
+    # Use the intent_loss_weight hyperparameter to adjust intent loss to
     # prevent overfitting or underfitting.
     loss_fn = nemo_nlp.JointIntentSlotLoss(
       num_slots=data_desc.num_slots,
