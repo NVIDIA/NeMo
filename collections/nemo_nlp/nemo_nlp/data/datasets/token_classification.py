@@ -41,6 +41,7 @@ def get_features(queries,
                  pad_label='O',
                  raw_labels=None,
                  unique_labels=None,
+                 label_ids=None,
                  ignore_extra_tokens=False,
                  ignore_start_end=False):
     """
@@ -52,6 +53,11 @@ def get_features(queries,
             by default, it's the neutral label.
         raw_labels (list of str): list of labels for every work in sequence
         unique_labels (set): set of all labels available in the data
+        (required if raw_labels is not None)
+        label_ids (dict): dict to map labels to label ids. Starts
+        with pad_label->0 and then increases in alphabetical order
+        (required for dev set to support cases when not all labels are
+        present in the dev set)
         ignore_extra_tokens (bool): whether to ignore extra tokens in
         the loss_mask,
         ignore_start_end (bool): whether to ignore bos and eos tokens in
@@ -67,18 +73,15 @@ def get_features(queries,
     all_labels = []
     with_label = False
 
-    # Create mapping of labels to label ids that starts with pad_label->0 and
-    # then increases in alphabetical order
-    label_ids = {pad_label: 0} if raw_labels else None
-
     if raw_labels is not None:
         with_label = True
 
-        # add pad_label to the set of the unique_labels if not already present
-        unique_labels.add(pad_label)
-        unique_labels.remove(pad_label)
-        for label in sorted(unique_labels):
-            label_ids[label] = len(label_ids)
+        if label_ids is None:
+            label_ids = {pad_label: 0}
+            if pad_label in unique_labels:
+                unique_labels.remove(pad_label)
+            for label in sorted(unique_labels):
+                label_ids[label] = len(label_ids)
 
     for i, query in enumerate(queries):
         words = query.strip().split()
@@ -214,6 +217,7 @@ class BertTokenClassificationDataset(Dataset):
                  num_samples=-1,
                  shuffle=False,
                  pad_label='O',
+                 label_ids=None,
                  ignore_extra_tokens=False,
                  ignore_start_end=False,
                  use_cache=False):
@@ -258,13 +262,14 @@ class BertTokenClassificationDataset(Dataset):
                 dataset = list(zip(*dataset))
                 text_lines = dataset[0]
                 labels_lines = dataset[1]
-
+            
             features = get_features(text_lines,
                                     max_seq_length,
                                     tokenizer,
                                     pad_label=pad_label,
                                     raw_labels=labels_lines,
                                     unique_labels=unique_labels,
+                                    label_ids=label_ids,
                                     ignore_extra_tokens=ignore_extra_tokens,
                                     ignore_start_end=ignore_start_end)
 
