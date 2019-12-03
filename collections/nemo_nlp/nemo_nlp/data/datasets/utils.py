@@ -1038,14 +1038,15 @@ class JointIntentSlotDataDesc:
             if len(slot_lines) != len(input_lines):
                 raise ValueError(
                     "Make sure that the number of slot lines match the "
-                    "number of intent lines. There should be a 1-1 correspondence "
-                    "between every slot and intent lines.")
+                    "number of intent lines. There should be a 1-1 "
+                    "correspondence between every slot and intent lines.")
 
             dataset = list(zip(slot_lines, input_lines))
 
             raw_slots, queries, raw_intents = [], [], []
             for slot_line, input_line in dataset:
-                raw_slots.append([int(slot) for slot in slot_line.strip().split()])
+                slot_list = [int(slot) for slot in slot_line.strip().split()]
+                raw_slots.append(slot_list)
                 parts = input_line.strip().split()
                 raw_intents.append(int(parts[-1]))
                 queries.append(' '.join(parts[:-1]))
@@ -1054,25 +1055,29 @@ class JointIntentSlotDataDesc:
             print(raw_intents[:50])
 
             infold = input_file[:input_file.rfind('/')]
-            
+
             logger.info(f'Three most popular intents during {mode}ing')
-            total_intents, intent_label_freq = get_label_stats(raw_intents, infold + f'/{mode}_intent_stats.tsv')
+            total_intents, intent_label_freq = get_label_stats(
+                raw_intents, infold + f'/{mode}_intent_stats.tsv')
             merged_slots = itertools.chain.from_iterable(raw_slots)
 
             logger.info(f'Three most popular slots during {mode}ing')
-            slots_total, slots_label_freq = get_label_stats(merged_slots, infold + f'/{mode}_slot_stats.tsv')
-            
+            slots_total, slots_label_freq = get_label_stats(
+                merged_slots, infold + f'/{mode}_slot_stats.tsv')
+
             if mode == 'train':
 
                 most_common_slot = slots_label_freq[0]
-                weighted_slots = sorted([(j,most_common_slot[1]/i) for (j, i) in slots_label_freq])
+                weighted_slots = sorted([(j, most_common_slot[1]/i)
+                                        for (j, i) in slots_label_freq])
                 self.slot_weights = [i for (_, i) in weighted_slots]
-                print(self.slot_weights)
+                print(f'Slot weights are - {self.slot_weights}')
 
                 most_common_intent = intent_label_freq[0]
-                weighted_intents = sorted([(j,most_common_intent[1]/i) for (j, i) in intent_label_freq])
+                weighted_intents = sorted([(j, most_common_intent[1]/i)
+                                          for (j, i) in intent_label_freq])
                 self.intent_weights = [i for (_, i) in weighted_intents]
-                print(self.intent_weights)
+                print(f'Intent weights are - {self.intent_weights}')
 
             print('total_intents, intent_label_freq')
             print(total_intents, intent_label_freq)
