@@ -18,7 +18,7 @@ from nemo.core.neural_types import (AxisType,
 class BERT(TrainableNM):
     """
     BERT wraps around the Huggingface implementation of BERT from their
-    pytorch-transformers repository for easy use within NeMo.
+    transformers repository for easy use within NeMo.
 
     Args:
         pretrained_model_name (str): If using a pretrained model, this should

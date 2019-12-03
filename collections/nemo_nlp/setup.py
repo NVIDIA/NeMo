@@ -25,7 +25,7 @@ setuptools.setup(
         'python-dateutil<2.8.1,>=2.1',
         'boto3',
         'unidecode',
-        'pytorch-transformers',
+        'transformers',
         'matplotlib',
         'youtokentome'
     ]
