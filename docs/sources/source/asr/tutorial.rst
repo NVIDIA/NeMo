@@ -10,7 +10,7 @@ See :ref:`installation` section.
 Introduction
 -------------
 
-This Automatic Speech Recognition (ASR) tutorial is focused on Jasper :cite:`li2019jasper` model. Jasper is CTC-based :cite:`graves2006` end-to-end model. The model is called "end-to-end" because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text. 
+This Automatic Speech Recognition (ASR) tutorial is focused on Jasper :cite:`asr-tut-li2019jasper` model. Jasper is CTC-based :cite:`asr-tut-graves2006` end-to-end model. The model is called "end-to-end" because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text. 
 CTC-ASR training pipeline consists of the following blocks:
 
 1. audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)
@@ -25,7 +25,7 @@ CTC-ASR training pipeline consists of the following blocks:
 
 Get data
 --------
-We will be using an open-source LibriSpeech :cite:`panayotov2015librispeech` dataset. These scripts will download and convert LibriSpeech into format expected by `nemo_asr`:
+We will be using an open-source LibriSpeech :cite:`asr-tut-panayotov2015librispeech` dataset. These scripts will download and convert LibriSpeech into format expected by `nemo_asr`:
 
 .. code-block:: bash
 
@@ -60,7 +60,7 @@ Each line in json file describes a training sample - `audio_filepath` contains p
 Training 
 ---------
 
-We will train a small model from the Jasper family :cite:`li2019jasper`.
+We will train a small model from the Jasper family :cite:`asr-tut-li2019jasper`.
 Jasper ("Just Another SPeech Recognizer") is a deep time delay neural network (TDNN) comprising of blocks of 1D-convolutional layers. 
 Jasper family of models are denoted as Jasper_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization, ReLU, and dropout:
 
@@ -333,5 +333,7 @@ Perform the following steps:
 References
 ----------
 
-.. bibliography:: Jasperbib.bib
+.. bibliography:: asr_all.bib
     :style: plain
+    :labelprefix: ASR-TUT
+    :keyprefix: asr-tut-
