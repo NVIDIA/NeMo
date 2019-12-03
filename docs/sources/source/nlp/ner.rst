@@ -92,39 +92,42 @@ And create the pipeline that can be used for both training and evaluation.
 
         def create_pipeline(max_seq_length=MAX_SEQ_LENGTH,
                             batch_size=BATCH_SIZE,
-                            mode='train'):
+                            mode='train',
+                            label_ids=None):
         
-        text_file = f'{DATA_DIR}/text_{mode}.txt'
-        label_file = f'{DATA_DIR}/labels_{mode}.txt'
-        
-        data_layer = nemo_nlp.BertTokenClassificationDataLayer(
-            tokenizer=tokenizer,
-            text_file=text_file,
-            label_file=label_file,
-            max_seq_length=max_seq_length,
-            batch_size=batch_size)
+            text_file = f'{DATA_DIR}/text_{mode}.txt'
+            label_file = f'{DATA_DIR}/labels_{mode}.txt'
+            
+            data_layer = nemo_nlp.BertTokenClassificationDataLayer(
+                tokenizer=tokenizer,
+                text_file=text_file,
+                label_file=label_file,
+                label_ids=label_ids,
+                max_seq_length=max_seq_length,
+                batch_size=batch_size)
 
-        label_ids = data_layer.dataset.label_ids
-        input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = data_layer()
-        hidden_states = bert_model(input_ids=input_ids,
-                                   token_type_ids=input_type_ids,
-                                   attention_mask=input_mask)
+            input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = data_layer()
+            hidden_states = bert_model(input_ids=input_ids,
+                                       token_type_ids=input_type_ids,
+                                       attention_mask=input_mask)
 
-        logits = classifier(hidden_states=hidden_states)
-        loss = punct_loss(logits=logits, labels=labels, loss_mask=loss_mask)
-        steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
+            logits = classifier(hidden_states=hidden_states)
+            loss = punct_loss(logits=logits, labels=labels, loss_mask=loss_mask)
+            steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
 
-        if mode == 'train':
-             tensors_to_evaluate = [loss, logits]
-        else:
-             tensors_to_evaluate = [logits, labels, subtokens_mask]
-        return tensors_to_evaluate, loss, steps_per_epoch, label_ids, data_layer
+            if mode == 'train':
+                 tensors_to_evaluate = [loss, logits]
+                 label_ids = data_layer.dataset.label_ids
+            else:
+                 tensors_to_evaluate = [logits, labels, subtokens_mask]
+            return tensors_to_evaluate, loss, steps_per_epoch, label_ids, data_layer
 
 Now, create the train and evaluation datasets:
 
 .. code-block:: python
     train_tensors, train_loss, steps_per_epoch, label_ids, _ = create_pipeline()
-    eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev')
+    eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev',
+                                                        label_ids=label_ids)
 
 Now, we will set up our callbacks. We will use 3 callbacks:
 
