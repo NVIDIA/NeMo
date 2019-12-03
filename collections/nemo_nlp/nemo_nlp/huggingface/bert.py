@@ -78,7 +78,6 @@ class BERT(TrainableNM):
         # Check that only one of pretrained_model_name, config_filename, and
         # vocab_size was passed in
         total = 0
-
         if pretrained_model_name is not None:
             total += 1
         if config_filename is not None:
@@ -130,4 +129,5 @@ class BERT(TrainableNM):
         return pretrained_models
 
     def forward(self, input_ids, token_type_ids, attention_mask):
-        return self.bert(input_ids, token_type_ids, attention_mask)[0]
+        return self.bert(input_ids, token_type_ids=token_type_ids,
+                         attention_mask=attention_mask)[0]

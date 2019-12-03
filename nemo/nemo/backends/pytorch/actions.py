@@ -32,6 +32,7 @@ convert_syncbn = None
 create_syncbn_process_group = None
 DDP = None
 LARC = None
+FusedLAMB = None
 
 AmpOptimizations = {
     Optimization.mxprO0: "O0",
@@ -65,12 +66,15 @@ class PtActions(Actions):
                     global create_syncbn_process_group
                     global DDP
                     global LARC
+                    global FusedLAMB
                     parallel = importlib.import_module('apex.parallel')
+                    apex_optimizer = importlib.import_module('apex.optimizers')
                     convert_syncbn = parallel.convert_syncbn_model
                     create_syncbn_process_group = (
                         parallel.create_syncbn_process_group)
                     DDP = parallel.DistributedDataParallel
                     LARC = parallel.LARC
+                    FusedLAMB = apex_optimizer.FusedLAMB
 
             except ImportError:
                 raise ImportError(
@@ -317,7 +321,7 @@ class PtActions(Actions):
                     params=params_to_optimize, lr=lr,
                     betas=optimization_params.get("betas", (0.9, 0.999)))
             elif optimizer_class.lower() == "fused_adam":
-                optimizer = apex.optimizers.FusedAdam(
+                optimizer = FusedAdam(
                     params=params_to_optimize,
                     lr=lr)
             elif optimizer_class.lower() == "adam_w":
@@ -325,6 +329,7 @@ class PtActions(Actions):
                     params=params_to_optimize,
                     lr=lr,
                     weight_decay=optimization_params.get("weight_decay", 0.0),
+                    betas=optimization_params.get("betas", (0.9, 0.999))
                 )
             elif optimizer_class.lower() == "novograd":
                 optimizer = Novograd(
@@ -349,6 +354,11 @@ class PtActions(Actions):
                     params_to_optimize,
                     lr=lr,
                     weight_decay=optimization_params.get("weight_decay", 0.0),
+                )
+            elif optimizer_class.lower() == "fused_lamb":
+                optimizer = FusedLAMB(
+                    params_to_optimize,
+                    lr=lr,
                 )
             else:
                 raise ValueError(
@@ -558,7 +568,8 @@ class PtActions(Actions):
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
-                eval_dataloader.sampler.set_epoch(0)
+                if hasattr(eval_dataloader, 'sampler'):
+                    eval_dataloader.sampler.set_epoch(0)
             else:  # Not distributed
                 if dl_nm.dataset is not None:
                     # Todo: remove local_parameters
@@ -1293,7 +1304,10 @@ class PtActions(Actions):
                 )
             else:
                 train_dataloader = dataNM.data_iterator
-                train_sampler = train_dataloader.sampler
+                if hasattr(train_dataloader, 'sampler'):
+                    train_sampler = train_dataloader.sampler
+                else:
+                    train_sampler = None
 
             for train_iter in training_loop:
                 call_chain = train_iter[2]

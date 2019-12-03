@@ -27,6 +27,7 @@ setuptools.setup(
         'unidecode',
         'pytorch-transformers',
         'matplotlib',
+        'h5py',
         'youtokentome'
     ]
 )
