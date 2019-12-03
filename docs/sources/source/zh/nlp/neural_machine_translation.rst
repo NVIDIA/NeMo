@@ -37,11 +37,9 @@
 
     .. code-block:: python
 
-        src_tokenizer = nemo_nlp.YouTokenToMeTokenizer(
+        tokenizer = nemo_nlp.YouTokenToMeTokenizer(
             model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
-        src_vocab_size = 8 * math.ceil(src_tokenizer.vocab_size / 8)
-        tgt_tokenizer = src_tokenizer
-        tgt_vocab_size = tgt_tokenizer.vocab_size
+        vocab_size = 8 * math.ceil(src_tokenizer.vocab_size / 8)
 
 
     .. tip::
