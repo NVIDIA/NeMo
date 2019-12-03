@@ -218,7 +218,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
         )
 
 .. note::
-    This script trains should finish 50 epochs in about 7 hours on GTX 1080.
+    This script trains should finish 50 epochs in about 7 hours on GTX 1080. You should get an evaluation WER of about 30%.
 
 .. tip::
     To improve your word error rates:
