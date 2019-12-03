@@ -51,9 +51,10 @@ def get_features(queries,
     tokenizer (Tokenizer): such as NemoBertTokenizer
     pad_label (str): pad value use for labels.
         by default, it's the neutral label.
-    raw_labels (list of str): list of labels for every work in sequence
+    raw_labels (list of str): list of labels for every word in a sequence
     unique_labels (set): set of all labels available in the data
-        (required if raw_labels is not None, and label_ids is None)
+        (required if raw_labels is not None and label_ids is None,
+        unique_labels are required for train set, but not for dev set)
     label_ids (dict): dict to map labels to label ids. Starts
         with pad_label->0 and then increases in alphabetical order
         (required for dev set to support cases when not all labels are
