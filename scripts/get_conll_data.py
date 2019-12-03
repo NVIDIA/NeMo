@@ -19,8 +19,8 @@ import os
 import urllib.request
 
 URL = 'https://raw.githubusercontent.com/kyzhouhzau/BERT-NER/master/data/'
-URL = {'train.txt': URL + '/train.txt',
-       'dev.txt': URL + '/dev.txt'}
+URL = {'train.txt': URL + 'train.txt',
+       'dev.txt': URL + 'dev.txt'}
 
 
 def __maybe_download_file(destination: str, source: str):
