@@ -263,7 +263,7 @@ class BertPretrainingDataset(Dataset):
 
         # TODO: wrap the return value with () for consistent style.
         return np.array(input_ids), input_type_ids,\
-            np.array(input_mask, dtype=np.float32), np.array(output_ids),\
+            np.array(input_mask, dtype=np.long), np.array(output_ids),\
             np.array(output_mask, dtype=np.float32), is_next
 
     def mask_ids(self, ids):
