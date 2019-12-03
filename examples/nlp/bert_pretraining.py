@@ -60,6 +60,7 @@ should finish under 5 days and yield an MRPC score of ACC/F1 85.05/89.35.
 """
 import argparse
 import os
+import math
 import torch
 import nemo
 from nemo.utils.lr_policies import get_lr_policy
@@ -113,7 +114,8 @@ parser.add_argument("--gradient_predivide", action="store_true",
 parser.add_argument("--only_mlm_loss", action="store_true",
                     default=False, help="use only masked language model loss")
 parser.add_argument("--total_iterations_per_gpu", default=-1,
-                    type=int, help="if specified overrides --num_epochs")
+                    type=int, help="if specified overrides --num_epochs.\
+                        Used for preprocessed data")
 parser.add_argument("--dataset_name", default="wikitext-2", type=str)
 parser.add_argument("--load_dir", default=None, type=str)
 parser.add_argument("--work_dir", default="outputs/bert_lm", type=str)
@@ -230,7 +232,7 @@ def create_pipeline(data_file,
                             batch_size=batch_size, training=training)
 
     steps_per_epoch = \
-        len(data_layer) // (batch_size * args.num_gpus * batches_per_step)
+        math.ceil(len(data_layer) / (batch_size * args.num_gpus * batches_per_step))
 
     input_ids, input_type_ids, input_mask, \
         output_ids, output_mask, nsp_labels = data_layer()
@@ -311,14 +313,20 @@ if not os.path.exists(config_path):
     bert_model.config.to_json_file(config_path)
 
 # define and launch training algorithm (optimizer)
+optimization_params = {"batch_size": args.batch_size,
+                       "lr": args.lr,
+                       "betas": (args.beta1, args.beta2),
+                       "weight_decay": args.weight_decay}
+
+if args.total_iterations_per_gpu < 0:
+    optimization_params['num_epochs'] = args.num_epochs
+else:
+    optimization_params['max_steps'] = args.total_iterations_per_gpu
+
 nf.train(tensors_to_optimize=[train_loss],
          lr_policy=lr_policy_fn,
          callbacks=[train_callback, ckpt_callback],
          optimizer=args.optimizer,
          batches_per_step=args.batches_per_step,
          gradient_predivide=args.gradient_predivide,
-         optimization_params={"batch_size": args.batch_size,
-                              "num_epochs": args.num_epochs,
-                              "lr": args.lr,
-                              "betas": (args.beta1, args.beta2),
-                              "weight_decay": args.weight_decay})
+         optimization_params=optimization_params)
