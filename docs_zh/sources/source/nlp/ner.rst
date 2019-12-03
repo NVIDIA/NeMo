@@ -1,17 +1,16 @@
 教程
-========
+====
 
-在教程前，请确认你已经安装了 ``nemo`` 和 ``nemo_nlp`` 。你可以通过这个部分获得更多的信息： :ref:`installation` 
+在教程前，请确认你已经安装了 ``nemo`` 和 ``nemo_nlp`` 。你可以通过这个部分获得更多的信息 :ref:`installation`
 
 
 简介
-------------
+----
 
-这个教程将介绍如何在NeMo中，实现命名实体识别(Named Entity Recognition, NER)。我们将通过一个预训练好的BERT模型来进行展示，或者你也可以使用一个训练好的模型！ 你可以通过BERT预训练教程获得更多的信息。
-
+这个教程将介绍如何在NeMo中，实现命名实体识别(Named Entity Recognition, NER)。我们将通过一个预训练好的 BERT 模型来进行展示，或者你也可以使用一个训练好的模型！你可以通过 BERT 预训练教程获得更多的信息。
 
 下载数据集
-----------------
+----------
 
 `CoNLL-2003`_ 是一个NER上标准的验证集合，当然任何一个NER数据集合都可以。数据集合需要满足的条件是符合以下的格式:
 
@@ -38,13 +37,13 @@
 .. _Preprocessed data: https://github.com/kyzhouhzau/BERT-NER/tree/master/data
 
 训练
---------
+----
 
 .. tip::
 
     我们建议试试使用Jupyter来运行这部分代码，这会使得调试更加容易!
 
-首先，我们需要使用所支持的后端，来创建我们的neural factory。你需要确认使用多GPU或者混合精度训练。这个教程中我们使用单GPU训练，不使用混合精度。如果你想使用混合精度训练，需要设置 ``amp_opt_level`` 这个参数为 ``O1`` 或者 ``O2`` 。
+首先，我们需要使用所支持的后端，来创建我们的 `Neural Factory` 。你需要确认使用多GPU或者混合精度训练。这个教程中我们使用单GPU训练，不使用混合精度。如果你想使用混合精度训练，需要设置 ``amp_opt_level`` 这个参数为 ``O1`` 或者 ``O2`` 。
 
     .. code-block:: python
 
@@ -55,10 +54,9 @@
                                            create_tb_writer=True,
                                            files_to_copy=[__file__])
 
-接着，我们需要定义我们的tokenizer和BERT模型。你可以有多种方式来实现。注意，NER是大小写敏感的("New York Ciyt"比"new york city"更容易被识别出来)，所以我们建议使用区分大小写的模型。
+接着，我们需要定义我们的分词器 (tokenizer) 和 BERT 模型。你可以有多种方式来实现。注意，NER是大小写敏感的（"New York City"比"new york city"更容易被识别出来），所以我们建议使用区分大小写的模型。
 
-如果你正在使用一个标准的BERT模型，我们建议你使用下面这条命令。想获取完整的BERT列表，可以参考 ``nemo_nlp.huggingface.BERT.list_pretrained_models()`` 。
-
+如果你正在使用一个标准的 BERT 模型，我们建议你使用下面这条命令。想获取完整的 BERT 列表，可以参考 ``nemo_nlp.huggingface.BERT.list_pretrained_models()`` 。
 
     .. code-block:: python
 
@@ -66,7 +64,7 @@
         pretrained_bert_model = nemo_nlp.huggingface.BERT(
             pretrained_model_name=args.pretrained_bert_model)
 
-如果你在使用一个自己预训练好的BERT模型，你可以使用下面这条命令。这里，你需要把 ``args.bert_checkpoint`` 这个参数改成你的checkpoint文件所在的位置。
+如果你在使用一个自己预训练好的 BERT 模型，你可以使用下面这条命令。这里，你需要把 ``args.bert_checkpoint`` 这个参数改成你的 checkpoint 文件所在的位置。
 
     .. code-block:: python
 
@@ -124,18 +122,18 @@
         train_loss, steps_per_epoch, _, _ = create_pipeline(train_data_layer)
         _, _, data_layer, eval_tensors = create_pipeline(eval_data_layer)
 
-现在，我们需要设置callbacks，一共有3个callbacks:
+现在，我们设置3个回调函数：
 
 * `SimpleLossLoggerCallback` 打印出训练过程中的损失函数值
 * `EvaluatorCallback` 来验证我们dev集合上F1的值。在这个例子中， `EvaluatorCallback` 也会打印出 `output.txt` 上的预测值，这有利于找出模型哪个部分出了问题。
 * `CheckpointCallback` 用于保存和读取checkpoints.
 
 .. tip::
-    
+
     Tensorboard_ 是一个非常好用的调试工具。它在本教程中不是一个必须安装的工具，如果你想使用的话，需要先安装 tensorboardX_ 接着在微调过程中使用如下的命令：
 
     .. code-block:: bash
-    
+
         tensorboard --logdir bert_ner_tb
 
 .. _Tensorboard: https://www.tensorflow.org/tensorboard
@@ -179,10 +177,10 @@
                  optimization_params={"num_epochs": args.num_epochs,
                                       "lr": args.lr})
 
-使用其它的BERT模型
------------------------
+使用其它的 BERT 模型
+--------------------
 
-除了可以使用谷歌提供的预训练BERT模型和你自己训练的BERT模型外，在NeMo中，也可以使用来自第三方的BERT模型，只要这个模型的参数可以加载到Pytorch中即可。例如，如果你想使用 SciBERT_ 来微调：
+除了可以使用谷歌提供的预训练 BERT 模型和你自己训练的模型外，在NeMo中，也可以使用来自第三方的BERT模型，只要这个模型的参数可以加载到PyTorch中即可。例如，如果你想使用 SciBERT_ 来微调：
 
 .. _SciBERT: https://github.com/allenai/scibert
 
@@ -195,7 +193,7 @@
     mv bert_config.json config.json
     cd ..
 
-接着，当你加载你的BERT模型，你需要指定模型所在的目录名：
+接着，当你加载你的 BERT 模型，你需要指定模型所在的目录名：
 
 .. code-block:: python
 
@@ -204,6 +202,6 @@
         pretrained_model_name="scibert_scivocab_cased",
         factory=neural_factory)
 
-如果你想使用TensorFlow训练好的模型，例如BioBERT，你需要首先使用Hugging Face提供的 `model conversion script`_ 进行模型转换，再在NeMo中使用这个模型。
+如果你想使用 TensorFlow 训练好的模型，例如 BioBERT ，你需要首先使用 Hugging Face 提供的 `model conversion script`_ 进行模型转换，再在 NeMo 中使用这个模型。
 
 .. _model conversion script: https://github.com/huggingface/pytorch-transformers/blob/master/pytorch_transformers/convert_tf_checkpoint_to_pytorch.py
