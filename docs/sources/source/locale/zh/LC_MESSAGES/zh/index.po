@@ -1,0 +1,164 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/zh/index.rst:2
+msgid "NVIDIA Neural Modules: NeMo 中文文档"
+msgstr ""
+
+#: ../../source/zh/index.rst:21
+msgid "Neural Modules (NeMo) 是一个用神经模块来构建AI应用的框架无关的工具包。当前支持PyTorch框架。"
+msgstr ""
+
+#: ../../source/zh/index.rst:23
+msgid "一个“神经模块”指的是根据一系列的输入来计算一系列输出的代码块。"
+msgstr ""
+
+#: ../../source/zh/index.rst:25
+msgid "神经模块的输入和输出的神经类型会有语义检查。"
+msgstr ""
+
+#: ../../source/zh/index.rst:27
+msgid "用NeMo构建的应用是一个由连接在一起的模块构成的有向无环图，研究者们可以很容易地通过API兼容的模块定义以及构建新的语音语言神经网络。"
+msgstr ""
+
+#: ../../source/zh/index.rst:29
+msgid "**简介**"
+msgstr ""
+
+#: ../../source/zh/index.rst:31
+msgid "通过以下这个视频我们可以有个概览："
+msgstr ""
+
+#: ../../source/zh/index.rst:40
+msgid "**核心概念和特性**"
+msgstr ""
+
+#: ../../source/zh/index.rst:42
+msgid "`NeuralModule` class - 表示以及执行一个神经模块。"
+msgstr ""
+
+#: ../../source/zh/index.rst:43
+msgid "`NmTensor` - 表示的是神经模块端口之间流动的激活元。"
+msgstr ""
+
+#: ../../source/zh/index.rst:44
+msgid "`NeuralType` - 表示模块端口类型和NmTensors。"
+msgstr ""
+
+#: ../../source/zh/index.rst:45
+msgid "`NeuralFactory` - 创建神经模块并且管理训练流程。"
+msgstr ""
+
+#: ../../source/zh/index.rst:46
+msgid ""
+"`Lazy execution` - 当描述神经模块之间的激活流时，在一个“action”(比如 "
+"`optimizer.optimize(...)` 没有触发前，什么都不会发生。"
+msgstr ""
+
+#: ../../source/zh/index.rst:47
+msgid ""
+"`Collections` - NeMo中附带的模块集合 -  相关的模块集合，比如 `nemo_asr` (语音识别) 以及 "
+"`nemo_nlp` (自然语言处理)"
+msgstr ""
+
+#: ../../source/zh/index.rst:50
+msgid "**安装依赖**"
+msgstr ""
+
+#: ../../source/zh/index.rst:52
+msgid "Python 3.6 or 3.7"
+msgstr ""
+
+#: ../../source/zh/index.rst:53
+msgid "PyTorch 1.2 with GPU support"
+msgstr ""
+
+#: ../../source/zh/index.rst:54
+msgid "NVIDIA APEX: https://github.com/NVIDIA/apex"
+msgstr ""
+
+#: ../../source/zh/index.rst:57
+msgid "**开始吧**"
+msgstr ""
+
+#: ../../source/zh/index.rst:59
+msgid ""
+"如果需要的话，你可以从这个docker容器开始 `NGC PyTorch容器 "
+"<https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ "
+"这里面已经包含了上面所需要的环境。"
+msgstr ""
+
+#: ../../source/zh/index.rst:61
+msgid "你可以直接运行 ``docker pull nvcr.io/nvidia/pytorch:19.08-py3``"
+msgstr ""
+
+#: ../../source/zh/index.rst:63
+msgid "接着就按照下面的步骤："
+msgstr ""
+
+#: ../../source/zh/index.rst:65
+msgid "克隆这个仓库"
+msgstr ""
+
+#: ../../source/zh/index.rst:66
+msgid "切到nemo文件夹下，运行: ``python setup.py install``"
+msgstr ""
+
+#: ../../source/zh/index.rst:73
+msgid "安装collections:"
+msgstr ""
+
+#: ../../source/zh/index.rst:70
+msgid "ASR collections `collections/nemo_asr`:"
+msgstr ""
+
+#: ../../source/zh/index.rst:69
+msgid "``apt-get install libsndfile1``"
+msgstr ""
+
+#: ../../source/zh/index.rst:70
+msgid "``python setup.py install``"
+msgstr ""
+
+#: ../../source/zh/index.rst:72
+msgid "NLP collections `collections/nemo_nlp`: ``python setup.py install``"
+msgstr ""
+
+#: ../../source/zh/index.rst:74
+msgid "TTS collections `collections/nemo_tts`: ``python setup.py install``"
+msgstr ""
+
+#: ../../source/zh/index.rst:75
+msgid ""
+"如果要开发，你需要运行: ``python setup.py develop`` 而不是之前步骤3.2中的 ``python setup.py "
+"install``"
+msgstr ""
+
+#: ../../source/zh/index.rst:76
+msgid "到 `examples/start_here` 下，从这几个简单的例子开始吧"
+msgstr ""
+
+#: ../../source/zh/index.rst:79
+msgid "**单元测试**"
+msgstr ""
+
+#: ../../source/zh/index.rst:81
+msgid "下面这个命令会运行单元测试:"
+msgstr ""
+

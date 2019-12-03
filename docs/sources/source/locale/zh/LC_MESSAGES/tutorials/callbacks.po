@@ -1,0 +1,151 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/tutorials/callbacks.rst:2
+msgid "Callbacks"
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:3
+msgid ""
+"NeMo uses callbacks to do a variety of helper functions during training. "
+"NeMo comes with three useful callbacks: SimpleLossLoggerCallback, "
+"CheckpointCallback, and EvaluatorCallback. Callbacks are defined prior to"
+" calling the train() function, and are passed to the train() function. "
+"For example, a common training script will look like:"
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:20
+msgid "SimpleLossLoggerCallback"
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:21
+msgid ""
+"SimpleLossLoggerCallback is used to log training metrics such as loss and"
+" time per step to screen and to tensorboard. SimpleLossLoggerCallback has"
+" one required arguments, and two arguments that we recommend to "
+"overwrite. It requires tensors which is a list of NMTensors that "
+"print_func(), get_tb_values(), and log_to_tb_func will receive as input "
+"during training. The two reccomended arguments to override are "
+"print_func(), and either get_tb_values() or log_to_tb_func()."
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:30
+msgid ""
+"print_func() should be used to log values to screen. We recommend using "
+"neural_factory.logger.info() in place of print(). For example, it can be "
+"used to print the loss value:"
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:42
+msgid ""
+"We provide two methods to log to tensorboard: get_tb_values() and "
+"log_to_tb_func(). For simple use case of logging scalars, we recommend "
+"get_tb_values(). For advanced use cases such as pictures or audio, we "
+"recommend log_to_tb_func()."
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:47
+msgid ""
+"get_tb_values() is used to return values to be logged to tensorboard. It "
+"should return a list of 2-element tuples, where the first element is a "
+"string representing the tensorboard tag, and the second element is the "
+"scalar value to log. Note we currently only support scalar values. Note "
+"to use get_tb_values(), tb_writer should also be defined."
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:58
+msgid ""
+"log_to_tb_func() takes three arguments: the `tensorboardX.SummaryWriter "
+"<https://tensorboardx.readthedocs.io/en/latest/tensorboard.html>`_ , a "
+"list of evaluated tensors, and the current step. The user can then use "
+"the SummaryWriter class to add images, audio, and more. For example:"
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:69
+msgid "SimpleLossLoggerCallback can be constructed as follows:"
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:92
+msgid "CheckpointCallback"
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:93
+msgid ""
+"CheckpointCallback is used to checkpoint models during training so that "
+"they can be reloaded later for inference or finetuning. "
+"CheckpointCallback is simple to use:"
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:120
+msgid "EvaluatorCallback"
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:121
+msgid ""
+"EvaluatorCallback is used during evaluation to log evaluation metrics to "
+"screen and tensorboard. EvaluatorCallback requires three arguments: "
+"eval_tensors, user_iter_callback, user_epochs_done_callback. Similar to "
+"SimpleLossLoggerCallback, eval_tensors is a list of NMTensors whose "
+"values we want to obtain during evaluation."
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:127
+msgid ""
+"user_iter_callback is a function that is called after each batch during "
+"evaluation. It is always passed two arguments: values_dict, and "
+"global_var_dict. values_dict is a dictionary containing NMTensor names as"
+" keys, and the evaluated tensor as values for that batch. It's main job "
+"is to copy the relevant evaluated tensors from values_dict to "
+"global_var_dict as global_var_dict is saved between batches and passed to"
+" the final user_epochs_done_callback function."
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:134
+msgid ""
+"user_epochs_done_callback is a function that accepts global_var_dict. "
+"It's job is to log relevant information to the screen such as the "
+"evaluation loss."
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:137
+msgid ""
+"For simple logging of scalar values to tensorboard, "
+"user_epochs_done_callback should return a dictionary with strings as keys"
+" and scalar tensors as values. This tag -> value dictionary will be "
+"parsed and each element will be logged to tensorboard if a tensorboard "
+"writter object is declared."
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:142
+msgid ""
+"To enable more complex tensorboard logging such as images or audio, "
+"EvaluatorCallback must be passed tb_writer_func at initialization. This "
+"function must accept a `tensorboardX.SummaryWriter "
+"<https://tensorboardx.readthedocs.io/en/latest/tensorboard.html>`_ , "
+"whatever is returned from user_epochs_done_callback, and the current "
+"step. We recommend for user_epochs_done_callback to simply return the "
+"global_var_dict for tb_writer_func to consume. The user must log all data"
+" of interest inside tb_writer_func including scalars that would otherwise"
+" be logged if tb_writer_func was not passed to EvaluatorCallback."
+msgstr ""
+
+#: ../../source/tutorials/callbacks.rst:152
+msgid "For an example, please see the scripts inside <nemo_dir>/examples."
+msgstr ""
+

@@ -1,0 +1,133 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/zh/nlp/transformer_language_model.rst:2
+msgid "Transformer语言模型"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:4
+msgid ""
+"在这个教程中，我们会用Transformer :cite:`vaswani2017attention` "
+"的结构构建和训练一个语言模型。确保在开始这个教程之前你已经安装了 ``nemo`` 和 ``nemo_nlp`` ，详见 "
+":ref:`installation` 。"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:7
+msgid "简介"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:9
+msgid "一个好的语言模型对于下游任务有很广泛的应用。用于下游任务的语言模型例子包括 GPT-2 :cite:`radford2019language`。"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:12
+msgid "下载语料"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:14
+msgid "在这个实验中我们会使用非常小的WikiText-2数据集 :cite:`merity2016pointer`。"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:16
+msgid "下载数据集，运行脚本 ``examples/nlp/scripts/get_wt2.sh``. 下载和解压数据集后，文件夹会包括三个文件:"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:25
+msgid "创建分词器模型"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:26
+msgid "`LanguageModelDataDesc` 会把你的数据集转换到和 `LanguageModelingDataset` 兼容的格式。"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:33
+msgid ""
+"我们需要定义我们的分词器， 我们用定义在 ``nemo_nlp/data/tokenizers/word_tokenizer.py`` 中的 "
+"`WordTokenizer`:"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:41
+msgid "让词嵌入的大小（或者其他张量的维度）能够整除8会帮助得到最好的GPU利用率，以及混精度训练的加速。"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:44
+msgid "创建模型"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:45
+msgid ""
+"首先我们需要用支持的后端来创建 ``neural "
+"factory``。你如何定义它取决于你想做多GPU训练或者是混精度训练。这个教程假设你不用混精度，在一块GPU上做训练。 "
+"如果你想做混精度训练，设置 ``amp_opt_level`` 为 ``O1`` 或者 ``O2``。"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:57
+msgid "接着，我们定义对于我们模型的神经元模块"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:59
+msgid "Transformer编码器 (注意，我们的语言模型不需要解码器)"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:60
+msgid "`TokenClassifier`  把输出映射到词汇表上的概率分布."
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:61
+msgid "损失函数 (带标签平滑正则的交叉熵)."
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:70
+msgid ""
+"根据 `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ "
+":cite:`press2016using`, 我们也会把词嵌入的参数和softmax层连起来:"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:77
+msgid "接着，我们为训练和评估创建数据集:"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:94
+msgid "然后,我们创建用于训练和评估的从输入到输出的管道:"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:111
+msgid "接下来，我们定义一些必要的回调:"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:113
+msgid "`SimpleLossLoggerCallback`: 追踪训练中的loss"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:114
+msgid "`EvaluatorCallback`: 在用户设置的间隔中，追踪评估的度量指标"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:115
+msgid "`CheckpointCallback`: 在设置的间各种保存checkpoints"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:124
+msgid "最后，定义优化器，开始训练吧！"
+msgstr ""
+
+#: ../../source/zh/nlp/transformer_language_model.rst:143
+msgid "参考"
+msgstr ""
+

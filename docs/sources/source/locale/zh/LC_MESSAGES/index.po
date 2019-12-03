@@ -1,0 +1,172 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 19:34+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/index.rst:2
+msgid "NVIDIA Neural Modules: NeMo"
+msgstr ""
+
+#: ../../source/index.rst:20
+msgid ""
+"Neural Modules (NeMo) is a framework-agnostic toolkit for building AI "
+"applications powered by Neural Modules. Current support is for PyTorch "
+"framework."
+msgstr ""
+"Neural Modules (NeMo) 是一个框架无关的 toolkit for building AI applications "
+"powered by Neural Modules. Current support is for PyTorch framework."
+
+#: ../../source/index.rst:22
+msgid ""
+"A \"Neural Module\" is a block of code that computes a set of outputs "
+"from a set of inputs."
+msgstr ""
+
+#: ../../source/index.rst:24
+msgid "Neural Modules’ inputs and outputs have Neural Type for semantic checking."
+msgstr ""
+
+#: ../../source/index.rst:26
+msgid ""
+"An application built with NeMo application is a Directed Acyclic Graph "
+"(DAG) of connected modules enabling researchers to define and build new "
+"speech and nlp networks easily through API Compatible modules."
+msgstr ""
+
+#: ../../source/index.rst:29
+msgid "**Introduction**"
+msgstr ""
+
+#: ../../source/index.rst:31
+msgid "See this video for a walk-through."
+msgstr ""
+
+#: ../../source/index.rst:40
+msgid "**Core Concepts and Features**"
+msgstr ""
+
+#: ../../source/index.rst:42
+msgid "`NeuralModule` class - represents and implements a neural module."
+msgstr ""
+
+#: ../../source/index.rst:43
+msgid ""
+"`NmTensor` - represents activations which flow between neural modules' "
+"ports."
+msgstr ""
+
+#: ../../source/index.rst:44
+msgid "`NeuralType` - represents types of modules' ports and NmTensors."
+msgstr ""
+
+#: ../../source/index.rst:45
+msgid "`NeuralFactory` - to create neural modules and manage training."
+msgstr ""
+
+#: ../../source/index.rst:46
+msgid ""
+"`Lazy execution` - when describing activation flow between neural "
+"modules, nothing happens until an \"action\" (such as "
+"`optimizer.optimize(...)` is called."
+msgstr ""
+
+#: ../../source/index.rst:47
+msgid ""
+"`Collections` - NeMo comes with collections - related group of modules "
+"such as `nemo_asr` (for Speech Recognition) and `nemo_nlp` for NLP"
+msgstr ""
+
+#: ../../source/index.rst:50
+msgid "**Requirements**"
+msgstr ""
+
+#: ../../source/index.rst:52
+msgid "Python 3.6 or 3.7"
+msgstr ""
+
+#: ../../source/index.rst:53
+msgid "PyTorch 1.2 with GPU support"
+msgstr ""
+
+#: ../../source/index.rst:54
+msgid "NVIDIA APEX: https://github.com/NVIDIA/apex"
+msgstr ""
+
+#: ../../source/index.rst:57
+msgid "**Getting started**"
+msgstr ""
+
+#: ../../source/index.rst:59
+msgid ""
+"If desired, you can start with `NGC PyTorch container "
+"<https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ which "
+"already includes requirements above."
+msgstr ""
+
+#: ../../source/index.rst:62
+msgid ""
+"You can pull it like so: ``docker pull nvcr.io/nvidia/pytorch:19.08-py3``"
+" and then continue with the following steps:"
+msgstr ""
+
+#: ../../source/index.rst:66
+msgid "Clone the repository"
+msgstr ""
+
+#: ../../source/index.rst:67
+msgid "Go to nemo folder and then: ``python setup.py install``"
+msgstr ""
+
+#: ../../source/index.rst:72
+msgid "Install collections:"
+msgstr ""
+
+#: ../../source/index.rst:71
+msgid "ASR collection from `collections/nemo_asr`:"
+msgstr ""
+
+#: ../../source/index.rst:70
+msgid "``apt-get install libsndfile1``"
+msgstr ""
+
+#: ../../source/index.rst:71
+msgid "``python setup.py install``"
+msgstr ""
+
+#: ../../source/index.rst:73
+msgid "NLP collection from `collections/nemo_nlp`: ``python setup.py install``"
+msgstr ""
+
+#: ../../source/index.rst:74
+msgid ""
+"For development you will need to: ``python setup.py develop`` instead of "
+"``python setup.py install`` in Step (3.2) above"
+msgstr ""
+
+#: ../../source/index.rst:75
+msgid "Go to `examples/start_here` to get started with few simple examples"
+msgstr ""
+
+#: ../../source/index.rst:78
+msgid "**Unittests**"
+msgstr ""
+
+#: ../../source/index.rst:80
+msgid "This command runs unittests:"
+msgstr ""
+
+

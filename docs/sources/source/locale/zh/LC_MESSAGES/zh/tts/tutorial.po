@@ -1,0 +1,183 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/zh/tts/tutorial.rst:2
+msgid "教程"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:4
+msgid ""
+"请确保您已经安装了 ``nemo``，``nemo_asr``，和 ``nemo_tts`` 模块。参考 :ref:`installation` "
+"章节。"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:8
+msgid "本教程仅要求安装 `nemo`，`nemo_asr`，和 `nemo_tts` 模块"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:11
+msgid "介绍"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:12
+msgid ""
+"语音合成，又被称为文本转语音（TTS），通常指根据文本合成人类说话的声音。使用神经网络进行 "
+"语音合成通常包含两个神经网络模型。第一个模型能够将文本转化为中间态的音频表征，通常为音频谱（spectrogram）。 "
+"第二个模型称为声码器，能够将中间态的音频表征转化为声音文件，一种我们常见的声音文件格式为 .wav。 "
+"尽管目前有一些研究表示可以将这两个模型合并为一个独立的模型，在本教程中，我们关注于使用两个模型的方法。"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:17
+msgid "NeMo 支持以下两个模型："
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:19
+msgid "`Tacotron 2 <https://arxiv.org/abs/1712.05884>`_ ：该模型用于将文本转化为梅尔频谱"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:20
+msgid "`Waveglow <https://arxiv.org/abs/1811.00002>`_ ： 该模型用于将梅尔频谱转化为声音文件"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:22
+msgid ""
+"要想使用 NeMo 训练语音合成模型，你可以继续阅读以下章节。如果你想使用预先训练好的模型直接合成语音， 请跳转到 :ref:`语音合成 "
+"<语音合成>` 章节。"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:26
+msgid "获取数据"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:27
+msgid ""
+"Tacotron 2 和 Waveglow 都可以使用 `LJSpeech <https://keithito.com/LJ-Speech-"
+"Dataset/>`__ 数据集来训练。 你可以使用一个辅助脚本来获得用于 NeMo 训练的数据，该脚本位于 "
+"NeMo/scripts，请按照如下方式运行该脚本："
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:35
+msgid "想了解更多关于 LJSpeech 数据集的细节，可以参考 :ref:`这里 <ljspeech>`。"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:37
+msgid ""
+"对于普通话语音合成的数据:`中文标准女声音库 <https://www.data-"
+"baker.com/open_source.html>`__，你也可以使用一个辅助脚本来获得，该脚本位于 NeMo/scripts， "
+"辅助脚本中使用的数据集下载链接由标贝（北京）科技有限公司提供。"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:44
+msgid "想了解更多关于中文标准女声音库数据集的细节，可以参考 :ref:`这里 <中文标准女声音库>`。"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:47
+msgid "训练"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:48
+msgid ""
+"NeMo 支持对 Tacotron 2 和 Waveglow 进行训练。在本教程中，我们主要关注于 Tacotron 2 模型的训练， "
+"因为其负责从训练数据的音频中学习大部分的特征，例如性别、韵律等。 另外，我们的实验还表明， Waveglow "
+"作为声码器是具有通用型的。具体的表现为，我们在一个英文女声语音数据集上训练得到的 Waveglow "
+"模型，可以用于男性声音或者其他语言（如普通话）的声码器。"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:53
+msgid ""
+"训练 Tacotron 2 可以通过运行 `tacotron2.py` 文件来完成，该脚本位于 "
+"NeMo/examples/tts。假设你当前已经位于 NeMo/examples/tts 目录下， 你可以通过运行如下命令开始训练："
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:61
+msgid "使用普通话数据进行训练也可以通过运行 `tacotron2.py` 文件来完成， 你可以通过运行如下命令开始训练："
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:69
+msgid ""
+"Tacotron 2 通常需要约 20,000 个训练步来学习到正确的注意力（也可以理解为对齐）。 "
+"一旦模型学习到了正确的注意力，你就可以使用该模型来合成较为清晰的语音。"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:73
+msgid "混合精度训练"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:74
+msgid ""
+"启用或关闭混合精度训练可以通过一个命令行参数来控制 --amp_opt_level。对于 Tacotron 2 和 Waveglow "
+"来说，该参数建议的默认值为 O1。该参数值可以设置为以下几种："
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:77
+msgid "O0: 单精度（float32）训练"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:78
+msgid "O1: 混合精度训练"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:79
+msgid "O2: 混合精度训练"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:80
+msgid "O3: 半精度（float16）训练"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:83
+msgid "混合精度依赖 Tensor Cores ，NVIDIA 的 Volta 和 Turing 架构 GPU 支持 Tensor Cores。"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:86
+msgid "多 GPU 训练"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:87
+msgid ""
+"要想启用在多个 GPU 上训练可以通过在运行训练脚本时调用 torch.distributed.launch 模块并指定 "
+"--nproc_per_node 参数为 GPU 的数量："
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:98
+msgid "合成语音"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:99
+msgid ""
+"你可以使用自己训练的 Tacotron 2 模型合成语音，也可以使用我们预训练好的 Tacotron 2 模型合成语音。请从这里下载预训练的模型。"
+" 下一步，请创建你想用于语音合成的文本，并将其转化为训练数据格式相同的 JSON 格式。该 JSON 文件格式如下所示："
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:107
+msgid "如果要合成普通话语音，JSON 文件格式如下所示："
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:114
+msgid "其中 “text” 字段包含想要合成的语音的拼音序列，每个拼音后的数字（0-4）代表该发音的声调，0 代表轻声。"
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:116
+msgid "语音合成可以通过运行 NeMo/examples/tts 文件夹下的 tts_infer.py 脚本完成，你可以通过如下命令运行该脚本："
+msgstr ""
+
+#: ../../source/zh/tts/tutorial.rst:122
+msgid "要合成普通话语音，记得将 Tacotron 2 模型配置文件更换为 tacotron2_mandarin.yaml。"
+msgstr ""
+

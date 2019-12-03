@@ -1,0 +1,93 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/zh/training.rst:2
+msgid "快速训练"
+msgstr ""
+
+#: ../../source/zh/training.rst:4
+msgid ""
+"训练较大的模型，特别是从头开始训练，需要巨大的算力。NeMo支持分布式训练和混合精度训练以加速训练。NeMo借助 `英伟达的APEX库 "
+"<https://github.com/NVIDIA/apex>`_ 在英伟达GPU上达到最佳的性能。另外，配备了多块GPU的系统，例如DGX "
+"Station, DGX-1 & DGX-2等，可以进一步的加速GPU间的通信，从而最大限度的发挥GPU的性能。"
+msgstr ""
+
+#: ../../source/zh/training.rst:7
+msgid "混合精度训练"
+msgstr ""
+
+#: ../../source/zh/training.rst:9
+msgid ""
+"英伟达最新的Volta架构和Turning架构GPU配备了Tensor "
+"Cores计算单元，能够大幅加速半精度数据的矩阵乘法运算。想要在NeMo中使用混合精度训练，你可以设置 "
+"`nemo.core.NeuralModuleFactory` 类的 `optimization_level` 选项为 "
+"`nemo.core.Optimization.mxprO1` 。"
+msgstr ""
+
+#: ../../source/zh/training.rst:17
+msgid "混合精度训练需要Tensor Cores的硬件支持，因此当前只在英伟达的Volta或者Turing GPU上有支持。"
+msgstr ""
+
+#: ../../source/zh/training.rst:20
+msgid "多GPU训练"
+msgstr ""
+
+#: ../../source/zh/training.rst:22
+msgid "进行多GPU训练需要进行如下设置："
+msgstr ""
+
+#: ../../source/zh/training.rst:24
+msgid "在 `NeuralModuleFactory` 类中设置选项 `placement` 为 `nemo.core.DeviceType.AllGpu`"
+msgstr ""
+
+#: ../../source/zh/training.rst:25
+msgid ""
+"在你的python脚本中添加命令行选项 ``local_rank``: `parser.add_argument(\"--"
+"local_rank\", default=None, type=int)`"
+msgstr ""
+
+#: ../../source/zh/training.rst:34
+msgid "利用PyTorch中的 `torch.distributed.launch` 包来启动你的训练："
+msgstr ""
+
+#: ../../source/zh/training.rst:41
+msgid "范例"
+msgstr ""
+
+#: ../../source/zh/training.rst:43
+msgid ""
+"一个比较完整的利用NeMo训练ASR模型的范例请参阅这个文件： `<nemo_repo>/examples/asr/jasper.py`. "
+"这个例子会创建一个训练集和三个验证集以便在不同的数据集上对模型精度进行验证。"
+msgstr ""
+
+#: ../../source/zh/training.rst:45
+msgid "在一台配备了多块Volta GPU的系统上，你可以用如下的命令来开始训练："
+msgstr ""
+
+#: ../../source/zh/training.rst:51
+msgid "这条命令会进行8卡并行和混合精度训练，并且会在多个数据集上进行验证。"
+msgstr ""
+
+#: ../../source/zh/training.rst:54
+msgid ""
+"你可以在选项中同时传入多个数据集，他们之间用逗号隔开，例如： `--train_manifest=/manifests/librivox-"
+"train-all.json,/manifests/librivox-train-all-"
+"sp10pcnt.json,/manifests/cv/validated.json`."
+msgstr ""
+

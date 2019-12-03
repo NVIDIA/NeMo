@@ -1,0 +1,107 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/installation.rst:4
+msgid "Installation"
+msgstr ""
+
+#: ../../source/installation.rst:6
+msgid "**Requirements**"
+msgstr ""
+
+#: ../../source/installation.rst:8
+msgid "Python 3.6 or 3.7"
+msgstr ""
+
+#: ../../source/installation.rst:9
+msgid "`CUDA <https://developer.nvidia.com/cuda-downloads/>`_ >= 10.0"
+msgstr ""
+
+#: ../../source/installation.rst:10
+msgid "`cuDNN <https://developer.nvidia.com/cudnn/>`_ >= 7.6"
+msgstr ""
+
+#: ../../source/installation.rst:11
+msgid "`APEX <https://github.com/NVIDIA/apex/>`_"
+msgstr ""
+
+#: ../../source/installation.rst:12
+msgid "PyTorch >=1.2"
+msgstr ""
+
+#: ../../source/installation.rst:13
+msgid ""
+"(Recommended for distributed training) `NCCL "
+"<https://github.com/NVIDIA/nccl/>`_ >= 2.4"
+msgstr ""
+
+#: ../../source/installation.rst:15
+msgid ""
+"Instead of installing all requirements. They are all automatically "
+"included in the `NVIDIA's PyTorch container "
+"<https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ . You can "
+"pull it like so: `docker pull nvcr.io/nvidia/pytorch:19.08-py3`"
+msgstr ""
+
+#: ../../source/installation.rst:19
+msgid "**Installing NeMo and Collections**"
+msgstr ""
+
+#: ../../source/installation.rst:21
+msgid ""
+"*Note*: For step 2 and 3, if you want to use NeMo in development mode, "
+"use: ``pip install -e .`` instead of ``pip install .``"
+msgstr ""
+
+#: ../../source/installation.rst:23
+msgid "Clone the repository:"
+msgstr ""
+
+#: ../../source/installation.rst:29
+msgid "Go to ``nemo`` folder and install NeMo Core:"
+msgstr ""
+
+#: ../../source/installation.rst:36
+msgid "Install collections"
+msgstr ""
+
+#: ../../source/installation.rst:38
+msgid "To install the ASR collection from ``collections/nemo_asr``:"
+msgstr ""
+
+#: ../../source/installation.rst:46
+msgid "To install the NLP collection from ``collections/nemo_nlp``:"
+msgstr ""
+
+#: ../../source/installation.rst:53
+msgid "To install the LPR collection from ``collections/nemo_simple_gan``:"
+msgstr ""
+
+#: ../../source/installation.rst:61
+msgid "Run unittests from the nemo directory to validate installation:"
+msgstr ""
+
+#: ../../source/installation.rst:67
+msgid "All tests should pass without errors."
+msgstr ""
+
+#: ../../source/installation.rst:69
+msgid "Go to ``examples/start_here`` to get started with few simple examples"
+msgstr ""
+

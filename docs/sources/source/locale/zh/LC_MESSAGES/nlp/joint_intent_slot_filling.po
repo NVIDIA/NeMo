@@ -1,0 +1,206 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:2
+msgid "Tutorial"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:4
+msgid ""
+"In this tutorial, we are going to implement a joint intent and slot "
+"filling system with pretrained BERT model based on `BERT for Joint Intent"
+" Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ "
+":cite:`chen2019bert`. All code used in this tutorial is based on "
+"``examples/nlp/joint_intent_slot_with_bert.py``."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:6
+msgid ""
+"There are four pretrained BERT models that we can select from using the "
+"argument `--pretrained_bert_model`. We're currently using the script for "
+"loading pretrained models from `pytorch_transformers`. See the list of "
+"available pretrained models `here <https://huggingface.co/pytorch-"
+"transformers/pretrained_models.html>`__."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:10
+msgid "Preliminaries"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:12
+msgid ""
+"**Model details** This model jointly train the sentence-level classifier "
+"for intents and token-level classifier for slots by minimizing the "
+"combined loss of the two classifiers:"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:15
+msgid "intent_loss * intent_loss_weight + slot_loss * (1 - intent_loss_weight)"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:17
+msgid "When `intent_loss_weight = 0.5`, this loss jointly maximizes:"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:19
+msgid "p(y | x)P(s1, s2, ..., sn | x)"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:21
+msgid ""
+"with x being the sequence of n tokens (x1, x2, ..., xn), y being the "
+"predicted intent for x, and s1, s2, ..., sn being the predicted slots "
+"corresponding to x1, x2, ..., xn."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:23
+msgid "**Datasets.**"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:28
+msgid "This model can work with any dataset that follows the format:"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:26
+msgid ""
+"input file: a `tsv` file with the first line as a header "
+"[sentence][tab][label]"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:28
+msgid ""
+"slot file: slot labels for all tokens in the sentence, separated by "
+"space. The length of the slot labels should be the same as the length of "
+"all tokens in sentence in input file."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:30
+msgid ""
+"Currently, the datasets that we provide pre-processing script for include"
+" ATIS which can be downloaded from `Kaggle "
+"<https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ and the "
+"SNIPS spoken language understanding research dataset which can be "
+"requested from `here <https://github.com/snipsco/spoken-language-"
+"understanding-research-datasets>`__. You can find the pre-processing "
+"script in ``collections/nemo_nlp/nemo_nlp/data/datasets/utils.py``."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:34
+msgid "Code structure"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:36
+msgid ""
+"First, we instantiate Neural Module Factory which defines 1) backend "
+"(PyTorch or TensorFlow), 2) mixed precision optimization level, 3) local "
+"rank of the GPU, and 4) an experiment manager that creates a timestamped "
+"folder to store checkpoints, relevant outputs, log files, and TensorBoard"
+" graphs."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:48
+msgid ""
+"We define tokenizer which transforms text into BERT tokens, using a "
+"built-in tokenizer by `pytorch_transformers`. This will tokenize text "
+"following the mapping of the original BERT model."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:55
+msgid ""
+"Next, we define all Neural Modules participating in our joint intent slot"
+" filling classification pipeline."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:57
+msgid ""
+"Process data: the `JointIntentSlotDataDesc` class in "
+"`nemo_nlp/nemo_nlp/text_data_utils.py` is supposed to do the "
+"preprocessing of raw data into the format data supported by "
+"`BertJointIntentSlotDataset`. Currently, it supports SNIPS and ATIS raw "
+"datasets, but you can also write your own preprocessing scripts for any "
+"dataset."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:59
+msgid ""
+"A JointIntentSlotDataDesc object includes information such as "
+"`self.train_file`, `self.train_slot_file`, `self.eval_file`, "
+"`self.eval_slot_file`,  `self.intent_dict_file`, and "
+"`self.slot_dict_file`."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:67
+msgid ""
+"Dataset: convert from the formatted dataset to a dataset that can be fed "
+"into DataLayerNM."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:89
+msgid ""
+"DataLayer: an extra layer to do the semantic checking for your dataset "
+"and convert it into DataLayerNM. You have to define `input_ports` and "
+"`output_ports`."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:101
+msgid ""
+"Load the pretrained model and get the hidden states for the corresponding"
+" inputs."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:110
+msgid "Create the classifier heads for our task."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:123
+msgid "Create loss function"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:136
+msgid ""
+"Create relevant callbacks for saving checkpoints, printing training "
+"progresses and evaluating results"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:161
+msgid "Finally, we define the optimization parameters and run the whole pipeline."
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:177
+msgid "Model training"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:179
+msgid ""
+"To train a joint intent slot filling model, run "
+"``joint_intent_slot_with_bert.py`` located at ``nemo/examples/nlp``:"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:190
+msgid "To do inference, run:"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:199
+msgid "To do inference on a single query, run:"
+msgstr ""
+
+#: ../../source/nlp/joint_intent_slot_filling.rst:209
+msgid "References"
+msgstr ""
+

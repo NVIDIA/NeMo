@@ -1,0 +1,196 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/asr/datasets.rst:2
+msgid "Datasets"
+msgstr ""
+
+#: ../../source/asr/datasets.rst:7
+msgid "LibriSpeech"
+msgstr ""
+
+#: ../../source/asr/datasets.rst:9
+msgid ""
+"Run these scripts to download LibriSpeech data and convert it into format"
+" expected by `nemo_asr`. You should have at least 110GB free space."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:19
+msgid ""
+"After this, your `data` folder should contain wav files and `.json` "
+"manifests for NeMo ASR datalayer:"
+msgstr ""
+
+#: ../../source/asr/datasets.rst:22
+msgid ""
+"Each line is a training example. `audio_filepath` contains path to the "
+"wav file, `duration` it's duration in seconds and `text` it's transcript:"
+msgstr ""
+
+#: ../../source/asr/datasets.rst:30
+msgid "Fisher English Training Speech"
+msgstr ""
+
+#: ../../source/asr/datasets.rst:32
+msgid ""
+"Run these scripts to convert the Fisher English Training Speech data into"
+" a format expected by the `nemo_asr` collection."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:34
+msgid ""
+"In brief, the following scripts convert the .sph files to .wav, slice "
+"those files into smaller audio samples, match the smaller slices with "
+"their corresponding transcripts, and split the resulting audio segments "
+"into train, validation, and test sets (with one manifest each)."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:37
+msgid ""
+"You will need at least 106GB of space to run the .wav conversion, and an "
+"additional 105GB for the slicing and matching. You will need to have "
+"sph2pipe installed in order to run the .wav conversion."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:41
+msgid "**Instructions**"
+msgstr ""
+
+#: ../../source/asr/datasets.rst:43
+msgid ""
+"These scripts assume that you already have the Fisher dataset from the "
+"Linguistic Data Consortium, with a directory structure that looks "
+"something like this:"
+msgstr ""
+
+#: ../../source/asr/datasets.rst:61
+msgid ""
+"The transcripts that will be used are located in "
+"`fe_03_p<1,2>_transcripts/data/trans`, and the audio files (.sph) are "
+"located in the remaining directories in an `audio` subdirectory."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:63
+msgid "First, convert the audio files from .sph to .wav by running:"
+msgstr ""
+
+#: ../../source/asr/datasets.rst:71
+msgid ""
+"This will place the unsliced .wav files in "
+"`<conversion_target_dir>/LDC200[4,5]S13-Part[1,2]/audio-wav/`. It will "
+"take several minutes to run."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:74
+msgid "Next, process the transcripts and slice the audio data:"
+msgstr ""
+
+#: ../../source/asr/datasets.rst:83
+msgid ""
+"This script will split the full dataset into train, validation, and test "
+"sets, and place the audio slices in the corresponding folders in the "
+"destination directory. One manifest will be written out per set, which "
+"includes each slice's transcript, duration, and path."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:86
+msgid ""
+"This will likely take around 20 minutes to run. Once finished, you may "
+"delete the 10 minute long .wav files if you wish."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:90
+msgid "2000 HUB5 English Evaluation Speech"
+msgstr ""
+
+#: ../../source/asr/datasets.rst:92
+msgid ""
+"Run the following script to convert the HUB5 data into a format expected "
+"by the `nemo_asr` collection."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:94
+msgid ""
+"Similarly to the Fisher dataset processing scripts, this script converts "
+"the .sph files to .wav, slices the audio files and transcripts into "
+"utterances, and combines them into segments of some minimum length "
+"(default is 10 seconds). The resulting segments are all written out to an"
+" audio directory, and the corresponding transcripts are written to a "
+"manifest JSON."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:98
+msgid ""
+"You will need 5GB of free space to run this script. You will also need to"
+" have sph2pipe installed."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:101
+msgid ""
+"This script assumes you already have the 2000 HUB5 dataset from the "
+"Linguistic Data Consortium."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:103
+msgid ""
+"Run the following to process the 2000 HUB5 English Evaluation Speech "
+"samples:"
+msgstr ""
+
+#: ../../source/asr/datasets.rst:111
+msgid ""
+"You may optionally include `--min_slice_duration=<num_seconds>` if you "
+"would like to change the minimum audio segment duration."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:114
+msgid "Aishell1"
+msgstr ""
+
+#: ../../source/asr/datasets.rst:116
+msgid ""
+"Run these scripts to download Aishell1 data and convert it into format "
+"expected by `nemo_asr`."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:125
+msgid ""
+"After this, your `data` folder should contain a `data_aishell` folder "
+"which contains wav, transcript folder and related `.json` files and "
+"`vocab.txt`."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:128
+msgid "Aishell2"
+msgstr ""
+
+#: ../../source/asr/datasets.rst:130
+msgid ""
+"Run the script to process AIShell-2 dataset in order to generate files in"
+" the supported format of  `nemo_asr`. You should set the data folder of "
+"AIShell-2 using `--audio_folder` and where to push these files using "
+"`--dest_folder`."
+msgstr ""
+
+#: ../../source/asr/datasets.rst:136
+msgid ""
+"Then, you should have `train.json` `dev.json` `test.json` and `vocab.txt`"
+" in `dest_folder`."
+msgstr ""
+

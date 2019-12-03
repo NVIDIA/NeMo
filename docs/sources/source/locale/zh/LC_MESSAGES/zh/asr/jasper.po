@@ -1,0 +1,36 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2018-2019, NVIDIA
+# This file is distributed under the same license as the nemo package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: nemo 0.9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-12-03 17:10+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.7.0\n"
+
+#: ../../source/zh/asr/jasper.rst:4
+msgid "Jasper"
+msgstr ""
+
+#: ../../source/zh/asr/jasper.rst:6
+msgid ""
+"Jasper (\"Just Another SPeech Recognizer\") :cite:`li2019jasper`  "
+"是一个深度时延网络 (TDNN)，由包含一维卷积层的块组成. Jasper家族的模型可以用 Jasper_[BxR] 来表示，其中B是块的个数, "
+"R是一个块中卷积子块的个数。每个卷积子块中包含一个一维卷积,批归一化层，ReLU和dropout层:"
+msgstr ""
+
+#: ../../source/zh/asr/jasper.rst:13
+msgid ""
+"预训练的模型在 `这里 "
+"<https://ngc.nvidia.com/catalog/models/nvidia:jaspernet10x5dr>`_."
+msgstr ""
+
