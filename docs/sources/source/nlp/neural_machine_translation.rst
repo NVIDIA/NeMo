@@ -163,7 +163,7 @@ To train the Transformer-big model, run ``nmt_tutorial.py`` located at ``nemo/ex
 Translation with pretrained model
 ---------------------------------
 
-1. Put your saved checkpoint (or download good checkpoint which obtains 28.5 SacreBLEU on newstest2014 from `here <https://drive.google.com/open?id=1ra8yxIKjRGgVM2e2h7PlE4CbGpoKvqnt>`_) into **<path_to_ckpt>**.
+1. Put your saved checkpoint (or download good checkpoint which obtains 28.5 SacreBLEU on newstest2014 from `here <https://ngc.nvidia.com/catalog/models/nvidia:transformer_big_en_de_8k>`_) into **<path_to_ckpt>**.
 2. Run ``nmt_tutorial.py`` in an interactive mode::
 
     python nmt_tutorial.py --tokenizer_model bpe8k_yttm.model \

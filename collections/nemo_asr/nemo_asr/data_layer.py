@@ -1,30 +1,22 @@
 # Copyright (c) 2019 NVIDIA Corporation
 """
-This package contains Neural Modules responsible for ASR-related data
-processing
+This package contains Neural Modules responsible for ASR-related
+data layers.
 """
 __all__ = ['AudioToTextDataLayer',
-           'AudioPreprocessing',
-           'MultiplyBatch',
-           'SpectrogramAugmentation',
+           'KaldiFeatureDataLayer',
            'TranscriptDataLayer']
 
 from functools import partial
-import sys
 import torch
-try:
-    from apex import amp
-except AttributeError:
-    print("Unable to import APEX. Mixed precision and distributed training "
-          "will not work.")
 
-from nemo.backends.pytorch import DataLayerNM, TrainableNM, NonTrainableNM
-from nemo.core import Optimization, DeviceType
+from nemo.backends.pytorch import DataLayerNM
+from nemo.core import DeviceType
 from nemo.core.neural_types import *
-from nemo.utils.misc import pad_to as nemo_pad_to
-from .parts.dataset import AudioDataset, seq_collate_fn, TranscriptDataset
-from .parts.features import FilterbankFeatures, WaveformFeaturizer
-from .parts.spectr_augment import SpecAugment, SpecCutout
+from nemo.utils.misc import pad_to
+from .parts.dataset import (
+        AudioDataset, seq_collate_fn, KaldiFeatureDataset, TranscriptDataset)
+from .parts.features import WaveformFeaturizer
 
 
 class AudioToTextDataLayer(DataLayerNM):
@@ -169,271 +161,151 @@ transcript_n}
         return self._dataloader
 
 
-class AudioPreprocessing(TrainableNM):
-    """
-    Neural Module that does batch processing of audio files and converts them
-    to spectrogram representations
+class KaldiFeatureDataLayer(DataLayerNM):
+    """Data layer for reading generic Kaldi-formatted data.
+
+    Module that reads ASR labeled data that is in a Kaldi-compatible format.
+    It assumes that you have a directory that contains:
+
+    - feats.scp: A mapping from utterance IDs to .ark files that
+            contain the corresponding MFCC (or other format) data
+    - text: A mapping from utterance IDs to transcripts
+    - utt2dur (optional): A mapping from utterance IDs to audio durations,
+            needed if you want to filter based on duration
 
     Args:
-        sample_rate (int): Sample rate of the input audio data.
-            Defaults to 16000
-        window_size (float): Size of window for fft in seconds
-            Defaults to 0.02
-        window_stride (float): Stride of window for fft in seconds
-            Defaults to 0.01
-        window (str): Windowing function for fft. can be one of ['hann',
-            'hamming', 'blackman', 'bartlett']
-            Defaults to "hann"
-        normalize (str): Can be one of ['per_feature', 'all_features']; all
-            other options disable feature normalization. 'all_features'
-            normalizes the entire spectrogram to be mean 0 with std 1.
-            'pre_features' normalizes per channel / freq instead.
-            Defaults to "per_feature"
-        n_fft (int): Length of FT window. If None, it uses the smallest power
-            of 2 that is larger than n_window_size.
-            Defaults to None
-        preemph (float): Amount of pre emphasis to add to audio. Can be
-            disabled by passing None.
-            Defaults to 0.97
-        features (int): Number of mel spectrogram freq bins to output.
-            Defaults to 64
-        lowfreq (int): Lower bound on mel basis in Hz.
-            Defaults to 0
-        highfreq  (int): Lower bound on mel basis in Hz.
-            Defaults to None
-        feat_type (str): Can be one of ['logfbank', 'fbank'].
-            Defaults to "logfbank"
-        dither (float): Amount of white-noise dithering.
-            Defaults to 1e-5
-        pad_to (int): Ensures that the output size of the time dimension is
-            a multiple of pad_to.
-            Defaults to 16
-        frame_splicing (int):
-            Defaults to 1
-        stft_conv (bool): If True, uses pytorch_stft and convolutions. If
-            False, uses torch.stft.
-            Defaults to False
+        kaldi_dir (str): Directory that contains the above files.
+        labels (list): List of characters that can be output by the ASR model,
+            e.g. {a-z '} for Jasper. The CTC blank symbol is automatically
+            added later for models using CTC.
+        batch_size (int): batch size
+        eos_id (str): End of string symbol used for seq2seq models.
+            Defaults to None.
+        min_duration (float): All training files which have a duration less
+            than min_duration are dropped. Can't be used if the `utt2dur` file
+            does not exist. Defaults to None.
+        max_duration (float): All training files which have a duration more
+            than max_duration are dropped. Can't be used if the `utt2dur` file
+            does not exist. Defaults to None.
+        normalize_transcripts (bool): Whether to use automatic text cleaning.
+            It is highly recommended to manually clean text for best results.
+            Defaults to True.
+        drop_last (bool): See PyTorch DataLoader. Defaults to False.
+        shuffle (bool): See PyTorch DataLoader. Defaults to True.
+        num_workers (int): See PyTorch DataLoader. Defaults to 0.
     """
+
     @staticmethod
     def create_ports():
-        input_ports = {
-            "input_signal": NeuralType({0: AxisType(BatchTag),
-                                        1: AxisType(TimeTag)}),
-
-            "length": NeuralType({0: AxisType(BatchTag)}),
-        }
-
+        input_ports = {}
         output_ports = {
             "processed_signal": NeuralType({0: AxisType(BatchTag),
                                             1: AxisType(SpectrogramSignalTag),
                                             2: AxisType(ProcessedTimeTag)}),
 
-            "processed_length": NeuralType({0: AxisType(BatchTag)})
+            "processed_length": NeuralType({0: AxisType(BatchTag)}),
+
+            "transcripts": NeuralType({0: AxisType(BatchTag),
+                                       1: AxisType(TimeTag)}),
+
+            "transcript_length": NeuralType({0: AxisType(BatchTag)})
         }
         return input_ports, output_ports
 
     def __init__(
-            self, *,
-            sample_rate=16000,
-            window_size=0.02,
-            window_stride=0.01,
-            window="hann",
-            normalize="per_feature",
-            n_fft=None,
-            preemph=0.97,
-            features=64,
-            lowfreq=0,
-            highfreq=None,
-            feat_type="logfbank",
-            dither=1e-5,
-            pad_to=16,
-            frame_splicing=1,
-            stft_conv=False,
-            **kwargs
+        self, *,
+        kaldi_dir,
+        labels,
+        batch_size,
+        eos_id=None,
+        min_duration=None,
+        max_duration=None,
+        normalize_transcripts=True,
+        drop_last=False,
+        shuffle=True,
+        num_workers=0,
+        **kwargs
     ):
-        if "fbank" not in feat_type:
-            raise NotImplementedError("AudioPreprocessing currently only "
-                                      "accepts 'fbank' or 'logfbank' as "
-                                      "feat_type")
-        TrainableNM.__init__(self, **kwargs)
+        super().__init__(**kwargs)
 
-        self.featurizer = FilterbankFeatures(
-            sample_rate=sample_rate,
-            window_size=window_size,
-            window_stride=window_stride,
-            window=window,
-            normalize=normalize,
-            n_fft=n_fft,
-            preemph=preemph,
-            nfilt=features,
-            lowfreq=lowfreq,
-            highfreq=highfreq,
-            dither=dither,
-            pad_to=pad_to,
-            frame_splicing=frame_splicing,
-            stft_conv=stft_conv,
-            logger=self._logger
+        # Set up dataset
+        dataset_params = {'kaldi_dir': kaldi_dir,
+                          'labels': labels,
+                          'min_duration': min_duration,
+                          'max_duration': max_duration,
+                          'normalize': normalize_transcripts,
+                          'logger': self._logger}
+        self._dataset = KaldiFeatureDataset(**dataset_params)
+
+        # Set up data loader
+        if self._placement == DeviceType.AllGpu:
+            self._logger.info('Parallelizing DATALAYER')
+            sampler = torch.utils.data.distributed.DistributedSampler(
+                self._dataset)
+        else:
+            sampler = None
+
+        self._dataloader = torch.utils.data.DataLoader(
+            dataset=self._dataset,
+            batch_size=batch_size,
+            collate_fn=self._collate_fn,
+            drop_last=drop_last,
+            shuffle=shuffle if sampler is None else False,
+            sampler=sampler,
+            num_workers=num_workers
         )
-        # _pre_procesing_config = self.local_parameters
-        # self.featurizer = FeatureFactory.from_config(_pre_procesing_config)
-        self.featurizer.to(self._device)
 
-        self.disable_casts = (self._opt_level == Optimization.mxprO1)
-
-    def forward(self, input_signal, length):
-        length.requires_grad_(False)
-        if self.disable_casts:
-            with amp.disable_casts():
-                if input_signal.dim() == 2:
-                    processed_signal = self.featurizer(
-                        input_signal.to(torch.float), length)
-                    processed_length = self.featurizer.get_seq_len(length)
-        else:
-            if input_signal.dim() == 2:
-                processed_signal = self.featurizer(input_signal, length)
-                processed_length = self.featurizer.get_seq_len(length)
-        return processed_signal, processed_length
-
-
-class SpectrogramAugmentation(NonTrainableNM):
-    """
-    Performs time and freq cuts in one of two ways.
-
-    SpecAugment zeroes out vertical and horizontal sections as described in
-    SpecAugment (https://arxiv.org/abs/1904.08779). Arguments for use with
-    SpecAugment are `freq_masks`, `time_masks`, `freq_width`, and `time_width`.
-
-    SpecCutout zeroes out rectangulars as described in Cutout
-    (https://arxiv.org/abs/1708.04552). Arguments for use with Cutout are
-    `rect_masks`, `rect_freq`, and `rect_time`.
-
-    Args:
-        freq_masks (int): how many frequency segments should be cut.
-            Defaults to 0.
-        time_masks (int): how many time segments should be cut
-            Defaults to 0.
-        freq_width (int): maximum number of frequencies to be cut in one
-            segment.
-            Defaults to 10.
-        time_width (int): maximum number of time steps to be cut in one
-            segment
-            Defaults to 10.
-        rect_masks (int): how many rectangular masks should be cut
-            Defaults to 0.
-        rect_freq (int): maximum size of cut rectangles along the frequency
-            dimension
-            Defaults to 5.
-        rect_time (int): maximum size of cut rectangles along the time
-            dimension
-            Defaults to 25.
-    """
     @staticmethod
-    def create_ports():
-        input_ports = {
-            "input_spec": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(SpectrogramSignalTag),
-                                      2: AxisType(TimeTag)})
-        }
+    def _collate_fn(batch):
+        """Collate batch of (features, feature len, tokens, tokens len).
+        Kaldi generally uses MFCC (and PLP) features.
 
-        output_ports = {
-            "augmented_spec": NeuralType({0: AxisType(BatchTag),
-                                          1: AxisType(SpectrogramSignalTag),
-                                          2: AxisType(ProcessedTimeTag)})
-        }
-        return input_ports, output_ports
+        Args:
+            batch: A batch of elements, where each element is a tuple of
+                features, feature length, tokens, and token
+                length for a single sample.
 
-    def __init__(
-            self, *,
-            freq_masks=0,
-            time_masks=0,
-            freq_width=10,
-            time_width=10,
-            rect_masks=0,
-            rect_time=5,
-            rect_freq=20,
-            rng=None,
-            **kwargs
-    ):
-        NonTrainableNM.__init__(self, **kwargs)
+        Returns:
+            The same batch, with the features and token length padded
+            to the maximum of the batch.
+        """
+        # Find max lengths of features and tokens in the batch
+        _, feat_lens, _, token_lens = zip(*batch)
+        max_feat_len = max(feat_lens).item()
+        max_tokens_len = max(token_lens).item()
 
-        if rect_masks > 0:
-            self.spec_cutout = SpecCutout(
-                rect_masks=rect_masks,
-                rect_time=rect_time,
-                rect_freq=rect_freq,
-                rng=rng
-            )
-            self.spec_cutout.to(self._device)
-        else:
-            self.spec_cutout = lambda x: x
+        # Pad features and tokens to max
+        features, tokens = [], []
+        for feat, feat_len, tkns, tkns_len in batch:
+            feat_len = feat_len.item()
+            if feat_len < max_feat_len:
+                pad = (0, max_feat_len - feat_len)
+                feat = torch.nn.functional.pad(feat, pad)
+            features.append(feat)
 
-        if freq_masks + time_masks > 0:
-            self.spec_augment = SpecAugment(
-                freq_masks=freq_masks,
-                time_masks=time_masks,
-                freq_width=freq_width,
-                time_width=time_width,
-                rng=rng
-            )
-            self.spec_augment.to(self._device)
-        else:
-            self.spec_augment = lambda x: x
+            tkns_len = tkns_len.item()
+            if tkns_len < max_tokens_len:
+                pad = (0, max_tokens_len - tkns_len)
+                tkns = torch.nn.functional.pad(tkns, pad)
+            tokens.append(tkns)
 
-    def forward(self, input_spec):
-        augmented_spec = self.spec_cutout(input_spec)
-        augmented_spec = self.spec_augment(augmented_spec)
-        return augmented_spec
+        features = torch.stack(features)
+        feature_lens = torch.stack(feat_lens)
+        tokens = torch.stack(tokens)
+        token_lens = torch.stack(token_lens)
 
+        return features, feature_lens, tokens, token_lens
 
-class MultiplyBatch(NonTrainableNM):
-    """
-    Augmentation that repeats each element in a batch.
-    Other augmentations can be applied afterwards.
+    def __len__(self):
+        return len(self._dataset)
 
-    Args:
-        mult_batch (int): number of repeats
-    """
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "in_x": NeuralType({0: AxisType(BatchTag),
-                                1: AxisType(SpectrogramSignalTag),
-                                2: AxisType(TimeTag)}),
+    @property
+    def dataset(self):
+        return None
 
-            "in_x_len": NeuralType({0: AxisType(BatchTag)}),
-
-            "in_y": NeuralType({0: AxisType(BatchTag),
-                                1: AxisType(TimeTag)}),
-
-            "in_y_len": NeuralType({0: AxisType(BatchTag)})
-        }
-
-        output_ports = {
-            "out_x": NeuralType({0: AxisType(BatchTag),
-                                 1: AxisType(SpectrogramSignalTag),
-                                 2: AxisType(TimeTag)}),
-
-            "out_x_len": NeuralType({0: AxisType(BatchTag)}),
-
-            "out_y": NeuralType({0: AxisType(BatchTag),
-                                 1: AxisType(TimeTag)}),
-
-            "out_y_len": NeuralType({0: AxisType(BatchTag)})
-        }
-        return input_ports, output_ports
-
-    def __init__(self, *, mult_batch=1, **kwargs):
-        NonTrainableNM.__init__(self, **kwargs)
-        self.mult = mult_batch
-
-    @torch.no_grad()
-    def forward(self, in_x, in_x_len, in_y, in_y_len):
-        out_x = in_x.repeat(self.mult, 1, 1)
-        out_y = in_y.repeat(self.mult, 1)
-        out_x_len = in_x_len.repeat(self.mult)
-        out_y_len = in_y_len.repeat(self.mult)
-
-        return out_x, out_x_len, out_y, out_y_len
+    @property
+    def data_iterator(self):
+        return self._dataloader
 
 
 class TranscriptDataLayer(DataLayerNM):
@@ -501,7 +373,7 @@ class TranscriptDataLayer(DataLayerNM):
     def _collate_fn(batch_list, pad_id, pad8=False):
         max_len = max(len(s) for s in batch_list)
         if pad8:
-            max_len = nemo_pad_to(max_len, 8)
+            max_len = pad_to(max_len, 8)
 
         texts = torch.empty(len(batch_list), max_len,
                             dtype=torch.long)

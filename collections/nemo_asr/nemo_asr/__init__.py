@@ -14,20 +14,24 @@
 # ==============================================================================
 from nemo.core import Backend
 
-from .data_layer import (AudioToTextDataLayer, AudioPreprocessing,
-                         SpectrogramAugmentation, MultiplyBatch,
-                         TranscriptDataLayer)
-from .greedy_ctc_decoder import GreedyCTCDecoder
+from .audio_preprocessing import *
 from .beam_search_decoder import BeamSearchDecoderWithLM
+from .data_layer import (
+        AudioToTextDataLayer, KaldiFeatureDataLayer, TranscriptDataLayer)
+from .greedy_ctc_decoder import GreedyCTCDecoder
 from .jasper import JasperEncoder, JasperDecoderForCTC
 from .las.misc import JasperRNNConnector
 from .losses import CTCLossNM
 
 __all__ = ['Backend',
            'AudioToTextDataLayer',
-           'AudioPreprocessing',
-           'SpectrogramAugmentation',
+           'AudioPreprocessor',
+           'AudioToMFCCPreprocessor',
+           'AudioToMelSpectrogramPreprocessor',
+           'AudioToSpectrogramPreprocessor',
            'MultiplyBatch',
+           'SpectrogramAugmentation',
+           'KaldiFeatureDataLayer',
            'TranscriptDataLayer',
            'GreedyCTCDecoder',
            'BeamSearchDecoderWithLM',
@@ -39,4 +43,4 @@ __all__ = ['Backend',
 
 name = "nemo_asr"
 backend = Backend.PyTorch
-__version__ = "0.8.1"
+__version__ = "0.8.3"

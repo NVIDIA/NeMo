@@ -1,3 +1,4 @@
+# Copyright (c) 2019 NVIDIA Corporation
 from collections import UserDict
 
 

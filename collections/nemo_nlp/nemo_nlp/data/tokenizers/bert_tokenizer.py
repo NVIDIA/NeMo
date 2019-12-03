@@ -35,7 +35,6 @@ def remove_spaces(text):
     text = re.sub(r'([0-9])(:)( )([0-9])', '\\1\\2\\4', text)
     text = text.replace(" %", "%")
     text = text.replace("$ ", "$")
-    text = text.replace("\xa0", " ")
     text = re.sub(r'([^0-9])(,)([0-9])', '\\1\\2 \\3', text)
     return text
 
@@ -54,9 +53,7 @@ class NemoBertTokenizer(TokenizerSpec):
         else:
             self.tokenizer = BertTokenizer(vocab_file,
                                            do_lower_case,
-                                           max_len,
-                                           do_basic_tokenize,
-                                           never_split)
+                                           do_basic_tokenize)
         self.vocab_size = len(self.tokenizer.vocab)
         self.never_split = never_split
 

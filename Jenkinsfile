@@ -1,13 +1,18 @@
 pipeline {
   agent any
   environment {
-      PATH="/home/mrjenkins/anaconda3/envs/py37p1.12c10/bin:$PATH"
+      PATH="/home/mrjenkins/anaconda3/envs/py36p1.3.1c10/bin:$PATH"
   }
   options {
     timeout(time: 1, unit: 'HOURS')
     disableConcurrentBuilds()
    }
   stages {
+    stage('PyTorch version') {
+      steps {
+        sh 'python -c "import torch; print(torch.__version__)"'
+      }
+    }
     stage('PEP8 Checks') {
       steps {
         sh 'pycodestyle . --exclude=./scripts/get_librispeech_data.py,./scripts/process_beam_dump.py,./tests/other/jasper.py,./tests/other/jasper_zero_dl.py,./collections/nemo_nlp/nemo_nlp/utils/metrics/sacrebleu.py,./collections/nemo_nlp/nemo_nlp/utils/metrics/fairseq_tokenizer.py,./nemo/setup.py,./docs/sources/source/conf.py,./docs/sources/source/tutorials/infer.py,./docs/sources/source/tutorials/test.py,./collections/nemo_nlp/build'

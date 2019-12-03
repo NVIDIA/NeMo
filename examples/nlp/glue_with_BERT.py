@@ -98,6 +98,7 @@ parser.add_argument("--bert_config", default=None, type=str,
 parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str,
                     help="Path to pretrained tokenizer model")
 parser.add_argument("--max_seq_length", default=128, type=int,
+                    choices=range(1, 513),
                     help="The maximum total input sequence length after   \
                     tokenization.Sequences longer than this will be       \
                     truncated, sequences shorter will be padded.")
