@@ -21,7 +21,7 @@ parser.add_argument("--pretrained_bert_model",
 parser.add_argument("--dataset_name", default='snips-all', type=str)
 parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
 parser.add_argument("--work_dir",
-                    default='outputs/SNIPS-ALL/20191014-104316/checkpoints',
+                    default='outputs/SNIPS-ALL/2019-12-03_17-23-21/checkpoints',
                     type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--amp_opt_level", default="O0",
