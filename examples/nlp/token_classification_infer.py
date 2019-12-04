@@ -98,7 +98,7 @@ preds = np.argmax(logits, axis=2)
 for i, query in enumerate(args.queries):
     nf.logger.info(f'Query: {query}')
 
-    pred = preds[i][subtokens_mask[i]]
+    pred = preds[i][subtokens_mask[i] > 0.5]
     words = query.strip().split()
     if len(pred) != len(words):
         raise ValueError('Pred and words must be of the same length')

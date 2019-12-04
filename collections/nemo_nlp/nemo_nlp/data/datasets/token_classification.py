@@ -257,17 +257,19 @@ class BertTokenClassificationDataset(Dataset):
             # for dev/test sets use label mapping from training set
             if label_ids:
                 if len(label_ids) != len(unique_labels):
-                    logger.info(f'Not all labels from the specified label_ids dict' + 
-                        'are present in the current dataset.' +
-                        'Using the provided label_ids dictionary.')
+                    logger.info(f'Not all labels from the specified' +
+                                'label_ids dictionary are present in the' +
+                                'current dataset. Using the provided' +
+                                'label_ids dictionary.')
                 else:
                     logger.info(f'Using the provided label_ids dictionary.')
             else:
                 logger.info(f'Creating a new label to label_id dictionary.' +
-                     'It\'s recommended to use label_ids generated during training' +
-                     'for dev/test sets to avoid errors if some labels are not' +
-                     'present in the dev/test sets.' +
-                    'For training set label_ids should be None.')
+                            ' It\'s recommended to use label_ids generated' +
+                            'during training for dev/test sets to avoid' +
+                            'errors if some labels are not' +
+                            'present in the dev/test sets.' +
+                            ' For training set label_ids should be None.')
 
                 label_ids = {pad_label: 0}
                 if pad_label in unique_labels:
@@ -287,7 +289,7 @@ class BertTokenClassificationDataset(Dataset):
             if use_cache:
                 pickle.dump(features, open(features_pkl, "wb"))
                 logger.info(f'features saved to {features_pkl}')
-        
+
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
         self.all_input_mask = features[2]
