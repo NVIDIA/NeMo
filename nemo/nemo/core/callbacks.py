@@ -6,7 +6,7 @@ import os
 import sys
 import time
 
-from ..utils import get_checkpoint_from_dir
+from ..utils import get_logger, get_checkpoint_from_dir
 
 
 class ActionCallback(ABC):
@@ -41,13 +41,16 @@ class ActionCallback(ABC):
     def action(self):
         return self._action
 
-    @property
-    def logger(self):
-        return self.action.logger
-
     @action.setter
     def action(self, action_obj):
         self._action = action_obj
+
+    @property
+    def logger(self):
+        if self.action is None or self.action.logger is None:
+            return get_logger('')
+        else:
+            return self.action.logger
 
     def on_action_start(self):
         pass
