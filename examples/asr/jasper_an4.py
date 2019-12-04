@@ -238,6 +238,9 @@ def main():
             folder=checkpoint_dir, step_freq=args.checkpoint_save_freq,
             force_load=True)
 
+        # Zero and make all parameters float
+        jasper_encoder.apply(lambda x: x.zero_().float())
+
         nf.reset_trainer()
         nf.train(
             tensors_to_optimize=[loss],

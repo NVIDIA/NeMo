@@ -51,12 +51,12 @@ pipeline {
       parallel {
         stage('Jasper AN4 O1') {
           steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0 python jasper_an4.py --amp_opt_level=O1 --num_epochs=40 --test_after_training'
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0 python jasper_an4.py --amp_opt_level=O1 --num_epochs=40 --test_after_training --work_dir=O1'
           }
         }
         stage('Jasper AN4 O2') {
           steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=1 python jasper_an4.py --amp_opt_level=O2 --num_epochs=40 --test_after_training'
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=1 python jasper_an4.py --amp_opt_level=O2 --num_epochs=40 --test_after_training --work_dir=O2'
           }
         }
       }
@@ -72,7 +72,7 @@ pipeline {
         }
         stage('GAN O2') {
           steps {
-            sh 'cd examples/image && CUDA_VISIBLE_DEVICES=0 python gan.py --amp_opt_level=O2 --num_epochs=3'
+            sh 'cd examples/image && CUDA_VISIBLE_DEVICES=1 python gan.py --amp_opt_level=O2 --num_epochs=3'
           }
         }
       }
@@ -83,7 +83,7 @@ pipeline {
       parallel {
         stage('Jasper AN4 2 GPUs') {
           steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2  jasper_an4.py --amp_opt_level=O2 --num_epochs=40'
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2  jasper_an4.py --amp_opt_level=O2 --num_epochs=40 --work_dir=multi_gpu'
           }
         }
       }
