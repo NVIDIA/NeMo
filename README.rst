@@ -55,8 +55,6 @@ We recommend to use NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalo
     pip install nemo-asr # installs NeMo ASR collection
     pip install nemo-nlp # installs NeMo NLP collection
 
-* DEVELOPMENT: If you'd like to use master branch and/or develop NeMo you can run "reinstall.sh" script.
-
 **Documentation**
 
 `NeMo documentation <https://nvidia.github.io/NeMo/>`_
