@@ -92,7 +92,7 @@ class TokenClassificationLoss(LossNM):
             of the vocabulary in language modeling objective
         logits (float): output of the classifier
         labels (long): ground truth labels
-        loss_mask (bool): to differentiate from original tokens and paddings
+        loss_mask (long): to differentiate from original tokens and paddings
     """
 
     @staticmethod
@@ -124,7 +124,7 @@ class TokenClassificationLoss(LossNM):
         self.num_classes = num_classes
 
     def _loss_function(self, logits, labels, loss_mask):
-        active_loss = loss_mask.view(-1)
+        active_loss = loss_mask.view(-1) > 0.5
         active_logits = logits.view(-1, self.num_classes)[active_loss]
         active_labels = labels.view(-1)[active_loss]
 

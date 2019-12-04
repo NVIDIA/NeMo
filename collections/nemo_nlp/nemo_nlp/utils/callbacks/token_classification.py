@@ -56,7 +56,7 @@ def eval_epochs_done_callback(global_vars,
                               none_label_id=0):
     labels = np.asarray(global_vars['all_labels'])
     preds = np.asarray(global_vars['all_preds'])
-    subtokens_mask = np.asarray(global_vars['all_subtokens_mask'])
+    subtokens_mask = np.asarray(global_vars['all_subtokens_mask']) > 0.5
 
     labels = labels[subtokens_mask]
     preds = preds[subtokens_mask]
@@ -71,6 +71,12 @@ def eval_epochs_done_callback(global_vars,
         i = random.randint(0, preds.shape[0] - sample_size - 1)
     logger.info("Sampled preds: [%s]" % list2str(preds[i:i+sample_size]))
     logger.info("Sampled labels: [%s]" % list2str(labels[i:i+sample_size]))
+
+    # remove labels from label_ids that don't appear in the dev set
+    used_labels = set(labels) | set(preds)
+    label_ids = \
+        {k: label_ids[k] for k, v in label_ids.items() if v in used_labels}
+
     logger.info(classification_report(labels, preds, target_names=label_ids))
 
     # calculate and plot confusion_matrix
