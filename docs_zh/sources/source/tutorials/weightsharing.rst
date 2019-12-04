@@ -75,16 +75,17 @@
 在模块间连接权重
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 :class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` 类提供 :meth:`tie_weights_with<nemo.core.neural_modules.NeuralModule.tie_weights_with>` 方法在多个模块间连接权重
+
 .. important::
     连接后的权重在所有的模块之间保持一致，后续对一个模块中权重的改变也会使得其他模块中的权重有相同的改变
 
-在下面的例子中，我们首先创建一个简单的词嵌入编码器，他的输入是[batch, time]的词序列，从词表中 ``V`` 中找到词id，把它映射到 ``D`` 维空间。
+在下面的例子中，我们首先创建一个简单的词嵌入编码器，它的输入是 [batch, time] 的词序列，从词表中 ``V`` 中找到词id，把它映射到 ``D`` 维空间。
 这是一个查表的映射，从 ``V`` 维空间到 ``D`` 维空间。
-接着我们需要创建一个解码器，从 ``D``-维空间映射到 ``V``-维空间。我们想把编码器的映射矩阵在解码器中重用。
+接着我们需要创建一个解码器，从 ``D`` 维空间映射到 ``V`` 维空间。我们想把编码器的映射矩阵在解码器中重用。
 下面的代码解释了这要怎么做。
 
 .. note::
-   权重有不同名字(``embedding.weight`` 和 ``projection.weight``) 但值是一样的。对一个权重的改变会导致另一个也变化。可以理解为 ``embedding.weight`` 和 ``projection.weight`` 是指向同一个张量的指针。
+   权重有不同名字（``embedding.weight`` 和 ``projection.weight``） 但值是一样的。对一个权重的改变会导致另一个也变化。可以理解为 ``embedding.weight`` 和 ``projection.weight`` 是指向同一个张量的指针。
 
 
 .. code-block:: python

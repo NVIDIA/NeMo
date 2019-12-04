@@ -1,27 +1,27 @@
 例子
 ========
 
-NeMo应用程序包含三个步骤:
+NeMo 应用程序包含三个步骤：
 
     (1) 创建神经模块
-    (2) 创建使用张量(“激活元”)的模型，把神经模块串成图
-    (3) 开始操作, e.g. 训练或者推理
+    (2) 创建使用张量（“激活元”）的模型，把神经模块串成图
+    (3) 触发一个操作, 例如：训练或者推理
 
 
 Hello World 
 ------------
 
-这个例子展现了如何构建一个模型，学习y=sin(x)的泰勒系数。
+这个例子展现了如何构建一个模型，学习 y=sin(x) 的泰勒系数。
 
 .. code-block:: python
 
     import nemo
 
-    # 用支持的后端初始化Neural Factory
+    # 用支持的后端初始化 Neural Factory
     nf = nemo.core.NeuralModuleFactory()
 
     # 初始化必要的神经模块
-    # RealFunctionDataLayer默认为f=torch.sin，从x=[-4, 4]采样
+    # RealFunctionDataLayer 默认为 f=torch.sin，从 x=[-4, 4] 采样
     dl = nemo.tutorials.RealFunctionDataLayer(
         n=10000, batch_size=128)
     fx = nemo.tutorials.TaylorNet(dim=4)
@@ -32,7 +32,7 @@ Hello World
     p = fx(x=x)
     lss = loss(predictions=p, target=y)
 
-    # SimpleLossLoggerCallback打印损失函数值到控制台
+    # SimpleLossLoggerCallback 打印损失函数值到控制台
     callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[lss],
         print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
@@ -45,21 +45,21 @@ Hello World
 简单的聊天机器人
 -----------------
 
-这个教程改编自 `PyTorch的聊天机器人教程 <https://pytorch.org/tutorials/beginner/chatbot_tutorial.html>`_ 使得它适配于NeMo框架。它解释了要如何训练和评估。
+这是个把 `PyTorch的聊天机器人教程 <https://pytorch.org/tutorials/beginner/chatbot_tutorial.html>`_ 改成适配于 NeMo 框架的例子。它解释了要如何训练和评估。
 
 模型可以由下图表示，模型有:
 
-    * 两个数据层 (一个做训练一个做推理),
-    * 编码器解码器(训练和推理共享),
-    * 两个损失函数模块 (一个做训练一个做推理).
+    * 两个数据层（一个做训练一个做推理）,
+    * 编码器和解码器（训练和推理共享）,
+    * 两个损失函数模块（一个做训练一个做推理）。
 
 .. image:: chatbot.png
 
 在训练过程中，模型会打印:
 
-    * **SOURCE**:  模型输入
+    * **SOURCE**: 模型输入
     * **PREDICTED RESPONSE**: 模型输出
-    * **TARGET**:  目标输出
+    * **TARGET**: 目标输出
 
 .. code-block:: python
 
@@ -103,7 +103,7 @@ Hello World
     L = nemo.tutorials.MaskedXEntropyLoss()
     decoderInfer = nemo.tutorials.GreedyLuongAttnDecoderRNN(**config)
 
-    # 参数共享: 在训练解码器和自回归推理解码器之间
+    # 参数共享: 在训练解码器和自回归推理解码器之间做参数共享
     decoderInfer.tie_weights_with(decoder, list(decoder.get_weights().keys()))
 
     # 描述激活流
@@ -147,5 +147,5 @@ Hello World
         optimization_params={"num_epochs": config["num_epochs"], "lr": 0.001})
 
 .. note::
-    可以在 `nemo/examples` 下面找到更多例子
+    你可以在 `nemo/examples` 下面找到更多例子
 
