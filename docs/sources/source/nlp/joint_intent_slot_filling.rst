@@ -63,9 +63,7 @@ This will tokenize text following the mapping of the original BERT model.
 
 Next, we define all Neural Modules participating in our joint intent slot filling classification pipeline.
     
-    * Process data: the `JointIntentSlotDataDesc` class in `nemo_nlp/nemo_nlp/text_data_utils.py` is supposed to do the
-    preprocessing of raw data into the format data supported by `BertJointIntentSlotDataset`. Currently, it supports SNIPS and ATIS raw datasets,
-    but you can also write your own preprocessing scripts for any dataset.
+    * Process data: the `JointIntentSlotDataDesc` class in `nemo_nlp/nemo_nlp/text_data_utils.py` is supposed to do the preprocessing of raw data into the format data supported by `BertJointIntentSlotDataset`. Currently, it supports SNIPS and ATIS raw datasets, but you can also write your own preprocessing scripts for any dataset.
 
     A JointIntentSlotDataDesc object includes information such as `self.train_file`, `self.train_slot_file`, `self.eval_file`, `self.eval_slot_file`, 
     `self.intent_dict_file`, and `self.slot_dict_file`.
