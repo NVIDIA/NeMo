@@ -37,6 +37,8 @@ AudioToMelSpectrogramPreprocessor:
     preemph: null
     pad_value: -11.52
     mag_power: 1.
+    log_zero_guard_type: "clamp"
+    log_zero_guard_value: 1.0e-5
 
 Tacotron2Encoder:
     encoder_kernel_size: 5
