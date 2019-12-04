@@ -31,7 +31,10 @@ The labels.txt files should be formatted like this:
     ...
 
 CoNLL-2003 dataset could be downloaded and preprocessed with this `script`_.
-Each line of the text.txt file contains text sequences, where words are separated with spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are separated with spaces. Each line of the files should follow the format: [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt). There can be columns in between for part-of-speech tags, as shown on the `CoNLL-2003 website`_.
+Each line of the text.txt file contains text sequences, where words are separated with spaces.
+The labels.txt file contains corresponding labels for each word in text.txt, the labels are separated with spaces.
+Each line of the files should follow the format: [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).
+There can be columns in between for part-of-speech tags, as shown on the `CoNLL-2003`_ website.
 
 
 .. _script: https://github.com/NVIDIA/NeMo/tree/master/scripts/get_conll_data.py
