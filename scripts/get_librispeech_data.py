@@ -4,7 +4,8 @@
 #        --data_set=<datasets_to_download>
 # where <datasets_to_download> can be: dev_clean, dev_other, test_clean,
 # test_other, train_clean_100, train_clean_360, train_other_500 or ALL
-# You can also put more than one data_set comma-separated: --data_set=dev_clean,train_clean_100
+# You can also put more than one data_set comma-separated:
+# --data_set=dev_clean,train_clean_100
 import argparse
 import os
 import urllib.request
@@ -20,14 +21,18 @@ parser.add_argument("--data_root", required=True, default=None, type=str)
 parser.add_argument("--data_sets", default="dev_clean", type=str)
 args = parser.parse_args()
 
-URLS = {'TRAIN_CLEAN_100': "http://www.openslr.org/resources/12/train-clean-100.tar.gz",
-        'TRAIN_CLEAN_360': "http://www.openslr.org/resources/12/train-clean-360.tar.gz",
-        'TRAIN_OTHER_500': "http://www.openslr.org/resources/12/train-other-500.tar.gz",
-        'DEV_CLEAN': "http://www.openslr.org/resources/12/dev-clean.tar.gz",
-        'DEV_OTHER': "http://www.openslr.org/resources/12/dev-other.tar.gz",
-        'TEST_CLEAN': "http://www.openslr.org/resources/12/test-clean.tar.gz",
-        'TEST_OTHER': "http://www.openslr.org/resources/12/test-other.tar.gz"
-        }
+URLS = {
+    'TRAIN_CLEAN_100': ("http://www.openslr.org/resources/12/train-clean-100"
+                        ".tar.gz"),
+    'TRAIN_CLEAN_360': ("http://www.openslr.org/resources/12/train-clean-360"
+                        ".tar.gz"),
+    'TRAIN_OTHER_500': ("http://www.openslr.org/resources/12/train-other-500"
+                        ".tar.gz"),
+    'DEV_CLEAN': "http://www.openslr.org/resources/12/dev-clean.tar.gz",
+    'DEV_OTHER': "http://www.openslr.org/resources/12/dev-other.tar.gz",
+    'TEST_CLEAN': "http://www.openslr.org/resources/12/test-clean.tar.gz",
+    'TEST_OTHER': "http://www.openslr.org/resources/12/test-other.tar.gz"
+}
 
 
 def __maybe_download_file(destination: str, source: str):
@@ -57,7 +62,7 @@ def __extract_file(filepath: str, data_dir: str):
         tar = tarfile.open(filepath)
         tar.extractall(data_dir)
         tar.close()
-    except:
+    except Exception:
         print('Not extracting. Maybe already there?')
 
 
@@ -95,10 +100,6 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
                 wav_file = os.path.join(dst_folder, id + ".wav")
                 if not os.path.exists(wav_file):
                     Transformer().build(flac_file, wav_file)
-                #else:
-                #   raise AssertionError("WAV file {0} already exists. Clean up"
-                #                        "your destination folder and try again"
-                #                        .format(wav_file))
                 # check duration
                 duration = subprocess.check_output(
                     "soxi -D {0}".format(wav_file), shell=True)
@@ -134,9 +135,8 @@ def main():
         __process_data(os.path.join(os.path.join(data_root, "LibriSpeech"),
                                     data_set.replace("_", "-")),
                        os.path.join(os.path.join(data_root, "LibriSpeech"),
-                                    data_set.replace("_", "-")
-                                    ) + "-processed"
-                       , os.path.join(data_root, data_set + ".json"))
+                                    data_set.replace("_", "-")) + "-processed",
+                       os.path.join(data_root, data_set + ".json"))
     print('Done!')
 
 

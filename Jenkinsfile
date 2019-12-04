@@ -15,7 +15,7 @@ pipeline {
     }
     stage('PEP8 Checks') {
       steps {
-        sh 'pycodestyle . --exclude=./scripts/get_librispeech_data.py,./scripts/process_beam_dump.py,./tests/other/jasper.py,./tests/other/jasper_zero_dl.py,./collections/nemo_nlp/nemo_nlp/utils/metrics/sacrebleu.py,./collections/nemo_nlp/nemo_nlp/utils/metrics/fairseq_tokenizer.py,./nemo/setup.py,./docs/sources/source/conf.py,./docs/sources/source/tutorials/infer.py,./docs/sources/source/tutorials/test.py,./collections/nemo_nlp/build'
+        sh 'pycodestyle . --exclude=./tests/other/jasper.py,./tests/other/jasper_zero_dl.py,./collections/nemo_nlp/nemo_nlp/utils/metrics/sacrebleu.py,./collections/nemo_nlp/nemo_nlp/utils/metrics/fairseq_tokenizer.py,./docs/sources/source/conf.py,./collections/nemo_nlp/build'
       }
     } 
 
