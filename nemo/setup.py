@@ -25,7 +25,7 @@ setuptools.setup(
         'pandas',
         'wget',
         'onnx',
-        'sphinxcontrib-bibtex'
+        'sphinxcontrib-bibtex',
+        'sphinx_rtd_theme'
     ]
 )
-
