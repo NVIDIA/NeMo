@@ -1,13 +1,16 @@
 # pylint: disable=invalid-name
 
 import argparse
+import json
 import os
+import sys
 
 import nemo
 from nemo.utils.lr_policies import get_lr_policy
 
 import nemo_nlp
-from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
+from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer, \
+    TokenClassifier, TokenClassificationLoss
 from nemo_nlp.utils.callbacks.token_classification import \
     eval_iter_callback, eval_epochs_done_callback
 
@@ -26,7 +29,6 @@ parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--data_dir", default="/data", type=str)
-parser.add_argument("--num_classes", default=9, type=int)
 parser.add_argument("--fc_dropout", default=0.5, type=float)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
@@ -35,7 +37,8 @@ parser.add_argument("--shuffle_data", action='store_false')
 parser.add_argument("--pretrained_bert_model",
                     default="bert-base-cased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
-parser.add_argument("--bert_config", default=None, type=str)
+parser.add_argument("--bert_config", default=None, type=str,
+                    help="Path to bert config file in json format")
 parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str)
 parser.add_argument("--work_dir", default='output', type=str,
                     help="The output directory where the model prediction\
@@ -81,20 +84,29 @@ if args.bert_checkpoint is None:
         pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
-    Replace BERT-STEP-00.pt with the path to your checkpoint.
+    Replace BERT-STEP-150000.pt with the path to your checkpoint.
     """
-    tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
-    tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
+    if args.tokenizer == "sentencepiece":
+        tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
+        tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
+    elif args.tokenizer == "nemobert":
+        tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
+    else:
+        raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
+    if args.bert_config is not None:
+        with open(args.bert_config) as json_file:
+            config = json.load(json_file)
+        model = nemo_nlp.huggingface.BERT(**config)
+    else:
+        model = nemo_nlp.huggingface.BERT(
+            pretrained_model_name=args.pretrained_bert_model)
 
-    bert_model = nemo_nlp.huggingface.BERT(config_filename=args.bert_config)
-    bert_model.restore_from(args.bert_checkpoint)
+    model.restore_from(args.bert_checkpoint)
 
 hidden_size = bert_model.local_parameters["hidden_size"]
-classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
-                                      num_classes=args.num_classes,
-                                      dropout=args.fc_dropout)
-task_loss = nemo_nlp.TokenClassificationLoss(num_classes=args.num_classes)
 
+classifier = "TokenClassifier"
+task_loss = "TokenClassificationLoss"
 
 def create_pipeline(num_samples=-1,
                     pad_label=args.none_label,
@@ -106,7 +118,10 @@ def create_pipeline(num_samples=-1,
                     label_ids=None,
                     ignore_extra_tokens=args.ignore_extra_tokens,
                     ignore_start_end=args.ignore_start_end,
-                    use_cache=args.use_cache):
+                    use_cache=args.use_cache,
+                    dropout=args.fc_dropout):
+    
+    global classifier, task_loss
 
     nf.logger.info(f"Loading {mode} data...")
     shuffle = args.shuffle_data if mode == 'train' else False
@@ -142,6 +157,17 @@ def create_pipeline(num_samples=-1,
 
     input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, \
         labels = data_layer()
+
+    if mode == 'train':
+        label_ids = data_layer.dataset.label_ids
+        classifier = getattr(sys.modules[__name__], classifier)
+        classifier = classifier(hidden_size=hidden_size,
+                                num_classes=len(label_ids),
+                                dropout=dropout)
+        task_loss = getattr(sys.modules[__name__], task_loss)
+        task_loss = task_loss(num_classes=len(label_ids))
+    
+
     hidden_states = bert_model(input_ids=input_ids,
                                token_type_ids=input_type_ids,
                                attention_mask=input_mask)
@@ -151,7 +177,6 @@ def create_pipeline(num_samples=-1,
     steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
 
     if mode == 'train':
-        label_ids = data_layer.dataset.label_ids
         tensors_to_evaluate = [loss, logits]
     else:
         tensors_to_evaluate = [logits, labels, subtokens_mask]
