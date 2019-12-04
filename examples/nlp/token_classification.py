@@ -15,7 +15,8 @@ from nemo_nlp.utils.callbacks.token_classification import \
     eval_iter_callback, eval_epochs_done_callback
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description="NER with pretrainedBERT")
+parser = argparse.ArgumentParser(description="Token classification\
+                        with pretrained BERT")
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=8, type=int)
 parser.add_argument("--max_seq_length", default=128, type=int)
@@ -114,7 +115,6 @@ hidden_size = bert_model.local_parameters["hidden_size"]
 
 classifier = "TokenClassifier"
 task_loss = "TokenClassificationLoss"
-
 
 def create_pipeline(num_samples=-1,
                     pad_label=args.none_label,
