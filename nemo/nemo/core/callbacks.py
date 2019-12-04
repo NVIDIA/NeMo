@@ -6,7 +6,7 @@ import os
 import sys
 import time
 
-from ..utils import get_checkpoint_from_dir
+from ..utils import get_logger, get_checkpoint_from_dir
 
 
 class ActionCallback(ABC):
@@ -16,6 +16,7 @@ class ActionCallback(ABC):
     def __init__(self):
         self._registered_tensors = {}
         self._action = None
+        self.logger = get_logger('')
 
     @property
     def step(self):
@@ -40,10 +41,6 @@ class ActionCallback(ABC):
     @property
     def action(self):
         return self._action
-
-    @property
-    def logger(self):
-        return self.action.logger
 
     @action.setter
     def action(self, action_obj):
