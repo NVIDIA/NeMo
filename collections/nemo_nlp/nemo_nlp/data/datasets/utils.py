@@ -944,9 +944,9 @@ def calc_class_weights(label_freq):
     so as to match the one with the higest frequency. We achieve this by
     dividing the highest frequency by the freq of each label.
     Example -
-    [12, 5, 3] -> [12/12, 12/5, 12/3] -> [1, 2.4, 4] 
+    [12, 5, 3] -> [12/12, 12/5, 12/3] -> [1, 2.4, 4]
 
-    Here label_freq is assumed to be sorted by the frequency. I.e. 
+    Here label_freq is assumed to be sorted by the frequency. I.e.
     label_freq[0] is the most frequent element.
 
     """
