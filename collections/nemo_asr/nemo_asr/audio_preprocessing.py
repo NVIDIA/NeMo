@@ -14,7 +14,8 @@
 """
 This file contains neural modules responsible for preprocessing audio data.
 """
-__all__ = ['AudioPreprocessor',
+__all__ = ['AudioPreprocessing',
+           'AudioPreprocessor',
            'AudioToMFCCPreprocessor',
            'AudioToMelSpectrogramPreprocessor',
            'AudioToSpectrogramPreprocessor',
@@ -24,7 +25,12 @@ __all__ = ['AudioPreprocessor',
 from abc import abstractmethod
 import math
 import torch
-import torchaudio
+try:
+    import torchaudio
+    have_torchaudio = True
+except ModuleNotFoundError:
+    have_torchaudio = False
+    print('Could not import torchaudio. Some features might not work.')
 try:
     from apex import amp
 except (AttributeError, ModuleNotFoundError) as e:
@@ -135,6 +141,11 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             normalized=True,
             **kwargs
     ):
+        if not have_torchaudio:
+            raise ModuleNotFoundError(
+                "torchaudio is not installed but is necessary for "
+                "AudioToSpectrogramPreprocessor. We recommend you try "
+                "building it from source for the PyTorch version you have.")
         if window_size and n_window_size:
             raise ValueError(f"{self} received both window_size and "
                              f"n_window_size. Only one should be specified.")
@@ -388,6 +399,11 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
             norm='ortho',
             log=True,
             **kwargs):
+        if not have_torchaudio:
+            raise ModuleNotFoundError(
+                "torchaudio is not installed but is necessary for "
+                "AudioToMFCCPreprocessor. We recommend you try "
+                "building it from source for the PyTorch version you have.")
         if window_size and n_window_size:
             raise ValueError(f"{self} received both window_size and "
                              f"n_window_size. Only one should be specified.")
@@ -575,3 +591,12 @@ class MultiplyBatch(NonTrainableNM):
         out_y_len = in_y_len.repeat(self.mult)
 
         return out_x, out_x_len, out_y, out_y_len
+
+
+def AudioPreprocessing(*args, **kwargs):
+    raise NotImplementedError(
+        "AudioPreprocessing has been deprecated and replaced by: "
+        "AudioToMFCCPreprocessor, AudioToMelSpectrogramPreprocessor, and "
+        "AudioToSpectrogramPreprocessor. For most ASR purposes "
+        "AudioToMelSpectrogramPreprocessor does the same as the old "
+        "AudioPreprocessing.")

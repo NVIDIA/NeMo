@@ -20,7 +20,7 @@ import glob
 import os
 import pickle
 import random
-
+import h5py
 import numpy as np
 from torch.utils.data import Dataset
 from tqdm import tqdm
@@ -320,3 +320,45 @@ class BertPretrainingDataset(Dataset):
                     masked_ids.extend(word_ids)
 
         return masked_ids, output_mask
+
+
+class BertPretrainingPreprocessedDataset(Dataset):
+
+    def __init__(self, input_file, max_pred_length):
+        self.input_file = input_file
+        self.max_pred_length = max_pred_length
+        f = h5py.File(input_file, "r")
+        keys = ['input_ids', 'input_mask',
+                'segment_ids', 'masked_lm_positions',
+                'masked_lm_ids',
+                'next_sentence_labels']
+        self.inputs = [np.asarray(f[key][:]) for key in keys]
+        f.close()
+
+    def __len__(self):
+        'Denotes the total number of samples'
+        return len(self.inputs[0])
+
+    def __getitem__(self, index):
+
+        [input_ids, input_mask, segment_ids,
+         masked_lm_positions, masked_lm_ids,
+         next_sentence_labels] = \
+         [input[index].astype(np.int64)
+          for input in self.inputs]
+
+        output_mask = np.zeros_like(input_ids)
+        output_ids = input_ids.copy()
+
+        index = self.max_pred_length
+        padded_mask_indices = (masked_lm_positions == 0).nonzero()
+        if len(padded_mask_indices[0]) != 0:
+            index = padded_mask_indices[0][0]
+
+        output_mask[masked_lm_positions[:index]] = 1.
+        output_ids[masked_lm_positions[:index]] = masked_lm_ids[:index]
+
+        input_mask = np.asarray(input_mask, dtype=np.float32)
+        output_mask = np.asarray(output_mask, dtype=np.float32)
+        return input_ids, segment_ids, input_mask,\
+            output_ids, output_mask, next_sentence_labels
