@@ -23,7 +23,7 @@ parser.add_argument("--data_dir",
                     type=str)
 parser.add_argument("--query", default='please turn on the light', type=str)
 parser.add_argument("--work_dir",
-                    default='outputs/SNIPS-ALL/2019-12-03_17-23-21/checkpoints',
+                    default='[REPLACE WITH YOUR CHECKPOINT FOLDER]',
                     type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
