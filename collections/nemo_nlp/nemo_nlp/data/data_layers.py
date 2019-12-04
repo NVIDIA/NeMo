@@ -1,8 +1,9 @@
 # Copyright (c) 2019 NVIDIA Corporation
-"""
-If you want to add your own data layer, you should put its name in
-__all__ so that it can be imported with 'from text_data_layers import *'
-"""
+
+# If you want to add your own data layer, you should put its name in
+# __all__ so that it can be imported with 'from text_data_layers import *'
+
+
 __all__ = ['TextDataLayer',
            'BertSentenceClassificationDataLayer',
            'BertJointIntentSlotDataLayer',
@@ -110,20 +111,6 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
 
 
 class BertJointIntentSlotDataLayer(TextDataLayer):
-    """
-    Creates the data layer to use for the task of joint intent
-    and slot classification with pretrained model.
-
-    All the data processing is done in BertJointIntentSlotDataset.
-
-    input_mask: used to ignore some of the input tokens like paddings
-    loss_mask: used to mask and ignore tokens in the loss function
-    subtokens_mask: used to ignore the outputs of unwanted tokens in
-                    the inference and evaluation like the start and end tokens
-    Args:
-        dataset (BertJointIntentSlotDataset):
-                the dataset that needs to be converted to DataLayerNM
-    """
     @staticmethod
     def create_ports():
         output_ports = {
@@ -157,6 +144,20 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
         }
         return {}, output_ports
 
+    """
+        Creates the data layer to use for the task of joint intent
+        and slot classification with pretrained model.
+
+        All the data processing is done in BertJointIntentSlotDataset.
+
+        input_mask: used to ignore some of the input tokens like paddings
+        loss_mask: used to mask and ignore tokens in the loss function
+        subtokens_mask: used to ignore the outputs of unwanted tokens in
+                        the inference and evaluation like the start and end tokens
+        Args:
+            dataset (BertJointIntentSlotDataset):
+                    the dataset that needs to be converted to DataLayerNM
+    """
     def __init__(self,
                  input_file,
                  slot_file,
@@ -184,21 +185,6 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
 
 
 class BertJointIntentSlotInferDataLayer(TextDataLayer):
-    """
-    Creates the data layer to use for the task of joint intent
-    and slot classification with pretrained model. This is for
-
-    All the data processing is done in BertJointIntentSlotInferDataset.
-
-    input_mask: used to ignore some of the input tokens like paddings
-    loss_mask: used to mask and ignore tokens in the loss function
-    subtokens_mask: used to ignore the outputs of unwanted tokens in
-                    the inference and evaluation like the start and end tokens
-
-    Args:
-        dataset (BertJointIntentSlotInferDataset):
-                the dataset that needs to be converted to DataLayerNM
-    """
     @staticmethod
     def create_ports():
         output_ports = {
@@ -225,6 +211,21 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
         }
         return {}, output_ports
 
+    """
+        Creates the data layer to use for the task of joint intent
+        and slot classification with pretrained model. This is for
+
+        All the data processing is done in BertJointIntentSlotInferDataset.
+
+        input_mask: used to ignore some of the input tokens like paddings
+        loss_mask: used to mask and ignore tokens in the loss function
+        subtokens_mask: used to ignore the outputs of unwanted tokens in
+                        the inference and evaluation like the start and end tokens
+
+        Args:
+            dataset (BertJointIntentSlotInferDataset):
+                    the dataset that needs to be converted to DataLayerNM
+    """
     def __init__(self,
                  queries,
                  tokenizer,
@@ -470,18 +471,6 @@ class BertPretrainingDataLayer(TextDataLayer):
 
 
 class BertPretrainingPreprocessedDataLayer(DataLayerNM):
-    """
-    Data layer for masked language modeling task.
-    Args:
-        tokenizer (TokenizerSpec): tokenizer
-        dataset (str): directory or a single file with dataset documents
-        max_seq_length (int): maximum allowed length of the text segments
-        mask_probability (float): probability of masking input sequence tokens
-        batch_size (int): batch size in segments
-        short_seeq_prob (float): Probability of creating sequences which are
-            shorter than the maximum length.
-            Defualts to 0.1.
-    """
 
     @staticmethod
     def create_ports():
@@ -522,6 +511,18 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
 
         return input_ports, output_ports
 
+    """
+        Data layer for masked language modeling task.
+        Args:
+            tokenizer (TokenizerSpec): tokenizer
+            dataset (str): directory or a single file with dataset documents
+            max_seq_length (int): maximum allowed length of the text segments
+            mask_probability (float): probability of masking input sequence tokens
+            batch_size (int): batch size in segments
+            short_seeq_prob (float): Probability of creating sequences which are
+                shorter than the maximum length.
+                Defualts to 0.1.
+    """
     def __init__(self,
                  dataset,
                  max_pred_length,

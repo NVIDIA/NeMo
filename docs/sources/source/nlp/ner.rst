@@ -122,9 +122,10 @@ And create the pipeline that can be used for both training and evaluation.
 
 Now, create the train and evaluation datasets:
 
-.. code-block:: python
-    train_tensors, train_loss, steps_per_epoch, label_ids, _ = create_pipeline()
-    eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev')
+    .. code-block:: python
+
+        train_tensors, train_loss, steps_per_epoch, label_ids, _ = create_pipeline()
+        eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev')
 
 Now, we will set up our callbacks. We will use 3 callbacks:
 
@@ -175,7 +176,7 @@ Finally, we will define our learning rate policy and our optimizer, and start tr
                                       "lr": LEARNING_RATE})
 
 To train NEW with BERT using the provided scripts
------------------------
+-------------------------------------------------
 
 To run the provided training script:
 

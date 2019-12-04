@@ -1,4 +1,4 @@
-rm ../html -rf
+rm -rf ../html 
 make clean
 mkdir build/html
 make html
