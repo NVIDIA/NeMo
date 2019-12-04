@@ -19,6 +19,7 @@
 #
 import os
 import sys
+from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../../../"))
@@ -28,6 +29,34 @@ sys.path.insert(0, os.path.abspath("../../../collections/nemo_asr"))
 sys.path.insert(0, os.path.abspath("../../../collections/nemo_nlp"))
 # sys.path.insert(0, os.path.abspath("../../../collections/nemo_lpr"))
 import nemo
+
+# ---- Mocking up the classes. -----
+MOCK_CLASSES = {'Dataset': 'torch.utils.data', 'Module': 'torch.nn' }
+
+
+class Mock(MagicMock):
+    @classmethod
+    def __getattr__(cls, name):
+        if name in MOCK_CLASSES:
+            # return object  # Sphinx renders object in base classes
+            return type(name, (object,), {'__module__': MOCK_CLASSES[name]})
+        elif name == '__file__':  # Sphinx tries to find source code, but doesn't matter because it's mocked
+            return "FOO"
+        elif name == '__loader__':
+            return "BAR"
+        return MagicMock()
+
+
+# ---- Mocking up the python modules. -----
+
+MOCK_MODULES = ['torch', 'torch.nn', 'torch.utils', 'torch.optim',
+                'torch.utils.data', 'torch.utils.data.sampler',
+                'torchvision', 'torchvision.models',
+                'torchtext',
+                'h5py', 'kaldi_io'
+                ]
+
+sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 # -- General configuration ------------------------------------------------
 
