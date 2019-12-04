@@ -55,7 +55,7 @@ class GLUEDataset(Dataset):
         feature = self.features[idx]
         return (np.array(feature.input_ids),
                 np.array(feature.segment_ids),
-                np.array(feature.input_mask, dtype=np.float32),
+                np.array(feature.input_mask, dtype=np.long),
                 np.array(feature.label_id))
 
 

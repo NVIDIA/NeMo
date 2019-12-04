@@ -249,7 +249,7 @@ class BertPretrainingDataset(Dataset):
 
         input_ids, output_mask = self.mask_ids(output_ids)
 
-        input_mask = np.zeros(self.max_seq_length, dtype=np.float32)
+        input_mask = np.zeros(self.max_seq_length, dtype=np.long)
         input_mask[:len(input_ids)] = 1
 
         input_type_ids = np.zeros(self.max_seq_length, dtype=np.int)
