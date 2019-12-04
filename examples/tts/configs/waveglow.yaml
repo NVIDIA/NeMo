@@ -30,6 +30,8 @@ AudioToMelSpectrogramPreprocessor:
     preemph: null
     mag_power: 1.
     pad_value: -11.52
+    log_zero_guard_type: "clamp"
+    log_zero_guard_value: 1.0e-5
 
 WaveGlowNM:
     n_mel_channels: *n_mels
