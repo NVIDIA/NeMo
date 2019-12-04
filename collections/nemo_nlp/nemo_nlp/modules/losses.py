@@ -198,11 +198,11 @@ class JointIntentSlotLoss(LossNM):
         # For weighted loss to tackle class imbalance
         if len(slot_classes_loss_weights) > 0:
             self.slot_classes_loss_weights = \
-                torch.FloatTensor(slot_classes_loss_weights).cuda()
+                torch.FloatTensor(slot_classes_loss_weights).to(self._device)
 
         if len(intent_classes_loss_weights) > 0:
             self.intent_classes_loss_weights = \
-                torch.FloatTensor(intent_classes_loss_weights).cuda()
+                torch.FloatTensor(intent_classes_loss_weights).to(self._device)
 
         self._criterion_intent = nn.CrossEntropyLoss(
             weight=self.intent_classes_loss_weights)

@@ -145,8 +145,6 @@ def create_pipeline(num_samples=-1,
 
     intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
-    class_weights = data_desc.slot_weights
-
     loss = loss_fn(intent_logits=intent_logits,
                    slot_logits=slot_logits,
                    loss_mask=loss_mask,
