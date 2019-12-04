@@ -25,6 +25,7 @@ from .losses import CTCLossNM
 
 __all__ = ['Backend',
            'AudioToTextDataLayer',
+           'AudioPreprocessing',
            'AudioPreprocessor',
            'AudioToMFCCPreprocessor',
            'AudioToMelSpectrogramPreprocessor',
