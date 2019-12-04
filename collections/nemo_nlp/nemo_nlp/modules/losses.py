@@ -92,7 +92,7 @@ class TokenClassificationLoss(LossNM):
             of the vocabulary in language modeling objective
         logits (float): output of the classifier
         labels (long): ground truth labels
-        loss_mask (bool): to differentiate from original tokens and paddings
+        loss_mask (long): to differentiate from original tokens and paddings
     """
 
     @staticmethod
