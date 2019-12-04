@@ -12,10 +12,9 @@ This tutorial explains how to implement named entity recognition (NER) in NeMo. 
 Download Dataset
 ----------------
 
-`CoNLL-2003`_ is a standard evaluation dataset for NER, but any NER dataset will work. CoNLL-2003 dataset could also be found `here`_. The only requirement is that the data is splitted into 2 files: text.txt and labels.txt. The text.txt files should be formatted like this:
+`CoNLL-2003`_ is a standard evaluation dataset for NER, but any NER dataset will work. The only requirement is that the data is splitted into 2 files: text.txt and labels.txt. The text.txt files should be formatted like this:
 
 .. _CoNLL-2003: https://www.clips.uantwerpen.be/conll2003/ner/
-.. _here: https://github.com/kyzhouhzau/BERT-NER/tree/master/data
 
 .. code-block::
 
@@ -31,10 +30,11 @@ The labels.txt files should be formatted like this:
     O O ...
     ...
 
+CoNLL-2003 dataset could be downloaded and preprocessed with this `script`_.
 Each line of the text.txt file contains text sequences, where words are separated with spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are separated with spaces. Each line of the files should follow the format: [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt). There can be columns in between for part-of-speech tags, as shown on the `CoNLL-2003 website`_.
 
-.. _CoNLL-2003 website: https://www.clips.uantwerpen.be/conll2003/ner/
 
+.. _script: https://github.com/NVIDIA/NeMo/tree/master/scripts/get_conll_data.py
 
 
 Training
