@@ -321,6 +321,7 @@ Perform the following steps:
         * ``sudo apt-get update && sudo apt-get install swig``
         * ``sudo apt-get install pkg-config libflac-dev libogg-dev libvorbis-dev libboost-dev``
         * ``sudo apt-get install libsndfile1-dev python-setuptools libboost-all-dev python-dev``
+        * ``sudo apt-get install cmake``
         * ``./install_decoders.sh``
     * Build 6-gram KenLM model on LibriSpeech ``./build_6-gram_OpenSLR_lm.sh``
     * Run jasper_eval.py with the --lm_path flag
