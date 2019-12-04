@@ -15,8 +15,8 @@ To obtain the pretrained Jasper model, see :ref:`Jasper_model`.
 Librispeech training dataset consists of three parts: train-clean-100, train-clean-360, and train-clean-500 which give 281k training examples in total.
 To augment this data we used two techniques:
 
-* We split all training data into 10 folds and trained 10 Jasper models in cross-validation manner: a model was trained on 9 folds and used to make ASR predictions
-for the remaining fold.
+* We split all training data into 10 folds and trained 10 Jasper models in cross-validation manner: a model was trained on 9 folds and used to make ASR predictions for the remaining fold.
+
 * We took pretrained Jasper model and enabled dropout during inference on training data. This procedure was repeated multiple times with different random seeds.
 
 **Data postprocessing.** The collected dataset was postprocessed by removing duplicates
