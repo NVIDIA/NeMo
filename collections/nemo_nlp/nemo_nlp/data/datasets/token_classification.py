@@ -79,7 +79,7 @@ def get_features(queries,
 
         # add bos token
         subtokens = ['[CLS]']
-        loss_mask = [int(not ignore_start_end)]
+        loss_mask = [1 - ignore_start_end]
         subtokens_mask = [0]
         if with_label:
             pad_id = label_ids[pad_label]
@@ -102,7 +102,7 @@ def get_features(queries,
 
         # add eos token
         subtokens.append('[SEP]')
-        loss_mask.append(int(not ignore_start_end))
+        loss_mask.append(1 - ignore_start_end)
         subtokens_mask.append(0)
         sent_lengths.append(len(subtokens))
         all_subtokens.append(subtokens)
