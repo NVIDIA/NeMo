@@ -1,21 +1,20 @@
-from collections import Counter
-from io import open
 import csv
 import glob
+import itertools
 import json
+import numpy as np
 import os
 import random
 import re
 import shutil
 import subprocess
 import sys
-import itertools
 
-import numpy as np
+from collections import Counter
+from io import open
+from nemo.utils.exp_logging import get_logger
 from sentencepiece import SentencePieceTrainer as SPT
 from tqdm import tqdm
-
-from nemo.utils.exp_logging import get_logger
 
 from ...utils.nlp_utils import (get_vocab,
                                 write_vocab,
@@ -939,6 +938,19 @@ def write_files(data, outfile):
             f.write(item)
 
 
+def calc_class_weights(label_freq):
+    # Goal is to give more weight to the classes with less samples
+    # so as to match the one with the higest frequency. We achieve this by
+    # dividing the highest frequency by the freq of each label.
+    # Example -
+    # [12, 5, 3] -> [12/12, 12/5, 12/3] -> [1, 2.4, 4]
+
+    most_common_label_freq = label_freq[0]
+    weighted_slots = sorted([(index, most_common_label_freq[1]/freq)
+                            for (index, freq) in label_freq])
+    return [weight for (_, weight) in weighted_slots]
+
+
 class JointIntentSlotDataDesc:
     """ Convert the raw data to the standard format supported by
     JointIntentSlotDataset.
@@ -1033,7 +1045,7 @@ class JointIntentSlotDataDesc:
 
             input_file = f'{self.data_dir}/{mode}.tsv'
             with open(input_file, 'r') as f:
-                input_lines = f.readlines()[1:]
+                input_lines = f.readlines()[1:]  # Skipping headers at index 0
 
             if len(slot_lines) != len(input_lines):
                 raise ValueError(
@@ -1051,9 +1063,6 @@ class JointIntentSlotDataDesc:
                 raw_intents.append(int(parts[-1]))
                 queries.append(' '.join(parts[:-1]))
 
-            print(raw_slots[:50])
-            print(raw_intents[:50])
-
             infold = input_file[:input_file.rfind('/')]
 
             logger.info(f'Three most popular intents during {mode}ing')
@@ -1067,22 +1076,16 @@ class JointIntentSlotDataDesc:
 
             if mode == 'train':
 
-                most_common_slot = slots_label_freq[0]
-                weighted_slots = sorted([(j, most_common_slot[1]/i)
-                                        for (j, i) in slots_label_freq])
-                self.slot_weights = [i for (_, i) in weighted_slots]
-                print(f'Slot weights are - {self.slot_weights}')
+                self.slot_weights = calc_class_weights(slots_label_freq)
+                logger.info(f'Slot weights are - {self.slot_weights}')
 
-                most_common_intent = intent_label_freq[0]
-                weighted_intents = sorted([(j, most_common_intent[1]/i)
-                                          for (j, i) in intent_label_freq])
-                self.intent_weights = [i for (_, i) in weighted_intents]
-                print(f'Intent weights are - {self.intent_weights}')
+                self.intent_weights = calc_class_weights(intent_label_freq)
+                logger.info(f'Intent weights are - {self.intent_weights}')
 
-            print('total_intents, intent_label_freq')
-            print(total_intents, intent_label_freq)
-            print('slots_total, slots_label_freq')
-            print(slots_total, slots_label_freq)
+            logger.info(f'Total intents - {total_intents}')
+            logger.info(f'Intent label frequency - {intent_label_freq}')
+            logger.info(f'Total Slots - {slots_total}')
+            logger.info(f'Slots label frequency - {slots_label_freq}')
 
         if pad_label != -1:
             self.pad_label = pad_label
