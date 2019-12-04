@@ -218,7 +218,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
         )
 
 .. note::
-    This script trains should finish 50 epochs in about 7 hours on GTX 1080.
+    This script trains should finish 50 epochs in about 7 hours on GTX 1080. You should get an evaluation WER of about 30%.
 
 .. tip::
     To improve your word error rates:
@@ -297,18 +297,18 @@ Training time can be dramatically reduced if starting from a good pre-trained mo
     When fine-tuning, use smaller learning rate.
 
 
-Inference
----------
+Evaluation
+----------
 
 First download pre-trained model (jasper_encoder, jasper_decoder and configuration files) `from here <https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`_ into `<path_to_checkpoints>`. We will use this pre-trained model to measure WER on LibriSpeech dev-clean dataset.
 
 .. code-block:: bash
 
-    python <nemo_git_repo_root>/examples/asr/jasper_infer.py --model_config=<nemo_git_repo_root>/examples/asr/configs/quartznet15x5.yaml --eval_datasets "<path_to_data>/dev_clean.json" --load_dir=<directory_containing_checkpoints>
+    python <nemo_git_repo_root>/examples/asr/jasper_eval.py --model_config=<nemo_git_repo_root>/examples/asr/configs/quartznet15x5.yaml --eval_datasets "<path_to_data>/dev_clean.json" --load_dir=<directory_containing_checkpoints>
 
 
-Inference with Language Model
------------------------------
+Evaluation with Language Model
+------------------------------
 
 Using KenLM
 ~~~~~~~~~~~
@@ -323,11 +323,11 @@ Perform the following steps:
         * ``sudo apt-get install libsndfile1-dev python-setuptools libboost-all-dev python-dev``
         * ``./install_decoders.sh``
     * Build 6-gram KenLM model on LibriSpeech ``./build_6-gram_OpenSLR_lm.sh``
-    * Run jasper_infer.py with the --lm_path flag
+    * Run jasper_eval.py with the --lm_path flag
 
     .. code-block:: bash
 
-        python <nemo_git_repo_root>/examples/asr/jasper_infer.py --model_config=<nemo_git_repo_root>/examples/asr/configs/quartznet15x5.yaml --eval_datasets "<path_to_data>/dev_clean.json" --load_dir=<directory_containing_checkpoints> --lm_path=<path_to_6gram.binary>
+        python <nemo_git_repo_root>/examples/asr/jasper_eval.py --model_config=<nemo_git_repo_root>/examples/asr/configs/quartznet15x5.yaml --eval_datasets "<path_to_data>/dev_clean.json" --load_dir=<directory_containing_checkpoints> --lm_path=<path_to_6gram.binary>
 
 
 References

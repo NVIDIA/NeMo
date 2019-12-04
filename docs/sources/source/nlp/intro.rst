@@ -19,7 +19,7 @@ BERT
 
 
 Transformer Language Model
-----
+--------------------------
 .. toctree::
    :maxdepth: 8
 

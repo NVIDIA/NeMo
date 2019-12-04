@@ -1,6 +1,4 @@
-NeMo support the following collections
-
-NEMO_ASR collection
+NeMo_ASR collection
 ===================
 
 Speech data processing modules
@@ -18,4 +16,3 @@ Automatic Speech Recognition modules
     :undoc-members:
     :show-inheritance:
     :exclude-members: forward, create_ports
-

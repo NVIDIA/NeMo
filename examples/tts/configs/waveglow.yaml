@@ -3,7 +3,6 @@ sample_rate: &sr 22050
 n_fft: &n_fft 1024
 
 AudioDataLayer:
-    normalize_transcripts: false
     sample_rate: *sr
     train:
         n_segments: 16000
@@ -29,6 +28,8 @@ AudioToMelSpectrogramPreprocessor:
     sample_rate: *sr
     highfreq: 8000
     preemph: null
+    mag_power: 1.
+    pad_value: -11.52
 
 WaveGlowNM:
     n_mel_channels: *n_mels

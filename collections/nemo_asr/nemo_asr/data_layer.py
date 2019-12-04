@@ -100,7 +100,9 @@ transcript_n}
             batch_size,
             sample_rate=16000,
             int_values=False,
+            bos_id=None,
             eos_id=None,
+            pad_id=None,
             min_duration=0.1,
             max_duration=None,
             normalize_transcripts=True,
@@ -125,6 +127,7 @@ transcript_n}
                           'min_duration': min_duration,
                           'normalize': normalize_transcripts,
                           'trim': trim_silence,
+                          'bos_id': bos_id,
                           'eos_id': eos_id,
                           'logger': self._logger,
                           'load_audio': load_audio}
@@ -139,10 +142,11 @@ transcript_n}
         else:
             sampler = None
 
+        pad_id = 0 if pad_id is None else pad_id
         self._dataloader = torch.utils.data.DataLoader(
             dataset=self._dataset,
             batch_size=batch_size,
-            collate_fn=seq_collate_fn,
+            collate_fn=partial(seq_collate_fn, token_pad_value=pad_id),
             drop_last=drop_last,
             shuffle=shuffle if sampler is None else False,
             sampler=sampler,
@@ -213,18 +217,17 @@ class KaldiFeatureDataLayer(DataLayerNM):
         return input_ports, output_ports
 
     def __init__(
-        self, *,
-        kaldi_dir,
-        labels,
-        batch_size,
-        eos_id=None,
-        min_duration=None,
-        max_duration=None,
-        normalize_transcripts=True,
-        drop_last=False,
-        shuffle=True,
-        num_workers=0,
-        **kwargs
+            self, *,
+            kaldi_dir,
+            labels,
+            batch_size,
+            min_duration=None,
+            max_duration=None,
+            normalize_transcripts=True,
+            drop_last=False,
+            shuffle=True,
+            num_workers=0,
+            **kwargs
     ):
         super().__init__(**kwargs)
 
@@ -329,24 +332,29 @@ class TranscriptDataLayer(DataLayerNM):
             'texts': NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
-            })
+            }),
+
+            "texts_length": NeuralType({0: AxisType(BatchTag)})
         }
         return input_ports, output_ports
 
     def __init__(self,
                  path,
                  labels,
-                 eos_id,
-                 pad_id,
                  batch_size,
+                 bos_id=None,
+                 eos_id=None,
+                 pad_id=None,
                  drop_last=False,
                  num_workers=0,
+                 shuffle=True,
                  **kwargs):
         super().__init__(**kwargs)
 
         # Set up dataset
         dataset_params = {'path': path,
                           'labels': labels,
+                          'bos_id': bos_id,
                           'eos_id': eos_id}
 
         self._dataset = TranscriptDataset(**dataset_params)
@@ -358,28 +366,31 @@ class TranscriptDataLayer(DataLayerNM):
         else:
             sampler = None
 
+        pad_id = 0 if pad_id is None else pad_id
+
         # noinspection PyTypeChecker
         self._dataloader = torch.utils.data.DataLoader(
             dataset=self._dataset,
             batch_size=batch_size,
             collate_fn=partial(self._collate_fn, pad_id=pad_id, pad8=True),
             drop_last=drop_last,
-            shuffle=sampler is None,
+            shuffle=shuffle if sampler is None else False,
             sampler=sampler,
             num_workers=num_workers
         )
 
     @staticmethod
-    def _collate_fn(batch_list, pad_id, pad8=False):
-        max_len = max(len(s) for s in batch_list)
+    def _collate_fn(batch, pad_id, pad8=False):
+        texts_list, texts_len = zip(*batch)
+        max_len = max(texts_len)
         if pad8:
             max_len = pad_to(max_len, 8)
 
-        texts = torch.empty(len(batch_list), max_len,
+        texts = torch.empty(len(texts_list), max_len,
                             dtype=torch.long)
         texts.fill_(pad_id)
 
-        for i, s in enumerate(batch_list):
+        for i, s in enumerate(texts_list):
             texts[i].narrow(0, 0, s.size(0)).copy_(s)
 
         if len(texts.shape) != 2:
@@ -388,7 +399,7 @@ class TranscriptDataLayer(DataLayerNM):
                 f" should have 2 dimensions."
             )
 
-        return texts
+        return texts, torch.stack(texts_len)
 
     def __len__(self):
         return len(self._dataset)
