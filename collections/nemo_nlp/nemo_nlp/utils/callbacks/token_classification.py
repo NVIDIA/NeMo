@@ -73,9 +73,9 @@ def eval_epochs_done_callback(global_vars,
     logger.info("Sampled labels: [%s]" % list2str(labels[i:i+sample_size]))
 
     # remove labels from label_ids that don't appear in the dev set
-    missing_labels = set(label_ids.values()) - set(labels) - set(preds)
-    label_ids = {k: label_ids[k]
-                 for k, v in label_ids.items() if v not in missing_labels}
+    used_labels = set(labels) | set(preds)
+    label_ids = \
+        {k: label_ids[k] for k, v in label_ids.items() if v in used_labels}
 
     logger.info(classification_report(labels, preds, target_names=label_ids))
 

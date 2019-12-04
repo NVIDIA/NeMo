@@ -39,7 +39,13 @@ parser.add_argument("--pretrained_bert_model",
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str,
                     help="Path to bert config file in json format")
-parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str)
+parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str,
+                    help="Path to pretrained tokenizer model, \
+                    only used if --tokenizer is sentencepiece")
+parser.add_argument("--tokenizer", default="nemobert", type=str,
+                    choices=["nemobert", "sentencepiece"],
+                    help="tokenizer to use, \
+                    only relevant when using custom pretrained checkpoint.")
 parser.add_argument("--work_dir", default='output', type=str,
                     help="The output directory where the model prediction\
                     and checkpoints will be written.")
@@ -103,10 +109,12 @@ else:
 
     model.restore_from(args.bert_checkpoint)
 
+
 hidden_size = bert_model.local_parameters["hidden_size"]
 
 classifier = "TokenClassifier"
 task_loss = "TokenClassificationLoss"
+
 
 def create_pipeline(num_samples=-1,
                     pad_label=args.none_label,
@@ -120,7 +128,7 @@ def create_pipeline(num_samples=-1,
                     ignore_start_end=args.ignore_start_end,
                     use_cache=args.use_cache,
                     dropout=args.fc_dropout):
-    
+
     global classifier, task_loss
 
     nf.logger.info(f"Loading {mode} data...")
@@ -166,7 +174,6 @@ def create_pipeline(num_samples=-1,
                                 dropout=dropout)
         task_loss = getattr(sys.modules[__name__], task_loss)
         task_loss = task_loss(num_classes=len(label_ids))
-    
 
     hidden_states = bert_model(input_ids=input_ids,
                                token_type_ids=input_type_ids,
@@ -174,6 +181,7 @@ def create_pipeline(num_samples=-1,
 
     logits = classifier(hidden_states=hidden_states)
     loss = task_loss(logits=logits, labels=labels, loss_mask=loss_mask)
+
     steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
 
     if mode == 'train':
