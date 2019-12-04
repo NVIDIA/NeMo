@@ -116,6 +116,7 @@ hidden_size = bert_model.local_parameters["hidden_size"]
 classifier = "TokenClassifier"
 task_loss = "TokenClassificationLoss"
 
+
 def create_pipeline(num_samples=-1,
                     pad_label=args.none_label,
                     max_seq_length=args.max_seq_length,
