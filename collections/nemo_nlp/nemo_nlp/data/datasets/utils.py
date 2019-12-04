@@ -1,8 +1,9 @@
+from collections import Counter
 import csv
 import glob
+from io import open
 import itertools
 import json
-import numpy as np
 import os
 import random
 import re
@@ -10,12 +11,11 @@ import shutil
 import subprocess
 import sys
 
-from collections import Counter
-from io import open
-from nemo.utils.exp_logging import get_logger
+import numpy as np
 from sentencepiece import SentencePieceTrainer as SPT
 from tqdm import tqdm
 
+from nemo.utils.exp_logging import get_logger
 from ...utils.nlp_utils import (get_vocab,
                                 write_vocab,
                                 write_vocab_in_order,
@@ -897,7 +897,7 @@ def process_mturk(
 
     # This function assumes that the preprocess step would have made
     # the task_name of all the annotations generic
-    task_name = 'mturk-processed'
+    task_name = 'retail-combined'
 
     # It is assumed that every utterances will have corresponding
     # slot annotation information
@@ -939,11 +939,17 @@ def write_files(data, outfile):
 
 
 def calc_class_weights(label_freq):
-    # Goal is to give more weight to the classes with less samples
-    # so as to match the one with the higest frequency. We achieve this by
-    # dividing the highest frequency by the freq of each label.
-    # Example -
-    # [12, 5, 3] -> [12/12, 12/5, 12/3] -> [1, 2.4, 4]
+    """
+    Goal is to give more weight to the classes with less samples
+    so as to match the one with the higest frequency. We achieve this by
+    dividing the highest frequency by the freq of each label.
+    Example -
+    [12, 5, 3] -> [12/12, 12/5, 12/3] -> [1, 2.4, 4] 
+
+    Here label_freq is assumed to be sorted by the frequency. I.e. 
+    label_freq[0] is the most frequent element.
+
+    """
 
     most_common_label_freq = label_freq[0]
     weighted_slots = sorted([(index, most_common_label_freq[1]/freq)
