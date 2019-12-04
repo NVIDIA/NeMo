@@ -16,7 +16,7 @@ class ActionCallback(ABC):
     def __init__(self):
         self._registered_tensors = {}
         self._action = None
-        self.logger = get_logger('')
+        self._logger = get_logger('')
 
     @property
     def step(self):
@@ -45,6 +45,13 @@ class ActionCallback(ABC):
     @action.setter
     def action(self, action_obj):
         self._action = action_obj
+
+    @property
+    def logger(self):
+        if self.action is None or self.action.logger is None:
+            return self._logger
+        else:
+            return self.action.logger
 
     def on_action_start(self):
         pass
