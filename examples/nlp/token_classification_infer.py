@@ -15,7 +15,6 @@ parser.add_argument("--max_seq_length", default=128, type=int)
 parser.add_argument("--fc_dropout", default=0, type=float)
 parser.add_argument("--pretrained_bert_model",
                     default="bert-base-cased", type=str)
-parser.add_argument("--num_classes", default=9, type=int)
 parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument("--queries", action='append',
                     default=['we bought four shirts from the nvidia gear store\
@@ -42,6 +41,8 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    optimization_level=args.amp_opt_level,
                                    log_dir=None)
 
+labels_dict = get_vocab(args.labels_dict)
+
 """ Load the pretrained BERT parameters
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
@@ -58,7 +59,7 @@ data_layer = nemo_nlp.BertTokenClassificationInferDataLayer(
     batch_size=1)
 
 classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
-                                      num_classes=args.num_classes,
+                                      num_classes=len(labels_dict),
                                       dropout=args.fc_dropout)
 
 input_ids, input_type_ids, input_mask, _, subtokens_mask = data_layer()
@@ -93,7 +94,6 @@ logits, subtokens_mask = \
     [concatenate(tensors) for tensors in evaluated_tensors]
 
 preds = np.argmax(logits, axis=2)
-labels_dict = get_vocab(args.labels_dict)
 
 for i, query in enumerate(args.queries):
     nf.logger.info(f'Query: {query}')

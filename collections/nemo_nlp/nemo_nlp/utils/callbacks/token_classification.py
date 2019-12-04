@@ -56,7 +56,7 @@ def eval_epochs_done_callback(global_vars,
                               none_label_id=0):
     labels = np.asarray(global_vars['all_labels'])
     preds = np.asarray(global_vars['all_preds'])
-    subtokens_mask = np.asarray(global_vars['all_subtokens_mask'])
+    subtokens_mask = np.asarray(global_vars['all_subtokens_mask']) > 0.5
 
     labels = labels[subtokens_mask]
     preds = preds[subtokens_mask]
