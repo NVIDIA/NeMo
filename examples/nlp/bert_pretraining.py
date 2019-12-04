@@ -42,7 +42,7 @@ python -m torch.distributed.launch --nproc_per_node=8 bert_pretraining.py \
 --config_file bert_config.json
 --data_dir data_dir \
 --save_step_freq 200 \
---total_iterations_per_gpu 1142857 \
+--max_steps 1142857 \
 --num_gpus 8 \
 --batches_per_step 2 \
 --amp_opt_level "O1" \
@@ -113,7 +113,7 @@ parser.add_argument("--gradient_predivide", action="store_true",
                     default=False, help="use gradient predivide")
 parser.add_argument("--only_mlm_loss", action="store_true",
                     default=False, help="use only masked language model loss")
-parser.add_argument("--total_iterations_per_gpu", default=-1,
+parser.add_argument("--max_steps", default=-1,
                     type=int, help="if specified overrides --num_epochs.\
                         Used for preprocessed data")
 parser.add_argument("--dataset_name", default="wikitext-2", type=str)
@@ -297,14 +297,14 @@ ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir,
 
 # define learning rate decay policy
 if args.lr_policy is not None:
-    if args.total_iterations_per_gpu < 0:
+    if args.max_steps < 0:
         lr_policy_fn = get_lr_policy(
                             args.lr_policy,
                             total_steps=args.num_epochs * steps_per_epoch,
                             warmup_ratio=args.lr_warmup_proportion)
     else:
         lr_policy_fn = get_lr_policy(args.lr_policy,
-                                     total_steps=args.total_iterations_per_gpu,
+                                     total_steps=args.max_steps,
                                      warmup_ratio=args.lr_warmup_proportion)
 else:
     lr_policy_fn = None
@@ -319,10 +319,10 @@ optimization_params = {"batch_size": args.batch_size,
                        "betas": (args.beta1, args.beta2),
                        "weight_decay": args.weight_decay}
 
-if args.total_iterations_per_gpu < 0:
+if args.max_steps < 0:
     optimization_params['num_epochs'] = args.num_epochs
 else:
-    optimization_params['max_steps'] = args.total_iterations_per_gpu
+    optimization_params['max_steps'] = args.max_steps
 
 nf.train(tensors_to_optimize=[train_loss],
          lr_policy=lr_policy_fn,
