@@ -10,7 +10,7 @@ Model
 
 Tacotron 2 模型使用的编码器-解码器结构能够很好地对序列到序列（sequence-to-sequence）建模，NeMo 将 Tacotron 2 分成了 4 个不同的神经模块:
 
-1. 文本嵌入（TextEmbedding）神经模块包含的查找表用于将字符 ID 转化为嵌入空间中的向量表示。
+1. 文本嵌入（TextEmbedding）神经模块包含的查找表用于将字符 id 转化为嵌入空间中的向量表示。
 2. 嵌入表示的文本序列会传入到 Tacotron2Encoder 神经模块中。
 3. Tacotron2Decoder 神经模块包含模型中的注意力机制以及解码器的循环神经网络（RNN）部分。
 4. 最后, Tacotron2Postnet 神经模块对 Tacotron2Decoder 神经模块中编码器输出的音频谱进行修正。
