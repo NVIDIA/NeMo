@@ -56,7 +56,7 @@ def get_features(queries,
     for i, query in enumerate(queries):
         words = query.strip().split()
         subtokens = ['[CLS]']
-        loss_mask = [not ignore_start_end]
+        loss_mask = [1 - ignore_start_end]
         subtokens_mask = [0]
         if with_label:
             slots = [pad_label]
@@ -96,7 +96,7 @@ def get_features(queries,
         if len(subtokens) > max_seq_length:
             subtokens = ['[CLS]'] + subtokens[-max_seq_length + 1:]
             all_input_mask[i] = [1] + all_input_mask[i][-max_seq_length + 1:]
-            all_loss_mask[i] = [not ignore_start_end] + \
+            all_loss_mask[i] = [1 - ignore_start_end] + \
                 all_loss_mask[i][-max_seq_length + 1:]
             all_subtokens_mask[i] = [0] + \
                 all_subtokens_mask[i][-max_seq_length + 1:]
