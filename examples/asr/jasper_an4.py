@@ -37,7 +37,6 @@ def main():
         train_dataset="/home/mrjenkins/TestData/an4_dataset/an4_train.json",
         eval_datasets="/home/mrjenkins/TestData/an4_dataset/an4_val.json",
         work_dir="./tmp",
-        checkpoint_dir="./tmp",
         optimizer="novograd",
         num_epochs=50,
         batch_size=32,
@@ -60,13 +59,11 @@ def main():
         optimization_level=args.amp_opt_level,
         random_seed=0,
         log_dir=args.work_dir,
-        checkpoint_dir=args.checkpoint_dir,
         create_tb_writer=True,
         cudnn_benchmark=args.cudnn_benchmark
     )
     tb_writer = nf.tb_writer
     checkpoint_dir = nf.checkpoint_dir
-    args.checkpoint_dir = nf.checkpoint_dir
 
     # Load model definition
     yaml = YAML(typ="safe")
@@ -212,7 +209,7 @@ def main():
             evaluated_tensors[2], evaluated_tensors[3], vocab)
         wer = word_error_rate(
             hypotheses=greedy_hypotheses, references=references)
-        nf.logger.info("Greedy WER: {:.2f}".format(wer * 100))
+        nf.logger.info("Greedy WER: {:.2f}%".format(wer * 100))
         assert wer <= wer_thr, (
             "Final eval greedy WER {:.2f}% > than {:.2f}%".format(
                 wer*100, wer_thr*100))
@@ -239,7 +236,10 @@ def main():
             force_load=True)
 
         # Zero and make all parameters float
-        jasper_encoder.apply(lambda x: x.zero_().float())
+        list(map(lambda x: x.data.zero_(), jasper_encoder.parameters()))
+        list(map(lambda x: x.data.zero_(), jasper_decoder.parameters()))
+        jasper_decoder.float()
+        jasper_encoder.float()
 
         nf.reset_trainer()
         nf.train(
@@ -267,6 +267,20 @@ def main():
         assert wer_new <= wer * 1.1, (
             f"Fine tuning: new WER {wer * 100:.2f}% > than the previous WER "
             f"{wer_new * 100:.2f}%")
+
+        # Open the log file and ensure that epochs is strictly increasing
+        if nf._exp_manager.log_file:
+            epochs = []
+            with open(nf._exp_manager.log_file, "r") as log_file:
+                line = log_file.readline()
+                while line:
+                    index = line.find("Starting epoch")
+                    if index != -1:
+                        epochs.append(int(line[index+len("Starting epoch"):]))
+                    line = log_file.readline()
+            for i, e in enumerate(epochs):
+                if i != e:
+                    raise ValueError("Epochs from logfile was not understood")
 
 
 if __name__ == "__main__":
