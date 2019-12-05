@@ -1143,11 +1143,42 @@ class SentenceClassificationDataDesc:
             intents = get_intent_labels(f'{self.data_dir}/dict.intents.csv')
             self.num_labels = len(intents)
         else:
-            logger.info("Looks like you passed a dataset name that isn't "
-                        "already supported by NeMo. Please make sure that "
-                        "you build the preprocessing method for it.")
+            raise ValueError("Looks like you passed a dataset name that isn't "
+                             "already supported by NeMo. Please make sure "
+                             "that you build the preprocessing method for it.")
 
         self.train_file = self.data_dir + '/train.tsv'
+
+        for mode in ['train', 'test', 'eval']:
+
+            if not if_exist(self.data_dir, [f'{mode}.tsv']):
+                logger.info(f' Stats calculation for {mode} mode'
+                            f' is skipped as {mode}.tsv was not found.')
+                continue
+
+            input_file = f'{self.data_dir}/{mode}.tsv'
+            with open(input_file, 'r') as f:
+                input_lines = f.readlines()[1:]  # Skipping headers at index 0
+
+            queries, raw_sentences = [], []
+            for input_line in input_lines:
+                parts = input_line.strip().split()
+                raw_sentences.append(int(parts[-1]))
+                queries.append(' '.join(parts[:-1]))
+
+            infold = input_file[:input_file.rfind('/')]
+
+            logger.info(f'Three most popular classes during {mode}ing')
+            total_sents, sent_label_freq = get_label_stats(
+                raw_sentences, infold + f'/{mode}_sentence_stats.tsv')
+
+            if mode == 'train':
+
+                self.class_weights = calc_class_weights(sent_label_freq)
+                logger.info(f'Class weights are - {self.class_weights}')
+
+            logger.info(f'Total Sentences - {total_sents}')
+            logger.info(f'Sentence class frequencies - {sent_label_freq}')
 
 
 def create_vocab_lm(data_dir, do_lower_case):
