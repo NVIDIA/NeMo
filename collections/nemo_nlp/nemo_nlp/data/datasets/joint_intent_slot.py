@@ -208,13 +208,6 @@ class BertJointIntentSlotDataset(Dataset):
         self.all_slots = features[5]
         self.all_intents = raw_intents
 
-        infold = input_file[:input_file.rfind('/')]
-        logger.info('Three most popular intents')
-        utils.get_label_stats(self.all_intents, infold + '/intent_stats.tsv')
-        merged_slots = itertools.chain.from_iterable(self.all_slots)
-        logger.info('Three most popular slots')
-        utils.get_label_stats(merged_slots, infold + '/slot_stats.tsv')
-
     def __len__(self):
         return len(self.all_input_ids)
 
