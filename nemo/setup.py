@@ -24,8 +24,7 @@ setuptools.setup(
         'tensorboardX',
         'pandas',
         'wget',
-        'onnx',
-        'sphinxcontrib-bibtex'
+        'onnx'
     ]
 )
 
