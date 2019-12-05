@@ -9,9 +9,12 @@ import torch.nn as nn
 from nemo.backends.pytorch.common import MultiLayerPerceptron
 from nemo.backends.pytorch.nm import TrainableNM, LossNM
 from nemo.core.neural_types import *
+from nemo_nlp.transformer.utils import gelu
 
 from ..transformer.utils import transformer_weights_init
 
+
+ACT2FN = {"gelu": gelu, "relu": nn.functional.relu}
 
 class BertTokenClassifier(TrainableNM):
     """
@@ -50,13 +53,13 @@ class BertTokenClassifier(TrainableNM):
     def __init__(self,
                  hidden_size,
                  num_classes,
-                 activation=nn.functional.relu,
+                 activation='relu',
                  log_softmax=True,
                  dropout=0.0,
                  use_transformer_pretrained=True):
         super().__init__()
         self.dense = nn.Linear(hidden_size, hidden_size)
-        self.act = activation
+        self.act = ACT2FN[activation]
         self.norm = nn.LayerNorm(hidden_size, eps=1e-12)
         self.mlp = MultiLayerPerceptron(hidden_size,
                                         num_classes,
