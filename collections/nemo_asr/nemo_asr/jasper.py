@@ -197,4 +197,5 @@ class JasperDecoderForCTC(TrainableNM):
         self.to(self._device)
 
     def forward(self, encoder_output):
-        return F.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
+        return F.log_softmax(self.decoder_layers(encoder_output).
+                             transpose(1, 2), dim=-1)
