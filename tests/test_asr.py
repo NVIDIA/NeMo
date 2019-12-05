@@ -263,12 +263,11 @@ class TestASRPytorch(NeMoUnitTest):
             import torchaudio
         except ModuleNotFoundError:
             installed_torchaudio = False
-            self.assertRaises(
-                ModuleNotFoundError,
-                nemo_asr.AudioToSpectrogramPreprocessor(n_fft=64, window=None))
-            self.assertRaises(
-                ModuleNotFoundError,
-                nemo_asr.AudioToMFCCPreprocessor(n_mfcc=15))
+            with self.assertRaises(ModuleNotFoundError):
+                to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(
+                    n_fft=400, window=None)
+            with self.assertRaises(ModuleNotFoundError):
+                to_mfcc = nemo_asr.AudioToMFCCPreprocessor(n_mfcc=15)
 
         if installed_torchaudio:
             to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(
@@ -279,8 +278,8 @@ class TestASRPytorch(NeMoUnitTest):
 
         for batch in dl.data_iterator:
             input_signals, seq_lengths, _, _ = batch
-            input_signals = input_signals.to(to_spectrogram._device)
-            seq_lengths = seq_lengths.to(to_spectrogram._device)
+            input_signals = input_signals.to(to_melspec._device)
+            seq_lengths = seq_lengths.to(to_melspec._device)
 
             melspec = to_melspec.forward(input_signals, seq_lengths)
 
