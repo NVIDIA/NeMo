@@ -98,6 +98,7 @@ class PtActions(Actions):
         self.tb_writer = tb_writer
         self._modules = set()
         self.cache = None
+        self.amp_initialized = False
 
     @property
     def modules(self):
@@ -410,6 +411,7 @@ class PtActions(Actions):
             optimizers=optimizer,
             opt_level=AmpOptimizations[optim_level],
         )
+        self.amp_initialized = True
         return optimizer
 
     def __nm_graph_forward_pass(self,
@@ -1547,8 +1549,9 @@ class PtActions(Actions):
                 mod.restore_from(checkpoint, self._local_rank)
 
         # Init Amp
-        if self._optim_level in AmpOptimizations and \
-                self._optim_level != Optimization.mxprO0:
+        if (self._optim_level in AmpOptimizations
+                and self._optim_level != Optimization.mxprO0
+                and not self.amp_initialized):
             pt_modules = []
             for i in range(len(call_chain)):
                 if isinstance(call_chain[i][0], nn.Module):
@@ -1563,6 +1566,7 @@ class PtActions(Actions):
                 optimizers=None,
                 opt_level=AmpOptimizations[self._optim_level],
             )
+            self.amp_initialized = True
 
         # Run infer
         return self._infer(tensors_to_return=tensors,
