@@ -194,13 +194,15 @@ class JointIntentSlotLoss(LossNM):
         LossNM.__init__(self, **kwargs)
         self.num_slots = num_slots
         self.intent_loss_weight = intent_loss_weight
+        self.slot_classes_loss_weights = slot_classes_loss_weights
+        self.intent_classes_loss_weights = intent_classes_loss_weights
 
         # For weighted loss to tackle class imbalance
-        if len(slot_classes_loss_weights) > 0:
+        if slot_classes_loss_weights:
             self.slot_classes_loss_weights = \
                 torch.FloatTensor(slot_classes_loss_weights).to(self._device)
 
-        if len(intent_classes_loss_weights) > 0:
+        if intent_classes_loss_weights:
             self.intent_classes_loss_weights = \
                 torch.FloatTensor(intent_classes_loss_weights).to(self._device)
 
