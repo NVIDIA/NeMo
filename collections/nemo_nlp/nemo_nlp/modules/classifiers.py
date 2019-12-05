@@ -16,6 +16,7 @@ from ..transformer.utils import transformer_weights_init
 
 ACT2FN = {"gelu": gelu, "relu": nn.functional.relu}
 
+
 class BertTokenClassifier(TrainableNM):
     """
     Neural module which consists of MLP followed by softmax classifier for each
