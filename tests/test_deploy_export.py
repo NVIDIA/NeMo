@@ -38,14 +38,6 @@ class TestDeployExport(NeMoUnitTest):
                                  mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
                                  input_example=None)
 
-    def test_simple_module_onnx_export(self):
-        simplest_module = \
-            nemo.backends.pytorch.tutorials.TaylorNet(dim=4, factory=self.nf)
-        self.__test_export_route(module=simplest_module,
-                                 out_name="simple.onnx",
-                                 mode=nemo.core.DeploymentFormat.ONNX,
-                                 input_example=torch.randn(16, 1).cuda())
-
     def test_TokenClassifier_module_export(self):
         t_class = nemo_nlp.TokenClassifier(hidden_size=512, num_classes=16,
                                            use_transformer_pretrained=False)

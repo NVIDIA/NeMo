@@ -1065,8 +1065,9 @@ class PtActions(Actions):
             dynamic_axes = None
 
         local_parameters = {}
-        for key, value in module._local_parameters.items():
-            local_parameters[key] = value
+        if local_parameters is not None:
+            for key, value in module._local_parameters.items():
+                local_parameters[key] = value
 
         # Remove NeMo-related things from the module
         # We need to change __call__ method. Note that this will change the
