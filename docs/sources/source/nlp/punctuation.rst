@@ -2,21 +2,20 @@ Tutorial
 ========
 
 Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this
-tutorial. See the :ref:`installation` section for more details.
+tutorial. See the :ref:`installation` section.
 
 Introduction
 ------------
 
-An ASR system typically generates output with no punctuation and capitalization of the words. To make such output more human readable and to boost performance of the downstream tasks such as name entity recoginition or machine translation, this tutorial explains how to implement a model in NeMo that will predict punctuation and capitalization for each word in a sentence. We'll show how to do this with a pre-trained BERT model. For more details on how to pretrain BERT yourself, check out our BERT pretraining tutorial. 
+An ASR system typically generates text with no punctuation and capitalization of the words. This tutorial explains how to implement a model in NeMo that will predict punctuation and capitalization for each word in a sentence to make ASR output more readable and to boost performance of the downstream tasks such as name entity recoginition or machine translation. We'll show how to train network for this task using a pre-trained BERT model. 
 
 Task Description
 ----------------
-For every word in our training dataset we're going to predict a punctuation mark that should follow the word and whether the word should be capitalized. The following punctuation marks are considered for this task: commas, periods, question marks. Labels format: ``OL``, ``,L``, ``,U``, ``.L``, ``.U``, ``?L``, ``?U``, ``OU``, where the first symbol of the label indicates the punctuation mark (``O`` - no punctuation needed), and the second symbol determines is the word needs to be upper or lower cased.
+For every word in our training dataset we're going to predict 1) a punctuation mark that should follow the word and 2)whether the word should be capitalized. The following punctuation marks are considered for this task: commas, periods, question marks. Labels format: ``OL``, ``,L``, ``,U``, ``.L``, ``.U``, ``?L``, ``?U``, ``OU``, where the first symbol of the label indicates the punctuation mark (``O`` - no punctuation needed), and the second symbol determines is the word needs to be upper or lower cased.
 
 .. tip::
 
-    We recommend you try this out in a Jupyter notebook. It'll make debugging much easier!
-    See examples/nlp/PunctuationWithBERT.ipynb
+    We recommend you try this out in a Jupyter notebook examples/nlp/PunctuationWithBERT.ipynb.
 
 Get Data
 ----------------

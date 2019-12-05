@@ -35,8 +35,8 @@ Named Entity Recognition
    ner
 
 
-Punctuation and word capitalization model
------------------------------------------
+Punctuation and Word Capitalization
+-----------------------------------
 
 .. toctree::
    :maxdepth: 8
