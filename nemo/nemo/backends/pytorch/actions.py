@@ -747,7 +747,7 @@ class PtActions(Actions):
             is_distributed = False
             world_size = None
             if dl_nm.placement == DeviceType.AllGpu:
-                if self.cache or self.use_cache:
+                if self.cache or use_cache:
                     raise NotImplementedError(
                         "Caching is not available for distributed training.")
                 assert dist.is_initialized()

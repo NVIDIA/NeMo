@@ -21,7 +21,7 @@ parser.add_argument("--pretrained_bert_model",
 parser.add_argument("--dataset_name", default='snips-all', type=str)
 parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
 parser.add_argument("--work_dir",
-                    default='outputs/SNIPS-ALL/20191014-104316/checkpoints',
+                    default='[REPLACE WITH YOUR CHECKPOINT FOLDER]',
                     type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--amp_opt_level", default="O0",
@@ -123,6 +123,6 @@ nf.logger.info('Slot prediction results')
 slot_labels_list = np.asarray(slot_labels_list)
 slot_preds_list = np.asarray(slot_preds_list)
 slot_accuracy = sum(slot_labels_list == slot_preds_list) / \
-                len(slot_labels_list)
+    len(slot_labels_list)
 nf.logger.info(f'Slot accuracy: {slot_accuracy}')
 nf.logger.info(classification_report(slot_labels_list, slot_preds_list))
