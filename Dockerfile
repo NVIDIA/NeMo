@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG FROM_IMAGE_NAME=nvcr.io/nvidia/pytorch:19.08-py3
+ARG FROM_IMAGE_NAME=nvcr.io/nvidia/pytorch:19.11-py3
 
 FROM ${FROM_IMAGE_NAME}
 
 # Ensure apt-get won't prompt for selecting options
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt update && apt install -y libsndfile1 sox \
+RUN apt-get update && apt-get install -y libsndfile1 sox \
     python-setuptools python-dev && rm -rf /var/lib/apt/lists/*
 
 # Make sure we have the latest apex
@@ -53,4 +53,11 @@ RUN cd nemo && \
 
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
     chmod +x start-jupyter.sh
+
+WORKDIR /tmp/onnx-trt
+#COPY trt/onnx-trt.patch .
+RUN git clone https://github.com/onnx/onnx-tensorrt.git && cd onnx-tensorrt && git submodule update --init --recursive && \
+    mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DGPU_ARCHS="60 70 75" && make -j16 && make install && mv -f /usr/lib/libnvonnx* /usr/lib/x86_64-linux-gnu/ && ldconfig
+
+
 
