@@ -198,7 +198,7 @@ class JointIntentSlotLoss(LossNM):
                        intent_loss_weight=0.6):
         intent_loss = self._criterion(intent_logits, intents)
 
-        active_loss = loss_mask.view(-1)
+        active_loss = loss_mask.view(-1) > 0.5
         active_logits = slot_logits.view(-1, self.num_slots)[active_loss]
         active_labels = slots.view(-1)[active_loss]
 
