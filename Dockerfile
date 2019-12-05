@@ -12,19 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG FROM_IMAGE_NAME=nvcr.io/nvidia/pytorch:19.09-py3
+ARG FROM_IMAGE_NAME=nvcr.io/nvidia/pytorch:19.11-py3
 
 FROM ${FROM_IMAGE_NAME}
-
-RUN apt-get update && apt-get install -y python3
-ARG version=6.0.1-1+cuda10.1
-RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-repo-ubuntu1804_10.1.243-1_amd64.deb \
-&& dpkg -i cuda-repo-*.deb \
-&& wget https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1804/x86_64/nvidia-machine-learning-repo-ubuntu1804_1.0.0-1_amd64.deb \
-&& dpkg -i nvidia-machine-learning-repo-*.deb \
-&& apt-get update \
-&& apt-get install -y --no-install-recommends libnvinfer6=${version} libnvonnxparsers6=${version} libnvparsers6=${version} libnvinfer-plugin6=${version} libnvinfer-dev=${version} libnvonnxparsers-dev=${version} libnvparsers-dev=${version} libnvinfer-plugin-dev=${version} python-libnvinfer=${version} python3-libnvinfer=${version}
-RUN cp -r /usr/lib/python3.6/dist-packages/tensorrt /opt/conda/lib/python3.6/site-packages/tensorrt
 
 # Ensure apt-get won't prompt for selecting options
 ENV DEBIAN_FRONTEND=noninteractive
