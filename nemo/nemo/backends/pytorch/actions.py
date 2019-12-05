@@ -1096,14 +1096,24 @@ class PtActions(Actions):
                     raise ValueError(
                         f'Example input is None, but ONNX tracing was'
                         f' attempted')
-                torch.onnx.export(module, input_example, output,
+                if output_example is None:
+                    if isinstance(input_example, tuple):
+                        output_example = module.forward(*input_example)
+                    else:
+                        output_example = module.forward(input_example)
+                with torch.jit.optimized_execution(True):
+                    jitted_model = torch.jit.trace(module,
+                                                   input_example)
+
+                torch.onnx.export(jitted_model, input_example, output,
                                   input_names=input_names,
                                   output_names=output_names,
                                   verbose=True,
                                   export_params=True,
                                   do_constant_folding=True,
                                   dynamic_axes=dynamic_axes,
-                                  opset_version=10)
+                                  opset_version=10,
+                                  example_outputs=output_example)
                 # fn = output + ".readable"
                 # with open(fn, 'w') as f:
                 #     tempModel = onnx.load(output)
