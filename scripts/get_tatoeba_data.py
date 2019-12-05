@@ -69,7 +69,7 @@ def __process_english_sentences(in_file,
         # use only English sentences
         if line[1] == 'eng':
             line = line[2].strip()
-            if len(line) > 0 and re.match('^[A-Z][a-z.,?\s]+$', line):
+            if len(line) > 0 and re.match('^[A-Z][a-z.,?\s]+$', line): # nopep8
                 # chop some sentences in the middle
                 if percent_to_cut > 0:
                     line = line.split()
