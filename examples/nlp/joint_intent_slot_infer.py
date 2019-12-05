@@ -21,7 +21,8 @@ parser.add_argument("--pretrained_bert_model",
 parser.add_argument("--dataset_name", default='snips-all', type=str)
 parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
 parser.add_argument("--work_dir",
-                    default='[REPLACE WITH YOUR CHECKPOINT FOLDER]',
+                    required=True,
+                    help="your checkpoint folder",
                     type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--amp_opt_level", default="O0",
