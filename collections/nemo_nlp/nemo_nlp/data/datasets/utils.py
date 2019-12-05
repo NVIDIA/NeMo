@@ -1043,7 +1043,12 @@ class JointIntentSlotDataDesc:
         slots = label2idx(self.slot_dict_file)
         self.num_slots = len(slots)
 
-        for mode in ['train', 'test']:
+        for mode in ['train', 'test', 'eval']:
+
+            if not if_exist(self.data_dir, [f'{mode}.tsv']):
+                logger.info(f' Stats calculation for {mode} mode'
+                            f' is skipped as {mode}.tsv was not found.')
+                continue
 
             slot_file = f'{self.data_dir}/{mode}_slots.tsv'
             with open(slot_file, 'r') as f:
