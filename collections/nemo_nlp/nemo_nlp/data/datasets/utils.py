@@ -1021,7 +1021,7 @@ class JointIntentSlotDataDesc:
                 self.data_dir = f'{self.data_dir}/speak'
             elif dataset_name.endswith('all'):
                 self.data_dir = f'{self.data_dir}/all'
-        elif dataset_name.startswith('Jarvis-car'):
+        elif dataset_name.startswith('jarvis'):
             self.data_dir = process_jarvis_datasets(data_dir,
                                                     do_lower_case,
                                                     dataset_name,
@@ -1043,7 +1043,12 @@ class JointIntentSlotDataDesc:
         slots = label2idx(self.slot_dict_file)
         self.num_slots = len(slots)
 
-        for mode in ['train', 'test']:
+        for mode in ['train', 'test', 'eval']:
+
+            if not if_exist(self.data_dir, [f'{mode}.tsv']):
+                logger.info(f' Stats calculation for {mode} mode'
+                            f' is skipped as {mode}.tsv was not found.')
+                continue
 
             slot_file = f'{self.data_dir}/{mode}_slots.tsv'
             with open(slot_file, 'r') as f:
@@ -1126,7 +1131,7 @@ class SentenceClassificationDataDesc:
                                         do_lower_case,
                                         dataset_name=dataset_name)
             self.eval_file = self.data_dir + '/test.tsv'
-        elif dataset_name.startswith('Jarvis-car'):
+        elif dataset_name.startswith('jarvis'):
             self.data_dir = process_jarvis_datasets(data_dir,
                                                     do_lower_case,
                                                     dataset_name,
