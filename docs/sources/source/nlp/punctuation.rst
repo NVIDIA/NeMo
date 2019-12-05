@@ -10,7 +10,7 @@ Introduction
 An ASR system typically generates output with no punctuation and capitalization of the words. To make such output more human readable and to boost performance of the downstream tasks such as name entity recoginition or machine translation, this tutorial explains how to implement a model in NeMo that will predict where punctuation and capitalization of a word required. We'll show how to do this with a pre-trained BERT model. For more details on how to pretrain BERT yourself, check out our BERT pretraining tutorial. 
 
 Task Description
-------------
+----------------
 For every word in our training dataset we're going to predict what punctuation mark should follow the word if any and whether the word should be capitalized. The following punctuation marks are considered for this task: commas, periods, question marks. Labels format: ``OL``, ``,L``, ``,U``, ``.L``, ``.U``, ``?L``, ``?U``, ``OU``, where the first symbol of the label indicates the punctuation mark (``O`` - no punctuation needed), and the second symbol determines is the word needs to be upper or lower cased.
 
 .. tip::
@@ -218,7 +218,7 @@ Finally, we will define our learning rate policy and our optimizer, and start tr
 Training for 3 epochs will take less than 10 mins on a single GPU, expected F1 score is around 0.65.
 
 Inference
--------------------------------------------------
+---------
 
 To see how the model performs, let's run inference for a few samples. We need to define a data layer for inference the same way we created data layers for training and evaluation.
 
@@ -311,13 +311,13 @@ To run the provided training script:
 
 .. code-block:: bash
 
-    python token_classification.py --data_dir path/to/data --none_label 'OL' --pretrained_bert_model=bert-base-cased --work_dir output
+    python examples/nlp/token_classification.py --data_dir path/to/data --none_label 'OL' --pretrained_bert_model=bert-base-cased --work_dir output
 
 To run inference:
 
 .. code-block:: bash
 
-    python token_classification_infer.py --none_label 'OL' --labels_dict path/to/data/label_ids.csv --work_dir output/checkpoints/
+    python examples/nlp/token_classification_infer.py --none_label 'OL' --labels_dict path/to/data/label_ids.csv --work_dir output/checkpoints/
 
 Note, label_ids.csv file will be generated during training and stored in the data_dir folder.
 
@@ -328,61 +328,4 @@ To run training on multiple GPUs, run
 
 .. code-block:: bash
     export NUM_GPUS=2
-    python -m torch.distributed.launch --nproc_per_node=$NUM_GPUS token_classification.py --num_gpus $NUM_GPUS --none_label 'OL' 
-
-
-
-
-
-.. code-block:: bash
-
-                precision    recall  f1-score   support
-
-          OL       0.99      1.00      0.99    654718
-          ,L       0.74      0.59      0.66      5559
-          ,U       0.66      0.49      0.56       399
-          .L       0.99      0.99      0.99    128495
-          .U       0.00      0.00      0.00        41
-          ?L       0.98      0.96      0.97     11539
-          ?U       0.00      0.00      0.00         7
-          OU       0.99      0.99      0.99    139711
-
-    accuracy                           0.99    940469
-   macro avg       0.67      0.63      0.65    940469
-weighted avg       0.99      0.99      0.99    940469
-
-
-2019-12-02 16:17:11,424 - INFO - Query: we bought four shirts from the nvidia gear store in santa clara
-2019-12-02 16:17:11,424 - INFO - Combined: We bought four shirts from the Nvidia gear store. In santa clara.
-2019-12-02 16:17:11,424 - INFO - Query: nvidia is a company
-2019-12-02 16:17:11,424 - INFO - Combined: Nvidia is a company.
-2019-12-02 16:17:11,425 - INFO - Query: can i help you
-2019-12-02 16:17:11,425 - INFO - Combined: Can I help you?
-2019-12-02 16:17:11,425 - INFO - Query: when did the smiths' visited the smithsonian institution's 'moon rockets' exhibit
-2019-12-02 16:17:11,425 - INFO - Combined: When did the smiths'? Visited the smithsonian institution's. 'moon rockets' exhibit.
-2019-12-02 16:17:11,425 - INFO - Query: we bought four shirts one mug and ten thousand titan rtx graphics cards the more you buy the more you save
-2019-12-02 16:17:11,425 - INFO - Combined: We bought four shirts. One mug and ten thousand titan. Rtx graphics cards. The more you buy, the more you save.
-
-
-
-And then, when you load your BERT model, you should specify the name of the directory for the model name.
-
-.. code-block:: python
-
-    python -m torch.distributed.launch --nproc_per_node=2 token_classification.py --num_gpus 2
-
-If you want to use a TensorFlow-based model, such as BioBERT, you should be able to use it in NeMo by first using this `model conversion script`_ provided by Hugging Face.
-
-.. _model conversion script: https://github.com/huggingface/pytorch-transformers/blob/master/pytorch_transformers/convert_tf_checkpoint_to_pytorch.py
-
-
-Get Data
-----------------
-
-For this tutorial, we're going to use the `Tatoeba collection of sentences`_, `SQuAD2.0`_, `CoQA`_, Project Gutenberg texts from `LibriSpeech ASR corpus`_. Multiple datasets were used for this task to create a balanced dataset where all punctuation marks are represented equally (the scripts to download and preprocess the datasets are provided `here_`). Note that any text dataset will work, the only requirement is that the data is splitted into 2 files: text.txt and labels.txt. The text.txt files should be formatted like this:
-
-.. _Tatoeba collection of sentences: https://tatoeba.org/eng
-.. _SQuAD2.0: https://rajpurkar.github.io/SQuAD-explorer/
-.. _CoQA: https://stanfordnlp.github.io/coqa/
-.. _LibriSpeech ASR corpus: http://www.openslr.org/12
-.. _here: https://github.com/NVIDIA/NeMo
+    python -m torch.distributed.launch --nproc_per_node=$NUM_GPUS examples/nlp/token_classification.py --num_gpus $NUM_GPUS --none_label 'OL' 

@@ -58,7 +58,7 @@ def __process_english_sentences(in_file,
     """
     if not os.path.exists(in_file):
         raise FileNotFoundError(f'{in_file} not found.')
-    
+
     in_file = open(in_file, 'r')
     out_file = open(out_file, 'w')
     lines_to_combine = []
@@ -69,7 +69,7 @@ def __process_english_sentences(in_file,
         # use only English sentences
         if line[1] == 'eng':
             line = line[2].strip()
-            if len(line) > 0 and re.match('^[A-Z][a-z.,?\s]+$', line) is not None:
+            if len(line) > 0 and re.match('^[A-Z][a-z.,?\s]+$', line):
                 # chop some sentences in the middle
                 if percent_to_cut > 0:
                     line = line.split()
@@ -112,7 +112,7 @@ def __split_into_train_dev(in_file,
     lines = open(in_file, 'r').readlines()
     train_file = open(train_file, 'w')
     dev_file = open(dev_file, 'w')
-    
+
     dev_size = int(len(lines) * percent_dev)
     train_file.write(' '.join(lines[:-dev_size]))
     dev_file.write(' '.join(lines[-dev_size:]))
@@ -128,7 +128,7 @@ def remove_punctuation(word):
 
 
 def __create_text_and_labels(data_dir,
-                             file, 
+                             file,
                              punct_marks=',.?'):
     '''
     Create datasets for training and evaluation.
@@ -142,9 +142,9 @@ def __create_text_and_labels(data_dir,
     [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
     '''
     f = open(os.path.join(data_dir, file), 'r')
-    text_f = open(os.path.join(data_dir, 'text_' + file), 'w') 
+    text_f = open(os.path.join(data_dir, 'text_' + file), 'w')
     labels_f = open(os.path.join(data_dir, 'labels_' + file), 'w')
-    
+
     for line in f:
         line = line.split()
         text = ''
@@ -157,15 +157,16 @@ def __create_text_and_labels(data_dir,
                     label += 'U'
                 else:
                     label += 'L'
-                    
+
                 word = word.lower()
                 text += word + ' '
                 labels += label + ' '
-                
+
         text_f.write(text.strip() + '\n')
         labels_f.write(labels.strip() + '\n')
 
     __print_stats(labels_f.name)
+
 
 def __delete_file(file_to_del):
     """
@@ -176,6 +177,7 @@ def __delete_file(file_to_del):
     if os.path.exists(file_to_del):
         os.remove(file_to_del)
 
+
 def __print_stats(file_path):
     stats = Counter()
     f = open(file_path, 'r')
@@ -183,8 +185,9 @@ def __print_stats(file_path):
         line = line.split()
         for label in line:
             stats[label] += 1
-            
-    print (f'\nStats for {file_path}: {stats}\n')     
+
+    print(f'\nStats for {file_path}: {stats}\n')
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Prepare tatoeba dataset')
@@ -210,14 +213,12 @@ if __name__ == "__main__":
     __maybe_download_file(tatoeba_dataset, args.dataset)
 
     print(f'Processing English sentences...')
-    eng_sentences =  os.path.join(args.data_dir, 'eng_sentences.csv')
+    eng_sentences = os.path.join(args.data_dir, 'eng_sentences.csv')
     __process_english_sentences(tatoeba_dataset,
                                 eng_sentences,
                                 args.percent_to_cut,
                                 args.num_lines_to_combine,
                                 args.num_samples)
-    
-
 
     train_file = os.path.join(args.data_dir, 'train.txt')
     dev_file = os.path.join(args.data_dir, 'dev.txt')
