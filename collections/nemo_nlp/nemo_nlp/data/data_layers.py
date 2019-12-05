@@ -190,21 +190,21 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
 
 class BertJointIntentSlotInferDataLayer(TextDataLayer):
     """
-        Creates the data layer to use for the task of joint intent
-        and slot classification with pretrained model. This is for
+    Creates the data layer to use for the task of joint intent
+    and slot classification with pretrained model. This is for
 
-        All the data processing is done in BertJointIntentSlotInferDataset.
+    All the data processing is done in BertJointIntentSlotInferDataset.
 
-        input_mask: used to ignore some of the input tokens like paddings
-        
-        loss_mask: used to mask and ignore tokens in the loss function
-        
-        subtokens_mask: used to ignore the outputs of unwanted tokens in
-        the inference and evaluation like the start and end tokens
+    input_mask: used to ignore some of the input tokens like paddings
+    
+    loss_mask: used to mask and ignore tokens in the loss function
+    
+    subtokens_mask: used to ignore the outputs of unwanted tokens in
+    the inference and evaluation like the start and end tokens
 
-        Args:
-            dataset (BertJointIntentSlotInferDataset):
-                the dataset that needs to be converted to DataLayerNM
+    Args:
+        dataset (BertJointIntentSlotInferDataset):
+            the dataset that needs to be converted to DataLayerNM
     """
 
     @staticmethod
