@@ -118,12 +118,12 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
     All the data processing is done in BertJointIntentSlotDataset.
 
     input_mask: used to ignore some of the input tokens like paddings
-    
+
     loss_mask: used to mask and ignore tokens in the loss function
-    
+
     subtokens_mask: used to ignore the outputs of unwanted tokens in
     the inference and evaluation like the start and end tokens
-    
+
     Args:
         dataset (BertJointIntentSlotDataset):
             the dataset that needs to be converted to DataLayerNM
@@ -196,9 +196,9 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
     All the data processing is done in BertJointIntentSlotInferDataset.
 
     input_mask: used to ignore some of the input tokens like paddings
-    
+
     loss_mask: used to mask and ignore tokens in the loss function
-    
+
     subtokens_mask: used to ignore the outputs of unwanted tokens in
     the inference and evaluation like the start and end tokens
 
@@ -482,7 +482,7 @@ class BertPretrainingDataLayer(TextDataLayer):
 class BertPretrainingPreprocessedDataLayer(DataLayerNM):
     """
     Data layer for masked language modeling task.
-    
+
     Args:
         tokenizer (TokenizerSpec): tokenizer
         dataset (str): directory or a single file with dataset documents
