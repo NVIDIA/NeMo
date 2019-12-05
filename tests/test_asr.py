@@ -515,7 +515,7 @@ class TestASRPytorch(NeMoUnitTest):
                         optimization_params={"num_epochs": 10, "lr": 0.0003})
 
     def test_clas(self):
-        with open('examples/asr/configs/garnet_an4.yaml') as file:
+        with open('examples/asr/experimental/configs/garnet_an4.yaml') as file:
             cfg = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(
             featurizer_config=self.featurizer_config,
