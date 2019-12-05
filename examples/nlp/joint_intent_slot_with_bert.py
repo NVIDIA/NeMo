@@ -51,6 +51,8 @@ parser.add_argument("--amp_opt_level", default="O0",
 parser.add_argument("--do_lower_case", action='store_true')
 parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--intent_loss_weight", default=0.6, type=float)
+parser.add_argument("--class_balancing", default="regular", type=str,
+                    choices=["regular", "weighted_loss"])
 
 args = parser.parse_args()
 
@@ -94,7 +96,17 @@ classifier = nemo_nlp.JointIntentSlotClassifier(
     num_slots=data_desc.num_slots,
     dropout=args.fc_dropout)
 
-loss_fn = nemo_nlp.JointIntentSlotLoss(num_slots=data_desc.num_slots)
+if args.class_balancing == 'weighted_loss':
+    # Using weighted loss will enable weighted loss for both intents and slots
+    # Use the intent_loss_weight hyperparameter to adjust intent loss to
+    # prevent overfitting or underfitting.
+    loss_fn = nemo_nlp.JointIntentSlotLoss(
+      num_slots=data_desc.num_slots,
+      slot_classes_loss_weights=data_desc.slot_weights,
+      intent_classes_loss_weights=data_desc.intent_weights,
+      intent_loss_weight=args.intent_loss_weight)
+else:
+    loss_fn = nemo_nlp.JointIntentSlotLoss(num_slots=data_desc.num_slots)
 
 
 def create_pipeline(num_samples=-1,
@@ -125,6 +137,8 @@ def create_pipeline(num_samples=-1,
     ids, type_ids, input_mask, loss_mask, \
         subtokens_mask, intents, slots = data_layer()
     data_size = len(data_layer)
+
+    print(f'The length of data layer is {data_size}')
 
     if data_size < batch_size:
         nf.logger.warning("Batch_size is larger than the dataset size")

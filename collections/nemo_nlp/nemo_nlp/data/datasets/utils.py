@@ -1,7 +1,8 @@
 from collections import Counter
-from io import open
 import csv
 import glob
+from io import open
+import itertools
 import json
 import os
 import random
@@ -15,7 +16,6 @@ from sentencepiece import SentencePieceTrainer as SPT
 from tqdm import tqdm
 
 from nemo.utils.exp_logging import get_logger
-
 from ...utils.nlp_utils import (get_vocab,
                                 write_vocab,
                                 write_vocab_in_order,
@@ -43,11 +43,13 @@ def get_label_stats(labels, outfile='stats.tsv'):
     total = sum(labels.values())
     out = open(outfile, 'w')
     i = 0
-    for k, v in labels.most_common():
+    label_frequencies = labels.most_common()
+    for k, v in label_frequencies:
         out.write(f'{k}\t{v/total}\n')
         if i < 3:
             logger.info(f'{i} item: {k}, {v} out of {total}, {v/total}.')
         i += 1
+    return total, label_frequencies
 
 
 def list2str(l):
@@ -895,7 +897,7 @@ def process_mturk(
 
     # This function assumes that the preprocess step would have made
     # the task_name of all the annotations generic
-    task_name = 'mturk-processed'
+    task_name = 'retail-combined'
 
     # It is assumed that every utterances will have corresponding
     # slot annotation information
@@ -934,6 +936,25 @@ def write_files(data, outfile):
         for item in data:
             item = f'{item.strip()}\n'
             f.write(item)
+
+
+def calc_class_weights(label_freq):
+    """
+    Goal is to give more weight to the classes with less samples
+    so as to match the one with the higest frequency. We achieve this by
+    dividing the highest frequency by the freq of each label.
+    Example -
+    [12, 5, 3] -> [12/12, 12/5, 12/3] -> [1, 2.4, 4]
+
+    Here label_freq is assumed to be sorted by the frequency. I.e.
+    label_freq[0] is the most frequent element.
+
+    """
+
+    most_common_label_freq = label_freq[0]
+    weighted_slots = sorted([(index, most_common_label_freq[1]/freq)
+                            for (index, freq) in label_freq])
+    return [weight for (_, weight) in weighted_slots]
 
 
 class JointIntentSlotDataDesc:
@@ -1021,6 +1042,57 @@ class JointIntentSlotDataDesc:
         self.num_intents = len(get_vocab(self.intent_dict_file))
         slots = label2idx(self.slot_dict_file)
         self.num_slots = len(slots)
+
+        for mode in ['train', 'test']:
+
+            slot_file = f'{self.data_dir}/{mode}_slots.tsv'
+            with open(slot_file, 'r') as f:
+                slot_lines = f.readlines()
+
+            input_file = f'{self.data_dir}/{mode}.tsv'
+            with open(input_file, 'r') as f:
+                input_lines = f.readlines()[1:]  # Skipping headers at index 0
+
+            if len(slot_lines) != len(input_lines):
+                raise ValueError(
+                    "Make sure that the number of slot lines match the "
+                    "number of intent lines. There should be a 1-1 "
+                    "correspondence between every slot and intent lines.")
+
+            dataset = list(zip(slot_lines, input_lines))
+
+            raw_slots, queries, raw_intents = [], [], []
+            for slot_line, input_line in dataset:
+                slot_list = [int(slot) for slot in slot_line.strip().split()]
+                raw_slots.append(slot_list)
+                parts = input_line.strip().split()
+                raw_intents.append(int(parts[-1]))
+                queries.append(' '.join(parts[:-1]))
+
+            infold = input_file[:input_file.rfind('/')]
+
+            logger.info(f'Three most popular intents during {mode}ing')
+            total_intents, intent_label_freq = get_label_stats(
+                raw_intents, infold + f'/{mode}_intent_stats.tsv')
+            merged_slots = itertools.chain.from_iterable(raw_slots)
+
+            logger.info(f'Three most popular slots during {mode}ing')
+            slots_total, slots_label_freq = get_label_stats(
+                merged_slots, infold + f'/{mode}_slot_stats.tsv')
+
+            if mode == 'train':
+
+                self.slot_weights = calc_class_weights(slots_label_freq)
+                logger.info(f'Slot weights are - {self.slot_weights}')
+
+                self.intent_weights = calc_class_weights(intent_label_freq)
+                logger.info(f'Intent weights are - {self.intent_weights}')
+
+            logger.info(f'Total intents - {total_intents}')
+            logger.info(f'Intent label frequency - {intent_label_freq}')
+            logger.info(f'Total Slots - {slots_total}')
+            logger.info(f'Slots label frequency - {slots_label_freq}')
+
         if pad_label != -1:
             self.pad_label = pad_label
         else:

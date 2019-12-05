@@ -14,7 +14,8 @@
 """
 This file contains neural modules responsible for preprocessing audio data.
 """
-__all__ = ['AudioPreprocessor',
+__all__ = ['AudioPreprocessing',
+           'AudioPreprocessor',
            'AudioToMFCCPreprocessor',
            'AudioToMelSpectrogramPreprocessor',
            'AudioToSpectrogramPreprocessor',
@@ -224,6 +225,14 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             Defaults to None
         log (bool): Log features.
             Defaults to True
+        log_zero_guard_type(str): Need to avoid taking the log of zero. There
+            are two options: "add" or "clamp".
+            Defaults to "add".
+        log_zero_guard_value(float, or str): Add or clamp requires the number
+            to add with or clamp to. log_zero_guard_value can either be a float
+            or "tiny" or "eps". torch.finfo is used if "tiny" or "eps" is
+            passed.
+            Defaults to 2**-24.
         dither (float): Amount of white-noise dithering.
             Defaults to 1e-5
         pad_to (int): Ensures that the output size of the time dimension is
@@ -273,6 +282,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             lowfreq=0,
             highfreq=None,
             log=True,
+            log_zero_guard_type="add",
+            log_zero_guard_value=2**-24,
             dither=1e-5,
             pad_to=16,
             frame_splicing=1,
@@ -306,6 +317,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             lowfreq=lowfreq,
             highfreq=highfreq,
             log=log,
+            log_zero_guard_type=log_zero_guard_type,
+            log_zero_guard_value=log_zero_guard_value,
             dither=dither,
             pad_to=pad_to,
             frame_splicing=frame_splicing,
@@ -590,3 +603,12 @@ class MultiplyBatch(NonTrainableNM):
         out_y_len = in_y_len.repeat(self.mult)
 
         return out_x, out_x_len, out_y, out_y_len
+
+
+def AudioPreprocessing(*args, **kwargs):
+    raise NotImplementedError(
+        "AudioPreprocessing has been deprecated and replaced by: "
+        "AudioToMFCCPreprocessor, AudioToMelSpectrogramPreprocessor, and "
+        "AudioToSpectrogramPreprocessor. For most ASR purposes "
+        "AudioToMelSpectrogramPreprocessor does the same as the old "
+        "AudioPreprocessing.")
