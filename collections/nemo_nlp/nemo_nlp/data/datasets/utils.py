@@ -1000,7 +1000,7 @@ class JointIntentSlotDataDesc:
                 self.data_dir = f'{self.data_dir}/speak'
             elif dataset_name.endswith('all'):
                 self.data_dir = f'{self.data_dir}/all'
-        elif dataset_name.startswith('Jarvis-car'):
+        elif dataset_name.startswith('jarvis'):
             self.data_dir = process_jarvis_datasets(data_dir,
                                                     do_lower_case,
                                                     dataset_name,
@@ -1054,7 +1054,7 @@ class SentenceClassificationDataDesc:
                                         do_lower_case,
                                         dataset_name=dataset_name)
             self.eval_file = self.data_dir + '/test.tsv'
-        elif dataset_name.startswith('Jarvis-car'):
+        elif dataset_name.startswith('jarvis'):
             self.data_dir = process_jarvis_datasets(data_dir,
                                                     do_lower_case,
                                                     dataset_name,

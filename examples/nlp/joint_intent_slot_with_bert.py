@@ -32,7 +32,10 @@ parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-uncased", type=str)
+                    default="bert-base-uncased",
+                    type=str)
+parser.add_argument("--bert_checkpoint", default="", type=str)
+parser.add_argument("--bert_config", default="", type=str)
 parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
 parser.add_argument("--dataset_name", default='snips-all', type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
@@ -45,8 +48,8 @@ parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
-parser.add_argument("--do_lower_case", action='store_false')
-parser.add_argument("--shuffle_data", action='store_false')
+parser.add_argument("--do_lower_case", action='store_true')
+parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--intent_loss_weight", default=0.6, type=float)
 
 args = parser.parse_args()
@@ -67,8 +70,14 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.huggingface.BERT(
-    pretrained_model_name=args.pretrained_bert_model, factory=nf)
+if args.bert_checkpoint and args.bert_config:
+    pretrained_bert_model = nemo_nlp.huggingface.BERT(
+        config_filename=args.bert_config, factory=nf)
+    pretrained_bert_model.restore_from(args.bert_checkpoint)
+else:
+    pretrained_bert_model = nemo_nlp.huggingface.BERT(
+        pretrained_model_name=args.pretrained_bert_model, factory=nf)
+
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
