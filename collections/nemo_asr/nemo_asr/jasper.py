@@ -1,5 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import torch.nn as nn
+import torch.nn.functional as F
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import (NeuralType, AxisType, ChannelTag, BatchTag,
@@ -191,10 +192,9 @@ class JasperDecoderForCTC(TrainableNM):
 
         self.decoder_layers = nn.Sequential(
             nn.Conv1d(self._feat_in, self._num_classes,
-                      kernel_size=1, bias=True),
-            nn.LogSoftmax(dim=1))
+                      kernel_size=1, bias=True))
         self.apply(lambda x: init_weights(x, mode=init_mode))
         self.to(self._device)
 
     def forward(self, encoder_output):
-        return self.decoder_layers(encoder_output).transpose(1, 2)
+        return F.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
