@@ -83,7 +83,7 @@ class TokenClassifier(TrainableNM):
     """
     Neural module which consists of MLP followed by softmax classifier for each
     token in the sequence.
-    
+
     Args:
         hidden_size (int): hidden size (d_model) of the Transformer
         num_classes (int): number of classes in softmax classifier, e.g. size
