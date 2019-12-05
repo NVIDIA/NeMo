@@ -27,7 +27,7 @@ then
 fi
 
 echo $MOUNTS
-nvidia-docker run -it --rm \
+docker run -it --rm \
   --runtime=nvidia \
   --shm-size=4g \
   --ulimit memlock=-1 \
