@@ -14,6 +14,19 @@ from ..transformer.utils import transformer_weights_init
 
 
 class BertTokenClassifier(TrainableNM):
+    """
+    Neural module which consists of MLP followed by softmax classifier for each
+    token in the sequence.
+
+    Args:
+        hidden_size (int): hidden size (d_model) of the Transformer
+        num_classes (int): number of classes in softmax classifier, e.g. size
+            of the vocabulary in language modeling objective
+        num_layers (int): number of layers in classifier MLP
+        activation (str): activation function applied in classifier MLP layers
+        log_softmax (bool): whether to apply log_softmax to MLP output
+        dropout (float): dropout ratio applied to MLP
+    """
 
     @staticmethod
     def create_ports():
@@ -34,19 +47,6 @@ class BertTokenClassifier(TrainableNM):
         }
         return input_ports, output_ports
 
-    """
-        Neural module which consists of MLP followed by softmax classifier for each
-        token in the sequence.
-
-        Args:
-            hidden_size (int): hidden size (d_model) of the Transformer
-            num_classes (int): number of classes in softmax classifier, e.g. size
-                of the vocabulary in language modeling objective
-            num_layers (int): number of layers in classifier MLP
-            activation (str): activation function applied in classifier MLP layers
-            log_softmax (bool): whether to apply log_softmax to MLP output
-            dropout (float): dropout ratio applied to MLP
-    """
     def __init__(self,
                  hidden_size,
                  num_classes,
@@ -80,6 +80,19 @@ class BertTokenClassifier(TrainableNM):
 
 
 class TokenClassifier(TrainableNM):
+    """
+    Neural module which consists of MLP followed by softmax classifier for each
+    token in the sequence.
+    
+    Args:
+        hidden_size (int): hidden size (d_model) of the Transformer
+        num_classes (int): number of classes in softmax classifier, e.g. size
+            of the vocabulary in language modeling objective
+        num_layers (int): number of layers in classifier MLP
+        activation (str): activation function applied in classifier MLP layers
+        log_softmax (bool): whether to apply log_softmax to MLP output
+        dropout (float): dropout ratio applied to MLP
+    """
 
     @staticmethod
     def create_ports():
@@ -100,18 +113,6 @@ class TokenClassifier(TrainableNM):
         }
         return input_ports, output_ports
 
-    """
-        Neural module which consists of MLP followed by softmax classifier for each
-        token in the sequence.
-        Args:
-            hidden_size (int): hidden size (d_model) of the Transformer
-            num_classes (int): number of classes in softmax classifier, e.g. size
-                of the vocabulary in language modeling objective
-            num_layers (int): number of layers in classifier MLP
-            activation (str): activation function applied in classifier MLP layers
-            log_softmax (bool): whether to apply log_softmax to MLP output
-            dropout (float): dropout ratio applied to MLP
-    """
     def __init__(self,
                  hidden_size,
                  num_classes,
@@ -141,6 +142,19 @@ class TokenClassifier(TrainableNM):
 
 
 class SequenceClassifier(TrainableNM):
+    """
+    Neural module which consists of MLP followed by softmax classifier for each
+    sequence in the batch.
+
+    Args:
+        hidden_size (int): hidden size (d_model) of the Transformer
+        num_classes (int): number of classes in softmax classifier, e.g. number
+            of different sentiments
+        num_layers (int): number of layers in classifier MLP
+        activation (str): activation function applied in classifier MLP layers
+        log_softmax (bool): whether to apply log_softmax to MLP output
+        dropout (float): dropout ratio applied to MLP
+    """
 
     @staticmethod
     def create_ports():
@@ -160,19 +174,6 @@ class SequenceClassifier(TrainableNM):
         }
         return input_ports, output_ports
 
-    """
-        Neural module which consists of MLP followed by softmax classifier for each
-        sequence in the batch.
-
-        Args:
-            hidden_size (int): hidden size (d_model) of the Transformer
-            num_classes (int): number of classes in softmax classifier, e.g. number
-                of different sentiments
-            num_layers (int): number of layers in classifier MLP
-            activation (str): activation function applied in classifier MLP layers
-            log_softmax (bool): whether to apply log_softmax to MLP output
-            dropout (float): dropout ratio applied to MLP
-    """
     def __init__(self,
                  hidden_size,
                  num_classes,
@@ -201,6 +202,17 @@ class SequenceClassifier(TrainableNM):
 
 
 class JointIntentSlotClassifier(TrainableNM):
+    """
+    The softmax classifier for the joint intent classification and slot
+    filling task which  consists of a dense layer + relu + softmax for
+    predicting the slots and similar for predicting the intents.
+
+    Args:
+        hidden_size (int): the size of the hidden state for the dense layer
+        num_intents (int): number of intents
+        num_slots (int): number of slots
+        dropout (float): dropout to be applied to the layer
+    """
 
     @staticmethod
     def create_ports():
@@ -225,17 +237,6 @@ class JointIntentSlotClassifier(TrainableNM):
         }
         return input_ports, output_ports
 
-    """
-        The softmax classifier for the joint intent classification and slot
-        filling task which  consists of a dense layer + relu + softmax for
-        predicting the slots and similar for predicting the intents.
-
-        Args:
-            hidden_size (int): the size of the hidden state for the dense layer
-            num_intents (int): number of intents
-            num_slots (int): number of slots
-            dropout (float): dropout to be applied to the layer
-    """
     def __init__(self,
                  hidden_size,
                  num_intents,
@@ -270,6 +271,18 @@ class JointIntentSlotClassifier(TrainableNM):
 
 
 class SequenceRegression(TrainableNM):
+    """
+    Neural module which consists of MLP, generates a single number prediction
+    that could be used for a regression task. An example of this task would be
+    semantic textual similatity task, for example, STS-B (from GLUE tasks).
+
+    Args:
+        hidden_size (int): the size of the hidden state for the dense layer
+        num_layers (int): number of layers in classifier MLP
+        activation (str): activation function applied in classifier MLP layers
+        dropout (float): dropout ratio applied to MLP
+    """
+
     @staticmethod
     def create_ports():
         input_ports = {
@@ -287,17 +300,6 @@ class SequenceRegression(TrainableNM):
         }
         return input_ports, output_ports
 
-    """
-        Neural module which consists of MLP, generates a single number prediction
-        that could be used for a regression task. An example of this task would be
-        semantic textual similatity task, for example, STS-B (from GLUE tasks).
-
-        Args:
-            hidden_size (int): the size of the hidden state for the dense layer
-            num_layers (int): number of layers in classifier MLP
-            activation (str): activation function applied in classifier MLP layers
-            dropout (float): dropout ratio applied to MLP
-    """
     def __init__(self,
                  hidden_size,
                  num_layers=2,
