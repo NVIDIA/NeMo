@@ -87,15 +87,17 @@ def main(config_file, nn_encoder, nn_decoder, nn_onnx_encoder,
                 count += 1
         print("  Disabled {} masked convolutions".format(count))
 
+    # disable input/output ports that are unnecssary
+    del jasper_encoder._input_ports['length']
+    del jasper_encoder._output_ports['encoded_lengths']
+
     with torch.no_grad():
         nf = nemo.core.NeuralModuleFactory(create_tb_writer=False)
         print("Exporting encoder...")
         nf.deployment_export(jasper_encoder, nn_onnx_encoder,
                              nemo.core.neural_factory.DeploymentFormat.ONNX,
-                             (torch.zeros(batch_size, num_encoder_input_features, time_steps,
-                                          dtype=torch.float, device="cuda:0"),
-                              torch.zeros(batch_size, dtype=torch.int,
-                                          device="cuda:0")))
+                             torch.zeros(batch_size, num_encoder_input_features, time_steps,
+                                          dtype=torch.float, device="cuda:0"))
         print("Exporting decoder...")
         nf.deployment_export(jasper_decoder, nn_onnx_decoder,
                              nemo.core.neural_factory.DeploymentFormat.ONNX,
