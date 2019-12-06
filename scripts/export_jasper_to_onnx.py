@@ -43,15 +43,15 @@ def main(config_file, nn_encoder, nn_decoder, nn_onnx_encoder,
     print("Determining model shape...")
     if 'AudioPreprocessing' in jasper_model_definition:
         num_encoder_input_features = \
-        jasper_model_definition['AudioPreprocessing']['features']
+            jasper_model_definition['AudioPreprocessing']['features']
     elif 'AudioToMelSpectrogramPreprocessor' in jasper_model_definition:
         num_encoder_input_features = \
-        jasper_model_definition['AudioToMelSpectrogramPreprocessor'][
-            'features']
+            jasper_model_definition['AudioToMelSpectrogramPreprocessor'][
+                'features']
     else:
         num_encoder_input_features = 64
     num_decoder_input_features = \
-    jasper_model_definition['JasperEncoder']['jasper'][-1]['filters']
+        jasper_model_definition['JasperEncoder']['jasper'][-1]['filters']
     print(
         "  Num encoder input features: {}".format(num_encoder_input_features))
     print(
@@ -81,7 +81,6 @@ def main(config_file, nn_encoder, nn_decoder, nn_onnx_encoder,
     else:
         jasper_encoder.restore_from(nn_encoder)
     jasper_decoder.restore_from(nn_decoder)
-
 
     nf = nemo.core.NeuralModuleFactory(create_tb_writer=False)
     print("Exporting encoder...")
