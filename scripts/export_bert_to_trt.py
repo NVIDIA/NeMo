@@ -297,11 +297,11 @@ def sequence_class_output(prefix, init_dict, network, input_tensor,
         network.add_constant((5,),
                              trt.Weights(
                                  np.array(
-                                   [0, 1,
-                                    2, 2,
-                                    4]).astype(
-                                   np.int32))).get_output(
-        0), 0).get_output(0)
+                                     [0, 1,
+                                      2, 2,
+                                      4]).astype(
+                                     np.int32))).get_output(
+            0), 0).get_output(0)
 
     first_token_tensor = network.add_slice(shuf.get_output(0),
                                            start=(0, 0, 0, 0, 0),
@@ -479,7 +479,7 @@ def main(bert_weight_path, class_weight_path, B, S, config_path, outputbase,
                 explicit_batch_flag) as network, \
                 builder.create_builder_config() as builder_config:
             builder_config.max_workspace_size = 5000 * (
-                        1024 * 1024)  # 5000 MiB
+                    1024 * 1024)  # 5000 MiB
             builder_config.set_flag(trt.BuilderFlag.FP16)
 
             input_ids = network.add_input(name="input_ids", dtype=trt.int32,
@@ -563,16 +563,23 @@ if __name__ == "__main__":
                         default=1, help='Preferred batch size (default = 1)')
     parser.add_argument('--max-batch-size', type=int, required=False,
                         default=None,
-                        help='Maximum batch size (default = same as batch-size)')
+                        help='Maximum batch size (default = same as '
+                             'batch-size)')
     parser.add_argument('--min-batch-size', type=int, required=False,
                         default=None,
-                        help='Minimum batch size (default = same as batch-size)')
+                        help='Minimum batch size (default = same as '
+                             'batch-size)')
 
     parser.add_argument('-l', '--seq-length', type=int, required=False,
                         default=128,
                         help='Sequence length of the BERT model (default=128)')
     parser.add_argument('-c', '--config', required=True,
-                        help='The folder containing the bert_config.json, which can be downloaded e.g. from https://github.com/google-research/bert#pre-trained-models or by running download_models.py in dle/TensorFlow/LanguageModeling/BERT/data/pretrained_models_google')
+                        help='The folder containing the bert_config.json, '
+                             'which can be downloaded e.g. from '
+                             'https://github.com/google-research/bert#pre'
+                             '-trained-models or by running '
+                             'download_models.py in '
+                             'dle/TensorFlow/LanguageModeling/BERT/data/pretrained_models_google')
 
     opt = parser.parse_args()
 
