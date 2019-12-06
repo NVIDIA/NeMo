@@ -49,6 +49,7 @@ parser.add_argument("--do_lower_case", action='store_false')
 parser.add_argument("--shuffle_data", action='store_false')
 parser.add_argument("--class_balancing", default="None", type=str,
                     choices=["None", "weighted_loss"])
+parser.add_argument("--eval_freq", default=1, type=int)
 
 args = parser.parse_args()
 
@@ -166,7 +167,7 @@ eval_callback = nemo.core.EvaluatorCallback(
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x, f'{nf.work_dir}/graphs'),
     tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch)
+    eval_step=steps_per_epoch*args.eval_freq)
 
 # Create callback to save checkpoints
 ckpt_callback = nemo.core.CheckpointCallback(
