@@ -63,6 +63,7 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
                                    log_dir=args.work_dir,
+                                   checkpoint_dir=args.work_dir,
                                    create_tb_writer=True,
                                    files_to_copy=[__file__])
 
@@ -260,8 +261,10 @@ def translate_sentence(text):
     ids = src_tokenizer.text_to_ids(text)
     ids = [src_tokenizer.bos_id()] + ids + [src_tokenizer.eos_id()]
     ids_tensor = torch.Tensor(ids).long().to(encoder._device).unsqueeze(0)
-    ids_mask = torch.ones_like(ids_tensor).half()
-    encoder_states = encoder.forward(ids_tensor, ids_mask).half()
+    ids_mask = torch.ones_like(ids_tensor)
+    encoder_states = encoder.forward(ids_tensor, ids_mask)
+    if args.amp_opt_level in ["O1", "O2", "O3"]:
+        encoder_states = encoder_states.half()
     translation_ids = beam_search.forward(encoder_states, ids_mask)
     ids_list = list(translation_ids.detach().cpu().numpy()[0])
     translation_text = tgt_tokenizer.ids_to_text(ids_list)
@@ -275,7 +278,6 @@ if args.interactive:
     encoder.eval()
     decoder.eval()
     log_softmax.eval()
-
     print("========== Interactive translation mode ==========")
     input_text = 'anything'
     while input_text.strip():
