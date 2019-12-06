@@ -1,11 +1,11 @@
 import tensorrt as trt
+import argparse
 
 
-def build_engine_from_parser(onnx_path, max_seq_len=256, trt_fp16=True,
-                             verbose=True,
-                             engine_batch_size=8, max_batch_size=64,
-                             max_workspace_size=0,
-                             dynamic_shape=True, transpose=False):
+def build_engine(onnx_path, seq_len=192, max_seq_len=256, batch_size=8,
+                max_batch_size=64, trt_fp16=True, verbose=True, 
+                max_workspace_size=None, dynamic_shape=True, transpose=False,
+                input_feats=64):
     '''Builds TRT engine from an ONNX file
     Note that network output 1 is unmarked so that the engine will not use
     vestigial length calculations associated with masked_fill
@@ -20,31 +20,25 @@ def build_engine_from_parser(onnx_path, max_seq_len=256, trt_fp16=True,
         print("Optimizing for FP16")
         config_flags = 1 << int(
             trt.BuilderFlag.FP16)  # | 1 << int(trt.BuilderFlag.STRICT_TYPES)
-        max_size = 4 * 1024 * 1024 * 1024
-        max_len = max_seq_len
     else:
         config_flags = 0
-        max_size = 4 * 1024 * 1024 * 1024
-        max_len = max_seq_len
-    if max_workspace_size > 0:
-        builder.max_workspace_size = max_workspace_size
-    else:
-        builder.max_workspace_size = max_size
-
+    builder.max_workspace_size = max_workspace_size if max_workspace_size else (4 * 1024 * 1024 * 1024)
+    
     config = builder.create_builder_config()
     config.flags = config_flags
 
     if dynamic_shape:
         profile = builder.create_optimization_profile()
         if transpose:
-            profile.set_shape("FEATURES", min=(1, 192, 64),
-                              opt=(engine_batch_size, 256, 64),
-                              max=(builder.max_batch_size, max_len, 64))
+            profile.set_shape("audio_signal", min=(1, seq_len, input_feats),
+                              opt=(batch_size, seq_len, input_feats),
+                              max=(max_batch_size, max_seq_len, input_feats))
         else:
-            profile.set_shape("FEATURES", min=(1, 64, 192),
-                              opt=(engine_batch_size, 64, 256),
-                              max=(builder.max_batch_size, 64, max_len))
+            profile.set_shape("audio_signal", min=(1, input_feats, seq_len),
+                              opt=(batch_size, input_feats, seq_len),
+                              max=(max_batch_size, input_feats, max_seq_len))
         config.add_optimization_profile(profile)
+    
     explicit_batch = 1 << (int)(
         trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
     network = builder.create_network(explicit_batch)
@@ -55,3 +49,47 @@ def build_engine_from_parser(onnx_path, max_seq_len=256, trt_fp16=True,
             print("Parsing returned ", parsed, "dynamic_shape= ",
                   dynamic_shape, "\n")
             return builder.build_engine(network, config=config)
+
+
+def get_parser():
+    parser = argparse.ArgumentParser(
+        description="Convert Jasper ONNX model to TRT Plan")
+    parser.add_argument(
+        "onnx_encoder", default=None, type=str,
+        help="Path to Jasper ONNX encoder")
+    parser.add_argument(
+        "trt_encoder", default=None, type=str,
+        help="Path to output Jasper TRT encoder")
+    parser.add_argument(
+        "--max-seq-len", type=int, default=256,
+        help="Maximum sequence length of input")
+    parser.add_argument(
+        "--seq-len", type=int, default=192,
+        help="Preferred sequence length of input")
+    parser.add_argument(
+        "--max-batch-size", type=int, default=64,
+        help="Maximum sequence length of input")
+    parser.add_argument(
+        "--batch-size", type=int, default=8,
+        help="Preferred batch size of input")
+    parser.add_argument(
+        "--no-fp16", action="store_true",
+        help="Disable fp16 model building, use fp32 instead")
+    
+    return parser
+
+# def build_engine_from_parser(onnx_path, seq_len=192, max_seq_len=256, batch_size=8,
+#                              max_batch_size=64, trt_fp16=True, verbose=True, 
+#                              max_workspace_size=None, dynamic_shape=True, transpose=False,
+#                              input_feats=64):
+
+
+if __name__ == '__main__':
+    args = get_parser().parse_args()
+    engine = build_engine(args.onnx_encoder, seq_len=args.seq_len, max_seq_len=args.max_seq_len,
+                          batch_size=args.batch_size, max_batch_size=args.max_batch_size,
+                          trt_fp16=not args.no_fp16)
+    if engine is not None:
+        with open(args.trt_encoder, 'wb') as f:
+            f.write(engine.serialize())
+            print("TRT engine saved at " + args.trt_encoder + " ...") 
