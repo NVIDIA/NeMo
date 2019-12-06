@@ -660,7 +660,7 @@ class NeuralModuleFactory(object):
             for m in module.modules():
                 if type(module).__name__ == "MaskedConv1d":
                     m.use_mask = False
-                    m_count +=1
+                    m_count += 1
             self.logger(f"Turned off {m_count} masked convolutions")
 
         return self._trainer.deployment_export(

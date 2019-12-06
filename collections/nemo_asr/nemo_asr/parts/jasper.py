@@ -283,7 +283,7 @@ class JasperBlock(nn.Module):
         return layers
 
     def forward(self, input_: Tuple[List[Tensor], Optional[Tensor]]):
-        # type: (Tuple[List[Tensor], Optional[Tensor]]) -> Tuple[List[Tensor], Optional[Tensor]]
+        # type: (Tuple[List[Tensor], Optional[Tensor]]) -> Tuple[List[Tensor], Optional[Tensor]] # nopep8
         lens_orig = None
         xs = input_[0]
         if len(input_) == 2:
