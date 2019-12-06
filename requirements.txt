@@ -1,6 +1,5 @@
 pillow>=4.3.0
 torch
-torchaudio
 ipython[all]
 tqdm
 sox
