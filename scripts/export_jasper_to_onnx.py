@@ -1,10 +1,10 @@
 # Copyright (c) 2019 NVIDIA Corporation
+import argparse
+
 import nemo
 import nemo_asr
 import torch
-from nemo_asr.parts.jasper import MaskedConv1d
 from ruamel.yaml import YAML
-import argparse
 
 
 def get_parser():
@@ -26,16 +26,13 @@ def get_parser():
         "--onnx_decoder", default=None, type=str, required=True,
         help="Path to the onnx decoder output.")
     parser.add_argument(
-        "--disable-mask-conv", action="store_true",
-        help="Disable masked convolutions and replace with standard convolutions")
-    parser.add_argument(
         "--pre-v09-model", action="store_true",
         help="Use if checkpoints were generated from NeMo < v0.9")
     return parser
 
 
 def main(config_file, nn_encoder, nn_decoder, nn_onnx_encoder,
-         nn_onnx_decoder, disable_mask_conv=False, pre_v09_model=False,
+         nn_onnx_decoder, pre_v09_model=False,
          batch_size=1, time_steps=256):
     yaml = YAML(typ="safe")
 
@@ -45,23 +42,31 @@ def main(config_file, nn_encoder, nn_decoder, nn_onnx_encoder,
 
     print("Determining model shape...")
     if 'AudioPreprocessing' in jasper_model_definition:
-        num_encoder_input_features = jasper_model_definition['AudioPreprocessing']['features']
+        num_encoder_input_features = \
+        jasper_model_definition['AudioPreprocessing']['features']
     elif 'AudioToMelSpectrogramPreprocessor' in jasper_model_definition:
-        num_encoder_input_features = jasper_model_definition['AudioToMelSpectrogramPreprocessor']['features']
+        num_encoder_input_features = \
+        jasper_model_definition['AudioToMelSpectrogramPreprocessor'][
+            'features']
     else:
         num_encoder_input_features = 64
-    num_decoder_input_features = jasper_model_definition['JasperEncoder']['jasper'][-1]['filters']
-    print("  Num encoder input features: {}".format(num_encoder_input_features))
-    print("  Num decoder input features: {}".format(num_decoder_input_features))
+    num_decoder_input_features = \
+    jasper_model_definition['JasperEncoder']['jasper'][-1]['filters']
+    print(
+        "  Num encoder input features: {}".format(num_encoder_input_features))
+    print(
+        "  Num decoder input features: {}".format(num_decoder_input_features))
 
     print("Initializing models...")
     jasper_encoder = nemo_asr.JasperEncoder(
         feat_in=num_encoder_input_features,
         **jasper_model_definition['JasperEncoder'])
     jasper_decoder = nemo_asr.JasperDecoderForCTC(
-        feat_in=num_decoder_input_features, num_classes=len(jasper_model_definition['labels']))
+        feat_in=num_decoder_input_features,
+        num_classes=len(jasper_model_definition['labels']))
 
-    # hack to map the state dict of previous version
+    # This is necessary if you are using checkpoints trained with NeMo
+    # version before 0.9
     print("Loading checkpoints...")
     if pre_v09_model:
         print("  Converting pre v0.9 checkpoint...")
@@ -77,37 +82,27 @@ def main(config_file, nn_encoder, nn_decoder, nn_onnx_encoder,
         jasper_encoder.restore_from(nn_encoder)
     jasper_decoder.restore_from(nn_decoder)
 
-    # disable masked convs
-    if disable_mask_conv:
-        print("Disabling masked convolutions...")
-        count = 0
-        for m in jasper_encoder.modules():
-            if isinstance(m, MaskedConv1d):
-                m.use_mask = False
-                count += 1
-        print("  Disabled {} masked convolutions".format(count))
 
-    # disable input/output ports that are unnecssary
-    del jasper_encoder._input_ports['length']
-    del jasper_encoder._output_ports['encoded_lengths']
-
-    with torch.no_grad():
-        nf = nemo.core.NeuralModuleFactory(create_tb_writer=False)
-        print("Exporting encoder...")
-        nf.deployment_export(jasper_encoder, nn_onnx_encoder,
-                             nemo.core.neural_factory.DeploymentFormat.ONNX,
-                             torch.zeros(batch_size, num_encoder_input_features, time_steps,
-                                          dtype=torch.float, device="cuda:0"))
-        print("Exporting decoder...")
-        nf.deployment_export(jasper_decoder, nn_onnx_decoder,
-                             nemo.core.neural_factory.DeploymentFormat.ONNX,
-                             (torch.zeros(batch_size, num_decoder_input_features, time_steps//2,
-                                          dtype=torch.float, device="cuda:0")))
+    nf = nemo.core.NeuralModuleFactory(create_tb_writer=False)
+    print("Exporting encoder...")
+    nf.deployment_export(jasper_encoder, nn_onnx_encoder,
+                         nemo.core.neural_factory.DeploymentFormat.ONNX,
+                         torch.zeros(batch_size,
+                                     num_encoder_input_features,
+                                     time_steps,
+                                     dtype=torch.float, device="cuda:0"))
+    print("Exporting decoder...")
+    nf.deployment_export(jasper_decoder, nn_onnx_decoder,
+                         nemo.core.neural_factory.DeploymentFormat.ONNX,
+                         (torch.zeros(batch_size,
+                                      num_decoder_input_features,
+                                      time_steps // 2,
+                                      dtype=torch.float, device="cuda:0")))
     print("Export completed successfully.")
 
 
 if __name__ == "__main__":
     args = get_parser().parse_args()
     main(args.config, args.nn_encoder, args.nn_decoder, args.onnx_encoder,
-         args.onnx_decoder, disable_mask_conv=args.disable_mask_conv, 
+         args.onnx_decoder, disable_mask_conv=args.disable_mask_conv,
          pre_v09_model=args.pre_v09_model)
