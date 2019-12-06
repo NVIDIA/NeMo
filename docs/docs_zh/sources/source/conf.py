@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.abspath("../../../collections"))
 sys.path.insert(0, os.path.abspath("../../../collections/nemo_asr"))
 # sys.path.insert(0, os.path.abspath("../../../collections/nemo_nlp"))
 # sys.path.insert(0, os.path.abspath("../../../collections/nemo_lpr"))
-import nemo
+# import nemo
 
 # -- General configuration ------------------------------------------------
 
