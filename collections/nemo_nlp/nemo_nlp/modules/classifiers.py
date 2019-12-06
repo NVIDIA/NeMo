@@ -59,6 +59,8 @@ class BertTokenClassifier(TrainableNM):
                  dropout=0.0,
                  use_transformer_pretrained=True):
         super().__init__()
+        if activation not in ACT2FN:
+            raise ValueError(f'activation "{activation}" not found')
         self.dense = nn.Linear(hidden_size, hidden_size)
         self.act = ACT2FN[activation]
         self.norm = nn.LayerNorm(hidden_size, eps=1e-12)
