@@ -1065,7 +1065,7 @@ class PtActions(Actions):
             dynamic_axes = None
 
         local_parameters = {}
-        if local_parameters is not None:
+        if module._local_parameters is not None:
             for key, value in module._local_parameters.items():
                 local_parameters[key] = value
 
