@@ -258,24 +258,41 @@ class TestASRPytorch(NeMoUnitTest):
             shuffle=False
         )
 
-        to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(
+        installed_torchaudio = True
+        try:
+            import torchaudio
+        except ModuleNotFoundError:
+            installed_torchaudio = False
+            with self.assertRaises(ModuleNotFoundError):
+                to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(
+                    n_fft=400, window=None)
+            with self.assertRaises(ModuleNotFoundError):
+                to_mfcc = nemo_asr.AudioToMFCCPreprocessor(n_mfcc=15)
+
+        if installed_torchaudio:
+            to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(
                 n_fft=400, window=None)
+            to_mfcc = nemo_asr.AudioToMFCCPreprocessor(n_mfcc=15)
+
         to_melspec = nemo_asr.AudioToMelSpectrogramPreprocessor(features=50)
-        to_mfcc = nemo_asr.AudioToMFCCPreprocessor(n_mfcc=15)
 
         for batch in dl.data_iterator:
             input_signals, seq_lengths, _, _ = batch
-            input_signals = input_signals.to(to_spectrogram._device)
-            seq_lengths = seq_lengths.to(to_spectrogram._device)
+            input_signals = input_signals.to(to_melspec._device)
+            seq_lengths = seq_lengths.to(to_melspec._device)
 
-            spec = to_spectrogram.forward(input_signals, seq_lengths)
             melspec = to_melspec.forward(input_signals, seq_lengths)
-            mfcc = to_mfcc.forward(input_signals, seq_lengths)
+
+            if installed_torchaudio:
+                spec = to_spectrogram.forward(input_signals, seq_lengths)
+                mfcc = to_mfcc.forward(input_signals, seq_lengths)
 
             # Check that number of features is what we expect
-            self.assertTrue(spec[0].shape[1] == 201)  # n_fft // 2 + 1 bins
             self.assertTrue(melspec[0].shape[1] == 50)
-            self.assertTrue(mfcc[0].shape[1] == 15)
+
+            if installed_torchaudio:
+                self.assertTrue(spec[0].shape[1] == 201)  # n_fft // 2 + 1 bins
+                self.assertTrue(mfcc[0].shape[1] == 15)
 
     def test_jasper_training(self):
         with open("tests/data/jasper_smaller.yaml") as file:
@@ -515,7 +532,7 @@ class TestASRPytorch(NeMoUnitTest):
                         optimization_params={"num_epochs": 10, "lr": 0.0003})
 
     def test_clas(self):
-        with open('examples/asr/configs/garnet_an4.yaml') as file:
+        with open('examples/asr/experimental/configs/garnet_an4.yaml') as file:
             cfg = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(
             featurizer_config=self.featurizer_config,
