@@ -918,7 +918,7 @@ class PtActions(Actions):
                     else:  # NON-DISTRIBUTED TRAINING
                         tensor = registered_e_tensors[key]
                         if offload_to_cpu:
-                            tensor = tensor.cpu
+                            tensor = tensor.cpu()
                         values_dict[key] += [tensor]
 
             if not is_distributed or self.global_rank == 0:
