@@ -33,6 +33,8 @@ create_syncbn_process_group = None
 DDP = None
 LARC = None
 FusedLAMB = None
+FusedAdam = None
+FusedNovoGrad = None
 
 AmpOptimizations = {
     Optimization.mxprO0: "O0",
@@ -68,6 +70,8 @@ class PtActions(Actions):
                     global DDP
                     global LARC
                     global FusedLAMB
+                    global FusedAdam
+                    global FusedNovoGrad
                     parallel = importlib.import_module('apex.parallel')
                     apex_optimizer = importlib.import_module('apex.optimizers')
                     convert_syncbn = parallel.convert_syncbn_model
@@ -76,6 +80,8 @@ class PtActions(Actions):
                     DDP = parallel.DistributedDataParallel
                     LARC = parallel.LARC
                     FusedLAMB = apex_optimizer.FusedLAMB
+                    FusedAdam = apex_optimizer.FusedAdam
+                    FusedNovoGrad = apex_optimizer.FusedNovoGrad
 
             except ImportError:
                 raise ImportError(
@@ -343,7 +349,7 @@ class PtActions(Actions):
                     betas=optimization_params.get("betas", (0.95, 0.98)),
                 )
             elif optimizer_class.lower() == "fused_novograd":
-                optimizer = apex.optimizers.FusedNovoGrad(
+                optimizer = FusedNovoGrad(
                     params_to_optimize,
                     lr=lr,
                     weight_decay=optimization_params.get("weight_decay", 0.0),
@@ -1374,7 +1380,6 @@ class PtActions(Actions):
 
         # MAIN TRAINING LOOP
         # iteration over epochs
-        self.epoch_num = 0
         while num_epochs is None or self.epoch_num < num_epochs:
             if train_sampler is not None:
                 train_sampler.set_epoch(self.epoch_num)
