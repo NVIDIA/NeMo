@@ -18,6 +18,7 @@ import ctypes
 import json
 import re
 
+import torch
 import numpy as np
 import tensorrt as trt
 
@@ -25,7 +26,7 @@ nvinfer = ctypes.CDLL("libnvinfer_plugin.so", mode=ctypes.RTLD_GLOBAL)
 cm = ctypes.CDLL("libcommon.so", mode=ctypes.RTLD_GLOBAL)
 pg = ctypes.CDLL("libbert_plugins.so", mode=ctypes.RTLD_GLOBAL)
 
-import torch
+
 
 """
 TensorRT Initialization
@@ -117,7 +118,7 @@ def attention_layer_opt(prefix, config, init_dict, network, input_tensor,
                                            Ball)
     set_layer_name(mult_all, prefix, "qkv_mult")
 
-    has_mask = imask != None
+    has_mask = imask is not None
 
     pf_hidden_size = trt.PluginField("hidden_size",
                                      np.array([hidden_size], np.int32),
@@ -378,12 +379,12 @@ def load_weights(inputbase):
             toks = pn.lower().split('.')
             if 'encoder' in pn:
                 assert ('layer' in pn)
-                l = (re.findall('\d+', pn))[0]
+                l = (re.findall('\d+', pn))[0]  # nopep8
                 outname = 'l{}_'.format(l) + '_'.join(toks[4:])
             else:
                 outname = '_'.join(toks)
 
-            ## convert torch tensor to numpy
+            # convert torch tensor to numpy
             tensor = tensor_dict[pn].numpy()
             shape = tensor.shape
             flat_tensor = tensor.flatten()
@@ -442,7 +443,7 @@ def main(bert_weight_path, class_weight_path, B, S, config_path, outputbase,
     # Load weights from checkpoint file
     init_dict = load_weights(bert_weight_path)
     classifiers_dict = {k: v.numpy() for k, v in torch.load(class_weight_path,
-                                                            map_location='cpu').items()}
+                        map_location='cpu').items()}
 
     #    import pdb;pdb.set_trace()
     with trt.Builder(TRT_LOGGER) as builder:
@@ -579,7 +580,8 @@ if __name__ == "__main__":
                              'https://github.com/google-research/bert#pre'
                              '-trained-models or by running '
                              'download_models.py in '
-                             'dle/TensorFlow/LanguageModeling/BERT/data/pretrained_models_google')
+                             'dle/TensorFlow/LanguageModeling/BERT/'
+                             'data/pretrained_models_google')
 
     opt = parser.parse_args()
 
