@@ -39,8 +39,8 @@ def main():
         work_dir="./tmp",
         optimizer="novograd",
         num_epochs=50,
-        batch_size=32,
-        eval_batch_size=16,
+        batch_size=64,
+        eval_batch_size=64,
         lr=0.02,
         weight_decay=0.005,
         checkpoint_save_freq=1000,
@@ -208,16 +208,19 @@ def main():
             eval_tensors.append(beam_predictions)
 
         evaluated_tensors = nf.infer(eval_tensors)
-        greedy_hypotheses = post_process_predictions(
-            evaluated_tensors[1], vocab)
-        references = post_process_transcripts(
-            evaluated_tensors[2], evaluated_tensors[3], vocab)
-        wer = word_error_rate(
-            hypotheses=greedy_hypotheses, references=references)
-        nf.logger.info("Greedy WER: {:.2f}%".format(wer * 100))
-        assert wer <= wer_thr, (
-            "Final eval greedy WER {:.2f}% > than {:.2f}%".format(
-                wer*100, wer_thr*100))
+        if nf.global_rank == 0:
+            greedy_hypotheses = post_process_predictions(
+                evaluated_tensors[1], vocab)
+            references = post_process_transcripts(
+                evaluated_tensors[2], evaluated_tensors[3], vocab)
+            wer = word_error_rate(
+                hypotheses=greedy_hypotheses, references=references)
+            nf.logger.info("Greedy WER: {:.2f}%".format(wer * 100))
+            if wer > wer_thr:
+                nf.sync_all_processes(False)
+                raise ValueError(f"Final eval greedy WER {wer*100:.2f}% > :"
+                                 f"than {wer_thr*100:.2f}%")
+        nf.sync_all_processes()
 
         if nf.world_size == 1:
             beam_hypotheses = []
@@ -244,6 +247,8 @@ def main():
         # Zero and make all parameters float
         list(map(lambda x: x.data.zero_(), jasper_encoder.parameters()))
         list(map(lambda x: x.data.zero_(), jasper_decoder.parameters()))
+        list(map(lambda x: x.grad.zero_(), jasper_encoder.parameters()))
+        list(map(lambda x: x.grad.zero_(), jasper_decoder.parameters()))
         jasper_decoder.float()
         jasper_encoder.float()
 
@@ -263,16 +268,20 @@ def main():
         )
 
         evaluated_tensors = nf.infer(eval_tensors[:-1])
-        greedy_hypotheses = post_process_predictions(
-            evaluated_tensors[1], vocab)
-        references = post_process_transcripts(
-            evaluated_tensors[2], evaluated_tensors[3], vocab)
-        wer_new = word_error_rate(
-            hypotheses=greedy_hypotheses, references=references)
-        nf.logger.info("New greedy WER: {:.2f}%".format(wer_new * 100))
-        assert wer_new <= wer * 1.1, (
-            f"Fine tuning: new WER {wer * 100:.2f}% > than the previous WER "
-            f"{wer_new * 100:.2f}%")
+        if nf.global_rank == 0:
+            greedy_hypotheses = post_process_predictions(
+                evaluated_tensors[1], vocab)
+            references = post_process_transcripts(
+                evaluated_tensors[2], evaluated_tensors[3], vocab)
+            wer_new = word_error_rate(
+                hypotheses=greedy_hypotheses, references=references)
+            nf.logger.info("New greedy WER: {:.2f}%".format(wer_new * 100))
+            if wer_new > wer * 1.1:
+                nf.sync_all_processes(False)
+                raise ValueError(
+                    f"Fine tuning: new WER {wer * 100:.2f}% > than the "
+                    f"previous WER {wer_new * 100:.2f}%")
+        nf.sync_all_processes()
 
         # Open the log file and ensure that epochs is strictly increasing
         if nf._exp_manager.log_file:
