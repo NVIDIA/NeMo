@@ -170,7 +170,7 @@
     .. note::
         这个命令会在 8 块 GPU 上开始模型训练， 显存需求最少为 16GB。如果你的 GPU 显存较少，请适量调低 **batch_size** 参数，并适量调高 **iter_per_step** 参数。
 
-要想训练一个英文-中文的神经机器翻译模型，需要指定 **--src_lang** 为 en， **--tgt_lang** 为 zh，同时将 **--tgt_tokenizer_model** 设置为词汇表文件的路径，中文训练数据的样例格式请参考 ``/tests/data/nmt_en_zh_sample_data/zh_vocab.txt``。 
+要想训练一个英文-中文的神经机器翻译模型，需要指定 **--src_lang** 为 **en**， **--tgt_lang** 为 **zh**，同时将 **--tgt_tokenizer_model** 设置为词汇表文件的路径，中文训练数据的样例格式请参考 ``/tests/data/nmt_en_zh_sample_data/``。 
 
 使用预训练的模型进行翻译
 ---------------------------------

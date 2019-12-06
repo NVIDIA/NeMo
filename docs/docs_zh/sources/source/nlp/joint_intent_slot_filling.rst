@@ -1,39 +1,42 @@
 教程
-========
+====
 
-在这个教程中，我们将使用BERT模型，来实现一个意图识别（intent）和槽填充（slot filling）混合系统，参考自 `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`chen2019bert`。本教程中所有的代码全部来自 ``examples/nlp/joint_intent_slot_with_bert.py``.
+在这个教程中，我们将使用 BERT 模型，来实现一个意图识别 (intent classification) 和槽填充 (slot filling) 混合系统，参考自 `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`chen2019bert` 。本教程中所有的代码全部来自 ``examples/nlp/joint_intent_slot_with_bert.py`` 。
 
-我们可以使用 `--pretrained_bert_model` 这个参数，来选择四个预训练好的BERT模型。当前，我们使用的加载预训练模型的脚本均来自 `pytorch_transformers` 。更多预训练好的模型在 `这里 <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__ 。 
-
+我们可以使用 `--pretrained_bert_model` 这个参数，来选择四个预训练好的 BERT 模型。当前，我们使用的加载预训练模型的脚本均来自 `pytorch_transformers` 。更多预训练好的模型在 `这里 <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__ 。
 
 写在开头
--------------
+--------
 
 **模型细节**
-这个模型会一起训练一个句子层面的分类器，和一个符号串层面的槽分类器，通过最小化如下的混合损失:
+这个模型会一起训练一个句子层级的分类器，和一个符号串层面的槽 (slot) 分类器，通过最小化如下的混合损失：
 
         intent_loss * intent_loss_weight + slot_loss * (1 - intent_loss_weight)
 
-当 `intent_loss_weight = 0.5` 时, 它等价于最大化:
+当 `intent_loss_weight = 0.5` 时，它等价于最大化:
 
-        p(y | x)P(s1, s2, ..., sn | x)
+        p(y|x) p(s1, s2, ..., sn|x)
 
-这里x是一个有n个符号串的序列(x1, x2, ..., xn)，y是x预测出的意图，s1, s2, ..., sn 是对应于x1, x2, ..., xn预测出的槽。
+这里 x 是一个有 n 个符号串的序列 (x1, x2, ..., xn)， y 是 x 预测出的意图，s1, s2, ..., sn 是对应于 x1, x2, ..., xn 预测出的槽。
 
-**数据集** 
+**数据集**
 
 这个模型可以应用到任意一个符合如下格式的数据集:
-    * 输入文件: 一个 `tsv` 文件，第一行为 [sentence][tab][label] 
 
+    * 输入文件: 一个 `tsv` 文件，第一行为 [sentence][tab][label]
     * 槽文件: 句子中所有符号串的槽标注，使用空格分隔。槽标注的数量需要与句子中所有符号串的数量保持一致。
 
-当前，我们提供多个数据集合的预处理脚本，包括: ATIS可以通过 `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ 进行下载；SNIP对话语言理解数据集，可以通过 `这里 <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__ 获取。预处理脚本在 ``collections/nemo_nlp/nemo_nlp/text_data_utils.py``。
+当前，我们提供多个数据集合的预处理脚本，包括:
 
+    * ATIS 可以通过 `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ 进行下载
+    * SNIP 对话语言理解数据集，可以通过 `这里 <https://github.com/snipsco/spoken-language-understanding-research-datasets>`_ 获取。
+
+预处理脚本在 ``collections/nemo_nlp/nemo_nlp/text_data_utils.py`` 。
 
 代码结构
---------------
+--------
 
-首先，我们初始化Neural Module Factory，需要定义1、后端（Pytorch或是TensorFlow)；2、混合精度优化的级别；3、本地GPU的序列号；4、一个实验的管理器，用于创建文件夹来保存相应的checkpoint、输出、日志文件和TensorBoard的图。
+首先，我们初始化 ``NeuralModuleFactory`` ，需要定义1、后端 (PyTorch)；2、混合精度优化的级别；3、本地 GPU 的序列号；4、一个实验的管理器，用于创建文件夹来保存相应的 checkpoint、输出、日志文件和 TensorBoard 的图。
 
     .. code-block:: python
 
@@ -45,7 +48,7 @@
                         create_tb_writer=True,
                         files_to_copy=[__file__])
 
-我们定义分词器，它可以将文本转换成符号串，这里使用来自 `pytorch_transformers`的内置分词器。其将使用BERT模型的映射，把文本转成相应的符号串。
+我们定义分词器，它可以将文本转换成符号串，这里使用来自 `pytorch_transformers` 的内置分词器。其将使用 BERT 模型的映射，把文本转成相应的符号串。
 
     .. code-block:: python
 
@@ -53,18 +56,16 @@
         tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
 接着，我们定义所有的神经网络模块，加入到意图识别和槽填充混合系统的流程中。
-    
-    * 处理数据: `nemo_nlp/nemo_nlp/text_data_utils.py` 中的 `JointIntentSlotDataDesc` 类，用于将源数据处理成 `BertJointIntentSlotDataset` 支持的类型。当前，它支持SNIPS和ATIS两种格式的数据，当你也可以实现预处理脚本，来支持任意格式的数据。 
 
-    JointIntentSlotDataDesc 对象包含例如 `self.train_file`, `self.train_slot_file`, `self.eval_file`, `self.eval_slot_file`,  `self.intent_dict_file` 和 `self.slot_dict_file`等信息。
+    * 处理数据: `nemo_nlp/nemo_nlp/text_data_utils.py` 中的 `JointIntentSlotDataDesc` 类，用于将源数据处理成 `BertJointIntentSlotDataset` 支持的类型。当前，它支持SNIPS和ATIS两种格式的数据，当你也可以实现预处理脚本，来支持任意格式的数据。
+
+    JointIntentSlotDataDesc 对象包含例如 `self.train_file`, `self.train_slot_file`, `self.eval_file`, `self.eval_slot_file`,  `self.intent_dict_file` 和 `self.slot_dict_file` 等信息。
 
     .. code-block:: python
 
-        data_desc = JointIntentSlotDataDesc(
-            args.dataset_name, args.data_dir, args.do_lower_case)
+        data_desc = JointIntentSlotDataDesc(args.dataset_name, args.data_dir, args.do_lower_case)
 
-
-    * 数据集: 将数据转换成DataLayerNM可以接收的格式.
+    * 数据集: 将数据转换成 `DataLayerNM` 可以接收的格式.
 
     .. code-block:: python
 
@@ -81,7 +82,6 @@
                 max_seq_length=args.max_seq_length,
                 num_samples=num_samples,
                 shuffle=shuffle)
-
 
         train_dataset = get_dataset(data_desc, 'train', args.num_train_samples)
         eval_dataset = get_dataset(data_desc, 'eval', args.num_eval_samples)
@@ -106,7 +106,6 @@
                                               token_type_ids=type_ids,
                                               attention_mask=input_mask)
 
-
     * 为我们的任务创建一个分类器。
 
     .. code-block:: python
@@ -119,8 +118,7 @@
 
         intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
-
-    * 创建损失函数。 
+    * 创建损失函数。
 
     .. code-block:: python
 
@@ -132,8 +130,7 @@
                        intents=intents,
                        slots=slots)
 
-
-    * 创建相应的callbacks，来保存checkpoints，打印训练过程和测试结果。
+    * 创建相应的 callbacks ，来保存 checkpoints ，打印训练过程和测试结果。
 
     .. code-block:: python
 
@@ -174,7 +171,7 @@
                                   "weight_decay": args.weight_decay})
 
 模型训练
---------------
+--------
 
 为了训练一个意图识别和槽填充的混合任务，运行 ``nemo/examples/nlp`` 下的脚本 ``joint_intent_slot_with_bert.py`` ：
 
@@ -184,7 +181,7 @@
             --data_dir <path to data>
             --work_dir <where you want to log your experiment> \
             --max_seq_length \
-            --optimizer_kind 
+            --optimizer_kind
             ...
 
 测试的话，需要运行：
@@ -196,7 +193,7 @@
             --work_dir <path to checkpoint folder>
 
 对一个检索进行测试，需要运行：
-    
+
     .. code-block:: python
 
         python -m joint_intent_slot_infer.py \
@@ -205,7 +202,7 @@
 
 
 参考文献
-----------
+--------
 
 .. bibliography:: joint_intent_slot.bib
     :style: plain
