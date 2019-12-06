@@ -171,6 +171,7 @@ class Tacotron2Decoder(TrainableNM):
             attention_dim: int = 128,
             attention_location_n_filters: int = 32,
             attention_location_kernel_size: int = 31,
+            prenet_p_dropout: float = 0.5,
             **kwargs):
         super().__init__(**kwargs)
         self.decoder = Decoder(
@@ -187,6 +188,7 @@ class Tacotron2Decoder(TrainableNM):
             attention_dim=attention_dim,
             attention_location_n_filters=attention_location_n_filters,
             attention_location_kernel_size=attention_location_kernel_size,
+            prenet_p_dropout=prenet_p_dropout,
             early_stopping=True)
         self.to(self._device)
 
@@ -307,12 +309,14 @@ class Tacotron2Postnet(TrainableNM):
             postnet_embedding_dim: int = 512,
             postnet_kernel_size: int = 5,
             postnet_n_convolutions: int = 5,
+            p_dropout: float = 0.5,
             **kwargs):
         super().__init__(**kwargs)
         self.postnet = Postnet(n_mel_channels=n_mel_channels,
                                postnet_embedding_dim=postnet_embedding_dim,
                                postnet_kernel_size=postnet_kernel_size,
-                               postnet_n_convolutions=postnet_n_convolutions)
+                               postnet_n_convolutions=postnet_n_convolutions,
+                               p_dropout=p_dropout)
         self.to(self._device)
 
     def forward(self, mel_input):

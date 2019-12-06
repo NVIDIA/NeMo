@@ -78,28 +78,29 @@ pipeline {
       }
     }
 
-    stage('TTS Tests') {
-      failFast true
-      stage('Tacotron2 O0') {
-        steps {
-          sh 'cd examples/tts && CUDA_VISIBLE_DEVICES=0 python tacotron2.py --num_epochs=40 --model_config=configs/tacotron2.yaml --train_dataset=/home/mrjenkins/TestData/an4_dataset/an4_train.json'
-          sh 'TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && cp ../asr/O1/checkpoints/* $TTS_CHECKPOINT_DIR/checkpoints'
-          sh 'CUDA_VISIBLE_DEVICES=0 python tacotron2_an4_test.py --model_config=configs/tacotron2.yaml --eval_dataset=/home/mrjenkins/TestData/an4_dataset/an4_train.json --jasper_model_config=../asr/configs/jasper_an4.yaml --load_dir=$TTS_CHECKPOINT_DIR/checkpoints'
-        }
-      }
-    }
-
     stage('Multi-GPU test') {
       failFast true
       parallel {
         stage('Jasper AN4 2 GPUs') {
           steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2  jasper_an4.py --amp_opt_level=O2 --num_epochs=40 --work_dir=multi_gpu'
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 jasper_an4.py --amp_opt_level=O2 --num_epochs=40 --work_dir=multi_gpu --test_after_training'
           }
         }
       }
     }
+
+  //   stage('TTS Tests') {
+  //     failFast true
+  //     stage('Tacotron2 O0') {
+  //       steps {
+  //         sh 'cd examples/tts && CUDA_VISIBLE_DEVICES=0,1 python python -m torch.distributed.launch --nproc_per_node=2 tacotron2.py --num_epochs=30 --model_config=configs/tacotron2_an4.yaml --train_dataset=/home/mrjenkins/TestData/an4_dataset/an4_train.json --ampt_opt_level=O1'
+  //         sh 'TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && cp ../asr/multi_gpu/checkpoints/* $TTS_CHECKPOINT_DIR/checkpoints'
+  //         sh 'CUDA_VISIBLE_DEVICES=0 python tacotron2_an4_test.py --model_config=configs/tacotron2.yaml --eval_dataset=/home/mrjenkins/TestData/an4_dataset/an4_train.json --jasper_model_config=../asr/configs/jasper_an4.yaml --load_dir=$TTS_CHECKPOINT_DIR/checkpoints'
+  //       }
+  //     }
+  //   }
   }
+
   post {
     always {
         cleanWs()
