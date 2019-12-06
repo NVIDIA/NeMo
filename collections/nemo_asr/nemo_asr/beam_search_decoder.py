@@ -72,6 +72,11 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
                                       "installation of ctc_decoders "
                                       "from nemo/scripts/install_decoders.py")
 
+        super().__init__(
+            # Override default placement from neural factory
+            placement=DeviceType.CPU,
+            **kwargs)
+
         if self._factory.world_size > 1:
             raise ValueError(
                 "BeamSearchDecoderWithLM does not run in distributed mode")
@@ -83,12 +88,6 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
             vocabulary=vocab
         )
         self.beam_search_func = ctc_beam_search_decoder_batch
-
-        super().__init__(
-            # Override default placement from neural factory
-            placement=DeviceType.CPU,
-            **kwargs)
-
         self.vocab = vocab
         self.beam_width = beam_width
         self.num_cpus = num_cpus

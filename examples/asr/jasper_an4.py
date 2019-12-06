@@ -210,7 +210,7 @@ def main():
             eval_tensors.append(beam_predictions)
 
         evaluated_tensors = nf.infer(eval_tensors)
-        if nf.global_rank == 0:
+        if nf.global_rank in [0, None]:
             greedy_hypotheses = post_process_predictions(
                 evaluated_tensors[1], vocab)
             references = post_process_transcripts(
@@ -266,10 +266,8 @@ def main():
             reset=True
         )
 
-        if nf.world_size == 1:  # Remove beam search
-            eval_tensors = eval_tensors[:-1]
         evaluated_tensors = nf.infer(eval_tensors)
-        if nf.global_rank == 0:
+        if nf.global_rank in [0, None]:
             greedy_hypotheses = post_process_predictions(
                 evaluated_tensors[1], vocab)
             references = post_process_transcripts(
