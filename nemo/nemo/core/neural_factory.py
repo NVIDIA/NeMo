@@ -740,6 +740,34 @@ class NeuralModuleFactory(object):
         del self._trainer
         self._trainer = self._get_trainer(tb_writer=self._tb_writer)
 
+    def sync_all_processes(self, status=True):
+        """ Helper function for testing that allows proccess 0 to inform all
+        other processes of failures. Does nothing if not using distributed
+        training. Usage example can be seen in examples/asr/jasper_an4.py
+
+        Args:
+            status (bool): Defaults to True. If any proccess passes False, it
+                will trigger a graceful exit on all other processes. It is
+                assumed that the process that passed False will print an error
+                message on its own and exit
+        """
+        if self._world_size == 1:
+            self.logger.info("sync_all_processes does nothing if there is "
+                             "one process")
+            return
+        if self._backend == Backend.PyTorch:
+            import torch
+            status_tensor = torch.cuda.IntTensor([status])
+            torch.distributed.all_reduce(
+                status_tensor, op=torch.distributed.ReduceOp.MIN)
+            if status_tensor.item() == 0:
+                self.logger.error("At least one process had a failure")
+                if status:
+                    raise ValueError(
+                        f"Process with global rank {self._global_rank} entered"
+                        " sync_all_processes with a passing status, but "
+                        "another process indicated a failure")
+
     @property
     def world_size(self):
         return self._world_size
@@ -767,3 +795,7 @@ class NeuralModuleFactory(object):
     @property
     def work_dir(self):
         return self._exp_manager.work_dir
+
+    @property
+    def global_rank(self):
+        return self._global_rank

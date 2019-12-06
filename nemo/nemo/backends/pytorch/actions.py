@@ -847,12 +847,12 @@ class PtActions(Actions):
                     use_cache=use_cache
                 )
 
-                if offload_to_cpu:
-                    # Take all cuda tensors and save them to value_dict as
-                    # cpu tensors to save GPU memory
-                    for name, tensor in registered_e_tensors.items():
-                        if isinstance(tensor, torch.Tensor):
-                            registered_e_tensors[name] = tensor.cpu()
+                # if offload_to_cpu:
+                #     # Take all cuda tensors and save them to value_dict as
+                #     # cpu tensors to save GPU memory
+                #     for name, tensor in registered_e_tensors.items():
+                #         if isinstance(tensor, torch.Tensor):
+                #             registered_e_tensors[name] = tensor.cpu()
                 if cache:
                     self.append_to_cache(registered_e_tensors)
 
@@ -911,10 +911,16 @@ class PtActions(Actions):
                             self.depad_tensor(t, size)
                             for t, size in zip(tensors_list, sizes)
                         ]
+                        if offload_to_cpu:
+                            tensors_list = [t.cpu() for t in tensors_list]
                         if self.global_rank == 0:
                             values_dict[key] += tensors_list
                     else:  # NON-DISTRIBUTED TRAINING
-                        values_dict[key] += [registered_e_tensors[key]]
+                        if offload_to_cpu:
+                            values_dict[key] += [registered_e_tensors[key].cpu()]
+                        else:
+                            values_dict[key] += [registered_e_tensors[key]]
+
 
             if not is_distributed or self.global_rank == 0:
                 inferred_tensors = []
