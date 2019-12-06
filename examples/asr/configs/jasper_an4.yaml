@@ -1,6 +1,6 @@
 model: "Jasper"
 sample_rate: 16000
-dropout: &drop 0.0 
+dropout: &drop 0.0
 repeat:  &rep  1
 
 AudioToTextDataLayer:
