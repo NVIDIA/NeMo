@@ -14,6 +14,108 @@ from nemo_asr.helpers import monitor_asr_train_progress, \
     post_process_predictions, post_process_transcripts
 
 
+def create_dags(jasper_params, args, nf):
+    vocab = jasper_params['labels']
+
+    # build train and eval model
+    train_dl_params = copy.deepcopy(jasper_params["AudioToTextDataLayer"])
+    train_dl_params.update(jasper_params["AudioToTextDataLayer"]["train"])
+    del train_dl_params["train"]
+    del train_dl_params["eval"]
+
+    data_layer = nemo_asr.AudioToTextDataLayer(
+        manifest_filepath=args.train_dataset,
+        labels=vocab,
+        batch_size=args.batch_size,
+        **train_dl_params
+    )
+
+    num_samples = len(data_layer)
+    total_steps = int(num_samples * args.num_epochs / args.batch_size)
+    print("Train samples=", num_samples, "num_steps=", total_steps)
+
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+        **jasper_params["AudioToMelSpectrogramPreprocessor"]
+    )
+
+    # data_augmentation = nemo_asr.SpectrogramAugmentation(
+    #     **jasper_params['SpectrogramAugmentation']
+    # )
+
+    eval_dl_params = copy.deepcopy(jasper_params["AudioToTextDataLayer"])
+    eval_dl_params.update(jasper_params["AudioToTextDataLayer"]["eval"])
+    del eval_dl_params["train"]
+    del eval_dl_params["eval"]
+
+    data_layer_eval = nemo_asr.AudioToTextDataLayer(
+        manifest_filepath=args.eval_datasets,
+        labels=vocab,
+        batch_size=args.eval_batch_size,
+        **eval_dl_params
+    )
+
+    num_samples = len(data_layer_eval)
+    nf.logger.info(f"Eval samples={num_samples}")
+
+    jasper_encoder = nemo_asr.JasperEncoder(**jasper_params["JasperEncoder"])
+
+    jasper_decoder = nemo_asr.JasperDecoderForCTC(
+        num_classes=len(vocab),
+        **jasper_params["JasperDecoderForCTC"])
+
+    ctc_loss = nemo_asr.CTCLossNM(num_classes=len(vocab))
+
+    greedy_decoder = nemo_asr.GreedyCTCDecoder()
+
+    # Training model
+    audio, audio_len, transcript, transcript_len = data_layer()
+    processed, processed_len = data_preprocessor(
+        input_signal=audio, length=audio_len)
+    encoded, encoded_len = jasper_encoder(
+        audio_signal=processed, length=processed_len)
+    log_probs = jasper_decoder(encoder_output=encoded)
+    predictions = greedy_decoder(log_probs=log_probs)
+    loss = ctc_loss(log_probs=log_probs, targets=transcript,
+                    input_length=encoded_len, target_length=transcript_len)
+
+    # Evaluation model
+    audio_e, audio_len_e, transcript_e, transcript_len_e = data_layer_eval()
+    processed_e, processed_len_e = data_preprocessor(
+        input_signal=audio_e, length=audio_len_e)
+    encoded_e, encoded_len_e = jasper_encoder(
+        audio_signal=processed_e, length=processed_len_e)
+    log_probs_e = jasper_decoder(encoder_output=encoded_e)
+    predictions_e = greedy_decoder(log_probs=log_probs_e)
+    loss_e = ctc_loss(log_probs=log_probs_e, targets=transcript_e,
+                      input_length=encoded_len_e,
+                      target_length=transcript_len_e)
+    nf.logger.info(
+        "Num of params in encoder: {0}".format(jasper_encoder.num_weights))
+
+    # Callbacks to print info to console and Tensorboard
+    train_callback = nemo.core.SimpleLossLoggerCallback(
+        tensors=[loss, predictions, transcript, transcript_len],
+        print_func=lambda x: monitor_asr_train_progress(x, labels=vocab),
+        get_tb_values=lambda x: [["loss", x[0]]],
+        tb_writer=nf.tb_writer,
+    )
+
+    checkpointer_callback = nemo.core.CheckpointCallback(
+        folder=nf.checkpoint_dir, step_freq=args.checkpoint_save_freq)
+
+    eval_tensors = [loss_e, predictions_e, transcript_e, transcript_len_e]
+    eval_callback = nemo.core.EvaluatorCallback(
+        eval_tensors=eval_tensors,
+        user_iter_callback=lambda x, y: process_evaluation_batch(
+            x, y, labels=vocab),
+        user_epochs_done_callback=process_evaluation_epoch,
+        eval_step=args.eval_freq,
+        tb_writer=nf.tb_writer)
+    callbacks = [train_callback, checkpointer_callback, eval_callback]
+    return (loss, eval_tensors, callbacks, total_steps, vocab,
+            log_probs_e, encoded_len_e)
+
+
 def main():
     parser = argparse.ArgumentParser(
         parents=[nm_argparse.NemoArgParser()],
@@ -70,112 +172,12 @@ def main():
     with open(args.model_config) as f:
         jasper_params = yaml.load(f)
 
-    vocab = jasper_params['labels']
-    sample_rate = jasper_params['sample_rate']
-
-    # build train and eval model
-    train_dl_params = copy.deepcopy(jasper_params["AudioToTextDataLayer"])
-    train_dl_params.update(jasper_params["AudioToTextDataLayer"]["train"])
-    del train_dl_params["train"]
-    del train_dl_params["eval"]
-
-    data_layer = nemo_asr.AudioToTextDataLayer(
-        manifest_filepath=args.train_dataset,
-        sample_rate=sample_rate,
-        labels=vocab,
-        batch_size=args.batch_size,
-        **train_dl_params
-    )
-
-    num_samples = len(data_layer)
-    total_steps = int(num_samples * args.num_epochs / args.batch_size)
-    print("Train samples=", num_samples, "num_steps=", total_steps)
-
-    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
-        sample_rate=sample_rate,
-        **jasper_params["AudioToMelSpectrogramPreprocessor"]
-    )
-
-    # data_augmentation = nemo_asr.SpectrogramAugmentation(
-    #     **jasper_params['SpectrogramAugmentation']
-    # )
-
-    eval_dl_params = copy.deepcopy(jasper_params["AudioToTextDataLayer"])
-    eval_dl_params.update(jasper_params["AudioToTextDataLayer"]["eval"])
-    del eval_dl_params["train"]
-    del eval_dl_params["eval"]
-
-    data_layer_eval = nemo_asr.AudioToTextDataLayer(
-        manifest_filepath=args.eval_datasets,
-        sample_rate=sample_rate,
-        labels=vocab,
-        batch_size=args.eval_batch_size,
-        **eval_dl_params
-    )
-
-    num_samples = len(data_layer_eval)
-    nf.logger.info(f"Eval samples={num_samples}")
-
-    jasper_encoder = nemo_asr.JasperEncoder(
-        feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"],
-        **jasper_params["JasperEncoder"])
-
-    jasper_decoder = nemo_asr.JasperDecoderForCTC(
-        feat_in=jasper_params["JasperEncoder"]["jasper"][-1]["filters"],
-        num_classes=len(vocab))
-
-    ctc_loss = nemo_asr.CTCLossNM(num_classes=len(vocab))
-
-    greedy_decoder = nemo_asr.GreedyCTCDecoder()
-
-    # Training model
-    audio, audio_len, transcript, transcript_len = data_layer()
-    processed, processed_len = data_preprocessor(
-        input_signal=audio, length=audio_len)
-    encoded, encoded_len = jasper_encoder(
-        audio_signal=processed, length=processed_len)
-    log_probs = jasper_decoder(encoder_output=encoded)
-    predictions = greedy_decoder(log_probs=log_probs)
-    loss = ctc_loss(log_probs=log_probs, targets=transcript,
-                    input_length=encoded_len, target_length=transcript_len)
-
-    # Evaluation model
-    audio_e, audio_len_e, transcript_e, transcript_len_e = data_layer_eval()
-    processed_e, processed_len_e = data_preprocessor(
-        input_signal=audio_e, length=audio_len_e)
-    encoded_e, encoded_len_e = jasper_encoder(
-        audio_signal=processed_e, length=processed_len_e)
-    log_probs_e = jasper_decoder(encoder_output=encoded_e)
-    predictions_e = greedy_decoder(log_probs=log_probs_e)
-    loss_e = ctc_loss(log_probs=log_probs_e, targets=transcript_e,
-                      input_length=encoded_len_e,
-                      target_length=transcript_len_e)
-    nf.logger.info(
-        "Num of params in encoder: {0}".format(jasper_encoder.num_weights))
-
-    # Callbacks to print info to console and Tensorboard
-    train_callback = nemo.core.SimpleLossLoggerCallback(
-        tensors=[loss, predictions, transcript, transcript_len],
-        print_func=lambda x: monitor_asr_train_progress(x, labels=vocab),
-        get_tb_values=lambda x: [["loss", x[0]]],
-        tb_writer=tb_writer,
-    )
-
-    checkpointer_callback = nemo.core.CheckpointCallback(
-        folder=checkpoint_dir, step_freq=args.checkpoint_save_freq)
-
-    eval_tensors = [loss_e, predictions_e, transcript_e, transcript_len_e]
-    eval_callback = nemo.core.EvaluatorCallback(
-        eval_tensors=eval_tensors,
-        user_iter_callback=lambda x, y: process_evaluation_batch(
-            x, y, labels=vocab),
-        user_epochs_done_callback=process_evaluation_epoch,
-        eval_step=args.eval_freq,
-        tb_writer=tb_writer)
+    (loss, eval_tensors, callbacks, total_steps, vocab,
+     log_probs_e, encoded_len_e) = create_dags(jasper_params, args, nf)
 
     nf.train(
         tensors_to_optimize=[loss],
-        callbacks=[train_callback, eval_callback, checkpointer_callback],
+        callbacks=callbacks,
         optimizer=args.optimizer,
         lr_policy=CosineAnnealing(total_steps=total_steps),
         optimization_params={
@@ -244,18 +246,15 @@ def main():
             folder=checkpoint_dir, step_freq=args.checkpoint_save_freq,
             force_load=True)
 
-        # Zero and make all parameters float
-        list(map(lambda x: x.data.zero_(), jasper_encoder.parameters()))
-        list(map(lambda x: x.data.zero_(), jasper_decoder.parameters()))
-        list(map(lambda x: x.grad.zero_(), jasper_encoder.parameters()))
-        list(map(lambda x: x.grad.zero_(), jasper_decoder.parameters()))
-        jasper_decoder.float()
-        jasper_encoder.float()
+        # Distributed Data Parallel changes the underlying class so we need
+        # to reinstantiate Encoder and Decoder
+        loss, eval_tensors, callbacks, total_steps, vocab, _, _ = create_dags(
+            jasper_params, args, nf)
 
         nf.reset_trainer()
         nf.train(
             tensors_to_optimize=[loss],
-            callbacks=[train_callback, checkpointer_callback],
+            callbacks=callbacks,
             optimizer=args.optimizer,
             optimization_params={
                 "num_epochs": args.num_epochs + 10,
@@ -267,7 +266,9 @@ def main():
             reset=True
         )
 
-        evaluated_tensors = nf.infer(eval_tensors[:-1])
+        if nf.world_size == 1:  # Remove beam search
+            eval_tensors = eval_tensors[:-1]
+        evaluated_tensors = nf.infer(eval_tensors)
         if nf.global_rank == 0:
             greedy_hypotheses = post_process_predictions(
                 evaluated_tensors[1], vocab)
