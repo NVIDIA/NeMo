@@ -99,6 +99,18 @@ pipeline {
   //       }
   //     }
   //   }
+
+    stage('TTS Tests') {
+      failFast true
+      stage('Simple Tacotron2') {
+        steps {
+          sh 'cd examples/tts && CUDA_VISIBLE_DEVICES=0,1 python python -m torch.distributed.launch --nproc_per_node=2 tacotron2.py --max_steps=100 --model_config=configs/tacotron2.yaml --train_dataset=/home/mrjenkins/TestData/an4_dataset/an4_train.json --ampt_opt_level=O1'
+          sh 'TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && LOSS=$(cat $TTS_CHECKPOINT_DIR/log_globalrank-0_localrank-0.txt | grep -o -E "Loss[ :0-9.]+" | grep -o -E "[0-9.]+" | tail -n 1) && if (( $(echo "$LOSS > 2.0" | bc -l) )); then exit 1; fi'
+          // sh 'TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && cp ../asr/multi_gpu/checkpoints/* $TTS_CHECKPOINT_DIR/checkpoints'
+          // sh 'CUDA_VISIBLE_DEVICES=0 python tacotron2_an4_test.py --model_config=configs/tacotron2.yaml --eval_dataset=/home/mrjenkins/TestData/an4_dataset/an4_train.json --jasper_model_config=../asr/configs/jasper_an4.yaml --load_dir=$TTS_CHECKPOINT_DIR/checkpoints'
+        }
+      }
+    }
   }
 
   post {
