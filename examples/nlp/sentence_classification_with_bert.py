@@ -34,9 +34,8 @@ parser.add_argument("--pretrained_bert_model",
                     type=str)
 parser.add_argument("--bert_checkpoint", default="", type=str)
 parser.add_argument("--bert_config", default="", type=str)
-
-parser.add_argument("--data_dir", default='data/sc/aclImdb', type=str)
-parser.add_argument("--dataset_name", default='imdb', type=str)
+parser.add_argument("--data_dir", required=True, type=str)
+parser.add_argument("--dataset_name", required=True, type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
