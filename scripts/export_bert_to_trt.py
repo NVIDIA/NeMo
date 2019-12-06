@@ -26,8 +26,6 @@ nvinfer = ctypes.CDLL("libnvinfer_plugin.so", mode=ctypes.RTLD_GLOBAL)
 cm = ctypes.CDLL("libcommon.so", mode=ctypes.RTLD_GLOBAL)
 pg = ctypes.CDLL("libbert_plugins.so", mode=ctypes.RTLD_GLOBAL)
 
-
-
 """
 TensorRT Initialization
 """
@@ -379,8 +377,8 @@ def load_weights(inputbase):
             toks = pn.lower().split('.')
             if 'encoder' in pn:
                 assert ('layer' in pn)
-                l = (re.findall('\d+', pn))[0]  # nopep8
-                outname = 'l{}_'.format(l) + '_'.join(toks[4:])
+                lvar = (re.findall('\d+', pn))[0]  # nopep8
+                outname = 'l{}_'.format(lvar) + '_'.join(toks[4:])
             else:
                 outname = '_'.join(toks)
 
