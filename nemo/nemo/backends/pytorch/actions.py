@@ -916,11 +916,10 @@ class PtActions(Actions):
                         if self.global_rank == 0:
                             values_dict[key] += tensors_list
                     else:  # NON-DISTRIBUTED TRAINING
+                        tensor = registered_e_tensors[key]
                         if offload_to_cpu:
-                            values_dict[key] += [registered_e_tensors[key].cpu()]
-                        else:
-                            values_dict[key] += [registered_e_tensors[key]]
-
+                            tensor = tensor.cpu
+                        values_dict[key] += [tensor]
 
             if not is_distributed or self.global_rank == 0:
                 inferred_tensors = []
