@@ -28,13 +28,13 @@ COPY scripts/docker/onnx-trt.patch .
 RUN git clone https://github.com/onnx/onnx-tensorrt.git && cd onnx-tensorrt && git submodule update --init --recursive && patch -f < ../onnx-trt.patch && \
     mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DGPU_ARCHS="60 70 75" && make -j16 && make install && mv -f /usr/lib/libnvonnx* /usr/lib/x86_64-linux-gnu/ && ldconfig
 
-# Assumes we are in the root of the nemo git clone
 WORKDIR /workspace/nemo
-COPY . .
 
+COPY requirements.txt .
 RUN pip install --disable-pip-version-check -U -r requirements.txt
-RUN ./reinstall.sh
 
+COPY . .
+RUN cd nemo && pip install -e . && cd ../collections/nemo_asr && pip install -e . && cd ../nemo_nlp && pip install -e . && cd ../nemo_simple_gan && pip install -e . && cd ../nemo_tts && pip install -e .
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
     chmod +x start-jupyter.sh
 
