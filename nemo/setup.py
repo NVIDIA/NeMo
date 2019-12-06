@@ -27,4 +27,3 @@ setuptools.setup(
         'onnx'
     ]
 )
-
