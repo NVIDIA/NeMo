@@ -1065,15 +1065,15 @@ class PtActions(Actions):
             dynamic_axes = None
 
         local_parameters = {}
-        for key, value in module._local_parameters.items():
-            local_parameters[key] = value
+        if module._local_parameters is not None:
+            for key, value in module._local_parameters.items():
+                local_parameters[key] = value
 
         # Remove NeMo-related things from the module
         # We need to change __call__ method. Note that this will change the
         # whole class, not just this object! Which is why we need to repair it
         # in the finally block
         type(module).__call__ = torch.nn.Module.__call__
-
         module._local_parameters = None
         module._logger = None
         module._placement = None
@@ -1096,14 +1096,24 @@ class PtActions(Actions):
                     raise ValueError(
                         f'Example input is None, but ONNX tracing was'
                         f' attempted')
-                torch.onnx.export(module, input_example, output,
+                if output_example is None:
+                    if isinstance(input_example, tuple):
+                        output_example = module.forward(*input_example)
+                    else:
+                        output_example = module.forward(input_example)
+                with torch.jit.optimized_execution(True):
+                    jitted_model = torch.jit.trace(module,
+                                                   input_example)
+
+                torch.onnx.export(jitted_model, input_example, output,
                                   input_names=input_names,
                                   output_names=output_names,
                                   verbose=True,
                                   export_params=True,
                                   do_constant_folding=True,
                                   dynamic_axes=dynamic_axes,
-                                  opset_version=10)
+                                  opset_version=10,
+                                  example_outputs=output_example)
                 # fn = output + ".readable"
                 # with open(fn, 'w') as f:
                 #     tempModel = onnx.load(output)
@@ -1153,13 +1163,14 @@ class PtActions(Actions):
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
         """
-        PtActions.__module_export(
-            module=module,
-            output=output,
-            d_format=d_format,
-            input_example=input_example,
-            output_example=output_example,
-            logger=logger)
+        with torch.no_grad():
+            PtActions.__module_export(
+                module=module,
+                output=output,
+                d_format=d_format,
+                input_example=input_example,
+                output_example=output_example,
+                logger=logger)
 
     def train(self,
               tensors_to_optimize,
