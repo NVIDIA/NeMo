@@ -1,6 +1,8 @@
 # Copyright (c) 2019 NVIDIA Corporation
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Optional
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import (NeuralType, AxisType, ChannelTag, BatchTag,
@@ -67,7 +69,7 @@ class JasperEncoder(TrainableNM):
             'kaiming_uniform','kaiming_normal'].
             Defaults to "xavier_uniform".
     """
-
+    length: Optional[torch.Tensor]
     @staticmethod
     def create_ports():
         input_ports = {
@@ -142,8 +144,12 @@ class JasperEncoder(TrainableNM):
         self.apply(lambda x: init_weights(x, mode=init_mode))
         self.to(self._device)
 
-    def forward(self, audio_signal, length):
+    def forward(self, audio_signal, length=None):
+        # type: (Tensor, Optional[Tensor]) -> Tensor, Optional[Tensor]
+
         s_input, length = self.encoder(([audio_signal], length))
+        if length is None:
+            return s_input[-1]
         return s_input[-1], length
 
 

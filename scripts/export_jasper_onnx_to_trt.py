@@ -38,9 +38,9 @@ def build_engine(onnx_path, seq_len=192, max_seq_len=256, batch_size=8,
                       min=(1, input_feats, seq_len),
                       opt=(batch_size, input_feats, seq_len),
                       max=(max_batch_size, input_feats, max_seq_len))
-    if encoder:
-        profile.set_shape("encoded_lengths",
-                            min=(1,), opt=(batch_size,), max=(max_batch_size,))
+    # if encoder:
+    #     profile.set_shape("encoded_lengths",
+    #                         min=(1,), opt=(batch_size,), max=(max_batch_size,))
     config.add_optimization_profile(profile)
     
     explicit_batch = 1 << (int)(
