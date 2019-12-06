@@ -72,6 +72,10 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
                                       "installation of ctc_decoders "
                                       "from nemo/scripts/install_decoders.py")
 
+        if self._factory.world_size > 1:
+            raise ValueError(
+                "BeamSearchDecoderWithLM does not run in distributed mode")
+
         self.scorer = Scorer(
             alpha,
             beta,

@@ -917,7 +917,7 @@ class PtActions(Actions):
                             values_dict[key] += tensors_list
                     else:  # NON-DISTRIBUTED TRAINING
                         tensor = registered_e_tensors[key]
-                        if offload_to_cpu:
+                        if offload_to_cpu and isinstance(tensor, torch.Tensor):
                             tensor = tensor.cpu()
                         values_dict[key] += [tensor]
 
