@@ -190,6 +190,7 @@ def main():
     )
 
     if args.test_after_training:
+        nf.logger("Testing greedy and beam search with LM WER.")
         # Create BeamSearch NM
         beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
             vocab=vocab,
