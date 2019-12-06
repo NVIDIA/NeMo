@@ -50,10 +50,10 @@ def main(config_file, nn_encoder, nn_decoder, nn_onnx_encoder,
                          d_format=nemo.core.neural_factory.DeploymentFormat
                          .ONNX,
                          input_example=(
-                         torch.zeros(1, 64, 256, dtype=torch.float,
-                                     device="cuda:0"),
-                         torch.zeros(1, dtype=torch.int,
-                                     device="cuda:0")))
+                             torch.zeros(1, 64, 256,
+                                         dtype=torch.float,
+                                         device="cuda:0"),
+                             torch.zeros(1, dtype=torch.int, device="cuda:0")))
     nf.deployment_export(module=jasper_decoder,
                          output=nn_onnx_decoder,
                          d_format=nemo.core.neural_factory.DeploymentFormat
