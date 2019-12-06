@@ -1074,7 +1074,6 @@ class PtActions(Actions):
         # whole class, not just this object! Which is why we need to repair it
         # in the finally block
         type(module).__call__ = torch.nn.Module.__call__
-
         module._local_parameters = None
         module._logger = None
         module._placement = None
@@ -1164,13 +1163,14 @@ class PtActions(Actions):
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
         """
-        PtActions.__module_export(
-            module=module,
-            output=output,
-            d_format=d_format,
-            input_example=input_example,
-            output_example=output_example,
-            logger=logger)
+        with torch.no_grad():
+            PtActions.__module_export(
+                module=module,
+                output=output,
+                d_format=d_format,
+                input_example=input_example,
+                output_example=output_example,
+                logger=logger)
 
     def train(self,
               tensors_to_optimize,
