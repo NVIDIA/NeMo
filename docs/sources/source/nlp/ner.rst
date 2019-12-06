@@ -65,59 +65,68 @@ If you're using a standard BERT model, you should do it as follows. To see the f
 
 See examples/nlp/token_classification.py on how to use a BERT model that you pre-trained yourself.
 Now, create the train and evaluation data layers:
-    .. code-block:: python
-    train_data_layer = nemo_nlp.BertTokenClassificationDataLayer(
-        tokenizer=tokenizer,
-        text_file=os.path.join(DATA_DIR, 'text_train.txt'),
-        label_file=os.path.join(DATA_DIR, 'labels_train.txt'),
-        max_seq_length=MAX_SEQ_LENGTH,
-        batch_size=BATCH_SIZE)
 
-    eval_data_layer = nemo_nlp.BertTokenClassificationDataLayer(
-        tokenizer=tokenizer,
-        text_file=os.path.join(DATA_DIR, 'text_dev.txt'),
-        label_file=os.path.join(DATA_DIR, 'labels_dev.txt'),
-        max_seq_length=MAX_SEQ_LENGTH,
-        batch_size=BATCH_SIZE,
-        label_ids=label_ids)
+    .. code-block:: python
+    
+        train_data_layer = nemo_nlp.BertTokenClassificationDataLayer(
+            tokenizer=tokenizer,
+            text_file=os.path.join(DATA_DIR, 'text_train.txt'),
+            label_file=os.path.join(DATA_DIR, 'labels_train.txt'),
+            max_seq_length=MAX_SEQ_LENGTH,
+            batch_size=BATCH_SIZE)
+
+        eval_data_layer = nemo_nlp.BertTokenClassificationDataLayer(
+            tokenizer=tokenizer,
+            text_file=os.path.join(DATA_DIR, 'text_dev.txt'),
+            label_file=os.path.join(DATA_DIR, 'labels_dev.txt'),
+            max_seq_length=MAX_SEQ_LENGTH,
+            batch_size=BATCH_SIZE,
+            label_ids=label_ids)
 
 We need to create the classifier to sit on top of the pretrained model and define the loss function:
-    .. code-block:: python
-    label_ids = train_data_layer.dataset.label_ids
-    num_classes = len(label_ids)
 
-    hidden_size = bert_model.local_parameters["hidden_size"]
-    ner_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
+    .. code-block:: python
+
+        label_ids = train_data_layer.dataset.label_ids
+        num_classes = len(label_ids)
+
+        hidden_size = bert_model.local_parameters["hidden_size"]
+        ner_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
                                               num_classes=num_classes,
                                               dropout=CLASSIFICATION_DROPOUT)
 
-    ner_loss = nemo_nlp.TokenClassificationLoss(d_model=hidden_size,
+        ner_loss = nemo_nlp.TokenClassificationLoss(d_model=hidden_size,
                                                 num_classes=len(label_ids),
                                                 dropout=CLASSIFICATION_DROPOUT)
 
 Now, create the train and evaluation datasets:
 
-.. code-block:: python
-    input_ids, input_type_ids, input_mask, loss_mask, _, labels = train_data_layer()
+    .. code-block:: python
 
-    hidden_states = bert_model(input_ids=input_ids,
+        input_ids, input_type_ids, input_mask, loss_mask, _, labels = train_data_layer()
+
+        hidden_states = bert_model(input_ids=input_ids,
                                token_type_ids=input_type_ids,
                                attention_mask=input_mask)
 
-    logits = ner_classifier(hidden_states=hidden_states)
-    loss = ner_loss(logits=logits, labels=labels, loss_mask=loss_mask)
+        logits = ner_classifier(hidden_states=hidden_states)
+        loss = ner_loss(logits=logits, labels=labels, loss_mask=loss_mask)
 
 
-    eval_input_ids, eval_input_type_ids, eval_input_mask, _, eval_subtokens_mask, eval_labels \
-    = eval_data_layer()
+        eval_input_ids, eval_input_type_ids, eval_input_mask, _, eval_subtokens_mask, eval_labels \
+        = eval_data_layer()
 
-    hidden_states = bert_model(
-        input_ids=eval_input_ids,
-        token_type_ids=eval_input_type_ids,
-        attention_mask=eval_input_mask)
+        hidden_states = bert_model(
+            input_ids=eval_input_ids,
+            token_type_ids=eval_input_type_ids,
+            attention_mask=eval_input_mask)
 
-    eval_logits = ner_classifier(hidden_states=hidden_states)
+        eval_logits = ner_classifier(hidden_states=hidden_states)
 
+    .. code-block:: python
+
+        train_tensors, train_loss, steps_per_epoch, label_ids, _ = create_pipeline()
+        eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev')
 
 Now, we will set up our callbacks. We will use 3 callbacks:
 
@@ -158,7 +167,6 @@ Finally, we will define our learning rate policy and our optimizer, and start tr
 
     .. code-block:: python
 
-        
         lr_policy = WarmupAnnealing(NUM_EPOCHS * steps_per_epoch,
                             warmup_ratio=LR_WARMUP_PROPORTION)
 
@@ -170,7 +178,7 @@ Finally, we will define our learning rate policy and our optimizer, and start tr
                                       "lr": LEARNING_RATE})
 
 To train NEW with BERT using the provided scripts
------------------------
+-------------------------------------------------
 
 To run the provided training script:
 
