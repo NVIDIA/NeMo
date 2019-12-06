@@ -190,18 +190,22 @@ def main():
     )
 
     if args.test_after_training:
-        nf.logger("Testing greedy and beam search with LM WER.")
+        nf.logger.info("Testing greedy and beam search with LM WER.")
         # Create BeamSearch NM
-        beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
-            vocab=vocab,
-            beam_width=64,
-            alpha=2.,
-            beta=1.5,
-            lm_path=args.lm,
-            num_cpus=max(os.cpu_count(), 1))
-        beam_predictions = beam_search_with_lm(
-            log_probs=log_probs_e, log_probs_length=encoded_len_e)
-        eval_tensors.append(beam_predictions)
+        if nf.world_size > 1:
+            nf.logger.warning("Skipping beam search WER as it does not work "
+                              "if doing distributed training.")
+        else:
+            beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
+                vocab=vocab,
+                beam_width=64,
+                alpha=2.,
+                beta=1.5,
+                lm_path=args.lm,
+                num_cpus=max(os.cpu_count(), 1))
+            beam_predictions = beam_search_with_lm(
+                log_probs=log_probs_e, log_probs_length=encoded_len_e)
+            eval_tensors.append(beam_predictions)
 
         evaluated_tensors = nf.infer(eval_tensors)
         greedy_hypotheses = post_process_predictions(
@@ -215,21 +219,22 @@ def main():
             "Final eval greedy WER {:.2f}% > than {:.2f}%".format(
                 wer*100, wer_thr*100))
 
-        beam_hypotheses = []
-        # Over mini-batch
-        for i in evaluated_tensors[-1]:
-            # Over samples
-            for j in i:
-                beam_hypotheses.append(j[0][1])
+        if nf.world_size == 1:
+            beam_hypotheses = []
+            # Over mini-batch
+            for i in evaluated_tensors[-1]:
+                # Over samples
+                for j in i:
+                    beam_hypotheses.append(j[0][1])
 
-        beam_wer = word_error_rate(
-            hypotheses=beam_hypotheses, references=references)
-        nf.logger.info("Beam WER {:.2f}%".format(beam_wer * 100))
-        assert beam_wer <= beam_wer_thr, (
-            "Final eval beam WER {:.2f}%  > than {:.2f}%".format(
-                beam_wer*100, beam_wer_thr*100))
-        assert beam_wer <= wer, (
-            "Final eval beam WER > than the greedy WER.")
+            beam_wer = word_error_rate(
+                hypotheses=beam_hypotheses, references=references)
+            nf.logger.info("Beam WER {:.2f}%".format(beam_wer * 100))
+            assert beam_wer <= beam_wer_thr, (
+                "Final eval beam WER {:.2f}%  > than {:.2f}%".format(
+                    beam_wer*100, beam_wer_thr*100))
+            assert beam_wer <= wer, (
+                "Final eval beam WER > than the greedy WER.")
 
         # Reload model weights and train for extra 10 epochs
         checkpointer_callback = nemo.core.CheckpointCallback(
