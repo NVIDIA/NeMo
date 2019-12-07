@@ -38,7 +38,7 @@ logger = get_logger('')
 def get_features(queries,
                  max_seq_length,
                  tokenizer,
-                 label_ids,
+                 label_ids=None,
                  pad_label='O',
                  raw_labels=None,
                  ignore_extra_tokens=False,
@@ -52,7 +52,8 @@ def get_features(queries,
         by default, it's the neutral label.
     raw_labels (list of str): list of labels for every word in a sequence
     label_ids (dict): dict to map labels to label ids. Starts
-        with pad_label->0 and then increases in alphabetical order
+        with pad_label->0 and then increases in alphabetical order.
+        Required for training and evaluation, not needed for inference.
     ignore_extra_tokens (bool): whether to ignore extra tokens in
         the loss_mask,
     ignore_start_end (bool): whether to ignore bos and eos tokens in
@@ -88,7 +89,7 @@ def get_features(queries,
             subtokens.extend(word_tokens)
 
             loss_mask.append(1)
-            loss_mask.extend([not ignore_extra_tokens] *
+            loss_mask.extend([int(not ignore_extra_tokens)] *
                              (len(word_tokens) - 1))
 
             subtokens_mask.append(1)
@@ -220,8 +221,12 @@ class BertTokenClassificationDataset(Dataset):
         if use_cache:
             # Cache features
             data_dir = os.path.dirname(text_file)
-            filename = os.path.basename(text_file)[:-4]
-            features_pkl = os.path.join(data_dir, filename + "_features.pkl")
+            filename = os.path.basename(text_file)
+
+            if not filename.endswith('.txt'):
+                raise ValueError("{text_file} should have extension .txt")
+
+            features_pkl = os.path.join(data_dir, filename[:-4] + "_features.pkl")
             label_ids_pkl = os.path.join(data_dir, "label_ids.pkl")
 
         if use_cache and \
