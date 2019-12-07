@@ -600,6 +600,7 @@ class NeuralModuleFactory(object):
               synced_batchnorm=False,
               synced_batchnorm_groupsize=0,
               gradient_predivide=False,
+              amp_max_loss_scale=2.**24,
               reset=False):
         if reset:
             self.reset_trainer()
@@ -613,7 +614,8 @@ class NeuralModuleFactory(object):
             stop_on_nan_loss=stop_on_nan_loss,
             synced_batchnorm=synced_batchnorm,
             synced_batchnorm_groupsize=synced_batchnorm_groupsize,
-            gradient_predivide=gradient_predivide)
+            gradient_predivide=gradient_predivide,
+            amp_max_loss_scale=amp_max_loss_scale)
 
     def eval(self,
              callbacks: List[EvaluatorCallback]):
