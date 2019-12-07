@@ -226,7 +226,8 @@ class BertTokenClassificationDataset(Dataset):
             if not filename.endswith('.txt'):
                 raise ValueError("{text_file} should have extension .txt")
 
-            features_pkl = os.path.join(data_dir, filename[:-4] + "_features.pkl")
+            features_pkl = os.path.join(data_dir,
+                                        filename[:-4] + "_features.pkl")
             label_ids_pkl = os.path.join(data_dir, "label_ids.pkl")
 
         if use_cache and \
