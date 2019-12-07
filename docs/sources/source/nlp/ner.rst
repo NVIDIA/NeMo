@@ -51,6 +51,7 @@ First, we need to create our neural factory with the supported backend. How you 
         nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                            local_rank=None,
                                            optimization_level="O0",
+                                           log_dir="output_ner",
                                            create_tb_writer=True)
 
 Next, we'll need to define our tokenizer and our BERT model. There are a couple of different ways you can do this. Keep in mind that NER benefits from casing ("New York City" is easier to identify than "new york city"), so we recommend you use cased models.
@@ -75,6 +76,9 @@ Now, create the train and evaluation data layers:
             max_seq_length=MAX_SEQ_LENGTH,
             batch_size=BATCH_SIZE)
 
+        label_ids = train_data_layer.dataset.label_ids
+        num_classes = len(label_ids)
+
         eval_data_layer = nemo_nlp.BertTokenClassificationDataLayer(
             tokenizer=tokenizer,
             text_file=os.path.join(DATA_DIR, 'text_dev.txt'),
@@ -87,16 +91,13 @@ We need to create the classifier to sit on top of the pretrained model and defin
 
     .. code-block:: python
 
-        label_ids = train_data_layer.dataset.label_ids
-        num_classes = len(label_ids)
-
         hidden_size = bert_model.local_parameters["hidden_size"]
         ner_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
                                               num_classes=num_classes,
                                               dropout=CLASSIFICATION_DROPOUT)
 
         ner_loss = nemo_nlp.TokenClassificationLoss(d_model=hidden_size,
-                                                num_classes=len(label_ids),
+                                                num_classes=num_classes,
                                                 dropout=CLASSIFICATION_DROPOUT)
 
 Now, create the train and evaluation datasets:
@@ -123,27 +124,11 @@ Now, create the train and evaluation datasets:
 
         eval_logits = ner_classifier(hidden_states=hidden_states)
 
-    .. code-block:: python
-
-        train_tensors, train_loss, steps_per_epoch, label_ids, _ = create_pipeline()
-        eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev')
-
 Now, we will set up our callbacks. We will use 3 callbacks:
 
 * `SimpleLossLoggerCallback` to print loss values during training
 * `EvaluatorCallback` to evaluate our F1 score on the dev dataset. In this example, `EvaluatorCallback` will also output predictions to `output.txt`, which can be helpful with debugging what our model gets wrong.
 * `CheckpointCallback` to save and restore checkpoints.
-
-.. tip::
-    
-    Tensorboard_ is a great debugging tool. It's not a requirement for this tutorial, but if you'd like to use it, you should install tensorboardX_ and run the following command during fine-tuning:
-
-    .. code-block:: bash
-    
-        tensorboard --logdir bert_ner_tb
-
-.. _Tensorboard: https://www.tensorflow.org/tensorboard
-.. _tensorboardX: https://github.com/lanpa/tensorboardX
 
     .. code-block:: python
 
@@ -163,6 +148,11 @@ Now, we will set up our callbacks. We will use 3 callbacks:
             user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, label_ids),
             eval_step=steps_per_epoch)
 
+        ckpt_callback = nemo.core.CheckpointCallback(
+            folder=nf.checkpoint_dir,
+            epoch_freq=1,
+            step_freq=-1)
+
 Finally, we will define our learning rate policy and our optimizer, and start training.
 
     .. code-block:: python
@@ -171,13 +161,24 @@ Finally, we will define our learning rate policy and our optimizer, and start tr
                             warmup_ratio=LR_WARMUP_PROPORTION)
 
         nf.train(tensors_to_optimize=[train_loss],
-                 callbacks=[train_callback, eval_callback],
+                 callbacks=[train_callback, eval_callback, ckpt_callback],
                  lr_policy=lr_policy,
                  optimizer=OPTIMIZER,
                  optimization_params={"num_epochs": NUM_EPOCHS,
                                       "lr": LEARNING_RATE})
 
-To train NEW with BERT using the provided scripts
+.. tip::
+    
+    Tensorboard_ is a great debugging tool. It's not a requirement for this tutorial, but if you'd like to use it, you should install tensorboardX_ and run the following command during fine-tuning:
+
+    .. code-block:: bash
+    
+        tensorboard --logdir output_ner/tensorboard
+
+.. _Tensorboard: https://www.tensorflow.org/tensorboard
+.. _tensorboardX: https://github.com/lanpa/tensorboardX
+
+To train NER with BERT using the provided scripts
 -------------------------------------------------
 
 To run the provided training script:
@@ -198,7 +199,7 @@ Note, label_ids.csv file will be generated during training and stored in the dat
 Using Other BERT Models
 -----------------------
 
-In addition to using pre-trained BERT models from Google and BERT models that you've trained yourself, in NeMo it's possible to use other third-party BERT models as well, as long as the weights were exported with PyTorch. For example, if you want to fine-tune an NER task with SciBERT_...
+In addition to using pre-trained BERT models from Google and BERT models that you've trained yourself, in NeMo it's possible to use other third-party BERT models as well, as long as the weights were exported with PyTorch. For example, if you want to fine-tune an NER task with SciBERT_.
 
 .. _SciBERT: https://github.com/allenai/scibert
 
