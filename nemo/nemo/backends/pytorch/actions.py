@@ -386,7 +386,8 @@ class PtActions(Actions):
         return optimizer
 
     def __initialize_amp(
-            self, optimizer, optim_level, amp_min_loss_scale=1.0
+            self, optimizer, optim_level,
+            amp_max_loss_scale=2.**24, amp_min_loss_scale=1.0
     ):
         if optim_level not in AmpOptimizations:
             raise ValueError(f"__initialize_amp() was called with unknown "
@@ -406,6 +407,7 @@ class PtActions(Actions):
                 pt_modules.append(module._pt_module)
 
         _, optimizer = amp.initialize(
+            max_loss_scale=amp_max_loss_scale,
             min_loss_scale=amp_min_loss_scale,
             models=pt_modules,
             optimizers=optimizer,
@@ -1153,6 +1155,8 @@ class PtActions(Actions):
             d_format (DeploymentFormat): which deployment format to use
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
+            amp_max_loss_scale (float): Max value for amp loss scaling.
+                Defaults to 2.0**24.
         """
         PtActions.__module_export(
             module=module,
@@ -1172,7 +1176,8 @@ class PtActions(Actions):
               stop_on_nan_loss=False,
               synced_batchnorm=False,
               synced_batchnorm_groupsize=0,
-              gradient_predivide=False):
+              gradient_predivide=False,
+              amp_max_loss_scale=2.**24):
         if not optimization_params:
             optimization_params = {}
         num_epochs = optimization_params.get("num_epochs", None)
@@ -1290,6 +1295,7 @@ class PtActions(Actions):
             self.optimizers = self.__initialize_amp(
                 optimizer=self.optimizers,
                 optim_level=self._optim_level,
+                amp_max_loss_scale=amp_max_loss_scale,
                 amp_min_loss_scale=optimization_params.get(
                     'amp_min_loss_scale', 1.0))
             # Use stored mapping to map amp_init opts to training loop

@@ -1,6 +1,8 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import argparse
 import copy
+from functools import partial
+import math
 import os
 
 from ruamel.yaml import YAML
@@ -31,7 +33,9 @@ def create_dags(jasper_params, args, nf):
     )
 
     num_samples = len(data_layer)
-    total_steps = int(num_samples * args.num_epochs / args.batch_size)
+    steps_per_epoch = math.ceil(
+        num_samples / (args.batch_size * args.iter_per_step * nf.world_size))
+    total_steps = steps_per_epoch * args.num_epochs
     print("Train samples=", num_samples, "num_steps=", total_steps)
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
@@ -95,7 +99,10 @@ def create_dags(jasper_params, args, nf):
     # Callbacks to print info to console and Tensorboard
     train_callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[loss, predictions, transcript, transcript_len],
-        print_func=lambda x: monitor_asr_train_progress(x, labels=vocab),
+        print_func=partial(
+            monitor_asr_train_progress,
+            labels=vocab,
+            logger=nf.logger),
         get_tb_values=lambda x: [["loss", x[0]]],
         tb_writer=nf.tb_writer,
     )
@@ -106,9 +113,12 @@ def create_dags(jasper_params, args, nf):
     eval_tensors = [loss_e, predictions_e, transcript_e, transcript_len_e]
     eval_callback = nemo.core.EvaluatorCallback(
         eval_tensors=eval_tensors,
-        user_iter_callback=lambda x, y: process_evaluation_batch(
-            x, y, labels=vocab),
-        user_epochs_done_callback=process_evaluation_epoch,
+        user_iter_callback=partial(
+            process_evaluation_batch,
+            labels=vocab),
+        user_epochs_done_callback=partial(
+            process_evaluation_epoch,
+            logger=nf.logger),
         eval_step=args.eval_freq,
         tb_writer=nf.tb_writer)
     callbacks = [train_callback, checkpointer_callback, eval_callback]
@@ -141,7 +151,7 @@ def main():
         work_dir="./tmp",
         optimizer="novograd",
         num_epochs=50,
-        batch_size=64,
+        batch_size=48,
         eval_batch_size=64,
         lr=0.02,
         weight_decay=0.005,
@@ -179,7 +189,7 @@ def main():
         tensors_to_optimize=[loss],
         callbacks=callbacks,
         optimizer=args.optimizer,
-        lr_policy=CosineAnnealing(total_steps=total_steps),
+        lr_policy=CosineAnnealing(total_steps=total_steps, min_lr=args.lr/100),
         optimization_params={
             "num_epochs": args.num_epochs,
             "max_steps": args.max_steps,
@@ -188,7 +198,9 @@ def main():
             "betas": betas,
             "weight_decay": args.weight_decay,
             "grad_norm_clip": None},
-        batches_per_step=args.iter_per_step
+        batches_per_step=args.iter_per_step,
+        amp_max_loss_scale=256.,
+        # synced_batchnorm=(nf.global_rank is not None),
     )
 
     if args.test_after_training:
@@ -248,6 +260,8 @@ def main():
 
         # Distributed Data Parallel changes the underlying class so we need
         # to reinstantiate Encoder and Decoder
+        args.num_epochs += 10
+        previous_step_count = total_steps
         loss, eval_tensors, callbacks, total_steps, vocab, _, _ = create_dags(
             jasper_params, args, nf)
 
@@ -256,14 +270,18 @@ def main():
             tensors_to_optimize=[loss],
             callbacks=callbacks,
             optimizer=args.optimizer,
+            lr_policy=CosineAnnealing(
+                warmup_steps=previous_step_count, total_steps=total_steps),
             optimization_params={
-                "num_epochs": args.num_epochs + 10,
-                "lr": args.lr,
+                "num_epochs": args.num_epochs,
+                "lr": args.lr/100,
                 "momentum": args.momentum,
                 "betas": betas,
                 "weight_decay": args.weight_decay,
                 "grad_norm_clip": None},
-            reset=True
+            reset=True,
+            amp_max_loss_scale=256.,
+            # synced_batchnorm=(nf.global_rank is not None),
         )
 
         evaluated_tensors = nf.infer(eval_tensors)
@@ -278,8 +296,8 @@ def main():
             if wer_new > wer * 1.1:
                 nf.sync_all_processes(False)
                 raise ValueError(
-                    f"Fine tuning: new WER {wer * 100:.2f}% > than the "
-                    f"previous WER {wer_new * 100:.2f}%")
+                    f"Fine tuning: new WER {wer_new* 100:.2f}% > than the "
+                    f"previous WER {wer * 100:.2f}%")
         nf.sync_all_processes()
 
         # Open the log file and ensure that epochs is strictly increasing
