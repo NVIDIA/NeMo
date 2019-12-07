@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="nemo_tts",
-    version="0.9",
+    version="0.9.0",
     author="NVIDIA",
     author_email="nemo-toolkit@nvidia.com",
     description="Collection of Neural Modules for Speech Synthesis",
