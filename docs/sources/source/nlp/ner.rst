@@ -219,7 +219,3 @@ And then, when you load your BERT model, you should specify the name of the dire
     tokenizer = NemoBertTokenizer(pretrained_model="scibert_scivocab_cased")
     bert_model = nemo_nlp.huggingface.BERT(
         pretrained_model_name="scibert_scivocab_cased")
-
-If you want to use a TensorFlow-based model, such as BioBERT, you should be able to use it in NeMo by first using this `model conversion script`_ provided by Hugging Face.
-
-.. _model conversion script: https://github.com/huggingface/transformers/blob/master/transformers/convert_bert_original_tf_checkpoint_to_pytorch.py
