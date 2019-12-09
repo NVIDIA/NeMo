@@ -40,13 +40,13 @@ AudioToMelSpectrogramPreprocessor:
     log_zero_guard_type: "clamp"
     log_zero_guard_value: 1.0e-5
 
+TextEmbedding:
+    symbols_embedding_dim: *enc_emb_dim
+
 Tacotron2Encoder:
     encoder_kernel_size: 5
     encoder_n_convolutions: 3
     encoder_embedding_dim: &enc_emb_dim 512
-
-TextEmbedding:
-    symbols_embedding_dim: *enc_emb_dim
 
 Tacotron2Decoder:
     n_mel_channels: *n_mels
