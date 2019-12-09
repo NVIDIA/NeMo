@@ -100,6 +100,7 @@ text.txt 每一行包含文本序列，其中词以空格来进行分隔。label
         ner_loss = nemo_nlp.TokenClassificationLoss(d_model=hidden_size,
                                                 num_classes=len(label_ids),
                                                 dropout=CLASSIFICATION_DROPOUT)
+
 现在，创建训练和验证集合:
 
     .. code-block:: python
