@@ -16,7 +16,7 @@
     您还可以不安装这些依赖，直接使用 `英伟达的 PyTorch 镜像 <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ .
     在该镜像中，所有的依赖都已提前为您安装好。方便您直接使用。
 
-**安装 NeMo 及其 Collections **
+**安装 NeMo 及其 Collections**
 
 1) 克隆代码库：
 
@@ -26,7 +26,7 @@
 
 2) 切换到 ``nemo`` 文件夹并运行： ``python setup.py install``
 
-3) 安装 collections 
+3) 安装 collections
 
    a) ASR: 进入 ``collections/nemo_asr`` 文件夹并运行 ``sudo apt-get install libsndfile1 && python setup.py install``
    b) NLP: 进入 ``collections/nemo_nlp`` 文件夹并运行 ``python setup.py install``

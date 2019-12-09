@@ -16,10 +16,8 @@
 .. important::
     混合精度训练需要 Tensor Cores 的硬件支持，因此当前只在英伟达的 Volta 或者 Turing GPU 上有支持。
 
-
-
 多 GPU 训练
-~~~~~~~~~
+~~~~~~~~~~~
 
 进行多 GPU 训练需要进行如下设置：
 

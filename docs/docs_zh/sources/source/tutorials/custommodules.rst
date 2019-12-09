@@ -1,8 +1,8 @@
 如何构建神经模块
-==========================
+================
 
 .. note::
-    目前，NeMo只支持Pytorch作为后端
+    目前，NeMo只支持PyTorch作为后端
 
 神经模块根据概念可以分成4个有重叠的类目:
 
@@ -33,8 +33,7 @@
 
 (1) 首先继承 :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` 类。
 (2) 创建 ``create_ports()`` 静态方法，定义输入输出端口
-    如果你的 ``create_ports()`` 方法需要一些参数，把它作为 ``create_port_args`` 
-    的部分参数传递给基类的构造函数。
+    如果你的 ``create_ports()`` 方法需要一些参数，把它作为 ``create_port_args`` 的部分参数传递给基类的构造函数。
 
 .. code-block:: python
 
@@ -57,7 +56,7 @@
     你的 ``forward`` 方法的输入参数名必须匹配你的模块的输入的输入端口名。
 
 例子 1
-~~~~~~~~~
+~~~~~~
 
 .. code-block:: python
 
@@ -90,12 +89,10 @@
             nx = t.cat(lst, dim=-1)
             return self.fc1(nx)
 
-
-
 转换PyTorch的nn.Module
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
-(1) 如果你已经有PyTorch的类继承自 ``torch.nn.Module``，把那个继承改成继承
+(1) 如果你已经有PyTorch的类继承自 ``torch.nn.Module`` ，把那个继承改成继承
     :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` 类。
 (2) 创建 ``create_ports()`` 静态方法
 (3) 修改构造函数，首先调用基类构造函数
@@ -115,27 +112,25 @@
 (4) 修改 ``forward`` 方法，使得它的输入参数和你的输入端口名字匹配。
 
 数据层模块
-------------------------
+----------
 (1) 继承自 :class:`DataLayerNM<nemo.backends.pytorch.nm.DataLayerNM>` 类。
 (2) 实现 ``__len__`` 方法，返回数据集大小
 (3) 实现 ``dataset`` 或者 ``data_iterator`` 属性，返回一个PyTorch数据集对象或者你的数据集的迭代器。(没有使用的属性应该返回None)
 
-当实现构造函数的时候，你首先要调用基类构造函数，并且定义
-在create_ports()定义*仅输出端口* 。另外，模块应该接收像是
-``batch_size`` 和 ``shuffle``的参数。
+当实现构造函数的时候，你首先要调用基类构造函数，并且定义在create_ports()定义 *仅输出端口* 。
+另外，模块应该接收像是 ``batch_size`` 和 ``shuffle`` 的参数。
 
 如果你使用了 ``torch.utils.data.Dataset`` 类 (*推荐方法*)，接着你可以实现 ``dataset`` 属性，一个数据加载器就会自动给你创建。
 (见下面的例子).
 
 例子
-~~~~~~~
+~~~~
 
 这个例子把PyTorch的 *ImageFolder* 数据集封装成一个神经模块的数据层。
 
-
 .. code-block:: python
-  
-    import torch 
+
+    import torch
     import torchvision
     import torchvision.transforms as transforms, datasets
 
@@ -184,13 +179,12 @@
 
 
 损失函数神经模块
-------------------
+----------------
 
 (1) 继承自 :class:`LossNM<nemo.backends.pytorch.nm.LossNM>` 类
 (2) 创建create_ports()方法
 (3) 在构造函数里调用基类构造函数
 (4) 实现 :meth:`_loss_function<nemo.backends.pytorch.nm.LossNM._loss_function>` 方法。
-
 
 Example
 ~~~~~~~
