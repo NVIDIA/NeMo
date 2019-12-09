@@ -1,7 +1,7 @@
 教程
 ====
 
-在这个教程中，我们将使用 BERT 模型，来实现一个意图识别 (intent classification) 和槽填充 (slot filling) 混合系统，参考自 `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`chen2019bert` 。本教程中所有的代码全部来自 ``examples/nlp/joint_intent_slot_with_bert.py`` 。
+在这个教程中，我们将使用 BERT 模型，来实现一个意图识别 (intent classification) 和槽填充 (slot filling) 混合系统，参考自 `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`nlp-slot-chen2019bert` 。本教程中所有的代码全部来自 ``examples/nlp/joint_intent_slot_with_bert.py`` 。
 
 我们可以使用 `--pretrained_bert_model` 这个参数，来选择四个预训练好的 BERT 模型。当前，我们使用的加载预训练模型的脚本均来自 `pytorch_transformers` 。更多预训练好的模型在 `这里 <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__ 。
 
@@ -15,7 +15,7 @@
 
 当 `intent_loss_weight = 0.5` 时，它等价于最大化:
 
-        p(y|x) p(s1, s2, ..., sn|x)
+        p(y | x)P(s1, s2, ..., sn | x)
 
 这里 x 是一个有 n 个符号串的序列 (x1, x2, ..., xn)， y 是 x 预测出的意图，s1, s2, ..., sn 是对应于 x1, x2, ..., xn 预测出的槽。
 
@@ -26,11 +26,7 @@
     * 输入文件: 一个 `tsv` 文件，第一行为 [sentence][tab][label]
     * 槽文件: 句子中所有符号串的槽标注，使用空格分隔。槽标注的数量需要与句子中所有符号串的数量保持一致。
 
-当前，我们提供多个数据集合的预处理脚本，包括:
-
-    * ATIS 可以通过 `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ 进行下载
-    * SNIP 对话语言理解数据集，可以通过 `这里 <https://github.com/snipsco/spoken-language-understanding-research-datasets>`_ 获取。
-
+当前，我们提供多个数据集合的预处理脚本，包括: ATIS 可以通过 `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ 进行下载;SNIP 对话语言理解数据集，可以通过 `这里 <https://github.com/snipsco/spoken-language-understanding-research-datasets>`_ 获取。
 预处理脚本在 ``collections/nemo_nlp/nemo_nlp/text_data_utils.py`` 。
 
 代码结构
@@ -63,7 +59,8 @@
 
     .. code-block:: python
 
-        data_desc = JointIntentSlotDataDesc(args.dataset_name, args.data_dir, args.do_lower_case)
+        data_desc = JointIntentSlotDataDesc(
+            args.dataset_name, args.data_dir, args.do_lower_case)
 
     * 数据集: 将数据转换成 `DataLayerNM` 可以接收的格式.
 
@@ -204,5 +201,7 @@
 参考文献
 --------
 
-.. bibliography:: joint_intent_slot.bib
+.. bibliography:: nlp_all.bib
     :style: plain
+    :labelprefix: NLP-SLOT
+    :keyprefix: nlp-slot-
