@@ -1,5 +1,6 @@
 model: "Tacotron 2 Mandarin"
 sample_rate: &sr 22050
+# <PAD>, <BOS>, <EOS> will be added by the tacotron2.py script
 labels: [' ', '!', ',', '.', '?', 'a', 'b', 'c',
         'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
         'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
@@ -38,6 +39,9 @@ AudioToMelSpectrogramPreprocessor:
     mag_power: 1.
     log_zero_guard_type: "clamp"
     log_zero_guard_value: 1.0e-5
+
+TextEmbedding:
+    symbols_embedding_dim: *enc_emb_dim
 
 Tacotron2Encoder:
     encoder_kernel_size: 5
