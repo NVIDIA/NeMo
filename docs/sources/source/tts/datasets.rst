@@ -27,7 +27,7 @@ consists of a single female, Mandarin speaker. It contains approximately 12 hour
 by Databaker (Beijing) Technology Co.,Ltd. Support non-commercial use only.
 
 Obtaining and prepocessing the data for NeMo can be done with
-`our helper script <https://github.com/NVIDIA/NeMo/blob/master/scripts/get_databaker_data.py>`_:
+`helper script <https://github.com/NVIDIA/NeMo/blob/master/scripts/get_databaker_data.py>`_:
 
 .. code-block:: bash
 
