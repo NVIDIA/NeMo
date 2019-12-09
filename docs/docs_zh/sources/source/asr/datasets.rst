@@ -58,7 +58,7 @@ Fisher English Training Speech
       ├── fe_03_p2_sph3
       └── ...
 
-文本位于 `fe_03_p<1,2>_transcripts/data/trans`，音频文件 .sph 位于 `audio` 子目录下的剩下目录中。
+文本位于 `fe_03_p<1,2>_transcripts/data/trans` ，音频文件 .sph 位于 `audio` 子目录下的剩下目录中。
 
 首先，把音频文件从 .sph 转换成 .wav：
 
@@ -68,7 +68,7 @@ Fisher English Training Speech
   python fisher_audio_to_wav.py \
     --data_root=<fisher_root> --dest_root=<conversion_target_dir>
 
-这个脚本会把未切分的 .wav 文件放到 `<conversion_target_dir>/LDC200[4,5]S13-Part[1,2]/audio-wav/`。
+这个脚本会把未切分的 .wav 文件放到 `<conversion_target_dir>/LDC200[4,5]S13-Part[1,2]/audio-wav/` 。
 需要运行几分钟。
 
 接着，处理文本和切分音频数据：

@@ -2,12 +2,12 @@
 ====
 
 在这个教程中，我们会训练一个后处理模型来纠正端到端语音识别模型的输出错误。这个模型类似于一个翻译模型，但和传统语音识别中的二次打分模型不太一样。
-这个模型的架构是基于注意力机制的编码器解码器架构，其中编码器和解码器都是用BERT的预训练语言模型初始化的。为了训练这个模型，我们用预训练的 Jasper 语音识别模型 :cite:`li2019jasper` 产生的错误来收集数据集。
+这个模型的架构是基于注意力机制的编码器解码器架构，其中编码器和解码器都是用BERT的预训练语言模型初始化的。为了训练这个模型，我们用预训练的 Jasper 语音识别模型 :cite:`asr-imps-li2019jasper` 产生的错误来收集数据集。
 
 数据
 ----
 
-**数据收集** 我们用 Jasper :cite:`li2019jasper` 在 Librispeech 数据集 :cite:`panayotov2015librispeech` 上训练的模型为这个任务收集数据集。
+**数据收集** 我们用 Jasper :cite:`asr-imps-li2019jasper` 在 Librispeech 数据集 :cite:`asr-imps-panayotov2015librispeech`  上训练的模型为这个任务收集数据集。
 下载 Librispeech 数据集, 参考 :ref:`LibriSpeech_dataset` 。
 获得 Jasper 预训练模型, 参考 :ref:`Jasper_model` 。
 Librispeech 训练数据集包含三个部分: train-clean-100, train-clean-360, 和 train-clean-500 总共281000个训练样本。
@@ -67,6 +67,14 @@ Librispeech 训练数据集包含三个部分: train-clean-100, train-clean-360,
             pretrained_model_name=args.pretrained_model,
             local_rank=args.local_rank)
 
+
+    .. tip::
+
+        让词嵌入的大小（包括其他的张量维度）能够整除8可以得到最好的GPU利用率和混精度训练加速。
+
+
+    .. code-block:: python
+
         vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
         tokens_to_add = vocab_size - tokenizer.vocab_size
 
@@ -76,11 +84,8 @@ Librispeech 训练数据集包含三个部分: train-clean-100, train-clean-360,
         encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
             (encoder.bert.embeddings.word_embeddings.weight.data, zeros))
 
-    .. tip::
 
-        让词嵌入的大小（包括其他的张量维度）能够整除8可以得到最好的GPU利用率和混精度训练加速。
-
-接着, 我们构建 Transformer 解码器神经模块. 因为我们会用 BERT 预训练的参数来初始化我们的解码器, 我们设置隐藏层激活函数为 ``"hidden_act": "gelu"`` 以及设置学习位置编码 ``"learn_positional_encodings": True``:
+接着, 我们构建 Transformer 解码器神经模块. 因为我们会用 BERT 预训练的参数来初始化我们的解码器, 我们设置隐藏层激活函数为 ``"hidden_act": "gelu"`` 以及设置学习位置编码 ``"learn_positional_encodings": True`` :
 
     .. code-block:: python
 
@@ -106,7 +111,7 @@ Librispeech 训练数据集包含三个部分: train-clean-100, train-clean-360,
 模型训练
 --------
 
-训练模型，运行 ``asr_postprocessor.py.py`` ，它位于 ``examples/nlp`` 目录中。我们用 novograd 优化器来训练 :cite:`ginsburg2019stochastic`, 设置学习率 ``lr=0.001`` ，多项式学习率衰减策略, ``1000`` 步预热, 每个GPU的 batch size 为 ``4096*8`` 个符号, 以及 ``0.25`` dropout 概率。我们在8块GPU上做训练，可以用下面的方法开启多GPU训练模式:
+训练模型，运行 ``asr_postprocessor.py.py`` ，它位于 ``examples/nlp`` 目录中。我们用 novograd 优化器来训练 :cite:`asr-imps-ginsburg2019stochastic`, 设置学习率 ``lr=0.001`` ，多项式学习率衰减策略, ``1000`` 步预热, 每个GPU的 batch size 为 ``4096*8`` 个符号, 以及 ``0.25`` dropout 概率。我们在8块GPU上做训练，可以用下面的方法开启多GPU训练模式:
 
     .. code-block:: bash
 
@@ -115,5 +120,7 @@ Librispeech 训练数据集包含三个部分: train-clean-100, train-clean-360,
 参考
 ----
 
-.. bibliography:: asr_impr.bib
+.. bibliography:: nlp_all.bib
     :style: plain
+    :labelprefix: ASR-IMPROVEMENTS
+    :keyprefix: asr-imps- 

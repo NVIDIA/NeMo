@@ -66,7 +66,7 @@
     self.assertTrue(self.__check_if_weights_are_equal(tn1.get_weights(),
                                                       tn3.get_weights()))
 
-    # 改变tn1模块中的权重 - 另一个模块中的权重不应该改变
+    # 改变 tn1 模块中的权重 - 另一个模块中的权重不应该改变
     tn1.fc1.bias.data = torch.tensor([0.1])
     self.assertFalse(self.__check_if_weights_are_equal(tn1.get_weights(),
                                                        tn3.get_weights()))

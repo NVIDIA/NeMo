@@ -56,27 +56,72 @@ Neural Modules (NeMo) 是一个用神经模块来构建 AI 应用的工具包，
 
 **开始吧**
 
-如果需要的话，你可以从这个 docker 容器开始 `NGC PyTorch容器 <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ 这里面已经包含了上面所需要的环境。
+你可以从这个 docker 容器开始 `NGC PyTorch容器 <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ 这里面已经包含了上面所需要的环境。
 
-你可以直接运行 ``docker pull nvcr.io/nvidia/pytorch:19.08-py3``
+.. code-block:: bash
 
-接着按照下面的步骤：
+    # pull相应的 docker 容器
+    docker pull nvcr.io/nvidia/pytorch:19.10-py3
 
-1) 克隆这个仓库
-2) 切到 nemo 文件夹下，运行: ``python setup.py install``
+    # 运行下面两个命令之一
+    # 如果你的 docker 版本 <19.03
+    nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.10-py3
+    
+    # 如果你的 docker 版本 >=19.03
+    docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.10-py3
+
+    cd /NeMo
+
+
+接着运行下面的步骤
+
+如果你已经安装了所有依赖（或者使用了 `NGC PyTorch容器 <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ ）
+那么你只要简单的用 pip来安装最新的 NeMo 和 NeMo 集合即可
+
+.. code-block:: bash
+
+    pip install nemo-toolkit  # 安装 NeMo Core
+    pip install nemo-asr # 安装 NeMo asr 集合
+    pip install nemo-nlp # 安装 NeMo nlp 集合
+    pip install nemo-tts # 安装 NeMo tts 集合
+
+**教程**
+
+* `语音识别 <https://nvidia.github.io/NeMo/asr/zh/intro.html>`_
+* `自然语言处理 <https://nvidia.github.io/NeMo/zh/nlp/intro.html>`_
+* `语音合成 <https://nvidia.github.io/NeMo/tts/zh/intro.html>`_
+
+
+**从github上安装**
+
+如果你更想用 NeMo 最新的开发版本（从 github上 获取），请按照下面的步骤：
+
+*Note*: 对于下面的步骤2和3，如果你想在开发模式下用 NeMo，用: ``pip install -e .`` 而不是 ``pip install .``
+
+1) 克隆这个仓库 ``git clone https://github.com/NVIDIA/NeMo.git``
+2) 切到 nemo 文件夹下，安装工具包: 
+
+.. code-block:: bash
+
+    cd NeMo/nemo
+    pip install .
+
 3) 安装 collections:
 
-    * ASR collections `collections/nemo_asr`:
+.. code-block:: bash
 
-        1) ``apt-get install libsndfile1``
-        2) ``python setup.py install``
+    # 从 collections/nemo_asr 下安装 ASR 集合
+    apt-get install libsndfile1
+    cd NeMo/collections/nemo_asr
+    pip install .
 
-    * NLP collections `collections/nemo_nlp`: ``python setup.py install``
-    * TTS collections `collections/nemo_tts`: ``python setup.py install``
+    # 从 collections/nemo_nlp 下安装 NLP 集合
+    cd NeMo/collections/nemo_nlp
+    pip install .
 
-4) 如果要开发，你需要运行: ``python setup.py develop`` 而不是之前步骤3.2中的 ``python setup.py install``
-5) 到 `examples/start_here` 下，从这几个简单的例子开始吧
-
+    # 从 collections/nemo_tts 下安装 TTS 集合
+    cd NeMo/collections/nemo_tts
+    pip install .
 
 **单元测试**
 

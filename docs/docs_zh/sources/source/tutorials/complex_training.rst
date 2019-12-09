@@ -1,17 +1,17 @@
-复杂训练流程（GAN例子）
+复杂训练流程（ GAN 例子）
 ========================================
 
 目前为止，训练样本在所有可训练的神经模块中用了一个优化器来优化一个损失函数。
-NeMo进一步扩充了用例，这些用例会用到多个损失函数和多个优化器。
+NeMo 进一步扩充了用例，这些用例会用到多个损失函数和多个优化器。
 
 .. note::
     我们所有的流程都只支持一个数据层。
 
 多个损失函数
 ---------------
-以我们之前的Hello World为例子。假设我们现在想要优化一个平方误差损失函数和l1损失函数。
+以我们之前的 Hello World 为例子。假设我们现在想要优化一个平方误差损失函数和 l1 损失函数。
 我们可以把这代表着两个损失函数的张量传给
-:meth:`NeuralFactory.train()<nemo.core.neural_factory.NeuralModuleFactory.train>`。
+:meth:`NeuralFactory.train()<nemo.core.neural_factory.NeuralModuleFactory.train>` 。
 下面是一个例子：
 
 .. code-block:: python
@@ -19,7 +19,7 @@ NeMo进一步扩充了用例，这些用例会用到多个损失函数和多个�
     ### 和前面的例子一样 ###
     import nemo
 
-    # 用支持的后端初始化Neural Factory
+    # 用支持的后端初始化 Neural Factory
     nf = nemo.core.NeuralModuleFactory()
 
     # 初始化必要的神经模块
@@ -38,7 +38,7 @@ NeMo进一步扩充了用例，这些用例会用到多个损失函数和多个�
     l1_loss = nemo.tutorials.L1Loss()
     l1_loss_tensor = l1_loss(predictions=p, target=y)
 
-    # SimpleLossLoggerCallback会把损失函数的值打印到控制台
+    # SimpleLossLoggerCallback 会把损失函数的值打印到控制台
     # 更新打印函数加入两个损失函数的张量
     callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[l1_loss_tensor, mse_loss_tensor],
@@ -46,14 +46,14 @@ NeMo进一步扩充了用例，这些用例会用到多个损失函数和多个�
             f'Train Loss: {str(x[0].item() + x[1].item())}')
     )
 
-    # 用两个损失函数张量激活“训练”
+    # 用两个损失函数张量激活“训练”操作
     nf.train([mse_loss_tensor, l1_loss_tensor], callbacks=[callback],
              optimization_params={"num_epochs": 3, "lr": 0.0003},
              optimizer="sgd")
 
 我们可以进一步拓展这个优化器使得每次优化一个损失函数。比如说，我们不想
-根据mse_loss + l1_loss计算梯度，我们想先根据mse_loss计算梯度，做一个
-权重更新，然后根据l1_loss求导，再做另一个权重更新。那么我们必须要定义我们
+根据 mse_loss + l1_loss 计算梯度，我们想先根据 mse_loss 计算梯度，做一个
+权重更新，然后根据 l1_loss 求导，再做另一个权重更新。那么我们必须要定义我们
 的训练循环：
 
 .. code-block:: python
@@ -77,7 +77,7 @@ NeMo进一步扩充了用例，这些用例会用到多个损失函数和多个�
     mse_loss_tensor = mse_loss(predictions=p, target=y)
     l1_loss_tensor = l1_loss(predictions=p, target=y)
 
-    # SimpleLossLoggerCallback把损失函数值打印到控制台
+    # SimpleLossLoggerCallback 把损失函数值打印到控制台
     callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[l1_loss_tensor, mse_loss_tensor],
         print_func=lambda x: print(
@@ -93,7 +93,7 @@ NeMo进一步扩充了用例，这些用例会用到多个损失函数和多个�
         things_to_optimize=[l1_loss_tensor, mse_loss_tensor],
         optimizer_params={"lr": 0.0003})
 
-    # 现在我们定义training_loop,这是一个二元组的list,
+    # 现在我们定义 training_loop,这是一个二元组的 list,
     # 每个二元组有两个元素
     # 第一个是优化器
     # 第二个是我们想要优化的张量
@@ -105,15 +105,15 @@ NeMo进一步扩充了用例，这些用例会用到多个损失函数和多个�
     ]
 
     # 触发"训练"
-    # 注意，我们不在需要传奇优化器，因为我们已经有了一个training_loop
+    # 注意，我们不在需要传奇优化器，因为我们已经有了一个 training_loop
     nf.train(training_loop, callbacks=[callback],
              optimization_params={"num_epochs": 3})
 
 多个优化器和多个损失函数
 ---------------------------------------
-NeMo也支持用户想要定义多个优化器的用例。一个这样的例子是GAN，我们想要给生成器
+NeMo 也支持用户想要定义多个优化器的用例。一个这样的例子是 GAN，我们想要给生成器
 一个优化器，给判别器一个优化器。我们也想要优化不同的损失函数。
-这个是来自examples/images/gan.py下面的支持这种操作的代码：
+这个是来自 examples/images/gan.py 下面的支持这种操作的代码：
 
 .. code-block:: python
 
@@ -131,7 +131,7 @@ NeMo也支持用户想要定义多个优化器的用例。一个这样的例子�
     interpolated_loss = disc_loss(decision=interpolated_decision)
     # Loss 2: 真实图片的损失函数
     real_loss = neg_disc_loss(decision=real_decision)
-    # Loss 3: WGAN梯度惩罚项
+    # Loss 3: WGAN 梯度惩罚项
     grad_penalty = disc_grad_penalty(
         interpolated_image=interpolated_image,
         interpolated_decision=interpolated_decision)
@@ -147,7 +147,7 @@ NeMo也支持用户想要定义多个优化器的用例。一个这样的例子�
         things_to_optimize=[discriminator],
         ...)
 
-    # 定义training_loop
+    # 定义 training_loop
     # 注意在我们的训练循环中，我们想要优化三次判别器再优化一次生成器
     losses_G = [generator_loss]
     losses_D = [interpolated_loss, real_loss, grad_penalty]

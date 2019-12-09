@@ -10,5 +10,7 @@
 参考
 -------------
 
-.. bibliography:: Jasperbib.bib
+.. bibliography:: asr_all.bib
     :style: plain
+    :labelprefix: ASR-MODELS
+    :keyprefix: asr-models-
