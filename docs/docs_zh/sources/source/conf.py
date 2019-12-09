@@ -20,6 +20,7 @@
 import os
 import sys
 from unittest.mock import MagicMock
+import nemo
 
 sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../../../"))
@@ -28,10 +29,9 @@ sys.path.insert(0, os.path.abspath("../../../collections"))
 sys.path.insert(0, os.path.abspath("../../../collections/nemo_asr"))
 sys.path.insert(0, os.path.abspath("../../../collections/nemo_nlp"))
 # sys.path.insert(0, os.path.abspath("../../../collections/nemo_lpr"))
-import nemo
 
 # ---- Mocking up the classes. -----
-MOCK_CLASSES = {'Dataset': 'torch.utils.data', 'Module': 'torch.nn' }
+MOCK_CLASSES = {'Dataset': 'torch.utils.data', 'Module': 'torch.nn'}
 
 
 class Mock(MagicMock):
@@ -40,7 +40,7 @@ class Mock(MagicMock):
         if name in MOCK_CLASSES:
             # return object  # Sphinx renders object in base classes
             return type(name, (object,), {'__module__': MOCK_CLASSES[name]})
-        elif name == '__file__':  # Sphinx tries to find source code, but doesn't matter because it's mocked
+        elif name == '__file__':
             return "FOO"
         elif name == '__loader__':
             return "BAR"
