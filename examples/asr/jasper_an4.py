@@ -168,6 +168,7 @@ def main():
 
     nf = nemo.core.NeuralModuleFactory(
         local_rank=args.local_rank,
+        files_to_copy=[__file__],
         optimization_level=args.amp_opt_level,
         random_seed=0,
         log_dir=args.work_dir,
