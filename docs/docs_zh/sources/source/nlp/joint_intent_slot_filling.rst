@@ -26,8 +26,7 @@
     * 输入文件: 一个 `tsv` 文件，第一行为 [sentence][tab][label]
     * 槽文件: 句子中所有符号串的槽标注，使用空格分隔。槽标注的数量需要与句子中所有符号串的数量保持一致。
 
-当前，我们提供多个数据集合的预处理脚本，包括: ATIS 可以通过 `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ 进行下载;SNIP 对话语言理解数据集，可以通过 `这里 <https://github.com/snipsco/spoken-language-understanding-research-datasets>`_ 获取。
-预处理脚本在 ``collections/nemo_nlp/nemo_nlp/text_data_utils.py`` 。
+当前，我们提供多个数据集合的预处理脚本，包括: ATIS 可以通过 `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ 进行下载;SNIP 对话语言理解数据集，可以通过 `这里 <https://github.com/snipsco/spoken-language-understanding-research-datasets>`_ 获取。预处理脚本在 ``collections/nemo_nlp/nemo_nlp/text_data_utils.py`` 。
 
 代码结构
 --------
