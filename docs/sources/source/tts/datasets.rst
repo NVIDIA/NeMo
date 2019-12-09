@@ -20,7 +20,7 @@ Obtaining and prepocessing the data for NeMo can be done with
 .. _csmsc:
 
 Chinese Standard Mandarin Speech Copus(10000 Sentences)
---------
+-------------------------------------------------------
 
 `Chinese Standard Mandarin Speech Copus(10000 Sentences) <https://www.data-baker.com/open_source.html>`__ is a speech dataset that
 consists of a single female, Mandarin speaker. It contains approximately 12 hours of speech. The copyright of this dataset is held 
