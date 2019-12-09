@@ -1,16 +1,16 @@
 BERT预训练
 ==========
 
-在本教程中，我们会按照BERT模型结构 :cite:`nlp-devlin2018bert` 构建并训练一个掩码语言模型。训练可以完全从零开始或者在一个预训练好的模型基础上继续训练。在开始本教程之前，请先安装好 ``nemo`` 和 ``nemo_nlp`` 。关于安装 ``nemo`` 的一些步骤可以参阅 :ref:`installation` 章节。
+在本教程中，我们会按照BERT模型结构 :cite:`nlp-bert-devlin2018bert` 构建并训练一个掩码语言模型。训练可以完全从零开始或者在一个预训练好的模型基础上继续训练。在开始本教程之前，请先安装好 ``nemo`` 和 ``nemo_nlp`` 。关于安装 ``nemo`` 的一些步骤可以参阅 :ref:`installation` 章节。
 
-创建一个专门领域的BERT模型对于某些应用是更有优势的。比如一个专门针对生物医学领域的专业BERT，类似于BioBERT :cite:`nlp-lee2019biobert` 和SciBERT :cite:`nlp-beltagy2019scibert`.
+创建一个专门领域的BERT模型对于某些应用是更有优势的。比如一个专门针对生物医学领域的专业BERT，类似于BioBERT :cite:`nlp-bert-lee2019biobert` 和SciBERT :cite:`nlp-bert-beltagy2019scibert` 。
 
 本教程中所使用的代码来自于 ``examples/nlp/bert_pretraining.py``.
 
 语料下载
 --------
 
-因为这只是一个演示，所以我们使用一个非常小的英文数据集WikiText-2 :cite:`nlp-merity2016pointer`.
+因为这只是一个演示，所以我们使用一个非常小的英文数据集 WikiText-2 :cite:`nlp-bert-merity2016pointer` 。
 
 运行脚本 ``examples/nlp/scripts/get_wt2.sh`` 便可以下载这个数据集。下载后并解压，会得到如下三个文件：
 
@@ -206,5 +206,5 @@ BERT预训练
 
 .. bibliography:: nlp_all.bib
     :style: plain
-    :labelprefix: nlp-
-    :keyprefix: nlp-
+    :labelprefix: NLP-BERT-PRETRAINING
+    :keyprefix: nlp-bert-
