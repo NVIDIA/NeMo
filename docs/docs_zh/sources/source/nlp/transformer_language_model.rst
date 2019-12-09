@@ -1,17 +1,17 @@
 Transformer语言模型
 ===================
 
-在这个教程中，我们会用Transformer :cite:`vaswani2017attention` 的结构构建和训练一个语言模型。确保在开始这个教程之前你已经安装了 ``nemo`` 和 ``nemo_nlp`` ，详见 :ref:`installation` 。
+在这个教程中，我们会用Transformer :cite:`nlp-lm-vaswani2017attention` 的结构构建和训练一个语言模型。确保在开始这个教程之前你已经安装了 ``nemo`` 和 ``nemo_nlp`` ，详见 :ref:`installation` 。
 
 简介
 ------------
 
-一个好的语言模型对于下游任务有很广泛的应用。用于下游任务的语言模型例子包括 GPT-2 :cite:`radford2019language`。
+一个好的语言模型对于下游任务有很广泛的应用。用于下游任务的语言模型例子包括 GPT-2 :cite:`nlp-lm-radford2019language` 。
 
 下载语料
 ---------------
 
-在这个实验中我们会使用非常小的WikiText-2数据集 :cite:`merity2016pointer`。
+在这个实验中我们会使用非常小的WikiText-2数据集 :cite:`nlp-lm-merity2016pointer` 。
 
 下载数据集，运行脚本 ``examples/nlp/scripts/get_wt2.sh``. 下载和解压数据集后，文件夹会包括三个文件:
 
@@ -42,8 +42,8 @@ Transformer语言模型
 
 创建模型
 ----------------
-首先我们需要用支持的后端来创建 ``neural factory``。你如何定义它取决于你想做多GPU训练或者是混精度训练。这个教程假设你不用混精度，在一块GPU上做训练。
-如果你想做混精度训练，设置 ``amp_opt_level`` 为 ``O1`` 或者 ``O2``。
+首先我们需要用支持的后端来创建 ``neural factory`` 。你如何定义它取决于你想做多GPU训练或者是混精度训练。这个教程假设你不用混精度，在一块GPU上做训练。
+如果你想做混精度训练，设置 ``amp_opt_level`` 为 ``O1`` 或者 ``O2`` 。
 
     .. code-block:: python
 
@@ -67,7 +67,7 @@ Transformer语言模型
         loss = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(**params)
 
 
-根据 `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`press2016using`, 我们也会把词嵌入的参数和softmax层连起来:
+根据 `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`nlp-lm-press2016using`, 我们也会把词嵌入的参数和softmax层连起来:
 
     .. code-block:: python
 
@@ -110,9 +110,9 @@ Transformer语言模型
 
 接下来，我们定义一些必要的回调:
 
-1. `SimpleLossLoggerCallback`: 追踪训练中的loss
+1. `SimpleLossLoggerCallback`: 追踪训练中的 loss
 2. `EvaluatorCallback`: 在用户设置的间隔中，追踪评估的度量指标
-3. `CheckpointCallback`: 在设置的间各种保存checkpoints
+3. `CheckpointCallback`: 在设置的间各种保存 checkpoints
 
     .. code-block:: python
 
@@ -142,5 +142,7 @@ Transformer语言模型
 参考
 ----------
 
-.. bibliography:: transformer_lm.bib
+.. bibliography:: nlp_all.bib
     :style: plain
+    :labelprefix: NLP-LM
+    :keyprefix: nlp-lm-

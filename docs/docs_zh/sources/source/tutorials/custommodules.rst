@@ -2,13 +2,13 @@
 ================
 
 .. note::
-    目前，NeMo只支持PyTorch作为后端
+    目前，NeMo 只支持 Pytorch 作为后端
 
 神经模块根据概念可以分成4个有重叠的类目:
 
 * **Trainable Modules** - 包含了有可训练权重的模块。继承自
   :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` 类。
-* **Data Layers** - 对数据做(extraction抽取, transform转换, load加载, feed接入) ETLF操作的模块。继承自
+* **Data Layers** - 对数据做(extraction抽取, transform转换, load加载, feed接入) ETLF 操作的模块。继承自
   :class:`DataLayerNM<nemo.backends.pytorch.nm.DataLayerNM>` 类。
 * **Loss Modules** - 计算损失函数的模块。继承自
   :class:`LossNM<nemo.backends.pytorch.nm.LossNM>` 类。
@@ -20,7 +20,7 @@
 .. figure:: nm_class_structure.png
    :alt: map to buried treasure
 
-   继承类关系图。假设API's类是绿色的。红色类是用户将要执行的。
+   继承类关系图。假设 API 的类是绿色的。红色类是用户将要执行的。
 
 可训练模块
 -----------------
@@ -60,7 +60,7 @@
 
 .. code-block:: python
 
-    class TaylorNet(TrainableNM): # (1) Note inheritance from TrainableNM
+    class TaylorNet(TrainableNM): # (1) 注意继承 TrainableNM 类
         """学习Taylor系数的模块"""
 
         # (2) create_ports()定义输入输出端口
@@ -75,10 +75,13 @@
         def __init__(self, **kwargs):
             # (3) 调用基类构造函数
             TrainableNM.__init__(self, **kwargs)
-            # And of Neural Modules specific part. Rest is PyTorch code
+            # Neural Modules 的特定部分，剩下的是 PyTorch 代码
             self._dim = self.local_parameters["dim"]
             self.fc1 = nn.Linear(self._dim, 1)
             t.nn.init.xavier_uniform_(self.fc1.weight)
+            self._device = t.device(
+                "cuda" if self.placement == DeviceType.GPU else "cpu")
+            self.to(self._device)
 
         # IMPORTANT: 给前向参数的名字必须匹配输入端口的名字
         def forward(self, x):
@@ -89,10 +92,11 @@
             nx = t.cat(lst, dim=-1)
             return self.fc1(nx)
 
-转换PyTorch的nn.Module
-~~~~~~~~~~~~~~~~~~~~~~
 
-(1) 如果你已经有PyTorch的类继承自 ``torch.nn.Module`` ，把那个继承改成继承
+转换 PyTorch 的 nn.Module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+(1) 如果你已经有 PyTorch 的类继承自 ``torch.nn.Module`` ，把那个继承改成继承
     :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` 类。
 (2) 创建 ``create_ports()`` 静态方法
 (3) 修改构造函数，首先调用基类构造函数
@@ -120,13 +124,13 @@
 当实现构造函数的时候，你首先要调用基类构造函数，并且定义在create_ports()定义 *仅输出端口* 。
 另外，模块应该接收像是 ``batch_size`` 和 ``shuffle`` 的参数。
 
-如果你使用了 ``torch.utils.data.Dataset`` 类 (*推荐方法*)，接着你可以实现 ``dataset`` 属性，一个数据加载器就会自动给你创建。
-(见下面的例子).
+如果你使用了 ``torch.utils.data.Dataset`` 类 (*推荐方法*)，那么你可以实现 ``dataset`` 属性，一个数据加载器就会自动给你创建。
+(见下面的例子)。
 
 例子
 ~~~~
 
-这个例子把PyTorch的 *ImageFolder* 数据集封装成一个神经模块的数据层。
+这个例子把 PyTorch 的 *ImageFolder* 数据集封装成一个神经模块的数据层。
 
 .. code-block:: python
 
@@ -134,7 +138,7 @@
     import torchvision
     import torchvision.transforms as transforms, datasets
 
-    """这个类把Pytorch的ImageFolder数据集的API封装成了神经模块"""
+    """这个类把 Pytorch 的 ImageFolder 数据集的 API 封装成了神经模块"""
 
     class ImageFolderDataLayer(DataLayerNM):
         @staticmethod
@@ -201,10 +205,10 @@ Example
             return input_ports, output_ports
 
         def __init__(self, **kwargs):
-            # 神经模块API
+            # 神经模块 API
             super().__init__(**kwargs)
 
-            # 结束神经模块API
+            # 结束神经模块 API
             self._criterion = torch.nn.CrossEntropyLoss()
 
         # 你需要实现这个方法

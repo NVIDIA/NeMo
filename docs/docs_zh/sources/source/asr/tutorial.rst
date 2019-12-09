@@ -9,11 +9,11 @@
 
 简介
 -------------
-这个教程中我们使用 Jasper :cite:`li2019jasper` 模型。Jasper 是一个基于 CTC :cite:`graves2006` 的端到端的语音识别模型。这个模型之所以被称之为“端到端”是因为它在不需要额外的对齐信息下就可以把输入的音频样本转到对应的文本上。
+这个教程中我们使用 Jasper :cite:`asr-tut-li2019jasper` 模型。Jasper 是一个基于 CTC :cite:`asr-tut-graves2006` 的端到端的语音识别模型。这个模型之所以被称之为“端到端”是因为它在不需要额外的对齐信息下就可以把输入的音频样本转到对应的文本上。
 CTC 可以在音频和文本中找到对齐方式。基于 CTC 的语音识别管道包含了下面的这些模块：
 
 1. 音频预处理（特征提取）：信号正则化，窗口化，（log）频谱（梅尔谱或者 MFCC）
-2. 神经网络声学模型（在给定的每个时间步上的输入特征下，预测词表中字符c的概率分布P_t(c)）
+2. 神经网络声学模型（在给定的每个时间步上的输入特征下，预测词表中字符c的概率分布 P_t(c)）
 3. CTC 损失函数
 
     .. image:: ctc_asr.png
@@ -24,7 +24,7 @@ CTC 可以在音频和文本中找到对齐方式。基于 CTC 的语音识别�
 
 获取数据
 --------
-我们会使用 LibriSpeech :cite:`panayotov2015librispeech` 数据集。下面这些脚本会下载并且把 Librispeech 转成 `nemo_asr` 需要的数据格式：
+我们会使用 LibriSpeech :cite:`asr-tut-panayotov2015librispeech` 数据集。下面这些脚本会下载并且把 Librispeech 转成 `nemo_asr` 需要的数据格式：
 
 .. code-block:: bash
 
@@ -32,13 +32,14 @@ CTC 可以在音频和文本中找到对齐方式。基于 CTC 的语音识别�
     # 我们需要安装 sox
     # 在 ubuntu 上安装 sox, 只需要：sudo apt-get install sox
     # 接着：pip install sox
-    # get_librispeech_data.py script is located under <nemo_git_repo_root>/scripts
+    # get_librispeech_data.py script 位于 <nemo_git_repo_root>/scripts 目录下
     python get_librispeech_data.py --data_root=data --data_set=dev_clean,train_clean_100
     # 如果想获取所有的 Librispeech 数据:
     # python get_librispeech_data.py --data_root=data --data_set=ALL
 
 .. note::
-    如果用 ``--data_set=dev_clean,train_clean_100``，你的磁盘空间至少需要 26GB。如果用 ``--data_set=ALL``，你的磁盘空间至少需要 100GB。下载和处理都需要一段时间。
+    如果用 ``--data_set=dev_clean,train_clean_100`` ，你的磁盘空间至少需要 26GB。如果用 ``--data_set=ALL`` ，你的磁盘空间至少需要 110GB。下载和处理都需要一段时间，所以休息一下下吧。
+
 
 
 下载和转换后, 你的 `data` 文件夹应该包含两个 Json 文件：
@@ -59,7 +60,7 @@ Json 文件中的每一行都指的是一个训练样本 `audio_filepath` 包含
 训练
 ---------
 
-我们会在 Jasper 家族 :cite:`li2019jasper` 中训练一个小模型。
+我们会在 Jasper 家族 :cite:`asr-tut-li2019jasper` 中训练一个小模型。
 Jasper （"Just Another SPeech Recognizer"） 是一个深度时延网络 （TDNN） 包含了一维卷积层的块（blocks）。 
 Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块的个数, R 表示的是一个块中卷积子块的个数。每个子块包含了一个一维卷积层，一层 batch normalization，一个 ReLU 激活函数，和一个 dropout 层：
 
@@ -68,7 +69,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
         :alt: japer model
 
 在这个教程中我们会使用 [12x1] 的模型结构并且会用分开的卷积。
-下面脚本的训练（on `train_clean_100.json`）和评估（on `dev_clean.json`）都是在一块GPU上：
+下面脚本的训练（on `train_clean_100.json` ）和评估（on `dev_clean.json` ）都是在一块GPU上：
 
     .. tip::
         运行 Jupyter notebook，一步一步跟着这个脚本运行一遍。
@@ -115,7 +116,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
         manifest_filepath=eval_datasets,
         labels=labels, batch_size=32, shuffle=False)
 
-    data_preprocessor = nemo_asr.AudioPreprocessing()
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor()
     spec_augment = nemo_asr.SpectrogramAugmentation(rect_masks=5)
 
     jasper_encoder = nemo_asr.JasperEncoder(
@@ -226,10 +227,10 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
 
 混精度训练
 -------------------------
-NeMo 中的混精度和分布式训练上基于 `NVIDIA's APEX library <https://github.com/NVIDIA/apex>`_。
+NeMo 中的混精度和分布式训练上基于 `NVIDIA's APEX library <https://github.com/NVIDIA/apex>`_ 。
 确保它已经安装了。
 
-训混精度训练你只需要在 `nemo.core.NeuralModuleFactory` 中设置 `optimization_level` 参数为 `nemo.core.Optimization.mxprO1`。例如：
+训混精度训练你只需要在 `nemo.core.NeuralModuleFactory` 中设置 `optimization_level` 参数为 `nemo.core.Optimization.mxprO1` 。例如：
 
 .. code-block:: python
 
@@ -268,9 +269,11 @@ NeMo 中的混精度和分布式训练上基于 `NVIDIA's APEX library <https://
 
     python -m torch.distributed.launch --nproc_per_node=<num_gpus> <nemo_git_repo_root>/examples/asr/jasper.py --batch_size=64 --num_epochs=100 --lr=0.015 --warmup_steps=8000 --weight_decay=0.001 --train_dataset=/manifests/librivox-train-all.json --eval_datasets /manifests/librivox-dev-clean.json /manifests/librivox-dev-other.json --model_config=<nemo_git_repo_root>/nemo/examples/asr/configs/quartznet15x5.yaml --exp_name=MyLARGE-ASR-EXPERIMENT
 
+上面的命令行应该会出发一个8卡的混精度训练。其中不同的列表文件（.json）文件是不同的数据集。你可以用你的数据来替代它们。
+
 .. tip::
     你可以用逗号分隔不同的数据集：`--train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json`。
-    这里使用了3个数据集 LibriSpeech，Mozilla Common Voice 和 LibriSpeech speed perturbed。
+    这里使用了3个数据集 LibriSpeech，Mozilla Common Voice 和 LibriSpeech音频速度进行干扰后的数据集。
 
 
 微调
@@ -284,7 +287,7 @@ NeMo 中的混精度和分布式训练上基于 `NVIDIA's APEX library <https://
 
     jasper_encoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperEncoder-STEP-247400.pt")
     jasper_decoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperDecoderForCTC-STEP-247400.pt")
-    # in case of distributed training add args.local_rank
+    # 防止是分布式训练加入 args.local_rank
     jasper_decoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperDecoderForCTC-STEP-247400.pt", args.local_rank)
 
 .. tip::
@@ -294,7 +297,7 @@ NeMo 中的混精度和分布式训练上基于 `NVIDIA's APEX library <https://
 推理
 ---------
 
-首先下载预训练模型（jasper_encoder, jasper_decoder and configuration files） 请从`这里 <https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`_ 下载并放置到 `<path_to_checkpoints>`。 我们会用这个预训练模型在 LibriSpeech dev-clean 数据集上测试 WER。
+首先下载预训练模型（jasper_encoder, jasper_decoder and configuration files） 请从 `这里 <https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`_ 下载并放置到 `<path_to_checkpoints>` 。 我们会用这个预训练模型在 LibriSpeech dev-clean 数据集上测试 WER。
 
 .. code-block:: bash
 
@@ -306,7 +309,7 @@ NeMo 中的混精度和分布式训练上基于 `NVIDIA's APEX library <https://
 
 用KenLM构建的语言模型
 ~~~~~~~~~~~~~~~~~~~~~~
-我们会使用 `Baidu's CTC decoder with LM implementation. <https://github.com/PaddlePaddle/DeepSpeech>`_ .
+我们会使用 `Baidu's CTC 带语言模型的解码器 <https://github.com/PaddlePaddle/DeepSpeech>`_ .
 
 请按照下面的步骤：
 
@@ -327,5 +330,7 @@ NeMo 中的混精度和分布式训练上基于 `NVIDIA's APEX library <https://
 参考
 ----------
 
-.. bibliography:: Jasperbib.bib
+.. bibliography:: asr_all.bib
     :style: plain
+    :labelprefix: ASR-TUT
+    :keyprefix: asr-tut-
