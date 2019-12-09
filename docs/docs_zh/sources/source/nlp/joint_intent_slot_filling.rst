@@ -26,12 +26,12 @@
     * 输入文件: 一个 `tsv` 文件，第一行为 [sentence][tab][label]
     * 槽文件: 句子中所有符号串的槽标注，使用空格分隔。槽标注的数量需要与句子中所有符号串的数量保持一致。
 
-当前，我们提供多个数据集合的预处理脚本，包括: ATIS 可以通过 `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ 进行下载;SNIP 对话语言理解数据集，可以通过 `这里 <https://github.com/snipsco/spoken-language-understanding-research-datasets>`_ 获取。预处理脚本在 ``collections/nemo_nlp/nemo_nlp/text_data_utils.py`` 。
+当前，我们提供多个数据集合的预处理脚本，包括: ATIS，可以通过 `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ 进行下载；SNIP对话语言理解数据集，可以通过 `这里 <https://github.com/snipsco/spoken-language-understanding-research-datasets>`_ 获取。预处理脚本在 ``collections/nemo_nlp/nemo_nlp/text_data_utils.py`` 。
 
 代码结构
 --------
 
-首先，我们初始化 ``NeuralModuleFactory`` ，需要定义1、后端 (PyTorch)；2、混合精度优化的级别；3、本地 GPU 的序列号；4、一个实验的管理器，用于创建文件夹来保存相应的 checkpoint、输出、日志文件和 TensorBoard 的图。
+首先，我们初始化 ``NeuralModuleFactory`` ，需要定义，1、后端 (PyTorch)；2、混合精度优化的级别；3、本地 GPU 的序列号；4、一个实验的管理器，用于创建文件夹来保存相应的 checkpoint、输出、日志文件和 TensorBoard 的图。
 
     .. code-block:: python
 
@@ -61,7 +61,7 @@
         data_desc = JointIntentSlotDataDesc(
             args.dataset_name, args.data_dir, args.do_lower_case)
 
-    * 数据集: 将数据转换成 `DataLayerNM` 可以接收的格式.
+    * 数据集: 将数据转换成 `DataLayerNM` 可以接收的格式。
 
     .. code-block:: python
 
@@ -82,7 +82,7 @@
         train_dataset = get_dataset(data_desc, 'train', args.num_train_samples)
         eval_dataset = get_dataset(data_desc, 'eval', args.num_eval_samples)
 
-    * DataLayer: 一个单独的层，可以用于在你的数据集中进行语义检查，并将它转换到DataLayerNM中。你需要定义 `input_ports` 和 `output_ports` 。
+    * DataLayer： 一个单独的层，可以用于在你的数据集中进行语义检查，并将它转换到DataLayerNM中。你需要定义 `input_ports` 和 `output_ports` 。
 
     .. code-block:: python
 
@@ -126,7 +126,7 @@
                        intents=intents,
                        slots=slots)
 
-    * 创建相应的 callbacks ，来保存 checkpoints ，打印训练过程和测试结果。
+    * 创建相应的 callbacks ，来保存 checkpoints，打印训练过程和测试结果。
 
     .. code-block:: python
 
