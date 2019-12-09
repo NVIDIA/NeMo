@@ -6,7 +6,6 @@
 
 数据
 ----
-
 **数据收集** 我们用 Jasper :cite:`asr-imps-li2019jasper` 在 Librispeech 数据集 :cite:`asr-imps-panayotov2015librispeech`  上训练的模型为这个任务收集数据集。
 下载 Librispeech 数据集, 参考 :ref:`LibriSpeech_dataset` 。
 获得 Jasper 预训练模型, 参考 :ref:`Jasper_model` 。
@@ -25,8 +24,7 @@ Librispeech 训练数据集包含三个部分: train-clean-100, train-clean-360,
 
 从预训练 BERT 模型中加载参数
 ----------------------------
-
-编码器和解码器用的都是预训练的 BERT 模型参数。 因为 BERT 的语言模型和 Transformer 的编码器结构相同，因此没有其他什么需要做的。从预训练的 BERT 模型中为解码器准备参数，我们写了一个脚本 ``get_decoder_params_from_bert.py`` 会从 ``pytorch-transformers`` :cite:`huggingface2019transformers` 下载参数，并把他们映射到解码器的参数上.
+编码器和解码器用的都是预训练的 BERT 模型参数。 因为 BERT 的语言模型和 Transformer 的编码器结构相同，因此没有其他什么需要做的。从预训练的 BERT 模型中为解码器准备参数，我们写了一个脚本 ``get_decoder_params_from_bert.py`` 会从 ``pytorch-transformers`` :cite:`asr-imps-huggingface2019transformers` 下载参数，并把他们映射到解码器的参数上.
 编码器和解码器的注意力是用 self-attention 参数做初始化的。
 这个脚本位于 ``scripts`` 文件目录下，接受两个参数：
 
