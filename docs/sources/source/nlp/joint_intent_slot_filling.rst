@@ -180,7 +180,7 @@ To train a joint intent slot filling model, run ``joint_intent_slot_with_bert.py
 
     .. code-block:: python
 
-        python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py \
+        python torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py \
             --data_dir <path to data>
             --work_dir <where you want to log your experiment> \
             --max_seq_length \
@@ -191,7 +191,7 @@ To do inference, run:
 
     .. code-block:: python
 
-        python -m joint_intent_slot_infer.py \
+        python joint_intent_slot_infer.py \
             --data_dir <path to data> \
             --work_dir <path to checkpoint folder>
 
@@ -200,7 +200,7 @@ To do inference on a single query, run:
     
     .. code-block:: python
 
-        python -m joint_intent_slot_infer.py \
+        python joint_intent_slot_infer.py \
             --work_dir <path to checkpoint folder>
             --query <query>
 
