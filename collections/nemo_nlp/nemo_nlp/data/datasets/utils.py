@@ -120,6 +120,53 @@ def process_imdb(data_dir, uncased, modes=['train', 'test']):
     return outfold
 
 
+def process_thucnews(data_dir):
+    modes = ['train', 'test']
+    train_size = 0.8
+    if not os.path.exists(data_dir):
+        link = 'thuctc.thunlp.org/'
+        raise ValueError(f'Data not found at {data_dir}. '
+                         f'Please download THUCNews from {link}.')
+
+    outfold = f'{data_dir}/nemo-processed-thucnews'
+
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
+        logger.info(LOGGING_TMP.format('THUCNews', outfold))
+        return outfold
+    logger.info(f'Processing THUCNews dataset and store at {outfold}')
+
+    os.makedirs(outfold, exist_ok=True)
+
+    outfiles = {}
+
+    for mode in modes:
+        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'a+',
+                              encoding='utf-8')
+        outfiles[mode].write('sentence\tlabel\n')
+    categories = ['体育', '娱乐', '家居', '彩票', '房产', '教育', '时尚',
+                  '时政', '星座', '游戏', '社会', '科技', '股票', '财经']
+    for category in tqdm(categories):
+        label = categories.index(category)
+        category_files = glob.glob(f'{data_dir}/{category}/*.txt')
+        test_num = int(len(category_files) * (1 - train_size))
+        test_files = category_files[:test_num]
+        train_files = category_files[test_num:]
+        for mode in modes:
+            if mode == 'test':
+                files = test_files
+            else:
+                files = train_files
+            for file in files:
+                with open(file, 'r', encoding='utf-8') as f:
+                    news = f.read().strip().replace('\r', '')
+                    news = news.replace('\n', '').replace('\t', ' ')
+                    outfiles[mode].write(f'{news}\t{label}\n')
+    for mode in modes:
+        outfiles[mode].close()
+
+    return outfold
+
+
 def process_nlu(filename,
                 uncased,
                 modes=['train', 'test'],
@@ -1116,6 +1163,10 @@ class SentenceClassificationDataDesc:
         elif dataset_name == 'imdb':
             self.num_labels = 2
             self.data_dir = process_imdb(data_dir, do_lower_case)
+            self.eval_file = self.data_dir + '/test.tsv'
+        elif dataset_name == 'thucnews':
+            self.num_labels = 14
+            self.data_dir = process_thucnews(data_dir)
             self.eval_file = self.data_dir + '/test.tsv'
         elif dataset_name.startswith('nlu-'):
             if dataset_name.endswith('chat'):
