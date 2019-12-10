@@ -186,7 +186,7 @@ Translation with pretrained model
     python nmt_tutorial.py --src_tokenizer_model bpe8k_yttm.model \
          --eval_datasets test --optimizer novograd --d_model 1024 \
          --d_inner 4096 --num_layers 6 --num_attn_heads 16 \
-         --checkpoint_dir <path_to_ckpt> --interactive
+         --restore_checkpoint_from <path_to_ckpt> --interactive
 
 
    .. image:: interactive_translation.png

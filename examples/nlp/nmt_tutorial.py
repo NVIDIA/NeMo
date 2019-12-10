@@ -55,6 +55,7 @@ parser.add_argument("--tgt_tokenizer_model",
 parser.add_argument("--interactive", action="store_true")
 parser.add_argument("--save_epoch_freq", default=5, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
+parser.add_argument("--restore_checkpoint_from", default=None, type=str)
 
 args = parser.parse_args()
 
@@ -63,7 +64,6 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
                                    log_dir=args.work_dir,
-                                   checkpoint_dir=args.work_dir,
                                    create_tb_writer=True,
                                    files_to_copy=[__file__])
 
@@ -224,8 +224,10 @@ eval_callback = nemo.core.EvaluatorCallback(
     tb_writer=nf.tb_writer)
 
 # callback which saves checkpoints once in a while
+ckpt_dir = nf.checkpoint_dir if not args.interactive \
+    else args.restore_checkpoint_from
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir,
+    folder=ckpt_dir,
     epoch_freq=args.save_epoch_freq,
     step_freq=args.save_step_freq,
     checkpoints_to_keep=1)
