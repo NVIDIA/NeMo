@@ -63,7 +63,7 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
                                    log_dir=args.work_dir,
-                                   checkpoint_dir=args.work_dir,
+                                   checkpoint_dir=args.checkpoint_dir,
                                    create_tb_writer=True,
                                    files_to_copy=[__file__])
 
@@ -225,7 +225,7 @@ eval_callback = nemo.core.EvaluatorCallback(
 
 # callback which saves checkpoints once in a while
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=args.checkpoint_dir,
+    folder=nf.checkpoint_dir,
     epoch_freq=args.save_epoch_freq,
     step_freq=args.save_step_freq,
     checkpoints_to_keep=1)

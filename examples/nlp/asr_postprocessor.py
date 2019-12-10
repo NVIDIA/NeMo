@@ -21,7 +21,7 @@ parser.set_defaults(train_dataset="train",
                     num_epochs=1000,
                     batch_size=4096,
                     eval_batch_size=1024,
-                    lr=0.02,
+                    lr=0.005,
                     weight_decay=0,
                     max_steps=300000,
                     iter_per_step=1,
@@ -158,7 +158,7 @@ for eval_dataset in args.eval_datasets:
 
 def print_loss(x):
     loss = x[0].item()
-    print ("Training loss: {:.4f}".format(loss))
+    nf.logger.info("Training loss: {:.4f}".format(loss))
 
 
 # callbacks
