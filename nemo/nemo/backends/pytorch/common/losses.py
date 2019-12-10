@@ -1,5 +1,3 @@
-__all__ = ['SequenceLoss', 'CrossEntropyLoss', 'MSELoss']
-
 import torch
 from torch import nn
 
@@ -10,6 +8,8 @@ from nemo.core.neural_types import (NeuralType,
                                     TimeTag,
                                     ChannelTag,
                                     RegressionTag)
+
+__all__ = ['SequenceLoss', 'CrossEntropyLoss', 'MSELoss']
 
 EPS = 1e-5
 
@@ -129,9 +129,11 @@ class CrossEntropyLoss(LossNM):
         }
         return input_ports, output_ports
 
-    def __init__(self, **kwargs):
+    def __init__(self, weight=None, **kwargs):
         LossNM.__init__(self, **kwargs)
-        self._criterion = nn.CrossEntropyLoss()
+        if weight:
+            weight = torch.FloatTensor(weight).to(self._device)
+        self._criterion = nn.CrossEntropyLoss(weight=weight)
 
     def _loss_function(self,
                        logits,

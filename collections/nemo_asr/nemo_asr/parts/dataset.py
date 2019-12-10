@@ -141,7 +141,8 @@ class AudioDataset(Dataset):
                                        max_utts=max_utts,
                                        blank_index=blank_index,
                                        unk_index=unk_index,
-                                       normalize=normalize)
+                                       normalize=normalize,
+                                       logger=logger)
         self.featurizer = featurizer
         self.trim = trim
         self.eos_id = eos_id
@@ -263,7 +264,8 @@ class KaldiFeatureDataset(Dataset):
 
                     text = line[split_idx:].strip()
                     if normalize:
-                        text = ManifestEN.normalize_text(text, labels)
+                        text = ManifestEN.normalize_text(
+                            text, labels, logger=logger)
                     dur = id2dur[utt_id] if id2dur else None
 
                     # Filter by duration if specified & utt2dur exists
