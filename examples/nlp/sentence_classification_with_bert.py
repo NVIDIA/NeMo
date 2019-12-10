@@ -3,6 +3,8 @@ import math
 
 import numpy as np
 from pytorch_transformers import BertTokenizer
+from torch import nn
+import torch
 
 import nemo
 from nemo.utils.lr_policies import get_lr_policy
@@ -28,10 +30,12 @@ parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--pretrained_bert_model",
-                    default="bert-large-uncased",
+                    default="bert-base-uncased",
                     type=str)
-parser.add_argument("--data_dir", default='data/sc/aclImdb', type=str)
-parser.add_argument("--dataset_name", default='imdb', type=str)
+parser.add_argument("--bert_checkpoint", default="", type=str)
+parser.add_argument("--bert_config", default="", type=str)
+parser.add_argument("--data_dir", required=True, type=str)
+parser.add_argument("--dataset_name", required=True, type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
@@ -42,6 +46,8 @@ parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--do_lower_case", action='store_false')
 parser.add_argument("--shuffle_data", action='store_false')
+parser.add_argument("--class_balancing", default="None", type=str,
+                    choices=["None", "weighted_loss"])
 
 args = parser.parse_args()
 
@@ -58,8 +64,15 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.huggingface.BERT(
-    pretrained_model_name=args.pretrained_bert_model)
+
+if args.bert_checkpoint and args.bert_config:
+    pretrained_bert_model = nemo_nlp.huggingface.BERT(
+        config_filename=args.bert_config, factory=nf)
+    pretrained_bert_model.restore_from(args.bert_checkpoint)
+else:
+    pretrained_bert_model = nemo_nlp.huggingface.BERT(
+        pretrained_model_name=args.pretrained_bert_model, factory=nf)
+
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
@@ -71,7 +84,12 @@ classifier = nemo_nlp.SequenceClassifier(hidden_size=hidden_size,
                                          num_classes=data_desc.num_labels,
                                          dropout=args.fc_dropout)
 
-loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
+if args.class_balancing == 'weighted_loss':
+    # You may need to increase the number of epochs for convergence.
+    loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss(
+      weight=data_desc.class_weights)
+else:
+    loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 
 
 def create_pipeline(num_samples=-1,

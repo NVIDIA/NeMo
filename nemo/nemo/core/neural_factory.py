@@ -16,7 +16,7 @@ import numpy as np
 
 from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *
-from ..utils import ExpManager
+from ..utils import ExpManager, get_logger
 
 
 class DeploymentFormat(Enum):
@@ -66,12 +66,16 @@ class Actions(ABC):
             self,
             local_rank,
             global_rank,
-            optimization_level=Optimization.mxprO0):
+            optimization_level=Optimization.mxprO0,
+            logger=None):
         self._local_rank = local_rank
         self._global_rank = global_rank
         self._optim_level = optimization_level
         self.step = None
         self.epoch_num = None
+        self.logger = logger
+        if logger is None:
+            self.logger = get_logger('')
 
     @property
     def local_rank(self):
@@ -642,12 +646,30 @@ class NeuralModuleFactory(object):
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
         """
+        # Custom hacks
+        # We are checking type like this to avoid taking dependency on nemo_asr
+        if type(module).__name__ == "JasperEncoder":
+            self.logger.warning(f"Module is JasperEncoder. We are removing"
+                                f"input and output length ports since they "
+                                f"are not needed for deployment")
+            del module._input_ports['length']
+            del module._output_ports['encoded_lengths']
+
+            # disable masked convolutions
+            m_count = 0
+            for m in module.modules():
+                if type(module).__name__ == "MaskedConv1d":
+                    m.use_mask = False
+                    m_count += 1
+            self.logger.warning(f"Turned off {m_count} masked convolutions")
+
         return self._trainer.deployment_export(
             module=module,
             output=output,
             d_format=d_format,
             input_example=input_example,
-            output_example=output_example
+            output_example=output_example,
+            logger=self.logger
         )
 
     def infer(self,
@@ -711,7 +733,8 @@ class NeuralModuleFactory(object):
                 local_rank=self._local_rank,
                 global_rank=self._global_rank,
                 tb_writer=tb_writer,
-                optimization_level=self._optim_level)
+                optimization_level=self._optim_level,
+                logger=self.logger)
             return instance
         else:
             raise ValueError("Only PyTorch backend is currently supported.")

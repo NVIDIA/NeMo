@@ -9,8 +9,12 @@ import torch.nn as nn
 from nemo.backends.pytorch.common import MultiLayerPerceptron
 from nemo.backends.pytorch.nm import TrainableNM, LossNM
 from nemo.core.neural_types import *
+from nemo_nlp.transformer.utils import gelu
 
 from ..transformer.utils import transformer_weights_init
+
+
+ACT2FN = {"gelu": gelu, "relu": nn.functional.relu}
 
 
 class BertTokenClassifier(TrainableNM):
@@ -50,13 +54,15 @@ class BertTokenClassifier(TrainableNM):
     def __init__(self,
                  hidden_size,
                  num_classes,
-                 activation=nn.functional.relu,
+                 activation='relu',
                  log_softmax=True,
                  dropout=0.0,
                  use_transformer_pretrained=True):
         super().__init__()
+        if activation not in ACT2FN:
+            raise ValueError(f'activation "{activation}" not found')
         self.dense = nn.Linear(hidden_size, hidden_size)
-        self.act = activation
+        self.act = ACT2FN[activation]
         self.norm = nn.LayerNorm(hidden_size, eps=1e-12)
         self.mlp = MultiLayerPerceptron(hidden_size,
                                         num_classes,
@@ -83,6 +89,7 @@ class TokenClassifier(TrainableNM):
     """
     Neural module which consists of MLP followed by softmax classifier for each
     token in the sequence.
+
     Args:
         hidden_size (int): hidden size (d_model) of the Transformer
         num_classes (int): number of classes in softmax classifier, e.g. size
@@ -281,6 +288,7 @@ class SequenceRegression(TrainableNM):
         activation (str): activation function applied in classifier MLP layers
         dropout (float): dropout ratio applied to MLP
     """
+
     @staticmethod
     def create_ports():
         input_ports = {
