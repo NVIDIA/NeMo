@@ -1,9 +1,13 @@
 Tutorial
 ========
 
-In this tutorial, we are going to implement a joint intent and slot filling system with pretrained BERT model based on `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`chen2019bert`. All code used in this tutorial is based on ``examples/nlp/joint_intent_slot_with_bert.py``.
+In this tutorial, we are going to implement a joint intent and slot filling system with pretrained BERT model based on
+`BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`nlp-slot-chen2019bert`.
+All code used in this tutorial is based on ``examples/nlp/joint_intent_slot_with_bert.py``.
 
-There are four pretrained BERT models that we can select from using the argument `--pretrained_bert_model`. We're currently using the script for loading pretrained models from `pytorch_transformers`. See the list of available pretrained models `here <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__. 
+There are four pretrained BERT models that we can select from using the argument `--pretrained_bert_model`. We're currently
+using the script for loading pretrained models from `pytorch_transformers`. See the list of available pretrained models
+`here <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__. 
 
 
 Preliminaries
@@ -27,13 +31,17 @@ This model can work with any dataset that follows the format:
 
     * slot file: slot labels for all tokens in the sentence, separated by space. The length of the slot labels should be the same as the length of all tokens in sentence in input file.
 
-Currently, the datasets that we provide pre-processing script for include ATIS which can be downloaded from `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ and the SNIPS spoken language understanding research dataset which can be requested from `here <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__. You can find the pre-processing script in ``collections/nemo_nlp/nemo_nlp/data/datasets/utils.py``.
+Currently, the datasets that we provide pre-processing script for include ATIS which can be downloaded
+from `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ and the SNIPS spoken language understanding research dataset which can be
+requested from `here <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__.
+You can find the pre-processing script in ``collections/nemo_nlp/nemo_nlp/data/datasets/utils.py``.
 
 
 Code structure
 --------------
 
-First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level, 3) local rank of the GPU, and 4) an experiment manager that creates a timestamped folder to store checkpoints, relevant outputs, log files, and TensorBoard graphs.
+First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level,
+3) local rank of the GPU, and 4) an experiment manager that creates a timestamped folder to store checkpoints, relevant outputs, log files, and TensorBoard graphs.
 
     .. code-block:: python
 
@@ -45,7 +53,8 @@ First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or
                         create_tb_writer=True,
                         files_to_copy=[__file__])
 
-We define tokenizer which transforms text into BERT tokens, using a built-in tokenizer by `pytorch_transformers`. This will tokenize text following the mapping of the original BERT model.
+We define tokenizer which transforms text into BERT tokens, using a built-in tokenizer by `pytorch_transformers`.
+This will tokenize text following the mapping of the original BERT model.
 
     .. code-block:: python
 
@@ -54,9 +63,10 @@ We define tokenizer which transforms text into BERT tokens, using a built-in tok
 
 Next, we define all Neural Modules participating in our joint intent slot filling classification pipeline.
     
-    * Process data: the `JointIntentSlotDataDesc` class in `nemo_nlp/nemo_nlp/text_data_utils.py` is supposed to do the preprocessing of raw data into the format data supported by `BertJointIntentSlotDataset`. Currently, it supports SNIPS and ATIS raw datasets, but you can also write your own preprocessing scripts for any dataset.
+    * Process data: the `JointIntentSlotDataDesc` class in `nemo_nlp/nemo_nlp/data/datasets/utils.py` is supposed to do the preprocessing of raw data into the format data supported by `BertJointIntentSlotDataset`. Currently, it supports SNIPS and ATIS raw datasets, but you can also write your own preprocessing scripts for any dataset.
 
-    A JointIntentSlotDataDesc object includes information such as `self.train_file`, `self.train_slot_file`, `self.eval_file`, `self.eval_slot_file`,  `self.intent_dict_file`, and `self.slot_dict_file`.
+    A JointIntentSlotDataDesc object includes information such as `self.train_file`, `self.train_slot_file`, `self.eval_file`, `self.eval_slot_file`, 
+    `self.intent_dict_file`, and `self.slot_dict_file`.
 
     .. code-block:: python
 
@@ -208,5 +218,7 @@ To do inference on a single query, run:
 References
 ----------
 
-.. bibliography:: joint_intent_slot.bib
+.. bibliography:: nlp_all.bib
     :style: plain
+    :labelprefix: NLP-SLOT
+    :keyprefix: nlp-slot-

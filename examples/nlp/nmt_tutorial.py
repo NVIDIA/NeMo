@@ -55,6 +55,7 @@ parser.add_argument("--tgt_tokenizer_model",
 parser.add_argument("--interactive", action="store_true")
 parser.add_argument("--save_epoch_freq", default=5, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
+parser.add_argument("--restore_checkpoint_from", default=None, type=str)
 
 args = parser.parse_args()
 
@@ -223,8 +224,10 @@ eval_callback = nemo.core.EvaluatorCallback(
     tb_writer=nf.tb_writer)
 
 # callback which saves checkpoints once in a while
+ckpt_dir = nf.checkpoint_dir if not args.interactive \
+    else args.restore_checkpoint_from
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir,
+    folder=ckpt_dir,
     epoch_freq=args.save_epoch_freq,
     step_freq=args.save_step_freq,
     checkpoints_to_keep=1)
@@ -260,8 +263,10 @@ def translate_sentence(text):
     ids = src_tokenizer.text_to_ids(text)
     ids = [src_tokenizer.bos_id()] + ids + [src_tokenizer.eos_id()]
     ids_tensor = torch.Tensor(ids).long().to(encoder._device).unsqueeze(0)
-    ids_mask = torch.ones_like(ids_tensor).half()
-    encoder_states = encoder.forward(ids_tensor, ids_mask).half()
+    ids_mask = torch.ones_like(ids_tensor)
+    encoder_states = encoder.forward(ids_tensor, ids_mask)
+    if args.amp_opt_level in ["O1", "O2", "O3"]:
+        encoder_states = encoder_states.half()
     translation_ids = beam_search.forward(encoder_states, ids_mask)
     ids_list = list(translation_ids.detach().cpu().numpy()[0])
     translation_text = tgt_tokenizer.ids_to_text(ids_list)
@@ -275,7 +280,6 @@ if args.interactive:
     encoder.eval()
     decoder.eval()
     log_softmax.eval()
-
     print("========== Interactive translation mode ==========")
     input_text = 'anything'
     while input_text.strip():
