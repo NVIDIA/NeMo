@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Tuple
+from typing import Tuple, Optional, List
 
 import torch
 import torch.nn as nn
@@ -282,8 +282,13 @@ class JasperBlock(nn.Module):
         ]
         return layers
 
-    def forward(self, input_: Tuple[Tensor, Tensor]):
-        xs, lens_orig = input_
+    def forward(self, input_: Tuple[List[Tensor], Optional[Tensor]]):
+        # type: (Tuple[List[Tensor], Optional[Tensor]]) -> Tuple[List[Tensor], Optional[Tensor]] # nopep8
+        lens_orig = None
+        xs = input_[0]
+        if len(input_) == 2:
+            xs, lens_orig = input_
+
         # compute forward convolutions
         out = xs[-1]
 

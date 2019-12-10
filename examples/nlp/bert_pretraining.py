@@ -42,7 +42,7 @@ python -m torch.distributed.launch --nproc_per_node=8 bert_pretraining.py \
 --config_file bert_config.json
 --data_dir data_dir \
 --save_step_freq 200 \
---total_iterations_per_gpu 1142857 \
+--max_steps 1142857 \
 --num_gpus 8 \
 --batches_per_step 2 \
 --amp_opt_level "O1" \
@@ -60,6 +60,7 @@ should finish under 5 days and yield an MRPC score of ACC/F1 85.05/89.35.
 """
 import argparse
 import os
+import math
 import torch
 import nemo
 from nemo.utils.lr_policies import get_lr_policy
@@ -112,8 +113,9 @@ parser.add_argument("--gradient_predivide", action="store_true",
                     default=False, help="use gradient predivide")
 parser.add_argument("--only_mlm_loss", action="store_true",
                     default=False, help="use only masked language model loss")
-parser.add_argument("--total_iterations_per_gpu", default=-1,
-                    type=int, help="if specified overrides --num_epochs")
+parser.add_argument("--max_steps", default=-1,
+                    type=int, help="if specified overrides --num_epochs.\
+                        Used for preprocessed data")
 parser.add_argument("--dataset_name", default="wikitext-2", type=str)
 parser.add_argument("--load_dir", default=None, type=str)
 parser.add_argument("--work_dir", default="outputs/bert_lm", type=str)
@@ -180,12 +182,11 @@ bert_model = nemo_nlp.huggingface.BERT(
 """ create necessary modules for the whole translation pipeline, namely
 data layers, BERT encoder, and MLM and NSP loss functions
 """
-ACT2FN = {"gelu": gelu, "relu": torch.nn.functional.relu}
 
 mlm_classifier = nemo_nlp.BertTokenClassifier(
                             args.hidden_size,
                             num_classes=args.vocab_size,
-                            activation=ACT2FN[args.hidden_act],
+                            activation=args.hidden_act,
                             log_softmax=True)
 mlm_loss_fn = nemo_nlp.MaskedLanguageModelingLossNM()
 if not args.only_mlm_loss:
@@ -230,7 +231,8 @@ def create_pipeline(data_file,
                             batch_size=batch_size, training=training)
 
     steps_per_epoch = \
-        len(data_layer) // (batch_size * args.num_gpus * batches_per_step)
+        math.ceil(len(data_layer) / (
+            batch_size * args.num_gpus * batches_per_step))
 
     input_ids, input_type_ids, input_mask, \
         output_ids, output_mask, nsp_labels = data_layer()
@@ -294,14 +296,14 @@ ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir,
 
 # define learning rate decay policy
 if args.lr_policy is not None:
-    if args.total_iterations_per_gpu < 0:
+    if args.max_steps < 0:
         lr_policy_fn = get_lr_policy(
                             args.lr_policy,
                             total_steps=args.num_epochs * steps_per_epoch,
                             warmup_ratio=args.lr_warmup_proportion)
     else:
         lr_policy_fn = get_lr_policy(args.lr_policy,
-                                     total_steps=args.total_iterations_per_gpu,
+                                     total_steps=args.max_steps,
                                      warmup_ratio=args.lr_warmup_proportion)
 else:
     lr_policy_fn = None
@@ -311,14 +313,20 @@ if not os.path.exists(config_path):
     bert_model.config.to_json_file(config_path)
 
 # define and launch training algorithm (optimizer)
+optimization_params = {"batch_size": args.batch_size,
+                       "lr": args.lr,
+                       "betas": (args.beta1, args.beta2),
+                       "weight_decay": args.weight_decay}
+
+if args.max_steps < 0:
+    optimization_params['num_epochs'] = args.num_epochs
+else:
+    optimization_params['max_steps'] = args.max_steps
+
 nf.train(tensors_to_optimize=[train_loss],
          lr_policy=lr_policy_fn,
          callbacks=[train_callback, ckpt_callback],
          optimizer=args.optimizer,
          batches_per_step=args.batches_per_step,
          gradient_predivide=args.gradient_predivide,
-         optimization_params={"batch_size": args.batch_size,
-                              "num_epochs": args.num_epochs,
-                              "lr": args.lr,
-                              "betas": (args.beta1, args.beta2),
-                              "weight_decay": args.weight_decay})
+         optimization_params=optimization_params)
