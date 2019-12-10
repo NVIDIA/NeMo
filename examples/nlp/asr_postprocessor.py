@@ -117,6 +117,7 @@ decoder.embedding_layer.token_embedding.weight = \
 decoder.embedding_layer.position_embedding.weight = \
     encoder.bert.embeddings.position_embeddings.weight
 
+
 def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):
     dataset_src = os.path.join(args.data_dir, dataset + "." + args.src_lang)
     dataset_tgt = os.path.join(args.data_dir, dataset + "." + args.tgt_lang)
@@ -143,8 +144,10 @@ def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):
                                    input_mask_src=src_mask)
     return loss, [tgt, loss, beam_results, sent_ids]
 
+
 # training pipeline
-train_loss, _ = create_pipeline(args.train_dataset, args.batch_size, clean=True)
+train_loss, _ = create_pipeline(args.train_dataset, args.batch_size,
+                                clean=True)
 
 # evaluation pipelines
 all_eval_losses = {}
