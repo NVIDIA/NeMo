@@ -3,7 +3,7 @@ NeMo TTS Collection: Neural Modules for Speech Synthesis
 
 **Models**
 
-The NeMo ASR collection currently has modules for building
+The NeMo TTS collection currently has modules for building
 1. Tacotron 2
 2. Waveglow
 
