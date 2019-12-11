@@ -47,6 +47,7 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    log_dir=None)
 
 punct_labels_dict = get_vocab(args.punct_labels_dict)
+import pdb; pdb.set_trace()
 capit_labels_dict = get_vocab(args.capit_labels_dict)
 
 """ Load the pretrained BERT parameters

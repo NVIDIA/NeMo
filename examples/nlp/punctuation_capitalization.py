@@ -60,6 +60,9 @@ parser.add_argument("--save_step_freq", default=-1, type=int,
                     '-1' - step checkpoint won't be saved")
 parser.add_argument("--loss_step_freq", default=250, type=int,
                     help="Frequency of printing loss")
+parser.add_argument("--use_weighted_loss", action='store_true',
+                    help="Flag to indicate whether to use weighted loss \
+                    to mitigate classs unbalancing")
 
 args = parser.parse_args()
 
@@ -175,24 +178,34 @@ def create_pipeline(num_samples=-1,
     if mode == 'train':
         punct_label_ids = data_layer.dataset.punct_label_ids
         capit_label_ids = data_layer.dataset.capit_label_ids
+        class_weights = None
+
+        if args.use_weighted_loss:
+            nf.logger.info(f"Using weighted loss for punctuation task")
+            punct_label_frequencies = data_layer.dataset.punct_label_frequencies
+            num_most_common = punct_label_frequencies[0][1]
+
+            # sort label_frequences by class name
+            punct_label_frequencies.sort()
+            class_weights = [num_most_common/x[1] for x in punct_label_frequencies]
 
         # Initialize punctuation loss
         punct_classifier = getattr(sys.modules[__name__], punct_classifier)
         punct_classifier = punct_classifier(hidden_size=hidden_size,
-                                      num_classes=len(punct_label_ids),
-                                      dropout=dropout,
-                                      name='Punctuation')
+                                            num_classes=len(punct_label_ids),
+                                            dropout=dropout,
+                                            name='Punctuation')
 
         punct_loss = getattr(sys.modules[__name__], punct_loss)
-        punct_loss = punct_loss(num_classes=len(punct_label_ids))
+        punct_loss = punct_loss(num_classes=len(punct_label_ids),
+                                class_weights=class_weights)
 
         # Initialize capitalization loss
         capit_classifier = getattr(sys.modules[__name__], capit_classifier)
         capit_classifier = capit_classifier(hidden_size=hidden_size,
-                                      num_classes=len(capit_label_ids),
-                                      dropout=dropout,
-                                      name='Capitalization')
-
+                                            num_classes=len(capit_label_ids),
+                                            dropout=dropout,
+                                            name='Capitalization')
 
         capit_loss = getattr(sys.modules[__name__], capit_loss)
         capit_loss = capit_loss(num_classes=len(capit_label_ids))

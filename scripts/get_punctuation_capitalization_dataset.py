@@ -21,34 +21,21 @@ import urllib.request
 
 from collections import Counter
 
-URL = {'tatoeba': 'https://downloads.tatoeba.org/exports/sentences.csv'}
-
-
-def __maybe_download_file(destination: str, source: str):
-    """
-    Downloads source to destination if not exists.
-    If exists, skips download
-    Args:
-        destination: local filepath
-        source: url of resource
-    """
-    source = URL[source]
-    if not os.path.exists(destination):
-        print(f'Downloading {source}')
-        urllib.request.urlretrieve(source, filename=destination)
-
-
 def __process_english_sentences(in_file,
                                 out_file,
                                 percent_to_cut,
                                 num_to_combine,
                                 num_samples=-1):
     """
-    Extract English sentences from the dataset that
+    Extract English sentences from the Tatoeba dataset.
+    Expected in_file format
+    that
     contrain letters and punctuation marks (,.?).
     Chop and combine sentences.
     Args:
-        in_file: local filepath to the dataset
+        in_file: local filepath to the tatoeba dataset. 
+    Format: id [TAB] reg_name [TAB] sentence,
+    for example: "1276\teng\tLet's try something.\n"
         out_file: local filepath to the clean dataset
         percent_to_cut: Percent of sentences to cut in the middle
             to get examples of incomplete sentences. This could be useful
@@ -225,20 +212,29 @@ def __delete_file(file_to_del):
 
 
 def __print_stats(file_path):
-    stats = Counter()
+    punct_stats = Counter()
+    capit_stats = Counter()
+
     f = open(file_path, 'r')
     for line in f:
         line = line.split()
         for label in line:
-            stats[label] += 1
+            punct_stats[label[0]] += 1
+            capit_stats[label[1]] += 1
 
-    print(f'\nStats for {file_path}: {stats}\n')
+    import pandas as pd
+    df=pd.DataFrame.from_dict(punct_stats, orient='index').reset_index()
+    df['%']=df[0]/sum(df[0])
 
+    print(f'\nStats for {file_path}\n')
+    print(f'\nStats punctuation: {df}\n')
+    print(f'\nStats capitalization: {capit_stats}\n')
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Prepare tatoeba dataset')
-    parser.add_argument("--data_dir", required=True, type=str)
-    parser.add_argument("--dataset", default='tatoeba', type=str)
+    parser = argparse.ArgumentParser(description='Prepare dataset for punctuation and capitalization tasks')
+    parser.add_argument("--data_path", default='english_sentences.csv', type=str)
+    parser.add_argument("--data_dir", default='', type=str)
+    parser.add_argument("--dataset_name", default='tatoeba', type=str)
     parser.add_argument("--num_samples", default=-1, type=int)
     parser.add_argument("--percent_to_cut", default=0, type=float,
                         help='Percent of sentences to cut in the middle')
@@ -248,11 +244,9 @@ if __name__ == "__main__":
                         help='Size of the dev set, percent')
     args = parser.parse_args()
 
-    if not os.path.exists(args.data_dir):
-        os.makedirs(args.data_dir)
-
-    if args.dataset != 'tatoeba':
-        raise ValueError("Unsupported dataset.")
+    # if not os.path.exists(args.data_path):
+    #     raise ValueError("Data not found." +
+    #                      "Download https://downloads.tatoeba.org/exports/sentences.csv")
 
     # print(f'Downloading tatoeba dataset')
     # tatoeba_dataset = os.path.join(args.data_dir, args.dataset + '.csv')
@@ -279,19 +273,24 @@ if __name__ == "__main__":
     #                             num_to_combine=5,
     #                             num_samples=args.num_samples)
 
-    eng_sentences = os.path.join('/home/ebakhturina/data/tutorial_punct/dataset/new_format/shuf_final.txt')
-    train_file = os.path.join(args.data_dir, 'train.txt')
-    dev_file = os.path.join(args.data_dir, 'dev.txt')
+    # eng_sentences = os.path.join('/home/ebakhturina/data/tutorial_punct/dataset/new_format/shuf_final.txt')
+    # train_file = os.path.join(args.data_dir, 'train.txt')
+    # dev_file = os.path.join(args.data_dir, 'dev.txt')
 
-    print(f'Splitting the {args.dataset} dataset into train and dev sets' + 
-            ' and creating labels and text files')
-    __split_into_train_dev(eng_sentences,
-                           train_file,
-                           dev_file,
-                           args.percent_dev)
+    # print(f'Splitting the {args.dataset} dataset into train and dev sets' + 
+    #         ' and creating labels and text files')
+    # __split_into_train_dev(eng_sentences,
+    #                        train_file,
+    #                        dev_file,
+    #                        args.percent_dev)
 
-    __create_text_and_labels(args.data_dir, 'train.txt')
-    __create_text_and_labels(args.data_dir, 'dev.txt')
+    # __create_text_and_labels(args.data_dir, 'train.txt')
+    # __create_text_and_labels(args.data_dir, 'dev.txt')
+
+    labels_train = os.path.join(args.data_dir, 'labels_train.txt')
+    labels_dev = os.path.join(args.data_dir, 'labels_dev.txt')
+    __print_stats(labels_train)
+    __print_stats(labels_dev)
 
     # # clean data_dir
     # __delete_file(eng_sentences)
