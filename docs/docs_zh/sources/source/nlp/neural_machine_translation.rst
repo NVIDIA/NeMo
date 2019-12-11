@@ -1,7 +1,7 @@
 教程
 ====
 
-在本教程中我们将要实现基于 `Transformer 编码器-解码器结构 <https://arxiv.org/abs/1706.03762>`_ :cite:`nlp-nmt-vaswani2017attention` 的神经机器翻译系统。本教程中使用到的所有代码都基于``examples/nlp/nmt_tutorial.py``。
+在本教程中我们将要实现基于 `Transformer 编码器-解码器结构 <https://arxiv.org/abs/1706.03762>`_ :cite:`nlp-nmt-vaswani2017attention` 的神经机器翻译系统。本教程中使用到的所有代码都基于 ``examples/nlp/nmt_tutorial.py`` 。
 
 预备知识
 --------

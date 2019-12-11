@@ -57,7 +57,7 @@ Json 文件中的每一行都指的是一个训练样本 `audio_filepath` 包含
 ----
 
 我们会在 Jasper 家族 :cite:`asr-tut-li2019jasper` 中训练一个小模型。
-Jasper （"Just Another SPeech Recognizer"） 是一个深度时延网络 （TDNN） 包含了一维卷积层的块（blocks）。
+Jasper（Just Another SPeech Recognizer）是一个深度时延网络 （TDNN） 包含了一维卷积层的块（blocks）。
 Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块的个数, R 表示的是一个块中卷积子块的个数。每个子块包含了一个一维卷积层，一层 batch normalization，一个 ReLU 激活函数，和一个 dropout 层：
 
     .. image:: jasper.png
