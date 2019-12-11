@@ -58,6 +58,19 @@ we work with 4x smaller vocabulary of 8192 BPEs. It achieves the same level of p
     .. tip::
         To leverage the best GPU utilization and mixed precision speedup, make sure that the vocabulary size (as well as all sizes in the model) is divisible by 8.
 
+If the source language differs from the target language a lot, then we should use different tokenizers for them. For example, if the source language is English and the target language is Chinese, we can use YouTokenToMeTokenizer for source and CharTokenizer for target. This means the input of the model are English BPEs and the output of the model are Chinese characters.
+
+
+    .. code-block:: python
+
+        src_tokenizer = nemo_nlp.YouTokenToMeTokenizer(
+            model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
+        tgt_tokenizer = nemo_nlp.CharTokenizer(
+            vocab_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
+
+    .. tip::
+        You should pass the path of the vocabulary file to the CharTokenizer. The vocabulary file should contain the characters of the corresponding language.
+
 Next, we define all Neural Modules necessary for our model:
 
     * Transformer Encoder and Decoder.
@@ -79,6 +92,9 @@ Following `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`nlp-
 
         log_softmax.log_softmax.dense.weight = encoder.embedding_layer.token_embedding.weight
         decoder.embedding_layer.token_embedding.weight = encoder.embedding_layer.token_embedding.weight
+        
+    .. note::
+        You should not tie the parameters if you use different tokenizers for source and target.
 
 Then, we create the pipeline gtom input to output that can be used for both training and evaluation. An important element of this pipeline is the datalayer that
 packs input sentences into batches of similar length to minimize the use of padding symbol. Note, that the maximum allowed number of tokens in a batch is given

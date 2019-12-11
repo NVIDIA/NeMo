@@ -1,6 +1,6 @@
 .. _tts-docs:
 
-Speech Synthesis
+语音合成
 =================
 
 .. toctree::
@@ -9,3 +9,4 @@ Speech Synthesis
    tutorial
    datasets
    models
+
