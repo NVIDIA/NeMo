@@ -1,9 +1,7 @@
-NeMo support the following collections
-
-NEMO_ASR collection
+NeMo_ASR collection
 ===================
 
-Speech data processing modules
+语音数据处理模块
 ------------------------------
 .. automodule:: nemo_asr.data_layer
     :members:
@@ -11,11 +9,10 @@ Speech data processing modules
     :show-inheritance:
     :exclude-members: forward, create_ports
 
-Automatic Speech Recognition modules
+语音识别模块
 ------------------------------------
 .. automodule:: nemo_asr.jasper
     :members:
     :undoc-members:
     :show-inheritance:
     :exclude-members: forward, create_ports
-
