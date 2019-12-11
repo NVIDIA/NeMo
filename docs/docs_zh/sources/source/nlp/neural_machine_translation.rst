@@ -115,12 +115,11 @@
                                                   clean=True,
                                                   training=False)
 
-
 然后，我们定义必要的回调函数：
 
-1. `SimpleLossLoggerCallback`:用于追踪训练过程中的损失值
-2. `EvaluatorCallback`:用于追踪在指定间隔时验证数据及上的 BLEU 分数
-3. `CheckpointCallback`:用于保存模型的检查点（checkpoints）
+1. `SimpleLossLoggerCallback`: 用于追踪训练过程中的损失值
+2. `EvaluatorCallback`: 用于追踪在指定间隔时验证数据及上的 BLEU 分数
+3. `CheckpointCallback`: 用于保存模型的检查点（checkpoints）
 
     .. code-block:: python
 
@@ -131,7 +130,7 @@
         ckpt_callback = nemo.core.CheckpointCallback(...)
 
     .. note::
-        BLEU 分数是通过计算模型预测得到的翻译句子与验证集中真实的目标句子得到的。考虑到完整性，我们计算了两个在文献中常用的指标，分别是 `SacreBLEU <https://github.com/mjpost/sacreBLEU>`_ :cite:`nlp-nmt-post2018call` 和 `tokenized BLEU score <https://github.com/moses-smt/mosesdecoder/blob/master/scripts/generic/multi-bleu.perl>`_。
+        BLEU 分数是通过计算模型预测得到的翻译句子与验证集中真实的目标句子得到的。考虑到完整性，我们计算了两个在文献中常用的指标，分别是 `SacreBLEU <https://github.com/mjpost/sacreBLEU>`_ :cite:`nlp-nmt-post2018call` 和 `tokenized BLEU score <https://github.com/moses-smt/mosesdecoder/blob/master/scripts/generic/multi-bleu.perl>`_ 。
 
 最后，我们定义优化器的参数并开始训练。
 
@@ -167,14 +166,14 @@
             --batch_size 12288 --iter_per_step 5
 
     .. note::
-        这个命令会在 8 块 GPU 上开始模型训练， 显存需求最少为 16GB。如果你的 GPU 显存较少，请适量调低 **batch_size** 参数，并适量调高 **iter_per_step** 参数。
+        这个命令会在 8 块 GPU 上开始模型训练，显存需求最少为 16GB。如果你的 GPU 显存较少，请适量调低 ``batch_size`` 参数，并适量调高 ``iter_per_step`` 参数。
 
-要想训练一个英文-中文的神经机器翻译模型，需要指定 **--src_lang** 为 **en**， **--tgt_lang** 为 **zh**，同时将 **--tgt_tokenizer_model** 设置为词汇表文件的路径，中文训练数据的样例格式请参考 ``/tests/data/nmt_en_zh_sample_data/`` 。
+要想训练一个英文-中文的神经机器翻译模型，需要指定 ``--src_lang`` 为 ``en`` ， ``--tgt_lang`` 为 ``zh`` ，同时将 ``--tgt_tokenizer_model`` 设置为词汇表文件的路径，中文训练数据的样例格式请参考 ``/tests/data/nmt_en_zh_sample_data/`` 。
 
 使用预训练的模型进行翻译
 ------------------------
 
-1. 将你训练时保存的模型检查点（checkpoint）文件（或者可以直接从 `这里 <https://ngc.nvidia.com/catalog/models/nvidia:transformer_big_en_de_8k>`_ 下载检查点文件，该检查点在 newstest2014 数据集上取得了 28.5 的 SacreBLEU 分数）放置到 **<path_to_ckpt>** 目录中。
+1. 将你训练时保存的模型检查点（checkpoint）文件（或者可以直接从 `这里 <https://ngc.nvidia.com/catalog/models/nvidia:transformer_big_en_de_8k>`_ 下载检查点文件，该检查点在 newstest2014 数据集上取得了 28.5 的 SacreBLEU 分数）放置到 ``<path_to_ckpt>`` 目录中。
 2. 在交互式模式中运行 ``nmt_tutorial.py``::
 
     python nmt_tutorial.py --src_tokenizer_model bpe8k_yttm.model \
