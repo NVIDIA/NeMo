@@ -38,8 +38,8 @@ logger = get_logger('')
 def get_features(queries,
                  max_seq_length,
                  tokenizer,
-                 punct_label_ids,
-                 capit_label_ids,
+                 punct_label_ids=None,
+                 capit_label_ids=None,
                  pad_label='O',
                  punct_labels_lines=None,
                  capit_labels_lines=None,
@@ -53,7 +53,11 @@ def get_features(queries,
     pad_label (str): pad value use for labels.
         by default, it's the neutral label.
     punct_label_ids (dict): dict to map punctuation labels to label ids.
-    capit_label_ids (dict): dict to map capitalization labels to label ids.
+        Starts with pad_label->0 and then increases in alphabetical order.
+        Required for training and evaluation, not needed for inference.
+    capit_label_ids (dict): dict to map labels to label ids. Starts
+        with pad_label->0 and then increases in alphabetical order.
+        Required for training and evaluation, not needed for inference.
     punct_labels (list of str): list of labels for every word in a sequence
     capit_labels (list of str): list of labels for every word in a sequence
     ignore_extra_tokens (bool): whether to ignore extra tokens in
@@ -182,7 +186,9 @@ def get_features(queries,
             all_loss_mask,
             all_subtokens_mask,
             punct_all_labels,
-            capit_all_labels)
+            capit_all_labels,
+            punct_label_ids,
+            capit_label_ids)
 
 
 class BertPunctuationCapitalizationDataset(Dataset):
@@ -208,7 +214,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
         shuffle (bool): whether to shuffle your data.
         pad_label (str): pad value use for labels.
             by default, it's the neutral label.
-
+        punct_label_ids and capit_label_ids (dict): dict to map labels to label ids.
+            Starts with pad_label->0 and then increases in alphabetical order
+            For dev set use label_ids generated during training to support
+            cases when not all labels are present in the dev set.
+            For training set label_ids should be None.
     """
 
     def __init__(self,
@@ -314,6 +324,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                                     ignore_extra_tokens=ignore_extra_tokens,
                                     ignore_start_end=ignore_start_end)
 
+
             if use_cache:
                 pickle.dump(features, open(features_pkl, "wb"))
                 logger.info(f'features saved to {features_pkl}')
@@ -325,16 +336,17 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.all_subtokens_mask = features[4]
         self.punct_all_labels = features[5]
         self.capit_all_labels = features[6]
-
-        self.punct_label_ids = punct_label_ids
-        self.capit_label_ids = capit_label_ids
+        self.punct_label_ids = features[7]
+        self.capit_label_ids = features[8]
 
         # save label_ids
         def get_stats_and_save(all_labels, label_ids, name):
             infold = text_file[:text_file.rfind('/')]
             merged_labels = itertools.chain.from_iterable(all_labels)
             logger.info('Three most popular labels')
-            utils.get_label_stats(merged_labels, infold + '/label_stats_' + name  + '.tsv')
+            _, label_frequencies = \
+                utils.get_label_stats(merged_labels,
+                                      infold + '/label_count_' + name  + '.tsv')
 
             out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
             labels, _ = zip(*sorted(label_ids.items(),  key=lambda x: x[1]))
@@ -342,8 +354,14 @@ class BertPunctuationCapitalizationDataset(Dataset):
             logger.info(f'Labels: {label_ids}')
             logger.info(f'Labels mapping saved to : {out.name}')
 
-        get_stats_and_save(self.punct_all_labels, punct_label_ids, 'punct')
-        get_stats_and_save(self.capit_all_labels, capit_label_ids, 'capit')
+            return label_frequencies
+
+        self.punct_label_frequencies = get_stats_and_save(self.punct_all_labels,
+                                                          punct_label_ids,
+                                                          'punct')
+        self.capit_label_frequencies = get_stats_and_save(self.capit_all_labels,
+                                                          capit_label_ids,
+                                                          'capit')
 
     def __len__(self):
         return len(self.all_input_ids)
@@ -381,6 +399,10 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
         shuffle (bool): whether to shuffle your data.
         pad_label (str): pad value use for labels.
             by default, it's the neutral label.
+        ignore_extra_tokens (bool): whether to ignore extra tokens in
+            the loss_mask,
+        ignore_start_end (bool): whether to ignore bos and eos tokens in
+            the loss_mask
     """
 
     def __init__(self,
