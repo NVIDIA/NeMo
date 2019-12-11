@@ -4,5 +4,9 @@ mkdir build/html
 make html
 cp -r build/html ../html
 make clean
-rm -r ../zh
+
+if [ -d "../zh" ]; then
+    rm -r ../zh
+fi
+
 mv ../html ../zh
