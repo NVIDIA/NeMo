@@ -1,13 +1,7 @@
 NeMo Common Collection
 ======================
 
-NeMo core package comes with "common" collection for pytorch built-in:
-
-.. automodule:: nemo.backends.pytorch.common.data
-    :members:
-    :undoc-members:
-    :show-inheritance:
-    :exclude-members: forward, create_ports
+NeMo 基于 pytorch 内置 “common” 模块的核心包:
 
 .. automodule:: nemo.backends.pytorch.common.losses
     :members:

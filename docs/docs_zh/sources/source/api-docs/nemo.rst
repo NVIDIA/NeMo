@@ -26,18 +26,18 @@ neural_factory
     :undoc-members:
     :show-inheritance:
 
-PyTorch BackEnd
+PyTorch 后端
 ===============
-Currently, we only support PyTorch backend.
+当前我们只支持 PyTorch 后端。
 
-Basic actions
+基本操作
 -------------
 .. automodule:: nemo.backends.pytorch.actions
     :members:
     :undoc-members:
     :show-inheritance:
 
-Classes for writing your own NMs
+写你自己的神经模块需要的类
 --------------------------------
 
 .. automodule:: nemo.backends.pytorch.nm
@@ -45,7 +45,7 @@ Classes for writing your own NMs
     :undoc-members:
     :show-inheritance:
 
-Trainable Module Wrapper
+可训练模块的封装器
 ------------------------
 .. automodule:: nemo.backends.pytorch.module_wrapper
     :members:
