@@ -25,27 +25,27 @@ NeMo 支持以下两个模型：
 获取数据
 --------
 Tacotron 2 和 Waveglow 都可以使用
-`LJSpeech <https://keithito.com/LJ-Speech-Dataset/>`__ 数据集来训练。
+`LJSpeech <https://keithito.com/LJ-Speech-Dataset/>`_ 数据集来训练。
 你可以使用一个辅助脚本来获得用于 NeMo 训练的数据，该脚本位于 NeMo/scripts，请按照如下方式运行该脚本：
 
 .. code-block:: bash
 
     python scripts/get_ljspeech_data.py --data_root=<where_you_want_to_save_data>
 
-想了解更多关于 LJSpeech 数据集的细节，可以参考 :ref:`这里 <ljspeech_dataset>`。
+想了解更多关于 LJSpeech 数据集的细节，可以参考 :ref:`这里 <ljspeech_dataset>` 。
 
-对于普通话语音合成的数据:`中文标准女声音库 <https://www.data-baker.com/open_source.html>`__，你也可以使用一个辅助脚本来获得，该脚本位于 NeMo/scripts，
+对于普通话语音合成的数据: `中文标准女声音库 <https://www.data-baker.com/open_source.html>`_ ，你也可以使用一个辅助脚本来获得，该脚本位于 NeMo/scripts，
 辅助脚本中使用的数据集下载链接由标贝（北京）科技有限公司提供。
 
 .. code-block:: bash
 
     python scripts/get_databaker_data.py --data_root=<where_you_want_to_save_data>
 
-想了解更多关于中文标准女声音库数据集的细节，可以参考 :ref:`这里 <中文标准女声音库>`。
+想了解更多关于中文标准女声音库数据集的细节，可以参考 :ref:`这里 <中文标准女声音库>` 。
 
 训练
----------
-NeMo 支持对 Tacotron 2 和 Waveglow 进行训练。在本教程中，我们主要关注于 Tacotron 2 模型的训练， 
+----
+NeMo 支持对 Tacotron 2 和 Waveglow 进行训练。在本教程中，我们主要关注于 Tacotron 2 模型的训练，
 因为其负责从训练数据的音频中学习大部分的特征，例如性别、韵律等。 另外，我们的实验还表明，
 Waveglow 作为声码器是具有通用型的。具体的表现为，我们在一个英文女声语音数据集上训练得到的 
 Waveglow 模型，可以用于男性声音或者其他语言（如普通话）的声码器。
@@ -64,15 +64,15 @@ NeMo/examples/tts。假设你当前已经位于 NeMo/examples/tts 目录下，
 .. code-block:: bash
 
     python tacotron2.py --train_dataset=<data_root>/databaker_csmsc_train.json --eval_datasets <data_root>/databaker_csmsc_eval.json --model_config=configs/tacotron_mandarin.yaml --max_steps=30000
-    
+
 .. tip::
     Tacotron 2 通常需要约 20,000 个训练步来学习到正确的注意力（也可以理解为对齐）。
     一旦模型学习到了正确的注意力，你就可以使用该模型来合成较为清晰的语音。
 
 混合精度训练
--------------------------
-启用或关闭混合精度训练可以通过一个命令行参数来控制 --amp_opt_level。对于 Tacotron 2
-和 Waveglow 来说，该参数建议的默认值为 O1。该参数值可以设置为以下几种：
+------------
+启用或关闭混合精度训练可以通过一个命令行参数来控制 ``--amp_opt_level`` 。对于 Tacotron 2
+和 Waveglow 来说，该参数建议的默认值为 ``O1`` 。该参数值可以设置为以下几种：
 
 - O0: 单精度（float32）训练
 - O1: 混合精度训练
@@ -80,12 +80,12 @@ NeMo/examples/tts。假设你当前已经位于 NeMo/examples/tts 目录下，
 - O3: 半精度（float16）训练
 
 .. note::
-    混合精度依赖 Tensor Cores ，NVIDIA 的 Volta 和 Turing 架构 GPU 支持 Tensor Cores。
+    混合精度依赖 Tensor Cores ，当前英伟达的 Volta 和 Turing 架构 GPU 支持 Tensor Cores。
 
 多 GPU 训练
--------------------
+-----------
 要想启用在多个 GPU 上训练可以通过在运行训练脚本时调用
-torch.distributed.launch 模块并指定 --nproc_per_node 参数为 GPU 的数量：
+torch.distributed.launch 模块并指定 ``--nproc_per_node`` 参数为 GPU 的数量：
 
 .. code-block:: bash
 

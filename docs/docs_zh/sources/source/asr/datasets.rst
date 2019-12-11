@@ -108,7 +108,7 @@ Fisher English Training Speech
     --data_root=<path_to_HUB5_data> \
     --dest_root=<target_dir>
 
-你可以选择性的加入 `--min_slice_duration=<num_seconds>` 如果你想改变最小音频片段长度。
+你可以选择性的加入 ``--min_slice_duration=<num_seconds>`` 如果你想改变最小音频片段长度。
 
 AISHELL-1
 ---------
@@ -127,7 +127,7 @@ AISHELL-1
 AISHELL-2
 ---------
 
-运行下面的脚本处理 AIShell-2 数据集，把它处理成 `nemo_asr` 需要的文件格式。通过设置 `--audio_folder` 指定数据目录，用 `--dest_folder` 指定处理后的文件目录。
+运行下面的脚本处理 AIShell-2 数据集，把它处理成 `nemo_asr` 需要的文件格式。通过设置 ``--audio_folder`` 指定数据目录，用 ``--dest_folder`` 指定处理后的文件目录。
 
 .. code-block:: bash
 
