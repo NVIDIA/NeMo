@@ -6,7 +6,7 @@
 混合精度训练
 ~~~~~~~~~~~~
 
-在英伟达最新的 Volta 和 Turning 架构中，GPU 配备了 Tensor Cores 计算单元，能够大幅加速半精度浮点数的矩阵乘法运算。想要在 NeMo 中使用混合精度训练，你可以设置 `nemo.core.NeuralModuleFactory` 类的 `optimization_level` 选项为 `nemo.core.Optimization.mxprO1` 。
+在英伟达最新的 Volta 和 Turning 架构中，GPU 配备了 Tensor Cores 计算单元，能够大幅加速半精度浮点数的矩阵乘法运算。想要在 NeMo 中使用混合精度训练，你可以设置 `nemo.core.NeuralModuleFactory` 类的 ``optimization_level`` 选项为 ``nemo.core.Optimization.mxprO1`` 。
 
 .. code-block:: python
 
@@ -21,8 +21,8 @@
 
 进行多 GPU 训练需要进行如下设置：
 
-(1) 在 `NeuralModuleFactory` 类中设置选项 `placement` 为 `nemo.core.DeviceType.AllGpu`
-(2) 在你的 python 脚本中添加命令行选项 ``local_rank``: `parser.add_argument("--local_rank", default=None, type=int)`
+(1) 在 ``NeuralModuleFactory`` 类中设置选项 ``placement`` 为 ``nemo.core.DeviceType.AllGpu``
+(2) 在你的 python 脚本中添加命令行选项 ``local_rank``: ``parser.add_argument("--local_rank", default=None, type=int)``
 
 .. code-block:: python
 
@@ -53,6 +53,6 @@
 
 .. tip::
     你可以在选项中同时传入多个数据集，使用逗号隔开，例如：
-    `--train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json`.
+    ``--train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json``
 
 这个例子会在三个数据集上进行训练，LibriSpeech, Mozzila Common Voice 和 Librispeech做了速度扰动后的数据集。

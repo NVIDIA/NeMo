@@ -20,8 +20,6 @@ CTC 可以在音频和文本中找到对齐方式。基于 CTC 的语音识别�
         :align: center
         :alt: CTC-based ASR
 
-
-
 获取数据
 --------
 我们会使用 LibriSpeech :cite:`asr-tut-panayotov2015librispeech` 数据集。下面这些脚本会下载并且把 Librispeech 转成 `nemo_asr` 需要的数据格式：
@@ -269,7 +267,7 @@ NeMo 中的混合精度和分布式训练是基于 `英伟达的 APEX 库 <https
 上面的命令会运行一个8 GPU 的混合精度训练。其中不同的列表文件（.json）文件是不同的数据集。你可以用你的数据来替代它们。
 
 .. tip::
-    你可以用逗号分隔不同的数据集：`--train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json`。
+    你可以用逗号分隔不同的数据集： `--train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json` 。
     这里使用了3个数据集 LibriSpeech，Mozilla Common Voice 和 LibriSpeech音频速度进行干扰后的数据集。
 
 
