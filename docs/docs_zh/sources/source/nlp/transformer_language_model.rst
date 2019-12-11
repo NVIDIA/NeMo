@@ -42,8 +42,8 @@ Transformer语言模型
 
 创建模型
 ----------------
-首先我们需要用支持的后端来创建 ``neural factory`` 。你如何定义它取决于你想做多GPU训练或者是混精度训练。这个教程假设你不用混精度，在一块GPU上做训练。
-如果你想做混精度训练，设置 ``amp_opt_level`` 为 ``O1`` 或者 ``O2`` 。
+首先我们需要用支持的后端来创建 ``neural factory`` 。你如何定义它取决于你想做多 GPU 训练或者是混合精度训练。这个教程假设你不用混合精度，在一块 GPU 上做训练。
+如果你想做混合精度训练，设置 ``amp_opt_level`` 为 ``O1`` 或者 ``O2`` 。
 
     .. code-block:: python
 
@@ -57,7 +57,7 @@ Transformer语言模型
 接着，我们定义对于我们模型的神经元模块
 
     * Transformer编码器 (注意，我们的语言模型不需要解码器)
-    * `TokenClassifier`  把输出映射到词汇表上的概率分布.
+    * `TokenClassifier` 把输出映射到词汇表上的概率分布.
     * 损失函数 (带标签平滑正则的交叉熵).
 
     .. code-block:: python
@@ -67,7 +67,7 @@ Transformer语言模型
         loss = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(**params)
 
 
-根据 `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`nlp-lm-press2016using`, 我们也会把词嵌入的参数和softmax层连起来:
+根据 `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`nlp-lm-press2016using`, 我们也会把词嵌入的参数和 softmax 层连起来:
 
     .. code-block:: python
 
@@ -110,9 +110,9 @@ Transformer语言模型
 
 接下来，我们定义一些必要的回调:
 
-1. `SimpleLossLoggerCallback`: 追踪训练中的 loss
+1. `SimpleLossLoggerCallback`: 记录训练中的 loss
 2. `EvaluatorCallback`: 在用户设置的间隔中，追踪评估的度量指标
-3. `CheckpointCallback`: 在设置的间各种保存 checkpoints
+3. `CheckpointCallback`: 根据设定的时间点保存权重文件
 
     .. code-block:: python
 
