@@ -23,7 +23,7 @@ parser.set_defaults(train_dataset="train",
                     lr_policy='CosineAnnealing',
                     lr=0.005,
                     weight_decay=0,
-                    max_steps=5000,
+                    max_steps=500,
                     iter_per_step=1,
                     eval_freq=1000)
 parser.add_argument("--data_dir", default="../../tests/data/en_de", type=str)
