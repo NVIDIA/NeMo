@@ -131,7 +131,7 @@ def process_thucnews(data_dir):
     outfold = f'{data_dir}/nemo-processed-thucnews'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logger.info(LOGGING_TMP.format('THUCNews', outfold))
+        logger.info(DATABASE_EXISTS_TMP.format('THUCNews', outfold))
         return outfold
     logger.info(f'Processing THUCNews dataset and store at {outfold}')
 
