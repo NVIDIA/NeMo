@@ -201,7 +201,7 @@ To do inference, run:
 
     .. code-block:: python
 
-        python -m joint_intent_slot_infer.py \
+        python joint_intent_slot_infer.py \
             --data_dir <path to data> \
             --work_dir <path to checkpoint folder>
 
@@ -210,7 +210,7 @@ To do inference on a single query, run:
     
     .. code-block:: python
 
-        python -m joint_intent_slot_infer.py \
+        python joint_intent_slot_infer.py \
             --work_dir <path to checkpoint folder>
             --query <query>
 
