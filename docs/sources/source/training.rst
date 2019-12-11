@@ -1,7 +1,7 @@
 Fast Training 
 =============
 
-Training large model (especially from scratch) requires significant compute. NeMo provides support for mixed precision and distributed training to speed-up training. NeMo uses `NVIDIA's APEX library <https://github.com/NVIDIA/apex>`_ to get maximum performance out of NVIDIA's GPUs. Furthermore, multi-GPU systems (such as DGX Station, DGX-1 and DGX-2) have *NVLINK* to speed-up multi-GPU communication.
+Training a large model (especially from scratch) requires significant compute. NeMo provides support for mixed precision and distributed training to speed-up training. NeMo uses `NVIDIA's APEX library <https://github.com/NVIDIA/apex>`_ to get maximum performance out of NVIDIA's GPUs. Furthermore, multi-GPU systems (such as DGX Station, DGX-1 and DGX-2) have *NVLINK* to speed-up multi-GPU communication.
 
 
 Mixed Precision
@@ -42,10 +42,11 @@ Use `torch.distributed.launch` package to run your script like this (assuming 8 
 Example
 ~~~~~~~
 
-Please refer to the `<nemo_git_repo_root>/examples/asr/jasper.py` for comprehensive example. 
+Please refer to the `<nemo_git_repo_root>/examples/asr/jasper.py` for a comprehensive example. 
 It builds one train DAG and up to three validation DAGs to evaluate on different datasets.
 
-Assuming, you are working with Volta-based DGX, you can run training like this:
+If you are working with a +
+Volta-based DGX, you can run training like this:
 
 .. code-block:: bash
 
