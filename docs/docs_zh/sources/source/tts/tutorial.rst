@@ -32,7 +32,7 @@ Tacotron 2 和 Waveglow 都可以使用
 
     python scripts/get_ljspeech_data.py --data_root=<where_you_want_to_save_data>
 
-想了解更多关于 LJSpeech 数据集的细节，可以参考 :ref:`这里 <ljspeech>`。
+想了解更多关于 LJSpeech 数据集的细节，可以参考 :ref:`这里 <ljspeech_dataset>`。
 
 对于普通话语音合成的数据:`中文标准女声音库 <https://www.data-baker.com/open_source.html>`__，你也可以使用一个辅助脚本来获得，该脚本位于 NeMo/scripts，
 辅助脚本中使用的数据集下载链接由标贝（北京）科技有限公司提供。
