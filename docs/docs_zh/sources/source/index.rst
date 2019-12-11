@@ -43,7 +43,7 @@ Neural Modules (NeMo) 是一个用神经模块来构建 AI 应用的工具包，
 * `NmTensor` - 表示的是神经模块端口之间流动的激活元。
 * `NeuralType` - 表示模块端口类型和 NmTensors。
 * `NeuralFactory` - 创建神经模块并且管理训练流程。
-* `Lazy execution` - 当描述神经模块之间的激活流时，在一个“action”(比如 `optimizer.optimize(...)` 没有触发前，什么都不会发生。
+* `Lazy execution` - NeMo 描述神经模块之间的激活流时，运算并没有发生。只有在运行某个 “action”，例如 `optimizer.optimize(...)` 才会真正触发计算。
 * `Collections` - NeMo中附带的模块集合 -  与其相关的模块集合，例如， `nemo_asr` (语音识别) 以及 `nemo_nlp` (自然语言处理)
 
 
