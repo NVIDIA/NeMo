@@ -190,7 +190,7 @@ For training from raw text use nemo_nlp.BertPretrainingDataLayer, for preprocess
             nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=nsp_labels)
 
             loss = bert_loss(loss_1=mlm_loss, loss_2=nsp_loss)
-            
+
             return loss, mlm_loss, nsp_loss, steps_per_epoch
 
 

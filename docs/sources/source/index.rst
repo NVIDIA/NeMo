@@ -14,7 +14,7 @@ NVIDIA Neural Modules: NeMo
    tts/intro
    collections/modules
    api-docs/modules
-
+   chinese/intro
 
 
 Neural Modules (NeMo) is a framework-agnostic toolkit for building AI applications powered by Neural Modules. Current support is for PyTorch framework.

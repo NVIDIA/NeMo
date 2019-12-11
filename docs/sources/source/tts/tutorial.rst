@@ -43,6 +43,17 @@ The script is located at NeMo/scripts and can be run like so:
 
 For more details on the LJSpeech dataset, see :ref:`our docs here <ljspeech>`.
 
+For Mandarin, we use `Chinese Standard Mandarin Speech Copus <https://www.data-baker.com/open_source.html>`__.
+You can use a helper script to get and process the dataset for use with NeMo. The dataset download link in the
+script is provided by Databaker (Beijing) Technology Co.,Ltd. 
+The script is located at NeMo/scripts and can be run like so:
+
+.. code-block:: bash
+
+    python scripts/get_databaker_data.py --data_root=<where_you_want_to_save_data>
+
+For more details on the Chinese Standard Mandarin Speech Copus, see :ref:`our docs here <csmsc>`.
+    
 Training
 ---------
 NeMo supports training both Tacotron 2 and Waveglow. For the purposes of this
@@ -61,6 +72,13 @@ you can run the following to start training:
 
     python tacotron2.py --train_dataset=<data_root>/ljspeech_train.json --eval_datasets <data_root>/ljspeech_eval.json --model_config=configs/tacotron.yaml --max_steps=30000
 
+Training Tacotron 2 on Mandarin also can be done by running the `tacotron2.py` file.
+You can run the following to start training:
+
+.. code-block:: bash
+
+    python tacotron2.py --train_dataset=<data_root>/databaker_csmsc_train.json --eval_datasets <data_root>/databaker_csmsc_eval.json --model_config=configs/tacotron_mandarin.yaml --max_steps=30000
+    
 .. tip::
     Tacotron 2 normally takes around 20,000 steps for attention to be learned.
     Once attention is learned, this is when you can use the model to generate
@@ -107,10 +125,20 @@ have lines like so:
     {"audio_filepath": "", "duration": 1.0, "text": "Talk to me!"}
     {"audio_filepath": "", "duration": 1.0, "text": "Speech Synthensis is cool."}
 
+For Mandarin, they should have lines like so:
+
+.. code-block:: json
+
+    {"audio_filepath": "", "duration": 1.0, "text": "jin1 tian1 tian1 qi4 bu2 cuo4."}
+    {"audio_filepath": "", "duration": 1.0, "text": "ni3 kan4 bao4 zhi3 ma0"}
+
+The "text" should contain the **pinyin** sequence in Mandarin. The digit behind each Chinese character's pinyin is the **tone**. 0 stands for soft tone.
+
 Inference can be done with the tts_infer.py file under the
 NeMo/examples/tts folder like so:
 
 .. code-block:: bash
 
-    python tts_infer.py --spec_model=tacotron2 --spec_model_config=configs/tacotron.yaml --spec_model_load_dir=<directory_with_tacotron2_checkopints> --vocoder=waveglow --vocoder_model_config=configs/waveglow.yaml --vocoder_model_load_dir=<directory_with_waveglow_checkopints> --save_dir=<where_you_want_to_save_wav_files> --eval_dataset <mainfest_to_generate>
+    python tts_infer.py --spec_model=tacotron2 --spec_model_config=configs/tacotron2.yaml --spec_model_load_dir=<directory_with_tacotron2_checkopints> --vocoder=waveglow --vocoder_model_config=configs/waveglow.yaml --vocoder_model_load_dir=<directory_with_waveglow_checkopints> --save_dir=<where_you_want_to_save_wav_files> --eval_dataset <mainfest_to_generate>
 
+For Mandarin, remember to replace the config file of Tacotron 2 with tacotron2_mandarin.yaml.
