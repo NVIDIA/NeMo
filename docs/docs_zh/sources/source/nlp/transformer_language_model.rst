@@ -4,12 +4,12 @@ Transformer语言模型
 在这个教程中，我们会用Transformer :cite:`nlp-lm-vaswani2017attention` 的结构构建和训练一个语言模型。确保在开始这个教程之前你已经安装了 ``nemo`` 和 ``nemo_nlp`` ，详见 :ref:`installation` 。
 
 简介
-------------
+----
 
 一个好的语言模型对于下游任务有很广泛的应用。用于下游任务的语言模型例子包括 GPT-2 :cite:`nlp-lm-radford2019language` 。
 
 下载语料
----------------
+--------
 
 在这个实验中我们会使用非常小的WikiText-2数据集 :cite:`nlp-lm-merity2016pointer` 。
 
@@ -106,7 +106,7 @@ Transformer语言模型
 
         train_loss = create_pipeline(train_dataset, args.batch_size)
         eval_loss = create_pipeline(eval_dataset, args.batch_size)
-    
+
 
 接下来，我们定义一些必要的回调:
 
@@ -119,7 +119,6 @@ Transformer语言模型
         train_callback = nemo.core.SimpleLossLoggerCallback(...)
         eval_callback = nemo.core.EvaluatorCallback(...)
         ckpt_callback = nemo.core.CheckpointCallback(...)
-
 
 最后，定义优化器，开始训练吧！
 
@@ -140,7 +139,7 @@ Transformer语言模型
                                       "betas": (args.beta1, args.beta2)})
 
 参考
-----------
+----
 
 .. bibliography:: nlp_all.bib
     :style: plain

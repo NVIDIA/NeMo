@@ -111,7 +111,7 @@ Fisher English Training Speech
 你可以选择性的加入 `--min_slice_duration=<num_seconds>` 如果你想改变最小音频片段长度。
 
 AISHELL-1
------------------------------------
+---------
 
 运行下面的脚本下载 AISHELL-1 数据集并把它转换到 `nemo_asr` 集合需要的文件格式。
 
@@ -125,7 +125,7 @@ AISHELL-1
 之后，你的 `data` 文件夹应该包含了一个 `data_aishell` 文件夹，它下面包含了 wav 文件夹，transcript 文件夹以及相应的 `.json` 清单文件和 `vocab.txt` 文件：
 
 AISHELL-2
------------------------------------
+---------
 
 运行下面的脚本处理 AIShell-2 数据集，把它处理成 `nemo_asr` 需要的文件格式。通过设置 `--audio_folder` 指定数据目录，用 `--dest_folder` 指定处理后的文件目录。
 
@@ -133,4 +133,4 @@ AISHELL-2
 
     python process_aishell2_data.py --audio_folder=<data directory> --dest_folder=<destination directory>
 
-接着在 `dest_folder` 下会生成 `train.json` `dev.json` `test.json` 以及 `vocab.txt`。 
+接着在 `dest_folder` 下会生成 `train.json` `dev.json` `test.json` 以及 `vocab.txt` 。

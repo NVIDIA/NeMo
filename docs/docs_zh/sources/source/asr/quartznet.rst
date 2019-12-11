@@ -8,7 +8,7 @@ QuartzNet 是 Jasper模型 :cite:`asr-models-li2019jasper` 的一个版本, 它�
     .. image:: quartz_vertical.png
         :align: center
         :alt: quartznet model
-   
+
     .. note:: 这个checkpoint是在LibriSpeech上训练的，完全在EN Mozilla Common Voice的部分数据集上做的“验证”
 
 我们正在写 QuartzNet 的论文，不久就会发布。

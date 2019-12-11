@@ -9,7 +9,7 @@ NeMo 当前并未将 WaveGlow 分解为多个神经模块的组合，而是将�
 小建议
 ~~~~~~~
 我们提供的预训练 Waveglow 模型应该能作为绝大部分语言的声码器。
-当然，你也可以通过运行位于 waveglow.py 脚本来训练自己的 WaveGlow 声码器。
+当然，你也可以通过运行 waveglow.py 脚本来训练自己的 WaveGlow 声码器。
 该脚本的运行方式如下所示：
 
 .. code-block:: bash

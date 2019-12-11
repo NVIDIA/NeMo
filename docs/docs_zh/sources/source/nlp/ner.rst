@@ -3,7 +3,6 @@
 
 在教程前，请确认你已经安装了 ``nemo`` 和 ``nemo_nlp`` 。你可以通过这个部分获得更多的信息 :ref:`installation`
 
-
 简介
 ----
 
@@ -32,7 +31,6 @@ labels.txt 需要满足的格式为：
 
 text.txt 每一行包含文本序列，其中词以空格来进行分隔。label.txt 中包含 text.txt 中每个词的标注，标注以空格分隔。文件中的每一行需要符合如下格式：
 [WORD] [SPACE] [WORD] [SPACE] [WORD] (在 text.txt 中) 和 [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (在 labels.txt中)。
-
 
 .. _script: https://github.com/NVIDIA/NeMo/tree/master/scripts/get_conll_data.py
 
@@ -180,7 +178,7 @@ text.txt 每一行包含文本序列，其中词以空格来进行分隔。label
                                       "lr": LEARNING_RATE})
 
 使用脚本训练新的 BERT 模型
--------------------------------------------------
+--------------------------
 
 运行如下训练脚本:
 
