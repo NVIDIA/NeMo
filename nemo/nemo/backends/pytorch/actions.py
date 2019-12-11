@@ -346,7 +346,7 @@ class PtActions(Actions):
                     weight_decay=optimization_params.get("weight_decay", 0.0),
                     luc=optimization_params.get("luc", False),
                     luc_trust=optimization_params.get("luc_eta", 1e-3),
-                    betas=optimization_params.get("betas", (0.95, 0.98)),
+                    betas=optimization_params.get("betas", (0.95, 0.25)),
                 )
             elif optimizer_class.lower() == "fused_novograd":
                 optimizer = FusedNovoGrad(
