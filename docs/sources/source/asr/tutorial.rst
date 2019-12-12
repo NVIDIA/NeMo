@@ -1,11 +1,11 @@
 Tutorial
 ========
 
-Make sure you have installed ``nemo`` and ``nemo_asr`` collection.
+Make sure you have installed the  ``nemo`` and ``nemo_asr`` collection.
 See the :ref:`installation` section.
 
 .. note::
-    You only need the `nemo` and `nemo_asr` collections for this tutorial.
+You only need the ``nemo`` and ``nemo_asr`` collections for this tutorial.
 
 Introduction
 -------------
