@@ -25,6 +25,7 @@ from .losses import CTCLossNM
 
 __all__ = ['Backend',
            'AudioToTextDataLayer',
+           'AudioPreprocessing',
            'AudioPreprocessor',
            'AudioToMFCCPreprocessor',
            'AudioToMelSpectrogramPreprocessor',
@@ -43,4 +44,4 @@ __all__ = ['Backend',
 
 name = "nemo_asr"
 backend = Backend.PyTorch
-__version__ = "0.8.3"
+__version__ = "0.9.0"
