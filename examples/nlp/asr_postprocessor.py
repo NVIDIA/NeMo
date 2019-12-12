@@ -21,18 +21,18 @@ parser.set_defaults(train_dataset="train",
                     num_epochs=1000,
                     batch_size=4096,
                     eval_batch_size=1024,
-                    lr=0.005,
+                    lr=0.001,
                     weight_decay=0,
-                    max_steps=300000,
+                    max_steps=2000,
                     iter_per_step=1,
                     checkpoint_save_freq=10000,
                     work_dir='outputs/asr_postprocessor',
-                    eval_freq=2000)
+                    eval_freq=200)
 
 parser.add_argument("--pretrained_model",
                     default="bert-base-uncased",
                     type=str)
-parser.add_argument("--warmup_steps", default=4000, type=int)
+parser.add_argument("--warmup_steps", default=2000, type=int)
 parser.add_argument("--d_model", default=768, type=int)
 parser.add_argument("--d_inner", default=3072, type=int)
 parser.add_argument("--num_layers", default=12, type=int)
@@ -97,7 +97,8 @@ t_log_softmax = nemo_nlp.TokenClassifier(args.d_model,
                                          num_layers=1,
                                          log_softmax=True)
 
-loss_fn = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(pad_id=0, smoothing=0.1)
+loss_fn = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(
+    pad_id=tokenizer.pad_id(), smoothing=0.1)
 
 beam_search = nemo_nlp.BeamSearchTranslatorNM(
     decoder=decoder,
@@ -147,14 +148,14 @@ def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):
 
 # training pipeline
 train_loss, _ = create_pipeline(args.train_dataset, args.batch_size,
-                                clean=True)
+                                clean=False)
 
 # evaluation pipelines
 all_eval_losses = {}
 all_eval_tensors = {}
 for eval_dataset in args.eval_datasets:
     eval_loss, eval_tensors = create_pipeline(
-        eval_dataset, args.eval_batch_size, clean=True, training=False)
+        eval_dataset, args.eval_batch_size, clean=False, training=False)
     all_eval_losses[eval_dataset] = eval_loss
     all_eval_tensors[eval_dataset] = eval_tensors
 
@@ -179,7 +180,7 @@ for eval_dataset in args.eval_datasets:
         eval_tensors=all_eval_tensors[eval_dataset],
         user_iter_callback=lambda x, y: eval_iter_callback(x, y, tokenizer),
         user_epochs_done_callback=eval_epochs_done_callback_wer,
-        eval_step=args.eval_step_frequency,
+        eval_step=args.eval_freq,
         tb_writer=nf.tb_writer)
     callbacks.append(callback)
 
