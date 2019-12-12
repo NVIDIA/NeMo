@@ -45,8 +45,7 @@ Example
 Please refer to the `<nemo_git_repo_root>/examples/asr/jasper.py` for a comprehensive example. 
 It builds one train DAG and up to three validation DAGs to evaluate on different datasets.
 
-If you are working with a +
-Volta-based DGX, you can run training like this:
+If you are working with a Volta-based DGX, you can run training like this:
 
 .. code-block:: bash
 

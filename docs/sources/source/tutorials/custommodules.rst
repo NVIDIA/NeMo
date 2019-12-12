@@ -29,7 +29,7 @@ Trainable Module
     has two base classes: :class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` class and ``torch.nn.Module``.
 
 Defining a module from scratch
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (1) Inherit from :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` class.
 (2) Create the ``create_ports()`` static method that defines your input and output ports.
