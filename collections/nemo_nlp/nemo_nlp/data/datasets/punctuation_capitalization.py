@@ -60,9 +60,9 @@ def get_features(queries,
         Required for training and evaluation, not needed for inference.
     punct_labels (list of str): list of labels for every word in a sequence
     capit_labels (list of str): list of labels for every word in a sequence
-    ignore_extra_tokens (bool): whether to ignore extra tokens in
+    ignore_extra_tokens (int): whether to ignore extra tokens in
         the loss_mask,
-    ignore_start_end (bool): whether to ignore bos and eos tokens in
+    ignore_start_end (int): whether to ignore bos and eos tokens in
         the loss_mask
     """
     all_subtokens = []
@@ -99,7 +99,7 @@ def get_features(queries,
             subtokens.extend(word_tokens)
 
             loss_mask.append(1)
-            loss_mask.extend([not ignore_extra_tokens] *
+            loss_mask.extend([int(not ignore_extra_tokens)] *
                              (len(word_tokens) - 1))
 
             subtokens_mask.append(1)
@@ -200,7 +200,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
     NMDataLayer.
 
     For dataset to use during inference without labels, see
-    BertTokenClassificationInferDataset.
+    BertPunctuationCapitalizationInferDataset.
 
     Args:
         text_file (str): file to sequences, each line should a sentence,
@@ -219,6 +219,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
             For dev set use label_ids generated during training to support
             cases when not all labels are present in the dev set.
             For training set label_ids should be None.
+        ignore_extra_tokens (bool): whether to ignore extra tokens in
+            the loss_mask,
+        ignore_start_end (bool): whether to ignore bos and eos tokens in
+            the loss_mask
     """
 
     def __init__(self,
@@ -357,10 +361,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
             return label_frequencies
 
         self.punct_label_frequencies = get_stats_and_save(self.punct_all_labels,
-                                                          punct_label_ids,
+                                                          self.punct_label_ids,
                                                           'punct')
         self.capit_label_frequencies = get_stats_and_save(self.capit_all_labels,
-                                                          capit_label_ids,
+                                                          self.capit_label_ids,
                                                           'capit')
 
     def __len__(self):
@@ -385,24 +389,12 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
     NMDataLayer.
 
     For dataset to use during training with labels, see
-    BertTokenClassificationDataset.
+    BertPunctuationCapitalizationDataset.
 
     Args:
-        text_file (str): file to sequences, each line should a sentence,
-            No header.
-        label_file (str): file to labels, each line corresponds to
-            word labels for a sentence in the text_file. No header.
+        queries (list): list of queries to run inference on
         max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
         tokenizer (Tokenizer): such as NemoBertTokenizer
-        num_samples (int): number of samples you want to use for the dataset.
-            If -1, use all dataset. Useful for testing.
-        shuffle (bool): whether to shuffle your data.
-        pad_label (str): pad value use for labels.
-            by default, it's the neutral label.
-        ignore_extra_tokens (bool): whether to ignore extra tokens in
-            the loss_mask,
-        ignore_start_end (bool): whether to ignore bos and eos tokens in
-            the loss_mask
     """
 
     def __init__(self,
