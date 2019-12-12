@@ -13,31 +13,43 @@ from nemo_nlp.utils.nlp_utils import get_vocab
 parser = argparse.ArgumentParser(description='NER with pretrained BERT')
 parser.add_argument("--max_seq_length", default=128, type=int)
 parser.add_argument("--fc_dropout", default=0, type=float)
+parser.add_argument("--punct_num_fc_layers", default=3, type=int)
 parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-cased", type=str)
+                    default="bert-base-uncased", type=str)
 parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument("--queries", action='append',
-                    default=
-                    ['we bought four shirts from the nvidia gear store in santa clara',
-                    'nvidia is a company',
-                    'can i help you',
-                    'we bought four shirts one mug and ten thousand titan rtx graphics cards the more you buy the more you save'],
+                    default=['we bought four shirts from the' +
+                             'nvidia gear store in santa clara',
+                             'nvidia is a company',
+                             'can i help you',
+                             'how\'s the weather today',
+                             'okay',
+                             'fine',
+                             'nowhere',
+                             'we bought four shirts one mug and ten thousand' +
+                             'titan rtx graphics cards the more you buy the' +
+                             'more you save'],
                     help="Example: --queries 'san francisco' --queries 'la'")
 parser.add_argument("--add_brackets", action='store_false',
                     help="Whether to take predicted label in brackets or \
                     just append to word in the output")
-parser.add_argument("--checkpoints_dir", default='output/checkpoints', type=str)
-parser.add_argument("--punct_labels_dict", default='punct_label_ids.csv', type=str)
-parser.add_argument("--capit_labels_dict", default='capit_label_ids.csv', type=str)
+parser.add_argument("--checkpoints_dir", default='output/checkpoints',
+                    type=str)
+parser.add_argument("--punct_labels_dict", default='punct_label_ids.csv',
+                    type=str, help='This file is generated during training \
+                    when the datalayer is created')
+parser.add_argument("--capit_labels_dict", default='capit_label_ids.csv',
+                    type=str, help='This file is generated during training \
+                    when the datalayer is created')
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
 
 args = parser.parse_args()
-print(args)
 
 if not os.path.exists(args.checkpoints_dir):
-    raise ValueError(f'Checkpints folder not found at {args.checkpoints_dir}')
-if not (os.path.exists(args.punct_labels_dict) and os.path.exists(args.capit_labels_dict)):
+    raise ValueError(f'Checkpoints folder not found at {args.checkpoints_dir}')
+if not (os.path.exists(args.punct_labels_dict) and
+        os.path.exists(args.capit_labels_dict)):
     raise ValueError(
         f'Dictionary with ids to labels not found at {args.punct_labels_dict} \
          or {args.punct_labels_dict}')
@@ -47,7 +59,7 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    log_dir=None)
 
 punct_labels_dict = get_vocab(args.punct_labels_dict)
-import pdb; pdb.set_trace()
+
 capit_labels_dict = get_vocab(args.capit_labels_dict)
 
 """ Load the pretrained BERT parameters
@@ -65,15 +77,17 @@ data_layer = nemo_nlp.BertTokenClassificationInferDataLayer(
     max_seq_length=args.max_seq_length,
     batch_size=1)
 
-punct_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
-                                      num_classes=len(punct_labels_dict),
-                                      dropout=args.fc_dropout,
-                                      name='Punctuation')
+punct_classifier = \
+    nemo_nlp.TokenClassifier(hidden_size=hidden_size,
+                             num_classes=len(punct_labels_dict),
+                             dropout=args.fc_dropout,
+                             num_layers=args.punct_num_fc_layers,
+                             name='Punctuation')
 
 capit_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
-                                      num_classes=len(capit_labels_dict),
-                                      dropout=args.fc_dropout,
-                                      name='Capitalization')
+                                            num_classes=len(capit_labels_dict),
+                                            dropout=args.fc_dropout,
+                                            name='Capitalization')
 
 input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
 

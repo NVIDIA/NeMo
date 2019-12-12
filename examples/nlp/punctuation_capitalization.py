@@ -15,8 +15,8 @@ from nemo_nlp.utils.callbacks.punctuation_capitalization import \
     eval_iter_callback, eval_epochs_done_callback
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description="Token classification\
-                        with pretrained BERT")
+parser = argparse.ArgumentParser(description="Punctuation and \
+    capitalization model with pretrained BERT")
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=8, type=int)
 parser.add_argument("--max_seq_length", default=128, type=int)
@@ -30,13 +30,14 @@ parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--data_dir", default="/data", type=str)
-parser.add_argument("--fc_dropout", default=0.5, type=float)
+parser.add_argument("--punct_num_fc_layers", default=3, type=int)
+parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
-parser.add_argument("--shuffle_data", action='store_false')
+parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-cased", type=str)
+                    default="bert-base-uncased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str,
                     help="Path to bert config file in json format")
@@ -55,22 +56,19 @@ parser.add_argument("--use_cache", action='store_true',
 parser.add_argument("--save_epoch_freq", default=1, type=int,
                     help="Frequency of saving checkpoint\
                     '-1' - step checkpoint won't be saved")
-parser.add_argument("--save_step_freq", default=-1, type=int,
+parser.add_argument("--save_step_freq", default=200, type=int,
                     help="Frequency of saving checkpoint \
                     '-1' - step checkpoint won't be saved")
 parser.add_argument("--loss_step_freq", default=250, type=int,
                     help="Frequency of printing loss")
-parser.add_argument("--use_weighted_loss", action='store_true',
+parser.add_argument("--use_weighted_loss_punct", action='store_true',
                     help="Flag to indicate whether to use weighted loss \
-                    to mitigate classs unbalancing")
+                    to mitigate classs unbalancing for the punctuation task")
 
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
-    raise FileNotFoundError("Dataset not found. For NER, CoNLL-2003 dataset"
-                            "can be obtained at"
-                            "https://github.com/kyzhouhzau/BERT"
-                            "-NER/tree/master/data.")
+    raise FileNotFoundError("Dataset not found.")
 
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
@@ -94,7 +92,6 @@ if args.bert_checkpoint is None:
         pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
-    Replace BERT-STEP-150000.pt with the path to your checkpoint.
     """
     if args.tokenizer == "sentencepiece":
         tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
@@ -123,6 +120,7 @@ capit_classifier = "TokenClassifier"
 capit_loss = "TokenClassificationLoss"
 task_loss = None
 
+
 def create_pipeline(num_samples=-1,
                     pad_label=args.none_label,
                     max_seq_length=args.max_seq_length,
@@ -135,9 +133,11 @@ def create_pipeline(num_samples=-1,
                     ignore_extra_tokens=args.ignore_extra_tokens,
                     ignore_start_end=args.ignore_start_end,
                     use_cache=args.use_cache,
-                    dropout=args.fc_dropout):
+                    dropout=args.fc_dropout,
+                    punct_num_layers=args.punct_num_fc_layers):
 
-    global punct_classifier, punct_loss, capit_classifier, capit_loss, task_loss
+    global punct_classifier, punct_loss, \
+        capit_classifier, capit_loss, task_loss
 
     nf.logger.info(f"Loading {mode} data...")
     shuffle = args.shuffle_data if mode == 'train' else False
@@ -182,18 +182,19 @@ def create_pipeline(num_samples=-1,
 
         if args.use_weighted_loss:
             nf.logger.info(f"Using weighted loss for punctuation task")
-            punct_label_frequencies = data_layer.dataset.punct_label_frequencies
-            num_most_common = punct_label_frequencies[0][1]
+            punct_label_freqs = data_layer.dataset.punct_label_frequencies
+            num_most_common = punct_label_freqs[0][1]
 
             # sort label_frequences by class name
-            punct_label_frequencies.sort()
-            class_weights = [num_most_common/x[1] for x in punct_label_frequencies]
+            punct_label_freqs.sort()
+            class_weights = [num_most_common/x[1] for x in punct_label_freqs]
 
         # Initialize punctuation loss
         punct_classifier = getattr(sys.modules[__name__], punct_classifier)
         punct_classifier = punct_classifier(hidden_size=hidden_size,
                                             num_classes=len(punct_label_ids),
                                             dropout=dropout,
+                                            num_layers=punct_num_layers,
                                             name='Punctuation')
 
         punct_loss = getattr(sys.modules[__name__], punct_loss)
@@ -210,7 +211,6 @@ def create_pipeline(num_samples=-1,
         capit_loss = getattr(sys.modules[__name__], capit_loss)
         capit_loss = capit_loss(num_classes=len(capit_label_ids))
 
-
         task_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
     hidden_states = bert_model(input_ids=input_ids,
@@ -221,21 +221,33 @@ def create_pipeline(num_samples=-1,
     capit_logits = capit_classifier(hidden_states=hidden_states)
 
     if mode == 'train':
-        punct_loss = punct_loss(logits=punct_logits, labels=punct_labels, loss_mask=loss_mask)
-        capit_loss = capit_loss(logits=capit_logits, labels=capit_labels, loss_mask=loss_mask)
+        punct_loss = punct_loss(logits=punct_logits,
+                                labels=punct_labels,
+                                loss_mask=loss_mask)
+        capit_loss = capit_loss(logits=capit_logits,
+                                labels=capit_labels,
+                                loss_mask=loss_mask)
         task_loss = task_loss(loss_1=punct_loss, loss_2=capit_loss)
 
         steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
 
         losses = [task_loss, punct_loss, capit_loss]
         logits = [punct_logits, capit_logits]
-        return losses, logits, steps_per_epoch, punct_label_ids, capit_label_ids
+        return (losses, logits,
+                steps_per_epoch,
+                punct_label_ids,
+                capit_label_ids)
     else:
-        tensors_to_evaluate = [punct_logits, capit_logits, punct_labels, capit_labels, subtokens_mask]
+        tensors_to_evaluate = [punct_logits,
+                               capit_logits,
+                               punct_labels,
+                               capit_labels,
+                               subtokens_mask]
         return tensors_to_evaluate, data_layer
 
 
-losses, train_logits, steps_per_epoch, punct_label_ids, capit_label_ids = create_pipeline()
+losses, train_logits, steps_per_epoch, punct_label_ids, capit_label_ids = \
+    create_pipeline()
 
 eval_tensors, data_layer = create_pipeline(mode='dev',
                                            punct_label_ids=punct_label_ids,
@@ -254,7 +266,10 @@ eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(x, y),
     user_epochs_done_callback=lambda x:
-        eval_epochs_done_callback(x, punct_label_ids, capit_label_ids, f'{nf.work_dir}/graphs'),
+        eval_epochs_done_callback(x,
+                                  punct_label_ids,
+                                  capit_label_ids,
+                                  f'{nf.work_dir}/graphs'),
     tb_writer=nf.tb_writer,
     eval_step=steps_per_epoch)
 

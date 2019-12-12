@@ -89,8 +89,8 @@ def eval_epochs_done_callback(global_vars,
                                        graph_fold=None,
                                        none_label_id=0)
 
-    return {"Punctuation task accuracy": punct_accuracy,
-            "Capitalization task accuracy": capit_accuracy}
+    return {"Punctuation_task_accuracy": punct_accuracy,
+            "Capitalization_task_accuracy": capit_accuracy}
 
 
 def _eval_epochs_done_callback(task_name,
