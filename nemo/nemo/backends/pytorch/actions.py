@@ -32,6 +32,9 @@ convert_syncbn = None
 create_syncbn_process_group = None
 DDP = None
 LARC = None
+FusedLAMB = None
+FusedAdam = None
+FusedNovoGrad = None
 
 AmpOptimizations = {
     Optimization.mxprO0: "O0",
@@ -51,7 +54,8 @@ class PtActions(Actions):
             local_rank=None,
             global_rank=None,
             tb_writer=None,
-            optimization_level=Optimization.mxprO0):
+            optimization_level=Optimization.mxprO0,
+            logger=None):
         need_apex = local_rank is not None or \
                     optimization_level != Optimization.mxprO0
         if need_apex:
@@ -65,12 +69,19 @@ class PtActions(Actions):
                     global create_syncbn_process_group
                     global DDP
                     global LARC
+                    global FusedLAMB
+                    global FusedAdam
+                    global FusedNovoGrad
                     parallel = importlib.import_module('apex.parallel')
+                    apex_optimizer = importlib.import_module('apex.optimizers')
                     convert_syncbn = parallel.convert_syncbn_model
                     create_syncbn_process_group = (
                         parallel.create_syncbn_process_group)
                     DDP = parallel.DistributedDataParallel
                     LARC = parallel.LARC
+                    FusedLAMB = apex_optimizer.FusedLAMB
+                    FusedAdam = apex_optimizer.FusedAdam
+                    FusedNovoGrad = apex_optimizer.FusedNovoGrad
 
             except ImportError:
                 raise ImportError(
@@ -82,7 +93,8 @@ class PtActions(Actions):
         super(PtActions, self).__init__(
             local_rank=local_rank,
             global_rank=global_rank,
-            optimization_level=optimization_level)
+            optimization_level=optimization_level,
+            logger=logger)
 
         # will be [unique_instance_id -> (NMModule, PTModule)]
         self.module_reference_table = {}
@@ -317,7 +329,7 @@ class PtActions(Actions):
                     params=params_to_optimize, lr=lr,
                     betas=optimization_params.get("betas", (0.9, 0.999)))
             elif optimizer_class.lower() == "fused_adam":
-                optimizer = apex.optimizers.FusedAdam(
+                optimizer = FusedAdam(
                     params=params_to_optimize,
                     lr=lr)
             elif optimizer_class.lower() == "adam_w":
@@ -325,6 +337,7 @@ class PtActions(Actions):
                     params=params_to_optimize,
                     lr=lr,
                     weight_decay=optimization_params.get("weight_decay", 0.0),
+                    betas=optimization_params.get("betas", (0.9, 0.999))
                 )
             elif optimizer_class.lower() == "novograd":
                 optimizer = Novograd(
@@ -333,10 +346,10 @@ class PtActions(Actions):
                     weight_decay=optimization_params.get("weight_decay", 0.0),
                     luc=optimization_params.get("luc", False),
                     luc_trust=optimization_params.get("luc_eta", 1e-3),
-                    betas=optimization_params.get("betas", (0.95, 0.98)),
+                    betas=optimization_params.get("betas", (0.95, 0.25)),
                 )
             elif optimizer_class.lower() == "fused_novograd":
-                optimizer = apex.optimizers.FusedNovoGrad(
+                optimizer = FusedNovoGrad(
                     params_to_optimize,
                     lr=lr,
                     weight_decay=optimization_params.get("weight_decay", 0.0),
@@ -350,12 +363,17 @@ class PtActions(Actions):
                     lr=lr,
                     weight_decay=optimization_params.get("weight_decay", 0.0),
                 )
+            elif optimizer_class.lower() == "fused_lamb":
+                optimizer = FusedLAMB(
+                    params_to_optimize,
+                    lr=lr,
+                )
             else:
                 raise ValueError(
                     "Unknown optimizer class: {0}".format(optimizer_class))
 
             if optimization_params.get("larc", False):
-                print("Enabling larc")
+                self.logger.info("Enabling larc")
                 optimizer = LARC(
                     optimizer,
                     trust_coefficient=optimization_params.get("larc_eta", 2e-2)
@@ -538,7 +556,7 @@ class PtActions(Actions):
                 assert dist.is_initialized()
                 is_distributed = True
                 world_size = torch.distributed.get_world_size()
-                # print(
+                # self.logger.info(
                 #     "Doing distributed evaluation. Rank {0} of {1}".format(
                 #         self.local_rank, world_size
                 #     )
@@ -558,7 +576,8 @@ class PtActions(Actions):
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
-                eval_dataloader.sampler.set_epoch(0)
+                if hasattr(eval_dataloader, 'sampler'):
+                    eval_dataloader.sampler.set_epoch(0)
             else:  # Not distributed
                 if dl_nm.dataset is not None:
                     # Todo: remove local_parameters
@@ -590,7 +609,7 @@ class PtActions(Actions):
                         num_batches < 10 or (
                         epoch_i % int(num_batches / 10) == 0)
                 ):
-                    print(
+                    self.logger.info(
                         f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
                 if isinstance(data, torch.Tensor):
@@ -618,7 +637,7 @@ class PtActions(Actions):
                 for t2e in tensors_2_evaluate:
                     key = t2e.unique_name
                     if key not in registered_e_tensors.keys():
-                        print(
+                        self.logger.info(
                             "WARNING: Tensor {} was not found during "
                             "eval".format(
                                 key)
@@ -732,13 +751,13 @@ class PtActions(Actions):
             is_distributed = False
             world_size = None
             if dl_nm.placement == DeviceType.AllGpu:
-                if self.cache or self.use_cache:
+                if self.cache or use_cache:
                     raise NotImplementedError(
                         "Caching is not available for distributed training.")
                 assert dist.is_initialized()
                 is_distributed = True
                 world_size = torch.distributed.get_world_size()
-                # print(
+                # self.logger.info(
                 #     "Doing distributed evaluation. Rank {0} of {1}".format(
                 #         self.local_rank, world_size
                 #     )
@@ -801,7 +820,7 @@ class PtActions(Actions):
                         num_batches < 10 or (
                         epoch_i % int(num_batches / 10) == 0)
                 ):
-                    print(
+                    self.logger.info(
                         f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
                 if use_cache:
@@ -846,7 +865,7 @@ class PtActions(Actions):
                 for t2e in tensors_to_return:
                     key = t2e.unique_name
                     if key not in registered_e_tensors.keys():
-                        print(
+                        self.logger.info(
                             "WARNING: Tensor {} was not found during "
                             "eval".format(
                                 key)
@@ -1017,7 +1036,8 @@ class PtActions(Actions):
                         output,
                         d_format: DeploymentFormat,
                         input_example=None,
-                        output_example=None):
+                        output_example=None,
+                        logger=None):
         # Check if output already exists
         destination = Path(output)
         if destination.exists():
@@ -1045,15 +1065,15 @@ class PtActions(Actions):
             dynamic_axes = None
 
         local_parameters = {}
-        for key, value in module._local_parameters.items():
-            local_parameters[key] = value
+        if module._local_parameters is not None:
+            for key, value in module._local_parameters.items():
+                local_parameters[key] = value
 
         # Remove NeMo-related things from the module
         # We need to change __call__ method. Note that this will change the
         # whole class, not just this object! Which is why we need to repair it
         # in the finally block
         type(module).__call__ = torch.nn.Module.__call__
-
         module._local_parameters = None
         module._logger = None
         module._placement = None
@@ -1076,14 +1096,24 @@ class PtActions(Actions):
                     raise ValueError(
                         f'Example input is None, but ONNX tracing was'
                         f' attempted')
-                torch.onnx.export(module, input_example, output,
+                if output_example is None:
+                    if isinstance(input_example, tuple):
+                        output_example = module.forward(*input_example)
+                    else:
+                        output_example = module.forward(input_example)
+                with torch.jit.optimized_execution(True):
+                    jitted_model = torch.jit.trace(module,
+                                                   input_example)
+
+                torch.onnx.export(jitted_model, input_example, output,
                                   input_names=input_names,
                                   output_names=output_names,
                                   verbose=True,
                                   export_params=True,
                                   do_constant_folding=True,
                                   dynamic_axes=dynamic_axes,
-                                  opset_version=10)
+                                  opset_version=10,
+                                  example_outputs=output_example)
                 # fn = output + ".readable"
                 # with open(fn, 'w') as f:
                 #     tempModel = onnx.load(output)
@@ -1098,11 +1128,15 @@ class PtActions(Actions):
                     json.dump(local_parameters, outfile)
 
             else:
-                raise NotImplemented(
+                raise NotImplementedError(
                     f"Not supported deployment format: {d_format}")
         except Exception as e:  # nopep8
-            print(
-                f'ERROR: module export failed for {module} with exception {e}')
+            if logger:
+                logger.error(f'ERROR: module export failed for {module} with '
+                             f'exception {e}')
+            else:
+                print(f'ERROR: module export failed for {module} with '
+                      f'exception {e}')
         finally:
             def __old_call__(self, force_pt=False, *input, **kwargs):
                 pt_call = len(input) > 0 or force_pt
@@ -1118,7 +1152,8 @@ class PtActions(Actions):
                           output: str,
                           d_format: DeploymentFormat,
                           input_example=None,
-                          output_example=None):
+                          output_example=None,
+                          logger=None):
         """Exports Neural Module instance for deployment.
 
         Args:
@@ -1128,12 +1163,14 @@ class PtActions(Actions):
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
         """
-        PtActions.__module_export(
-            module=module,
-            output=output,
-            d_format=d_format,
-            input_example=input_example,
-            output_example=output_example)
+        with torch.no_grad():
+            PtActions.__module_export(
+                module=module,
+                output=output,
+                d_format=d_format,
+                input_example=input_example,
+                output_example=output_example,
+                logger=logger)
 
     def train(self,
               tensors_to_optimize,
@@ -1276,7 +1313,7 @@ class PtActions(Actions):
             #     raise NotImplementedError(
             #         "Distributed training does nor work with multiple "
             #         "optimizers")
-            print("Doing distributed training")
+            self.logger.info("Doing distributed training")
             if t_dataset is not None:
                 train_sampler = \
                     torch.utils.data.distributed.DistributedSampler(
@@ -1293,7 +1330,10 @@ class PtActions(Actions):
                 )
             else:
                 train_dataloader = dataNM.data_iterator
-                train_sampler = train_dataloader.sampler
+                if hasattr(train_dataloader, 'sampler'):
+                    train_sampler = train_dataloader.sampler
+                else:
+                    train_sampler = None
 
             for train_iter in training_loop:
                 call_chain = train_iter[2]
@@ -1351,7 +1391,6 @@ class PtActions(Actions):
 
         # MAIN TRAINING LOOP
         # iteration over epochs
-        self.epoch_num = 0
         while num_epochs is None or self.epoch_num < num_epochs:
             if train_sampler is not None:
                 train_sampler.set_epoch(self.epoch_num)
@@ -1424,7 +1463,7 @@ class PtActions(Actions):
                             registered_tensors[tensor.unique_name]).any():
                         if stop_on_nan_loss:
                             raise ValueError('Loss is NaN exiting')
-                        print('WARNING: Loss is NaN')
+                        self.logger.warning('WARNING: Loss is NaN')
                         curr_optimizer.zero_grad()
                         nan = True
                         break
@@ -1441,7 +1480,7 @@ class PtActions(Actions):
                         if torch.isnan(scaled_loss).any():
                             if stop_on_nan_loss:
                                 raise ValueError('Loss is NaN exiting')
-                            print('WARNING: Loss is NaN')
+                            self.logger.warning('WARNING: Loss is NaN')
                             curr_optimizer.zero_grad()
                             continue
                         scaled_loss.backward(

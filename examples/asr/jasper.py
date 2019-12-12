@@ -100,7 +100,8 @@ def create_all_dags(args, neural_factory):
     )
 
     N = len(data_layer)
-    steps_per_epoch = int(N / (args.batch_size * args.num_gpus))
+    steps_per_epoch = int(
+        N / (args.batch_size * args.iter_per_step * args.num_gpus))
     logger.info('Have {0} examples to train on.'.format(N))
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(

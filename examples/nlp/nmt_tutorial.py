@@ -18,15 +18,12 @@ parser.set_defaults(train_dataset="train",
                     eval_datasets=["valid"],
                     work_dir="outputs/transformer_nmt",
                     optimizer="novograd",
-                    num_epochs=5,  # 5 is too small - only use for test
                     batch_size=4096,
                     eval_batch_size=4096,
                     lr_policy='CosineAnnealing',
                     lr=0.005,
-                    beta1=0.95,
-                    beta2=0.25,
                     weight_decay=0,
-                    max_steps=50000,
+                    max_steps=500,
                     iter_per_step=1,
                     eval_freq=1000)
 parser.add_argument("--data_dir", default="../../tests/data/en_de", type=str)
@@ -55,6 +52,7 @@ parser.add_argument("--tgt_tokenizer_model",
 parser.add_argument("--interactive", action="store_true")
 parser.add_argument("--save_epoch_freq", default=5, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
+parser.add_argument("--restore_checkpoint_from", default=None, type=str)
 
 args = parser.parse_args()
 
@@ -223,34 +221,42 @@ eval_callback = nemo.core.EvaluatorCallback(
     tb_writer=nf.tb_writer)
 
 # callback which saves checkpoints once in a while
+ckpt_dir = nf.checkpoint_dir if not args.interactive \
+    else args.restore_checkpoint_from
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir,
+    folder=ckpt_dir,
     epoch_freq=args.save_epoch_freq,
     step_freq=args.save_step_freq,
     checkpoints_to_keep=1)
-
-# define and launch training algorithm (optimizer)
-max_num_epochs = 0 if args.interactive else args.num_epochs
-
-callbacks = [ckpt_callback]
-
-if not args.interactive:
-    callbacks.extend([train_callback, eval_callback])
 
 # define learning rate decay policy
 lr_policy_fn = get_lr_policy(args.lr_policy,
                              total_steps=args.max_steps,
                              warmup_steps=args.warmup_steps)
 
-nf.train(tensors_to_optimize=[train_loss],
-         callbacks=callbacks,
-         optimizer=args.optimizer,
-         lr_policy=lr_policy_fn,
-         optimization_params={"num_epochs": max_num_epochs,
-                              "lr": args.lr,
-                              "weight_decay": args.weight_decay,
-                              "betas": (args.beta1, args.beta2)},
-         batches_per_step=args.iter_per_step)
+if args.max_steps is not None and args.num_epochs is not None:
+    raise ValueError("Please specify either max_steps or num_epochs.")
+
+if not args.interactive:
+
+    if args.max_steps is not None:
+        stop_training_condition = {"max_steps": args.max_steps}
+    else:
+        stop_training_condition = {"num_epochs": args.num_epochs}
+
+    nf.train(tensors_to_optimize=[train_loss],
+             callbacks=[train_callback, eval_callback, ckpt_callback],
+             optimizer=args.optimizer,
+             lr_policy=lr_policy_fn,
+             optimization_params={**stop_training_condition,
+                                  "lr": args.lr,
+                                  "weight_decay": args.weight_decay},
+             batches_per_step=args.iter_per_step)
+else:
+    nf.train(tensors_to_optimize=[train_loss],
+             callbacks=[ckpt_callback],
+             optimizer=args.optimizer,
+             optimization_params={"num_epochs": 0, "lr": args.lr})
 
 
 def translate_sentence(text):
@@ -260,8 +266,10 @@ def translate_sentence(text):
     ids = src_tokenizer.text_to_ids(text)
     ids = [src_tokenizer.bos_id()] + ids + [src_tokenizer.eos_id()]
     ids_tensor = torch.Tensor(ids).long().to(encoder._device).unsqueeze(0)
-    ids_mask = torch.ones_like(ids_tensor).half()
-    encoder_states = encoder.forward(ids_tensor, ids_mask).half()
+    ids_mask = torch.ones_like(ids_tensor)
+    encoder_states = encoder.forward(ids_tensor, ids_mask)
+    if args.amp_opt_level in ["O1", "O2", "O3"]:
+        encoder_states = encoder_states.half()
     translation_ids = beam_search.forward(encoder_states, ids_mask)
     ids_list = list(translation_ids.detach().cpu().numpy()[0])
     translation_text = tgt_tokenizer.ids_to_text(ids_list)
@@ -275,7 +283,6 @@ if args.interactive:
     encoder.eval()
     decoder.eval()
     log_softmax.eval()
-
     print("========== Interactive translation mode ==========")
     input_text = 'anything'
     while input_text.strip():

@@ -1,7 +1,8 @@
 from collections import Counter
-from io import open
 import csv
 import glob
+from io import open
+import itertools
 import json
 import os
 import random
@@ -15,7 +16,6 @@ from sentencepiece import SentencePieceTrainer as SPT
 from tqdm import tqdm
 
 from nemo.utils.exp_logging import get_logger
-
 from ...utils.nlp_utils import (get_vocab,
                                 write_vocab,
                                 write_vocab_in_order,
@@ -43,11 +43,13 @@ def get_label_stats(labels, outfile='stats.tsv'):
     total = sum(labels.values())
     out = open(outfile, 'w')
     i = 0
-    for k, v in labels.most_common():
+    label_frequencies = labels.most_common()
+    for k, v in label_frequencies:
         out.write(f'{k}\t{v/total}\n')
         if i < 3:
             logger.info(f'{i} item: {k}, {v} out of {total}, {v/total}.')
         i += 1
+    return total, label_frequencies
 
 
 def list2str(l):
@@ -112,6 +114,54 @@ def process_imdb(data_dir, uncased, modes=['train', 'test']):
                     review = review.lower()
                 review = review.replace("<br />", "")
                 outfiles[mode].write(f'{review}\t{label}\n')
+    for mode in modes:
+        outfiles[mode].close()
+
+    return outfold
+
+
+def process_thucnews(data_dir):
+    modes = ['train', 'test']
+    train_size = 0.8
+    if not os.path.exists(data_dir):
+        link = 'thuctc.thunlp.org/'
+        raise ValueError(f'Data not found at {data_dir}. '
+                         f'Please download THUCNews from {link}.')
+
+    outfold = f'{data_dir}/nemo-processed-thucnews'
+
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
+        logger.info(DATABASE_EXISTS_TMP.format('THUCNews', outfold))
+        return outfold
+    logger.info(f'Processing THUCNews dataset and store at {outfold}')
+
+    os.makedirs(outfold, exist_ok=True)
+
+    outfiles = {}
+
+    for mode in modes:
+        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'a+',
+                              encoding='utf-8')
+        outfiles[mode].write('sentence\tlabel\n')
+    categories = ['体育', '娱乐', '家居', '彩票', '房产', '教育', '时尚',
+                  '时政', '星座', '游戏', '社会', '科技', '股票', '财经']
+    for category in categories:
+        label = categories.index(category)
+        category_files = glob.glob(f'{data_dir}/{category}/*.txt')
+        test_num = int(len(category_files) * (1 - train_size))
+        test_files = category_files[:test_num]
+        train_files = category_files[test_num:]
+        for mode in modes:
+            logger.info(f'Processing {mode} data of the category {category}')
+            if mode == 'test':
+                files = test_files
+            else:
+                files = train_files
+            for file in tqdm(files):
+                with open(file, 'r', encoding='utf-8') as f:
+                    news = f.read().strip().replace('\r', '')
+                    news = news.replace('\n', '').replace('\t', ' ')
+                    outfiles[mode].write(f'{news}\t{label}\n')
     for mode in modes:
         outfiles[mode].close()
 
@@ -630,10 +680,10 @@ def get_intents_slots_dialogflow(files, slot_labels):
         with open(file) as json_file:
             intent_data = json.load(json_file)
             for query in intent_data:
-                querytext = ""
+                query_text = ""
                 slots = ""
                 for segment in query['data']:
-                    querytext = ''.join([querytext, segment['text']])
+                    query_text = ''.join([query_text, segment['text']])
                     if 'alias' in segment:
                         for word in segment['text'].split():
                             slots = ' '.join([
@@ -642,8 +692,8 @@ def get_intents_slots_dialogflow(files, slot_labels):
                     else:
                         for word in segment['text'].split():
                             slots = ' '.join([slots, slot_labels.get('O')])
-                querytext = f'{querytext.strip()}\t{index}\n'
-                intent_queries.append(querytext)
+                query_text = f'{query_text.strip()}\t{index}\n'
+                intent_queries.append(query_text)
                 slots = f'{slots.strip()}\n'
                 slot_tags.append(slots)
     return intent_queries, intent_names, slot_tags
@@ -664,7 +714,8 @@ def get_slots_dialogflow(files):
     return slot_labels
 
 
-def partition_df_data(intent_queries, slot_tags, split=0.1):
+# The following works for the specified DialogFlow and Mturk output format
+def partition_data(intent_queries, slot_tags, split=0.1):
     n = len(intent_queries)
     n_dev = int(n * split)
     dev_idx = set(random.sample(range(n), n_dev))
@@ -681,6 +732,14 @@ def partition_df_data(intent_queries, slot_tags, split=0.1):
             train_intents.append(item)
             train_slots.append(slot_tags[i])
     return train_intents, train_slots, dev_intents, dev_slots
+
+
+# The following works for the specified DialogFlow and Mturk output format
+def write_files(data, outfile):
+    with open(outfile, 'w') as f:
+        for item in data:
+            item = f'{item.strip()}\n'
+            f.write(item)
 
 
 def process_dialogflow(
@@ -710,25 +769,240 @@ def process_dialogflow(
         slot_labels)
 
     train_queries, train_slots, test_queries, test_slots = \
-        partition_df_data(intent_queries, slot_tags, split=dev_split)
+        partition_data(intent_queries, slot_tags, split=dev_split)
 
-    write_df_files(train_queries, f'{outfold}/train.tsv')
-    write_df_files(train_slots, f'{outfold}/train_slots.tsv')
+    write_files(train_queries, f'{outfold}/train.tsv')
+    write_files(train_slots, f'{outfold}/train_slots.tsv')
 
-    write_df_files(test_queries, f'{outfold}/test.tsv')
-    write_df_files(test_slots, f'{outfold}/test_slots.tsv')
+    write_files(test_queries, f'{outfold}/test.tsv')
+    write_files(test_slots, f'{outfold}/test_slots.tsv')
 
-    write_df_files(slot_labels, f'{outfold}/dict.slots.csv')
-    write_df_files(intent_names, f'{outfold}/dict.intents.csv')
+    write_files(slot_labels, f'{outfold}/dict.slots.csv')
+    write_files(intent_names, f'{outfold}/dict.intents.csv')
 
     return outfold
 
 
-def write_df_files(data, outfile):
+def read_csv(file_path):
+    rows = []
+    with open(file_path, 'r') as csvfile:
+        read_csv = csv.reader(csvfile, delimiter=',')
+        for row in read_csv:
+            rows.append(row)
+    return rows
+
+
+def get_intents_mturk(utterances, outfold):
+
+    intent_names = {}
+    intent_count = 0
+
+    agreed_all = {}
+
+    print('Printing all intent_labels')
+    intent_dict = f'{outfold}/dict.intents.csv'
+    if os.path.exists(intent_dict):
+        with open(intent_dict, 'r') as f:
+            for intent_name in f.readlines():
+                intent_names[intent_name.strip()] = intent_count
+                intent_count += 1
+    print(intent_names)
+
+    for i, utterance in enumerate(utterances[1:]):
+
+        if utterance[1] not in agreed_all:
+            agreed_all[utterance[0]] = utterance[1]
+
+        if utterance[1] not in intent_names:
+            intent_names[utterance[1]] = intent_count
+            intent_count += 1
+
+    print(f'Total number of utterance samples: {len(agreed_all)}')
+
+    return agreed_all, intent_names
+
+
+def get_slot_labels(slot_annotations, task_name):
+
+    slot_labels = json.loads(slot_annotations[0])
+
+    all_labels = {}
+    count = 0
+    # Generating labels with the IOB format.
+    for label in slot_labels[task_name]['annotations']['labels']:
+        b_slot = 'B-' + label['label']
+        i_slot = 'I-' + label['label']
+        all_labels[b_slot] = str(count)
+        count += 1
+        all_labels[i_slot] = str(count)
+        count += 1
+    all_labels['O'] = str(count)
+
+    return all_labels
+
+
+def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names,
+                              task_name):
+
+    slot_tags = []
+    inorder_utterances = []
+    all_labels = get_slot_labels(slot_annotations, task_name)
+    print(f'agreed_all - {len(agreed_all)}')
+    print(f'Slot annotations - {len(slot_annotations)}')
+
+    for annotation in slot_annotations[0:]:
+        an = json.loads(annotation)
+        utterance = an['source']
+        if len(utterance) > 2 and utterance.startswith('"') \
+                and utterance.endswith('"'):
+            utterance = utterance[1:-1]
+
+        if utterance in agreed_all:
+            entities = {}
+            annotated_entities = an[task_name]['annotations']['entities']
+            for i, each_anno in enumerate(annotated_entities):
+                entities[int(each_anno['startOffset'])] = i
+
+            lastptr = 0
+            slotlist = []
+            # sorting annotations by the start offset
+            for i in sorted(entities.keys()):
+                annotated_entities = an[task_name]['annotations']['entities']
+                tags = annotated_entities[entities.get(i)]
+                untagged_words = utterance[lastptr:tags['startOffset']]
+                for word in untagged_words.split():
+                    slotlist.append(all_labels.get('O'))
+                anno_words = utterance[tags['startOffset']:tags['endOffset']]
+                # tagging with the IOB format.
+                for i, word in enumerate(anno_words.split()):
+                    if i == 0:
+                        b_slot = 'B-' + tags['label']
+                        slotlist.append(all_labels.get(b_slot))
+                    else:
+                        i_slot = 'I-' + tags['label']
+                        slotlist.append(all_labels.get(i_slot))
+                lastptr = tags['endOffset']
+
+            untagged_words = utterance[lastptr:len(utterance)]
+            for word in untagged_words.split():
+                slotlist.append(all_labels.get('O'))
+
+            slotstr = ' '.join(slotlist)
+            slotstr = f'{slotstr.strip()}\n'
+
+            slot_tags.append(slotstr)
+            intent_num = intent_names.get(agreed_all.get(utterance))
+            query_text = f'{utterance.strip()}\t{intent_num}\n'
+            inorder_utterances.append(query_text)
+        # else:
+        #     print(utterance)
+
+    print(f'inorder utterances - {len(inorder_utterances)}')
+
+    return all_labels, inorder_utterances, slot_tags
+
+
+def process_mturk(
+        data_dir,
+        uncased,
+        modes=['train', 'test'],
+        dev_split=0.1):
+    if not os.path.exists(data_dir):
+        link = 'www.mturk.com'
+        raise ValueError(f'Data not found at {data_dir}. '
+                         'Export your mturk data from'
+                         '{link} and unzip at {data_dir}.')
+
+    outfold = f'{data_dir}/nemo-processed'
+
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
+        logger.info(DATABASE_EXISTS_TMP.format('mturk', outfold))
+        return outfold
+
+    logger.info(f'Processing dataset from mturk and storing at {outfold}')
+
+    os.makedirs(outfold, exist_ok=True)
+
+    classification_data_file = f'{data_dir}/classification.csv'
+    annotation_data_file = f'{data_dir}/annotation.manifest'
+
+    if not os.path.exists(classification_data_file):
+        raise FileNotFoundError(f'File not found '
+                                f'at {classification_data_file}')
+
+    if not os.path.exists(annotation_data_file):
+        raise FileNotFoundError(f'File not found at {annotation_data_file}')
+
+    utterances = []
+    utterances = read_csv(classification_data_file)
+
+    # This function assumes that the intent classification data has been
+    # reviewed and cleaned and only one label per utterance is present.
+    agreed_all, intent_names = get_intents_mturk(utterances, outfold)
+
+    with open(annotation_data_file, 'r') as f:
+        slot_annotations = f.readlines()
+
+    # This function assumes that the preprocess step would have made
+    # the task_name of all the annotations generic
+    task_name = 'retail-combined'
+
+    # It is assumed that every utterances will have corresponding
+    # slot annotation information
+    if len(slot_annotations) < len(agreed_all):
+        raise ValueError(f'Every utterance must have corresponding'
+                         f'slot annotation information')
+
+    slot_labels, intent_queries, slot_tags = process_intent_slot_mturk(
+            slot_annotations,
+            agreed_all,
+            intent_names,
+            task_name)
+
+    assert len(slot_tags) == len(intent_queries)
+
+    dev_split = 0.1
+
+    train_queries, train_slots, test_queries, test_slots = \
+        partition_data(intent_queries, slot_tags, split=dev_split)
+
+    write_files(train_queries, f'{outfold}/train.tsv')
+    write_files(train_slots, f'{outfold}/train_slots.tsv')
+
+    write_files(test_queries, f'{outfold}/test.tsv')
+    write_files(test_slots, f'{outfold}/test_slots.tsv')
+
+    write_files(slot_labels, f'{outfold}/dict.slots.csv')
+    write_files(intent_names, f'{outfold}/dict.intents.csv')
+
+    return outfold
+
+
+# The following works for the DialogFlow and Mturk output format
+def write_files(data, outfile):
     with open(f'{outfile}', 'w') as f:
         for item in data:
             item = f'{item.strip()}\n'
             f.write(item)
+
+
+def calc_class_weights(label_freq):
+    """
+    Goal is to give more weight to the classes with less samples
+    so as to match the one with the higest frequency. We achieve this by
+    dividing the highest frequency by the freq of each label.
+    Example -
+    [12, 5, 3] -> [12/12, 12/5, 12/3] -> [1, 2.4, 4]
+
+    Here label_freq is assumed to be sorted by the frequency. I.e.
+    label_freq[0] is the most frequent element.
+
+    """
+
+    most_common_label_freq = label_freq[0]
+    weighted_slots = sorted([(index, most_common_label_freq[1]/freq)
+                            for (index, freq) in label_freq])
+    return [weight for (_, weight) in weighted_slots]
 
 
 class JointIntentSlotDataDesc:
@@ -785,7 +1059,8 @@ class JointIntentSlotDataDesc:
                 dataset_name)
         elif dataset_name == 'dialogflow':
             self.data_dir = process_dialogflow(data_dir, do_lower_case)
-
+        elif dataset_name == 'mturk-processed':
+            self.data_dir = process_mturk(data_dir, do_lower_case)
         elif dataset_name in set(['snips-light', 'snips-speak', 'snips-all']):
             self.data_dir = process_snips(data_dir, do_lower_case)
             if dataset_name.endswith('light'):
@@ -794,7 +1069,7 @@ class JointIntentSlotDataDesc:
                 self.data_dir = f'{self.data_dir}/speak'
             elif dataset_name.endswith('all'):
                 self.data_dir = f'{self.data_dir}/all'
-        elif dataset_name.startswith('Jarvis-car'):
+        elif dataset_name.startswith('jarvis'):
             self.data_dir = process_jarvis_datasets(data_dir,
                                                     do_lower_case,
                                                     dataset_name,
@@ -815,6 +1090,62 @@ class JointIntentSlotDataDesc:
         self.num_intents = len(get_vocab(self.intent_dict_file))
         slots = label2idx(self.slot_dict_file)
         self.num_slots = len(slots)
+
+        for mode in ['train', 'test', 'eval']:
+
+            if not if_exist(self.data_dir, [f'{mode}.tsv']):
+                logger.info(f' Stats calculation for {mode} mode'
+                            f' is skipped as {mode}.tsv was not found.')
+                continue
+
+            slot_file = f'{self.data_dir}/{mode}_slots.tsv'
+            with open(slot_file, 'r') as f:
+                slot_lines = f.readlines()
+
+            input_file = f'{self.data_dir}/{mode}.tsv'
+            with open(input_file, 'r') as f:
+                input_lines = f.readlines()[1:]  # Skipping headers at index 0
+
+            if len(slot_lines) != len(input_lines):
+                raise ValueError(
+                    "Make sure that the number of slot lines match the "
+                    "number of intent lines. There should be a 1-1 "
+                    "correspondence between every slot and intent lines.")
+
+            dataset = list(zip(slot_lines, input_lines))
+
+            raw_slots, queries, raw_intents = [], [], []
+            for slot_line, input_line in dataset:
+                slot_list = [int(slot) for slot in slot_line.strip().split()]
+                raw_slots.append(slot_list)
+                parts = input_line.strip().split()
+                raw_intents.append(int(parts[-1]))
+                queries.append(' '.join(parts[:-1]))
+
+            infold = input_file[:input_file.rfind('/')]
+
+            logger.info(f'Three most popular intents during {mode}ing')
+            total_intents, intent_label_freq = get_label_stats(
+                raw_intents, infold + f'/{mode}_intent_stats.tsv')
+            merged_slots = itertools.chain.from_iterable(raw_slots)
+
+            logger.info(f'Three most popular slots during {mode}ing')
+            slots_total, slots_label_freq = get_label_stats(
+                merged_slots, infold + f'/{mode}_slot_stats.tsv')
+
+            if mode == 'train':
+
+                self.slot_weights = calc_class_weights(slots_label_freq)
+                logger.info(f'Slot weights are - {self.slot_weights}')
+
+                self.intent_weights = calc_class_weights(intent_label_freq)
+                logger.info(f'Intent weights are - {self.intent_weights}')
+
+            logger.info(f'Total intents - {total_intents}')
+            logger.info(f'Intent label frequency - {intent_label_freq}')
+            logger.info(f'Total Slots - {slots_total}')
+            logger.info(f'Slots label frequency - {slots_label_freq}')
+
         if pad_label != -1:
             self.pad_label = pad_label
         else:
@@ -834,6 +1165,10 @@ class SentenceClassificationDataDesc:
             self.num_labels = 2
             self.data_dir = process_imdb(data_dir, do_lower_case)
             self.eval_file = self.data_dir + '/test.tsv'
+        elif dataset_name == 'thucnews':
+            self.num_labels = 14
+            self.data_dir = process_thucnews(data_dir)
+            self.eval_file = self.data_dir + '/test.tsv'
         elif dataset_name.startswith('nlu-'):
             if dataset_name.endswith('chat'):
                 self.data_dir = f'{data_dir}/ChatbotCorpus.json'
@@ -848,7 +1183,7 @@ class SentenceClassificationDataDesc:
                                         do_lower_case,
                                         dataset_name=dataset_name)
             self.eval_file = self.data_dir + '/test.tsv'
-        elif dataset_name.startswith('Jarvis-car'):
+        elif dataset_name.startswith('jarvis'):
             self.data_dir = process_jarvis_datasets(data_dir,
                                                     do_lower_case,
                                                     dataset_name,
@@ -860,11 +1195,42 @@ class SentenceClassificationDataDesc:
             intents = get_intent_labels(f'{self.data_dir}/dict.intents.csv')
             self.num_labels = len(intents)
         else:
-            logger.info("Looks like you passed a dataset name that isn't "
-                        "already supported by NeMo. Please make sure that "
-                        "you build the preprocessing method for it.")
+            raise ValueError("Looks like you passed a dataset name that isn't "
+                             "already supported by NeMo. Please make sure "
+                             "that you build the preprocessing method for it.")
 
         self.train_file = self.data_dir + '/train.tsv'
+
+        for mode in ['train', 'test', 'eval']:
+
+            if not if_exist(self.data_dir, [f'{mode}.tsv']):
+                logger.info(f' Stats calculation for {mode} mode'
+                            f' is skipped as {mode}.tsv was not found.')
+                continue
+
+            input_file = f'{self.data_dir}/{mode}.tsv'
+            with open(input_file, 'r') as f:
+                input_lines = f.readlines()[1:]  # Skipping headers at index 0
+
+            queries, raw_sentences = [], []
+            for input_line in input_lines:
+                parts = input_line.strip().split()
+                raw_sentences.append(int(parts[-1]))
+                queries.append(' '.join(parts[:-1]))
+
+            infold = input_file[:input_file.rfind('/')]
+
+            logger.info(f'Three most popular classes during {mode}ing')
+            total_sents, sent_label_freq = get_label_stats(
+                raw_sentences, infold + f'/{mode}_sentence_stats.tsv')
+
+            if mode == 'train':
+
+                self.class_weights = calc_class_weights(sent_label_freq)
+                logger.info(f'Class weights are - {self.class_weights}')
+
+            logger.info(f'Total Sentences - {total_sents}')
+            logger.info(f'Sentence class frequencies - {sent_label_freq}')
 
 
 def create_vocab_lm(data_dir, do_lower_case):
