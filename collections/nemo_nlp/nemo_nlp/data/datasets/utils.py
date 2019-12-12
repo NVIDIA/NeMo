@@ -145,18 +145,19 @@ def process_thucnews(data_dir):
         outfiles[mode].write('sentence\tlabel\n')
     categories = ['体育', '娱乐', '家居', '彩票', '房产', '教育', '时尚',
                   '时政', '星座', '游戏', '社会', '科技', '股票', '财经']
-    for category in tqdm(categories):
+    for category in categories:
         label = categories.index(category)
         category_files = glob.glob(f'{data_dir}/{category}/*.txt')
         test_num = int(len(category_files) * (1 - train_size))
         test_files = category_files[:test_num]
         train_files = category_files[test_num:]
         for mode in modes:
+            logger.info(f'Processing {mode} data of the category {category}')
             if mode == 'test':
                 files = test_files
             else:
                 files = train_files
-            for file in files:
+            for file in tqdm(files):
                 with open(file, 'r', encoding='utf-8') as f:
                     news = f.read().strip().replace('\r', '')
                     news = news.replace('\n', '').replace('\t', ' ')
