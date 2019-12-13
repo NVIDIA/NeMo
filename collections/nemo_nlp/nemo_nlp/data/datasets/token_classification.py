@@ -352,17 +352,9 @@ class BertTokenClassificationInferDataset(Dataset):
     BertTokenClassificationDataset.
 
     Args:
-        text_file (str): file to sequences, each line should a sentence,
-            No header.
-        label_file (str): file to labels, each line corresponds to
-            word labels for a sentence in the text_file. No header.
+        queries (list): list of queries to run inference on
         max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
         tokenizer (Tokenizer): such as NemoBertTokenizer
-        num_samples (int): number of samples you want to use for the dataset.
-            If -1, use all dataset. Useful for testing.
-        shuffle (bool): whether to shuffle your data.
-        pad_label (str): pad value use for labels.
-            by default, it's the neutral label.
     """
 
     def __init__(self,
