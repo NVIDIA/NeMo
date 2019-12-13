@@ -155,7 +155,7 @@ def main():
     use_cache = True
     if args.local_rank is not None:
         print("Doing ALL GPU")
-        use_cache=False
+        use_cache = False
 
     # Create text to spectrogram model
     if args.spec_model == "tacotron2":
