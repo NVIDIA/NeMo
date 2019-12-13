@@ -36,10 +36,10 @@ def __maybe_download_file(destination: str, source: str):
     if not os.path.exists(destination):
         print(f'Downloading {source}')
         print(f'Downloading could take a long time ' +
-               'To get the data faster consider running: '+
-               'wget https://downloads.tatoeba.org/exports/sentences.csv' +
-               'grep -P "\teng\t" sentences.csv > eng_sentences.csv' +
-               'mv eng_sentences.csv sentences.csv')
+              'To get the data faster consider running in a terminal: ' +
+              'wget https://downloads.tatoeba.org/exports/sentences.csv ' +
+              'grep -P "\teng\t" sentences.csv > eng_sentences.csv' +
+              'mv eng_sentences.csv sentences.csv')
         urllib.request.urlretrieve(source, filename=destination)
 
 
@@ -55,7 +55,7 @@ def __process_english_sentences(in_file,
     contrain letters and punctuation marks (,.?).
     Chop and combine sentences.
     Args:
-        in_file: local filepath to the tatoeba dataset. 
+        in_file: local filepath to the tatoeba dataset.
     Format: id [TAB] region_name [TAB] sentence,
     for example: "1276\teng\tLet's try something.\n"
         out_file: local filepath to the clean dataset
@@ -114,8 +114,6 @@ def __split_into_train_dev(in_file,
         train_file: local filepath to the train dataset
         dev_file: local filepath to the dev dataset
         percent_dev: Percent of the sentences in the dev set
-    Returns:
-        num_lines: number of lines in the clean dataset
     """
     if not os.path.exists(in_file):
         raise FileNotFoundError(f'{in_file} not found.')
@@ -213,7 +211,8 @@ if __name__ == "__main__":
     __maybe_download_file(tatoeba_dataset, args.dataset)
 
     print(f'Processing English sentences...')
-    clean_eng_sentences = os.path.join(args.data_dir, 'clean_eng_sentences.txt')
+    clean_eng_sentences = os.path.join(args.data_dir,
+                                       'clean_eng_sentences.txt')
     __process_english_sentences(tatoeba_dataset,
                                 clean_eng_sentences,
                                 args.percent_to_cut,
@@ -223,8 +222,8 @@ if __name__ == "__main__":
     train_file = os.path.join(args.data_dir, 'train.txt')
     dev_file = os.path.join(args.data_dir, 'dev.txt')
 
-    print(f'Splitting the {args.dataset} dataset into train and dev sets' + 
-            ' and creating labels and text files')
+    print(f'Splitting the {args.dataset} dataset into train and dev sets' +
+          ' and creating labels and text files')
     __split_into_train_dev(clean_eng_sentences,
                            train_file,
                            dev_file,

@@ -60,11 +60,13 @@ def eval_iter_callback(tensors, global_vars):
                     all_subtokens_mask.extend(
                         tensor2list(subtokens_mask_tensor))
 
-    punct_all_preds = list(np.argmax(np.asarray(punct_all_logits), 2).flatten())
+    punct_all_preds = \
+        list(np.argmax(np.asarray(punct_all_logits), 2).flatten())
     global_vars["punct_all_preds"].extend(punct_all_preds)
     global_vars["punct_all_labels"].extend(punct_all_labels)
 
-    capit_all_preds = list(np.argmax(np.asarray(capit_all_logits), 2).flatten())
+    capit_all_preds = \
+        list(np.argmax(np.asarray(capit_all_logits), 2).flatten())
     global_vars["capit_all_preds"].extend(capit_all_preds)
     global_vars["capit_all_labels"].extend(capit_all_labels)
 
@@ -78,16 +80,16 @@ def eval_epochs_done_callback(global_vars,
                               none_label_id=0):
 
     punct_accuracy = _eval_epochs_done_callback('punct',
-                                       global_vars,
-                                       punct_label_ids,
-                                       graph_fold=None,
-                                       none_label_id=0)
+                                                global_vars,
+                                                punct_label_ids,
+                                                graph_fold=None,
+                                                none_label_id=0)
 
     capit_accuracy = _eval_epochs_done_callback('capit',
-                                       global_vars,
-                                       capit_label_ids,
-                                       graph_fold=None,
-                                       none_label_id=0)
+                                                global_vars,
+                                                capit_label_ids,
+                                                graph_fold=None,
+                                                none_label_id=0)
 
     return {"Punctuation_task_accuracy": punct_accuracy,
             "Capitalization_task_accuracy": capit_accuracy}
@@ -147,4 +149,3 @@ def _eval_epochs_done_callback(task_name,
         plt.savefig(os.path.join(graph_fold, time.strftime('%Y%m%d-%H%M%S')))
 
     return accuracy
-
