@@ -15,7 +15,7 @@ URL = "https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2"
 
 def __maybe_download_file(destination: str, source: str):
     """
-    Downloads source to destination if not exists.
+    Downloads source to destination if it doesn't exist.
     If exists, skips download
     Args:
         destination: local filepath
@@ -26,7 +26,7 @@ def __maybe_download_file(destination: str, source: str):
     """
     source = URL
     if not os.path.exists(destination):
-        print(f"{destination} does not exists. Downloading ...")
+        print(f"{destination} does not exist. Downloading ...")
         urllib.request.urlretrieve(source, filename=destination + '.tmp')
         os.rename(destination + '.tmp', destination)
         print(f"Downloaded {destination}.")

@@ -7,6 +7,9 @@ See the :ref:`installation` section.
 .. note::
 You only need to have ``nemo`` and the ``nemo_asr`` collection for this tutorial.
 
+A more introductory, Jupyter notebook ASR tutorial can be found `on GitHub <https://github.com/NVIDIA/NeMo/tree/master/examples/asr/notebooks>`_.
+
+
 Introduction
 -------------
 
@@ -47,7 +50,7 @@ After download and conversion, your `data` folder should contain 2 json files:
 * dev_clean.json
 * train_clean_100.json
 
-In the tutorial we will use `train_clean_100.json` for training and `dev_clean.json`for evaluation.
+In the tutorial we will use `train_clean_100.json` for training and `dev_clean.json` for evaluation.
 Each line in json file describes a training sample - `audio_filepath` contains path to the wav file, `duration` it's duration in seconds, and `text` is it's transcript:
 
 .. code-block:: json

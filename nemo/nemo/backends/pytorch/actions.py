@@ -111,7 +111,7 @@ class PtActions(Actions):
 
     def __get_top_sorted_modules_and_dataloader(self, hook):
         """
-        Constracts DAG leading to hook and creates its topological order.
+        Constructs DAG leading to hook and creates its topological order.
         It also populates self.module_reference_table.
         Args:
           hook: an NmTensor or a list of NmTensors representing leaf nodes
