@@ -1,11 +1,11 @@
 Tutorial
 ========
 
-Make sure you have installed ``nemo`` and ``nemo_asr`` collection.
-See :ref:`installation` section.
+Make sure you have installed ``nemo`` and the ``nemo_asr`` collection.
+See the :ref:`installation` section.
 
 .. note::
-    You only need `nemo` and `nemo_asr` collection for this tutorial.
+You only need to have ``nemo`` and the ``nemo_asr`` collection for this tutorial.
 
 Introduction
 -------------
@@ -13,8 +13,8 @@ Introduction
 This Automatic Speech Recognition (ASR) tutorial is focused on Jasper :cite:`asr-tut-li2019jasper` model. Jasper is CTC-based :cite:`asr-tut-graves2006` end-to-end model. The model is called "end-to-end" because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text. 
 CTC-ASR training pipeline consists of the following blocks:
 
-1. audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)
-2. neural acoustic model (which predicts a probability distribution P_t(c) over vocabulary characters c per each time step t given input features per each timestep)
+1. Audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)
+2. Neural acoustic model (which predicts a probability distribution P_t(c) over vocabulary characters c per each time step t given input features per each timestep)
 3. CTC loss function
 
     .. image:: ctc_asr.png
