@@ -92,7 +92,6 @@ class WOZDSTDataset(Dataset):
         self.get_slots()
         self.get_vocab()
         self.features, self.max_len = self.get_features()
-        print('TO DELETE: 1 feature')
         print(self.features[0])
 
     def get_vocab(self):

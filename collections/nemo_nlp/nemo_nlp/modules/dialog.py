@@ -150,9 +150,6 @@ class DSTGenerator(TrainableNM):
         # print('hidden', hidden.shape) # 480 x 1 x 400
         hidden = hidden.transpose(0, 1)  # 1 x 480 x 400
         # 1 * (batch*|slot|) * emb
-        print('TO DELETE max_res_len', max_res_len)
-        print('slot_emb', slot_emb.shape)
-        print('hidden', hidden.shape)
         for wi in range(max_res_len):
             dec_state, hidden = self.rnn(slot_emb.unsqueeze(1),
                                          hidden)
