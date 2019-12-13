@@ -57,6 +57,13 @@ Installation
    		cd ../nemo_simple_gan
    		pip install .
 
+    d) To install the TTS collection from ``collections/nemo_tts``:
+
+    .. code-block:: bash
+
+      cd ../nemo_tts
+      pip install .
+
 
 4) Run unittests from the nemo directory to validate installation:
 
