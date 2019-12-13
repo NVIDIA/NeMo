@@ -1,20 +1,23 @@
 Tutorial
 ========
 
-Make sure you have installed ``nemo`` and ``nemo_asr`` collection.
-See :ref:`installation` section.
+Make sure you have installed ``nemo`` and the ``nemo_asr`` collection.
+See the :ref:`installation` section.
 
 .. note::
-    You only need `nemo` and `nemo_asr` collection for this tutorial.
+You only need to have ``nemo`` and the ``nemo_asr`` collection for this tutorial.
+
+A more introductory, Jupyter notebook ASR tutorial can be found `on GitHub <https://github.com/NVIDIA/NeMo/tree/master/examples/asr/notebooks>`_.
+
 
 Introduction
 -------------
 
-This Automatic Speech Recognition (ASR) tutorial is focused on Jasper :cite:`li2019jasper` model. Jasper is CTC-based :cite:`graves2006` end-to-end model. The model is called "end-to-end" because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text. 
+This Automatic Speech Recognition (ASR) tutorial is focused on Jasper :cite:`asr-tut-li2019jasper` model. Jasper is CTC-based :cite:`asr-tut-graves2006` end-to-end model. The model is called "end-to-end" because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text. 
 CTC-ASR training pipeline consists of the following blocks:
 
-1. audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)
-2. neural acoustic model (which predicts a probability distribution P_t(c) over vocabulary characters c per each time step t given input features per each timestep)
+1. Audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)
+2. Neural acoustic model (which predicts a probability distribution P_t(c) over vocabulary characters c per each time step t given input features per each timestep)
 3. CTC loss function
 
     .. image:: ctc_asr.png
@@ -25,7 +28,7 @@ CTC-ASR training pipeline consists of the following blocks:
 
 Get data
 --------
-We will be using an open-source LibriSpeech :cite:`panayotov2015librispeech` dataset. These scripts will download and convert LibriSpeech into format expected by `nemo_asr`:
+We will be using an open-source LibriSpeech :cite:`asr-tut-panayotov2015librispeech` dataset. These scripts will download and convert LibriSpeech into format expected by `nemo_asr`:
 
 .. code-block:: bash
 
@@ -47,7 +50,7 @@ After download and conversion, your `data` folder should contain 2 json files:
 * dev_clean.json
 * train_clean_100.json
 
-In the tutorial we will use `train_clean_100.json` for training and `dev_clean.json`for evaluation.
+In the tutorial we will use `train_clean_100.json` for training and `dev_clean.json` for evaluation.
 Each line in json file describes a training sample - `audio_filepath` contains path to the wav file, `duration` it's duration in seconds, and `text` is it's transcript:
 
 .. code-block:: json
@@ -60,7 +63,7 @@ Each line in json file describes a training sample - `audio_filepath` contains p
 Training 
 ---------
 
-We will train a small model from the Jasper family :cite:`li2019jasper`.
+We will train a small model from the Jasper family :cite:`asr-tut-li2019jasper`.
 Jasper ("Just Another SPeech Recognizer") is a deep time delay neural network (TDNN) comprising of blocks of 1D-convolutional layers. 
 Jasper family of models are denoted as Jasper_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization, ReLU, and dropout:
 
@@ -333,5 +336,7 @@ Perform the following steps:
 References
 ----------
 
-.. bibliography:: Jasperbib.bib
+.. bibliography:: asr_all.bib
     :style: plain
+    :labelprefix: ASR-TUT
+    :keyprefix: asr-tut-

@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="nemo_simple_gan",
-    version="0.8",
+    version="0.9.0",
     author="NVIDIA",
     author_email="jasoli@nvidia.com",
     description="Collection of Neural Modules for GANs",
