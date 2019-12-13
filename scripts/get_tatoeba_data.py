@@ -36,10 +36,11 @@ def __maybe_download_file(destination: str, source: str):
     if not os.path.exists(destination):
         print(f'Downloading {source}')
         print(f'Downloading could take a long time ' +
-              'To get the data faster consider running in a terminal: ' +
-              'wget https://downloads.tatoeba.org/exports/sentences.csv ' +
-              'grep -P "\teng\t" sentences.csv > eng_sentences.csv' +
-              'mv eng_sentences.csv sentences.csv')
+              'To get the data faster consider running in a terminal:\n' +
+              'wget https://downloads.tatoeba.org/exports/sentences.csv\n' +
+              'grep -P "\teng\t" sentences.csv > eng_sentences.csv\n' +
+              'mv eng_sentences.csv sentences.csv\n' +
+              'And then rerun this script to preprocess the data.')
         urllib.request.urlretrieve(source, filename=destination)
 
 
