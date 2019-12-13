@@ -60,9 +60,9 @@ def get_features(queries,
         Required for training and evaluation, not needed for inference.
     punct_labels (list of str): list of labels for every word in a sequence
     capit_labels (list of str): list of labels for every word in a sequence
-    ignore_extra_tokens (int): whether to ignore extra tokens in
+    ignore_extra_tokens (bool): whether to ignore extra tokens in
         the loss_mask,
-    ignore_start_end (int): whether to ignore bos and eos tokens in
+    ignore_start_end (bool): whether to ignore bos and eos tokens in
         the loss_mask
     """
     all_subtokens = []
