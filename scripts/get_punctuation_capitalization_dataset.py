@@ -25,7 +25,8 @@ def __process_english_sentences(in_file,
                                 out_file,
                                 percent_to_cut,
                                 num_to_combine,
-                                num_samples=-1):
+                                num_samples=-1,
+                                min_line_len=3):
     """
     Extract English sentences from the Tatoeba dataset.
     Expected in_file format
@@ -60,7 +61,7 @@ def __process_english_sentences(in_file,
         # use only English sentences
         if line[1] == 'eng':
             line = line[2].strip()
-            if len(line) > 0 and re.match("^[A-Z][A-Za-z.,'?\s]+$", line):  # nopep8
+            if len(line.split()) > min_line_len and re.match("^[A-Z][A-Za-z.,'?\s]+$", line):  # nopep8
                 # chop some sentences in the middle
                 if percent_to_cut > 0:
                     line = line.split()
@@ -86,7 +87,7 @@ def __process_english_sentences(in_file,
 
 def __process_sentences(in_file,
                         out_file,
-                        percent_to_cut,
+                        percent_to_cut=0,
                         num_to_combine=-1,
                         num_samples=-1,
                         min_line_len=3):
@@ -104,7 +105,7 @@ def __process_sentences(in_file,
 
     for line in in_file:
         line = line.strip()
-        if len(line) > min_line_len and re.match('^[A-Z][A-Za-z.,?\s]+$', line):  # nopep8
+        if len(line.split()) > min_line_len and re.match('^[A-Z][A-Za-z.,?\s]+$', line):  # nopep8
             # chop some sentences in the middle
             if percent_to_cut > 0:
                 line = line.split()
@@ -230,6 +231,25 @@ def __print_stats(file_path):
     print(f'\nStats punctuation: {df}\n')
     print(f'\nStats capitalization: {capit_stats}\n')
 
+
+def get_stats(file):
+    num_periods = 0
+    num_questions = 0
+    num_commas = 0
+
+    with open(file, 'r') as f:
+        for line in f:
+            num_periods += line.count('.') 
+            num_questions += line.count('?')
+            num_commas += line.count(',')
+
+    print (file)
+    print (f'questions: {num_questions}')
+    print (f'commas: {num_commas}')
+    print (f'periods: {num_periods}')
+    print ()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Prepare dataset for punctuation and capitalization tasks')
     parser.add_argument("--data_path", default='english_sentences.csv', type=str)
@@ -264,14 +284,12 @@ if __name__ == "__main__":
     #                             args.num_lines_to_combine,
     #                             args.num_samples)
 
-    # print(f'Processing English sentences...')
-    # in_file = tatoeba_dataset = '/home/ebakhturina/data/tutorial_punct/dataset/new_format/shuf_questions_all_tatoeba.txt'
-    # out_file = os.path.join(args.data_dir, 'comb_shuf_questions_all_tatoeba.txt')
+    # print(f'Processing sentences...')
+    # in_file = '/home/ebakhturina/data/tutorial_punct/dataset/new_format/questions_all_tatoeba.txt'
+    # out_file = os.path.join(args.data_dir, 'clean_questions_all_tatoeba.txt')
     # __process_sentences(in_file,
-    #                             out_file,
-    #                             percent_to_cut=0,
-    #                             num_to_combine=5,
-    #                             num_samples=args.num_samples)
+    #                     out_file,
+    #                     min_line_len=3)
 
     # eng_sentences = os.path.join('/home/ebakhturina/data/tutorial_punct/dataset/new_format/shuf_final.txt')
     # train_file = os.path.join(args.data_dir, 'train.txt')
@@ -287,14 +305,15 @@ if __name__ == "__main__":
     # __create_text_and_labels(args.data_dir, 'train.txt')
     # __create_text_and_labels(args.data_dir, 'dev.txt')
 
-    labels_train = os.path.join(args.data_dir, 'labels_train.txt')
-    labels_dev = os.path.join(args.data_dir, 'labels_dev.txt')
-    __print_stats(labels_train)
-    __print_stats(labels_dev)
+    # labels_train = os.path.join(args.data_dir, 'labels_train.txt')
+    # labels_dev = os.path.join(args.data_dir, 'labels_dev.txt')
+    # __print_stats(labels_train)
+    # __print_stats(labels_dev)
 
-    # # clean data_dir
+    # # # clean data_dir
     # __delete_file(eng_sentences)
     # __delete_file(tatoeba_dataset)
     # __delete_file(train_file)
     # __delete_file(dev_file)
     # print(f'Processing of the {args.dataset} is complete')
+    get_stats(args.data_dir + '/shuf_final.txt')
