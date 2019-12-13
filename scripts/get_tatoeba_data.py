@@ -35,6 +35,11 @@ def __maybe_download_file(destination: str, source: str):
     source = URL[source]
     if not os.path.exists(destination):
         print(f'Downloading {source}')
+        print(f'Downloading could take a long time ' +
+               'To get the data faster consider running: '+
+               'wget https://downloads.tatoeba.org/exports/sentences.csv' +
+               'grep -P "\teng\t" sentences.csv > eng_sentences.csv' +
+               'mv eng_sentences.csv sentences.csv')
         urllib.request.urlretrieve(source, filename=destination)
 
 
@@ -194,6 +199,7 @@ if __name__ == "__main__":
                         help='Number of lines to combine into single example')
     parser.add_argument("--percent_dev", default=0.2, type=float,
                         help='Size of the dev set, float')
+    parser.add_argument("--clean_dir", action='store_true', type=bool)
     args = parser.parse_args()
 
     if not os.path.exists(args.data_dir):
@@ -203,12 +209,8 @@ if __name__ == "__main__":
         raise ValueError("Unsupported dataset.")
 
     print(f'Downloading tatoeba dataset')
-    tatoeba_dataset = os.path.join(args.data_dir, args.dataset + '.csv')
-    
-    import time
-    start = time.time()
+    tatoeba_dataset = os.path.join(args.data_dir, 'sentences.csv')
     __maybe_download_file(tatoeba_dataset, args.dataset)
-    print ('downloading took', time.time() - start)
 
     print(f'Processing English sentences...')
     clean_eng_sentences = os.path.join(args.data_dir, 'clean_eng_sentences.txt')
@@ -232,10 +234,10 @@ if __name__ == "__main__":
     __create_text_and_labels(args.data_dir, 'train.txt')
     __create_text_and_labels(args.data_dir, 'dev.txt')
 
-    # # clean data_dir
-    print(f'Cleaning up {args.data_dir}')
-    # __delete_file(eng_sentences)
-    # __delete_file(tatoeba_dataset)
-    # __delete_file(train_file)
-    # __delete_file(dev_file)
-    # print(f'Processing of the {args.dataset} is complete')
+    if args.clean_dir:
+        print(f'Cleaning up {args.data_dir}')
+        __delete_file(clean_eng_sentences)
+        __delete_file(tatoeba_dataset)
+        __delete_file(train_file)
+        __delete_file(dev_file)
+    print(f'Processing of the {args.dataset} is complete')
