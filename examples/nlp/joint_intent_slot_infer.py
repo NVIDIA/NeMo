@@ -116,6 +116,7 @@ nf.logger.info(classification_report(intents, pred_intents))
 
 slot_preds = np.argmax(slot_logits, axis=2)
 slot_preds_list, slot_labels_list = [], []
+subtokens_mask = subtokens_mask > 0.5
 for i, sp in enumerate(slot_preds):
     slot_preds_list.extend(list(slot_preds[i][subtokens_mask[i]]))
     slot_labels_list.extend(list(slot_labels[i][subtokens_mask[i]]))

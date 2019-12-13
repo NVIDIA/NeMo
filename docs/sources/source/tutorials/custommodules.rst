@@ -2,7 +2,7 @@ How to build Neural Module
 ==========================
 
 .. note::
-    Currently, NeMo only support PyTorch as a backend.
+    Currently, NeMo only supports PyTorch as a backend.
 
 Neural Modules can be conceptually classified into 4 potentially overlapping categories:
 
@@ -15,7 +15,7 @@ Neural Modules can be conceptually classified into 4 potentially overlapping cat
 * **Non Trainable Modules** - non-trainable module, for example, table lookup, data augmentation, greedy decoder, etc. Inherit from
   :class:`NonTrainableNM<nemo.backends.pytorch.nm.NonTrainableNM>` class.
 
-In Figure below you can see a class inheritance diagram for these helper classes.
+In the figure below you can see a class inheritance diagram for these helper classes.
 
 .. figure:: nm_class_structure.png
    :alt: map to buried treasure
@@ -28,8 +28,8 @@ Trainable Module
     Notice that :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` class
     has two base classes: :class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` class and ``torch.nn.Module``.
 
-Define module from scratch
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Defining a module from scratch
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (1) Inherit from :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` class.
 (2) Create the ``create_ports()`` static method that defines your input and output ports.
@@ -98,10 +98,10 @@ Example 1
 Converting from PyTorch's nn.Module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-(1) If you already have PyTorch class which inherits from ``torch.nn.Module``, replace that inheritance with inheritance from
+(1) If you already have a PyTorch class which inherits from ``torch.nn.Module``, replace that inheritance with inheritance from
     :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` class.
 (2) Create the ``create_ports()`` static method
-(3) Modify your constructor to call base class constructor first.
+(3) Modify your constructor to call the base class constructor first.
 
 .. code-block:: python
 
@@ -123,12 +123,12 @@ Data Layer Module
 (2) Implement ``__len__`` method to return dataset size.
 (3) Implement either the ``dataset`` or ``data_iterator`` property to return a PyTorch Dataset object or an iterator over your dataset, respectively. (The unused property should return None.)
 
-When implementing constructor, you should first call base class constructor and
+When implementing the constructor, you should first call the base class constructor and
 define *output ports only* in create_ports().  Also, module should accept
 parameters such as ``batch_size`` and ``shuffle``.
 
-If under the hood you are using ``torch.utils.data.Dataset`` class (*recommended approach*), then you can implement the ``dataset`` property, and a DataLoader will be created for you.
-(See example below).
+If you are using ``torch.utils.data.Dataset`` class (*recommended approach*), then you can implement the ``dataset`` property, and a DataLoader will be created for you.
+Here is an example:
 
 Example
 ~~~~~~~

@@ -10,11 +10,11 @@ require multiple losses and multiple optimizers.
 
 Multiple Losses
 ---------------
-Taking our Hello World example from earlier. Let's say that we now want to
+Taking our Hello World example from earlier, let's say that we now want to
 optimize for both a square error loss and a l1 loss. We can pass both the
 square error loss tensor and the l1 loss tensor to
 :meth:`NeuralFactory.train()<nemo.core.neural_factory.NeuralModuleFactory.train>`.
-An example is shown below.
+Here's an example:
 
 .. code-block:: python
 

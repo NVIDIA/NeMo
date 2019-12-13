@@ -1,5 +1,6 @@
 model: "Tacotron 2 Mandarin"
 sample_rate: &sr 22050
+# <PAD>, <BOS>, <EOS> will be added by the tacotron2.py script
 labels: [' ', '!', ',', '.', '?', 'a', 'b', 'c',
         'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
         'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
@@ -43,6 +44,9 @@ Tacotron2Encoder:
     encoder_kernel_size: 5
     encoder_n_convolutions: 3
     encoder_embedding_dim: &enc_emb_dim 512
+
+TextEmbedding:
+    symbols_embedding_dim: *enc_emb_dim
 
 Tacotron2Decoder:
     n_mel_channels: *n_mels

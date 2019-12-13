@@ -1,7 +1,7 @@
 Weight Sharing between Modules
 ==============================
 
-There are several ways to share or tie weights between neural models.
+There are several ways to share or tie weights between neural modules.
 
 Neural Module reuse
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

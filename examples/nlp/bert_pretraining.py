@@ -182,12 +182,11 @@ bert_model = nemo_nlp.huggingface.BERT(
 """ create necessary modules for the whole translation pipeline, namely
 data layers, BERT encoder, and MLM and NSP loss functions
 """
-ACT2FN = {"gelu": gelu, "relu": torch.nn.functional.relu}
 
 mlm_classifier = nemo_nlp.BertTokenClassifier(
                             args.hidden_size,
                             num_classes=args.vocab_size,
-                            activation=ACT2FN[args.hidden_act],
+                            activation=args.hidden_act,
                             log_softmax=True)
 mlm_loss_fn = nemo_nlp.MaskedLanguageModelingLossNM()
 if not args.only_mlm_loss:

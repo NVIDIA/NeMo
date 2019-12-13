@@ -1,5 +1,5 @@
-NVIDIA Neural Modules: NeMo
-===========================
+NVIDIA Neural Modules Developer Guide
+=====================================
 
 .. toctree::
    :hidden:
@@ -14,7 +14,7 @@ NVIDIA Neural Modules: NeMo
    tts/intro
    collections/modules
    api-docs/modules
-
+   chinese/intro
 
 
 Neural Modules (NeMo) is a framework-agnostic toolkit for building AI applications powered by Neural Modules. Current support is for PyTorch framework.
@@ -23,7 +23,7 @@ A "Neural Module" is a block of code that computes a set of outputs from a set o
 
 Neural Modules’ inputs and outputs have Neural Type for semantic checking.
 
-An application built with NeMo application is a Directed Acyclic Graph (DAG) of connected modules enabling researchers to define and build new speech and nlp networks easily through API Compatible modules.
+An application built with NeMo is a Directed Acyclic Graph (DAG) of connected modules enabling researchers to define and build new speech and nlp networks easily through API Compatible modules.
 
 
 **Introduction**
