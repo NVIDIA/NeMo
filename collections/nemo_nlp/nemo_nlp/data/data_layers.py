@@ -410,7 +410,6 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 
-
 class BertPunctuationCapitalizationDataLayer(TextDataLayer):
     @staticmethod
     def create_ports():

@@ -89,10 +89,12 @@ def get_features(queries,
         if with_label:
             pad_id = punct_label_ids[pad_label]
             punct_labels = [pad_id]
-            punct_query_labels = [punct_label_ids[lab] for lab in punct_labels_lines[i]]
+            punct_query_labels = \
+                [punct_label_ids[lab] for lab in punct_labels_lines[i]]
 
             capit_labels = [pad_id]
-            capit_query_labels = [capit_label_ids[lab] for lab in capit_labels_lines[i]]
+            capit_query_labels = \
+                [capit_label_ids[lab] for lab in capit_labels_lines[i]]
 
         for j, word in enumerate(words):
             word_tokens = tokenizer.text_to_tokens(word)
@@ -140,8 +142,10 @@ def get_features(queries,
                 all_subtokens_mask[i][-max_seq_length + 1:]
 
             if with_label:
-                punct_all_labels[i] = [pad_id] + punct_all_labels[i][-max_seq_length + 1:]
-                capit_all_labels[i] = [pad_id] + capit_all_labels[i][-max_seq_length + 1:]
+                punct_all_labels[i] = \
+                    [pad_id] + punct_all_labels[i][-max_seq_length + 1:]
+                capit_all_labels[i] = \
+                    [pad_id] + capit_all_labels[i][-max_seq_length + 1:]
             too_long_count += 1
 
         all_input_ids.append([tokenizer.tokens_to_ids(t)
@@ -175,10 +179,10 @@ def get_features(queries,
             "subtokens_mask: %s" % " ".join(list(map(
                 str, all_subtokens_mask[i]))))
         if with_label:
-            logger.info(
-                "punct_labels: %s" % " ".join(list(map(str, punct_all_labels[i]))))
-            logger.info(
-                "capit_labels: %s" % " ".join(list(map(str, capit_all_labels[i]))))
+            logger.info("punct_labels: %s" %
+                        " ".join(list(map(str, punct_all_labels[i]))))
+            logger.info("capit_labels: %s" %
+                        " ".join(list(map(str, capit_all_labels[i]))))
 
     return (all_input_ids,
             all_segment_ids,
@@ -214,7 +218,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
         shuffle (bool): whether to shuffle your data.
         pad_label (str): pad value use for labels.
             by default, it's the neutral label.
-        punct_label_ids and capit_label_ids (dict): dict to map labels to label ids.
+        punct_label_ids and capit_label_ids (dict):
+            dict to map labels to label ids.
             Starts with pad_label->0 and then increases in alphabetical order
             For dev set use label_ids generated during training to support
             cases when not all labels are present in the dev set.
@@ -278,7 +283,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     "Labels file should contain labels for every word")
 
             if shuffle or num_samples > 0:
-                dataset = list(zip(text_lines, punct_labels_lines, capit_labels_lines))
+                dataset = list(zip(text_lines,
+                                   punct_labels_lines,
+                                   capit_labels_lines))
                 random.shuffle(dataset)
 
                 if num_samples > 0:
@@ -328,7 +335,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
                                     ignore_extra_tokens=ignore_extra_tokens,
                                     ignore_start_end=ignore_start_end)
 
-
             if use_cache:
                 pickle.dump(features, open(features_pkl, "wb"))
                 logger.info(f'features saved to {features_pkl}')
@@ -350,7 +356,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             logger.info('Three most popular labels')
             _, label_frequencies = \
                 utils.get_label_stats(merged_labels,
-                                      infold + '/label_count_' + name  + '.tsv')
+                                      infold + '/label_count_' + name + '.tsv')
 
             out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
             labels, _ = zip(*sorted(label_ids.items(),  key=lambda x: x[1]))
@@ -360,12 +366,14 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
             return label_frequencies
 
-        self.punct_label_frequencies = get_stats_and_save(self.punct_all_labels,
-                                                          self.punct_label_ids,
-                                                          'punct')
-        self.capit_label_frequencies = get_stats_and_save(self.capit_all_labels,
-                                                          self.capit_label_ids,
-                                                          'capit')
+        self.punct_label_frequencies = \
+            get_stats_and_save(self.punct_all_labels,
+                               self.punct_label_ids,
+                               'punct')
+        self.capit_label_frequencies = \
+            get_stats_and_save(self.capit_all_labels,
+                               self.capit_label_ids,
+                               'capit')
 
     def __len__(self):
         return len(self.all_input_ids)
