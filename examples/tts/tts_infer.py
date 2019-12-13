@@ -17,6 +17,7 @@ from tacotron2 import create_NMs
 
 def parse_args():
     parser = argparse.ArgumentParser(description='TTS')
+    parser.add_argument("--local_rank", default=None, type=int)
     parser.add_argument(
         "--spec_model", type=str, required=True,
         choices=["tacotron2"],
@@ -148,7 +149,13 @@ def main():
     args = parse_args()
     neural_factory = nemo.core.NeuralModuleFactory(
         optimization_level=args.amp_opt_level,
-        backend=nemo.core.Backend.PyTorch)
+        backend=nemo.core.Backend.PyTorch,
+        local_rank=args.local_rank)
+
+    use_cache = True
+    if args.local_rank is not None:
+        print("Doing ALL GPU")
+        use_cache = False
 
     # Create text to spectrogram model
     if args.spec_model == "tacotron2":
@@ -168,7 +175,7 @@ def main():
     evaluated_tensors = neural_factory.infer(
         tensors=infer_tensors,
         checkpoint_dir=args.spec_model_load_dir,
-        cache=True,
+        cache=use_cache,
         offload_to_cpu=False
     )
     mel_len = evaluated_tensors[-1]
@@ -219,7 +226,7 @@ def main():
             checkpoint_dir=args.vocoder_model_load_dir,
             # checkpoint_dir=None,
             modules_to_restore=[waveglow],
-            use_cache=True
+            use_cache=use_cache
         )
         print("Done Running Waveglow")
 
