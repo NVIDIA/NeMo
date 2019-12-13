@@ -18,16 +18,17 @@ parser.add_argument("--pretrained_bert_model",
                     default="bert-base-uncased", type=str)
 parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument("--queries", action='append',
-                    default=['we bought four shirts from the' +
+                    default=['we bought four shirts from the ' +
                              'nvidia gear store in santa clara',
                              'nvidia is a company',
                              'can i help you',
+                             'how are you',
                              'how\'s the weather today',
                              'okay',
                              'fine',
                              'nowhere',
-                             'we bought four shirts one mug and ten thousand' +
-                             'titan rtx graphics cards the more you buy the' +
+                             'we bought four shirts one mug and ten thousand ' +
+                             'titan rtx graphics cards the more you buy the ' +
                              'more you save'],
                     help="Example: --queries 'san francisco' --queries 'la'")
 parser.add_argument("--add_brackets", action='store_false',

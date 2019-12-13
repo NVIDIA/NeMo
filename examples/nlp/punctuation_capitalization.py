@@ -88,7 +88,7 @@ if args.bert_checkpoint is None:
     nemo_nlp.huggingface.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    bert_model = nemo_nlp.huggingface.BERT(
+    model = nemo_nlp.huggingface.BERT(
         pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
@@ -111,7 +111,7 @@ else:
     model.restore_from(args.bert_checkpoint)
 
 
-hidden_size = bert_model.local_parameters["hidden_size"]
+hidden_size = model.local_parameters["hidden_size"]
 
 punct_classifier = "TokenClassifier"
 punct_loss = "TokenClassificationLoss"
@@ -213,7 +213,7 @@ def create_pipeline(num_samples=-1,
 
         task_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
-    hidden_states = bert_model(input_ids=input_ids,
+    hidden_states = model(input_ids=input_ids,
                                token_type_ids=input_type_ids,
                                attention_mask=input_mask)
 
