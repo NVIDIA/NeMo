@@ -32,7 +32,7 @@ URLS = {'TRAIN_CLEAN_100': "http://www.openslr.org/resources/12/train-clean-100.
 
 def __maybe_download_file(destination: str, source: str):
     """
-    Downloads source to destination if not exists.
+    Downloads source to destination if it doesn't exist.
     If exists, skips download
     Args:
         destination: local filepath
@@ -43,7 +43,7 @@ def __maybe_download_file(destination: str, source: str):
     """
     source = URLS[source]
     if not os.path.exists(destination):
-        print("{0} does not exists. Downloading ...".format(destination))
+        print("{0} does not exist. Downloading ...".format(destination))
         urllib.request.urlretrieve(source, filename=destination + '.tmp')
         os.rename(destination + '.tmp', destination)
         print("Downloaded {0}.".format(destination))
