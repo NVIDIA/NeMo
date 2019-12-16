@@ -16,7 +16,7 @@ setuptools.setup(
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
-        "License :: OSI Approved :: Apache License 2.0"
+        "License :: OSI Approved :: Apache Software License"
     ],
     install_requires=[
         'nemo_toolkit',
