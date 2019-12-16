@@ -36,10 +36,10 @@ def build_manifest(data_root, transcripts_path, manifest_path, wav_path):
                 transcript = transcript.replace('<s>', '').replace('</s>', '')
                 transcript = transcript.strip()
 
-                file_id = line[line.find('(')+1 : -2]  # e.g. "cen4-fash-b"
+                file_id = line[line.find('(')+1: -2]  # e.g. "cen4-fash-b"
                 audio_path = os.path.join(
                     data_root, wav_path,
-                    file_id[file_id.find('-')+1 : file_id.rfind('-')],
+                    file_id[file_id.find('-')+1: file_id.rfind('-')],
                     file_id + '.wav')
 
                 duration = librosa.core.get_duration(filename=audio_path)
@@ -88,7 +88,7 @@ def main():
             data_root, 'an4/wav/an4test_clstk')
     build_manifest(data_root, test_transcripts, test_manifest, test_wavs)
     print("Test manifest created.")
-    
+
     print("Done with AN4 processing!")
 
 
