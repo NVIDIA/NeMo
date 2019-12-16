@@ -188,14 +188,14 @@
 <p><strong>Getting started</strong></p>
 <p>You can use NVIDIA <a class="reference external" href="https://ngc.nvidia.com/catalog/containers/nvidia:pytorch">NGC PyTorch container</a> which already includes all the requirements above.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Pull the docker</span>
-docker pull nvcr.io/nvidia/pytorch:19.10-py3
+docker pull nvcr.io/nvidia/pytorch:19.11-py3
 
 <span class="c1"># Do one of the two following commands</span>
 <span class="c1"># Run Docker for docker version &lt;19.03</span>
-nvidia-docker run -it --rm -v &lt;nemo_github_folder&gt;:/NeMo --shm-size<span class="o">=</span>1g -p <span class="m">8888</span>:8888 -p <span class="m">6006</span>:6006 --ulimit <span class="nv">memlock</span><span class="o">=</span>-1 --ulimit <span class="nv">stack</span><span class="o">=</span><span class="m">67108864</span> nvcr.io/nvidia/pytorch:19.10-py3
+nvidia-docker run -it --rm -v &lt;nemo_github_folder&gt;:/NeMo --shm-size<span class="o">=</span>8g -p <span class="m">8888</span>:8888 -p <span class="m">6006</span>:6006 --ulimit <span class="nv">memlock</span><span class="o">=</span>-1 --ulimit <span class="nv">stack</span><span class="o">=</span><span class="m">67108864</span> nvcr.io/nvidia/pytorch:19.11-py3
 
 <span class="c1"># Run Docker for docker version &gt;=19.03</span>
-docker run --runtime<span class="o">=</span>nvidia -it --rm -v &lt;nemo_github_folder&gt;:/NeMo --shm-size<span class="o">=</span>1g -p <span class="m">8888</span>:8888 -p <span class="m">6006</span>:6006 --ulimit <span class="nv">memlock</span><span class="o">=</span>-1 --ulimit <span class="nv">stack</span><span class="o">=</span><span class="m">67108864</span> nvcr.io/nvidia/pytorch:19.10-py3
+docker run --runtime<span class="o">=</span>nvidia -it --rm -v &lt;nemo_github_folder&gt;:/NeMo --shm-size<span class="o">=</span>8g -p <span class="m">8888</span>:8888 -p <span class="m">6006</span>:6006 --ulimit <span class="nv">memlock</span><span class="o">=</span>-1 --ulimit <span class="nv">stack</span><span class="o">=</span><span class="m">67108864</span> nvcr.io/nvidia/pytorch:19.11-py3
 
 <span class="nb">cd</span> /NeMo
 </pre></div>
