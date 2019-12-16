@@ -67,6 +67,7 @@ See `examples/start_here` to get started with the simplest example. The folder `
 
 * `Speech recognition <https://nvidia.github.io/NeMo/asr/intro.html>`_
 * `Natural language processing <https://nvidia.github.io/NeMo/nlp/intro.html>`_
+* `Speech Synthesis <https://nvidia.github.io/NeMo/tts/intro.html>`_
 
 **Installing From Github**
 
