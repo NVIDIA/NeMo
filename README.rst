@@ -44,14 +44,15 @@ THE LATEST STABLE VERSION OF NeMo is **0.9.0** (which is available via PIP).
 
 We recommend to use NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ which already includes all the requirements above.
 
-* Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:19.10-py3``
-* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.10-py3``
+* Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:19.11-py3``
+* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.11-py3``
 
 .. code-block:: bash
 
     pip install nemo-toolkit  # installs NeMo Core
     pip install nemo-asr # installs NeMo ASR collection
     pip install nemo-nlp # installs NeMo NLP collection
+    pip install nemo-tts # installs NeMo TTS collection
 
 * DEVELOPMENT: If you'd like to use master branch and/or develop NeMo you can run "reinstall.sh" script.
 
@@ -93,6 +94,11 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
     # Install the NLP collection from collections/nemo_nlp
     cd NeMo/collections/nemo_nlp
     pip install .
+
+    # Install the TTS collection from collections/nemo_tts
+    cd NeMo/collections/nemo_tts
+    pip install .
+
 
 **Unittests**
 
