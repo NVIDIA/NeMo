@@ -61,14 +61,14 @@ You can use NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/contai
 .. code-block:: bash
 
     # Pull the docker
-    docker pull nvcr.io/nvidia/pytorch:19.10-py3
+    docker pull nvcr.io/nvidia/pytorch:19.11-py3
 
     # Do one of the two following commands
     # Run Docker for docker version <19.03
-    nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.10-py3
+    nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.11-py3
     
     # Run Docker for docker version >=19.03
-    docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.10-py3
+    docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.11-py3
 
     cd /NeMo
 
