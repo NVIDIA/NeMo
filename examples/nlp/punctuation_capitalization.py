@@ -41,6 +41,8 @@ parser.add_argument("--pretrained_bert_model",
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str,
                     help="Path to bert config file in json format")
+parser.add_argument("--punct_classifier_checkpoint", default=None, type=str)
+parser.add_argument("--capit_classifier_checkpoint", default=None, type=str)
 parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str,
                     help="Path to pretrained tokenizer model, \
                     only used if --tokenizer is sentencepiece")
@@ -109,6 +111,7 @@ else:
             pretrained_model_name=args.pretrained_bert_model)
 
     model.restore_from(args.bert_checkpoint)
+    nf.logger.info(f"Model restored from {args.bert_checkpoint}")
 
 
 hidden_size = model.local_parameters["hidden_size"]
@@ -180,7 +183,7 @@ def create_pipeline(num_samples=-1,
         capit_label_ids = data_layer.dataset.capit_label_ids
         class_weights = None
 
-        if args.use_weighted_loss:
+        if args.use_weighted_loss_punct:
             nf.logger.info(f"Using weighted loss for punctuation task")
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
             num_most_common = punct_label_freqs[0][1]
@@ -207,7 +210,11 @@ def create_pipeline(num_samples=-1,
                                             num_classes=len(capit_label_ids),
                                             dropout=dropout,
                                             name='Capitalization')
-
+        ch_dir='output/nemo_checkpoint/2019-12-13_15-49-58/checkpoints/'
+        capit_classifier.restore_from(os.path.join(ch_dir, 'CapitalizationTokenClassifier-STEP-37480.pt'))
+        punct_classifier.restore_from(os.path.join(ch_dir, 'PunctuationTokenClassifier-STEP-37480.pt'))
+        model.restore_from(os.path.join(ch_dir, 'BERT-STEP-37480.pt'))
+        print (f'------>restored')
         capit_loss = getattr(sys.modules[__name__], capit_loss)
         capit_loss = capit_loss(num_classes=len(capit_label_ids))
 
