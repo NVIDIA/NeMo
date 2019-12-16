@@ -1,18 +1,19 @@
 Transformer Language Model
-================
+==========================
 
-In this tutorial, we will build and train a language model using the Transformer architecture :cite:`vaswani2017attention`. Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See the :ref:`installation` section for more details.
+In this tutorial, we will build and train a language model using the Transformer architecture :cite:`nlp-lm-vaswani2017attention`.
+Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See the :ref:`installation` section for more details.
 
 Introduction
 ------------
 
-A good language model has a wide range of applications on downstream tasks. Examples of language models being used for downstream tasks include GPT-2 :cite:`radford2019language`.
+A good language model has a wide range of applications on downstream tasks. Examples of language models being used for downstream tasks include GPT-2 :cite:`nlp-lm-radford2019language`.
 
 
 Download Corpus
 ---------------
 
-For demonstration purposes, we will be using the very small WikiText-2 dataset :cite:`merity2016pointer`.
+For demonstration purposes, we will be using the very small WikiText-2 dataset :cite:`nlp-lm-merity2016pointer`.
 
 To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
 
@@ -23,7 +24,7 @@ To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. Aft
         valid.txt
 
 Create the tokenizer model
-----------------
+--------------------------
 `LanguageModelDataDesc` converts your dataset into the format compatible with `LanguageModelingDataset`.
 
     .. code-block:: python
@@ -44,7 +45,8 @@ We need to define our tokenizer. We use `WordTokenizer` defined in ``nemo_nlp/da
 
 Create the model
 ----------------
-First, we need to create our neural factory with the supported backend. How you should define it depends on whether you'd like to multi-GPU or mixed-precision training. This tutorial assumes that you're training on one GPU, without mixed precision. If you want to use mixed precision, set ``amp_opt_level`` to ``O1`` or ``O2``.
+First, we need to create our neural factory with the supported backend. How you should define it depends on whether you'd like to multi-GPU or mixed-precision training.
+This tutorial assumes that you're training on one GPU, without mixed precision. If you want to use mixed precision, set ``amp_opt_level`` to ``O1`` or ``O2``.
 
     .. code-block:: python
 
@@ -68,7 +70,7 @@ Next, we define all Neural Modules necessary for our model
         loss = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(**params)
 
 
-Following `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`press2016using`, we also tie the parameters of embedding and softmax layers:
+Following `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`nlp-lm-press2016using`, we also tie the parameters of embedding and softmax layers:
 
     .. code-block:: python
 
@@ -140,8 +142,11 @@ Finally, you should define your optimizer, and start training!
                                       "weight_decay": args.weight_decay,
                                       "betas": (args.beta1, args.beta2)})
 
+
 References
 ----------
 
-.. bibliography:: transformer_lm.bib
+.. bibliography:: nlp_all.bib
     :style: plain
+    :labelprefix: NLP-LM
+    :keyprefix: nlp-lm-

@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Core APIs &mdash; nemo 0.8.2 documentation</title>
+  <title>Core APIs &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="中文支持" href="../chinese/intro.html" />
     <link rel="prev" title="NeMo API" href="modules.html" /> 
 </head>
 
@@ -59,7 +60,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -90,6 +91,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="modules.html">NeMo API</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Core APIs</a><ul>
@@ -106,6 +108,7 @@
 </li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -218,10 +221,32 @@ For example: after pre-processing, or augmentation.</p>
 </dd></dl>
 
 <dl class="class">
+<dt id="nemo.core.neural_types.EmbeddedTextTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">EmbeddedTextTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#EmbeddedTextTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.EmbeddedTextTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.ChannelTag" title="nemo.core.neural_types.ChannelTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.ChannelTag</span></code></a></p>
+<p>Tag for any dimensions that contains text that goes through an
+enbedding layer.</p>
+</dd></dl>
+
+<dl class="class">
 <dt id="nemo.core.neural_types.SpectrogramSignalTag">
 <em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">SpectrogramSignalTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#SpectrogramSignalTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.SpectrogramSignalTag" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.ChannelTag" title="nemo.core.neural_types.ChannelTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.ChannelTag</span></code></a></p>
 <p>Tag for spectrogram signal dimension.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.MelSpectrogramSignalTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">MelSpectrogramSignalTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#MelSpectrogramSignalTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.MelSpectrogramSignalTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.SpectrogramSignalTag" title="nemo.core.neural_types.SpectrogramSignalTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.SpectrogramSignalTag</span></code></a></p>
+<p>Tag for mel spectrogram signal dimension.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.core.neural_types.MFCCSignalTag">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_types.</code><code class="sig-name descname">MFCCSignalTag</code><a class="reference internal" href="../_modules/nemo/core/neural_types.html#MFCCSignalTag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_types.MFCCSignalTag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_types.SpectrogramSignalTag" title="nemo.core.neural_types.SpectrogramSignalTag"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_types.SpectrogramSignalTag</span></code></a></p>
+<p>Tag for MFCC signal dimension.</p>
 </dd></dl>
 
 <dl class="class">
@@ -868,7 +893,7 @@ WARNING: This might have effect on model accuracy.</p>
 
 <dl class="class">
 <dt id="nemo.core.neural_factory.Actions">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_factory.</code><code class="sig-name descname">Actions</code><span class="sig-paren">(</span><em class="sig-param">local_rank</em>, <em class="sig-param">optimization_level=&lt;Optimization.mxprO0: 0&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#Actions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.Actions" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_factory.</code><code class="sig-name descname">Actions</code><span class="sig-paren">(</span><em class="sig-param">local_rank</em>, <em class="sig-param">global_rank</em>, <em class="sig-param">optimization_level=&lt;Optimization.mxprO0: 0&gt;</em>, <em class="sig-param">logger=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#Actions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.Actions" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABC</span></code></p>
 <p>Basic actions allowed on graphs of Neural Modules</p>
 <dl class="method">
@@ -886,6 +911,17 @@ optimized.</p></li>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>Optimizer</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
+<dt id="nemo.core.neural_factory.Actions.global_rank">
+<em class="property">property </em><code class="sig-name descname">global_rank</code><a class="headerlink" href="#nemo.core.neural_factory.Actions.global_rank" title="Permalink to this definition">¶</a></dt>
+<dd><p>Global rank during distributed execution. None if single GPU/CPU</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>(int) rank or worker or None if not in distributed model</p>
 </dd>
 </dl>
 </dd></dl>
@@ -982,6 +1018,23 @@ mini-batch.</p></li>
 <dd></dd></dl>
 
 <dl class="method">
+<dt id="nemo.core.neural_factory.NeuralModuleFactory.deployment_export">
+<code class="sig-name descname">deployment_export</code><span class="sig-paren">(</span><em class="sig-param">module</em>, <em class="sig-param">output: str</em>, <em class="sig-param">d_format: nemo.core.neural_factory.DeploymentFormat</em>, <em class="sig-param">input_example=None</em>, <em class="sig-param">output_example=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.deployment_export"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.deployment_export" title="Permalink to this definition">¶</a></dt>
+<dd><p>Exports Neural Module instance for deployment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>module</strong> – neural module to export</p></li>
+<li><p><strong>output</strong> (<em>str</em>) – where export results should be saved</p></li>
+<li><p><strong>d_format</strong> (<a class="reference internal" href="#nemo.core.neural_factory.DeploymentFormat" title="nemo.core.neural_factory.DeploymentFormat"><em>DeploymentFormat</em></a>) – which deployment format to use</p></li>
+<li><p><strong>input_example</strong> – sometimes tracing will require input examples</p></li>
+<li><p><strong>output_example</strong> – Should match inference on input_example</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
 <dt id="nemo.core.neural_factory.NeuralModuleFactory.eval">
 <code class="sig-name descname">eval</code><span class="sig-paren">(</span><em class="sig-param">callbacks: List[nemo.core.callbacks.EvaluatorCallback]</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.eval"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.eval" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -1020,7 +1073,7 @@ mini-batch.</p></li>
 
 <dl class="method">
 <dt id="nemo.core.neural_factory.NeuralModuleFactory.infer">
-<code class="sig-name descname">infer</code><span class="sig-paren">(</span><em class="sig-param">tensors: List[nemo.core.neural_types.NmTensor], checkpoint_dir=None, ckpt_pattern='', verbose=True, cache=False, use_cache=False, offload_to_cpu=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.infer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.infer" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">infer</code><span class="sig-paren">(</span><em class="sig-param">tensors: List[nemo.core.neural_types.NmTensor], checkpoint_dir=None, ckpt_pattern='', verbose=True, cache=False, use_cache=False, offload_to_cpu=True, modules_to_restore=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.infer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.infer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Runs inference to obtain values for tensors</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -1042,6 +1095,9 @@ It will re-use intermediate tensors from the DAG leading to
 <cite>tensors</cite> list. Defaults to False.</p></li>
 <li><p><strong>offload_to_cpu</strong> (<em>bool</em>) – If True, all evaluated tensors are moved to
 cpu memory after each inference batch. Defaults to True.</p></li>
+<li><p><strong>modules_to_restore</strong> (<em>list</em>) – Defaults to None, in which case all
+NMs inside callchain with weights will be restored. If
+specified only the modules inside this list will be restored.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -1088,7 +1144,7 @@ where each element is now a batch of tensor values.</p>
 
 <dl class="method">
 <dt id="nemo.core.neural_factory.NeuralModuleFactory.train">
-<code class="sig-name descname">train</code><span class="sig-paren">(</span><em class="sig-param">tensors_to_optimize</em>, <em class="sig-param">optimizer=None</em>, <em class="sig-param">optimization_params=None</em>, <em class="sig-param">callbacks: Optional[List[nemo.core.callbacks.ActionCallback]] = None</em>, <em class="sig-param">lr_policy=None</em>, <em class="sig-param">batches_per_step=None</em>, <em class="sig-param">stop_on_nan_loss=False</em>, <em class="sig-param">synced_batchnorm=False</em>, <em class="sig-param">synced_batchnorm_groupsize=0</em>, <em class="sig-param">reset=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.train" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">train</code><span class="sig-paren">(</span><em class="sig-param">tensors_to_optimize</em>, <em class="sig-param">optimizer=None</em>, <em class="sig-param">optimization_params=None</em>, <em class="sig-param">callbacks: Optional[List[nemo.core.callbacks.ActionCallback]] = None</em>, <em class="sig-param">lr_policy=None</em>, <em class="sig-param">batches_per_step=None</em>, <em class="sig-param">stop_on_nan_loss=False</em>, <em class="sig-param">synced_batchnorm=False</em>, <em class="sig-param">synced_batchnorm_groupsize=0</em>, <em class="sig-param">gradient_predivide=False</em>, <em class="sig-param">reset=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.train" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1103,6 +1159,33 @@ where each element is now a batch of tensor values.</p>
 
 </dd></dl>
 
+<dl class="class">
+<dt id="nemo.core.neural_factory.DeploymentFormat">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.core.neural_factory.</code><code class="sig-name descname">DeploymentFormat</code><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#DeploymentFormat"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.DeploymentFormat" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
+<p>Which format to use when exporting a Neural Module for deployment</p>
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.DeploymentFormat.AUTO">
+<code class="sig-name descname">AUTO</code><em class="property"> = 0</em><a class="headerlink" href="#nemo.core.neural_factory.DeploymentFormat.AUTO" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.DeploymentFormat.ONNX">
+<code class="sig-name descname">ONNX</code><em class="property"> = 3</em><a class="headerlink" href="#nemo.core.neural_factory.DeploymentFormat.ONNX" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.DeploymentFormat.PYTORCH">
+<code class="sig-name descname">PYTORCH</code><em class="property"> = 1</em><a class="headerlink" href="#nemo.core.neural_factory.DeploymentFormat.PYTORCH" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.core.neural_factory.DeploymentFormat.TORCHSCRIPT">
+<code class="sig-name descname">TORCHSCRIPT</code><em class="property"> = 2</em><a class="headerlink" href="#nemo.core.neural_factory.DeploymentFormat.TORCHSCRIPT" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
 </div>
 <div class="section" id="pytorch-backend">
@@ -1112,7 +1195,7 @@ where each element is now a batch of tensor values.</p>
 <span id="basic-actions"></span><h2>Basic actions<a class="headerlink" href="#module-nemo.backends.pytorch.actions" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="nemo.backends.pytorch.actions.PtActions">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.actions.</code><code class="sig-name descname">PtActions</code><span class="sig-paren">(</span><em class="sig-param">local_rank=None</em>, <em class="sig-param">tb_writer=None</em>, <em class="sig-param">optimization_level=&lt;Optimization.mxprO0: 0&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.actions.</code><code class="sig-name descname">PtActions</code><span class="sig-paren">(</span><em class="sig-param">local_rank=None</em>, <em class="sig-param">global_rank=None</em>, <em class="sig-param">tb_writer=None</em>, <em class="sig-param">optimization_level=&lt;Optimization.mxprO0: 0&gt;</em>, <em class="sig-param">logger=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#nemo.core.neural_factory.Actions" title="nemo.core.neural_factory.Actions"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.neural_factory.Actions</span></code></a></p>
 <dl class="method">
 <dt id="nemo.backends.pytorch.actions.PtActions.append_to_cache">
@@ -1155,8 +1238,25 @@ parameters are extracted and passed to the optimizer.</p></li>
 <dd></dd></dl>
 
 <dl class="method">
+<dt id="nemo.backends.pytorch.actions.PtActions.deployment_export">
+<em class="property">static </em><code class="sig-name descname">deployment_export</code><span class="sig-paren">(</span><em class="sig-param">module</em>, <em class="sig-param">output: str</em>, <em class="sig-param">d_format: nemo.core.neural_factory.DeploymentFormat</em>, <em class="sig-param">input_example=None</em>, <em class="sig-param">output_example=None</em>, <em class="sig-param">logger=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.deployment_export"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.deployment_export" title="Permalink to this definition">¶</a></dt>
+<dd><p>Exports Neural Module instance for deployment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>module</strong> – neural module to export</p></li>
+<li><p><strong>output</strong> (<em>str</em>) – where export results should be saved</p></li>
+<li><p><strong>d_format</strong> (<a class="reference internal" href="#nemo.core.neural_factory.DeploymentFormat" title="nemo.core.neural_factory.DeploymentFormat"><em>DeploymentFormat</em></a>) – which deployment format to use</p></li>
+<li><p><strong>input_example</strong> – sometimes tracing will require input examples</p></li>
+<li><p><strong>output_example</strong> – Should match inference on input_example</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
 <dt id="nemo.backends.pytorch.actions.PtActions.infer">
-<code class="sig-name descname">infer</code><span class="sig-paren">(</span><em class="sig-param">tensors</em>, <em class="sig-param">checkpoint_dir=None</em>, <em class="sig-param">ckpt_pattern=''</em>, <em class="sig-param">logger=None</em>, <em class="sig-param">verbose=True</em>, <em class="sig-param">cache=False</em>, <em class="sig-param">use_cache=False</em>, <em class="sig-param">offload_to_cpu=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.infer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.infer" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">infer</code><span class="sig-paren">(</span><em class="sig-param">tensors</em>, <em class="sig-param">checkpoint_dir=None</em>, <em class="sig-param">ckpt_pattern=''</em>, <em class="sig-param">logger=None</em>, <em class="sig-param">verbose=True</em>, <em class="sig-param">cache=False</em>, <em class="sig-param">use_cache=False</em>, <em class="sig-param">offload_to_cpu=True</em>, <em class="sig-param">modules_to_restore=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.infer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.infer" title="Permalink to this definition">¶</a></dt>
 <dd><p>See NeuralModuleFactory.infer()</p>
 </dd></dl>
 
@@ -1188,7 +1288,7 @@ parameters are extracted and passed to the optimizer.</p></li>
 
 <dl class="method">
 <dt id="nemo.backends.pytorch.actions.PtActions.train">
-<code class="sig-name descname">train</code><span class="sig-paren">(</span><em class="sig-param">tensors_to_optimize</em>, <em class="sig-param">optimizer=None</em>, <em class="sig-param">optimization_params=None</em>, <em class="sig-param">callbacks: Optional[List[nemo.core.callbacks.ActionCallback]] = None</em>, <em class="sig-param">lr_policy=None</em>, <em class="sig-param">batches_per_step=None</em>, <em class="sig-param">stop_on_nan_loss=False</em>, <em class="sig-param">synced_batchnorm=False</em>, <em class="sig-param">synced_batchnorm_groupsize=0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.train" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">train</code><span class="sig-paren">(</span><em class="sig-param">tensors_to_optimize</em>, <em class="sig-param">optimizer=None</em>, <em class="sig-param">optimization_params=None</em>, <em class="sig-param">callbacks: Optional[List[nemo.core.callbacks.ActionCallback]] = None</em>, <em class="sig-param">lr_policy=None</em>, <em class="sig-param">batches_per_step=None</em>, <em class="sig-param">stop_on_nan_loss=False</em>, <em class="sig-param">synced_batchnorm=False</em>, <em class="sig-param">synced_batchnorm_groupsize=0</em>, <em class="sig-param">gradient_predivide=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.train" title="Permalink to this definition">¶</a></dt>
 <dd><p>This action executes training and (optionally) evaluation.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -2043,6 +2143,8 @@ mode (<code class="docutils literal notranslate"><span class="pre">False</span><
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
+        <a href="../chinese/intro.html" class="btn btn-neutral float-right" title="中文支持" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
       
         <a href="modules.html" class="btn btn-neutral float-left" title="NeMo API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
@@ -2053,7 +2155,7 @@ mode (<code class="docutils literal notranslate"><span class="pre">False</span><
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

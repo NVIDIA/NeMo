@@ -1,0 +1,628 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>nemo_tts.tacotron2_modules &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tts/intro.html">Speech Synthesis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../chinese/intro.html">中文支持</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>nemo_tts.tacotron2_modules</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for nemo_tts.tacotron2_modules</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2019 NVIDIA Corporation</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">partial</span>
+
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch</span> <span class="k">import</span> <span class="n">nn</span>
+<span class="kn">from</span> <span class="nn">torch.nn.functional</span> <span class="k">import</span> <span class="n">pad</span>
+
+<span class="kn">from</span> <span class="nn">nemo.backends.pytorch.nm</span> <span class="k">import</span> <span class="n">TrainableNM</span><span class="p">,</span> <span class="n">NonTrainableNM</span><span class="p">,</span> <span class="n">LossNM</span>
+<span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="k">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">.parts.tacotron2</span> <span class="k">import</span> <span class="n">Encoder</span><span class="p">,</span> <span class="n">Decoder</span><span class="p">,</span> <span class="n">Postnet</span>
+<span class="kn">from</span> <span class="nn">.parts.layers</span> <span class="k">import</span> <span class="n">get_mask_from_lengths</span>
+
+
+<div class="viewcode-block" id="TextEmbedding"><a class="viewcode-back" href="../../collections/nemo_tts.html#nemo_tts.tacotron2_modules.TextEmbedding">[docs]</a><span class="k">class</span> <span class="nc">TextEmbedding</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    TextEmbedding embeds the encoded character labels to an embedding space</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        n_symbols (int): The number of character labels. The input char_phone&#39;s</span>
+<span class="sd">            second axis dim size should be n_symbols.</span>
+<span class="sd">        symbols_embedding_dim (int): The size of the embedding dimension.</span>
+<span class="sd">            Defaults to 512.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
+        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;char_phone&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                      <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)})</span>
+        <span class="p">}</span>
+
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;char_phone_embeddings&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                                 <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">EmbeddedTextTag</span><span class="p">),</span>
+                                                 <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)})</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_symbols</span><span class="p">,</span> <span class="n">symbols_embedding_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">embedding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Embedding</span><span class="p">(</span>
+            <span class="n">n_symbols</span><span class="p">,</span> <span class="n">symbols_embedding_dim</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">char_phone</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding</span><span class="p">(</span><span class="n">char_phone</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Tacotron2Encoder"><a class="viewcode-back" href="../../collections/nemo_tts.html#nemo_tts.tacotron2_modules.Tacotron2Encoder">[docs]</a><span class="k">class</span> <span class="nc">Tacotron2Encoder</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tacotron2Encoder is the encoder part of Tacotron 2. It takes embedded text</span>
+<span class="sd">    as input and creates an encoded representation of the text that can be used</span>
+<span class="sd">    with downstream attention and decoders.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        encoder_n_convolutions (int): The number of convolution layers inside</span>
+<span class="sd">            the encoder. Defaults to 5.</span>
+<span class="sd">        encoder_embedding_dim (int): The size of the embedded text. It will</span>
+<span class="sd">            also be the output size of the encoded text. Defaults to 512.</span>
+<span class="sd">        encoder_kernel_size (int): The kernel size of the convolution layers.</span>
+<span class="sd">            Defaults to 3</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
+        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;char_phone_embeddings&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                                 <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">EmbeddedTextTag</span><span class="p">),</span>
+                                                 <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;embedding_length&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">)})</span>
+        <span class="p">}</span>
+
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;char_phone_encoded&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">),</span>
+                <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">EncodedRepresentationTag</span><span class="p">)})</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">encoder_n_convolutions</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+            <span class="n">encoder_embedding_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
+            <span class="n">encoder_kernel_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span> <span class="o">=</span> <span class="n">Encoder</span><span class="p">(</span><span class="n">encoder_n_convolutions</span><span class="o">=</span><span class="n">encoder_n_convolutions</span><span class="p">,</span>
+                               <span class="n">encoder_embedding_dim</span><span class="o">=</span><span class="n">encoder_embedding_dim</span><span class="p">,</span>
+                               <span class="n">encoder_kernel_size</span><span class="o">=</span><span class="n">encoder_kernel_size</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">char_phone_embeddings</span><span class="p">,</span> <span class="n">embedding_length</span><span class="p">):</span>
+        <span class="n">char_phone_encoded</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="p">(</span>
+            <span class="n">char_phone_embeddings</span><span class="p">,</span> <span class="n">embedding_length</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">char_phone_encoded</span></div>
+
+
+<div class="viewcode-block" id="Tacotron2Decoder"><a class="viewcode-back" href="../../collections/nemo_tts.html#nemo_tts.tacotron2_modules.Tacotron2Decoder">[docs]</a><span class="k">class</span> <span class="nc">Tacotron2Decoder</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tacotron2Decoder implements the attention, decoder, and prenet parts of</span>
+<span class="sd">    Tacotron 2. It takes the encoded text and produces mel spectrograms. The</span>
+<span class="sd">    decoder contains two rnns, one is called the decoder rnn and the other is</span>
+<span class="sd">    called the attention rnn.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        n_mel_channels (int): The size or dimensionality of the mel spectrogram</span>
+<span class="sd">        n_frames_per_step (int): The number of frames we predict at each</span>
+<span class="sd">            decoder time step. Defaults to 1</span>
+<span class="sd">        encoder_embedding_dim (int): The size of the encoded text.</span>
+<span class="sd">            Defaults to 512.</span>
+<span class="sd">        gate_threshold (float): A number in [0, 1). When teacher forcing is</span>
+<span class="sd">            not used, the model predict a stopping value at each model time</span>
+<span class="sd">            step. The model will stop if the value is greater than</span>
+<span class="sd">            gate_threshold. Defaults to 0.5.</span>
+<span class="sd">        prenet_dim (int): The hidden dimension of the prenet. Defaults to 256.</span>
+<span class="sd">        max_decoder_steps (int): When not teacher forcing, the maximum number</span>
+<span class="sd">            of frames to predict. Defaults to 1000.</span>
+<span class="sd">        decoder_rnn_dim (int): The hidden dimension of the decoder rnn.</span>
+<span class="sd">            Defaults to 1024.</span>
+<span class="sd">        p_decoder_dropout (float): Dropout probability for the decoder rnn.</span>
+<span class="sd">            Defaults to 0.1.</span>
+<span class="sd">        p_attention_dropout (float): Dropout probability for the attention rnn.</span>
+<span class="sd">            Defaults to 0.1.</span>
+<span class="sd">        attention_rnn_dim (int): The hidden dimension of the attention rnn.</span>
+<span class="sd">            Defaults to 1024.</span>
+<span class="sd">        attention_dim (int): The hidden dimension of the attention mechanism.</span>
+<span class="sd">            Defaults to 128.</span>
+<span class="sd">        attention_location_n_filters (int): The number of convolution filters</span>
+<span class="sd">            for the location part of the attention mechanism.</span>
+<span class="sd">            Defaults to 32.</span>
+<span class="sd">        attention_location_kernel_size (int): The kernel size of the</span>
+<span class="sd">            convolution for the location part of the attention mechanism.</span>
+<span class="sd">            Defaults to 31.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
+        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;char_phone_encoded&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">),</span>
+                <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">EncodedRepresentationTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;encoded_length&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;mel_target&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                      <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">MelSpectrogramSignalTag</span><span class="p">),</span>
+                                      <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)})</span>
+        <span class="p">}</span>
+
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;mel_output&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                      <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">MelSpectrogramSignalTag</span><span class="p">),</span>
+                                      <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;gate_output&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                       <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;alignments&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                      <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">),</span>
+                                      <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)})</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">n_mel_channels</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+            <span class="n">n_frames_per_step</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="n">encoder_embedding_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
+            <span class="n">gate_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+            <span class="n">prenet_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">256</span><span class="p">,</span>
+            <span class="n">max_decoder_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span>
+            <span class="n">decoder_rnn_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1024</span><span class="p">,</span>
+            <span class="n">p_decoder_dropout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+            <span class="n">p_attention_dropout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+            <span class="n">attention_rnn_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1024</span><span class="p">,</span>
+            <span class="n">attention_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">128</span><span class="p">,</span>
+            <span class="n">attention_location_n_filters</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32</span><span class="p">,</span>
+            <span class="n">attention_location_kernel_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">31</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span> <span class="o">=</span> <span class="n">Decoder</span><span class="p">(</span>
+            <span class="n">n_mel_channels</span><span class="o">=</span><span class="n">n_mel_channels</span><span class="p">,</span>
+            <span class="n">n_frames_per_step</span><span class="o">=</span><span class="n">n_frames_per_step</span><span class="p">,</span>
+            <span class="n">encoder_embedding_dim</span><span class="o">=</span><span class="n">encoder_embedding_dim</span><span class="p">,</span>
+            <span class="n">gate_threshold</span><span class="o">=</span><span class="n">gate_threshold</span><span class="p">,</span>
+            <span class="n">prenet_dim</span><span class="o">=</span><span class="n">prenet_dim</span><span class="p">,</span>
+            <span class="n">max_decoder_steps</span><span class="o">=</span><span class="n">max_decoder_steps</span><span class="p">,</span>
+            <span class="n">decoder_rnn_dim</span><span class="o">=</span><span class="n">decoder_rnn_dim</span><span class="p">,</span>
+            <span class="n">p_decoder_dropout</span><span class="o">=</span><span class="n">p_decoder_dropout</span><span class="p">,</span>
+            <span class="n">p_attention_dropout</span><span class="o">=</span><span class="n">p_attention_dropout</span><span class="p">,</span>
+            <span class="n">attention_rnn_dim</span><span class="o">=</span><span class="n">attention_rnn_dim</span><span class="p">,</span>
+            <span class="n">attention_dim</span><span class="o">=</span><span class="n">attention_dim</span><span class="p">,</span>
+            <span class="n">attention_location_n_filters</span><span class="o">=</span><span class="n">attention_location_n_filters</span><span class="p">,</span>
+            <span class="n">attention_location_kernel_size</span><span class="o">=</span><span class="n">attention_location_kernel_size</span><span class="p">,</span>
+            <span class="n">early_stopping</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">char_phone_encoded</span><span class="p">,</span> <span class="n">encoded_length</span><span class="p">,</span> <span class="n">mel_target</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span><span class="p">:</span>
+            <span class="n">mel_output</span><span class="p">,</span> <span class="n">gate_output</span><span class="p">,</span> <span class="n">alignments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span><span class="p">(</span>
+                <span class="n">char_phone_encoded</span><span class="p">,</span> <span class="n">mel_target</span><span class="p">,</span> <span class="n">memory_lengths</span><span class="o">=</span><span class="n">encoded_length</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mel_output</span><span class="p">,</span> <span class="n">gate_output</span><span class="p">,</span> <span class="n">alignments</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span>
+                <span class="n">char_phone_encoded</span><span class="p">,</span> <span class="n">memory_lengths</span><span class="o">=</span><span class="n">encoded_length</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mel_output</span><span class="p">,</span> <span class="n">gate_output</span><span class="p">,</span> <span class="n">alignments</span></div>
+
+
+<div class="viewcode-block" id="Tacotron2DecoderInfer"><a class="viewcode-back" href="../../collections/nemo_tts.html#nemo_tts.tacotron2_modules.Tacotron2DecoderInfer">[docs]</a><span class="k">class</span> <span class="nc">Tacotron2DecoderInfer</span><span class="p">(</span><span class="n">Tacotron2Decoder</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tacotron2DecoderInfer is an inference Neural Module used in place</span>
+<span class="sd">    of the Tacotron2Decoder NM.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        n_mel_channels (int): The size or dimensionality of the mel spectrogram</span>
+<span class="sd">        n_frames_per_step (int): The number of frames we predict at each</span>
+<span class="sd">            decoder time step. Defaults to 1</span>
+<span class="sd">        encoder_embedding_dim (int): The size of the encoded text.</span>
+<span class="sd">            Defaults to 512.</span>
+<span class="sd">        gate_threshold (float): A number in [0, 1). When teacher forcing is</span>
+<span class="sd">            not used, the model predict a stopping value at each model time</span>
+<span class="sd">            step. The model will stop if the value is greater than</span>
+<span class="sd">            gate_threshold. Defaults to 0.5.</span>
+<span class="sd">        prenet_dim (int): The hidden dimension of the prenet. Defaults to 256.</span>
+<span class="sd">        max_decoder_steps (int): When not teacher forcing, the maximum number</span>
+<span class="sd">            of frames to predict. Defaults to 1000.</span>
+<span class="sd">        decoder_rnn_dim (int): The hidden dimension of the decoder rnn.</span>
+<span class="sd">            Defaults to 1024.</span>
+<span class="sd">        p_decoder_dropout (float): Dropout probability for the decoder rnn.</span>
+<span class="sd">            Defaults to 0.1.</span>
+<span class="sd">        p_attention_dropout (float): Dropout probability for the attention rnn.</span>
+<span class="sd">            Defaults to 0.1.</span>
+<span class="sd">        attention_rnn_dim (int): The hidden dimension of the attention rnn.</span>
+<span class="sd">            Defaults to 1024.</span>
+<span class="sd">        attention_dim (int): The hidden dimension of the attention mechanism.</span>
+<span class="sd">            Defaults to 128.</span>
+<span class="sd">        attention_location_n_filters (int): The number of convolution filters</span>
+<span class="sd">            for the location part of the attention mechanism.</span>
+<span class="sd">            Defaults to 32.</span>
+<span class="sd">        attention_location_kernel_size (int): The kernel size of the</span>
+<span class="sd">            convolution for the location part of the attention mechanism.</span>
+<span class="sd">            Defaults to 31.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
+        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;char_phone_encoded&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">),</span>
+                <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">EncodedRepresentationTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;encoded_length&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">)})</span>
+        <span class="p">}</span>
+
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;mel_output&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                      <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">MelSpectrogramSignalTag</span><span class="p">),</span>
+                                      <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;gate_output&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                       <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;alignments&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                      <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">),</span>
+                                      <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;mel_len&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">)})</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;Tacotron2Decoder&quot;</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">char_phone_encoded</span><span class="p">,</span> <span class="n">encoded_length</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;You are using the Tacotron 2 Infer Neural Module&quot;</span>
+                             <span class="s2">&quot; in training mode.&quot;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">mel_output</span><span class="p">,</span> <span class="n">gate_output</span><span class="p">,</span> <span class="n">alignments</span><span class="p">,</span> <span class="n">mel_len</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span>
+                <span class="n">char_phone_encoded</span><span class="p">,</span> <span class="n">memory_lengths</span><span class="o">=</span><span class="n">encoded_length</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mel_output</span><span class="p">,</span> <span class="n">gate_output</span><span class="p">,</span> <span class="n">alignments</span><span class="p">,</span> <span class="n">mel_len</span></div>
+
+
+<div class="viewcode-block" id="Tacotron2Postnet"><a class="viewcode-back" href="../../collections/nemo_tts.html#nemo_tts.tacotron2_modules.Tacotron2Postnet">[docs]</a><span class="k">class</span> <span class="nc">Tacotron2Postnet</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tacotron2Postnet implements the postnet part of Tacotron 2. It takes a mel</span>
+<span class="sd">    spectrogram as generated by the decoder and corrects errors within the</span>
+<span class="sd">    generated mel spectrogram.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        n_mel_channels (int): The size or dimensionality of the mel spectrogram</span>
+<span class="sd">        postnet_embedding_dim (int): Hidden size of convolutions.</span>
+<span class="sd">            Defaults to 512.</span>
+<span class="sd">        postnet_kernel_size (int): Kernel size of convolutions.</span>
+<span class="sd">            Defaults to 5.</span>
+<span class="sd">        postnet_n_convolutions (int): Number of convolution layers.</span>
+<span class="sd">            Defaults to 5.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
+        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;mel_input&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                     <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">MelSpectrogramSignalTag</span><span class="p">),</span>
+                                     <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+        <span class="p">}</span>
+
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;mel_output&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                      <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">MelSpectrogramSignalTag</span><span class="p">),</span>
+                                      <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">n_mel_channels</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+            <span class="n">postnet_embedding_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
+            <span class="n">postnet_kernel_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+            <span class="n">postnet_n_convolutions</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">postnet</span> <span class="o">=</span> <span class="n">Postnet</span><span class="p">(</span><span class="n">n_mel_channels</span><span class="o">=</span><span class="n">n_mel_channels</span><span class="p">,</span>
+                               <span class="n">postnet_embedding_dim</span><span class="o">=</span><span class="n">postnet_embedding_dim</span><span class="p">,</span>
+                               <span class="n">postnet_kernel_size</span><span class="o">=</span><span class="n">postnet_kernel_size</span><span class="p">,</span>
+                               <span class="n">postnet_n_convolutions</span><span class="o">=</span><span class="n">postnet_n_convolutions</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mel_input</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">postnet</span><span class="p">(</span><span class="n">mel_input</span><span class="p">)</span> <span class="o">+</span> <span class="n">mel_input</span></div>
+
+
+<div class="viewcode-block" id="Tacotron2Loss"><a class="viewcode-back" href="../../collections/nemo_tts.html#nemo_tts.tacotron2_modules.Tacotron2Loss">[docs]</a><span class="k">class</span> <span class="nc">Tacotron2Loss</span><span class="p">(</span><span class="n">LossNM</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tacoton2Loss implements the loss function of Tacotron 2. The loss function</span>
+<span class="sd">    is the mean squared error between the reference mel spectrogram and the</span>
+<span class="sd">    mel spectrogram predicted by the decoder + the mean squared error between</span>
+<span class="sd">    the reference mel spectrogram and the mel spectrogram predicted by the</span>
+<span class="sd">    post net + the cross entropy error between the stop values and the</span>
+<span class="sd">    reference mel length.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        pad_value (float): In the evaluation case, when we don&#39;t use teacher</span>
+<span class="sd">            forcing, if the generated mel is shorter than the reference mel,</span>
+<span class="sd">            we pad the generated mel with this value. Default is ~log(1e-5).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
+        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;mel_out&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                   <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">MelSpectrogramSignalTag</span><span class="p">),</span>
+                                   <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;mel_out_postnet&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">MelSpectrogramSignalTag</span><span class="p">),</span>
+                <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;gate_out&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                    <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;mel_target&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                      <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">MelSpectrogramSignalTag</span><span class="p">),</span>
+                                      <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;gate_target&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                      <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;target_len&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;seq_len&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">)}),</span>
+        <span class="p">}</span>
+
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;loss&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="kc">None</span><span class="p">)}</span>
+        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pad_value</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="o">-</span><span class="mf">11.52</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pad_value</span> <span class="o">=</span> <span class="n">pad_value</span>
+
+    <span class="k">def</span> <span class="nf">_loss_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_loss</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+
+    <span class="k">def</span> <span class="nf">_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mel_out</span><span class="p">,</span> <span class="n">mel_out_postnet</span><span class="p">,</span> <span class="n">gate_out</span><span class="p">,</span>
+              <span class="n">mel_target</span><span class="p">,</span> <span class="n">gate_target</span><span class="p">,</span> <span class="n">target_len</span><span class="p">,</span> <span class="n">seq_len</span><span class="p">):</span>
+        <span class="n">mel_target</span><span class="o">.</span><span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">gate_target</span><span class="o">.</span><span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">gate_target</span> <span class="o">=</span> <span class="n">gate_target</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">max_len</span> <span class="o">=</span> <span class="n">mel_target</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">max_len</span> <span class="o">&lt;</span> <span class="n">mel_out</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]:</span>
+            <span class="c1"># Predicted len is larger than reference</span>
+            <span class="c1"># Need to slice</span>
+            <span class="n">mel_out</span> <span class="o">=</span> <span class="n">mel_out</span><span class="o">.</span><span class="n">narrow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">max_len</span><span class="p">)</span>
+            <span class="n">mel_out_postnet</span> <span class="o">=</span> <span class="n">mel_out_postnet</span><span class="o">.</span><span class="n">narrow</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">max_len</span><span class="p">)</span>
+            <span class="n">gate_out</span> <span class="o">=</span> <span class="n">gate_out</span><span class="o">.</span><span class="n">narrow</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">max_len</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">max_len</span> <span class="o">&gt;</span> <span class="n">mel_out</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]:</span>
+            <span class="c1"># Need to do padding</span>
+            <span class="n">pad_amount</span> <span class="o">=</span> <span class="n">max_len</span> <span class="o">-</span> <span class="n">mel_out</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+            <span class="n">mel_out</span> <span class="o">=</span> <span class="n">pad</span><span class="p">(</span><span class="n">mel_out</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pad_amount</span><span class="p">),</span> <span class="n">value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pad_value</span><span class="p">)</span>
+            <span class="n">mel_out_postnet</span> <span class="o">=</span> <span class="n">pad</span><span class="p">(</span>
+                <span class="n">mel_out_postnet</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pad_amount</span><span class="p">),</span> <span class="n">value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pad_value</span><span class="p">)</span>
+            <span class="n">gate_out</span> <span class="o">=</span> <span class="n">pad</span><span class="p">(</span><span class="n">gate_out</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pad_amount</span><span class="p">),</span> <span class="n">value</span><span class="o">=</span><span class="mf">1e3</span><span class="p">)</span>
+            <span class="n">max_len</span> <span class="o">=</span> <span class="n">mel_out</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="n">mask</span> <span class="o">=</span> <span class="o">~</span><span class="n">get_mask_from_lengths</span><span class="p">(</span><span class="n">target_len</span><span class="p">,</span> <span class="n">max_len</span><span class="o">=</span><span class="n">max_len</span><span class="p">)</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">mask</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">mel_target</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">mask</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">mask</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">mask</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">mel_out</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">masked_fill_</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pad_value</span><span class="p">)</span>
+        <span class="n">mel_out_postnet</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">masked_fill_</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pad_value</span><span class="p">)</span>
+        <span class="n">gate_out</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">masked_fill_</span><span class="p">(</span><span class="n">mask</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="mf">1e3</span><span class="p">)</span>
+
+        <span class="n">gate_out</span> <span class="o">=</span> <span class="n">gate_out</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">mel_loss</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">MSELoss</span><span class="p">()(</span><span class="n">mel_out</span><span class="p">,</span> <span class="n">mel_target</span><span class="p">)</span> <span class="o">+</span> \
+            <span class="n">nn</span><span class="o">.</span><span class="n">MSELoss</span><span class="p">()(</span><span class="n">mel_out_postnet</span><span class="p">,</span> <span class="n">mel_target</span><span class="p">)</span>
+        <span class="n">gate_loss</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">BCEWithLogitsLoss</span><span class="p">()(</span><span class="n">gate_out</span><span class="p">,</span> <span class="n">gate_target</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mel_loss</span> <span class="o">+</span> <span class="n">gate_loss</span></div>
+
+
+<div class="viewcode-block" id="MakeGate"><a class="viewcode-back" href="../../collections/nemo_tts.html#nemo_tts.tacotron2_modules.MakeGate">[docs]</a><span class="k">class</span> <span class="nc">MakeGate</span><span class="p">(</span><span class="n">NonTrainableNM</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;MakeGate is a helper Neural Module that makes the target stop value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
+        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;target_len&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;mel_target&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                      <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">MelSpectrogramSignalTag</span><span class="p">),</span>
+                                      <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+        <span class="p">}</span>
+
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;gate_target&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                       <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)})</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target_len</span><span class="p">,</span> <span class="n">mel_target</span><span class="p">):</span>
+        <span class="n">max_len</span> <span class="o">=</span> <span class="n">mel_target</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">gate_padded</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">FloatTensor</span><span class="p">(</span><span class="n">target_len</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">max_len</span><span class="p">)</span>
+        <span class="n">gate_padded</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">length</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">target_len</span><span class="p">):</span>
+            <span class="n">gate_padded</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">length</span><span class="o">.</span><span class="n">data</span><span class="o">-</span><span class="mi">1</span><span class="p">:]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">gate_padded</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

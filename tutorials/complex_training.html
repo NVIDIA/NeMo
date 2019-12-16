@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Complex Training Pipelines (GAN Example) &mdash; nemo 0.8.2 documentation</title>
+  <title>Complex Training Pipelines (GAN Example) &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -104,8 +104,10 @@
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -183,11 +185,11 @@ require multiple losses and multiple optimizers.</p>
 </div>
 <div class="section" id="multiple-losses">
 <h2>Multiple Losses<a class="headerlink" href="#multiple-losses" title="Permalink to this headline">¶</a></h2>
-<p>Taking our Hello World example from earlier. Let’s say that we now want to
+<p>Taking our Hello World example from earlier, let’s say that we now want to
 optimize for both a square error loss and a l1 loss. We can pass both the
 square error loss tensor and the l1 loss tensor to
 <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.train" title="nemo.core.neural_factory.NeuralModuleFactory.train"><code class="xref py py-meth docutils literal notranslate"><span class="pre">NeuralFactory.train()</span></code></a>.
-An example is shown below.</p>
+Here’s an example:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1">### Same as previous example ###</span>
 <span class="kn">import</span> <span class="nn">nemo</span>
 
@@ -362,7 +364,7 @@ Here are the highlights from examples/images/gan.py that enable such behaviour.<
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

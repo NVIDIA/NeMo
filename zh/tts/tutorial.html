@@ -1,0 +1,331 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>教程 &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="数据集" href="datasets.html" />
+    <link rel="prev" title="语音合成" href="intro.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">自然语言处理</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">语音合成</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">教程</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id2">介绍</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id3">获取数据</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id5">训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id6">混合精度训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#gpu">多 GPU 训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id7">合成语音</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="datasets.html">数据集</a></li>
+<li class="toctree-l2"><a class="reference internal" href="models.html">模型</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">语音合成</a> &raquo;</li>
+        
+      <li>教程</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/tts/tutorial.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="id1">
+<h1>教程<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h1>
+<p>请确保您已经安装了 <code class="docutils literal notranslate"><span class="pre">nemo</span></code>，<code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code>，和 <code class="docutils literal notranslate"><span class="pre">nemo_tts</span></code>
+模块。参考 <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">如何安装</span></a> 章节。</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>本教程仅要求安装 <cite>nemo</cite>，<cite>nemo_asr</cite>，和 <cite>nemo_tts</cite> 模块</p>
+</div>
+<div class="section" id="id2">
+<h2>介绍<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<p>语音合成，又被称为文本转语音(TTS)，通常指根据文本合成人类说话的声音。使用神经网络进行
+语音合成通常包含两个神经网络模型。第一个模型能够将文本转化为中间态的音频表征，通常为音频谱(spectrogram)。
+第二个模型称为声码器，能够将中间态的音频表征转化为声音文件，一种我们常见的声音文件格式为 .wav。
+尽管目前有一些研究表示可以将这两个模型合并为一个独立的模型，在本教程中，我们关注于使用两个模型的方法。</p>
+<p>NeMo 支持以下两个模型：</p>
+<ol class="arabic simple">
+<li><p><a class="reference external" href="https://arxiv.org/abs/1712.05884">Tacotron 2</a> ：该模型用于将文本转化为梅尔频谱</p></li>
+<li><p><a class="reference external" href="https://arxiv.org/abs/1811.00002">Waveglow</a> ： 该模型用于将梅尔频谱转化为声音文件</p></li>
+</ol>
+<p>要想使用 NeMo 训练语音合成模型，你可以继续阅读以下章节。如果你想使用预先训练好的模型直接合成语音，
+请跳转到 <a class="reference internal" href="#id7"><span class="std std-ref">语音合成</span></a> 章节。</p>
+</div>
+<div class="section" id="id3">
+<h2>获取数据<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
+<p>Tacotron 2 和 Waveglow 都可以使用
+<a class="reference external" href="https://keithito.com/LJ-Speech-Dataset/">LJSpeech</a> 数据集来训练。
+你可以使用一个辅助脚本来获得用于 NeMo 训练的数据，该脚本位于 NeMo/scripts，请按照如下方式运行该脚本：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python scripts/get_ljspeech_data.py --data_root<span class="o">=</span>&lt;where_you_want_to_save_data&gt;
+</pre></div>
+</div>
+<p>想了解更多关于 LJSpeech 数据集的细节，可以参考 <a class="reference internal" href="datasets.html#ljspeech-dataset"><span class="std std-ref">这里</span></a> 。</p>
+<p>对于普通话语音合成的数据: <a class="reference external" href="https://www.data-baker.com/open_source.html">中文标准女声音库</a> ，你也可以使用一个辅助脚本来获得，该脚本位于 NeMo/scripts，
+辅助脚本中使用的数据集下载链接由标贝（北京）科技有限公司提供。</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python scripts/get_databaker_data.py --data_root<span class="o">=</span>&lt;where_you_want_to_save_data&gt;
+</pre></div>
+</div>
+<p>想了解更多关于中文标准女声音库数据集的细节，可以参考 <a class="reference internal" href="datasets.html#id4"><span class="std std-ref">这里</span></a> 。</p>
+</div>
+<div class="section" id="id5">
+<h2>训练<a class="headerlink" href="#id5" title="Permalink to this headline">¶</a></h2>
+<p>NeMo 支持对 Tacotron 2 和 Waveglow 进行训练。在本教程中，我们主要关注于 Tacotron 2 模型的训练，
+因为其负责从训练数据的音频中学习大部分的特征，例如性别、韵律等。 另外，我们的实验还表明，
+Waveglow 作为声码器是具有通用型的。具体的表现为，我们在一个英文女声语音数据集上训练得到的
+Waveglow 模型，可以用于男性声音或者其他语言（如普通话）的声码器。</p>
+<p>训练 Tacotron 2 可以通过运行 <cite>tacotron2.py</cite> 文件来完成，该脚本位于
+NeMo/examples/tts。假设你当前已经位于 NeMo/examples/tts 目录下，
+你可以通过运行如下命令开始训练：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python tacotron2.py --train_dataset<span class="o">=</span>&lt;data_root&gt;/ljspeech_train.json --eval_datasets &lt;data_root&gt;/ljspeech_eval.json --model_config<span class="o">=</span>configs/tacotron.yaml --max_steps<span class="o">=</span><span class="m">30000</span>
+</pre></div>
+</div>
+<p>使用普通话数据进行训练也可以通过运行 <cite>tacotron2.py</cite> 文件来完成，
+你可以通过运行如下命令开始训练：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python tacotron2.py --train_dataset<span class="o">=</span>&lt;data_root&gt;/databaker_csmsc_train.json --eval_datasets &lt;data_root&gt;/databaker_csmsc_eval.json --model_config<span class="o">=</span>configs/tacotron_mandarin.yaml --max_steps<span class="o">=</span><span class="m">30000</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Tacotron 2 通常需要约 20,000 个训练步来学习到正确的注意力（也可以理解为对齐）。
+一旦模型学习到了正确的注意力，你就可以使用该模型来合成较为清晰的语音。</p>
+</div>
+</div>
+<div class="section" id="id6">
+<h2>混合精度训练<a class="headerlink" href="#id6" title="Permalink to this headline">¶</a></h2>
+<p>启用或关闭混合精度训练可以通过一个命令行参数来控制 <code class="docutils literal notranslate"><span class="pre">--amp_opt_level</span></code> 。对于 Tacotron 2
+和 Waveglow 来说，该参数建议的默认值为 <code class="docutils literal notranslate"><span class="pre">O1</span></code> 。该参数值可以设置为以下几种：</p>
+<ul class="simple">
+<li><p>O0: 单精度（float32）训练</p></li>
+<li><p>O1: 混合精度训练</p></li>
+<li><p>O2: 混合精度训练</p></li>
+<li><p>O3: 半精度（float16）训练</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>混合精度依赖 Tensor Cores ，当前英伟达的 Volta 和 Turing 架构 GPU 支持 Tensor Cores。</p>
+</div>
+</div>
+<div class="section" id="gpu">
+<h2>多 GPU 训练<a class="headerlink" href="#gpu" title="Permalink to this headline">¶</a></h2>
+<p>要想启用在多个 GPU 上训练可以通过在运行训练脚本时调用
+torch.distributed.launch 模块并指定 <code class="docutils literal notranslate"><span class="pre">--nproc_per_node</span></code> 参数为 GPU 的数量：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>&lt;num_gpus&gt; &lt;nemo_git_repo_root&gt;/examples/tts/tacotron2.py ...
+</pre></div>
+</div>
+</div>
+<div class="section" id="id7">
+<span id="id8"></span><h2>合成语音<a class="headerlink" href="#id7" title="Permalink to this headline">¶</a></h2>
+<p>你可以使用自己训练的 Tacotron 2 模型合成语音，也可以使用我们预训练好的 Tacotron 2 模型合成语音。
+下一步，请创建你想用于语音合成的文本，并将其转化为训练数据格式相同的 JSON 格式。该 JSON 文件格式如下所示：</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;Talk to me!&quot;</span><span class="p">}</span>
+<span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;Speech Synthensis is cool.&quot;</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>如果要合成普通话语音，JSON 文件格式如下所示：</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;jin1 tian1 tian1 qi4 bu2 cuo4.&quot;</span><span class="p">}</span>
+<span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;ni3 kan4 bao4 zhi3 ma0&quot;</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>其中 “text” 字段包含想要合成的语音的拼音序列，每个拼音后的数字（0-4）代表该发音的声调，0 代表轻声。</p>
+<p>语音合成可以通过运行 NeMo/examples/tts 文件夹下的 tts_infer.py 脚本完成，你可以通过如下命令运行该脚本：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python tts_infer.py --spec_model<span class="o">=</span>tacotron2 --spec_model_config<span class="o">=</span>configs/tacotron2.yaml --spec_model_load_dir<span class="o">=</span>&lt;directory_with_tacotron2_checkopints&gt; --vocoder<span class="o">=</span>waveglow --vocoder_model_config<span class="o">=</span>configs/waveglow.yaml --vocoder_model_load_dir<span class="o">=</span>&lt;directory_with_waveglow_checkopints&gt; --save_dir<span class="o">=</span>&lt;where_you_want_to_save_wav_files&gt; --eval_dataset &lt;mainfest_to_generate&gt;
+</pre></div>
+</div>
+<p>要合成普通话语音，记得将 Tacotron 2 模型配置文件更换为 tacotron2_mandarin.yaml。</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="datasets.html" class="btn btn-neutral float-right" title="数据集" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="intro.html" class="btn btn-neutral float-left" title="语音合成" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

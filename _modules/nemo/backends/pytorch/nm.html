@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>nemo.backends.pytorch.nm &mdash; nemo 0.8.2 documentation</title>
+  <title>nemo.backends.pytorch.nm &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -89,8 +89,10 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../asr/intro.html">Speech Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -199,13 +201,15 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-<div class="viewcode-block" id="TrainableNM.get_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.get_weights">[docs]</a>    <span class="k">def</span> <span class="nf">get_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="TrainableNM.get_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.get_weights">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">get_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">result</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">():</span>
             <span class="n">result</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">parameter</span><span class="p">,</span> <span class="n">parameter</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">result</span></div>
 
-<div class="viewcode-block" id="TrainableNM.set_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.set_weights">[docs]</a>    <span class="k">def</span> <span class="nf">set_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name2weight</span><span class="p">,</span> <span class="n">name2name_and_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="TrainableNM.set_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.set_weights">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">set_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name2weight</span><span class="p">,</span> <span class="n">name2name_and_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">name2weight</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">name2weight</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">name2name_and_transform</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span>
@@ -216,7 +220,8 @@
                     <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">name2weight</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">name2weight</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
                 <span class="p">)</span></div>
 
-<div class="viewcode-block" id="TrainableNM.tie_weights_with"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.tie_weights_with">[docs]</a>    <span class="k">def</span> <span class="nf">tie_weights_with</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">weight_names</span><span class="p">,</span>
+<div class="viewcode-block" id="TrainableNM.tie_weights_with"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.tie_weights_with">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">tie_weights_with</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">weight_names</span><span class="p">,</span>
                          <span class="n">name2name_and_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">module</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Module to tie weights can&#39;t be None&quot;</span><span class="p">)</span>
@@ -249,11 +254,13 @@
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">rsetattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">self_w_name</span><span class="p">,</span> <span class="n">rgetattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">self_w_name</span><span class="p">))</span></div>
 
-<div class="viewcode-block" id="TrainableNM.save_to"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.save_to">[docs]</a>    <span class="k">def</span> <span class="nf">save_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+<div class="viewcode-block" id="TrainableNM.save_to"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.save_to">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">save_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
         <span class="c1"># t.save(self._pt_module.state_dict(), path)</span>
         <span class="n">t</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">state_dict</span><span class="p">(),</span> <span class="n">path</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="TrainableNM.restore_from"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.restore_from">[docs]</a>    <span class="k">def</span> <span class="nf">restore_from</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">local_rank</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<div class="viewcode-block" id="TrainableNM.restore_from"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.restore_from">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">restore_from</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">local_rank</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
         <span class="c1"># self._pt_module.load_state_dict(t.load(path))</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">placement</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">:</span>
             <span class="n">load_device</span> <span class="o">=</span> <span class="n">f</span><span class="s2">&quot;cuda:</span><span class="si">{local_rank}</span><span class="s2">&quot;</span>
@@ -261,7 +268,8 @@
             <span class="n">load_device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_device</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="n">load_device</span><span class="p">))</span></div>
 
-<div class="viewcode-block" id="TrainableNM.freeze"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.freeze">[docs]</a>    <span class="k">def</span> <span class="nf">freeze</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="TrainableNM.freeze"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.freeze">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">freeze</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_pt_module&quot;</span><span class="p">):</span>
             <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pt_module</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">():</span>
                 <span class="k">if</span> <span class="n">weights</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">weights</span><span class="p">:</span>
@@ -271,7 +279,8 @@
                 <span class="k">if</span> <span class="n">weights</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">weights</span><span class="p">:</span>
                     <span class="n">param</span><span class="o">.</span><span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">False</span></div>
 
-<div class="viewcode-block" id="TrainableNM.unfreeze"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.unfreeze">[docs]</a>    <span class="k">def</span> <span class="nf">unfreeze</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="TrainableNM.unfreeze"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.unfreeze">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">unfreeze</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_pt_module&quot;</span><span class="p">):</span>
             <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pt_module</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">():</span>
                 <span class="k">if</span> <span class="n">weights</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">weights</span><span class="p">:</span>
@@ -510,7 +519,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

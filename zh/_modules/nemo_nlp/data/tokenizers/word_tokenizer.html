@@ -1,0 +1,249 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>nemo_nlp.data.tokenizers.word_tokenizer &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../../../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../../" src="../../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">如何安装</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials/intro.html">从这里开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../training.html">快速训练</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../nlp/intro.html">自然语言处理</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tts/intro.html">语音合成</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+      <li>nemo_nlp.data.tokenizers.word_tokenizer</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for nemo_nlp.data.tokenizers.word_tokenizer</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">.tokenizer_spec</span> <span class="k">import</span> <span class="n">TokenizerSpec</span>
+
+
+<div class="viewcode-block" id="WordTokenizer"><a class="viewcode-back" href="../../../../collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer">[docs]</a><span class="k">class</span> <span class="nc">WordTokenizer</span><span class="p">(</span><span class="n">TokenizerSpec</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vocab_path</span><span class="p">):</span>
+
+        <span class="n">vocab_list</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">vocab_path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">vocab</span> <span class="o">=</span> <span class="p">{</span><span class="n">vocab_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">vocab_list</span><span class="p">))}</span>
+        <span class="k">for</span> <span class="n">special_token</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;&lt;PAD&gt;&quot;</span><span class="p">,</span> <span class="s2">&quot;&lt;UNK&gt;&quot;</span><span class="p">,</span> <span class="s2">&quot;&lt;BOS&gt;&quot;</span><span class="p">,</span> <span class="s2">&quot;&lt;EOS&gt;&quot;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">special_token</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">vocab</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">vocab</span><span class="p">[</span><span class="n">special_token</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vocab</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inv_vocab</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="p">:</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">vocab</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">vocab_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vocab</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">special_tokens</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens_to_ids</span><span class="p">(</span>
+            <span class="p">[</span><span class="s2">&quot;&lt;PAD&gt;&quot;</span><span class="p">,</span> <span class="s2">&quot;&lt;UNK&gt;&quot;</span><span class="p">,</span> <span class="s2">&quot;&lt;BOS&gt;&quot;</span><span class="p">,</span> <span class="s2">&quot;&lt;EOS&gt;&quot;</span><span class="p">])</span>
+
+<div class="viewcode-block" id="WordTokenizer.text_to_tokens"><a class="viewcode-back" href="../../../../collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.text_to_tokens">[docs]</a>    <span class="k">def</span> <span class="nf">text_to_tokens</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
+        <span class="n">token_candidates</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+        <span class="n">tokens</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="n">token_candidates</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">token</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">vocab</span><span class="p">:</span>
+                <span class="n">tokens</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">token</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">tokens</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&lt;UNK&gt;&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">tokens</span></div>
+
+<div class="viewcode-block" id="WordTokenizer.tokens_to_text"><a class="viewcode-back" href="../../../../collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.tokens_to_text">[docs]</a>    <span class="k">def</span> <span class="nf">tokens_to_text</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tokens</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ids_to_text</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokens_to_ids</span><span class="p">(</span><span class="n">tokens</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="WordTokenizer.text_to_ids"><a class="viewcode-back" href="../../../../collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.text_to_ids">[docs]</a>    <span class="k">def</span> <span class="nf">text_to_ids</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">vocab</span><span class="p">[</span><span class="n">token</span><span class="p">]</span> <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">text_to_tokens</span><span class="p">(</span><span class="n">text</span><span class="p">)]</span></div>
+
+<div class="viewcode-block" id="WordTokenizer.ids_to_text"><a class="viewcode-back" href="../../../../collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.ids_to_text">[docs]</a>    <span class="k">def</span> <span class="nf">ids_to_text</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ids</span><span class="p">):</span>
+        <span class="n">ids_</span> <span class="o">=</span> <span class="p">[</span><span class="n">id_</span> <span class="k">for</span> <span class="n">id_</span> <span class="ow">in</span> <span class="n">ids</span> <span class="k">if</span> <span class="n">id_</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">special_tokens</span><span class="p">]</span>
+        <span class="k">return</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ids_to_tokens</span><span class="p">(</span><span class="n">ids_</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="WordTokenizer.tokens_to_ids"><a class="viewcode-back" href="../../../../collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.tokens_to_ids">[docs]</a>    <span class="k">def</span> <span class="nf">tokens_to_ids</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tokens</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">vocab</span><span class="p">[</span><span class="n">token</span><span class="p">]</span> <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="n">tokens</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="WordTokenizer.ids_to_tokens"><a class="viewcode-back" href="../../../../collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.ids_to_tokens">[docs]</a>    <span class="k">def</span> <span class="nf">ids_to_tokens</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ids</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">inv_vocab</span><span class="p">[</span><span class="nb">id</span><span class="p">]</span> <span class="k">for</span> <span class="nb">id</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="WordTokenizer.pad_id"><a class="viewcode-back" href="../../../../collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.pad_id">[docs]</a>    <span class="k">def</span> <span class="nf">pad_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">vocab</span><span class="p">[</span><span class="s2">&quot;&lt;PAD&gt;&quot;</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="WordTokenizer.bos_id"><a class="viewcode-back" href="../../../../collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.bos_id">[docs]</a>    <span class="k">def</span> <span class="nf">bos_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">vocab</span><span class="p">[</span><span class="s2">&quot;&lt;BOS&gt;&quot;</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="WordTokenizer.eos_id"><a class="viewcode-back" href="../../../../collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.eos_id">[docs]</a>    <span class="k">def</span> <span class="nf">eos_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">vocab</span><span class="p">[</span><span class="s2">&quot;&lt;EOS&gt;&quot;</span><span class="p">]</span></div></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

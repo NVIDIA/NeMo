@@ -109,3 +109,28 @@ Run the following to process the 2000 HUB5 English Evaluation Speech samples:
     --dest_root=<target_dir>
 
 You may optionally include `--min_slice_duration=<num_seconds>` if you would like to change the minimum audio segment duration.
+
+Aishell1
+-----------------------------------
+
+Run these scripts to download Aishell1 data and convert it into format expected by `nemo_asr`.
+
+.. code-block:: bash
+
+    # install sox
+    sudo apt-get install sox
+    mkdir data
+    python get_aishell_data.py --data_root=data
+
+After this, your `data` folder should contain a `data_aishell` folder which contains wav, transcript folder and related `.json` files and `vocab.txt`.
+
+Aishell2
+-----------------------------------
+
+Run the script to process AIShell-2 dataset in order to generate files in the supported format of  `nemo_asr`. You should set the data folder of AIShell-2 using `--audio_folder` and where to push these files using `--dest_folder`.
+
+.. code-block:: bash
+
+    python process_aishell2_data.py --audio_folder=<data directory> --dest_folder=<destination directory>
+
+Then, you should have `train.json` `dev.json` `test.json` and `vocab.txt` in `dest_folder`. 

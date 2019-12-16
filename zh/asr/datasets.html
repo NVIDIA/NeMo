@@ -1,0 +1,330 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>数据集 &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="模型" href="models.html" />
+    <link rel="prev" title="教程" href="tutorial.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">语音识别</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="tutorial.html">教程</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">数据集</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#librispeech">LibriSpeech</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fisher-english-training-speech">Fisher English Training Speech</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#hub5-english-evaluation-speech">2000 HUB5 English Evaluation Speech</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#aishell-1">AISHELL-1</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#aishell-2">AISHELL-2</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="models.html">模型</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">自然语言处理</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">语音识别</a> &raquo;</li>
+        
+      <li>数据集</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/asr/datasets.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="id1">
+<h1>数据集<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="librispeech">
+<span id="librispeech-dataset"></span><h2>LibriSpeech<a class="headerlink" href="#librispeech" title="Permalink to this headline">¶</a></h2>
+<p>运行下面的脚本下载 LibriSpeech 数据集，并把它转换成 <cite>nemo_asr</cite> 集合需要的格式。
+你至少需要 110GB 的空间。</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install sox</span>
+sudo apt-get install sox
+mkdir data
+python get_librispeech_data.py --data_root<span class="o">=</span>data --data_set<span class="o">=</span>ALL
+</pre></div>
+</div>
+<p>之后，你的 <cite>data</cite> 文件夹下应该包含了 wav 文件和给 NeMo 语音识别数据层的 <cite>.json</cite> 文件：</p>
+<p>每行是一个训练样本。 <cite>audio_filepath</cite> 包含了 wav 文件的路径, <cite>duration</cite> 这个音频文件多少秒， <cite>text</cite> 是对应的文本：</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&lt;absolute_path_to&gt;/1355-39947-0000.wav&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">11.3</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;psychotherapy and the community both the physician and the patient find their place in the community the life interests of which are superior to the interests of the individual&quot;</span><span class="p">}</span>
+<span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&lt;absolute_path_to&gt;/1355-39947-0001.wav&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">15.905</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;it is an unavoidable question how far from the higher point of view of the social mind the psychotherapeutic efforts should be encouraged or suppressed are there any conditions which suggest suspicion of or direct opposition to such curative work&quot;</span><span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="fisher-english-training-speech">
+<h2>Fisher English Training Speech<a class="headerlink" href="#fisher-english-training-speech" title="Permalink to this headline">¶</a></h2>
+<p>运行这些脚本把 Fisher English Training Speech 数据集转换成 <cite>nemo_asr</cite> 集合需要的格式。</p>
+<p>简言之，下面的脚本会把 .sph 文件转成 .wav，把这些文件切成更小的音频样本，把这些小音频和它们相应的文本匹配起来，接着把音频样本分成训练集，验证集和测试集。</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>你至少需要 106GB 的空间来转换成 .wav，额外的105GB空间做切分和匹配。
+你需要安装 sph2pipe 来运行 .wav 的转换。</p>
+</div>
+<p><strong>步骤</strong></p>
+<p>下面的脚本假设你已经从 Linguistic Data Consortium 上获得 Fisher 数据集，并且数据集格式看起来这样的：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>FisherEnglishTrainingSpeech/
+├── LDC2004S13-Part1
+│   ├── fe_03_p1_transcripts
+│   ├── fisher_eng_tr_sp_d1
+│   ├── fisher_eng_tr_sp_d2
+│   ├── fisher_eng_tr_sp_d3
+│   └── ...
+└── LDC2005S13-Part2
+    ├── fe_03_p2_transcripts
+    ├── fe_03_p2_sph1
+    ├── fe_03_p2_sph2
+    ├── fe_03_p2_sph3
+    └── ...
+</pre></div>
+</div>
+<p>文本位于 <cite>fe_03_p&lt;1,2&gt;_transcripts/data/trans</cite> ，音频文件 .sph 位于 <cite>audio</cite> 子目录下的剩下目录中。</p>
+<p>首先，把音频文件从 .sph 转换成 .wav：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> &lt;nemo_root&gt;/scripts
+python fisher_audio_to_wav.py <span class="se">\</span>
+  --data_root<span class="o">=</span>&lt;fisher_root&gt; --dest_root<span class="o">=</span>&lt;conversion_target_dir&gt;
+</pre></div>
+</div>
+<p>这个脚本会把未切分的 .wav 文件放到 <cite>&lt;conversion_target_dir&gt;/LDC200[4,5]S13-Part[1,2]/audio-wav/</cite> 。
+需要运行几分钟。</p>
+<p>接着，处理文本和切分音频数据：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python process_fisher_data.py <span class="se">\</span>
+  --audio_root<span class="o">=</span>&lt;conversion_target_dir&gt; --transcript_root<span class="o">=</span>&lt;fisher_root&gt; <span class="se">\</span>
+  --dest_root<span class="o">=</span>&lt;processing_target_dir&gt; <span class="se">\</span>
+  --remove_noises
+</pre></div>
+</div>
+<p>这个脚本会把整个数据集切分成训练集，验证集和测试集，然后把切分好的音频文件放到对应的目标目录下的文件夹中。
+每个数据集都有一个清单文件（.json文件），它包括了音频的文本，时长和路径。</p>
+<p>这里程序大概需要20分钟。
+一旦完成后，你可以删掉这些10分钟长的音频。</p>
+</div>
+<div class="section" id="hub5-english-evaluation-speech">
+<h2>2000 HUB5 English Evaluation Speech<a class="headerlink" href="#hub5-english-evaluation-speech" title="Permalink to this headline">¶</a></h2>
+<p>运行下面的脚本把HUB5数据集转换成 <cite>nemo_asr</cite> 集合需要的文件格式。</p>
+<p>类似于 Fisher 数据集处理脚本，这个脚本把 .sph 文件转换成 .wav 文件，切割音频文件和文本，然后把他们合并成某个最小长度的音频片段（默认是10秒）。
+这些音频片段都被保存到一个音频目录下，相应的文本被保存到一个 Json 格式的清单文件中。</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>你需要 5GB 的空间来运行这个脚本。
+你也需要安装 sph2pipe。</p>
+</div>
+<p>这个脚本假设你已经从 Linguistic Data Consortium 获取到了 2000 HUB5 数据集。</p>
+<p>运行下面的脚本来处理 2000 HUB5 English Evaluation Speech 数据集样本：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python process_hub5_data.py <span class="se">\</span>
+  --data_root<span class="o">=</span>&lt;path_to_HUB5_data&gt; <span class="se">\</span>
+  --dest_root<span class="o">=</span>&lt;target_dir&gt;
+</pre></div>
+</div>
+<p>你可以选择性的加入 <code class="docutils literal notranslate"><span class="pre">--min_slice_duration=&lt;num_seconds&gt;</span></code> 如果你想改变最小音频片段长度。</p>
+</div>
+<div class="section" id="aishell-1">
+<h2>AISHELL-1<a class="headerlink" href="#aishell-1" title="Permalink to this headline">¶</a></h2>
+<p>运行下面的脚本下载 AISHELL-1 数据集并把它转换到 <cite>nemo_asr</cite> 集合需要的文件格式。</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install sox</span>
+sudo apt-get install sox
+mkdir data
+python get_aishell_data.py --data_root<span class="o">=</span>data
+</pre></div>
+</div>
+<p>之后，你的 <cite>data</cite> 文件夹应该包含了一个 <cite>data_aishell</cite> 文件夹，它下面包含了 wav 文件夹，transcript 文件夹以及相应的 <cite>.json</cite> 清单文件和 <cite>vocab.txt</cite> 文件：</p>
+</div>
+<div class="section" id="aishell-2">
+<h2>AISHELL-2<a class="headerlink" href="#aishell-2" title="Permalink to this headline">¶</a></h2>
+<p>运行下面的脚本处理 AIShell-2 数据集，把它处理成 <cite>nemo_asr</cite> 需要的文件格式。通过设置 <code class="docutils literal notranslate"><span class="pre">--audio_folder</span></code> 指定数据目录，用 <code class="docutils literal notranslate"><span class="pre">--dest_folder</span></code> 指定处理后的文件目录。</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python process_aishell2_data.py --audio_folder<span class="o">=</span>&lt;data directory&gt; --dest_folder<span class="o">=</span>&lt;destination directory&gt;
+</pre></div>
+</div>
+<p>接着在 <cite>dest_folder</cite> 下会生成 <cite>train.json</cite> <cite>dev.json</cite> <cite>test.json</cite> 以及 <cite>vocab.txt</cite> 。</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="models.html" class="btn btn-neutral float-right" title="模型" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="tutorial.html" class="btn btn-neutral float-left" title="教程" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

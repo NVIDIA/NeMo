@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Datasets &mdash; nemo 0.8.2 documentation</title>
+  <title>Datasets &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -95,14 +95,18 @@
 <li class="toctree-l3"><a class="reference internal" href="#librispeech">LibriSpeech</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#fisher-english-training-speech">Fisher English Training Speech</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#hub5-english-evaluation-speech">2000 HUB5 English Evaluation Speech</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#aishell1">Aishell1</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#aishell2">Aishell2</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="models.html">Models</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -254,6 +258,25 @@ You will also need to have sph2pipe installed.</p>
 </div>
 <p>You may optionally include <cite>–min_slice_duration=&lt;num_seconds&gt;</cite> if you would like to change the minimum audio segment duration.</p>
 </div>
+<div class="section" id="aishell1">
+<h2>Aishell1<a class="headerlink" href="#aishell1" title="Permalink to this headline">¶</a></h2>
+<p>Run these scripts to download Aishell1 data and convert it into format expected by <cite>nemo_asr</cite>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install sox</span>
+sudo apt-get install sox
+mkdir data
+python get_aishell_data.py --data_root<span class="o">=</span>data
+</pre></div>
+</div>
+<p>After this, your <cite>data</cite> folder should contain a <cite>data_aishell</cite> folder which contains wav, transcript folder and related <cite>.json</cite> files and <cite>vocab.txt</cite>.</p>
+</div>
+<div class="section" id="aishell2">
+<h2>Aishell2<a class="headerlink" href="#aishell2" title="Permalink to this headline">¶</a></h2>
+<p>Run the script to process AIShell-2 dataset in order to generate files in the supported format of  <cite>nemo_asr</cite>. You should set the data folder of AIShell-2 using <cite>–audio_folder</cite> and where to push these files using <cite>–dest_folder</cite>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python process_aishell2_data.py --audio_folder<span class="o">=</span>&lt;data directory&gt; --dest_folder<span class="o">=</span>&lt;destination directory&gt;
+</pre></div>
+</div>
+<p>Then, you should have <cite>train.json</cite> <cite>dev.json</cite> <cite>test.json</cite> and <cite>vocab.txt</cite> in <cite>dest_folder</cite>.</p>
+</div>
 </div>
 
 
@@ -276,7 +299,7 @@ You will also need to have sph2pipe installed.</p>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

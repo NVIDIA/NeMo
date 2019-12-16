@@ -1,0 +1,328 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>自然语言处理 &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="教程" href="neural_machine_translation.html" />
+    <link rel="prev" title="QuartzNet" href="../asr/quartznet.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">自然语言处理</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#nmt">神经网络机器翻译 (NMT)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="neural_machine_translation.html">教程</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#bert">BERT</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bert_pretraining.html">BERT预训练</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#transformer">Transformer语言模型</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="transformer_language_model.html">Transformer语言模型</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ner">命名实体识别 (NER)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="ner.html">教程</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#intent-and-slot-filling">Intent and Slot filling</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="joint_intent_slot_filling.html">教程</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#bertx2">用 BERTx2 后处理模型来提升语音识别性能</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="asr-improvement.html">教程</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+      <li>自然语言处理</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/nlp/intro.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="nlp-docs">
+<span id="id1"></span><h1>自然语言处理<a class="headerlink" href="#nlp-docs" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="nmt">
+<h2>神经网络机器翻译 (NMT)<a class="headerlink" href="#nmt" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="neural_machine_translation.html">教程</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="neural_machine_translation.html#id3">预备知识</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neural_machine_translation.html#id6">代码概述</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neural_machine_translation.html#id10">模型训练</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neural_machine_translation.html#id11">使用预训练的模型进行翻译</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neural_machine_translation.html#id13">引用</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="bert">
+<h2>BERT<a class="headerlink" href="#bert" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="bert_pretraining.html">BERT预训练</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="bert_pretraining.html#id4">语料下载</a></li>
+<li class="toctree-l2"><a class="reference internal" href="bert_pretraining.html#tokenizer">创建分词器(Tokenizer)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="bert_pretraining.html#id6">创建模型</a></li>
+<li class="toctree-l2"><a class="reference internal" href="bert_pretraining.html#id7">参考</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="transformer">
+<h2>Transformer语言模型<a class="headerlink" href="#transformer" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="transformer_language_model.html">Transformer语言模型</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="transformer_language_model.html#id2">简介</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transformer_language_model.html#id4">下载语料</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transformer_language_model.html#id6">创建分词器模型</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transformer_language_model.html#id7">创建模型</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transformer_language_model.html#id9">参考</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="ner">
+<h2>命名实体识别 (NER)<a class="headerlink" href="#ner" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="ner.html">教程</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ner.html#id2">简介</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ner.html#id3">下载数据集</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ner.html#id4">训练</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ner.html#bert">使用脚本训练新的 BERT 模型</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ner.html#id5">使用其它的 BERT 模型</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="intent-and-slot-filling">
+<h2>Intent and Slot filling<a class="headerlink" href="#intent-and-slot-filling" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="joint_intent_slot_filling.html">教程</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="joint_intent_slot_filling.html#id4">写在开头</a></li>
+<li class="toctree-l2"><a class="reference internal" href="joint_intent_slot_filling.html#id6">代码结构</a></li>
+<li class="toctree-l2"><a class="reference internal" href="joint_intent_slot_filling.html#id7">模型训练</a></li>
+<li class="toctree-l2"><a class="reference internal" href="joint_intent_slot_filling.html#id8">参考文献</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="bertx2">
+<h2>用 BERTx2 后处理模型来提升语音识别性能<a class="headerlink" href="#bertx2" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="asr-improvement.html">教程</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="asr-improvement.html#id3">数据</a></li>
+<li class="toctree-l2"><a class="reference internal" href="asr-improvement.html#bert">从预训练 BERT 模型中加载参数</a></li>
+<li class="toctree-l2"><a class="reference internal" href="asr-improvement.html#id7">神经模块概览</a></li>
+<li class="toctree-l2"><a class="reference internal" href="asr-improvement.html#id8">模型训练</a></li>
+<li class="toctree-l2"><a class="reference internal" href="asr-improvement.html#id10">参考</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="neural_machine_translation.html" class="btn btn-neutral float-right" title="教程" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="../asr/quartznet.html" class="btn btn-neutral float-left" title="QuartzNet" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

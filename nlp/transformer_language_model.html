@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Transformer Language Model &mdash; nemo 0.8.2 documentation</title>
+  <title>Transformer Language Model &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -109,8 +109,10 @@
 <li class="toctree-l2"><a class="reference internal" href="intro.html#improving-speech-recognition-with-bertx2-post-processing-model">Improving speech recognition with BERTx2 post-processing model</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -179,14 +181,15 @@
             
   <div class="section" id="transformer-language-model">
 <h1>Transformer Language Model<a class="headerlink" href="#transformer-language-model" title="Permalink to this headline">¶</a></h1>
-<p>In this tutorial, we will build and train a language model using the Transformer architecture <a class="bibtex reference internal" href="neural_machine_translation.html#vaswani2017attention" id="id1">[6]</a>. Make sure you have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> installed before starting this tutorial. See the <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section for more details.</p>
+<p>In this tutorial, we will build and train a language model using the Transformer architecture <a class="reference internal" href="#nlp-lm-vaswani2017attention" id="id1">[NLP-LM4]</a>.
+Make sure you have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> installed before starting this tutorial. See the <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section for more details.</p>
 <div class="section" id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
-<p>A good language model has a wide range of applications on downstream tasks. Examples of language models being used for downstream tasks include GPT-2 <span class="bibtex" id="id2">[radford2019language]</span>.</p>
+<p>A good language model has a wide range of applications on downstream tasks. Examples of language models being used for downstream tasks include GPT-2 <a class="reference internal" href="#nlp-lm-radford2019language" id="id2">[NLP-LM3]</a>.</p>
 </div>
 <div class="section" id="download-corpus">
 <h2>Download Corpus<a class="headerlink" href="#download-corpus" title="Permalink to this headline">¶</a></h2>
-<p>For demonstration purposes, we will be using the very small WikiText-2 dataset <a class="bibtex reference internal" href="bert_pretraining.html#merity2016pointer" id="id3">[4]</a>.</p>
+<p>For demonstration purposes, we will be using the very small WikiText-2 dataset <a class="reference internal" href="#nlp-lm-merity2016pointer" id="id3">[NLP-LM1]</a>.</p>
 <p>To download the dataset, run the script <code class="docutils literal notranslate"><span class="pre">examples/nlp/scripts/get_wt2.sh</span></code>. After downloading and unzipping, the folder should include 3 files that look like this:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>test.txt
@@ -220,7 +223,8 @@ by 8 will help to get the best GPU utilization and speed-up with mixed precision
 </div>
 <div class="section" id="create-the-model">
 <h2>Create the model<a class="headerlink" href="#create-the-model" title="Permalink to this headline">¶</a></h2>
-<p>First, we need to create our neural factory with the supported backend. How you should define it depends on whether you’d like to multi-GPU or mixed-precision training. This tutorial assumes that you’re training on one GPU, without mixed precision. If you want to use mixed precision, set <code class="docutils literal notranslate"><span class="pre">amp_opt_level</span></code> to <code class="docutils literal notranslate"><span class="pre">O1</span></code> or <code class="docutils literal notranslate"><span class="pre">O2</span></code>.</p>
+<p>First, we need to create our neural factory with the supported backend. How you should define it depends on whether you’d like to multi-GPU or mixed-precision training.
+This tutorial assumes that you’re training on one GPU, without mixed precision. If you want to use mixed precision, set <code class="docutils literal notranslate"><span class="pre">amp_opt_level</span></code> to <code class="docutils literal notranslate"><span class="pre">O1</span></code> or <code class="docutils literal notranslate"><span class="pre">O2</span></code>.</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
                                    <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
@@ -244,7 +248,7 @@ by 8 will help to get the best GPU utilization and speed-up with mixed precision
 </pre></div>
 </div>
 </div></blockquote>
-<p>Following <a class="reference external" href="https://arxiv.org/abs/1608.05859">Press and Wolf, 2016</a> <a class="bibtex reference internal" href="neural_machine_translation.html#press2016using" id="id4">[4]</a>, we also tie the parameters of embedding and softmax layers:</p>
+<p>Following <a class="reference external" href="https://arxiv.org/abs/1608.05859">Press and Wolf, 2016</a> <a class="reference internal" href="#nlp-lm-press2016using" id="id4">[NLP-LM2]</a>, we also tie the parameters of embedding and softmax layers:</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">log_softmax</span><span class="o">.</span><span class="n">mlp</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">encoder</span><span class="o">.</span><span class="n">embedding_layer</span><span class="o">.</span><span class="n">token_embedding</span><span class="o">.</span><span class="n">weight</span>
 </pre></div>
@@ -317,7 +321,21 @@ by 8 will help to get the best GPU utilization and speed-up with mixed precision
 </div>
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
-<p id="bibtex-bibliography-nlp/transformer_language_model-0"></p>
+<p id="bibtex-bibliography-nlp/transformer_language_model-0"><dl class="citation">
+<dt class="label" id="nlp-lm-merity2016pointer"><span class="brackets"><a class="fn-backref" href="#id3">NLP-LM1</a></span></dt>
+<dd><p>Stephen Merity, Caiming Xiong, James Bradbury, and Richard Socher. Pointer sentinel mixture models. <em>arXiv preprint arXiv:1609.07843</em>, 2016.</p>
+</dd>
+<dt class="label" id="nlp-lm-press2016using"><span class="brackets"><a class="fn-backref" href="#id4">NLP-LM2</a></span></dt>
+<dd><p>Ofir Press and Lior Wolf. Using the output embedding to improve language models. <em>arXiv preprint arXiv:1608.05859</em>, 2016.</p>
+</dd>
+<dt class="label" id="nlp-lm-radford2019language"><span class="brackets"><a class="fn-backref" href="#id2">NLP-LM3</a></span></dt>
+<dd><p>Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever. Language models are unsupervised multitask learners. <em>OpenAI Blog</em>, 2019.</p>
+</dd>
+<dt class="label" id="nlp-lm-vaswani2017attention"><span class="brackets"><a class="fn-backref" href="#id1">NLP-LM4</a></span></dt>
+<dd><p>Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. In <em>Advances in neural information processing systems</em>, 5998–6008. 2017.</p>
+</dd>
+</dl>
+</p>
 </div>
 </div>
 
@@ -341,7 +359,7 @@ by 8 will help to get the best GPU utilization and speed-up with mixed precision
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

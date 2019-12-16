@@ -1,0 +1,433 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>教程 &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="教程" href="asr-improvement.html" />
+    <link rel="prev" title="教程" href="ner.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">自然语言处理</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="intro.html#nmt">神经网络机器翻译 (NMT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#bert">BERT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#transformer">Transformer语言模型</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#ner">命名实体识别 (NER)</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">教程</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id4">写在开头</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id6">代码结构</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id7">模型训练</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id8">参考文献</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#bertx2">用 BERTx2 后处理模型来提升语音识别性能</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">自然语言处理</a> &raquo;</li>
+        
+      <li>教程</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/nlp/joint_intent_slot_filling.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="id1">
+<h1>教程<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h1>
+<p>在这个教程中，我们将使用 BERT 模型，来实现一个意图识别 (intent classification) 和槽填充 (slot filling) 混合系统，参考自 <a class="reference external" href="https://arxiv.org/abs/1902.10909">BERT for Joint Intent Classification and Slot Filling</a> <a class="reference internal" href="#nlp-slot-chen2019bert" id="id2">[NLP-SLOT1]</a> 。本教程中所有的代码全部来自 <code class="docutils literal notranslate"><span class="pre">examples/nlp/joint_intent_slot_with_bert.py</span></code> 。</p>
+<p>我们可以使用 <cite>–pretrained_bert_model</cite> 这个参数，来选择四个预训练好的 BERT 模型。当前，我们使用的加载预训练模型的脚本均来自 <cite>pytorch_transformers</cite> 。更多预训练好的模型在 <a class="reference external" href="https://huggingface.co/pytorch-transformers/pretrained_models.html">这里下载</a> 。</p>
+<div class="section" id="id4">
+<h2>写在开头<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h2>
+<p><strong>模型细节</strong>
+这个模型会一起训练一个句子层级的分类器，和一个符号串层面的槽 (slot) 分类器，通过最小化如下的混合损失：</p>
+<blockquote>
+<div><p>intent_loss * intent_loss_weight + slot_loss * (1 - intent_loss_weight)</p>
+</div></blockquote>
+<p>当 <cite>intent_loss_weight = 0.5</cite> 时，它等价于最大化:</p>
+<blockquote>
+<div><p>p(y | x)P(s1, s2, …, sn | x)</p>
+</div></blockquote>
+<p>这里 x 是一个有 n 个符号串的序列 (x1, x2, …, xn)， y 是 x 预测出的意图，s1, s2, …, sn 是对应于 x1, x2, …, xn 预测出的槽。</p>
+<p><strong>数据集</strong></p>
+<p>这个模型可以应用到任意一个符合如下格式的数据集:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>输入文件: 一个 <cite>tsv</cite> 文件，第一行为 [sentence][tab][label]</p></li>
+<li><p>槽文件: 句子中所有符号串的槽标注，使用空格分隔。槽标注的数量需要与句子中所有符号串的数量保持一致。</p></li>
+</ul>
+</div></blockquote>
+<p>当前，我们提供多个数据集合的预处理脚本，包括: ATIS，可以通过 <a class="reference external" href="https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk">Kaggle</a> 进行下载；SNIP对话语言理解数据集，可以通过 <a class="reference external" href="https://github.com/snipsco/spoken-language-understanding-research-datasets">这里</a> 获取。预处理脚本在 <code class="docutils literal notranslate"><span class="pre">collections/nemo_nlp/nemo_nlp/text_data_utils.py</span></code> 。</p>
+</div>
+<div class="section" id="id6">
+<h2>代码结构<a class="headerlink" href="#id6" title="Permalink to this headline">¶</a></h2>
+<p>首先，我们初始化 <code class="docutils literal notranslate"><span class="pre">NeuralModuleFactory</span></code> ，需要定义，1、后端 (PyTorch)；2、混合精度优化的级别；3、本地 GPU 的序列号；4、一个实验的管理器，用于创建文件夹来保存相应的 checkpoint、输出、日志文件和 TensorBoard 的图。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
+                <span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
+                <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+                <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
+                <span class="n">log_dir</span><span class="o">=</span><span class="n">work_dir</span><span class="p">,</span>
+                <span class="n">create_tb_writer</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                <span class="n">files_to_copy</span><span class="o">=</span><span class="p">[</span><span class="vm">__file__</span><span class="p">])</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>我们定义分词器，它可以将文本转换成符号串，这里使用来自 <cite>pytorch_transformers</cite> 的内置分词器。其将使用 BERT 模型的映射，把文本转成相应的符号串。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pytorch_transformers</span> <span class="kn">import</span> <span class="n">BertTokenizer</span>
+<span class="n">tokenizer</span> <span class="o">=</span> <span class="n">BertTokenizer</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">pretrained_bert_model</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>接着，我们定义所有的神经网络模块，加入到意图识别和槽填充混合系统的流程中。</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>处理数据: <cite>nemo_nlp/nemo_nlp/text_data_utils.py</cite> 中的 <cite>JointIntentSlotDataDesc</cite> 类，用于将源数据处理成 <cite>BertJointIntentSlotDataset</cite> 支持的类型。当前，它支持SNIPS和ATIS两种格式的数据，当你也可以实现预处理脚本，来支持任意格式的数据。</p></li>
+</ul>
+<p>JointIntentSlotDataDesc 对象包含例如 <cite>self.train_file</cite>, <cite>self.train_slot_file</cite>, <cite>self.eval_file</cite>, <cite>self.eval_slot_file</cite>,  <cite>self.intent_dict_file</cite> 和 <cite>self.slot_dict_file</cite> 等信息。</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">data_desc</span> <span class="o">=</span> <span class="n">JointIntentSlotDataDesc</span><span class="p">(</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">dataset_name</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">data_dir</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">do_lower_case</span><span class="p">)</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>数据集: 将数据转换成 <cite>DataLayerNM</cite> 可以接收的格式。</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">get_dataset</span><span class="p">(</span><span class="n">data_desc</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">):</span>
+    <span class="n">nf</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Loading {mode} data...&quot;</span><span class="p">)</span>
+    <span class="n">data_file</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">data_desc</span><span class="p">,</span> <span class="n">mode</span> <span class="o">+</span> <span class="s1">&#39;_file&#39;</span><span class="p">)</span>
+    <span class="n">slot_file</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">data_desc</span><span class="p">,</span> <span class="n">mode</span> <span class="o">+</span> <span class="s1">&#39;_slot_file&#39;</span><span class="p">)</span>
+    <span class="n">shuffle</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">shuffle_data</span> <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;train&#39;</span> <span class="k">else</span> <span class="bp">False</span>
+    <span class="k">return</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertJointIntentSlotDataset</span><span class="p">(</span>
+        <span class="n">input_file</span><span class="o">=</span><span class="n">data_file</span><span class="p">,</span>
+        <span class="n">slot_file</span><span class="o">=</span><span class="n">slot_file</span><span class="p">,</span>
+        <span class="n">pad_label</span><span class="o">=</span><span class="n">data_desc</span><span class="o">.</span><span class="n">pad_label</span><span class="p">,</span>
+        <span class="n">tokenizer</span><span class="o">=</span><span class="n">tokenizer</span><span class="p">,</span>
+        <span class="n">max_seq_length</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
+        <span class="n">num_samples</span><span class="o">=</span><span class="n">num_samples</span><span class="p">,</span>
+        <span class="n">shuffle</span><span class="o">=</span><span class="n">shuffle</span><span class="p">)</span>
+
+<span class="n">train_dataset</span> <span class="o">=</span> <span class="n">get_dataset</span><span class="p">(</span><span class="n">data_desc</span><span class="p">,</span> <span class="s1">&#39;train&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">num_train_samples</span><span class="p">)</span>
+<span class="n">eval_dataset</span> <span class="o">=</span> <span class="n">get_dataset</span><span class="p">(</span><span class="n">data_desc</span><span class="p">,</span> <span class="s1">&#39;eval&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">num_eval_samples</span><span class="p">)</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>DataLayer： 一个单独的层，可以用于在你的数据集中进行语义检查，并将它转换到DataLayerNM中。你需要定义 <cite>input_ports</cite> 和 <cite>output_ports</cite> 。</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertJointIntentSlotDataLayer</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span>
+                                        <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
+                                        <span class="n">num_workers</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                                        <span class="n">local_rank</span><span class="o">=</span><span class="n">local_rank</span><span class="p">)</span>
+
+<span class="n">ids</span><span class="p">,</span> <span class="n">type_ids</span><span class="p">,</span> <span class="n">input_mask</span><span class="p">,</span> <span class="n">slot_mask</span><span class="p">,</span> <span class="n">intents</span><span class="p">,</span> <span class="n">slots</span> <span class="o">=</span> <span class="n">data_layer</span><span class="p">()</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>加载预训练好的模型，并得到相应输入的隐层状态。</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">hidden_states</span> <span class="o">=</span> <span class="n">pretrained_bert_model</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">ids</span><span class="p">,</span>
+                                      <span class="n">token_type_ids</span><span class="o">=</span><span class="n">type_ids</span><span class="p">,</span>
+                                      <span class="n">attention_mask</span><span class="o">=</span><span class="n">input_mask</span><span class="p">)</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>为我们的任务创建一个分类器。</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">classifier</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">JointIntentSlotClassifier</span><span class="p">(</span>
+                                <span class="n">hidden_size</span><span class="o">=</span><span class="n">hidden_size</span><span class="p">,</span>
+                                <span class="n">num_intents</span><span class="o">=</span><span class="n">num_intents</span><span class="p">,</span>
+                                <span class="n">num_slots</span><span class="o">=</span><span class="n">num_slots</span><span class="p">,</span>
+                                <span class="n">dropout</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">fc_dropout</span><span class="p">)</span>
+
+<span class="n">intent_logits</span><span class="p">,</span> <span class="n">slot_logits</span> <span class="o">=</span> <span class="n">classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>创建损失函数。</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">loss_fn</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">JointIntentSlotLoss</span><span class="p">(</span><span class="n">num_slots</span><span class="o">=</span><span class="n">num_slots</span><span class="p">)</span>
+
+<span class="n">loss</span> <span class="o">=</span> <span class="n">loss_fn</span><span class="p">(</span><span class="n">intent_logits</span><span class="o">=</span><span class="n">intent_logits</span><span class="p">,</span>
+               <span class="n">slot_logits</span><span class="o">=</span><span class="n">slot_logits</span><span class="p">,</span>
+               <span class="n">input_mask</span><span class="o">=</span><span class="n">input_mask</span><span class="p">,</span>
+               <span class="n">intents</span><span class="o">=</span><span class="n">intents</span><span class="p">,</span>
+               <span class="n">slots</span><span class="o">=</span><span class="n">slots</span><span class="p">)</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>创建相应的 callbacks ，来保存 checkpoints，打印训练过程和测试结果。</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">callback_train</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
+    <span class="n">tensors</span><span class="o">=</span><span class="n">train_tensors</span><span class="p">,</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span> <span class="mi">3</span><span class="p">)),</span>
+    <span class="n">tb_writer</span><span class="o">=</span><span class="n">nf</span><span class="o">.</span><span class="n">tb_writer</span><span class="p">,</span>
+    <span class="n">get_tb_values</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">[[</span><span class="s2">&quot;loss&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]]],</span>
+    <span class="n">step_freq</span><span class="o">=</span><span class="n">steps_per_epoch</span><span class="p">)</span>
+
+<span class="n">callback_eval</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span>
+    <span class="n">eval_tensors</span><span class="o">=</span><span class="n">eval_tensors</span><span class="p">,</span>
+    <span class="n">user_iter_callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">eval_iter_callback</span><span class="p">(</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">data_layer</span><span class="p">),</span>
+    <span class="n">user_epochs_done_callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">eval_epochs_done_callback</span><span class="p">(</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">f</span><span class="s1">&#39;{nf.work_dir}/graphs&#39;</span><span class="p">),</span>
+    <span class="n">tb_writer</span><span class="o">=</span><span class="n">nf</span><span class="o">.</span><span class="n">tb_writer</span><span class="p">,</span>
+    <span class="n">eval_step</span><span class="o">=</span><span class="n">steps_per_epoch</span><span class="p">)</span>
+
+<span class="n">ckpt_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span>
+    <span class="n">folder</span><span class="o">=</span><span class="n">nf</span><span class="o">.</span><span class="n">checkpoint_dir</span><span class="p">,</span>
+    <span class="n">epoch_freq</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">save_epoch_freq</span><span class="p">,</span>
+    <span class="n">step_freq</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">save_step_freq</span><span class="p">)</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>最后，我们定义优化器的参数，并开始训练流程。</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">lr_policy_fn</span> <span class="o">=</span> <span class="n">get_lr_policy</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">lr_policy</span><span class="p">,</span>
+                             <span class="n">total_steps</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span> <span class="o">*</span> <span class="n">steps_per_epoch</span><span class="p">,</span>
+                             <span class="n">warmup_ratio</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">lr_warmup_proportion</span><span class="p">)</span>
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
+     <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">callback_train</span><span class="p">,</span> <span class="n">callback_eval</span><span class="p">,</span> <span class="n">ckpt_callback</span><span class="p">],</span>
+     <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy_fn</span><span class="p">,</span>
+     <span class="n">optimizer</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">optimizer_kind</span><span class="p">,</span>
+     <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">num_epochs</span><span class="p">,</span>
+                          <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">lr</span><span class="p">,</span>
+                          <span class="s2">&quot;weight_decay&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">weight_decay</span><span class="p">})</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<div class="section" id="id7">
+<h2>模型训练<a class="headerlink" href="#id7" title="Permalink to this headline">¶</a></h2>
+<p>为了训练一个意图识别和槽填充的混合任务，运行 <code class="docutils literal notranslate"><span class="pre">nemo/examples/nlp</span></code> 下的脚本 <code class="docutils literal notranslate"><span class="pre">joint_intent_slot_with_bert.py</span></code> ：</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">launch</span> <span class="o">--</span><span class="n">nproc_per_node</span><span class="o">=</span><span class="mi">2</span> <span class="n">joint_intent_slot_with_bert</span><span class="o">.</span><span class="n">py</span> \
+    <span class="o">--</span><span class="n">data_dir</span> <span class="o">&lt;</span><span class="n">path</span> <span class="n">to</span> <span class="n">data</span><span class="o">&gt;</span>
+    <span class="o">--</span><span class="n">work_dir</span> <span class="o">&lt;</span><span class="n">where</span> <span class="n">you</span> <span class="n">want</span> <span class="n">to</span> <span class="n">log</span> <span class="n">your</span> <span class="n">experiment</span><span class="o">&gt;</span> \
+    <span class="o">--</span><span class="n">max_seq_length</span> \
+    <span class="o">--</span><span class="n">optimizer_kind</span>
+    <span class="o">...</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>测试的话，需要运行：</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">joint_intent_slot_infer</span><span class="o">.</span><span class="n">py</span> \
+    <span class="o">--</span><span class="n">data_dir</span> <span class="o">&lt;</span><span class="n">path</span> <span class="n">to</span> <span class="n">data</span><span class="o">&gt;</span> \
+    <span class="o">--</span><span class="n">work_dir</span> <span class="o">&lt;</span><span class="n">path</span> <span class="n">to</span> <span class="n">checkpoint</span> <span class="n">folder</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>对一个检索进行测试，需要运行：</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">joint_intent_slot_infer</span><span class="o">.</span><span class="n">py</span> \
+    <span class="o">--</span><span class="n">work_dir</span> <span class="o">&lt;</span><span class="n">path</span> <span class="n">to</span> <span class="n">checkpoint</span> <span class="n">folder</span><span class="o">&gt;</span>
+    <span class="o">--</span><span class="n">query</span> <span class="o">&lt;</span><span class="n">query</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<div class="section" id="id8">
+<h2>参考文献<a class="headerlink" href="#id8" title="Permalink to this headline">¶</a></h2>
+<p id="bibtex-bibliography-nlp/joint_intent_slot_filling-0"><dl class="citation">
+<dt class="label" id="nlp-slot-chen2019bert"><span class="brackets"><a class="fn-backref" href="#id2">NLP-SLOT1</a></span></dt>
+<dd><p>Qian Chen, Zhu Zhuo, and Wen Wang. Bert for joint intent classification and slot filling. <em>arXiv preprint arXiv:1902.10909</em>, 2019.</p>
+</dd>
+</dl>
+</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="asr-improvement.html" class="btn btn-neutral float-right" title="教程" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="ner.html" class="btn btn-neutral float-left" title="教程" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

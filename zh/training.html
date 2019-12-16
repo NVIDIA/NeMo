@@ -1,0 +1,264 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>快速训练 &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="语音识别" href="asr/intro.html" />
+    <link rel="prev" title="复杂训练流程（ GAN 例子）" href="tutorials/complex_training.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">如何安装</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials/intro.html">从这里开始</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">快速训练</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#id2">混合精度训练</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#gpu">多 GPU 训练</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id3">范例</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nlp/intro.html">自然语言处理</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tts/intro.html">语音合成</a></li>
+<li class="toctree-l1"><a class="reference internal" href="collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>快速训练</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/training.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="id1">
+<h1>快速训练<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h1>
+<p>训练较大的模型，特别是从头开始训练，需要巨大的算力。NeMo 支持分布式训练和混合精度训练以加速训练。NeMo 借助 <a class="reference external" href="https://github.com/NVIDIA/apex">英伟达的 APEX 库</a> 在英伟达 GPU 上达到最佳的性能。另外，配备了多块 GPU 的系统（例如 DGX Station, DGX-1 &amp; DGX-2 等），可以进一步地使用 <em>NVLINK</em> 加速 GPU 间的通信，从而最大限度地发挥 GPU 的性能。</p>
+<div class="section" id="id2">
+<h2>混合精度训练<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<p>在英伟达最新的 Volta 和 Turning 架构中，GPU 配备了 Tensor Cores 计算单元，能够大幅加速半精度浮点数的矩阵乘法运算。想要在 NeMo 中使用混合精度训练，你可以设置 <cite>nemo.core.NeuralModuleFactory</cite> 类的 <code class="docutils literal notranslate"><span class="pre">optimization_level</span></code> 选项为 <code class="docutils literal notranslate"><span class="pre">nemo.core.Optimization.mxprO1</span></code> 。</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
+       <span class="n">optimization_level</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO1</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>混合精度训练需要 Tensor Cores 的硬件支持，因此当前只在英伟达的 Volta 或者 Turing GPU 上有支持。</p>
+</div>
+</div>
+<div class="section" id="gpu">
+<h2>多 GPU 训练<a class="headerlink" href="#gpu" title="Permalink to this headline">¶</a></h2>
+<p>进行多 GPU 训练需要进行如下设置：</p>
+<ol class="arabic simple">
+<li><p>在 <code class="docutils literal notranslate"><span class="pre">NeuralModuleFactory</span></code> 类中设置选项 <code class="docutils literal notranslate"><span class="pre">placement</span></code> 为 <code class="docutils literal notranslate"><span class="pre">nemo.core.DeviceType.AllGpu</span></code></p></li>
+<li><p>在你的 python 脚本中添加命令行选项 <code class="docutils literal notranslate"><span class="pre">local_rank</span></code>: <code class="docutils literal notranslate"><span class="pre">parser.add_argument(&quot;--local_rank&quot;,</span> <span class="pre">default=None,</span> <span class="pre">type=int)</span></code></p></li>
+</ol>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
+       <span class="n">placement</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">,</span>
+       <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>利用 PyTorch 中的 <cite>torch.distributed.launch</cite> 包来启动训练：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span><span class="m">8</span> &lt;nemo_repo&gt;/examples/asr/jasper.py --num_gpus<span class="o">=</span><span class="m">8</span> ...
+</pre></div>
+</div>
+</div>
+<div class="section" id="id3">
+<h2>范例<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
+<p>一个比较完整的利用 NeMo 训练 ASR 模型的范例，请参阅这个文件： <cite>&lt;nemo_git_repo_root&gt;/examples/asr/jasper.py</cite> 。 这个例子会创建一个训练有向无环图和三个验证有向无环图，以便在不同的数据集上对模型精度进行验证。</p>
+<p>在一台配备了多块 Volta GPU 的系统上，你可以用如下的命令来开始训练：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span><span class="m">8</span> &lt;nemo_git_repo_root&gt;/examples/asr/jasper.py --batch_size<span class="o">=</span><span class="m">64</span> --num_gpus<span class="o">=</span><span class="m">8</span> --num_epochs<span class="o">=</span><span class="m">100</span> --lr<span class="o">=</span><span class="m">0</span>.015 --warmup_steps<span class="o">=</span><span class="m">8000</span> --weight_decay<span class="o">=</span><span class="m">0</span>.001 --train_manifest<span class="o">=</span>/manifests/librivox-train-all.json --val_manifest1<span class="o">=</span>/manifests/librivox-dev-clean.json --val_manifest2<span class="o">=</span>/manifests/librivox-dev-other.json --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/nemo/examples/asr/configs/jasper15x5SEP.yaml --exp_name<span class="o">=</span>MyLARGE-ASR-EXPERIMENT
+</pre></div>
+</div>
+<p>这条命令会进行8卡并行和混合精度训练，在上面的命令中，不同的列表文件（.json）指的是不同的数据集。你可以用自己的数据集来代替它们。</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>你可以在选项中同时传入多个数据集，使用逗号隔开，例如：
+<code class="docutils literal notranslate"><span class="pre">--train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json</span></code></p>
+</div>
+<p>这个例子会在三个数据集上进行训练，LibriSpeech, Mozzila Common Voice 和 Librispeech做了速度扰动后的数据集。</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="asr/intro.html" class="btn btn-neutral float-right" title="语音识别" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="tutorials/complex_training.html" class="btn btn-neutral float-left" title="复杂训练流程（ GAN 例子）" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

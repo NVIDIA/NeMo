@@ -1,0 +1,386 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>复杂训练流程（ GAN 例子） &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="快速训练" href="../training.html" />
+    <link rel="prev" title="回调" href="callbacks.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">从这里开始</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="program_model.html">编程模型</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html">例子</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neuraltypes.html">神经类型</a></li>
+<li class="toctree-l2"><a class="reference internal" href="custommodules.html">如何构建神经模块</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weightsharing.html">模块间的权重共享</a></li>
+<li class="toctree-l2"><a class="reference internal" href="callbacks.html">回调</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">复杂训练流程（ GAN 例子）</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id1">多个损失函数</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id2">多个优化器和多个损失函数</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">自然语言处理</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">从这里开始</a> &raquo;</li>
+        
+      <li>复杂训练流程（ GAN 例子）</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/tutorials/complex_training.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="gan">
+<h1>复杂训练流程（ GAN 例子）<a class="headerlink" href="#gan" title="Permalink to this headline">¶</a></h1>
+<p>目前为止，训练样本在所有可训练的神经模块中用了一个优化器来优化一个损失函数。
+NeMo 进一步扩充了用例，这些用例会用到多个损失函数和多个优化器。</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>我们所有的流程都只支持一个数据层。</p>
+</div>
+<div class="section" id="id1">
+<h2>多个损失函数<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<p>以我们之前的 Hello World 为例子。假设我们现在想要优化一个平方误差损失函数和 l1 损失函数。
+我们可以把这代表着两个损失函数的张量传给
+<a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.train" title="nemo.core.neural_factory.NeuralModuleFactory.train"><code class="xref py py-meth docutils literal notranslate"><span class="pre">NeuralFactory.train()</span></code></a> 。
+下面是一个例子：</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1">### 和前面的例子一样 ###</span>
+<span class="kn">import</span> <span class="nn">nemo</span>
+
+<span class="c1"># 用支持的后端初始化 Neural Factory</span>
+<span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">()</span>
+
+<span class="c1"># 初始化必要的神经模块</span>
+<span class="n">dl</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">RealFunctionDataLayer</span><span class="p">(</span>
+    <span class="n">n</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>
+<span class="n">fx</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">TaylorNet</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="n">mse_loss</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">MSELoss</span><span class="p">()</span>
+
+<span class="c1"># 描述激活流</span>
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">dl</span><span class="p">()</span>
+<span class="n">p</span> <span class="o">=</span> <span class="n">fx</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">x</span><span class="p">)</span>
+<span class="n">mse_loss_tensor</span> <span class="o">=</span> <span class="n">mse_loss</span><span class="p">(</span><span class="n">predictions</span><span class="o">=</span><span class="n">p</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">y</span><span class="p">)</span>
+
+<span class="c1">### 新的代码从这里开始 ###</span>
+<span class="c1"># 我们定义新的LossNM和新的损失张量</span>
+<span class="n">l1_loss</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">L1Loss</span><span class="p">()</span>
+<span class="n">l1_loss_tensor</span> <span class="o">=</span> <span class="n">l1_loss</span><span class="p">(</span><span class="n">predictions</span><span class="o">=</span><span class="n">p</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">y</span><span class="p">)</span>
+
+<span class="c1"># SimpleLossLoggerCallback 会把损失函数的值打印到控制台</span>
+<span class="c1"># 更新打印函数加入两个损失函数的张量</span>
+<span class="n">callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
+    <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">l1_loss_tensor</span><span class="p">,</span> <span class="n">mse_loss_tensor</span><span class="p">],</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span>
+        <span class="n">f</span><span class="s1">&#39;Train Loss: {str(x[0].item() + x[1].item())}&#39;</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="c1"># 用两个损失函数张量激活“训练”操作</span>
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">([</span><span class="n">mse_loss_tensor</span><span class="p">,</span> <span class="n">l1_loss_tensor</span><span class="p">],</span> <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">callback</span><span class="p">],</span>
+         <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="mf">0.0003</span><span class="p">},</span>
+         <span class="n">optimizer</span><span class="o">=</span><span class="s2">&quot;sgd&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>我们可以进一步拓展这个优化器使得每次优化一个损失函数。比如说，我们不想
+根据 mse_loss + l1_loss 计算梯度，我们想先根据 mse_loss 计算梯度，做一个
+权重更新，然后根据 l1_loss 求导，再做另一个权重更新。那么我们必须要定义我们
+的训练循环：</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1">### 和前面的例子一样 ###</span>
+<span class="kn">import</span> <span class="nn">nemo</span>
+
+<span class="c1"># 用支持的后端做初始化</span>
+<span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">()</span>
+
+<span class="c1"># 初始化必要的神经模块</span>
+<span class="n">dl</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">RealFunctionDataLayer</span><span class="p">(</span>
+    <span class="n">n</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>
+<span class="n">fx</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">TaylorNet</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="n">mse_loss</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">MSELoss</span><span class="p">()</span>
+<span class="n">l1_loss</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">L1Loss</span><span class="p">()</span>
+
+<span class="c1"># 描绘激活流</span>
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">dl</span><span class="p">()</span>
+<span class="n">p</span> <span class="o">=</span> <span class="n">fx</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">x</span><span class="p">)</span>
+<span class="n">mse_loss_tensor</span> <span class="o">=</span> <span class="n">mse_loss</span><span class="p">(</span><span class="n">predictions</span><span class="o">=</span><span class="n">p</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">y</span><span class="p">)</span>
+<span class="n">l1_loss_tensor</span> <span class="o">=</span> <span class="n">l1_loss</span><span class="p">(</span><span class="n">predictions</span><span class="o">=</span><span class="n">p</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">y</span><span class="p">)</span>
+
+<span class="c1"># SimpleLossLoggerCallback 把损失函数值打印到控制台</span>
+<span class="n">callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
+    <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">l1_loss_tensor</span><span class="p">,</span> <span class="n">mse_loss_tensor</span><span class="p">],</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span>
+        <span class="n">f</span><span class="s1">&#39;L1 Loss: {str(x[0].item())}&#39;</span>
+        <span class="n">f</span><span class="s1">&#39;MSE Loss: {str(x[1].item())}&#39;</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="c1">### 新代码从这里开始 ###</span>
+<span class="c1"># 我们需要创建优化器手动开启复杂的训练流程</span>
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">create_optimizer</span><span class="p">(</span>
+    <span class="n">optimizer</span><span class="o">=</span><span class="s2">&quot;sgd&quot;</span><span class="p">,</span>
+    <span class="c1"># 注意我们需要指定我们想要优化的神经模块和神经模块张量</span>
+    <span class="n">things_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">l1_loss_tensor</span><span class="p">,</span> <span class="n">mse_loss_tensor</span><span class="p">],</span>
+    <span class="n">optimizer_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="mf">0.0003</span><span class="p">})</span>
+
+<span class="c1"># 现在我们定义 training_loop,这是一个二元组的 list,</span>
+<span class="c1"># 每个二元组有两个元素</span>
+<span class="c1"># 第一个是优化器</span>
+<span class="c1"># 第二个是我们想要优化的张量</span>
+<span class="n">training_loop</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="c1"># 首先是优化MSE，做一个权重更新</span>
+    <span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="p">[</span><span class="n">mse_loss_tensor</span><span class="p">]),</span>
+    <span class="c1"># 然后是优化L1，做一个权重更新</span>
+    <span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="p">[</span><span class="n">l1_loss_tensor</span><span class="p">]),</span>
+<span class="p">]</span>
+
+<span class="c1"># 触发&quot;训练&quot;</span>
+<span class="c1"># 注意，我们不在需要传奇优化器，因为我们已经有了一个 training_loop</span>
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">training_loop</span><span class="p">,</span> <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">callback</span><span class="p">],</span>
+         <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">})</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="id2">
+<h2>多个优化器和多个损失函数<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<p>NeMo 也支持用户想要定义多个优化器的用例。一个这样的例子是 GAN，我们想要给生成器
+一个优化器，给判别器一个优化器。我们也想要优化不同的损失函数。
+这个是来自 examples/images/gan.py 下面的支持这种操作的代码：</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="o">...</span>
+
+<span class="c1"># 创建神经元模块</span>
+<span class="n">generator</span> <span class="o">=</span> <span class="n">nemo_simple_gan</span><span class="o">.</span><span class="n">SimpleGenerator</span><span class="p">(</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">)</span>
+<span class="n">discriminator</span> <span class="o">=</span> <span class="n">nemo_simple_gan</span><span class="o">.</span><span class="n">SimpleDiscriminator</span><span class="p">()</span>
+
+<span class="o">...</span>
+
+<span class="c1"># 创建损失函数张量</span>
+<span class="c1"># Loss 1: 插值的图像的损失函数</span>
+<span class="n">interpolated_loss</span> <span class="o">=</span> <span class="n">disc_loss</span><span class="p">(</span><span class="n">decision</span><span class="o">=</span><span class="n">interpolated_decision</span><span class="p">)</span>
+<span class="c1"># Loss 2: 真实图片的损失函数</span>
+<span class="n">real_loss</span> <span class="o">=</span> <span class="n">neg_disc_loss</span><span class="p">(</span><span class="n">decision</span><span class="o">=</span><span class="n">real_decision</span><span class="p">)</span>
+<span class="c1"># Loss 3: WGAN 梯度惩罚项</span>
+<span class="n">grad_penalty</span> <span class="o">=</span> <span class="n">disc_grad_penalty</span><span class="p">(</span>
+    <span class="n">interpolated_image</span><span class="o">=</span><span class="n">interpolated_image</span><span class="p">,</span>
+    <span class="n">interpolated_decision</span><span class="o">=</span><span class="n">interpolated_decision</span><span class="p">)</span>
+
+<span class="o">...</span>
+
+<span class="c1"># 创建优化器</span>
+<span class="c1"># 注意我们对于生成器和判别器分别想要一个优化器</span>
+<span class="n">optimizer_G</span> <span class="o">=</span> <span class="n">neural_factory</span><span class="o">.</span><span class="n">create_optimizer</span><span class="p">(</span>
+    <span class="n">things_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">generator</span><span class="p">],</span>
+    <span class="o">...</span><span class="p">)</span>
+<span class="n">optimizer_D</span> <span class="o">=</span> <span class="n">neural_factory</span><span class="o">.</span><span class="n">create_optimizer</span><span class="p">(</span>
+    <span class="n">things_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">discriminator</span><span class="p">],</span>
+    <span class="o">...</span><span class="p">)</span>
+
+<span class="c1"># 定义 training_loop</span>
+<span class="c1"># 注意在我们的训练循环中，我们想要优化三次判别器再优化一次生成器</span>
+<span class="n">losses_G</span> <span class="o">=</span> <span class="p">[</span><span class="n">generator_loss</span><span class="p">]</span>
+<span class="n">losses_D</span> <span class="o">=</span> <span class="p">[</span><span class="n">interpolated_loss</span><span class="p">,</span> <span class="n">real_loss</span><span class="p">,</span> <span class="n">grad_penalty</span><span class="p">]</span>
+<span class="n">training_loop</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="n">optimizer_D</span><span class="p">,</span> <span class="n">losses_D</span><span class="p">),</span>
+    <span class="p">(</span><span class="n">optimizer_D</span><span class="p">,</span> <span class="n">losses_D</span><span class="p">),</span>
+    <span class="p">(</span><span class="n">optimizer_D</span><span class="p">,</span> <span class="n">losses_D</span><span class="p">),</span>
+    <span class="p">(</span><span class="n">optimizer_G</span><span class="p">,</span> <span class="n">losses_G</span><span class="p">),</span>
+<span class="p">]</span>
+
+<span class="n">neural_factory</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="n">tensors_to_optimize</span><span class="o">=</span><span class="n">training_loop</span><span class="p">,</span>
+    <span class="o">...</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../training.html" class="btn btn-neutral float-right" title="快速训练" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="callbacks.html" class="btn btn-neutral float-left" title="回调" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

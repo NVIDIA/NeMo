@@ -1,0 +1,445 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>教程 &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="BERT预训练" href="bert_pretraining.html" />
+    <link rel="prev" title="自然语言处理" href="intro.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">自然语言处理</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="intro.html#nmt">神经网络机器翻译 (NMT)</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">教程</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id3">预备知识</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id6">代码概述</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id10">模型训练</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id11">使用预训练的模型进行翻译</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id13">引用</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#bert">BERT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#transformer">Transformer语言模型</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#ner">命名实体识别 (NER)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#bertx2">用 BERTx2 后处理模型来提升语音识别性能</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">自然语言处理</a> &raquo;</li>
+        
+      <li>教程</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/nlp/neural_machine_translation.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="id1">
+<h1>教程<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h1>
+<p>在本教程中我们将要实现基于 <a class="reference external" href="https://arxiv.org/abs/1706.03762">Transformer 编码器-解码器结构</a> <a class="reference internal" href="#nlp-nmt-vaswani2017attention" id="id2">[NLP-NMT5]</a> 的神经机器翻译系统。本教程中使用到的所有代码都基于 <code class="docutils literal notranslate"><span class="pre">examples/nlp/nmt_tutorial.py</span></code> 。</p>
+<div class="section" id="id3">
+<h2>预备知识<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
+<p><strong>数据集.</strong> 我们使用 WMT16 英文-德文数据集，在数据预处理前，其中包含了约 450 万个句子对。为了获得更加干净的数据，在对句子进行分词并得到符号串（tokens）后，我们从中移除满足以下条件的句子对：</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>源语言或目标语言句子中符号串（tokens）的数量小于 3 个或多于 128 个的句子对。</p></li>
+<li><p>源语言和目标语言的绝对差异（Absolute difference）大于 25 个符号串(tokens)的句子对。</p></li>
+<li><p>源语言（目标语言）的句子长度比目标语言（源语言）大于 2.5 倍的句子对。</p></li>
+<li><p>目标语言句子与源语言句子完全相同的句子对。</p></li>
+</ul>
+</div></blockquote>
+<p>我们使用 newstest2013 数据集作为验证集，并使用 newstest2014 数据集作为测试集。所有的数据集以及分词器（tokenizer）模型都可以从 <a class="reference external" href="https://drive.google.com/open?id=1AErD1hEg16Yt28a-IGflZnwGTg9O27DT">此处</a> 下载。 在下面的步骤中，我们假设所有的数据都放置在 <strong>&lt;path_to_data&gt;</strong> 目录中。</p>
+<p><strong>资源.</strong> 本教程中使用的训练脚本能够训练 Transformer-big 结构的 BERT 模型并在 newstest2014 数据集上达到 <strong>29.2</strong> BLEU / <strong>28.5</strong> SacreBLEU 的分数表现，在配备了多块 16GB Volta 架构图形处理器 的 NVIDIA’s DGX-1 上仅需约 15 小时即可完成全部训练过程。同样的训练结果也能够使用更少的资源并通过增加梯度更新的次数来实现 <a class="reference internal" href="#nlp-nmt-ott2018scaling" id="id5">[NLP-NMT1]</a> 。</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>在不指定任何训练参数的前提下运行训练脚本将会在一个很小的数据集（newstest2013）上开始训练，其中训练集包含 3000 个句子对，验证集包含 100 个句子对。这样训练能够更方便地对代码进行调试：如果一切设置正确，验证集的 BLEU 将很快就能 &gt;99，验证集的损失（loss）也能很快就会 &lt; 1.5。</p>
+</div>
+</div>
+<div class="section" id="id6">
+<h2>代码概述<a class="headerlink" href="#id6" title="Permalink to this headline">¶</a></h2>
+<p>首先，我们实例化一个神经模块工厂对象（Neural Module Factory），这将会定义 1) 后端（backend），2) 混合精度优化级别（mixed precision optimization level），以及 3) 本地 GPU 的编号（local rank）</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
+                                   <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+                                   <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
+                                   <span class="n">log_dir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">work_dir</span><span class="p">,</span>
+                                   <span class="n">create_tb_writer</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                                   <span class="n">files_to_copy</span><span class="o">=</span><span class="p">[</span><span class="vm">__file__</span><span class="p">])</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>然后，我们定义分词器（tokenizer）来将输入文字转化为符号串（tokens）。在本教程中，我们使用在 WMT16 英文-德文语料集上训练的字节对编码 <a class="reference external" href="https://arxiv.org/abs/1508.07909">Byte Pair Encodings (BPE)</a> <a class="reference internal" href="#nlp-nmt-sennrich2015neural" id="id7">[NLP-NMT4]</a> YouTokenToMe 分词器，训练框架使用 <a class="reference external" href="https://github.com/VKCOM/YouTokenToMe">YouTokenToMe 库</a> 。与文献中不同的是，文献中通常使用较大的词汇表（30000+ 词汇），而我们使用比文献中小 4 倍的词汇变，其中包含 8192 个字节对（BPEs）。 这样做不仅能达到与使用大词汇相同等级的性能表现，同时也让我们能够在训练时将 batch size 增加 20%，使得模型能够更快地收敛。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">YouTokenToMeTokenizer</span><span class="p">(</span>
+    <span class="n">model_path</span><span class="o">=</span><span class="n">f</span><span class="s2">&quot;{args.data_dir}/{args.src_tokenizer_model}&quot;</span><span class="p">)</span>
+<span class="n">vocab_size</span> <span class="o">=</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">src_tokenizer</span><span class="o">.</span><span class="n">vocab_size</span> <span class="o">/</span> <span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>为了达到最优的 GPU 利用和混合精度加速，请确保词汇表的大小（以及模型中所有参数的大小）都能够被 8 整除。</p>
+</div>
+</div></blockquote>
+<p>如果源语言和目标语言相差较大，则应对源语言和目标语言使用不同的分词器（tokenizer）。例如，当源语言为英文，目标语言为中文，则源语言可以使用 YouTokenToMeTokenizer，目标语言可以使用 CharTokenizer。 这也就意味着模型的输入为英文的字节对编码（BPE），模型的输出为中文的汉字。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">src_tokenizer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">YouTokenToMeTokenizer</span><span class="p">(</span>
+    <span class="n">model_path</span><span class="o">=</span><span class="n">f</span><span class="s2">&quot;{args.data_dir}/{args.src_tokenizer_model}&quot;</span><span class="p">)</span>
+<span class="n">tgt_tokenizer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">CharTokenizer</span><span class="p">(</span>
+    <span class="n">vocab_path</span><span class="o">=</span><span class="n">f</span><span class="s2">&quot;{args.data_dir}/{args.tgt_tokenizer_model}&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>使用 CharTokenizer 时应在其构造函数的参数传入词汇表文件（vocab.txt）路径，词汇表文件中应包含对应语言数据中全部的字符。</p>
+</div>
+</div></blockquote>
+<p>接下来，我们定义模型中使用到的所有必要的神经模块：</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Transformer 编码器和解码器。</p></li>
+<li><p>用于将解码器输出映射到输出词汇概率分布上的 <cite>TokenClassifier</cite> 。</p></li>
+<li><p>用于生成翻译结果的束搜索（Beam Search）模块。</p></li>
+<li><p>损失函数：引入标签平滑正则化（label smoothing regularization）的交叉熵（cross entropy）。</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">encoder</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TransformerEncoderNM</span><span class="p">(</span><span class="o">**</span><span class="n">encoder_params</span><span class="p">)</span>
+<span class="n">decoder</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TransformerDecoderNM</span><span class="p">(</span><span class="o">**</span><span class="n">decoder_params</span><span class="p">)</span>
+<span class="n">log_softmax</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TokenClassifier</span><span class="p">(</span><span class="o">**</span><span class="n">token_classifier_params</span><span class="p">)</span>
+<span class="n">beam_search</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BeamSearchTranslatorNM</span><span class="p">(</span><span class="o">**</span><span class="n">beam_search_params</span><span class="p">)</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">PaddedSmoothedCrossEntropyLossNM</span><span class="p">(</span><span class="o">**</span><span class="n">loss_params</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>根据文献 <a class="reference external" href="https://arxiv.org/abs/1608.05859">Press and Wolf, 2016</a> <a class="reference internal" href="#nlp-nmt-press2016using" id="id8">[NLP-NMT3]</a> ，我们将嵌入层（embedding）和分类层（softmax）的参数绑定：</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">log_softmax</span><span class="o">.</span><span class="n">log_softmax</span><span class="o">.</span><span class="n">dense</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">encoder</span><span class="o">.</span><span class="n">embedding_layer</span><span class="o">.</span><span class="n">token_embedding</span><span class="o">.</span><span class="n">weight</span>
+<span class="n">decoder</span><span class="o">.</span><span class="n">embedding_layer</span><span class="o">.</span><span class="n">token_embedding</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">encoder</span><span class="o">.</span><span class="n">embedding_layer</span><span class="o">.</span><span class="n">token_embedding</span><span class="o">.</span><span class="n">weight</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>如果源语言和目标语言使用不同的分词器（tokenizer），请勿进行参数绑定。</p>
+</div>
+</div></blockquote>
+<p>然后，我们定义一个将输入转化为输出的管道（pipeline），它将在训练和验证的过程中用到。其中一个重要的部分是数据层（data layer），数据层能够将拥有相似长度的句子封装成批次以最小化填充符号（padding symbol）的使用。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">create_pipeline</span><span class="p">(</span><span class="o">**</span><span class="n">args</span><span class="p">):</span>
+    <span class="n">dataset</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TranslationDataset</span><span class="p">(</span><span class="o">**</span><span class="n">translation_dataset_params</span><span class="p">)</span>
+    <span class="n">data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TranslationDataLayer</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
+    <span class="n">src</span><span class="p">,</span> <span class="n">src_mask</span><span class="p">,</span> <span class="n">tgt</span><span class="p">,</span> <span class="n">tgt_mask</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">sent_ids</span> <span class="o">=</span> <span class="n">data_layer</span><span class="p">()</span>
+    <span class="n">src_hiddens</span> <span class="o">=</span> <span class="n">encoder</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">src</span><span class="p">,</span> <span class="n">input_mask_src</span><span class="o">=</span><span class="n">src_mask</span><span class="p">)</span>
+    <span class="n">tgt_hiddens</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span><span class="n">input_ids_tgt</span><span class="o">=</span><span class="n">tgt</span><span class="p">,</span>
+                          <span class="n">hidden_states_src</span><span class="o">=</span><span class="n">src_hiddens</span><span class="p">,</span>
+                          <span class="n">input_mask_src</span><span class="o">=</span><span class="n">src_mask</span><span class="p">,</span>
+                          <span class="n">input_mask_tgt</span><span class="o">=</span><span class="n">tgt_mask</span><span class="p">)</span>
+    <span class="n">logits</span> <span class="o">=</span> <span class="n">log_softmax</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">tgt_hiddens</span><span class="p">)</span>
+    <span class="n">loss</span> <span class="o">=</span> <span class="n">loss_fn</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">logits</span><span class="p">,</span> <span class="n">target_ids</span><span class="o">=</span><span class="n">labels</span><span class="p">)</span>
+    <span class="n">beam_results</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">training</span><span class="p">:</span>
+        <span class="n">beam_results</span> <span class="o">=</span> <span class="n">beam_search</span><span class="p">(</span><span class="n">hidden_states_src</span><span class="o">=</span><span class="n">src_hiddens</span><span class="p">,</span>
+                                   <span class="n">input_mask_src</span><span class="o">=</span><span class="n">src_mask</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">loss</span><span class="p">,</span> <span class="p">[</span><span class="n">tgt</span><span class="p">,</span> <span class="n">loss</span><span class="p">,</span> <span class="n">beam_results</span><span class="p">,</span> <span class="n">sent_ids</span><span class="p">]</span>
+
+
+<span class="n">train_loss</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span><span class="n">train_dataset_src</span><span class="p">,</span>
+                                <span class="n">train_dataset_tgt</span><span class="p">,</span>
+                                <span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+                                <span class="n">clean</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+<span class="n">eval_loss</span><span class="p">,</span> <span class="n">eval_tensors</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span><span class="n">eval_dataset_src</span><span class="p">,</span>
+                                          <span class="n">eval_dataset_tgt</span><span class="p">,</span>
+                                          <span class="n">args</span><span class="o">.</span><span class="n">eval_batch_size</span><span class="p">,</span>
+                                          <span class="n">clean</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                                          <span class="n">training</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>然后，我们定义必要的回调函数：</p>
+<ol class="arabic">
+<li><p><cite>SimpleLossLoggerCallback</cite>: 用于追踪训练过程中的损失值</p></li>
+<li><p><cite>EvaluatorCallback</cite>: 用于追踪在指定间隔时验证数据及上的 BLEU 分数</p></li>
+<li><p><cite>CheckpointCallback</cite>: 用于保存模型的检查点（checkpoints）</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">nemo_nlp.callbacks.translation</span> <span class="kn">import</span> <span class="n">eval_iter_callback</span><span class="p">,</span> <span class="n">eval_epochs_done_callback</span>
+
+<span class="n">train_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<span class="n">eval_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<span class="n">ckpt_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>BLEU 分数是通过计算模型预测得到的翻译句子与验证集中真实的目标句子得到的。考虑到完整性，我们计算了两个在文献中常用的指标，分别是 <a class="reference external" href="https://github.com/mjpost/sacreBLEU">SacreBLEU</a> <a class="reference internal" href="#nlp-nmt-post2018call" id="id9">[NLP-NMT2]</a> 和 <a class="reference external" href="https://github.com/moses-smt/mosesdecoder/blob/master/scripts/generic/multi-bleu.perl">tokenized BLEU score</a> 。</p>
+</div>
+</div></blockquote>
+</li>
+</ol>
+<p>最后，我们定义优化器的参数并开始训练。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">lr_policy_fn</span> <span class="o">=</span> <span class="n">get_lr_policy</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">lr_policy</span><span class="p">,</span>
+                             <span class="n">total_steps</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_steps</span><span class="p">,</span>
+                             <span class="n">warmup_steps</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">warmup_steps</span><span class="p">)</span>
+
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
+         <span class="n">callbacks</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
+         <span class="n">optimizer</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">optimizer</span><span class="p">,</span>
+         <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy_fn</span><span class="p">,</span>
+         <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">max_num_epochs</span><span class="p">,</span>
+                              <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">lr</span><span class="p">,</span>
+                              <span class="s2">&quot;weight_decay&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">weight_decay</span><span class="p">,</span>
+                              <span class="s2">&quot;betas&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">beta1</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">beta2</span><span class="p">)},</span>
+         <span class="n">batches_per_step</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">iter_per_step</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<div class="section" id="id10">
+<h2>模型训练<a class="headerlink" href="#id10" title="Permalink to this headline">¶</a></h2>
+<p>要想训练一个 Transformer-big 结构的神经机器翻译模型，请运行位于 <code class="docutils literal notranslate"><span class="pre">nemo/examples/nlp</span></code> 的 <code class="docutils literal notranslate"><span class="pre">nmt_tutorial.py</span></code> ：</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">launch</span> <span class="o">--</span><span class="n">nproc_per_node</span><span class="o">=&lt;</span><span class="n">num_gpus</span><span class="o">&gt;</span> <span class="n">nmt_tutorial</span><span class="o">.</span><span class="n">py</span> \
+    <span class="o">--</span><span class="n">data_root</span> <span class="o">&lt;</span><span class="n">path_to_data</span><span class="o">&gt;</span> <span class="o">--</span><span class="n">src_tokenizer_model</span> <span class="n">bpe8k_yttm</span><span class="o">.</span><span class="n">model</span> \
+    <span class="o">--</span><span class="n">eval_datasets</span> <span class="n">valid</span><span class="o">/</span><span class="n">newstest2013</span> <span class="o">--</span><span class="n">optimizer</span> <span class="n">novograd</span> <span class="o">--</span><span class="n">lr</span> <span class="mf">0.04</span> \
+    <span class="o">--</span><span class="n">weight_decay</span> <span class="mf">0.0001</span> <span class="o">--</span><span class="n">max_steps</span> <span class="mi">40000</span> <span class="o">--</span><span class="n">warmup_steps</span> <span class="mi">4000</span> \
+    <span class="o">--</span><span class="n">d_model</span> <span class="mi">1024</span> <span class="o">--</span><span class="n">d_inner</span> <span class="mi">4096</span> <span class="o">--</span><span class="n">num_layers</span> <span class="mi">6</span> <span class="o">--</span><span class="n">num_attn_heads</span> <span class="mi">16</span> \
+    <span class="o">--</span><span class="n">batch_size</span> <span class="mi">12288</span> <span class="o">--</span><span class="n">iter_per_step</span> <span class="mi">5</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>这个命令会在 8 块 GPU 上开始模型训练，显存需求最少为 16GB。如果你的 GPU 显存较少，请适量调低 <code class="docutils literal notranslate"><span class="pre">batch_size</span></code> 参数，并适量调高 <code class="docutils literal notranslate"><span class="pre">iter_per_step</span></code> 参数。</p>
+</div>
+</div></blockquote>
+<p>要想训练一个英文-中文的神经机器翻译模型，需要指定 <code class="docutils literal notranslate"><span class="pre">--src_lang</span></code> 为 <code class="docutils literal notranslate"><span class="pre">en</span></code> ， <code class="docutils literal notranslate"><span class="pre">--tgt_lang</span></code> 为 <code class="docutils literal notranslate"><span class="pre">zh</span></code> ，同时将 <code class="docutils literal notranslate"><span class="pre">--tgt_tokenizer_model</span></code> 设置为词汇表文件的路径，中文训练数据的样例格式请参考 <code class="docutils literal notranslate"><span class="pre">/tests/data/nmt_en_zh_sample_data/</span></code> 。</p>
+</div>
+<div class="section" id="id11">
+<h2>使用预训练的模型进行翻译<a class="headerlink" href="#id11" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic">
+<li><p>将你训练时保存的模型检查点（checkpoint）文件（或者可以直接从 <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:transformer_big_en_de_8k">这里</a> 下载检查点文件，该检查点在 newstest2014 数据集上取得了 28.5 的 SacreBLEU 分数）放置到 <code class="docutils literal notranslate"><span class="pre">&lt;path_to_ckpt&gt;</span></code> 目录中。</p></li>
+<li><p>在交互式模式中运行 <code class="docutils literal notranslate"><span class="pre">nmt_tutorial.py</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">nmt_tutorial</span><span class="o">.</span><span class="n">py</span> <span class="o">--</span><span class="n">src_tokenizer_model</span> <span class="n">bpe8k_yttm</span><span class="o">.</span><span class="n">model</span> \
+     <span class="o">--</span><span class="n">eval_datasets</span> <span class="n">test</span> <span class="o">--</span><span class="n">optimizer</span> <span class="n">novograd</span> <span class="o">--</span><span class="n">d_model</span> <span class="mi">1024</span> \
+     <span class="o">--</span><span class="n">d_inner</span> <span class="mi">4096</span> <span class="o">--</span><span class="n">num_layers</span> <span class="mi">6</span> <span class="o">--</span><span class="n">num_attn_heads</span> <span class="mi">16</span> \
+     <span class="o">--</span><span class="n">checkpoint_dir</span> <span class="o">&lt;</span><span class="n">path_to_ckpt</span><span class="o">&gt;</span> <span class="o">--</span><span class="n">interactive</span>
+</pre></div>
+</div>
+<img alt="../_images/interactive_translation.png" class="align-center" src="../_images/interactive_translation.png" />
+</li>
+</ol>
+</div>
+<div class="section" id="id13">
+<h2>引用<a class="headerlink" href="#id13" title="Permalink to this headline">¶</a></h2>
+<p id="bibtex-bibliography-nlp/neural_machine_translation-0"><dl class="citation">
+<dt class="label" id="nlp-nmt-ott2018scaling"><span class="brackets"><a class="fn-backref" href="#id5">NLP-NMT1</a></span></dt>
+<dd><p>Myle Ott, Sergey Edunov, David Grangier, and Michael Auli. Scaling neural machine translation. <em>arXiv preprint arXiv:1806.00187</em>, 2018.</p>
+</dd>
+<dt class="label" id="nlp-nmt-post2018call"><span class="brackets"><a class="fn-backref" href="#id9">NLP-NMT2</a></span></dt>
+<dd><p>Matt Post. A call for clarity in reporting bleu scores. <em>arXiv preprint arXiv:1804.08771</em>, 2018.</p>
+</dd>
+<dt class="label" id="nlp-nmt-press2016using"><span class="brackets"><a class="fn-backref" href="#id8">NLP-NMT3</a></span></dt>
+<dd><p>Ofir Press and Lior Wolf. Using the output embedding to improve language models. <em>arXiv preprint arXiv:1608.05859</em>, 2016.</p>
+</dd>
+<dt class="label" id="nlp-nmt-sennrich2015neural"><span class="brackets"><a class="fn-backref" href="#id7">NLP-NMT4</a></span></dt>
+<dd><p>Rico Sennrich, Barry Haddow, and Alexandra Birch. Neural machine translation of rare words with subword units. <em>arXiv preprint arXiv:1508.07909</em>, 2015.</p>
+</dd>
+<dt class="label" id="nlp-nmt-vaswani2017attention"><span class="brackets"><a class="fn-backref" href="#id2">NLP-NMT5</a></span></dt>
+<dd><p>Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. In <em>Advances in neural information processing systems</em>, 5998–6008. 2017.</p>
+</dd>
+</dl>
+</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="bert_pretraining.html" class="btn btn-neutral float-right" title="BERT预训练" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="intro.html" class="btn btn-neutral float-left" title="自然语言处理" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

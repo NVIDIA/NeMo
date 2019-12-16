@@ -1,0 +1,388 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Transformer语言模型 &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="教程" href="ner.html" />
+    <link rel="prev" title="BERT预训练" href="bert_pretraining.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">自然语言处理</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="intro.html#nmt">神经网络机器翻译 (NMT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#bert">BERT</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="intro.html#transformer">Transformer语言模型</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Transformer语言模型</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id2">简介</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id4">下载语料</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id6">创建分词器模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id7">创建模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id9">参考</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#ner">命名实体识别 (NER)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#bertx2">用 BERTx2 后处理模型来提升语音识别性能</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">自然语言处理</a> &raquo;</li>
+        
+      <li>Transformer语言模型</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/nlp/transformer_language_model.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="transformer">
+<h1>Transformer语言模型<a class="headerlink" href="#transformer" title="Permalink to this headline">¶</a></h1>
+<p>在这个教程中，我们会用Transformer <a class="reference internal" href="#nlp-lm-vaswani2017attention" id="id1">[NLP-LM4]</a> 的结构构建和训练一个语言模型。确保在开始这个教程之前你已经安装了 <code class="docutils literal notranslate"><span class="pre">nemo</span></code> 和 <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> ，详见 <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">如何安装</span></a> 。</p>
+<div class="section" id="id2">
+<h2>简介<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<p>一个好的语言模型对于下游任务有很广泛的应用。用于下游任务的语言模型例子包括 GPT-2 <a class="reference internal" href="#nlp-lm-radford2019language" id="id3">[NLP-LM3]</a> 。</p>
+</div>
+<div class="section" id="id4">
+<h2>下载语料<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h2>
+<p>在这个实验中我们会使用非常小的WikiText-2数据集 <a class="reference internal" href="#nlp-lm-merity2016pointer" id="id5">[NLP-LM1]</a> 。</p>
+<p>下载数据集，运行脚本 <code class="docutils literal notranslate"><span class="pre">examples/nlp/scripts/get_wt2.sh</span></code>. 下载和解压数据集后，文件夹会包括三个文件:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>test.txt
+train.txt
+valid.txt
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<div class="section" id="id6">
+<h2>创建分词器模型<a class="headerlink" href="#id6" title="Permalink to this headline">¶</a></h2>
+<p><cite>LanguageModelDataDesc</cite> 会把你的数据集转换到和 <cite>LanguageModelingDataset</cite> 兼容的格式。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">data_desc</span> <span class="o">=</span> <span class="n">LanguageModelDataDesc</span><span class="p">(</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">dataset_name</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">data_dir</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">do_lower_case</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>我们需要定义我们的分词器， 我们用定义在 <code class="docutils literal notranslate"><span class="pre">nemo_nlp/data/tokenizers/word_tokenizer.py</span></code> 中的 <cite>WordTokenizer</cite>:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">WordTokenizer</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;{args.data_dir}/{args.tokenizer_model}&quot;</span><span class="p">)</span>
+<span class="n">vocab_size</span> <span class="o">=</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">tokenizer</span><span class="o">.</span><span class="n">vocab_size</span> <span class="o">/</span> <span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>让词嵌入的大小（或者其他张量的维度）能够整除8会帮助得到最好的GPU利用率，以及混精度训练的加速。</p>
+</div>
+</div></blockquote>
+</div>
+<div class="section" id="id7">
+<h2>创建模型<a class="headerlink" href="#id7" title="Permalink to this headline">¶</a></h2>
+<p>首先我们需要用支持的后端来创建 <code class="docutils literal notranslate"><span class="pre">neural</span> <span class="pre">factory</span></code> 。你如何定义它取决于你想做多 GPU 训练或者是混合精度训练。这个教程假设你不用混合精度，在一块 GPU 上做训练。
+如果你想做混合精度训练，设置 <code class="docutils literal notranslate"><span class="pre">amp_opt_level</span></code> 为 <code class="docutils literal notranslate"><span class="pre">O1</span></code> 或者 <code class="docutils literal notranslate"><span class="pre">O2</span></code> 。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
+                                   <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+                                   <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
+                                   <span class="n">log_dir</span><span class="o">=</span><span class="n">work_dir</span><span class="p">,</span>
+                                   <span class="n">create_tb_writer</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                                   <span class="n">files_to_copy</span><span class="o">=</span><span class="p">[</span><span class="vm">__file__</span><span class="p">])</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>接着，我们定义对于我们模型的神经元模块</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Transformer编码器 (注意，我们的语言模型不需要解码器)</p></li>
+<li><p><cite>TokenClassifier</cite> 把输出映射到词汇表上的概率分布.</p></li>
+<li><p>损失函数 (带标签平滑正则的交叉熵).</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">encoder</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TransformerEncoderNM</span><span class="p">(</span><span class="o">**</span><span class="n">params</span><span class="p">)</span>
+<span class="n">log_softmax</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TokenClassifier</span><span class="p">(</span><span class="o">**</span><span class="n">params</span><span class="p">)</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">PaddedSmoothedCrossEntropyLossNM</span><span class="p">(</span><span class="o">**</span><span class="n">params</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>根据 <a class="reference external" href="https://arxiv.org/abs/1608.05859">Press and Wolf, 2016</a> <a class="reference internal" href="#nlp-lm-press2016using" id="id8">[NLP-LM2]</a>, 我们也会把词嵌入的参数和 softmax 层连起来:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">log_softmax</span><span class="o">.</span><span class="n">mlp</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">encoder</span><span class="o">.</span><span class="n">embedding_layer</span><span class="o">.</span><span class="n">token_embedding</span><span class="o">.</span><span class="n">weight</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>接着，我们为训练和评估创建数据集:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">train_dataset</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">LanguageModelingDataset</span><span class="p">(</span>
+    <span class="n">tokenizer</span><span class="p">,</span>
+    <span class="n">dataset</span><span class="o">=</span><span class="n">f</span><span class="s2">&quot;{args.data_dir}/{args.train_dataset}&quot;</span><span class="p">,</span>
+    <span class="n">max_sequence_length</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_sequence_length</span><span class="p">,</span>
+    <span class="n">batch_step</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_sequence_length</span><span class="p">)</span>
+
+<span class="n">eval_dataset</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">LanguageModelingDataset</span><span class="p">(</span>
+    <span class="n">tokenizer</span><span class="p">,</span>
+    <span class="n">dataset</span><span class="o">=</span><span class="n">f</span><span class="s2">&quot;{args.data_dir}/{args.eval_datasets[0]}&quot;</span><span class="p">,</span>
+    <span class="n">max_sequence_length</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_sequence_length</span><span class="p">,</span>
+    <span class="n">batch_step</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">predict_last_k</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>然后,我们创建用于训练和评估的从输入到输出的管道:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">create_pipeline</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">):</span>
+    <span class="n">data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">LanguageModelingDataLayer</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span>
+                                                    <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">)</span>
+    <span class="n">src</span><span class="p">,</span> <span class="n">src_mask</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">data_layer</span><span class="p">()</span>
+    <span class="n">src_hiddens</span> <span class="o">=</span> <span class="n">encoder</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">src</span><span class="p">,</span> <span class="n">input_mask_src</span><span class="o">=</span><span class="n">src_mask</span><span class="p">)</span>
+    <span class="n">logits</span> <span class="o">=</span> <span class="n">log_softmax</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">src_hiddens</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">loss</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">logits</span><span class="p">,</span> <span class="n">target_ids</span><span class="o">=</span><span class="n">labels</span><span class="p">)</span>
+
+
+<span class="n">train_loss</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
+<span class="n">eval_loss</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span><span class="n">eval_dataset</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>接下来，我们定义一些必要的回调:</p>
+<ol class="arabic">
+<li><p><cite>SimpleLossLoggerCallback</cite>: 记录训练中的 loss</p></li>
+<li><p><cite>EvaluatorCallback</cite>: 在用户设置的间隔中，追踪评估的度量指标</p></li>
+<li><p><cite>CheckpointCallback</cite>: 根据设定的时间点保存权重文件</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">train_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<span class="n">eval_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<span class="n">ckpt_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ol>
+<p>最后，定义优化器，开始训练吧！</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">lr_policy_fn</span> <span class="o">=</span> <span class="n">get_lr_policy</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">lr_policy</span><span class="p">,</span>
+                             <span class="n">total_steps</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span> <span class="o">*</span> <span class="n">steps_per_epoch</span><span class="p">,</span>
+                             <span class="n">warmup_ratio</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">lr_warmup_proportion</span><span class="p">)</span>
+
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
+         <span class="n">callbacks</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
+         <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy_fn</span><span class="p">,</span>
+         <span class="n">batches_per_step</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">iter_per_step</span><span class="p">,</span>
+         <span class="n">optimizer</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">optimizer_kind</span><span class="p">,</span>
+         <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span><span class="p">,</span>
+                              <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">lr</span><span class="p">,</span>
+                              <span class="s2">&quot;weight_decay&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">weight_decay</span><span class="p">,</span>
+                              <span class="s2">&quot;betas&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">beta1</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">beta2</span><span class="p">)})</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<div class="section" id="id9">
+<h2>参考<a class="headerlink" href="#id9" title="Permalink to this headline">¶</a></h2>
+<p id="bibtex-bibliography-nlp/transformer_language_model-0"><dl class="citation">
+<dt class="label" id="nlp-lm-merity2016pointer"><span class="brackets"><a class="fn-backref" href="#id5">NLP-LM1</a></span></dt>
+<dd><p>Stephen Merity, Caiming Xiong, James Bradbury, and Richard Socher. Pointer sentinel mixture models. <em>arXiv preprint arXiv:1609.07843</em>, 2016.</p>
+</dd>
+<dt class="label" id="nlp-lm-press2016using"><span class="brackets"><a class="fn-backref" href="#id8">NLP-LM2</a></span></dt>
+<dd><p>Ofir Press and Lior Wolf. Using the output embedding to improve language models. <em>arXiv preprint arXiv:1608.05859</em>, 2016.</p>
+</dd>
+<dt class="label" id="nlp-lm-radford2019language"><span class="brackets"><a class="fn-backref" href="#id3">NLP-LM3</a></span></dt>
+<dd><p>Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever. Language models are unsupervised multitask learners. <em>OpenAI Blog</em>, 2019.</p>
+</dd>
+<dt class="label" id="nlp-lm-vaswani2017attention"><span class="brackets"><a class="fn-backref" href="#id1">NLP-LM4</a></span></dt>
+<dd><p>Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. In <em>Advances in neural information processing systems</em>, 5998–6008. 2017.</p>
+</dd>
+</dl>
+</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="ner.html" class="btn btn-neutral float-right" title="教程" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="bert_pretraining.html" class="btn btn-neutral float-left" title="BERT预训练" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

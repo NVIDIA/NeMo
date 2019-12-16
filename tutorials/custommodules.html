@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>How to build Neural Module &mdash; nemo 0.8.2 documentation</title>
+  <title>How to build Neural Module &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -93,7 +93,7 @@
 <li class="toctree-l2"><a class="reference internal" href="neuraltypes.html">Neural Types</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">How to build Neural Module</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#trainable-module">Trainable Module</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#define-module-from-scratch">Define module from scratch</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#defining-a-module-from-scratch">Defining a module from scratch</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#example-1">Example 1</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#converting-from-pytorch-s-nn-module">Converting from PyTorch’s nn.Module</a></li>
 </ul>
@@ -116,8 +116,10 @@
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -188,7 +190,7 @@
 <h1>How to build Neural Module<a class="headerlink" href="#how-to-build-neural-module" title="Permalink to this headline">¶</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Currently, NeMo only support PyTorch as a backend.</p>
+<p>Currently, NeMo only supports PyTorch as a backend.</p>
 </div>
 <p>Neural Modules can be conceptually classified into 4 potentially overlapping categories:</p>
 <ul class="simple">
@@ -201,7 +203,7 @@
 <li><p><strong>Non Trainable Modules</strong> - non-trainable module, for example, table lookup, data augmentation, greedy decoder, etc. Inherit from
 <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM" title="nemo.backends.pytorch.nm.NonTrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">NonTrainableNM</span></code></a> class.</p></li>
 </ul>
-<p>In Figure below you can see a class inheritance diagram for these helper classes.</p>
+<p>In the figure below you can see a class inheritance diagram for these helper classes.</p>
 <div class="figure align-default" id="id2">
 <img alt="map to buried treasure" src="../_images/nm_class_structure.png" />
 <p class="caption"><span class="caption-text">Inheritance class diagram. Provided API’s classes are in green. Red classes are to be implemented by user.</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
@@ -213,8 +215,8 @@
 <p>Notice that <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code></a> class
 has two base classes: <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a> class and <code class="docutils literal notranslate"><span class="pre">torch.nn.Module</span></code>.</p>
 </div>
-<div class="section" id="define-module-from-scratch">
-<h3>Define module from scratch<a class="headerlink" href="#define-module-from-scratch" title="Permalink to this headline">¶</a></h3>
+<div class="section" id="defining-a-module-from-scratch">
+<h3>Defining a module from scratch<a class="headerlink" href="#defining-a-module-from-scratch" title="Permalink to this headline">¶</a></h3>
 <ol class="arabic simple">
 <li><p>Inherit from <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code></a> class.</p></li>
 <li><p>Create the <code class="docutils literal notranslate"><span class="pre">create_ports()</span></code> static method that defines your input and output ports.
@@ -264,6 +266,9 @@ constructor as part of the <code class="docutils literal notranslate"><span clas
         <span class="bp">self</span><span class="o">.</span><span class="n">_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_parameters</span><span class="p">[</span><span class="s2">&quot;dim&quot;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">fc1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dim</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="n">t</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_uniform_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fc1</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">device</span><span class="p">(</span>
+            <span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">placement</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
 
     <span class="c1"># IMPORTANT: input arguments to forward must match input input ports&#39; names</span>
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
@@ -279,10 +284,10 @@ constructor as part of the <code class="docutils literal notranslate"><span clas
 <div class="section" id="converting-from-pytorch-s-nn-module">
 <h3>Converting from PyTorch’s nn.Module<a class="headerlink" href="#converting-from-pytorch-s-nn-module" title="Permalink to this headline">¶</a></h3>
 <ol class="arabic simple">
-<li><p>If you already have PyTorch class which inherits from <code class="docutils literal notranslate"><span class="pre">torch.nn.Module</span></code>, replace that inheritance with inheritance from
+<li><p>If you already have a PyTorch class which inherits from <code class="docutils literal notranslate"><span class="pre">torch.nn.Module</span></code>, replace that inheritance with inheritance from
 <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code></a> class.</p></li>
 <li><p>Create the <code class="docutils literal notranslate"><span class="pre">create_ports()</span></code> static method</p></li>
-<li><p>Modify your constructor to call base class constructor first.</p></li>
+<li><p>Modify your constructor to call the base class constructor first.</p></li>
 </ol>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyNeuralModule</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
     <span class="nd">@staticmethod</span>
@@ -307,11 +312,11 @@ constructor as part of the <code class="docutils literal notranslate"><span clas
 <li><p>Implement <code class="docutils literal notranslate"><span class="pre">__len__</span></code> method to return dataset size.</p></li>
 <li><p>Implement either the <code class="docutils literal notranslate"><span class="pre">dataset</span></code> or <code class="docutils literal notranslate"><span class="pre">data_iterator</span></code> property to return a PyTorch Dataset object or an iterator over your dataset, respectively. (The unused property should return None.)</p></li>
 </ol>
-<p>When implementing constructor, you should first call base class constructor and
+<p>When implementing the constructor, you should first call the base class constructor and
 define <em>output ports only</em> in create_ports().  Also, module should accept
 parameters such as <code class="docutils literal notranslate"><span class="pre">batch_size</span></code> and <code class="docutils literal notranslate"><span class="pre">shuffle</span></code>.</p>
-<p>If under the hood you are using <code class="docutils literal notranslate"><span class="pre">torch.utils.data.Dataset</span></code> class (<em>recommended approach</em>), then you can implement the <code class="docutils literal notranslate"><span class="pre">dataset</span></code> property, and a DataLoader will be created for you.
-(See example below).</p>
+<p>If you are using <code class="docutils literal notranslate"><span class="pre">torch.utils.data.Dataset</span></code> class (<em>recommended approach</em>), then you can implement the <code class="docutils literal notranslate"><span class="pre">dataset</span></code> property, and a DataLoader will be created for you.
+Here is an example:</p>
 <div class="section" id="example">
 <h3>Example<a class="headerlink" href="#example" title="Permalink to this headline">¶</a></h3>
 <p>This example wraps PyTorch’s <em>ImageFolder</em> dataset into a neural module data layer.</p>
@@ -420,7 +425,7 @@ parameters such as <code class="docutils literal notranslate"><span class="pre">
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>NVIDIA Neural Modules: NeMo &mdash; nemo 0.8.2 documentation</title>
+  <title>NVIDIA Neural Modules Developer Guide &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -59,7 +59,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -90,8 +90,10 @@
 <li class="toctree-l1"><a class="reference internal" href="training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="asr/intro.html">Speech Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -137,7 +139,7 @@
     
       <li><a href="#">Docs</a> &raquo;</li>
         
-      <li>NVIDIA Neural Modules: NeMo</li>
+      <li>NVIDIA Neural Modules Developer Guide</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -156,14 +158,14 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="nvidia-neural-modules-nemo">
-<h1>NVIDIA Neural Modules: NeMo<a class="headerlink" href="#nvidia-neural-modules-nemo" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="nvidia-neural-modules-developer-guide">
+<h1>NVIDIA Neural Modules Developer Guide<a class="headerlink" href="#nvidia-neural-modules-developer-guide" title="Permalink to this headline">¶</a></h1>
 <div class="toctree-wrapper compound">
 </div>
 <p>Neural Modules (NeMo) is a framework-agnostic toolkit for building AI applications powered by Neural Modules. Current support is for PyTorch framework.</p>
 <p>A “Neural Module” is a block of code that computes a set of outputs from a set of inputs.</p>
 <p>Neural Modules’ inputs and outputs have Neural Type for semantic checking.</p>
-<p>An application built with NeMo application is a Directed Acyclic Graph (DAG) of connected modules enabling researchers to define and build new speech and nlp networks easily through API Compatible modules.</p>
+<p>An application built with NeMo is a Directed Acyclic Graph (DAG) of connected modules enabling researchers to define and build new speech and nlp networks easily through API Compatible modules.</p>
 <p><strong>Introduction</strong></p>
 <p>See this video for a walk-through.</p>
 <div>
@@ -185,24 +187,33 @@
 </ol>
 <p><strong>Getting started</strong></p>
 <p>You can use NVIDIA <a class="reference external" href="https://ngc.nvidia.com/catalog/containers/nvidia:pytorch">NGC PyTorch container</a> which already includes all the requirements above.</p>
-<ul class="simple">
-<li><p>Pull the docker: <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">pull</span> <span class="pre">nvcr.io/nvidia/pytorch:19.10-py3</span></code></p></li>
-<li><p>Run: <code class="docutils literal notranslate"><span class="pre">nvidia-docker</span> <span class="pre">run</span> <span class="pre">-it</span> <span class="pre">--rm</span> <span class="pre">-v</span> <span class="pre">&lt;nemo_github_folder&gt;:/NeMo</span> <span class="pre">--shm-size=1g</span> <span class="pre">-p</span> <span class="pre">8888:8888</span> <span class="pre">-p</span> <span class="pre">6006:6006</span> <span class="pre">--ulimit</span> <span class="pre">memlock=-1</span> <span class="pre">--ulimit</span> <span class="pre">stack=67108864</span> <span class="pre">nvcr.io/nvidia/pytorch:19.10-py3</span></code></p></li>
-<li><p>(If your docker version is &gt;=19.03) Run: <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">run</span> <span class="pre">--runtime=nvidia</span> <span class="pre">-it</span> <span class="pre">--rm</span> <span class="pre">-v</span> <span class="pre">&lt;nemo_github_folder&gt;:/NeMo</span> <span class="pre">--shm-size=1g</span> <span class="pre">-p</span> <span class="pre">8888:8888</span> <span class="pre">-p</span> <span class="pre">6006:6006</span> <span class="pre">--ulimit</span> <span class="pre">memlock=-1</span> <span class="pre">--ulimit</span> <span class="pre">stack=67108864</span> <span class="pre">nvcr.io/nvidia/pytorch:19.10-py3</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">cd</span> <span class="pre">/NeMo</span></code></p></li>
-</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Pull the docker</span>
+docker pull nvcr.io/nvidia/pytorch:19.10-py3
+
+<span class="c1"># Do one of the two following commands</span>
+<span class="c1"># Run Docker for docker version &lt;19.03</span>
+nvidia-docker run -it --rm -v &lt;nemo_github_folder&gt;:/NeMo --shm-size<span class="o">=</span>1g -p <span class="m">8888</span>:8888 -p <span class="m">6006</span>:6006 --ulimit <span class="nv">memlock</span><span class="o">=</span>-1 --ulimit <span class="nv">stack</span><span class="o">=</span><span class="m">67108864</span> nvcr.io/nvidia/pytorch:19.10-py3
+
+<span class="c1"># Run Docker for docker version &gt;=19.03</span>
+docker run --runtime<span class="o">=</span>nvidia -it --rm -v &lt;nemo_github_folder&gt;:/NeMo --shm-size<span class="o">=</span>1g -p <span class="m">8888</span>:8888 -p <span class="m">6006</span>:6006 --ulimit <span class="nv">memlock</span><span class="o">=</span>-1 --ulimit <span class="nv">stack</span><span class="o">=</span><span class="m">67108864</span> nvcr.io/nvidia/pytorch:19.10-py3
+
+<span class="nb">cd</span> /NeMo
+</pre></div>
+</div>
 <p>and then continue with the following steps.</p>
 <p>If you have all requirements installed (or are using <a class="reference external" href="https://ngc.nvidia.com/catalog/containers/nvidia:pytorch">NGC PyTorch container</a> ),
 then you can simply use pip to install the latest released version (<strong>currently 0.8.2</strong>) of NeMo and its collections:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip install nemo-toolkit  <span class="c1"># installs NeMo Core</span>
 pip install nemo-asr <span class="c1"># installs NeMo ASR collection</span>
 pip install nemo-nlp <span class="c1"># installs NeMo NLP collection</span>
+pip install nemo-tts <span class="c1"># installs NeMo TTS collection</span>
 </pre></div>
 </div>
 <p><strong>Tutorials</strong></p>
 <ul class="simple">
 <li><p><a class="reference external" href="https://nvidia.github.io/NeMo/asr/intro.html">Speech recognition</a></p></li>
 <li><p><a class="reference external" href="https://nvidia.github.io/NeMo/nlp/intro.html">Natural language processing</a></p></li>
+<li><p><a class="reference external" href="https://nvidia.github.io/NeMo/tts/intro.html">Speech synthesis</a></p></li>
 </ul>
 <p><strong>Installing From Github</strong></p>
 <p>If you prefer to use NeMo’s latest development version (from GitHub) follow the steps below:</p>
@@ -225,6 +236,10 @@ pip install .
 
 <span class="c1"># Install the NLP collection from collections/nemo_nlp</span>
 <span class="nb">cd</span> NeMo/collections/nemo_nlp
+pip install .
+
+<span class="c1"># Install the TTS collection from collections/nemo_tts</span>
+<span class="nb">cd</span> NeMo/collections/nemo_tts
 pip install .
 </pre></div>
 </div>
@@ -254,7 +269,7 @@ python -m unittest tests/*.py
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

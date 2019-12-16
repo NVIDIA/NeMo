@@ -1,0 +1,426 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>教程 &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="教程" href="joint_intent_slot_filling.html" />
+    <link rel="prev" title="Transformer语言模型" href="transformer_language_model.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">自然语言处理</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="intro.html#nmt">神经网络机器翻译 (NMT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#bert">BERT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#transformer">Transformer语言模型</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="intro.html#ner">命名实体识别 (NER)</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">教程</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id2">简介</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id3">下载数据集</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id4">训练</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#bert">使用脚本训练新的 BERT 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id5">使用其它的 BERT 模型</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#bertx2">用 BERTx2 后处理模型来提升语音识别性能</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">自然语言处理</a> &raquo;</li>
+        
+      <li>教程</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/nlp/ner.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="id1">
+<h1>教程<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h1>
+<p>在教程前，请确认你已经安装了 <code class="docutils literal notranslate"><span class="pre">nemo</span></code> 和 <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> 。你可以通过这个部分获得更多的信息 <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">如何安装</span></a></p>
+<div class="section" id="id2">
+<h2>简介<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<p>这个教程将介绍如何在NeMo中，实现命名实体识别(Named Entity Recognition, NER)。我们将通过一个预训练好的 BERT 模型来进行展示，或者你也可以使用一个训练好的模型！你可以通过 BERT 预训练教程获得更多的信息。</p>
+</div>
+<div class="section" id="id3">
+<h2>下载数据集<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
+<p><a class="reference external" href="https://www.clips.uantwerpen.be/conll2003/ner/">CoNLL-2003</a> 是一个NER上标准的验证集合，当然任何一个NER数据集合都可以。数据集合被拆分成两个文件 text.txt 和 labels.txt。text.txt 需要满足的格式为：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>Jennifer is from New York City .
+She likes ...
+...
+</pre></div>
+</div>
+<p>labels.txt 需要满足的格式为：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>B-PER O O B-LOC I-LOC I-LOC O
+O O ...
+...
+</pre></div>
+</div>
+<p>text.txt 每一行包含文本序列，其中词以空格来进行分隔。label.txt 中包含 text.txt 中每个词的标注，标注以空格分隔。文件中的每一行需要符合如下格式：
+[WORD] [SPACE] [WORD] [SPACE] [WORD] (在 text.txt 中) 和 [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (在 labels.txt中)。</p>
+</div>
+<div class="section" id="id4">
+<h2>训练<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h2>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>我们建议试试使用Jupyter来运行这部分代码，这会使得调试更加容易!
+详见 examples/nlp/NERWithBERT.ipynb</p>
+</div>
+<p>首先，我们需要使用所支持的后端，来创建我们的 <cite>Neural Factory</cite> 。你需要确认使用多GPU或者混合精度训练。这个教程中我们使用单GPU训练，不使用混合精度(<code class="docutils literal notranslate"><span class="pre">optimization_level=&quot;O0&quot;</span></code>)。如果你想使用混合精度训练，需要设置 <code class="docutils literal notranslate"><span class="pre">amp_opt_level</span></code> 这个参数为 <code class="docutils literal notranslate"><span class="pre">O1</span></code> 或者 <code class="docutils literal notranslate"><span class="pre">O2</span></code> 。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
+                                   <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+                                   <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
+                                   <span class="n">log_dir</span><span class="o">=</span><span class="n">work_dir</span><span class="p">,</span>
+                                   <span class="n">create_tb_writer</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                                   <span class="n">files_to_copy</span><span class="o">=</span><span class="p">[</span><span class="vm">__file__</span><span class="p">])</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>接着，我们需要定义我们的分词器 (tokenizer) 和 BERT 模型。你可以有多种方式来实现。注意，NER是大小写敏感的（”New York City”比”new york city”更容易被识别出来），所以我们建议使用区分大小写的模型。</p>
+<p>如果你正在使用一个标准的 BERT 模型，我们建议你使用下面这条命令。想获取完整的 BERT 列表，可以参考 <code class="docutils literal notranslate"><span class="pre">nemo_nlp.huggingface.BERT.list_pretrained_models()</span></code> 。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">NemoBertTokenizer</span><span class="p">(</span><span class="n">pretrained_model</span><span class="o">=</span><span class="s2">&quot;bert-base-cased&quot;</span><span class="p">)</span>
+<span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span>
+    <span class="n">pretrained_model_name</span><span class="o">=</span><span class="s2">&quot;bert-base-cased&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>查看 examples/nlp/token_classification.py 文件来获取如何使用自己预训练好的模型。
+现在，创建训练和验证数据集合:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">train_data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">BertTokenClassificationDataLayer</span><span class="p">(</span>
+    <span class="n">dataset_type</span><span class="o">=</span><span class="s2">&quot;BertCornellNERDataset&quot;</span><span class="p">,</span>
+    <span class="n">tokenizer</span><span class="o">=</span><span class="n">tokenizer</span><span class="p">,</span>
+    <span class="n">input_file</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">DATA_DIR</span><span class="p">,</span> <span class="s2">&quot;train.txt&quot;</span><span class="p">),</span>
+    <span class="n">max_seq_length</span><span class="o">=</span><span class="n">MAX_SEQ_LENGTH</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">BATCH_SIZE</span><span class="p">)</span>
+
+<span class="n">eval_data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">BertTokenClassificationDataLayer</span><span class="p">(</span>
+    <span class="n">dataset_type</span><span class="o">=</span><span class="s2">&quot;BertCornellNERDataset&quot;</span><span class="p">,</span>
+    <span class="n">tokenizer</span><span class="o">=</span><span class="n">tokenizer</span><span class="p">,</span>
+    <span class="n">input_file</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">DATA_DIR</span><span class="p">,</span> <span class="s2">&quot;dev.txt&quot;</span><span class="p">),</span>
+    <span class="n">max_seq_length</span><span class="o">=</span><span class="n">MAX_SEQ_LENGTH</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">BATCH_SIZE</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>接着，我们需要在预先训练好的模型上，创建分类器并定义损失函数:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">label_ids</span> <span class="o">=</span> <span class="n">train_data_layer</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">label_ids</span>
+<span class="n">num_classes</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">label_ids</span><span class="p">)</span>
+
+<span class="n">hidden_size</span> <span class="o">=</span> <span class="n">bert_model</span><span class="o">.</span><span class="n">local_parameters</span><span class="p">[</span><span class="s2">&quot;hidden_size&quot;</span><span class="p">]</span>
+<span class="n">ner_classifier</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TokenClassifier</span><span class="p">(</span><span class="n">hidden_size</span><span class="o">=</span><span class="n">hidden_size</span><span class="p">,</span>
+                                      <span class="n">num_classes</span><span class="o">=</span><span class="n">num_classes</span><span class="p">,</span>
+                                      <span class="n">dropout</span><span class="o">=</span><span class="n">CLASSIFICATION_DROPOUT</span><span class="p">)</span>
+
+<span class="n">ner_loss</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TokenClassificationLoss</span><span class="p">(</span><span class="n">d_model</span><span class="o">=</span><span class="n">hidden_size</span><span class="p">,</span>
+                                        <span class="n">num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">label_ids</span><span class="p">),</span>
+                                        <span class="n">dropout</span><span class="o">=</span><span class="n">CLASSIFICATION_DROPOUT</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>现在，创建训练和验证集合:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">input_ids</span><span class="p">,</span> <span class="n">input_type_ids</span><span class="p">,</span> <span class="n">input_mask</span><span class="p">,</span> <span class="n">loss_mask</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">train_data_layer</span><span class="p">()</span>
+
+<span class="n">hidden_states</span> <span class="o">=</span> <span class="n">bert_model</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">input_ids</span><span class="p">,</span>
+                       <span class="n">token_type_ids</span><span class="o">=</span><span class="n">input_type_ids</span><span class="p">,</span>
+                       <span class="n">attention_mask</span><span class="o">=</span><span class="n">input_mask</span><span class="p">)</span>
+
+<span class="n">logits</span> <span class="o">=</span> <span class="n">ner_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="n">ner_loss</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">logits</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">loss_mask</span><span class="o">=</span><span class="n">loss_mask</span><span class="p">)</span>
+
+
+<span class="n">eval_input_ids</span><span class="p">,</span> <span class="n">eval_input_type_ids</span><span class="p">,</span> <span class="n">eval_input_mask</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">eval_subtokens_mask</span><span class="p">,</span> <span class="n">eval_labels</span> \
+<span class="o">=</span> <span class="n">eval_data_layer</span><span class="p">()</span>
+
+<span class="n">hidden_states</span> <span class="o">=</span> <span class="n">bert_model</span><span class="p">(</span>
+    <span class="n">input_ids</span><span class="o">=</span><span class="n">eval_input_ids</span><span class="p">,</span>
+    <span class="n">token_type_ids</span><span class="o">=</span><span class="n">eval_input_type_ids</span><span class="p">,</span>
+    <span class="n">attention_mask</span><span class="o">=</span><span class="n">eval_input_mask</span><span class="p">)</span>
+
+<span class="n">eval_logits</span> <span class="o">=</span> <span class="n">ner_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">train_tensors</span><span class="p">,</span> <span class="n">train_loss</span><span class="p">,</span> <span class="n">steps_per_epoch</span><span class="p">,</span> <span class="n">label_ids</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">()</span>
+<span class="n">eval_tensors</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">data_layer</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s1">&#39;dev&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>现在，我们设置3个回调函数：</p>
+<ul class="simple">
+<li><p><cite>SimpleLossLoggerCallback</cite> 打印出训练过程中的损失函数值</p></li>
+<li><p><cite>EvaluatorCallback</cite> 来验证我们dev集合上F1的值。在这个例子中， <cite>EvaluatorCallback</cite> 也会打印出 <cite>output.txt</cite> 上的预测值，这有利于找出模型哪个部分出了问题。</p></li>
+<li><p><cite>CheckpointCallback</cite> 用于保存和读取checkpoints.</p></li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><a class="reference external" href="https://www.tensorflow.org/tensorboard">Tensorboard</a> 是一个非常好用的调试工具。它在本教程中不是一个必须安装的工具，如果你想使用的话，需要先安装 <a class="reference external" href="https://github.com/lanpa/tensorboardX">tensorboardX</a> 接着在微调过程中使用如下的命令：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tensorboard --logdir bert_ner_tb
+</pre></div>
+</div>
+</div>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">callback_train</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
+    <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">loss</span><span class="p">],</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Loss: {:.3f}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())))</span>
+
+<span class="n">train_data_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">train_data_layer</span><span class="p">)</span>
+
+<span class="c1"># 如果你在使用多 GPU 训练，需要把这里改成</span>
+<span class="c1"># train_data_size / (batch_size * batches_per_step * num_gpus)</span>
+<span class="n">steps_per_epoch</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">train_data_size</span> <span class="o">/</span> <span class="p">(</span><span class="n">BATCHES_PER_STEP</span> <span class="o">*</span> <span class="n">BATCH_SIZE</span><span class="p">))</span>
+
+<span class="n">callback_eval</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span>
+    <span class="n">eval_tensors</span><span class="o">=</span><span class="p">[</span><span class="n">eval_logits</span><span class="p">,</span> <span class="n">eval_labels</span><span class="p">,</span> <span class="n">eval_subtokens_mask</span><span class="p">],</span>
+    <span class="n">user_iter_callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">eval_iter_callback</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span>
+    <span class="n">user_epochs_done_callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">eval_epochs_done_callback</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">label_ids</span><span class="p">),</span>
+    <span class="n">eval_step</span><span class="o">=</span><span class="n">steps_per_epoch</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>最后，我们需要定义学习率规则和优化器，并且开始训练：</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">lr_policy</span> <span class="o">=</span> <span class="n">WarmupAnnealing</span><span class="p">(</span><span class="n">NUM_EPOCHS</span> <span class="o">*</span> <span class="n">steps_per_epoch</span><span class="p">,</span>
+                    <span class="n">warmup_ratio</span><span class="o">=</span><span class="n">LR_WARMUP_PROPORTION</span><span class="p">)</span>
+
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
+         <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">train_callback</span><span class="p">,</span> <span class="n">eval_callback</span><span class="p">],</span>
+         <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy</span><span class="p">,</span>
+         <span class="n">optimizer</span><span class="o">=</span><span class="n">OPTIMIZER</span><span class="p">,</span>
+         <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">NUM_EPOCHS</span><span class="p">,</span>
+                              <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">LEARNING_RATE</span><span class="p">})</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<div class="section" id="bert">
+<h2>使用脚本训练新的 BERT 模型<a class="headerlink" href="#bert" title="Permalink to this headline">¶</a></h2>
+<p>运行如下训练脚本:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python token_classification.py --data_dir /data/ner/ --work_dir output_ner
+</pre></div>
+</div>
+<p>测试:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python token_classification_infer.py --labels_dict /data/ner/label_ids.csv
+--work_dir output_ner/checkpoints/
+</pre></div>
+</div>
+<p>注意，这里会在训练过程中，到 data_dir 目录下生成 label_ids.csv 文件。</p>
+</div>
+<div class="section" id="id5">
+<h2>使用其它的 BERT 模型<a class="headerlink" href="#id5" title="Permalink to this headline">¶</a></h2>
+<p>除了可以使用谷歌提供的预训练 BERT 模型和你自己训练的模型外，在NeMo中，也可以使用来自第三方的BERT模型，只要这个模型的参数可以加载到PyTorch中即可。例如，如果你想使用 <a class="reference external" href="https://github.com/allenai/scibert">SciBERT</a> 来微调：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wget https://s3-us-west-2.amazonaws.com/ai2-s2-research/scibert/pytorch_models/scibert_scivocab_cased.tar
+tar -xf scibert_scivocab_cased.tar
+<span class="nb">cd</span> scibert_scivocab_cased
+tar -xzf weights.tar.gz
+mv bert_config.json config.json
+<span class="nb">cd</span> ..
+</pre></div>
+</div>
+<p>接着，当你加载你的 BERT 模型，你需要指定模型所在的目录名：</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">NemoBertTokenizer</span><span class="p">(</span><span class="n">pretrained_model</span><span class="o">=</span><span class="s2">&quot;scibert_scivocab_cased&quot;</span><span class="p">)</span>
+<span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span>
+    <span class="n">pretrained_model_name</span><span class="o">=</span><span class="s2">&quot;scibert_scivocab_cased&quot;</span><span class="p">,</span>
+    <span class="n">factory</span><span class="o">=</span><span class="n">neural_factory</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>如果你想使用 TensorFlow 训练好的模型，例如 BioBERT ，你需要首先使用 Hugging Face 提供的 <a class="reference external" href="https://github.com/huggingface/pytorch-transformers/blob/master/pytorch_transformers/convert_tf_checkpoint_to_pytorch.py">model conversion script</a> 进行模型转换，再在 NeMo 中使用这个模型。</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="joint_intent_slot_filling.html" class="btn btn-neutral float-right" title="教程" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="transformer_language_model.html" class="btn btn-neutral float-left" title="Transformer语言模型" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

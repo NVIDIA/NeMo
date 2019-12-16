@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Tutorial &mdash; nemo 0.8.2 documentation</title>
+  <title>Tutorial &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -35,7 +35,7 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="NeMo Collections API" href="../collections/modules.html" />
+    <link rel="next" title="Speech Synthesis" href="../tts/intro.html" />
     <link rel="prev" title="Tutorial" href="joint_intent_slot_filling.html" /> 
 </head>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -109,8 +109,10 @@
 </li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -180,11 +182,13 @@
   <div class="section" id="tutorial">
 <h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
 <p>In this tutorial we will train an ASR postprocessing model to correct mistakes in
-output of end-to-end speech recognition model. This model method works similar to translation model in contrast to traditional ASR language model rescoring. The model architecture is attention based encoder-decoder where both encoder and decoder are initialized with pretrained BERT language model. To train this model we collected dataset with typical ASR errors by using pretrained Jasper ASR model <a class="bibtex reference internal" href="#li2019jasper" id="id1">[1]</a>.</p>
+output of end-to-end speech recognition model. This model method works similar to translation model in contrast to traditional ASR language model rescoring.
+The model architecture is attention based encoder-decoder where both encoder and decoder are initialized with pretrained BERT language model.
+To train this model we collected dataset with typical ASR errors by using pretrained Jasper ASR model <a class="reference internal" href="#asr-imps-li2019jasper" id="id1">[ASR-IMPROVEMENTS3]</a>.</p>
 <div class="section" id="data">
 <h2>Data<a class="headerlink" href="#data" title="Permalink to this headline">¶</a></h2>
 <p><strong>Data collection.</strong> We collected dataset for this tutorial with Jasper ASR model
-<a class="bibtex reference internal" href="#li2019jasper" id="id2">[1]</a> trained on Librispeech dataset <a class="bibtex reference internal" href="#panayotov2015librispeech" id="id3">[3]</a>.
+<a class="reference internal" href="#asr-imps-li2019jasper" id="id2">[ASR-IMPROVEMENTS3]</a> trained on Librispeech dataset <a class="reference internal" href="#asr-imps-panayotov2015librispeech" id="id3">[ASR-IMPROVEMENTS4]</a>.
 To download the Librispeech dataset, see <a class="reference internal" href="../asr/datasets.html#librispeech-dataset"><span class="std std-ref">LibriSpeech</span></a>.
 To obtain the pretrained Jasper model, see <a class="reference internal" href="../asr/jasper.html#jasper-model"><span class="std std-ref">Jasper</span></a>.
 Librispeech training dataset consists of three parts: train-clean-100, train-clean-360, and train-clean-500 which give 281k training examples in total.
@@ -204,7 +208,10 @@ for evaluation in our tutorial.</p>
 </div>
 <div class="section" id="importing-parameters-from-pretrained-bert">
 <h2>Importing parameters from pretrained BERT<a class="headerlink" href="#importing-parameters-from-pretrained-bert" title="Permalink to this headline">¶</a></h2>
-<p>Both encoder and decoder are initialized with pretrained BERT parameters. Since BERT language model has the same architecture as transformer encoder, there is no need to do anything additional. To prepare decoder parameters from pretrained BERT we wrote a script <code class="docutils literal notranslate"><span class="pre">get_decoder_params_from_bert.py</span></code> that downloads BERT parameters from the <code class="docutils literal notranslate"><span class="pre">pytorch-transformers</span></code> repository <a class="bibtex reference internal" href="#huggingface2019transformers" id="id4">[1]</a> and maps them into a transformer decoder.
+<p>Both encoder and decoder are initialized with pretrained BERT parameters.
+Since BERT language model has the same architecture as transformer encoder, there is no need to do anything additional.
+To prepare decoder parameters from pretrained BERT we wrote a script <code class="docutils literal notranslate"><span class="pre">get_decoder_params_from_bert.py</span></code> that downloads BERT
+parameters from the <code class="docutils literal notranslate"><span class="pre">pytorch-transformers</span></code> repository <a class="reference internal" href="#asr-imps-huggingface2019transformers" id="id4">[ASR-IMPROVEMENTS1]</a> and maps them into a transformer decoder.
 Encoder-decoder attention is initialized with self-attention parameters.
 The script is located under <code class="docutils literal notranslate"><span class="pre">scripts</span></code> directory and accepts 2 arguments:</p>
 <ul>
@@ -220,7 +227,8 @@ The script is located under <code class="docutils literal notranslate"><span cla
 </div>
 <div class="section" id="neural-modules-overview">
 <h2>Neural modules overview<a class="headerlink" href="#neural-modules-overview" title="Permalink to this headline">¶</a></h2>
-<p>First, as with all models built in NeMo, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level, 3) local rank of the GPU, and 4) an experiment manager that creates a timestamped folder to store checkpoints, relevant outputs, log files, and TensorBoard graphs.</p>
+<p>First, as with all models built in NeMo, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level, 3)
+local rank of the GPU, and 4) an experiment manager that creates a timestamped folder to store checkpoints, relevant outputs, log files, and TensorBoard graphs.</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
                 <span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
@@ -263,7 +271,8 @@ by 8 will help to get the best GPU utilization and speed-up with mixed precision
 </pre></div>
 </div>
 </div></blockquote>
-<p>Next, we construct transformer decoder neural module. Since we will be initializing decoder with pretrained BERT parameters, we set hidden activation to <code class="docutils literal notranslate"><span class="pre">&quot;hidden_act&quot;:</span> <span class="pre">&quot;gelu&quot;</span></code> and learn positional encodings <code class="docutils literal notranslate"><span class="pre">&quot;learn_positional_encodings&quot;:</span> <span class="pre">True</span></code>:</p>
+<p>Next, we construct transformer decoder neural module. Since we will be initializing decoder with pretrained BERT parameters, we set hidden activation to <code class="docutils literal notranslate"><span class="pre">&quot;hidden_act&quot;:</span> <span class="pre">&quot;gelu&quot;</span></code> and
+learn positional encodings <code class="docutils literal notranslate"><span class="pre">&quot;learn_positional_encodings&quot;:</span> <span class="pre">True</span></code>:</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">decoder</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TransformerDecoderNM</span><span class="p">(</span>
     <span class="n">d_model</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">d_model</span><span class="p">,</span>
@@ -289,7 +298,9 @@ by 8 will help to get the best GPU utilization and speed-up with mixed precision
 </div>
 <div class="section" id="model-training">
 <h2>Model training<a class="headerlink" href="#model-training" title="Permalink to this headline">¶</a></h2>
-<p>To train the model run <code class="docutils literal notranslate"><span class="pre">asr_postprocessor.py.py</span></code> located in <code class="docutils literal notranslate"><span class="pre">examples/nlp</span></code> directory. We train with novograd optimizer <a class="bibtex reference internal" href="#ginsburg2019stochastic" id="id5">[2]</a>, learning rate <code class="docutils literal notranslate"><span class="pre">lr=0.001</span></code>, polynomial learning rate decay policy, <code class="docutils literal notranslate"><span class="pre">1000</span></code> warmup steps, per-gpu batch size of <code class="docutils literal notranslate"><span class="pre">4096*8</span></code> tokens, and <code class="docutils literal notranslate"><span class="pre">0.25</span></code> dropout probability. We trained on 8 GPUS. To launch the training in multi-gpu mode run the following command:</p>
+<p>To train the model run <code class="docutils literal notranslate"><span class="pre">asr_postprocessor.py.py</span></code> located in <code class="docutils literal notranslate"><span class="pre">examples/nlp</span></code> directory. We train with novograd optimizer <a class="reference internal" href="#asr-imps-ginsburg2019stochastic" id="id5">[ASR-IMPROVEMENTS2]</a>,
+learning rate <code class="docutils literal notranslate"><span class="pre">lr=0.001</span></code>, polynomial learning rate decay policy, <code class="docutils literal notranslate"><span class="pre">1000</span></code> warmup steps, per-gpu batch size of <code class="docutils literal notranslate"><span class="pre">4096*8</span></code> tokens, and <code class="docutils literal notranslate"><span class="pre">0.25</span></code> dropout probability.
+We trained on 8 GPUS. To launch the training in multi-gpu mode run the following command:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ python -m torch.distributed.launch --nproc_per_node<span class="o">=</span><span class="m">8</span>  asr_postprocessor.py --data_dir ../../tests/data/pred_real/ --restore_from ../../scripts/bert-base-uncased_decoder.pt
 </pre></div>
@@ -299,16 +310,16 @@ by 8 will help to get the best GPU utilization and speed-up with mixed precision
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
 <p id="bibtex-bibliography-nlp/asr-improvement-0"><dl class="citation">
-<dt class="bibtex label" id="huggingface2019transformers"><span class="brackets"><a class="fn-backref" href="#id4">1</a></span></dt>
+<dt class="label" id="asr-imps-huggingface2019transformers"><span class="brackets"><a class="fn-backref" href="#id4">ASR-IMPROVEMENTS1</a></span></dt>
 <dd><p>A library of state-of-the-art pretrained models for natural language processing (nlp). <span><a class="reference external" href="#"></a></span>https://github.com/huggingface/pytorch-transformers, Accessed August 23, 2019.</p>
 </dd>
-<dt class="bibtex label" id="ginsburg2019stochastic"><span class="brackets"><a class="fn-backref" href="#id5">2</a></span></dt>
+<dt class="label" id="asr-imps-ginsburg2019stochastic"><span class="brackets"><a class="fn-backref" href="#id5">ASR-IMPROVEMENTS2</a></span></dt>
 <dd><p>Boris Ginsburg, Patrice Castonguay, Oleksii Hrinchuk, Oleksii Kuchaiev, Vitaly Lavrukhin, Ryan Leary, Jason Li, Huyen Nguyen, and Jonathan M Cohen. Stochastic gradient methods with layer-wise adaptive moments for training of deep networks. <em>arXiv preprint arXiv:1905.11286</em>, 2019.</p>
 </dd>
-<dt class="bibtex label" id="li2019jasper"><span class="brackets">1</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id2">2</a>)</span></dt>
+<dt class="label" id="asr-imps-li2019jasper"><span class="brackets">ASR-IMPROVEMENTS3</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id2">2</a>)</span></dt>
 <dd><p>Jason Li, Vitaly Lavrukhin, Boris Ginsburg, Ryan Leary, Oleksii Kuchaiev, Jonathan M Cohen, Huyen Nguyen, and Ravi Teja Gadde. Jasper: an end-to-end convolutional neural acoustic model. <em>arXiv preprint arXiv:1904.03288</em>, 2019.</p>
 </dd>
-<dt class="bibtex label" id="panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
+<dt class="label" id="asr-imps-panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id3">ASR-IMPROVEMENTS4</a></span></dt>
 <dd><p>Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur. Librispeech: an asr corpus based on public domain audio books. In <em>2015 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)</em>, 5206–5210. IEEE, 2015.</p>
 </dd>
 </dl>
@@ -324,7 +335,7 @@ by 8 will help to get the best GPU utilization and speed-up with mixed precision
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../collections/modules.html" class="btn btn-neutral float-right" title="NeMo Collections API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="../tts/intro.html" class="btn btn-neutral float-right" title="Speech Synthesis" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="joint_intent_slot_filling.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
@@ -336,7 +347,7 @@ by 8 will help to get the best GPU utilization and speed-up with mixed precision
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

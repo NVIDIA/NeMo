@@ -1,0 +1,916 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>NeMo_TTS collection &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="NeMo_NLP collection" href="nemo_nlp.html" />
+    <link rel="prev" title="NeMo_ASR collection" href="nemo_asr.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">NeMo Collections API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="core.html">NeMo Common Collection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_asr.html">NeMo_ASR collection</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">NeMo_TTS collection</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#module-nemo_tts.data_layers">Speech data processing modules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-nemo_tts.tacotron2_modules">Tacotron 2 modules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-nemo_tts.waveglow_modules">Waveglow modules</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html">NeMo_NLP collection</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="modules.html">NeMo Collections API</a> &raquo;</li>
+        
+      <li>NeMo_TTS collection</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/collections/nemo_tts.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="nemo-tts-collection">
+<h1>NeMo_TTS collection<a class="headerlink" href="#nemo-tts-collection" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="module-nemo_tts.data_layers">
+<span id="speech-data-processing-modules"></span><h2>Speech data processing modules<a class="headerlink" href="#module-nemo_tts.data_layers" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="nemo_tts.data_layers.AudioDataLayer">
+<em class="property">class </em><code class="sig-prename descclassname">nemo_tts.data_layers.</code><code class="sig-name descname">AudioDataLayer</code><span class="sig-paren">(</span><em class="sig-param">*</em>, <em class="sig-param">manifest_filepath</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">min_duration=0.1</em>, <em class="sig-param">max_duration=None</em>, <em class="sig-param">trim_silence=False</em>, <em class="sig-param">drop_last=False</em>, <em class="sig-param">shuffle=True</em>, <em class="sig-param">num_workers=0</em>, <em class="sig-param">n_segments=0</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_tts/data_layers.html#AudioDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_tts.data_layers.AudioDataLayer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.DataLayerNM</span></code></a></p>
+<p>Data Layer for general speech tasks that loads only the audio.</p>
+<p>Module which reads speech data. It accepts comma-separated
+JSON manifest files describing the wav audio files and their metadata.
+JSON files should be of the following format:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="s2">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="n">path_to_wav_0</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">:</span> <span class="n">time_in_sec_0</span><span class="p">}</span>
+<span class="o">...</span>
+<span class="p">{</span><span class="s2">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="n">path_to_wav_n</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">:</span> <span class="n">time_in_sec_n</span><span class="p">}</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>manifest_filepath</strong> (<em>str</em>) – path to JSON containing data.</p></li>
+<li><p><strong>batch_size</strong> (<em>int</em>) – batch sizelse.</p></li>
+<li><p><strong>min_duration</strong> (<em>float</em>) – All training files which have a duration less
+than min_duration are dropped. Note: Duration is read from the
+manifest JSON.
+Defaults to 0.1.</p></li>
+<li><p><strong>max_duration</strong> (<em>float</em>) – All training files which have a duration more
+than max_duration are dropped. Note: Duration is read from the
+manifest JSON.
+Defaults to None.</p></li>
+<li><p><strong>trim_silence</strong> (<em>bool</em>) – Whether to use trim silence from beginning and end
+of audio signal using librosa.effects.trim().
+Defaults to False.</p></li>
+<li><p><strong>drop_last</strong> (<em>bool</em>) – See PyTorch DataLoader.
+Defaults to False.</p></li>
+<li><p><strong>shuffle</strong> (<em>bool</em>) – See PyTorch DataLoader.
+Defaults to True.</p></li>
+<li><p><strong>num_workers</strong> (<em>int</em>) – See PyTorch DataLoader.
+Defaults to 0.</p></li>
+<li><p><strong>n_segments</strong> (<em>int</em>) – Number of samples to load per audiofile.
+Defaults to 0 which indicates to load the whole file.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>audio_signal</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>a_sig_length</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="nemo_tts.data_layers.AudioDataLayer.data_iterator">
+<em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo_tts.data_layers.AudioDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
+<dd><p>“Iterator over the dataset. It is a good idea to return
+torch.utils.data.DataLoader here. Should implement either this or
+<cite>dataset</cite>.
+If this is implemented, <cite>dataset</cite> property should return None.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="nemo_tts.data_layers.AudioDataLayer.dataset">
+<em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo_tts.data_layers.AudioDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Should return an instance of torch.utils.data.Dataset. Should
+implement
+either this or <cite>data_iterator</cite>. If this is implemented, <cite>data_iterator</cite>
+should return None.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-nemo_tts.tacotron2_modules">
+<span id="tacotron-2-modules"></span><h2>Tacotron 2 modules<a class="headerlink" href="#module-nemo_tts.tacotron2_modules" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="nemo_tts.tacotron2_modules.MakeGate">
+<em class="property">class </em><code class="sig-prename descclassname">nemo_tts.tacotron2_modules.</code><code class="sig-name descname">MakeGate</code><span class="sig-paren">(</span><em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_tts/tacotron2_modules.html#MakeGate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_tts.tacotron2_modules.MakeGate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM" title="nemo.backends.pytorch.nm.NonTrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.NonTrainableNM</span></code></a></p>
+<p>MakeGate is a helper Neural Module that makes the target stop value.</p>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>target_len</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>mel_target</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.MelSpectrogramSignalTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>gate_target</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo_tts.tacotron2_modules.Tacotron2Decoder">
+<em class="property">class </em><code class="sig-prename descclassname">nemo_tts.tacotron2_modules.</code><code class="sig-name descname">Tacotron2Decoder</code><span class="sig-paren">(</span><em class="sig-param">n_mel_channels: int</em>, <em class="sig-param">n_frames_per_step: int = 1</em>, <em class="sig-param">encoder_embedding_dim: int = 512</em>, <em class="sig-param">gate_threshold: float = 0.5</em>, <em class="sig-param">prenet_dim: int = 256</em>, <em class="sig-param">max_decoder_steps: int = 1000</em>, <em class="sig-param">decoder_rnn_dim: int = 1024</em>, <em class="sig-param">p_decoder_dropout: float = 0.1</em>, <em class="sig-param">p_attention_dropout: float = 0.1</em>, <em class="sig-param">attention_rnn_dim: int = 1024</em>, <em class="sig-param">attention_dim: int = 128</em>, <em class="sig-param">attention_location_n_filters: int = 32</em>, <em class="sig-param">attention_location_kernel_size: int = 31</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_tts/tacotron2_modules.html#Tacotron2Decoder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_tts.tacotron2_modules.Tacotron2Decoder" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
+<p>Tacotron2Decoder implements the attention, decoder, and prenet parts of
+Tacotron 2. It takes the encoded text and produces mel spectrograms. The
+decoder contains two rnns, one is called the decoder rnn and the other is
+called the attention rnn.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_mel_channels</strong> (<em>int</em>) – The size or dimensionality of the mel spectrogram</p></li>
+<li><p><strong>n_frames_per_step</strong> (<em>int</em>) – The number of frames we predict at each
+decoder time step. Defaults to 1</p></li>
+<li><p><strong>encoder_embedding_dim</strong> (<em>int</em>) – The size of the encoded text.
+Defaults to 512.</p></li>
+<li><p><strong>gate_threshold</strong> (<em>float</em>) – A number in [0, 1). When teacher forcing is
+not used, the model predict a stopping value at each model time
+step. The model will stop if the value is greater than
+gate_threshold. Defaults to 0.5.</p></li>
+<li><p><strong>prenet_dim</strong> (<em>int</em>) – The hidden dimension of the prenet. Defaults to 256.</p></li>
+<li><p><strong>max_decoder_steps</strong> (<em>int</em>) – When not teacher forcing, the maximum number
+of frames to predict. Defaults to 1000.</p></li>
+<li><p><strong>decoder_rnn_dim</strong> (<em>int</em>) – The hidden dimension of the decoder rnn.
+Defaults to 1024.</p></li>
+<li><p><strong>p_decoder_dropout</strong> (<em>float</em>) – Dropout probability for the decoder rnn.
+Defaults to 0.1.</p></li>
+<li><p><strong>p_attention_dropout</strong> (<em>float</em>) – Dropout probability for the attention rnn.
+Defaults to 0.1.</p></li>
+<li><p><strong>attention_rnn_dim</strong> (<em>int</em>) – The hidden dimension of the attention rnn.
+Defaults to 1024.</p></li>
+<li><p><strong>attention_dim</strong> (<em>int</em>) – The hidden dimension of the attention mechanism.
+Defaults to 128.</p></li>
+<li><p><strong>attention_location_n_filters</strong> (<em>int</em>) – The number of convolution filters
+for the location part of the attention mechanism.
+Defaults to 32.</p></li>
+<li><p><strong>attention_location_kernel_size</strong> (<em>int</em>) – The kernel size of the
+convolution for the location part of the attention mechanism.
+Defaults to 31.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>char_phone_encoded</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.EncodedRepresentationTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>encoded_length</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>mel_target</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.MelSpectrogramSignalTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>mel_output</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.MelSpectrogramSignalTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>gate_output</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>alignments</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo_tts.tacotron2_modules.Tacotron2DecoderInfer">
+<em class="property">class </em><code class="sig-prename descclassname">nemo_tts.tacotron2_modules.</code><code class="sig-name descname">Tacotron2DecoderInfer</code><span class="sig-paren">(</span><em class="sig-param">n_mel_channels: int</em>, <em class="sig-param">n_frames_per_step: int = 1</em>, <em class="sig-param">encoder_embedding_dim: int = 512</em>, <em class="sig-param">gate_threshold: float = 0.5</em>, <em class="sig-param">prenet_dim: int = 256</em>, <em class="sig-param">max_decoder_steps: int = 1000</em>, <em class="sig-param">decoder_rnn_dim: int = 1024</em>, <em class="sig-param">p_decoder_dropout: float = 0.1</em>, <em class="sig-param">p_attention_dropout: float = 0.1</em>, <em class="sig-param">attention_rnn_dim: int = 1024</em>, <em class="sig-param">attention_dim: int = 128</em>, <em class="sig-param">attention_location_n_filters: int = 32</em>, <em class="sig-param">attention_location_kernel_size: int = 31</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_tts/tacotron2_modules.html#Tacotron2DecoderInfer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_tts.tacotron2_modules.Tacotron2DecoderInfer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo_tts.tacotron2_modules.Tacotron2Decoder" title="nemo_tts.tacotron2_modules.Tacotron2Decoder"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo_tts.tacotron2_modules.Tacotron2Decoder</span></code></a></p>
+<p>Tacotron2DecoderInfer is an inference Neural Module used in place
+of the Tacotron2Decoder NM.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_mel_channels</strong> (<em>int</em>) – The size or dimensionality of the mel spectrogram</p></li>
+<li><p><strong>n_frames_per_step</strong> (<em>int</em>) – The number of frames we predict at each
+decoder time step. Defaults to 1</p></li>
+<li><p><strong>encoder_embedding_dim</strong> (<em>int</em>) – The size of the encoded text.
+Defaults to 512.</p></li>
+<li><p><strong>gate_threshold</strong> (<em>float</em>) – A number in [0, 1). When teacher forcing is
+not used, the model predict a stopping value at each model time
+step. The model will stop if the value is greater than
+gate_threshold. Defaults to 0.5.</p></li>
+<li><p><strong>prenet_dim</strong> (<em>int</em>) – The hidden dimension of the prenet. Defaults to 256.</p></li>
+<li><p><strong>max_decoder_steps</strong> (<em>int</em>) – When not teacher forcing, the maximum number
+of frames to predict. Defaults to 1000.</p></li>
+<li><p><strong>decoder_rnn_dim</strong> (<em>int</em>) – The hidden dimension of the decoder rnn.
+Defaults to 1024.</p></li>
+<li><p><strong>p_decoder_dropout</strong> (<em>float</em>) – Dropout probability for the decoder rnn.
+Defaults to 0.1.</p></li>
+<li><p><strong>p_attention_dropout</strong> (<em>float</em>) – Dropout probability for the attention rnn.
+Defaults to 0.1.</p></li>
+<li><p><strong>attention_rnn_dim</strong> (<em>int</em>) – The hidden dimension of the attention rnn.
+Defaults to 1024.</p></li>
+<li><p><strong>attention_dim</strong> (<em>int</em>) – The hidden dimension of the attention mechanism.
+Defaults to 128.</p></li>
+<li><p><strong>attention_location_n_filters</strong> (<em>int</em>) – The number of convolution filters
+for the location part of the attention mechanism.
+Defaults to 32.</p></li>
+<li><p><strong>attention_location_kernel_size</strong> (<em>int</em>) – The kernel size of the
+convolution for the location part of the attention mechanism.
+Defaults to 31.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>char_phone_encoded</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.EncodedRepresentationTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>encoded_length</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>mel_output</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.MelSpectrogramSignalTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>gate_output</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>alignments</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>mel_len</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo_tts.tacotron2_modules.Tacotron2Encoder">
+<em class="property">class </em><code class="sig-prename descclassname">nemo_tts.tacotron2_modules.</code><code class="sig-name descname">Tacotron2Encoder</code><span class="sig-paren">(</span><em class="sig-param">encoder_n_convolutions: int = 5</em>, <em class="sig-param">encoder_embedding_dim: int = 512</em>, <em class="sig-param">encoder_kernel_size: int = 3</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_tts/tacotron2_modules.html#Tacotron2Encoder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_tts.tacotron2_modules.Tacotron2Encoder" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
+<p>Tacotron2Encoder is the encoder part of Tacotron 2. It takes embedded text
+as input and creates an encoded representation of the text that can be used
+with downstream attention and decoders.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>encoder_n_convolutions</strong> (<em>int</em>) – The number of convolution layers inside
+the encoder. Defaults to 5.</p></li>
+<li><p><strong>encoder_embedding_dim</strong> (<em>int</em>) – The size of the embedded text. It will
+also be the output size of the encoded text. Defaults to 512.</p></li>
+<li><p><strong>encoder_kernel_size</strong> (<em>int</em>) – The kernel size of the convolution layers.
+Defaults to 3</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>char_phone_embeddings</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.EmbeddedTextTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>embedding_length</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>char_phone_encoded</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.EncodedRepresentationTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo_tts.tacotron2_modules.Tacotron2Loss">
+<em class="property">class </em><code class="sig-prename descclassname">nemo_tts.tacotron2_modules.</code><code class="sig-name descname">Tacotron2Loss</code><span class="sig-paren">(</span><em class="sig-param">pad_value: float = -11.52</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_tts/tacotron2_modules.html#Tacotron2Loss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_tts.tacotron2_modules.Tacotron2Loss" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.LossNM</span></code></a></p>
+<p>Tacoton2Loss implements the loss function of Tacotron 2. The loss function
+is the mean squared error between the reference mel spectrogram and the
+mel spectrogram predicted by the decoder + the mean squared error between
+the reference mel spectrogram and the mel spectrogram predicted by the
+post net + the cross entropy error between the stop values and the
+reference mel length.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>pad_value</strong> (<em>float</em>) – In the evaluation case, when we don’t use teacher
+forcing, if the generated mel is shorter than the reference mel,
+we pad the generated mel with this value. Default is ~log(1e-5).</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>mel_out</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.MelSpectrogramSignalTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>mel_out_postnet</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.MelSpectrogramSignalTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>gate_out</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>mel_target</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.MelSpectrogramSignalTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>gate_target</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>target_len</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>seq_len</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>loss</strong>:</p>
+<ul>
+<li><p>non-tensor object</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo_tts.tacotron2_modules.Tacotron2Postnet">
+<em class="property">class </em><code class="sig-prename descclassname">nemo_tts.tacotron2_modules.</code><code class="sig-name descname">Tacotron2Postnet</code><span class="sig-paren">(</span><em class="sig-param">n_mel_channels: int</em>, <em class="sig-param">postnet_embedding_dim: int = 512</em>, <em class="sig-param">postnet_kernel_size: int = 5</em>, <em class="sig-param">postnet_n_convolutions: int = 5</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_tts/tacotron2_modules.html#Tacotron2Postnet"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_tts.tacotron2_modules.Tacotron2Postnet" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
+<p>Tacotron2Postnet implements the postnet part of Tacotron 2. It takes a mel
+spectrogram as generated by the decoder and corrects errors within the
+generated mel spectrogram.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_mel_channels</strong> (<em>int</em>) – The size or dimensionality of the mel spectrogram</p></li>
+<li><p><strong>postnet_embedding_dim</strong> (<em>int</em>) – Hidden size of convolutions.
+Defaults to 512.</p></li>
+<li><p><strong>postnet_kernel_size</strong> (<em>int</em>) – Kernel size of convolutions.
+Defaults to 5.</p></li>
+<li><p><strong>postnet_n_convolutions</strong> (<em>int</em>) – Number of convolution layers.
+Defaults to 5.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>mel_input</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.MelSpectrogramSignalTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>mel_output</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.MelSpectrogramSignalTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo_tts.tacotron2_modules.TextEmbedding">
+<em class="property">class </em><code class="sig-prename descclassname">nemo_tts.tacotron2_modules.</code><code class="sig-name descname">TextEmbedding</code><span class="sig-paren">(</span><em class="sig-param">n_symbols</em>, <em class="sig-param">symbols_embedding_dim: int = 512</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_tts/tacotron2_modules.html#TextEmbedding"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_tts.tacotron2_modules.TextEmbedding" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
+<p>TextEmbedding embeds the encoded character labels to an embedding space</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_symbols</strong> (<em>int</em>) – The number of character labels. The input char_phone’s
+second axis dim size should be n_symbols.</p></li>
+<li><p><strong>symbols_embedding_dim</strong> (<em>int</em>) – The size of the embedding dimension.
+Defaults to 512.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>char_phone</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>char_phone_embeddings</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.EmbeddedTextTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+<div class="section" id="module-nemo_tts.waveglow_modules">
+<span id="waveglow-modules"></span><h2>Waveglow modules<a class="headerlink" href="#module-nemo_tts.waveglow_modules" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="nemo_tts.waveglow_modules.WaveGlowInferNM">
+<em class="property">class </em><code class="sig-prename descclassname">nemo_tts.waveglow_modules.</code><code class="sig-name descname">WaveGlowInferNM</code><span class="sig-paren">(</span><em class="sig-param">n_mel_channels: int = 80</em>, <em class="sig-param">n_flows: int = 12</em>, <em class="sig-param">n_group: int = 8</em>, <em class="sig-param">n_early_every: int = 4</em>, <em class="sig-param">n_early_size: int = 2</em>, <em class="sig-param">n_wn_layers: int = 8</em>, <em class="sig-param">n_wn_channels: int = 512</em>, <em class="sig-param">wn_kernel_size: int = 3</em>, <em class="sig-param">sigma: float = 0.6</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_tts/waveglow_modules.html#WaveGlowInferNM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_tts.waveglow_modules.WaveGlowInferNM" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo_tts.waveglow_modules.WaveGlowNM" title="nemo_tts.waveglow_modules.WaveGlowNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo_tts.waveglow_modules.WaveGlowNM</span></code></a></p>
+<p>WaveGlowInferNM is the inference Neural Module for WaveGlowNM. This NM is
+meant to be used during inference. Keep in mind, the inference module
+runs in the reverse order of the training module.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_mel_channels</strong> (<em>int</em>) – Size of input mel spectrogram
+Defaults to 80.</p></li>
+<li><p><strong>n_flows</strong> (<em>int</em>) – Number of normalizing flows/layers of waveglow.
+Defaults to 12</p></li>
+<li><p><strong>n_group</strong> (<em>int</em>) – Each audio/spec pair is split in n_group number of
+groups. It must be divisible by 2 as halves are split this way.
+Defaults to 8</p></li>
+<li><p><strong>n_early_every</strong> (<em>int</em>) – After n_early_every layers, n_early_size number of
+groups are added as input to the current layer.
+Defaults to 4</p></li>
+<li><p><strong>n_early_size</strong> (<em>int</em>) – The number of groups to sample at every
+n_early_every layers. The sampled values are then passed through
+the remaining layer.
+Defaults to 2</p></li>
+<li><p><strong>n_wn_layers</strong> (<em>int</em>) – The number of layers of the wavenet submodule.
+Defaults to 8</p></li>
+<li><p><strong>n_wn_channels</strong> (<em>int</em>) – The number of channels of the wavenet submodule.
+Defaults to 512</p></li>
+<li><p><strong>wn_kernel_size</strong> (<em>int</em>) – The kernel size of the wavenet submodule.
+Defaults to 3</p></li>
+<li><p><strong>sigma</strong> (<em>float</em>) – Standard deviation of the normal distribution from which
+we sample z. Defaults to 0.6.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>mel_spectrogram</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.MelSpectrogramSignalTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>audio</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="nemo_tts.waveglow_modules.WaveGlowInferNM.denoise">
+<code class="sig-name descname">denoise</code><span class="sig-paren">(</span><em class="sig-param">audio</em>, <em class="sig-param">strength=0.1</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_tts/waveglow_modules.html#WaveGlowInferNM.denoise"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_tts.waveglow_modules.WaveGlowInferNM.denoise" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="nemo_tts.waveglow_modules.WaveGlowInferNM.setup_denoiser">
+<code class="sig-name descname">setup_denoiser</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_tts/waveglow_modules.html#WaveGlowInferNM.setup_denoiser"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_tts.waveglow_modules.WaveGlowInferNM.setup_denoiser" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo_tts.waveglow_modules.WaveGlowLoss">
+<em class="property">class </em><code class="sig-prename descclassname">nemo_tts.waveglow_modules.</code><code class="sig-name descname">WaveGlowLoss</code><span class="sig-paren">(</span><em class="sig-param">sigma: float = 1.0</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_tts/waveglow_modules.html#WaveGlowLoss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_tts.waveglow_modules.WaveGlowLoss" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.LossNM</span></code></a></p>
+<p>WaveGlowLoss implements the waveglow loss which aims to maximize the
+log-likelihood of the audio given the mel spectrogram. This loss is
+expressed as the log-likelihood of a standard normal distribution and the
+sum of the log of the determinant of the Jacobians of the mapping from
+x, audio, to z, the normal distribution. The second term can be further
+split in the contribution by the affine coupling layer, log_s, and the 1x1
+invertible convolution layer, log_det_W.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>sigma</strong> (<em>float</em>) – Standard deviation of the normal distribution that we
+are aiming to model.
+Defaults to 1.</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>z</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>log_s_list</strong>:</p>
+<ul>
+<li><p>Root NeuralType</p></li>
+</ul>
+</li>
+<li><p><strong>log_det_W_list</strong>:</p>
+<ul>
+<li><p>Root NeuralType</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>loss</strong>:</p>
+<ul>
+<li><p>non-tensor object</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo_tts.waveglow_modules.WaveGlowNM">
+<em class="property">class </em><code class="sig-prename descclassname">nemo_tts.waveglow_modules.</code><code class="sig-name descname">WaveGlowNM</code><span class="sig-paren">(</span><em class="sig-param">n_mel_channels: int = 80</em>, <em class="sig-param">n_flows: int = 12</em>, <em class="sig-param">n_group: int = 8</em>, <em class="sig-param">n_early_every: int = 4</em>, <em class="sig-param">n_early_size: int = 2</em>, <em class="sig-param">n_wn_layers: int = 8</em>, <em class="sig-param">n_wn_channels: int = 512</em>, <em class="sig-param">wn_kernel_size: int = 3</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_tts/waveglow_modules.html#WaveGlowNM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_tts.waveglow_modules.WaveGlowNM" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
+<p>WaveGlowNM implements the Waveglow model in whole. This NM is meant to
+be used during training</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_mel_channels</strong> (<em>int</em>) – Size of input mel spectrogram
+Defaults to 80.</p></li>
+<li><p><strong>n_flows</strong> (<em>int</em>) – Number of normalizing flows/layers of waveglow.
+Defaults to 12</p></li>
+<li><p><strong>n_group</strong> (<em>int</em>) – Each audio/spec pair is split in n_group number of
+groups. It must be divisible by 2 as halves are split this way.
+Defaults to 8</p></li>
+<li><p><strong>n_early_every</strong> (<em>int</em>) – After n_early_every layers, n_early_size number of
+groups are skipped to the output of the Neural Module.
+Defaults to 4</p></li>
+<li><p><strong>n_early_size</strong> (<em>int</em>) – The number of groups to skip to the output at every
+n_early_every layers.
+Defaults to 2</p></li>
+<li><p><strong>n_wn_layers</strong> (<em>int</em>) – The number of layers of the wavenet submodule.
+Defaults to 8</p></li>
+<li><p><strong>n_wn_channels</strong> (<em>int</em>) – The number of channels of the wavenet submodule.
+Defaults to 512</p></li>
+<li><p><strong>wn_kernel_size</strong> (<em>int</em>) – The kernel size of the wavenet submodule.
+Defaults to 3</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Input Ports:</dt><dd><ul class="simple">
+<li><p><strong>mel_spectrogram</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.MelSpectrogramSignalTag’&gt;:None:None</p></li>
+<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>audio</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt>Output Ports:</dt><dd><ul class="simple">
+<li><p><strong>audio</strong>:</p>
+<ul>
+<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
+</ul>
+</li>
+<li><p><strong>log_s_list</strong>:</p>
+<ul>
+<li><p>Root NeuralType</p></li>
+</ul>
+</li>
+<li><p><strong>log_det_W_list</strong>:</p>
+<ul>
+<li><p>Root NeuralType</p></li>
+</ul>
+</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="nemo_nlp.html" class="btn btn-neutral float-right" title="NeMo_NLP collection" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="nemo_asr.html" class="btn btn-neutral float-left" title="NeMo_ASR collection" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

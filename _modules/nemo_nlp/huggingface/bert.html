@@ -1,0 +1,333 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>nemo_nlp.huggingface.bert &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tts/intro.html">Speech Synthesis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../chinese/intro.html">中文支持</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>nemo_nlp.huggingface.bert</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for nemo_nlp.huggingface.bert</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2019 NVIDIA Corporation</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">List</span>
+
+<span class="kn">from</span> <span class="nn">pytorch_transformers</span> <span class="k">import</span> <span class="p">(</span><span class="n">BertConfig</span><span class="p">,</span>
+                                  <span class="n">BertModel</span><span class="p">,</span>
+                                  <span class="n">BERT_PRETRAINED_MODEL_ARCHIVE_MAP</span><span class="p">,</span>
+                                  <span class="n">BERT_PRETRAINED_CONFIG_ARCHIVE_MAP</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">nemo.backends.pytorch.nm</span> <span class="k">import</span> <span class="n">TrainableNM</span>
+<span class="kn">from</span> <span class="nn">nemo.core.neural_modules</span> <span class="k">import</span> <span class="n">PretrainedModelInfo</span>
+<span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="k">import</span> <span class="p">(</span><span class="n">AxisType</span><span class="p">,</span>
+                                    <span class="n">BatchTag</span><span class="p">,</span>
+                                    <span class="n">ChannelTag</span><span class="p">,</span>
+                                    <span class="n">NeuralType</span><span class="p">,</span>
+                                    <span class="n">TimeTag</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="BERT"><a class="viewcode-back" href="../../../collections/nemo_nlp.html#nemo_nlp.huggingface.bert.BERT">[docs]</a><span class="k">class</span> <span class="nc">BERT</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    BERT wraps around the Huggingface implementation of BERT from their</span>
+<span class="sd">    pytorch-transformers repository for easy use within NeMo.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        pretrained_model_name (str): If using a pretrained model, this should</span>
+<span class="sd">            be the model&#39;s name. Otherwise, should be left as None.</span>
+<span class="sd">        vocab_size (int): Size of the vocabulary file, if not using a</span>
+<span class="sd">            pretrained model.</span>
+<span class="sd">        hidden_size (int): Size of the encoder and pooler layers.</span>
+<span class="sd">        num_hidden_layers (int): Number of hidden layers in the encoder.</span>
+<span class="sd">        num_attention_heads (int): Number of attention heads for each layer.</span>
+<span class="sd">        intermediate_size (int): Size of intermediate layers in the encoder.</span>
+<span class="sd">        hidden_act (str): Activation function for encoder and pooler layers;</span>
+<span class="sd">            &quot;gelu&quot;, &quot;relu&quot;, and &quot;swish&quot; are supported.</span>
+<span class="sd">        max_position_embeddings (int): The maximum number of tokens in a</span>
+<span class="sd">        sequence.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
+        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;input_ids&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)</span>
+            <span class="p">}),</span>
+            <span class="s2">&quot;token_type_ids&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)</span>
+            <span class="p">}),</span>
+            <span class="s2">&quot;attention_mask&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)</span>
+            <span class="p">})</span>
+        <span class="p">}</span>
+
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;hidden_states&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">),</span>
+                <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">)</span>
+            <span class="p">})</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+                 <span class="n">pretrained_model_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">config_filename</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">vocab_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">hidden_size</span><span class="o">=</span><span class="mi">768</span><span class="p">,</span>
+                 <span class="n">num_hidden_layers</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
+                 <span class="n">num_attention_heads</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
+                 <span class="n">intermediate_size</span><span class="o">=</span><span class="mi">3072</span><span class="p">,</span>
+                 <span class="n">hidden_act</span><span class="o">=</span><span class="s2">&quot;gelu&quot;</span><span class="p">,</span>
+                 <span class="n">max_position_embeddings</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+                 <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">TrainableNM</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># Check that only one of pretrained_model_name, config_filename, and</span>
+        <span class="c1"># vocab_size was passed in</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">pretrained_model_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">config_filename</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">vocab_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="k">if</span> <span class="n">total</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Only one of pretrained_model_name, vocab_size, &quot;</span>
+                             <span class="o">+</span> <span class="s2">&quot;or config_filename should be passed into the &quot;</span>
+                             <span class="o">+</span> <span class="s2">&quot;BERT constructor.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">vocab_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">config</span> <span class="o">=</span> <span class="n">BertConfig</span><span class="p">(</span>
+                <span class="n">vocab_size_or_config_json_file</span><span class="o">=</span><span class="n">vocab_size</span><span class="p">,</span>
+                <span class="n">hidden_size</span><span class="o">=</span><span class="n">hidden_size</span><span class="p">,</span>
+                <span class="n">num_hidden_layers</span><span class="o">=</span><span class="n">num_hidden_layers</span><span class="p">,</span>
+                <span class="n">num_attention_heads</span><span class="o">=</span><span class="n">num_attention_heads</span><span class="p">,</span>
+                <span class="n">intermediate_size</span><span class="o">=</span><span class="n">intermediate_size</span><span class="p">,</span>
+                <span class="n">hidden_act</span><span class="o">=</span><span class="n">hidden_act</span><span class="p">,</span>
+                <span class="n">max_position_embeddings</span><span class="o">=</span><span class="n">max_position_embeddings</span><span class="p">)</span>
+            <span class="n">model</span> <span class="o">=</span> <span class="n">BertModel</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">pretrained_model_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">model</span> <span class="o">=</span> <span class="n">BertModel</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="n">pretrained_model_name</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">config_filename</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">config</span> <span class="o">=</span> <span class="n">BertConfig</span><span class="o">.</span><span class="n">from_json_file</span><span class="p">(</span><span class="n">config_filename</span><span class="p">)</span>
+            <span class="n">model</span> <span class="o">=</span> <span class="n">BertModel</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Either pretrained_model_name or vocab_size must&quot;</span>
+                             <span class="o">+</span> <span class="s2">&quot; be passed into the BERT constructor&quot;</span><span class="p">)</span>
+
+        <span class="n">model</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">add_module</span><span class="p">(</span><span class="s2">&quot;bert&quot;</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">config</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_local_parameters</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+<div class="viewcode-block" id="BERT.list_pretrained_models"><a class="viewcode-back" href="../../../collections/nemo_nlp.html#nemo_nlp.huggingface.bert.BERT.list_pretrained_models">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">list_pretrained_models</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">PretrainedModelInfo</span><span class="p">]]:</span>
+        <span class="n">pretrained_models</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">BERT_PRETRAINED_MODEL_ARCHIVE_MAP</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">model_info</span> <span class="o">=</span> <span class="n">PretrainedModelInfo</span><span class="p">(</span>
+                <span class="n">pretrained_model_name</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="s2">&quot;weights by HuggingFace&quot;</span><span class="p">,</span>
+                <span class="n">parameters</span><span class="o">=</span><span class="n">BERT_PRETRAINED_CONFIG_ARCHIVE_MAP</span><span class="p">[</span><span class="n">key</span><span class="p">],</span>
+                <span class="n">location</span><span class="o">=</span><span class="n">value</span><span class="p">)</span>
+            <span class="n">pretrained_models</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">model_info</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">pretrained_models</span></div>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_ids</span><span class="p">,</span> <span class="n">token_type_ids</span><span class="p">,</span> <span class="n">attention_mask</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">bert</span><span class="p">(</span><span class="n">input_ids</span><span class="p">,</span> <span class="n">token_type_ids</span><span class="o">=</span><span class="n">token_type_ids</span><span class="p">,</span>
+                         <span class="n">attention_mask</span><span class="o">=</span><span class="n">attention_mask</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

@@ -1,0 +1,354 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Tutorial &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Datasets" href="datasets.html" />
+    <link rel="prev" title="Speech Synthesis" href="intro.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">Speech Synthesis</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Tutorial</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#get-data">Get data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#training">Training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mixed-precision-training">Mixed Precision training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#multi-gpu-training">Multi-GPU training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#inference">Inference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="models.html">Models</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">Speech Synthesis</a> &raquo;</li>
+        
+      <li>Tutorial</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/tts/tutorial.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="tutorial">
+<h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+<p>Make sure you have installed <code class="docutils literal notranslate"><span class="pre">nemo</span></code>, <code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code>, and <code class="docutils literal notranslate"><span class="pre">nemo_tts</span></code>
+collection. See the <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You only need <cite>nemo</cite>, <cite>nemo_asr</cite>, and <cite>nemo_tts</cite> collection for this
+tutorial.</p>
+</div>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>Speech synthesis, also called Text to Speech (TTS), generally creates human
+audible speech from text. TTS using neural networks typically consists of two
+neural networks. The first neural network converts text to an intermediate
+audio representation, usually derived from a spectrogram. The second neural
+network, called the neural vocoder, converts the audio representation to audio
+files, for us in the form of .wav files. While there has been recent research
+shown to be able to combine these two models into one, we focus on the two
+model approach.</p>
+<p>NeMo supports the following models:</p>
+<ol class="arabic simple">
+<li><p><a class="reference external" href="https://arxiv.org/abs/1712.05884">Tacotron 2</a> :a model that converts
+text to mel spectrograms</p></li>
+<li><p><a class="reference external" href="https://arxiv.org/abs/1811.00002">Waveglow</a>: a model that converts mel
+spectrograms to audio</p></li>
+</ol>
+<p>To train your own models, you can go through the following sections. If you
+want to run inference with our pre-trained models, skip to the
+<a class="reference internal" href="#tts-inference"><span class="std std-ref">Inference</span></a> section.</p>
+</div>
+<div class="section" id="get-data">
+<h2>Get data<a class="headerlink" href="#get-data" title="Permalink to this headline">¶</a></h2>
+<p>Both Tacotron 2 and Waveglow are trained using the
+<a class="reference external" href="https://keithito.com/LJ-Speech-Dataset/">LJSpeech</a> dataset.
+You can use a helper script to get and process the dataset for use with NeMo.
+The script is located at NeMo/scripts and can be run like so:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python scripts/get_ljspeech_data.py --data_root<span class="o">=</span>&lt;where_you_want_to_save_data&gt;
+</pre></div>
+</div>
+<p>For more details on the LJSpeech dataset, see <a class="reference internal" href="datasets.html#ljspeech"><span class="std std-ref">our docs here</span></a>.</p>
+<p>For Mandarin, we use <a class="reference external" href="https://www.data-baker.com/open_source.html">Chinese Standard Mandarin Speech Copus</a>.
+You can use a helper script to get and process the dataset for use with NeMo. The dataset download link in the
+script is provided by Databaker (Beijing) Technology Co.,Ltd.
+The script is located at NeMo/scripts and can be run like so:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python scripts/get_databaker_data.py --data_root<span class="o">=</span>&lt;where_you_want_to_save_data&gt;
+</pre></div>
+</div>
+<p>For more details on the Chinese Standard Mandarin Speech Copus, see <a class="reference internal" href="datasets.html#csmsc"><span class="std std-ref">our docs here</span></a>.</p>
+</div>
+<div class="section" id="training">
+<h2>Training<a class="headerlink" href="#training" title="Permalink to this headline">¶</a></h2>
+<p>NeMo supports training both Tacotron 2 and Waveglow. For the purposes of this
+tutorial, we will be focusing on training Tacotron 2 as that determines the
+majority of the characteristics of the trained audio such as the gender, and
+prosody. Furthermore, in our experiments, Waveglow has been shown to work as
+an unverisal vocoder. Our pretrained Waveglow, though trained on read female
+English speech, can be used as vocoder for male voices as well as other languages
+such as Mandarin.</p>
+<p>Training Tacotron 2 can be done by running the <cite>tacotron2.py</cite> file inside
+NeMo/examples/tts. Assuming you are inside the NeMo/examples/tts directory,
+you can run the following to start training:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python tacotron2.py --train_dataset<span class="o">=</span>&lt;data_root&gt;/ljspeech_train.json --eval_datasets &lt;data_root&gt;/ljspeech_eval.json --model_config<span class="o">=</span>configs/tacotron.yaml --max_steps<span class="o">=</span><span class="m">30000</span>
+</pre></div>
+</div>
+<p>Training Tacotron 2 on Mandarin also can be done by running the <cite>tacotron2.py</cite> file.
+You can run the following to start training:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python tacotron2.py --train_dataset<span class="o">=</span>&lt;data_root&gt;/databaker_csmsc_train.json --eval_datasets &lt;data_root&gt;/databaker_csmsc_eval.json --model_config<span class="o">=</span>configs/tacotron_mandarin.yaml --max_steps<span class="o">=</span><span class="m">30000</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Tacotron 2 normally takes around 20,000 steps for attention to be learned.
+Once attention is learned, this is when you can use the model to generate
+audible speech.</p>
+</div>
+</div>
+<div class="section" id="mixed-precision-training">
+<h2>Mixed Precision training<a class="headerlink" href="#mixed-precision-training" title="Permalink to this headline">¶</a></h2>
+<p>Enabling or disabling mixed precision training can be changed through a command
+line argument –amp_opt_level. Recommended and default values for Tacotron 2
+and Waveglow are O1. It can be:</p>
+<ul class="simple">
+<li><p>O0: float32 training</p></li>
+<li><p>O1: mixed precision training</p></li>
+<li><p>O2: mixed precision training</p></li>
+<li><p>O3: float16 training</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Because mixed precision requires Tensor Cores it only works on NVIDIA
+Volta and Turing based GPUs</p>
+</div>
+</div>
+<div class="section" id="multi-gpu-training">
+<h2>Multi-GPU training<a class="headerlink" href="#multi-gpu-training" title="Permalink to this headline">¶</a></h2>
+<p>Running on multiple GPUs can be enabled but calling running the
+torch.distributed.launch module and sepcifying the num_gpus as the
+–nproc_per_node argument:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>&lt;num_gpus&gt; &lt;nemo_git_repo_root&gt;/examples/tts/tacotron2.py ...
+</pre></div>
+</div>
+</div>
+<div class="section" id="inference">
+<span id="tts-inference"></span><h2>Inference<a class="headerlink" href="#inference" title="Permalink to this headline">¶</a></h2>
+<p>You can now to inference with either your own trained Tacotron 2, or you can
+use our pre-trained Tacotron 2 model (LINK TO BE ADDED). Please download our
+pretrained model here (LINK TO BE ADDED). Next create the texts that you want
+to generate and add them to a json like the training dataset. They should
+have lines like so:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;Talk to me!&quot;</span><span class="p">}</span>
+<span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;Speech Synthensis is cool.&quot;</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>For Mandarin, they should have lines like so:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;jin1 tian1 tian1 qi4 bu2 cuo4.&quot;</span><span class="p">}</span>
+<span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;ni3 kan4 bao4 zhi3 ma0&quot;</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>The “text” should contain the <strong>pinyin</strong> sequence in Mandarin. The digit behind each Chinese character’s pinyin is the <strong>tone</strong>. 0 stands for soft tone.</p>
+<p>Inference can be done with the tts_infer.py file under the
+NeMo/examples/tts folder like so:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python tts_infer.py --spec_model<span class="o">=</span>tacotron2 --spec_model_config<span class="o">=</span>configs/tacotron2.yaml --spec_model_load_dir<span class="o">=</span>&lt;directory_with_tacotron2_checkopints&gt; --vocoder<span class="o">=</span>waveglow --vocoder_model_config<span class="o">=</span>configs/waveglow.yaml --vocoder_model_load_dir<span class="o">=</span>&lt;directory_with_waveglow_checkopints&gt; --save_dir<span class="o">=</span>&lt;where_you_want_to_save_wav_files&gt; --eval_dataset &lt;mainfest_to_generate&gt;
+</pre></div>
+</div>
+<p>For Mandarin, remember to replace the config file of Tacotron 2 with tacotron2_mandarin.yaml.</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="datasets.html" class="btn btn-neutral float-right" title="Datasets" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="intro.html" class="btn btn-neutral float-left" title="Speech Synthesis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

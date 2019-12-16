@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Fast Training &mdash; nemo 0.8.2 documentation</title>
+  <title>Fast Training &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -96,8 +96,10 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="asr/intro.html">Speech Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -164,7 +166,7 @@
             
   <div class="section" id="fast-training">
 <h1>Fast Training<a class="headerlink" href="#fast-training" title="Permalink to this headline">¶</a></h1>
-<p>Training large model (especially from scratch) requires significant compute. NeMo provides support for mixed precision and distributed training to speed-up training. NeMo uses <a class="reference external" href="https://github.com/NVIDIA/apex">NVIDIA’s APEX library</a> to get maximum performance out of NVIDIA’s GPUs. Furthermore, multi-GPU systems (such as DGX Station, DGX-1 and DGX-2) have <em>NVLINK</em> to speed-up multi-GPU communication.</p>
+<p>Training a large model (especially from scratch) requires significant compute. NeMo provides support for mixed precision and distributed training to speed-up training. NeMo uses <a class="reference external" href="https://github.com/NVIDIA/apex">NVIDIA’s APEX library</a> to get maximum performance out of NVIDIA’s GPUs. Furthermore, multi-GPU systems (such as DGX Station, DGX-1 and DGX-2) have <em>NVLINK</em> to speed-up multi-GPU communication.</p>
 <div class="section" id="mixed-precision">
 <h2>Mixed Precision<a class="headerlink" href="#mixed-precision" title="Permalink to this headline">¶</a></h2>
 <p>NVIDIA Volta and Turing GPUs have <em>Tensor Cores</em> which can do fast matrix multiplications with values in float16 format.
@@ -197,9 +199,9 @@ To enable mixed-precision in NeMo all you need to do is to set <cite>optimizatio
 </div>
 <div class="section" id="example">
 <h2>Example<a class="headerlink" href="#example" title="Permalink to this headline">¶</a></h2>
-<p>Please refer to the <cite>&lt;nemo_git_repo_root&gt;/examples/asr/jasper.py</cite> for comprehensive example.
+<p>Please refer to the <cite>&lt;nemo_git_repo_root&gt;/examples/asr/jasper.py</cite> for a comprehensive example.
 It builds one train DAG and up to three validation DAGs to evaluate on different datasets.</p>
-<p>Assuming, you are working with Volta-based DGX, you can run training like this:</p>
+<p>If you are working with a Volta-based DGX, you can run training like this:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span><span class="m">8</span> &lt;nemo_git_repo_root&gt;/examples/asr/jasper.py --batch_size<span class="o">=</span><span class="m">64</span> --num_gpus<span class="o">=</span><span class="m">8</span> --num_epochs<span class="o">=</span><span class="m">100</span> --lr<span class="o">=</span><span class="m">0</span>.015 --warmup_steps<span class="o">=</span><span class="m">8000</span> --weight_decay<span class="o">=</span><span class="m">0</span>.001 --train_manifest<span class="o">=</span>/manifests/librivox-train-all.json --val_manifest1<span class="o">=</span>/manifests/librivox-dev-clean.json --val_manifest2<span class="o">=</span>/manifests/librivox-dev-other.json --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/nemo/examples/asr/configs/jasper15x5SEP.yaml --exp_name<span class="o">=</span>MyLARGE-ASR-EXPERIMENT
 </pre></div>
 </div>
@@ -232,7 +234,7 @@ It builds one train DAG and up to three validation DAGs to evaluate on different
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

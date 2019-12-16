@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Jasper &mdash; nemo 0.8.2 documentation</title>
+  <title>Jasper &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -101,8 +101,10 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -173,12 +175,47 @@
             
   <div class="section" id="jasper">
 <span id="jasper-model"></span><h1>Jasper<a class="headerlink" href="#jasper" title="Permalink to this headline">¶</a></h1>
-<p>Jasper (“Just Another SPeech Recognizer”) <a class="bibtex reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id1">[1]</a>  is a deep time delay neural network (TDNN) comprising of blocks of 1D-convolutional layers.
+<p>Jasper (“Just Another SPeech Recognizer”) <a class="reference internal" href="models.html#asr-models-li2019jasper" id="id1">[ASR-MODELS1]</a>  is a deep time delay neural network (TDNN) comprising of blocks of 1D-convolutional layers.
 Jasper family of models are denoted as Jasper_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization, ReLU, and dropout:</p>
 <blockquote>
 <div><img alt="japer model" class="align-center" src="../_images/jasper_vertical.png" />
 </div></blockquote>
-<p>Pretrained models can be found, <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:jaspernet10x5dr">here</a>.</p>
+<p>Pretrained models can be found: <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:jaspernet10x5dr">here</a>.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 14%" />
+<col style="width: 13%" />
+<col style="width: 74%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Network</p></th>
+<th class="head"><p>Dataset</p></th>
+<th class="head"><p>Download Link</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Jasper10x5dr</p></td>
+<td><p>Librispeech</p></td>
+<td><p><a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:jaspernet10x5dr">here</a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Jasper10x5dr</p></td>
+<td><p>Aishell1</p></td>
+<td><p>NA</p></td>
+</tr>
+<tr class="row-even"><td><p>Jasper15x5SEP</p></td>
+<td><p>Aishell1</p></td>
+<td><p>NA</p></td>
+</tr>
+<tr class="row-odd"><td><p>Jasper15x5SEP</p></td>
+<td><p>Aishell2</p></td>
+<td><p>NA</p></td>
+</tr>
+<tr class="row-even"><td><p>Jasper12x1SEP</p></td>
+<td><p>Aishell2</p></td>
+<td><p>NA</p></td>
+</tr>
+</tbody>
+</table>
 </div>
 
 
@@ -201,7 +238,7 @@ Jasper family of models are denoted as Jasper_[BxR] where B is the number of blo
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

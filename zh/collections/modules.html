@@ -1,0 +1,243 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>NeMo Collections API &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="NeMo Common Collection" href="core.html" />
+    <link rel="prev" title="WaveGlow" href="../tts/waveglow.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">自然语言处理</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">NeMo Collections API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="core.html">NeMo Common Collection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_asr.html">NeMo_ASR collection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_tts.html">NeMo_TTS collection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html">NeMo_NLP collection</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+      <li>NeMo Collections API</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/collections/modules.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="nemo-collections-api">
+<span id="collection-docs"></span><h1>NeMo Collections API<a class="headerlink" href="#nemo-collections-api" title="Permalink to this headline">¶</a></h1>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="core.html">NeMo Common Collection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nemo_asr.html">NeMo_ASR collection</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="nemo_asr.html#module-nemo_asr.data_layer">语音数据处理模块</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_asr.html#module-nemo_asr.jasper">语音识别模块</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="nemo_tts.html">NeMo_TTS collection</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="nemo_tts.html#module-nemo_tts.data_layers">语音数据处理模块</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_tts.html#module-nemo_tts.tacotron2_modules">Tacotron 2 模块</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_tts.html#module-nemo_tts.waveglow_modules">Waveglow 模块</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="nemo_nlp.html">NeMo_NLP collection</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html#module-nemo_nlp.data_layers">NLP 数据处理模块</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html#module-nemo_nlp.data.tokenizers.bert_tokenizer">NLP 分词器</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html#module-nemo_nlp.modules.classifiers">NLP 神经模块</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html#module-nemo_nlp.huggingface.bert">NLP Hugging Face 神经模块</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="core.html" class="btn btn-neutral float-right" title="NeMo Common Collection" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="../tts/waveglow.html" class="btn btn-neutral float-left" title="WaveGlow" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

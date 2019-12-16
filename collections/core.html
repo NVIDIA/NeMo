@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>NeMo Common Collection &mdash; nemo 0.8.2 documentation</title>
+  <title>NeMo Common Collection &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -35,7 +35,7 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="NEMO_ASR collection" href="ncollections.html" />
+    <link rel="next" title="NeMo_ASR collection" href="nemo_asr.html" />
     <link rel="prev" title="NeMo Collections API" href="modules.html" /> 
 </head>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -91,12 +91,16 @@
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="modules.html">NeMo Collections API</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">NeMo Common Collection</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ncollections.html">NEMO_ASR collection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_asr.html">NeMo_ASR collection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_tts.html">NeMo_TTS collection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html">NeMo_NLP collection</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -222,7 +226,7 @@ Defaults to None.</p></li>
 
 <dl class="class">
 <dt id="nemo.backends.pytorch.common.losses.CrossEntropyLoss">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">CrossEntropyLoss</code><span class="sig-paren">(</span><em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#CrossEntropyLoss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.CrossEntropyLoss" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">CrossEntropyLoss</code><span class="sig-paren">(</span><em class="sig-param">weight=None</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#CrossEntropyLoss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.CrossEntropyLoss" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.LossNM</span></code></a></p>
 <dl class="simple">
 <dt>Input Ports:</dt><dd><ul class="simple">
@@ -523,7 +527,7 @@ should return None.</p>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="ncollections.html" class="btn btn-neutral float-right" title="NEMO_ASR collection" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="nemo_asr.html" class="btn btn-neutral float-right" title="NeMo_ASR collection" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="modules.html" class="btn btn-neutral float-left" title="NeMo Collections API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
@@ -535,7 +539,7 @@ should return None.</p>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

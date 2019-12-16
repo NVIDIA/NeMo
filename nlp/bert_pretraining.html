@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Pretraining BERT &mdash; nemo 0.8.2 documentation</title>
+  <title>Pretraining BERT &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -109,8 +109,10 @@
 <li class="toctree-l2"><a class="reference internal" href="intro.html#improving-speech-recognition-with-bertx2-post-processing-model">Improving speech recognition with BERTx2 post-processing model</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -179,14 +181,18 @@
             
   <div class="section" id="pretraining-bert">
 <h1>Pretraining BERT<a class="headerlink" href="#pretraining-bert" title="Permalink to this headline">¶</a></h1>
-<p>In this tutorial, we will build and train a masked language model, either from scratch or from a pretrained BERT model, using the BERT architecture <a class="bibtex reference internal" href="#devlin2018bert" id="id1">[2]</a>. Make sure you have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> installed before starting this tutorial. See the <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section for more details.</p>
+<p>In this tutorial, we will build and train a masked language model, either from scratch or from a pretrained BERT model, using the BERT architecture <a class="reference internal" href="#nlp-bert-devlin2018bert" id="id1">[NLP-BERT-PRETRAINING2]</a>.
+Make sure you have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> installed before starting this tutorial. See the <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section for more details.</p>
+<p>The code used in this tutorial can be found at <code class="docutils literal notranslate"><span class="pre">examples/nlp/bert_pretraining.py</span></code>.</p>
 <div class="section" id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
-<p>Creating domain-specific BERT models can be advantageous for a wide range of applications. One notable is domain-specific BERT in a biomedical setting, similar to BioBERT <a class="bibtex reference internal" href="#lee2019biobert" id="id2">[3]</a> and SciBERT <a class="bibtex reference internal" href="#beltagy2019scibert" id="id3">[1]</a>.</p>
+<p>Creating domain-specific BERT models can be advantageous for a wide range of applications. One notable is domain-specific BERT in a biomedical setting,
+similar to BioBERT <a class="reference internal" href="#nlp-bert-lee2019biobert" id="id2">[NLP-BERT-PRETRAINING3]</a> and SciBERT <a class="reference internal" href="#nlp-bert-beltagy2019scibert" id="id3">[NLP-BERT-PRETRAINING1]</a>.</p>
 </div>
 <div class="section" id="download-corpus">
 <h2>Download Corpus<a class="headerlink" href="#download-corpus" title="Permalink to this headline">¶</a></h2>
-<p>For demonstration purposes, we will be using the very small WikiText-2 dataset <a class="bibtex reference internal" href="#merity2016pointer" id="id4">[4]</a>.</p>
+<p>The training corpus can be either raw text where data preprocessing is done on the fly or an already preprocessed data set. In the following we will give examples for both.
+To showcase how to train on raw text data, we will be using the very small WikiText-2 dataset <a class="reference internal" href="#nlp-bert-merity2016pointer" id="id4">[NLP-BERT-PRETRAINING4]</a>.</p>
 <p>To download the dataset, run the script <code class="docutils literal notranslate"><span class="pre">examples/nlp/scripts/get_wt2.sh</span></code>. After downloading and unzipping, the folder should include 3 files that look like this:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>test.txt
@@ -195,11 +201,27 @@ valid.txt
 </pre></div>
 </div>
 </div></blockquote>
+<p>To train BERT on a Chinese dataset, you may download the Chinese Wikipedia corpus <a class="reference external" href="https://github.com/brightmart/nlp_chinese_corpus">wiki2019zh</a>. After downloading, you may unzip and
+use the script <code class="docutils literal notranslate"><span class="pre">examples/nlp/scripts/process_wiki_zh.py</span></code> for preprocessing the raw text.</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python examples/nlp/scripts/process_wiki_zh.py --data_dir<span class="o">=</span>./wiki_zh --output_dir<span class="o">=</span>./wiki_zh --min_frequency<span class="o">=</span><span class="m">3</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>For already preprocessed data, we will be using a large dataset composed of Wikipedia and BookCorpus as in the original BERT paper.</p>
+<p>To download the dataset, go to <code class="docutils literal notranslate"><span class="pre">https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/LanguageModeling/BERT</span></code>
+and run the script <code class="docutils literal notranslate"><span class="pre">./data/create_datasets_from_start.sh</span></code>.
+The downloaded folder should include a 2 sub folders with the prefix <code class="docutils literal notranslate"><span class="pre">lower_case_1_seq_len_128_max_pred_20_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5</span></code>
+and <code class="docutils literal notranslate"><span class="pre">lower_case_1_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5</span></code>, containing sequences of length 128 with a maximum of 20 masked tokens
+and sequences of length 512 with a maximum of 80 masked tokens respectively.</p>
 </div>
 <div class="section" id="create-the-tokenizer-model">
 <h2>Create the tokenizer model<a class="headerlink" href="#create-the-tokenizer-model" title="Permalink to this headline">¶</a></h2>
-<p><cite>BERTPretrainingDataDesc</cite> converts your dataset into the format compatible with <cite>BertPretrainingDataset</cite>. The most computationally intensive step is to tokenize the dataset to create a vocab file and a tokenizer model.</p>
-<p>You can also use an available vocab or tokenizer model to skip this step. If you already have a pretrained tokenizer model, copy it to the <code class="docutils literal notranslate"><span class="pre">[data_dir]/bert`</span></code> folder under the name <code class="docutils literal notranslate"><span class="pre">tokenizer.model</span></code> and the script will skip this step.</p>
+<p>A tokenizer will be used for data preprocessing and, therefore, is only required for training using raw text data.</p>
+<p><cite>BERTPretrainingDataDesc</cite> converts your dataset into the format compatible with <cite>BertPretrainingDataset</cite>. The most computationally intensive step is to tokenize
+the dataset to create a vocab file and a tokenizer model.</p>
+<p>You can also use an available vocab or tokenizer model to skip this step. If you already have a pretrained tokenizer model,
+copy it to the <code class="docutils literal notranslate"><span class="pre">[data_dir]/bert</span></code> folder under the name <code class="docutils literal notranslate"><span class="pre">tokenizer.model</span></code> and the script will skip this step.</p>
 <p>If have an available vocab, say the <code class="docutils literal notranslate"><span class="pre">vocab.txt</span></code> file from any <a class="reference external" href="https://github.com/google-research/bert#pre-trained-models">pretrained BERT model</a>, copy it to the <code class="docutils literal notranslate"><span class="pre">[data_dir]/bert</span></code> folder under the name <code class="docutils literal notranslate"><span class="pre">vocab.txt</span></code>.</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">data_desc</span> <span class="o">=</span> <span class="n">BERTPretrainingDataDesc</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">dataset_name</span><span class="p">,</span>
@@ -211,7 +233,9 @@ valid.txt
 </pre></div>
 </div>
 </div></blockquote>
-<p>We need to define our tokenizer. If you’d like to use a custom vocabulary file, we strongly recommend you use our <cite>SentencePieceTokenizer</cite>. Otherwise, if you’ll be using a vocabulary file from another pre-trained BERT model, you should use <cite>NemoBertTokenizer</cite>.</p>
+<p>We need to define our tokenizer. If you’d like to use a custom vocabulary file, we strongly recommend you use our <cite>SentencePieceTokenizer</cite>.
+Otherwise, if you’ll be using a vocabulary file from another pre-trained BERT model, you should use <cite>NemoBertTokenizer</cite>.</p>
+<p>To train on a Chinese dataset, you should use <cite>NemoBertTokenizer</cite>.</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># If you&#39;re using a custom vocabulary, create your tokenizer like this</span>
 <span class="n">tokenizer</span> <span class="o">=</span> <span class="n">SentencePieceTokenizer</span><span class="p">(</span><span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;tokenizer.model&quot;</span><span class="p">)</span>
@@ -229,7 +253,8 @@ valid.txt
 <p class="admonition-title">Tip</p>
 <p>We recommend you try this out in a Jupyter notebook. It’ll make debugging much easier!</p>
 </div>
-<p>First, we need to create our neural factory with the supported backend. How you should define it depends on whether you’d like to multi-GPU or mixed-precision training. This tutorial assumes that you’re training on one GPU, without mixed precision. If you want to use mixed precision, set <code class="docutils literal notranslate"><span class="pre">amp_opt_level</span></code> to <code class="docutils literal notranslate"><span class="pre">O1</span></code> or <code class="docutils literal notranslate"><span class="pre">O2</span></code>.</p>
+<p>First, we need to create our neural factory with the supported backend. How you should define it depends on whether you’d like to multi-GPU or mixed-precision training.
+This tutorial assumes that you’re training on one GPU, without mixed precision. If you want to use mixed precision, set <code class="docutils literal notranslate"><span class="pre">amp_opt_level</span></code> to <code class="docutils literal notranslate"><span class="pre">O1</span></code> or <code class="docutils literal notranslate"><span class="pre">O2</span></code>.</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
                                    <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
@@ -243,46 +268,72 @@ valid.txt
 <p>We also need to define the BERT model that we will be pre-training. Here, you can configure your model size as needed. If you want to train from scratch, use this:</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span>
-    <span class="n">vocab_size</span><span class="o">=</span><span class="n">tokenizer</span><span class="o">.</span><span class="n">vocab_size</span><span class="p">,</span>
-    <span class="n">num_layers</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_layers</span><span class="p">,</span>
-    <span class="n">d_model</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">d_model</span><span class="p">,</span>
-    <span class="n">num_heads</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_heads</span><span class="p">,</span>
-    <span class="n">d_inner</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">d_inner</span><span class="p">,</span>
-    <span class="n">max_seq_length</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
-    <span class="n">hidden_act</span><span class="o">=</span><span class="s2">&quot;gelu&quot;</span><span class="p">)</span>
+    <span class="n">vocab_size</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">vocab_size</span><span class="p">,</span>
+    <span class="n">num_hidden_layers</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_hidden_layers</span><span class="p">,</span>
+    <span class="n">hidden_size</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">hidden_size</span><span class="p">,</span>
+    <span class="n">num_attention_heads</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_attention_heads</span><span class="p">,</span>
+    <span class="n">intermediate_size</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">intermediate_size</span><span class="p">,</span>
+    <span class="n">max_position_embeddings</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
+    <span class="n">hidden_act</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">hidden_act</span><span class="p">)</span>
 </pre></div>
 </div>
 </div></blockquote>
-<p>If you want to start pre-training from existing BERT checkpoints, use the following code. For the full list of BERT model names, check out <cite>nemo_nlp.huggingface.BERT.list_pretrained_models()</cite></p>
+<p>If you want to start pre-training from existing BERT checkpoints, specify the checkpoint folder path with the argument <code class="docutils literal notranslate"><span class="pre">--load_dir</span></code>.
+The following code will automatically load the checkpoints if they exist and are compatible to the previously defined model</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">ckpt_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span><span class="n">folder</span><span class="o">=</span><span class="n">nf</span><span class="o">.</span><span class="n">checkpoint_dir</span><span class="p">,</span>
+                    <span class="n">load_from_folder</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">load_dir</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>For the full list of BERT model names, check out <cite>nemo_nlp.huggingface.BERT.list_pretrained_models()</cite></p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span><span class="n">pretrained_model_name</span><span class="o">=</span><span class="s2">&quot;bert-base-cased&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 </div></blockquote>
-<p>Next, we will define our classifier and loss functions. We will demonstrate how to pre-train with both MLM (masked language model) and NSP (next sentence prediction) losses, but you may observe higher downstream accuracy by only pre-training with MLM loss.</p>
+<p>Next, we will define our classifier and loss functions. We will demonstrate how to pre-train with both MLM (masked language model) and NSP (next sentence prediction) losses,
+but you may observe higher downstream accuracy by only pre-training with MLM loss.</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mlm_classifier</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TokenClassifier</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">d_model</span><span class="p">,</span>
-                                          <span class="n">num_classes</span><span class="o">=</span><span class="n">tokenizer</span><span class="o">.</span><span class="n">vocab_size</span><span class="p">,</span>
-                                          <span class="n">num_layers</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-                                          <span class="n">log_softmax</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mlm_classifier</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertTokenClassifier</span><span class="p">(</span>
+                            <span class="n">args</span><span class="o">.</span><span class="n">hidden_size</span><span class="p">,</span>
+                            <span class="n">num_classes</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">vocab_size</span><span class="p">,</span>
+                            <span class="n">activation</span><span class="o">=</span><span class="n">ACT2FN</span><span class="p">[</span><span class="n">args</span><span class="o">.</span><span class="n">hidden_act</span><span class="p">],</span>
+                            <span class="n">log_softmax</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
 <span class="n">mlm_loss_fn</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">MaskedLanguageModelingLossNM</span><span class="p">()</span>
 
-<span class="n">nsp_classifier</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">SequenceClassifier</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">d_model</span><span class="p">,</span>
-                                             <span class="n">num_classes</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
-                                             <span class="n">num_layers</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
-                                             <span class="n">log_softmax</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">nsp_classifier</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">SequenceClassifier</span><span class="p">(</span>
+                                        <span class="n">args</span><span class="o">.</span><span class="n">hidden_size</span><span class="p">,</span>
+                                        <span class="n">num_classes</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                                        <span class="n">num_layers</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                                        <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;tanh&#39;</span><span class="p">,</span>
+                                        <span class="n">log_softmax</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
 <span class="n">nsp_loss_fn</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">pytorch</span><span class="o">.</span><span class="n">common</span><span class="o">.</span><span class="n">CrossEntropyLoss</span><span class="p">()</span>
 
 <span class="n">bert_loss</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">LossAggregatorNM</span><span class="p">(</span><span class="n">num_inputs</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
 </pre></div>
 </div>
 </div></blockquote>
-<p>Then, we create the pipeline gtom input to output that can be used for both training and evaluation:</p>
+<p>Then, we create the pipeline from input to output that can be used for both training and evaluation:</p>
+<p>For training from raw text use nemo_nlp.BertPretrainingDataLayer, for preprocessed data use nemo_nlp.BertPretrainingPreprocessedDataLayer</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">create_pipeline</span><span class="p">(</span><span class="o">**</span><span class="n">args</span><span class="p">):</span>
-    <span class="n">dataset</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertPretrainingDataset</span><span class="p">(</span><span class="o">**</span><span class="n">params</span><span class="p">)</span>
-    <span class="n">data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertPretrainingDataLayer</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
-    <span class="n">steps_per_epoch</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data_layer</span><span class="p">)</span> <span class="o">//</span> <span class="p">(</span><span class="n">batch_size</span> <span class="o">*</span> <span class="n">args</span><span class="o">.</span><span class="n">num_gpus</span><span class="p">)</span>
+    <span class="n">data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertPretrainingDataLayer</span><span class="p">(</span>
+                            <span class="n">tokenizer</span><span class="p">,</span>
+                            <span class="n">data_file</span><span class="p">,</span>
+                            <span class="n">max_seq_length</span><span class="p">,</span>
+                            <span class="n">mask_probability</span><span class="p">,</span>
+                            <span class="n">short_seq_prob</span><span class="p">,</span>
+                            <span class="n">batch_size</span><span class="p">)</span>
+    <span class="c1"># for preprocessed data</span>
+    <span class="c1"># data_layer = nemo_nlp.BertPretrainingPreprocessedDataLayer(</span>
+    <span class="c1">#        data_file,</span>
+    <span class="c1">#        max_predictions_per_seq,</span>
+    <span class="c1">#        batch_size, is_training)</span>
+
+    <span class="n">steps_per_epoch</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data_layer</span><span class="p">)</span> <span class="o">//</span> <span class="p">(</span><span class="n">batch_size</span> <span class="o">*</span> <span class="n">args</span><span class="o">.</span><span class="n">num_gpus</span> <span class="o">*</span> <span class="n">args</span><span class="o">.</span><span class="n">batches_per_step</span><span class="p">)</span>
 
     <span class="n">input_ids</span><span class="p">,</span> <span class="n">input_type_ids</span><span class="p">,</span> <span class="n">input_mask</span><span class="p">,</span> \
         <span class="n">output_ids</span><span class="p">,</span> <span class="n">output_mask</span><span class="p">,</span> <span class="n">nsp_labels</span> <span class="o">=</span> <span class="n">data_layer</span><span class="p">()</span>
@@ -301,13 +352,27 @@ valid.txt
 
     <span class="n">loss</span> <span class="o">=</span> <span class="n">bert_loss</span><span class="p">(</span><span class="n">loss_1</span><span class="o">=</span><span class="n">mlm_loss</span><span class="p">,</span> <span class="n">loss_2</span><span class="o">=</span><span class="n">nsp_loss</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">loss</span><span class="p">,</span> <span class="p">[</span><span class="n">mlm_loss</span><span class="p">,</span> <span class="n">nsp_loss</span><span class="p">],</span> <span class="n">steps_per_epoch</span>
+    <span class="k">return</span> <span class="n">loss</span><span class="p">,</span> <span class="n">mlm_loss</span><span class="p">,</span> <span class="n">nsp_loss</span><span class="p">,</span> <span class="n">steps_per_epoch</span>
 
 
-<span class="n">train_loss</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">steps_per_epoch</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span><span class="n">data_desc</span><span class="o">.</span><span class="n">train_file</span><span class="p">,</span>
-                                                 <span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
-                                                 <span class="n">args</span><span class="o">.</span><span class="n">mask_probability</span><span class="p">,</span>
-                                                 <span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
+<span class="n">train_loss</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">steps_per_epoch</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span>
+                            <span class="n">data_file</span><span class="o">=</span><span class="n">data_desc</span><span class="o">.</span><span class="n">train_file</span><span class="p">,</span>
+                            <span class="n">preprocessed_data</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                            <span class="n">max_seq_length</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
+                            <span class="n">mask_probability</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">mask_probability</span><span class="p">,</span>
+                            <span class="n">short_seq_prob</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">short_seq_prob</span><span class="p">,</span>
+                            <span class="n">batch_size</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+                            <span class="n">batches_per_step</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">batches_per_step</span><span class="p">)</span>
+
+<span class="c1"># for preprocessed data</span>
+<span class="c1"># train_loss, _, _, steps_per_epoch = create_pipeline(</span>
+<span class="c1">#                            data_file=args.data_dir,</span>
+<span class="c1">#                            preprocessed_data=True,</span>
+<span class="c1">#                            max_predictions_per_seq=args.max_predictions_per_seq,</span>
+<span class="c1">#                            training=True,</span>
+<span class="c1">#                            batch_size=args.batch_size,</span>
+<span class="c1">#                            batches_per_step=args.batches_per_step)</span>
+
 <span class="n">eval_loss</span><span class="p">,</span> <span class="n">eval_tensors</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span><span class="n">data_desc</span><span class="o">.</span><span class="n">eval_file</span><span class="p">,</span>
                                              <span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
                                              <span class="n">args</span><span class="o">.</span><span class="n">mask_probability</span><span class="p">,</span>
@@ -351,6 +416,11 @@ valid.txt
                              <span class="n">total_steps</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span> <span class="o">*</span> <span class="n">steps_per_epoch</span><span class="p">,</span>
                              <span class="n">warmup_ratio</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">lr_warmup_proportion</span><span class="p">)</span>
 
+<span class="c1"># if you are training is based on number of iterations rather than number of epochs, use</span>
+<span class="c1"># lr_policy_fn = get_lr_policy(args.lr_policy,</span>
+<span class="c1">#                           total_steps=args.total_iterations_per_gpu,</span>
+<span class="c1">#                           warmup_ratio=args.lr_warmup_proportion)</span>
+
 <span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
          <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy_fn</span><span class="p">,</span>
          <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">train_callback</span><span class="p">,</span> <span class="n">eval_callback</span><span class="p">,</span> <span class="n">ckpt_callback</span><span class="p">],</span>
@@ -358,6 +428,7 @@ valid.txt
          <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;batch_size&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
                               <span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span><span class="p">,</span>
                               <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">lr</span><span class="p">,</span>
+                              <span class="s2">&quot;betas&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">beta1</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">beta2</span><span class="p">),</span>
                               <span class="s2">&quot;weight_decay&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">weight_decay</span><span class="p">})</span>
 </pre></div>
 </div>
@@ -366,16 +437,16 @@ valid.txt
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
 <p id="bibtex-bibliography-nlp/bert_pretraining-0"><dl class="citation">
-<dt class="bibtex label" id="beltagy2019scibert"><span class="brackets"><a class="fn-backref" href="#id3">1</a></span></dt>
+<dt class="label" id="nlp-bert-beltagy2019scibert"><span class="brackets"><a class="fn-backref" href="#id3">NLP-BERT-PRETRAINING1</a></span></dt>
 <dd><p>Iz Beltagy, Arman Cohan, and Kyle Lo. Scibert: pretrained contextualized embeddings for scientific text. 2019. <a class="reference external" href="https://arxiv.org/abs/1903.10676">arXiv:1903.10676</a>.</p>
 </dd>
-<dt class="bibtex label" id="devlin2018bert"><span class="brackets"><a class="fn-backref" href="#id1">2</a></span></dt>
+<dt class="label" id="nlp-bert-devlin2018bert"><span class="brackets"><a class="fn-backref" href="#id1">NLP-BERT-PRETRAINING2</a></span></dt>
 <dd><p>Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. Bert: pre-training of deep bidirectional transformers for language understanding. <em>arXiv preprint arXiv:1810.04805</em>, 2018.</p>
 </dd>
-<dt class="bibtex label" id="lee2019biobert"><span class="brackets"><a class="fn-backref" href="#id2">3</a></span></dt>
+<dt class="label" id="nlp-bert-lee2019biobert"><span class="brackets"><a class="fn-backref" href="#id2">NLP-BERT-PRETRAINING3</a></span></dt>
 <dd><p>Jinhyuk Lee, Wonjin Yoon, Sungdong Kim, Donghyeon Kim, Sunkyu Kim, Chan Ho So, and Jaewoo Kang. Biobert: a pre-trained biomedical language representation model for biomedical text mining. 2019. <a class="reference external" href="https://arxiv.org/abs/1901.08746">arXiv:1901.08746</a>.</p>
 </dd>
-<dt class="bibtex label" id="merity2016pointer"><span class="brackets"><a class="fn-backref" href="#id4">4</a></span></dt>
+<dt class="label" id="nlp-bert-merity2016pointer"><span class="brackets"><a class="fn-backref" href="#id4">NLP-BERT-PRETRAINING4</a></span></dt>
 <dd><p>Stephen Merity, Caiming Xiong, James Bradbury, and Richard Socher. Pointer sentinel mixture models. <em>arXiv preprint arXiv:1609.07843</em>, 2016.</p>
 </dd>
 </dl>
@@ -403,7 +474,7 @@ valid.txt
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

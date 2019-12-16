@@ -1,0 +1,439 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>BERT预训练 &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Transformer语言模型" href="transformer_language_model.html" />
+    <link rel="prev" title="教程" href="neural_machine_translation.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">自然语言处理</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="intro.html#nmt">神经网络机器翻译 (NMT)</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="intro.html#bert">BERT</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">BERT预训练</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id4">语料下载</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#tokenizer">创建分词器(Tokenizer)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id6">创建模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id7">参考</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#transformer">Transformer语言模型</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#ner">命名实体识别 (NER)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#bertx2">用 BERTx2 后处理模型来提升语音识别性能</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">自然语言处理</a> &raquo;</li>
+        
+      <li>BERT预训练</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/nlp/bert_pretraining.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="bert">
+<h1>BERT预训练<a class="headerlink" href="#bert" title="Permalink to this headline">¶</a></h1>
+<p>在本教程中，我们会按照BERT模型结构 <a class="reference internal" href="#nlp-bert-devlin2018bert" id="id1">[NLP-BERT-PRETRAINING2]</a> 构建并训练一个掩码语言模型。训练可以完全从零开始或者在一个预训练好的模型基础上继续训练。在开始本教程之前，请先安装好 <code class="docutils literal notranslate"><span class="pre">nemo</span></code> 和 <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> 。关于安装 <code class="docutils literal notranslate"><span class="pre">nemo</span></code> 的一些步骤可以参阅 <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">如何安装</span></a> 章节。</p>
+<p>创建一个专门领域的BERT模型对于某些应用是更有优势的。比如一个专门针对生物医学领域的专业BERT，类似于BioBERT <a class="reference internal" href="#nlp-bert-lee2019biobert" id="id2">[NLP-BERT-PRETRAINING3]</a> 和SciBERT <a class="reference internal" href="#nlp-bert-beltagy2019scibert" id="id3">[NLP-BERT-PRETRAINING1]</a> 。</p>
+<p>本教程中所使用的代码来自于 <code class="docutils literal notranslate"><span class="pre">examples/nlp/bert_pretraining.py</span></code>.</p>
+<div class="section" id="id4">
+<h2>语料下载<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h2>
+<p>因为这只是一个演示，所以我们使用一个非常小的英文数据集 WikiText-2 <a class="reference internal" href="#nlp-bert-merity2016pointer" id="id5">[NLP-BERT-PRETRAINING4]</a> 。</p>
+<p>运行脚本 <code class="docutils literal notranslate"><span class="pre">examples/nlp/scripts/get_wt2.sh</span></code> 便可以下载这个数据集。下载后并解压，会得到如下三个文件：</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>test.txt
+train.txt
+valid.txt
+</pre></div>
+</div>
+</div></blockquote>
+<p>如果想尝试训练中文BERT模型，你可以下载中文维基语料 <a class="reference external" href="https://github.com/brightmart/nlp_chinese_corpus">wiki2019zh</a>。下载后，你需要解压并用这个脚本 <code class="docutils literal notranslate"><span class="pre">examples/nlp/scripts/process_wiki_zh.py</span></code> 来进行预处理</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python examples/nlp/scripts/process_wiki_zh.py --data_dir<span class="o">=</span>./wiki_zh --output_dir<span class="o">=</span>./wiki_zh --min_frequency<span class="o">=</span><span class="m">3</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<div class="section" id="tokenizer">
+<h2>创建分词器(Tokenizer)<a class="headerlink" href="#tokenizer" title="Permalink to this headline">¶</a></h2>
+<p>首先你需要创建一个 <cite>BERTPretrainingDataDesc</cite> 对象来描述数据集的格式。这其中涉及的主要步骤包括将数据集符号化并创建词表(vocabulary)和一个分词器(tokenizer).</p>
+<p>你也可以使用一个现成的词表或者分词器模型来跳过这一步。如果你已经有一个预训练好的分词器模型，将它复制到文件夹 <code class="docutils literal notranslate"><span class="pre">[data_dir]/bert</span></code> 下并重命名为 <code class="docutils literal notranslate"><span class="pre">tokenizer.model</span></code> 。</p>
+<p>如果你有一个现成的词表文件，可以将它复制到文件夹 <code class="docutils literal notranslate"><span class="pre">[data_dir]/bert</span></code> 下并命名为 <code class="docutils literal notranslate"><span class="pre">vocab.txt</span></code> 。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">data_desc</span> <span class="o">=</span> <span class="n">BERTPretrainingDataDesc</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">dataset_name</span><span class="p">,</span>
+                                    <span class="n">args</span><span class="o">.</span><span class="n">data_dir</span><span class="p">,</span>
+                                    <span class="n">args</span><span class="o">.</span><span class="n">vocab_size</span><span class="p">,</span>
+                                    <span class="n">args</span><span class="o">.</span><span class="n">sample_size</span><span class="p">,</span>
+                                    <span class="n">special_tokens</span><span class="p">,</span>
+                                    <span class="s1">&#39;train.txt&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>接下来我们需要定义tokenizer。如果你想使用一个自定义的词表文件，我们强烈推荐使用 <cite>SentencePieceTokenizer</cite> 。如果要训练中文BERT模型，请使用 <cite>NemoBertTokenizer</cite> 。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># If you&#39;re using a custom vocabulary, create your tokenizer like this</span>
+<span class="n">tokenizer</span> <span class="o">=</span> <span class="n">SentencePieceTokenizer</span><span class="p">(</span><span class="n">model_path</span><span class="o">=</span><span class="s2">&quot;tokenizer.model&quot;</span><span class="p">)</span>
+<span class="n">tokenizer</span><span class="o">.</span><span class="n">add_special_tokens</span><span class="p">([</span><span class="s2">&quot;[MASK]&quot;</span><span class="p">,</span> <span class="s2">&quot;[CLS]&quot;</span><span class="p">,</span> <span class="s2">&quot;[SEP]&quot;</span><span class="p">])</span>
+
+<span class="c1"># Otherwise, create your tokenizer like this</span>
+<span class="n">tokenizer</span> <span class="o">=</span> <span class="n">NemoBertTokenizer</span><span class="p">(</span><span class="n">vocab_file</span><span class="o">=</span><span class="s2">&quot;vocab.txt&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<div class="section" id="id6">
+<h2>创建模型<a class="headerlink" href="#id6" title="Permalink to this headline">¶</a></h2>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>建议你在一个Jupyter notebook中尝试以下内容，以方便调试。</p>
+</div>
+<p>首先，我们需要创建一个 <cite>NeuralModuleFactory</cite> 对象并调用所支持的后端。具体如何创建还取决于你是否想进行多GPU训练或者混合精度训练等。在本教程中，我们只使用一个GPU，而且没有混合精度训练。如果你想使用混合精度训练，可以将 <code class="docutils literal notranslate"><span class="pre">amp_opt_level</span></code> 选项设置为 <code class="docutils literal notranslate"><span class="pre">O1</span></code> 或者 <code class="docutils literal notranslate"><span class="pre">O2</span></code> 。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
+                                   <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+                                   <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
+                                   <span class="n">log_dir</span><span class="o">=</span><span class="n">work_dir</span><span class="p">,</span>
+                                   <span class="n">create_tb_writer</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                                   <span class="n">files_to_copy</span><span class="o">=</span><span class="p">[</span><span class="vm">__file__</span><span class="p">])</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>接下来我们需要定义模型结构。这里我们从 <cite>huggingface</cite> 模块导入BERT的模型结构。你只需要定义一些关键参数即可。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span>
+    <span class="n">vocab_size</span><span class="o">=</span><span class="n">tokenizer</span><span class="o">.</span><span class="n">vocab_size</span><span class="p">,</span>
+    <span class="n">num_layers</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_layers</span><span class="p">,</span>
+    <span class="n">d_model</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">d_model</span><span class="p">,</span>
+    <span class="n">num_heads</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_heads</span><span class="p">,</span>
+    <span class="n">d_inner</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">d_inner</span><span class="p">,</span>
+    <span class="n">max_seq_length</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
+    <span class="n">hidden_act</span><span class="o">=</span><span class="s2">&quot;gelu&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>如果你想从一个已有的BERT模型文件继续训练，那设置一个模型的名字即可。如果想查看完整的预训练好的BERT模型列表，可以使用 <cite>nemo_nlp.huggingface.BERT.list_pretrained_models()</cite> 。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span><span class="n">pretrained_model_name</span><span class="o">=</span><span class="s2">&quot;bert-base-cased&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>接下来，我们需要定义分类器和损失函数。在本教程中，我们会同时使用掩码语言模型和预测下一句模型这两个模型的损失函数，如果你只用掩饰语言模型作为损失的话，可能会观察到更高的准确率。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mlm_classifier</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TokenClassifier</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">d_model</span><span class="p">,</span>
+                                          <span class="n">num_classes</span><span class="o">=</span><span class="n">tokenizer</span><span class="o">.</span><span class="n">vocab_size</span><span class="p">,</span>
+                                          <span class="n">num_layers</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                                          <span class="n">log_softmax</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">mlm_loss_fn</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">MaskedLanguageModelingLossNM</span><span class="p">()</span>
+
+<span class="n">nsp_classifier</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">SequenceClassifier</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">d_model</span><span class="p">,</span>
+                                             <span class="n">num_classes</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                                             <span class="n">num_layers</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                                             <span class="n">log_softmax</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">nsp_loss_fn</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">pytorch</span><span class="o">.</span><span class="n">common</span><span class="o">.</span><span class="n">CrossEntropyLoss</span><span class="p">()</span>
+
+<span class="n">bert_loss</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">LossAggregatorNM</span><span class="p">(</span><span class="n">num_inputs</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>然后，我们把从输入到输出的整个计算流程封装成一个函数。有了这个函数，我们就可以很方便的分别创建训练流和评估流：</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">create_pipeline</span><span class="p">(</span><span class="o">**</span><span class="n">args</span><span class="p">):</span>
+    <span class="n">dataset</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertPretrainingDataset</span><span class="p">(</span><span class="o">**</span><span class="n">params</span><span class="p">)</span>
+    <span class="n">data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertPretrainingDataLayer</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
+    <span class="n">steps_per_epoch</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data_layer</span><span class="p">)</span> <span class="o">//</span> <span class="p">(</span><span class="n">batch_size</span> <span class="o">*</span> <span class="n">args</span><span class="o">.</span><span class="n">num_gpus</span><span class="p">)</span>
+
+    <span class="n">input_ids</span><span class="p">,</span> <span class="n">input_type_ids</span><span class="p">,</span> <span class="n">input_mask</span><span class="p">,</span> \
+        <span class="n">output_ids</span><span class="p">,</span> <span class="n">output_mask</span><span class="p">,</span> <span class="n">nsp_labels</span> <span class="o">=</span> <span class="n">data_layer</span><span class="p">()</span>
+
+    <span class="n">hidden_states</span> <span class="o">=</span> <span class="n">bert_model</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">input_ids</span><span class="p">,</span>
+                               <span class="n">token_type_ids</span><span class="o">=</span><span class="n">input_type_ids</span><span class="p">,</span>
+                               <span class="n">attention_mask</span><span class="o">=</span><span class="n">input_mask</span><span class="p">)</span>
+
+    <span class="n">mlm_logits</span> <span class="o">=</span> <span class="n">mlm_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+    <span class="n">mlm_loss</span> <span class="o">=</span> <span class="n">mlm_loss_fn</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">mlm_logits</span><span class="p">,</span>
+                           <span class="n">output_ids</span><span class="o">=</span><span class="n">output_ids</span><span class="p">,</span>
+                           <span class="n">output_mask</span><span class="o">=</span><span class="n">output_mask</span><span class="p">)</span>
+
+    <span class="n">nsp_logits</span> <span class="o">=</span> <span class="n">nsp_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+    <span class="n">nsp_loss</span> <span class="o">=</span> <span class="n">nsp_loss_fn</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">nsp_logits</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">nsp_labels</span><span class="p">)</span>
+
+    <span class="n">loss</span> <span class="o">=</span> <span class="n">bert_loss</span><span class="p">(</span><span class="n">loss_1</span><span class="o">=</span><span class="n">mlm_loss</span><span class="p">,</span> <span class="n">loss_2</span><span class="o">=</span><span class="n">nsp_loss</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">loss</span><span class="p">,</span> <span class="p">[</span><span class="n">mlm_loss</span><span class="p">,</span> <span class="n">nsp_loss</span><span class="p">],</span> <span class="n">steps_per_epoch</span>
+
+
+<span class="n">train_loss</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">steps_per_epoch</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span><span class="n">data_desc</span><span class="o">.</span><span class="n">train_file</span><span class="p">,</span>
+                                                 <span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
+                                                 <span class="n">args</span><span class="o">.</span><span class="n">mask_probability</span><span class="p">,</span>
+                                                 <span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
+<span class="n">eval_loss</span><span class="p">,</span> <span class="n">eval_tensors</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span><span class="n">data_desc</span><span class="o">.</span><span class="n">eval_file</span><span class="p">,</span>
+                                             <span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
+                                             <span class="n">args</span><span class="o">.</span><span class="n">mask_probability</span><span class="p">,</span>
+                                             <span class="n">args</span><span class="o">.</span><span class="n">eval_batch_size</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>再然后，我们定义一些必要的回调函数：</p>
+<ol class="arabic">
+<li><p><cite>SimpleLossLoggerCallback</cite>: 跟踪训练过程中损失函数的变化</p></li>
+<li><p><cite>EvaluatorCallback</cite>: 跟踪评估集上的指标变化</p></li>
+<li><p><cite>CheckpointCallback</cite>: 每过一段时间间隔保存模型</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">train_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<span class="n">eval_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<span class="n">ckpt_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ol>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><a class="reference external" href="https://www.tensorflow.org/tensorboard">Tensorboard</a> 是一个非常棒的调试工具。虽然不是训练的必要步骤，但是你可以安装 <a class="reference external" href="https://github.com/lanpa/tensorboardX">tensorboardX</a> 并在训练过程中运行它来观察一些指标在训练过程中的变化：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tensorboard --logdir bert_pretraining_tb
+</pre></div>
+</div>
+</div>
+<p>我们还建议把模型参数保存到一个配置文件中。这样做的话，你以后使用NeMo的时候导入BERT模型会非常方便。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">config_path</span> <span class="o">=</span> <span class="n">f</span><span class="s1">&#39;{nf.checkpoint_dir}/bert-config.json&#39;</span>
+
+<span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">config_path</span><span class="p">):</span>
+    <span class="n">bert_model</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">to_json_file</span><span class="p">(</span><span class="n">config_path</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>最后，我们定义优化器并开始训练！</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">lr_policy_fn</span> <span class="o">=</span> <span class="n">get_lr_policy</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">lr_policy</span><span class="p">,</span>
+                             <span class="n">total_steps</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span> <span class="o">*</span> <span class="n">steps_per_epoch</span><span class="p">,</span>
+                             <span class="n">warmup_ratio</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">lr_warmup_proportion</span><span class="p">)</span>
+
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
+         <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy_fn</span><span class="p">,</span>
+         <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">train_callback</span><span class="p">,</span> <span class="n">eval_callback</span><span class="p">,</span> <span class="n">ckpt_callback</span><span class="p">],</span>
+         <span class="n">optimizer</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">optimizer</span><span class="p">,</span>
+         <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;batch_size&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+                              <span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span><span class="p">,</span>
+                              <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">lr</span><span class="p">,</span>
+                              <span class="s2">&quot;weight_decay&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">weight_decay</span><span class="p">})</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<div class="section" id="id7">
+<h2>参考<a class="headerlink" href="#id7" title="Permalink to this headline">¶</a></h2>
+<p id="bibtex-bibliography-nlp/bert_pretraining-0"><dl class="citation">
+<dt class="label" id="nlp-bert-beltagy2019scibert"><span class="brackets"><a class="fn-backref" href="#id3">NLP-BERT-PRETRAINING1</a></span></dt>
+<dd><p>Iz Beltagy, Arman Cohan, and Kyle Lo. Scibert: pretrained contextualized embeddings for scientific text. 2019. <a class="reference external" href="https://arxiv.org/abs/1903.10676">arXiv:1903.10676</a>.</p>
+</dd>
+<dt class="label" id="nlp-bert-devlin2018bert"><span class="brackets"><a class="fn-backref" href="#id1">NLP-BERT-PRETRAINING2</a></span></dt>
+<dd><p>Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. Bert: pre-training of deep bidirectional transformers for language understanding. <em>arXiv preprint arXiv:1810.04805</em>, 2018.</p>
+</dd>
+<dt class="label" id="nlp-bert-lee2019biobert"><span class="brackets"><a class="fn-backref" href="#id2">NLP-BERT-PRETRAINING3</a></span></dt>
+<dd><p>Jinhyuk Lee, Wonjin Yoon, Sungdong Kim, Donghyeon Kim, Sunkyu Kim, Chan Ho So, and Jaewoo Kang. Biobert: a pre-trained biomedical language representation model for biomedical text mining. 2019. <a class="reference external" href="https://arxiv.org/abs/1901.08746">arXiv:1901.08746</a>.</p>
+</dd>
+<dt class="label" id="nlp-bert-merity2016pointer"><span class="brackets"><a class="fn-backref" href="#id5">NLP-BERT-PRETRAINING4</a></span></dt>
+<dd><p>Stephen Merity, Caiming Xiong, James Bradbury, and Richard Socher. Pointer sentinel mixture models. <em>arXiv preprint arXiv:1609.07843</em>, 2016.</p>
+</dd>
+</dl>
+</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="transformer_language_model.html" class="btn btn-neutral float-right" title="Transformer语言模型" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="neural_machine_translation.html" class="btn btn-neutral float-left" title="教程" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

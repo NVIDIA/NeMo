@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Tutorial &mdash; nemo 0.8.2 documentation</title>
+  <title>Tutorial &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -100,8 +100,8 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#fine-tuning">Fine-tuning</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#inference">Inference</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#inference-with-language-model">Inference with Language Model</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#evaluation">Evaluation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#evaluation-with-language-model">Evaluation with Language Model</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#using-kenlm">Using KenLM</a></li>
 </ul>
 </li>
@@ -113,8 +113,10 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -183,19 +185,17 @@
             
   <div class="section" id="tutorial">
 <h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
-<p>Make sure you have installed <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code> collection.
-See <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>You only need <cite>nemo</cite> and <cite>nemo_asr</cite> collection for this tutorial.</p>
-</div>
+<p>Make sure you have installed <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and the <code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code> collection.
+See the <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section.</p>
+<p>You only need to have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and the <code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code> collection for this tutorial.</p>
+<p>A more introductory, Jupyter notebook ASR tutorial can be found <a class="reference external" href="https://github.com/NVIDIA/NeMo/tree/master/examples/asr/notebooks">on GitHub</a>.</p>
 <div class="section" id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
-<p>This Automatic Speech Recognition (ASR) tutorial is focused on Jasper <a class="bibtex reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id1">[1]</a> model. Jasper is CTC-based <a class="bibtex reference internal" href="#graves2006" id="id2">[1]</a> end-to-end model. The model is called “end-to-end” because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text.
+<p>This Automatic Speech Recognition (ASR) tutorial is focused on Jasper <a class="reference internal" href="#asr-tut-li2019jasper" id="id1">[ASR-TUT2]</a> model. Jasper is CTC-based <a class="reference internal" href="#asr-tut-graves2006" id="id2">[ASR-TUT1]</a> end-to-end model. The model is called “end-to-end” because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text.
 CTC-ASR training pipeline consists of the following blocks:</p>
 <ol class="arabic">
-<li><p>audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)</p></li>
-<li><p>neural acoustic model (which predicts a probability distribution P_t(c) over vocabulary characters c per each time step t given input features per each timestep)</p></li>
+<li><p>Audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)</p></li>
+<li><p>Neural acoustic model (which predicts a probability distribution P_t(c) over vocabulary characters c per each time step t given input features per each timestep)</p></li>
 <li><p>CTC loss function</p>
 <blockquote>
 <div><img alt="CTC-based ASR" class="align-center" src="../_images/ctc_asr.png" />
@@ -205,7 +205,7 @@ CTC-ASR training pipeline consists of the following blocks:</p>
 </div>
 <div class="section" id="get-data">
 <h2>Get data<a class="headerlink" href="#get-data" title="Permalink to this headline">¶</a></h2>
-<p>We will be using an open-source LibriSpeech <a class="bibtex reference internal" href="../nlp/asr-improvement.html#panayotov2015librispeech" id="id3">[3]</a> dataset. These scripts will download and convert LibriSpeech into format expected by <cite>nemo_asr</cite>:</p>
+<p>We will be using an open-source LibriSpeech <a class="reference internal" href="#asr-tut-panayotov2015librispeech" id="id3">[ASR-TUT3]</a> dataset. These scripts will download and convert LibriSpeech into format expected by <cite>nemo_asr</cite>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir data
 <span class="c1"># note that this script requires sox to be installed</span>
 <span class="c1"># to install sox on Ubuntu, simply do: sudo apt-get install sox</span>
@@ -225,8 +225,8 @@ python get_librispeech_data.py --data_root<span class="o">=</span>data --data_se
 <li><p>dev_clean.json</p></li>
 <li><p>train_clean_100.json</p></li>
 </ul>
-<p>In the tutorial we will use <cite>train_clean_100.json</cite> for training and <cite>dev_clean.json`for evaluation.
-Each line in json file describes a training sample - `audio_filepath</cite> contains path to the wav file, <cite>duration</cite> it’s duration in seconds, and <cite>text</cite> is it’s transcript:</p>
+<p>In the tutorial we will use <cite>train_clean_100.json</cite> for training and <cite>dev_clean.json</cite> for evaluation.
+Each line in json file describes a training sample - <cite>audio_filepath</cite> contains path to the wav file, <cite>duration</cite> it’s duration in seconds, and <cite>text</cite> is it’s transcript:</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&lt;absolute_path_to&gt;/1355-39947-0000.wav&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">11.3</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;psychotherapy and the community both the physician and the patient find their place in the community the life interests of which are superior to the interests of the individual&quot;</span><span class="p">}</span>
 <span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&lt;absolute_path_to&gt;/1355-39947-0001.wav&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">15.905</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;it is an unavoidable question how far from the higher point of view of the social mind the psychotherapeutic efforts should be encouraged or suppressed are there any conditions which suggest suspicion of or direct opposition to such curative work&quot;</span><span class="p">}</span>
 </pre></div>
@@ -234,7 +234,7 @@ Each line in json file describes a training sample - `audio_filepath</cite> cont
 </div>
 <div class="section" id="training">
 <h2>Training<a class="headerlink" href="#training" title="Permalink to this headline">¶</a></h2>
-<p>We will train a small model from the Jasper family <a class="bibtex reference internal" href="../nlp/asr-improvement.html#li2019jasper" id="id4">[1]</a>.
+<p>We will train a small model from the Jasper family <a class="reference internal" href="#asr-tut-li2019jasper" id="id4">[ASR-TUT2]</a>.
 Jasper (“Just Another SPeech Recognizer”) is a deep time delay neural network (TDNN) comprising of blocks of 1D-convolutional layers.
 Jasper family of models are denoted as Jasper_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization, ReLU, and dropout:</p>
 <blockquote>
@@ -286,7 +286,7 @@ The script below does both training (on <cite>train_clean_100.json</cite>) and e
     <span class="n">manifest_filepath</span><span class="o">=</span><span class="n">eval_datasets</span><span class="p">,</span>
     <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
 
-<span class="n">data_preprocessor</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioPreprocessing</span><span class="p">()</span>
+<span class="n">data_preprocessor</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioToMelSpectrogramPreprocessor</span><span class="p">()</span>
 <span class="n">spec_augment</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">SpectrogramAugmentation</span><span class="p">(</span><span class="n">rect_masks</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
 
 <span class="n">jasper_encoder</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">JasperEncoder</span><span class="p">(</span>
@@ -389,7 +389,7 @@ The script below does both training (on <cite>train_clean_100.json</cite>) and e
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This script trains should finish 50 epochs in about 7 hours on GTX 1080.</p>
+<p>This script trains should finish 50 epochs in about 7 hours on GTX 1080. You should get an evaluation WER of about 30%.</p>
 </div>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -470,15 +470,15 @@ Make sure it is installed.</p>
 <p>When fine-tuning, use smaller learning rate.</p>
 </div>
 </div>
-<div class="section" id="inference">
-<h2>Inference<a class="headerlink" href="#inference" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="evaluation">
+<h2>Evaluation<a class="headerlink" href="#evaluation" title="Permalink to this headline">¶</a></h2>
 <p>First download pre-trained model (jasper_encoder, jasper_decoder and configuration files) <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5">from here</a> into <cite>&lt;path_to_checkpoints&gt;</cite>. We will use this pre-trained model to measure WER on LibriSpeech dev-clean dataset.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_infer.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/quartznet15x5.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_eval.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/quartznet15x5.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt;
 </pre></div>
 </div>
 </div>
-<div class="section" id="inference-with-language-model">
-<h2>Inference with Language Model<a class="headerlink" href="#inference-with-language-model" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="evaluation-with-language-model">
+<h2>Evaluation with Language Model<a class="headerlink" href="#evaluation-with-language-model" title="Permalink to this headline">¶</a></h2>
 <div class="section" id="using-kenlm">
 <h3>Using KenLM<a class="headerlink" href="#using-kenlm" title="Permalink to this headline">¶</a></h3>
 <p>We will be using <a class="reference external" href="https://github.com/PaddlePaddle/DeepSpeech">Baidu’s CTC decoder with LM implementation.</a>.</p>
@@ -497,9 +497,9 @@ Make sure it is installed.</p>
 </dl>
 </li>
 <li><p>Build 6-gram KenLM model on LibriSpeech <code class="docutils literal notranslate"><span class="pre">./build_6-gram_OpenSLR_lm.sh</span></code></p></li>
-<li><p>Run jasper_infer.py with the –lm_path flag</p></li>
+<li><p>Run jasper_eval.py with the –lm_path flag</p></li>
 </ul>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_infer.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/quartznet15x5.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt; --lm_path<span class="o">=</span>&lt;path_to_6gram.binary&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_eval.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/quartznet15x5.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt; --lm_path<span class="o">=</span>&lt;path_to_6gram.binary&gt;
 </pre></div>
 </div>
 </div></blockquote>
@@ -508,13 +508,13 @@ Make sure it is installed.</p>
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
 <p id="bibtex-bibliography-asr/tutorial-0"><dl class="citation">
-<dt class="bibtex label" id="graves2006"><span class="brackets"><a class="fn-backref" href="#id2">1</a></span></dt>
+<dt class="label" id="asr-tut-graves2006"><span class="brackets"><a class="fn-backref" href="#id2">ASR-TUT1</a></span></dt>
 <dd><p>Alex Graves, Santiago Fernández, Faustino Gomez, and Jürgen Schmidhuber. Connectionist temporal classification: labelling unsegmented sequence data with recurrent neural networks. In <em>Proceedings of the 23rd international conference on Machine learning</em>, 369–376. ACM, 2006.</p>
 </dd>
-<dt class="bibtex label" id="li2019jasper"><span class="brackets">1</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id4">2</a>)</span></dt>
+<dt class="label" id="asr-tut-li2019jasper"><span class="brackets">ASR-TUT2</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id4">2</a>)</span></dt>
 <dd><p>Jason Li, Vitaly Lavrukhin, Boris Ginsburg, Ryan Leary, Oleksii Kuchaiev, Jonathan M Cohen, Huyen Nguyen, and Ravi Teja Gadde. Jasper: an end-to-end convolutional neural acoustic model. <em>arXiv preprint arXiv:1904.03288</em>, 2019.</p>
 </dd>
-<dt class="bibtex label" id="panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
+<dt class="label" id="asr-tut-panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id3">ASR-TUT3</a></span></dt>
 <dd><p>Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur. Librispeech: an asr corpus based on public domain audio books. In <em>Acoustics, Speech and Signal Processing (ICASSP), 2015 IEEE International Conference on</em>, 5206–5210. IEEE, 2015.</p>
 </dd>
 </dl>
@@ -542,7 +542,7 @@ Make sure it is installed.</p>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

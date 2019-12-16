@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Tutorial &mdash; nemo 0.8.2 documentation</title>
+  <title>Tutorial &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -108,8 +108,10 @@
 <li class="toctree-l2"><a class="reference internal" href="intro.html#improving-speech-recognition-with-bertx2-post-processing-model">Improving speech recognition with BERTx2 post-processing model</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -178,8 +180,12 @@
             
   <div class="section" id="tutorial">
 <h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
-<p>In this tutorial, we are going to implement a joint intent and slot filling system with pretrained BERT model based on <a class="reference external" href="https://arxiv.org/abs/1902.10909">BERT for Joint Intent Classification and Slot Filling</a> <a class="bibtex reference internal" href="#chen2019bert" id="id1">[1]</a>. All code used in this tutorial is based on <code class="docutils literal notranslate"><span class="pre">examples/nlp/joint_intent_slot_with_bert.py</span></code>.</p>
-<p>There are four pretrained BERT models that we can select from using the argument <cite>–pretrained_bert_model</cite>. We’re currently using the script for loading pretrained models from <cite>pytorch_transformers</cite>. See the list of available pretrained models <a class="reference external" href="https://huggingface.co/pytorch-transformers/pretrained_models.html">here</a>.</p>
+<p>In this tutorial, we are going to implement a joint intent and slot filling system with pretrained BERT model based on
+<a class="reference external" href="https://arxiv.org/abs/1902.10909">BERT for Joint Intent Classification and Slot Filling</a> <a class="reference internal" href="#nlp-slot-chen2019bert" id="id1">[NLP-SLOT1]</a>.
+All code used in this tutorial is based on <code class="docutils literal notranslate"><span class="pre">examples/nlp/joint_intent_slot_with_bert.py</span></code>.</p>
+<p>There are four pretrained BERT models that we can select from using the argument <cite>–pretrained_bert_model</cite>. We’re currently
+using the script for loading pretrained models from <cite>pytorch_transformers</cite>. See the list of available pretrained models
+<a class="reference external" href="https://huggingface.co/pytorch-transformers/pretrained_models.html">here</a>.</p>
 <div class="section" id="preliminaries">
 <h2>Preliminaries<a class="headerlink" href="#preliminaries" title="Permalink to this headline">¶</a></h2>
 <p><strong>Model details</strong>
@@ -200,11 +206,15 @@ This model jointly train the sentence-level classifier for intents and token-lev
 </ul>
 </dd>
 </dl>
-<p>Currently, the datasets that we provide pre-processing script for include ATIS which can be downloaded from <a class="reference external" href="https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk">Kaggle</a> and the SNIPS spoken language understanding research dataset which can be requested from <a class="reference external" href="https://github.com/snipsco/spoken-language-understanding-research-datasets">here</a>. You can find the pre-processing script in <code class="docutils literal notranslate"><span class="pre">collections/nemo_nlp/nemo_nlp/text_data_utils.py</span></code>.</p>
+<p>Currently, the datasets that we provide pre-processing script for include ATIS which can be downloaded
+from <a class="reference external" href="https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk">Kaggle</a> and the SNIPS spoken language understanding research dataset which can be
+requested from <a class="reference external" href="https://github.com/snipsco/spoken-language-understanding-research-datasets">here</a>.
+You can find the pre-processing script in <code class="docutils literal notranslate"><span class="pre">collections/nemo_nlp/nemo_nlp/data/datasets/utils.py</span></code>.</p>
 </div>
 <div class="section" id="code-structure">
 <h2>Code structure<a class="headerlink" href="#code-structure" title="Permalink to this headline">¶</a></h2>
-<p>First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level, 3) local rank of the GPU, and 4) an experiment manager that creates a timestamped folder to store checkpoints, relevant outputs, log files, and TensorBoard graphs.</p>
+<p>First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level,
+3) local rank of the GPU, and 4) an experiment manager that creates a timestamped folder to store checkpoints, relevant outputs, log files, and TensorBoard graphs.</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
                 <span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
@@ -216,7 +226,8 @@ This model jointly train the sentence-level classifier for intents and token-lev
 </pre></div>
 </div>
 </div></blockquote>
-<p>We define tokenizer which transforms text into BERT tokens, using a built-in tokenizer by <cite>pytorch_transformers</cite>. This will tokenize text following the mapping of the original BERT model.</p>
+<p>We define tokenizer which transforms text into BERT tokens, using a built-in tokenizer by <cite>pytorch_transformers</cite>.
+This will tokenize text following the mapping of the original BERT model.</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pytorch_transformers</span> <span class="kn">import</span> <span class="n">BertTokenizer</span>
 <span class="n">tokenizer</span> <span class="o">=</span> <span class="n">BertTokenizer</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">pretrained_bert_model</span><span class="p">)</span>
@@ -226,9 +237,10 @@ This model jointly train the sentence-level classifier for intents and token-lev
 <p>Next, we define all Neural Modules participating in our joint intent slot filling classification pipeline.</p>
 <blockquote>
 <div><ul class="simple">
-<li><p>Process data: the <cite>JointIntentSlotDataDesc</cite> class in <cite>nemo_nlp/nemo_nlp/text_data_utils.py</cite> is supposed to do the preprocessing of raw data into the format data supported by <cite>BertJointIntentSlotDataset</cite>. Currently, it supports SNIPS and ATIS raw datasets, but you can also write your own preprocessing scripts for any dataset.</p></li>
+<li><p>Process data: the <cite>JointIntentSlotDataDesc</cite> class in <cite>nemo_nlp/nemo_nlp/data/datasets/utils.py</cite> is supposed to do the preprocessing of raw data into the format data supported by <cite>BertJointIntentSlotDataset</cite>. Currently, it supports SNIPS and ATIS raw datasets, but you can also write your own preprocessing scripts for any dataset.</p></li>
 </ul>
-<p>A JointIntentSlotDataDesc object includes information such as <cite>self.train_file</cite>, <cite>self.train_slot_file</cite>, <cite>self.eval_file</cite>, <cite>self.eval_slot_file</cite>,  <cite>self.intent_dict_file</cite>, and <cite>self.slot_dict_file</cite>.</p>
+<p>A JointIntentSlotDataDesc object includes information such as <cite>self.train_file</cite>, <cite>self.train_slot_file</cite>, <cite>self.eval_file</cite>, <cite>self.eval_slot_file</cite>,
+<cite>self.intent_dict_file</cite>, and <cite>self.slot_dict_file</cite>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">data_desc</span> <span class="o">=</span> <span class="n">JointIntentSlotDataDesc</span><span class="p">(</span>
     <span class="n">args</span><span class="o">.</span><span class="n">dataset_name</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">data_dir</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">do_lower_case</span><span class="p">)</span>
 </pre></div>
@@ -355,7 +367,7 @@ This model jointly train the sentence-level classifier for intents and token-lev
 </div></blockquote>
 <p>To do inference, run:</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">joint_intent_slot_infer</span><span class="o">.</span><span class="n">py</span> \
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">joint_intent_slot_infer</span><span class="o">.</span><span class="n">py</span> \
     <span class="o">--</span><span class="n">data_dir</span> <span class="o">&lt;</span><span class="n">path</span> <span class="n">to</span> <span class="n">data</span><span class="o">&gt;</span> \
     <span class="o">--</span><span class="n">work_dir</span> <span class="o">&lt;</span><span class="n">path</span> <span class="n">to</span> <span class="n">checkpoint</span> <span class="n">folder</span><span class="o">&gt;</span>
 </pre></div>
@@ -363,7 +375,7 @@ This model jointly train the sentence-level classifier for intents and token-lev
 </div></blockquote>
 <p>To do inference on a single query, run:</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="o">-</span><span class="n">m</span> <span class="n">joint_intent_slot_infer</span><span class="o">.</span><span class="n">py</span> \
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">joint_intent_slot_infer</span><span class="o">.</span><span class="n">py</span> \
     <span class="o">--</span><span class="n">work_dir</span> <span class="o">&lt;</span><span class="n">path</span> <span class="n">to</span> <span class="n">checkpoint</span> <span class="n">folder</span><span class="o">&gt;</span>
     <span class="o">--</span><span class="n">query</span> <span class="o">&lt;</span><span class="n">query</span><span class="o">&gt;</span>
 </pre></div>
@@ -373,7 +385,7 @@ This model jointly train the sentence-level classifier for intents and token-lev
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
 <p id="bibtex-bibliography-nlp/joint_intent_slot_filling-0"><dl class="citation">
-<dt class="bibtex label" id="chen2019bert"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dt class="label" id="nlp-slot-chen2019bert"><span class="brackets"><a class="fn-backref" href="#id1">NLP-SLOT1</a></span></dt>
 <dd><p>Qian Chen, Zhu Zhuo, and Wen Wang. Bert for joint intent classification and slot filling. <em>arXiv preprint arXiv:1902.10909</em>, 2019.</p>
 </dd>
 </dl>
@@ -401,7 +413,7 @@ This model jointly train the sentence-level classifier for intents and token-lev
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

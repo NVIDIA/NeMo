@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Installation &mdash; nemo 0.8.2 documentation</title>
+  <title>Installation &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -36,7 +36,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Getting started" href="tutorials/intro.html" />
-    <link rel="prev" title="NVIDIA Neural Modules: NeMo" href="index.html" /> 
+    <link rel="prev" title="NVIDIA Neural Modules Developer Guide" href="index.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -91,8 +91,10 @@
 <li class="toctree-l1"><a class="reference internal" href="training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="asr/intro.html">Speech Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -175,6 +177,7 @@ in the <a class="reference external" href="https://ngc.nvidia.com/catalog/contai
 You can pull it like so: <cite>docker pull nvcr.io/nvidia/pytorch:19.08-py3</cite></p>
 </div>
 <p><strong>Installing NeMo and Collections</strong></p>
+<p><em>Note</em>: For step 2 and 3, if you want to use NeMo in development mode, use: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code> instead of <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">.</span></code></p>
 <ol class="arabic simple">
 <li><p>Clone the repository:</p></li>
 </ol>
@@ -182,17 +185,47 @@ You can pull it like so: <cite>docker pull nvcr.io/nvidia/pytorch:19.08-py3</cit
 </pre></div>
 </div>
 <ol class="arabic simple" start="2">
-<li><p>Go to <code class="docutils literal notranslate"><span class="pre">nemo</span></code> folder and do: <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">install</span></code></p></li>
+<li><p>Go to <code class="docutils literal notranslate"><span class="pre">nemo</span></code> folder and install NeMo Core:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> nemo
+pip install .
+</pre></div>
+</div>
+<ol class="arabic" start="3">
 <li><p>Install collections</p>
-<ol class="loweralpha simple">
-<li><p>ASR collection from <code class="docutils literal notranslate"><span class="pre">collections/nemo_asr</span></code> do: <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">libsndfile1</span> <span class="pre">&amp;&amp;</span> <span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">install</span></code></p></li>
-<li><p>NLP collection from <code class="docutils literal notranslate"><span class="pre">collections/nemo_nlp</span></code> do: <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">install</span></code></p></li>
-<li><p>LPR collection from <code class="docutils literal notranslate"><span class="pre">collections/nemo_simple_gan</span></code> do: <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">install</span></code></p></li>
+<blockquote>
+<div><blockquote>
+<div><ol class="loweralpha simple">
+<li><p>To install the ASR collection from <code class="docutils literal notranslate"><span class="pre">collections/nemo_asr</span></code>:</p></li>
 </ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> ../collections/nemo_asr
+sudo apt-get install libsndfile1 <span class="o">&amp;&amp;</span> pip install .
+</pre></div>
+</div>
+</div></blockquote>
+<ol class="loweralpha simple" start="2">
+<li><p>To install the NLP collection from <code class="docutils literal notranslate"><span class="pre">collections/nemo_nlp</span></code>:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> ../nemo_nlp
+pip install .
+</pre></div>
+</div>
+<ol class="loweralpha simple" start="3">
+<li><p>To install the LPR collection from <code class="docutils literal notranslate"><span class="pre">collections/nemo_simple_gan</span></code>:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> ../nemo_simple_gan
+pip install .
+</pre></div>
+</div>
+<ol class="loweralpha simple" start="4">
+<li><p>To install the TTS collection from <code class="docutils literal notranslate"><span class="pre">collections/nemo_tts</span></code>:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> ../nemo_tts
+pip install .
+</pre></div>
+</div>
+</div></blockquote>
 </li>
-</ol>
-<p>For development do: <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">develop</span></code> instead of <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">install</span></code></p>
-<ol class="arabic simple" start="4">
 <li><p>Run unittests from the nemo directory to validate installation:</p></li>
 </ol>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m unittest tests/*.py
@@ -215,7 +248,7 @@ You can pull it like so: <cite>docker pull nvcr.io/nvidia/pytorch:19.08-py3</cit
         <a href="tutorials/intro.html" class="btn btn-neutral float-right" title="Getting started" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="index.html" class="btn btn-neutral float-left" title="NVIDIA Neural Modules: NeMo" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="index.html" class="btn btn-neutral float-left" title="NVIDIA Neural Modules Developer Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
@@ -224,7 +257,7 @@ You can pull it like so: <cite>docker pull nvcr.io/nvidia/pytorch:19.08-py3</cit
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

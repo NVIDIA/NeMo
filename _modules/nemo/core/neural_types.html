@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>nemo.core.neural_types &mdash; nemo 0.8.2 documentation</title>
+  <title>nemo.core.neural_types &mdash; nemo 0.9.0 documentation</title>
   
 
   
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.8.2
+                0.9.0
               </div>
             
           
@@ -89,8 +89,10 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../asr/intro.html">Speech Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../collections/modules.html">NeMo Collections API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../chinese/intro.html">中文支持</a></li>
 </ul>
 
             
@@ -167,7 +169,10 @@
            <span class="s1">&#39;TimeTag&#39;</span><span class="p">,</span>
            <span class="s1">&#39;ProcessedTimeTag&#39;</span><span class="p">,</span>
            <span class="s1">&#39;ChannelTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;EmbeddedTextTag&#39;</span><span class="p">,</span>
            <span class="s1">&#39;SpectrogramSignalTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;MelSpectrogramSignalTag&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;MFCCSignalTag&#39;</span><span class="p">,</span>
            <span class="s1">&#39;EncodedRepresentationTag&#39;</span><span class="p">,</span>
            <span class="s1">&#39;ClassTag&#39;</span><span class="p">,</span>
            <span class="s1">&#39;WidthTag&#39;</span><span class="p">,</span>
@@ -223,11 +228,33 @@
         <span class="k">return</span> <span class="s2">&quot;channel&quot;</span></div>
 
 
+<div class="viewcode-block" id="EmbeddedTextTag"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_types.EmbeddedTextTag">[docs]</a><span class="k">class</span> <span class="nc">EmbeddedTextTag</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Tag for any dimensions that contains text that goes through an</span>
+<span class="sd">    enbedding layer.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;embedded_text&quot;</span></div>
+
+
 <div class="viewcode-block" id="SpectrogramSignalTag"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_types.SpectrogramSignalTag">[docs]</a><span class="k">class</span> <span class="nc">SpectrogramSignalTag</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Tag for spectrogram signal dimension.&quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;spectrogram_signal&quot;</span></div>
+
+
+<div class="viewcode-block" id="MelSpectrogramSignalTag"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_types.MelSpectrogramSignalTag">[docs]</a><span class="k">class</span> <span class="nc">MelSpectrogramSignalTag</span><span class="p">(</span><span class="n">SpectrogramSignalTag</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Tag for mel spectrogram signal dimension.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;mel_spectrogram_signal&quot;</span></div>
+
+
+<div class="viewcode-block" id="MFCCSignalTag"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_types.MFCCSignalTag">[docs]</a><span class="k">class</span> <span class="nc">MFCCSignalTag</span><span class="p">(</span><span class="n">SpectrogramSignalTag</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Tag for MFCC signal dimension.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;mfcc_signal&quot;</span></div>
 
 
 <div class="viewcode-block" id="EncodedRepresentationTag"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_types.EncodedRepresentationTag">[docs]</a><span class="k">class</span> <span class="nc">EncodedRepresentationTag</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">):</span>
@@ -565,7 +592,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, AI Applications team
+        &copy; Copyright 2018-2019, NVIDIA
 
     </p>
   </div>

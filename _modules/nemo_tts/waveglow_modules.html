@@ -1,0 +1,445 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>nemo_tts.waveglow_modules &mdash; nemo 0.9.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.9.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tts/intro.html">Speech Synthesis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../chinese/intro.html">中文支持</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>nemo_tts.waveglow_modules</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for nemo_tts.waveglow_modules</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2019 NVIDIA Corporation</span>
+<span class="kn">import</span> <span class="nn">librosa</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+
+<span class="kn">from</span> <span class="nn">nemo.backends.pytorch.nm</span> <span class="k">import</span> <span class="n">TrainableNM</span><span class="p">,</span> <span class="n">LossNM</span>
+<span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="k">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">.parts.waveglow</span> <span class="k">import</span> <span class="n">WaveGlow</span>
+
+
+<div class="viewcode-block" id="WaveGlowNM"><a class="viewcode-back" href="../../collections/nemo_tts.html#nemo_tts.waveglow_modules.WaveGlowNM">[docs]</a><span class="k">class</span> <span class="nc">WaveGlowNM</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    WaveGlowNM implements the Waveglow model in whole. This NM is meant to</span>
+<span class="sd">    be used during training</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        n_mel_channels (int): Size of input mel spectrogram</span>
+<span class="sd">            Defaults to 80.</span>
+<span class="sd">        n_flows (int): Number of normalizing flows/layers of waveglow.</span>
+<span class="sd">            Defaults to 12</span>
+<span class="sd">        n_group (int): Each audio/spec pair is split in n_group number of</span>
+<span class="sd">            groups. It must be divisible by 2 as halves are split this way.</span>
+<span class="sd">            Defaults to 8</span>
+<span class="sd">        n_early_every (int): After n_early_every layers, n_early_size number of</span>
+<span class="sd">            groups are skipped to the output of the Neural Module.</span>
+<span class="sd">            Defaults to 4</span>
+<span class="sd">        n_early_size (int): The number of groups to skip to the output at every</span>
+<span class="sd">            n_early_every layers.</span>
+<span class="sd">            Defaults to 2</span>
+<span class="sd">        n_wn_layers (int): The number of layers of the wavenet submodule.</span>
+<span class="sd">            Defaults to 8</span>
+<span class="sd">        n_wn_channels (int): The number of channels of the wavenet submodule.</span>
+<span class="sd">            Defaults to 512</span>
+<span class="sd">        wn_kernel_size (int): The kernel size of the wavenet submodule.</span>
+<span class="sd">            Defaults to 3</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
+        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;mel_spectrogram&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span>
+                <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                 <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">MelSpectrogramSignalTag</span><span class="p">),</span>
+                 <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;audio&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                 <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)})</span>
+        <span class="p">}</span>
+
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;audio&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                 <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;log_s_list&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(),</span>
+            <span class="s2">&quot;log_det_W_list&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(),</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">n_mel_channels</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">80</span><span class="p">,</span>
+            <span class="n">n_flows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">12</span><span class="p">,</span>
+            <span class="n">n_group</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
+            <span class="n">n_early_every</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+            <span class="n">n_early_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+            <span class="n">n_wn_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
+            <span class="n">n_wn_channels</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
+            <span class="n">wn_kernel_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">wavenet_config</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;n_layers&quot;</span><span class="p">:</span> <span class="n">n_wn_layers</span><span class="p">,</span>
+            <span class="s2">&quot;n_channels&quot;</span><span class="p">:</span> <span class="n">n_wn_channels</span><span class="p">,</span>
+            <span class="s2">&quot;kernel_size&quot;</span><span class="p">:</span> <span class="n">wn_kernel_size</span>
+        <span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span> <span class="o">=</span> <span class="n">WaveGlow</span><span class="p">(</span>
+            <span class="n">n_mel_channels</span><span class="o">=</span><span class="n">n_mel_channels</span><span class="p">,</span>
+            <span class="n">n_flows</span><span class="o">=</span><span class="n">n_flows</span><span class="p">,</span>
+            <span class="n">n_group</span><span class="o">=</span><span class="n">n_group</span><span class="p">,</span>
+            <span class="n">n_early_every</span><span class="o">=</span><span class="n">n_early_every</span><span class="p">,</span>
+            <span class="n">n_early_size</span><span class="o">=</span><span class="n">n_early_size</span><span class="p">,</span>
+            <span class="n">WN_config</span><span class="o">=</span><span class="n">wavenet_config</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mel_spectrogram</span><span class="p">,</span> <span class="n">audio</span><span class="p">):</span>
+        <span class="c1"># This function should probably be split</span>
+        <span class="c1"># If training, it returns the predicted normal distribution</span>
+        <span class="c1"># Else it returns the predicted audio</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span><span class="p">:</span>
+            <span class="n">audio</span><span class="p">,</span> <span class="n">log_s_list</span><span class="p">,</span> <span class="n">log_det_W_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">mel_spectrogram</span><span class="p">,</span> <span class="n">audio</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">audio</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span>
+                <span class="n">mel_spectrogram</span><span class="p">)</span>
+            <span class="n">log_s_list</span> <span class="o">=</span> <span class="n">log_det_W_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">return</span> <span class="n">audio</span><span class="p">,</span> <span class="n">log_s_list</span><span class="p">,</span> <span class="n">log_det_W_list</span></div>
+
+
+<div class="viewcode-block" id="WaveGlowInferNM"><a class="viewcode-back" href="../../collections/nemo_tts.html#nemo_tts.waveglow_modules.WaveGlowInferNM">[docs]</a><span class="k">class</span> <span class="nc">WaveGlowInferNM</span><span class="p">(</span><span class="n">WaveGlowNM</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    WaveGlowInferNM is the inference Neural Module for WaveGlowNM. This NM is</span>
+<span class="sd">    meant to be used during inference. Keep in mind, the inference module</span>
+<span class="sd">    runs in the reverse order of the training module.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        n_mel_channels (int): Size of input mel spectrogram</span>
+<span class="sd">            Defaults to 80.</span>
+<span class="sd">        n_flows (int): Number of normalizing flows/layers of waveglow.</span>
+<span class="sd">            Defaults to 12</span>
+<span class="sd">        n_group (int): Each audio/spec pair is split in n_group number of</span>
+<span class="sd">            groups. It must be divisible by 2 as halves are split this way.</span>
+<span class="sd">            Defaults to 8</span>
+<span class="sd">        n_early_every (int): After n_early_every layers, n_early_size number of</span>
+<span class="sd">            groups are added as input to the current layer.</span>
+<span class="sd">            Defaults to 4</span>
+<span class="sd">        n_early_size (int): The number of groups to sample at every</span>
+<span class="sd">            n_early_every layers. The sampled values are then passed through</span>
+<span class="sd">            the remaining layer.</span>
+<span class="sd">            Defaults to 2</span>
+<span class="sd">        n_wn_layers (int): The number of layers of the wavenet submodule.</span>
+<span class="sd">            Defaults to 8</span>
+<span class="sd">        n_wn_channels (int): The number of channels of the wavenet submodule.</span>
+<span class="sd">            Defaults to 512</span>
+<span class="sd">        wn_kernel_size (int): The kernel size of the wavenet submodule.</span>
+<span class="sd">            Defaults to 3</span>
+<span class="sd">        sigma (float): Standard deviation of the normal distribution from which</span>
+<span class="sd">            we sample z. Defaults to 0.6.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
+        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;mel_spectrogram&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">MelSpectrogramSignalTag</span><span class="p">),</span>
+                <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)})</span>
+        <span class="p">}</span>
+
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;audio&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                                 <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)})</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;WaveGlowNM&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">n_mel_channels</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">80</span><span class="p">,</span>
+            <span class="n">n_flows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">12</span><span class="p">,</span>
+            <span class="n">n_group</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
+            <span class="n">n_early_every</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+            <span class="n">n_early_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+            <span class="n">n_wn_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
+            <span class="n">n_wn_channels</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
+            <span class="n">wn_kernel_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+            <span class="n">sigma</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.6</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sigma</span> <span class="o">=</span> <span class="n">sigma</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">n_mel_channels</span><span class="o">=</span><span class="n">n_mel_channels</span><span class="p">,</span>
+            <span class="n">n_flows</span><span class="o">=</span><span class="n">n_flows</span><span class="p">,</span>
+            <span class="n">n_group</span><span class="o">=</span><span class="n">n_group</span><span class="p">,</span>
+            <span class="n">n_early_every</span><span class="o">=</span><span class="n">n_early_every</span><span class="p">,</span>
+            <span class="n">n_early_size</span><span class="o">=</span><span class="n">n_early_size</span><span class="p">,</span>
+            <span class="n">n_wn_layers</span><span class="o">=</span><span class="n">n_wn_layers</span><span class="p">,</span>
+            <span class="n">n_wn_channels</span><span class="o">=</span><span class="n">n_wn_channels</span><span class="p">,</span>
+            <span class="n">wn_kernel_size</span><span class="o">=</span><span class="n">wn_kernel_size</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_removed_weight_norm</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="WaveGlowInferNM.setup_denoiser"><a class="viewcode-back" href="../../collections/nemo_tts.html#nemo_tts.waveglow_modules.WaveGlowInferNM.setup_denoiser">[docs]</a>    <span class="k">def</span> <span class="nf">setup_denoiser</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">mel_input</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">80</span><span class="p">,</span> <span class="mi">88</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+            <span class="n">bias_audio</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">mel_input</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span><span class="o">.</span><span class="n">float</span><span class="p">()</span>
+            <span class="n">bias_audio</span> <span class="o">=</span> <span class="n">bias_audio</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+            <span class="n">bias_spec</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">librosa</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">magphase</span><span class="p">(</span>
+                <span class="n">librosa</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">stft</span><span class="p">(</span><span class="n">bias_audio</span><span class="p">,</span> <span class="n">n_fft</span><span class="o">=</span><span class="mi">1024</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bias_spec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">bias_spec</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="WaveGlowInferNM.denoise"><a class="viewcode-back" href="../../collections/nemo_tts.html#nemo_tts.waveglow_modules.WaveGlowInferNM.denoise">[docs]</a>    <span class="k">def</span> <span class="nf">denoise</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">audio</span><span class="p">,</span> <span class="n">strength</span><span class="o">=</span><span class="mf">0.1</span><span class="p">):</span>
+        <span class="n">audio_spec</span><span class="p">,</span> <span class="n">audio_angles</span> <span class="o">=</span> <span class="n">librosa</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">magphase</span><span class="p">(</span>
+            <span class="n">librosa</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">stft</span><span class="p">(</span><span class="n">audio</span><span class="p">,</span> <span class="n">n_fft</span><span class="o">=</span><span class="mi">1024</span><span class="p">))</span>
+        <span class="n">audio_spec_denoised</span> <span class="o">=</span> <span class="n">audio_spec</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias_spec</span> <span class="o">*</span> <span class="n">strength</span>
+        <span class="n">audio_spec_denoised</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span>
+            <span class="n">audio_spec_denoised</span><span class="p">,</span> <span class="n">a_min</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">a_max</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">audio_denoised</span> <span class="o">=</span> <span class="n">librosa</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">istft</span><span class="p">(</span><span class="n">audio_spec_denoised</span> <span class="o">*</span> <span class="n">audio_angles</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">audio_denoised</span><span class="p">,</span> <span class="n">audio_spec_denoised</span></div>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mel_spectrogram</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_removed_weight_norm</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;remove WN&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span><span class="o">.</span><span class="n">remove_weightnorm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_removed_weight_norm</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;You are using the WaveGlow Infer Neural Module &quot;</span>
+                             <span class="s2">&quot;in training mode.&quot;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">audio</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">mel_spectrogram</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sigma</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">audio</span></div>
+
+
+<div class="viewcode-block" id="WaveGlowLoss"><a class="viewcode-back" href="../../collections/nemo_tts.html#nemo_tts.waveglow_modules.WaveGlowLoss">[docs]</a><span class="k">class</span> <span class="nc">WaveGlowLoss</span><span class="p">(</span><span class="n">LossNM</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    WaveGlowLoss implements the waveglow loss which aims to maximize the</span>
+<span class="sd">    log-likelihood of the audio given the mel spectrogram. This loss is</span>
+<span class="sd">    expressed as the log-likelihood of a standard normal distribution and the</span>
+<span class="sd">    sum of the log of the determinant of the Jacobians of the mapping from</span>
+<span class="sd">    x, audio, to z, the normal distribution. The second term can be further</span>
+<span class="sd">    split in the contribution by the affine coupling layer, log_s, and the 1x1</span>
+<span class="sd">    invertible convolution layer, log_det_W.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        sigma (float): Standard deviation of the normal distribution that we</span>
+<span class="sd">            are aiming to model.</span>
+<span class="sd">            Defaults to 1.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
+        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;z&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                             <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">TimeTag</span><span class="p">)}),</span>
+            <span class="s2">&quot;log_s_list&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(),</span>
+            <span class="s2">&quot;log_det_W_list&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(),</span>
+        <span class="p">}</span>
+
+        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;loss&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="kc">None</span><span class="p">)}</span>
+        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sigma</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">=</span> <span class="n">sigma</span>
+
+    <span class="k">def</span> <span class="nf">_loss_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_loss</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+
+    <span class="k">def</span> <span class="nf">_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">log_s_list</span><span class="p">,</span> <span class="n">log_det_W_list</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">log_s</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">log_s_list</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">log_s_total</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">log_s</span><span class="p">)</span>
+                <span class="n">log_det_W_total</span> <span class="o">=</span> <span class="n">log_det_W_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">log_s_total</span> <span class="o">=</span> <span class="n">log_s_total</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">log_s</span><span class="p">)</span>
+                <span class="n">log_det_W_total</span> <span class="o">+=</span> <span class="n">log_det_W_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="n">loss</span> <span class="o">=</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">z</span> <span class="o">*</span> <span class="n">z</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span>
+                <span class="o">-</span> <span class="n">log_s_total</span> <span class="o">-</span> <span class="n">log_det_W_total</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">loss</span> <span class="o">/</span> <span class="p">(</span><span class="n">z</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="n">z</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">z</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2019, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
