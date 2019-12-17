@@ -247,7 +247,12 @@ class BertPunctuationCapitalizationDataset(Dataset):
         if use_cache:
             # Cache features
             data_dir = os.path.dirname(text_file)
-            filename = os.path.basename(text_file)[:-4]
+            filename = os.path.basename(text_file)
+
+            if not filename.endswith('.txt'):
+                raise ValueError("{text_file} should have extension .txt")
+
+            filename = filename[:-4]
             features_pkl = os.path.join(data_dir, filename + "_features.pkl")
 
         if use_cache and os.path.exists(features_pkl):
