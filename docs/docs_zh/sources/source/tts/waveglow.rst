@@ -17,3 +17,4 @@ NeMo 当前并未将 WaveGlow 分解为多个神经模块的组合，而是将�
     python waveglow.py --train_dataset=<data_root>/ljspeech_train.json --eval_datasets <data_root>/ljspeech_eval.json --model_config=configs/waveglow.yaml --num_epochs=1500
 
 请注意，训练 WaveGlow 相对于训练 Tacotron 2 需要花费更长时间。
+预训练的模型在 `这里 <https://ngc.nvidia.com/catalog/models/nvidia:waveglow_ljspeech>`_ 。
