@@ -95,6 +95,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#librispeech">LibriSpeech</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#fisher-english-training-speech">Fisher English Training Speech</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#hub5-english-evaluation-speech">2000 HUB5 English Evaluation Speech</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#an4-dataset">AN4 Dataset</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#aishell1">Aishell1</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#aishell2">Aishell2</a></li>
 </ul>
@@ -243,7 +244,7 @@ Once finished, you may delete the 10 minute long .wav files if you wish.</p>
 <h2>2000 HUB5 English Evaluation Speech<a class="headerlink" href="#hub5-english-evaluation-speech" title="Permalink to this headline">¶</a></h2>
 <p>Run the following script to convert the HUB5 data into a format expected by the <cite>nemo_asr</cite> collection.</p>
 <p>Similarly to the Fisher dataset processing scripts, this script converts the .sph files to .wav, slices the audio files and transcripts into utterances, and combines them into segments of some minimum length (default is 10 seconds).
-The resulting segments are all written out to an audio directory, and the corresponding transcripts are written to a manifest JSON.</p>
+The resulting segments are all written out to an audio directory, and the corresponding transcripts are written to a manifest JSON file.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>You will need 5GB of free space to run this script.
@@ -257,6 +258,17 @@ You will also need to have sph2pipe installed.</p>
 </pre></div>
 </div>
 <p>You may optionally include <cite>–min_slice_duration=&lt;num_seconds&gt;</cite> if you would like to change the minimum audio segment duration.</p>
+</div>
+<div class="section" id="an4-dataset">
+<h2>AN4 Dataset<a class="headerlink" href="#an4-dataset" title="Permalink to this headline">¶</a></h2>
+<p>This is a small dataset recorded and distributed by Carnegie Mellon University, and consists of recordings of people spelling out addresses, names, etc.
+Information about this dataset can be found on the <a class="reference external" href="http://www.speech.cs.cmu.edu/databases/an4/">official CMU site</a>.</p>
+<p>Please download and extract the dataset (which is labeled “NIST’s Sphere audio (.sph) format (64M)” on the site linked above): <a class="reference external" href="http://www.speech.cs.cmu.edu/databases/an4/an4_sphere.tar.gz">http://www.speech.cs.cmu.edu/databases/an4/an4_sphere.tar.gz</a>.</p>
+<p>Running the following script will convert the .sph files to .wav using sox, and build one training and one test manifest.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python process_an4_data.py --data_root<span class="o">=</span>&lt;path_to_extracted_data&gt;
+</pre></div>
+</div>
+<p>Once this script finishes, you should have a <cite>train_manifest.json</cite> and <cite>test_manifest.json</cite> in the <cite>&lt;data_root&gt;/an4/</cite> directory.</p>
 </div>
 <div class="section" id="aishell1">
 <h2>Aishell1<a class="headerlink" href="#aishell1" title="Permalink to this headline">¶</a></h2>
