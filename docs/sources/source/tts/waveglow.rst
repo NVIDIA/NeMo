@@ -19,3 +19,4 @@ waveglow.py from NeMo/examples/tts like so:
     python waveglow.py --train_dataset=<data_root>/ljspeech_train.json --eval_datasets <data_root>/ljspeech_eval.json --model_config=configs/waveglow.yaml --num_epochs=1500
 
 Please note that training waveglow will take longer than training tacotron 2.
+Pre-trained model can be found `here <https://ngc.nvidia.com/catalog/models/nvidia:waveglow_ljspeech>`_.

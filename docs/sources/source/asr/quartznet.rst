@@ -9,9 +9,9 @@ Similarly to Jasper, QuartzNet family of models are denoted as QuartzNet_[BxR] w
         :align: center
         :alt: quartznet model
    
-    .. note:: This checkpoint was trained on LibriSpeech and full "validated" part of En Mozilla Common Voice
+    .. note:: This checkpoint was trained on LibriSpeech :cite:`panayotov2015librispeech` and full "validated" part of En Mozilla Common Voice :cite:`ardila2019common`
 
-We are working on a QuartzNet paper and will release it soon.
+`QuartzNet paper <https://arxiv.org/abs/1910.10261>`_.
 
 Pretrained models can be found, `here <https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`_.
 
@@ -25,3 +25,9 @@ QuartzNet15x5 Librispeech,          `here <https://ngc.nvidia.com/catalog/models
               WSJ
 QuartzNet15x5 Aishell2              `here <https://ngc.nvidia.com/catalog/models/nvidia:aishell2_quartznet15x5>`__
 ============= ===================== ==============================================================================
+
+References
+----------
+
+.. bibliography:: asr_all.bib
+    :style: plain
