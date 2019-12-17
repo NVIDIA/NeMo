@@ -198,7 +198,7 @@ if __name__ == "__main__":
                         help='Number of lines to combine into single example')
     parser.add_argument("--percent_dev", default=0.2, type=float,
                         help='Size of the dev set, float')
-    parser.add_argument("--clean_dir", action='store_true', type=bool)
+    parser.add_argument("--clean_dir", action='store_true')
     args = parser.parse_args()
 
     if not os.path.exists(args.data_dir):
