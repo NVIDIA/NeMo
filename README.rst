@@ -42,7 +42,13 @@ See `this video <https://nvidia.github.io/NeMo/>`_ for a quick walk-through.
 
 THE LATEST STABLE VERSION OF NeMo is **0.9.0** (which is available via PIP).
 
-We recommend to use NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ which already includes all the requirements above.
+**Docker Container**
+ NVIDIA `NGC NeMo Toolkit container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_ is now available.
+
+* Pull the docker: ``docker pull nvcr.io/nvidia/nemo:v0.9``
+* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.9``
+
+If you are using the NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ follow these instructions
 
 * Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:19.11-py3``
 * Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.11-py3``
