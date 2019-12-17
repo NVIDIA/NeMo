@@ -32,7 +32,7 @@ parser.add_argument("--emb_dim", default=400, type=int)
 parser.add_argument("--hid_dim", default=400, type=int)
 parser.add_argument("--n_layers", default=1, type=int)
 parser.add_argument("--dropout", default=0.2, type=float)
-parser.add_argument("--data_dir", default='data/dialog/multiwoz', type=str)
+parser.add_argument("--data_dir", default='data/statetracking/multiwoz', type=str)
 parser.add_argument("--dataset_name", default='multiwoz', type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
@@ -113,7 +113,7 @@ point_outputs, gate_outputs = decoder(encoder_hidden=hidden,
 eval_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                            DOMAINS,
                                            batch_size=args.batch_size,
-                                           mode='val')
+                                           mode='dev')
 eval_data_layer()
 # gate_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 ptr_loss_fn = nemo_nlp.DSTMaskedCrossEntropy()
@@ -126,7 +126,7 @@ train_loss = ptr_loss_fn(logits=point_outputs,
 eval_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                            DOMAINS,
                                            batch_size=args.batch_size,
-                                           mode='val')
+                                           mode='dev')
 (eval_src_ids, eval_src_lens, eval_tgt_ids,
  eval_tgt_lens, eval_gate_labels, eval_turn_domain) = eval_data_layer()
 outputs, hidden = encoder(inputs=eval_src_ids, input_lens=eval_src_lens)
