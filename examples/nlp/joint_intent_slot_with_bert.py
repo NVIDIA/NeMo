@@ -36,8 +36,8 @@ parser.add_argument("--pretrained_bert_model",
                     type=str)
 parser.add_argument("--bert_checkpoint", default="", type=str)
 parser.add_argument("--bert_config", default="", type=str)
-parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
-parser.add_argument("--dataset_name", default='snips-all', type=str)
+parser.add_argument("--data_dir", default='data/nlu/atis', type=str)
+parser.add_argument("--dataset_name", default='atis', type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--none_slot_label", default='O', type=str)
@@ -68,6 +68,8 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    files_to_copy=[__file__],
                                    add_time_to_log_dir=True)
 
+tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
+
 """ Load the pretrained BERT parameters
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
@@ -81,7 +83,6 @@ else:
         pretrained_model_name=args.pretrained_bert_model, factory=nf)
 
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
-tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
 data_desc = JointIntentSlotDataDesc(args.data_dir,
                                     args.do_lower_case,
