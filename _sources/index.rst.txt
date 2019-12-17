@@ -75,7 +75,7 @@ You can use NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/contai
 and then continue with the following steps.
 
 If you have all requirements installed (or are using `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ ),
-then you can simply use pip to install the latest released version (**currently 0.8.2**) of NeMo and its collections:
+then you can simply use pip to install the latest released version (**currently 0.9.0**) of NeMo and its collections:
 
 .. code-block:: bash
 
