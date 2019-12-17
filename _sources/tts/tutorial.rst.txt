@@ -115,8 +115,9 @@ torch.distributed.launch module and sepcifying the num_gpus as the
 Inference
 ---------
 You can now to inference with either your own trained Tacotron 2, or you can
-use our pre-trained Tacotron 2 model (LINK TO BE ADDED). Please download our
-pretrained model here (LINK TO BE ADDED). Next create the texts that you want
+use our pre-trained Tacotron 2 model. `Please download our
+pretrained model here  <https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech>`_.
+Next create the texts that you want
 to generate and add them to a json like the training dataset. They should
 have lines like so:
 

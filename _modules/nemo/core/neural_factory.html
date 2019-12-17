@@ -758,6 +758,7 @@
               <span class="n">synced_batchnorm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
               <span class="n">synced_batchnorm_groupsize</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
               <span class="n">gradient_predivide</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+              <span class="n">amp_max_loss_scale</span><span class="o">=</span><span class="mf">2.</span><span class="o">**</span><span class="mi">24</span><span class="p">,</span>
               <span class="n">reset</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">reset</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">reset_trainer</span><span class="p">()</span>
@@ -771,7 +772,8 @@
             <span class="n">stop_on_nan_loss</span><span class="o">=</span><span class="n">stop_on_nan_loss</span><span class="p">,</span>
             <span class="n">synced_batchnorm</span><span class="o">=</span><span class="n">synced_batchnorm</span><span class="p">,</span>
             <span class="n">synced_batchnorm_groupsize</span><span class="o">=</span><span class="n">synced_batchnorm_groupsize</span><span class="p">,</span>
-            <span class="n">gradient_predivide</span><span class="o">=</span><span class="n">gradient_predivide</span><span class="p">)</span></div>
+            <span class="n">gradient_predivide</span><span class="o">=</span><span class="n">gradient_predivide</span><span class="p">,</span>
+            <span class="n">amp_max_loss_scale</span><span class="o">=</span><span class="n">amp_max_loss_scale</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="NeuralModuleFactory.eval"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.eval">[docs]</a>    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
              <span class="n">callbacks</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">EvaluatorCallback</span><span class="p">]):</span>
@@ -915,6 +917,34 @@
         <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trainer</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_trainer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_trainer</span><span class="p">(</span><span class="n">tb_writer</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_tb_writer</span><span class="p">)</span></div>
 
+<div class="viewcode-block" id="NeuralModuleFactory.sync_all_processes"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.sync_all_processes">[docs]</a>    <span class="k">def</span> <span class="nf">sync_all_processes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Helper function for testing that allows proccess 0 to inform all</span>
+<span class="sd">        other processes of failures. Does nothing if not using distributed</span>
+<span class="sd">        training. Usage example can be seen in examples/asr/jasper_an4.py</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            status (bool): Defaults to True. If any proccess passes False, it</span>
+<span class="sd">                will trigger a graceful exit on all other processes. It is</span>
+<span class="sd">                assumed that the process that passed False will print an error</span>
+<span class="sd">                message on its own and exit</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_world_size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;sync_all_processes does nothing if there is &quot;</span>
+                             <span class="s2">&quot;one process&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_backend</span> <span class="o">==</span> <span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">torch</span>
+            <span class="n">status_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">IntTensor</span><span class="p">([</span><span class="n">status</span><span class="p">])</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">all_reduce</span><span class="p">(</span>
+                <span class="n">status_tensor</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">ReduceOp</span><span class="o">.</span><span class="n">MIN</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">status_tensor</span><span class="o">.</span><span class="n">item</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;At least one process had a failure&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">status</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="n">f</span><span class="s2">&quot;Process with global rank </span><span class="si">{self._global_rank}</span><span class="s2"> entered&quot;</span>
+                        <span class="s2">&quot; sync_all_processes with a passing status, but &quot;</span>
+                        <span class="s2">&quot;another process indicated a failure&quot;</span><span class="p">)</span></div>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">world_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_world_size</span>
@@ -941,7 +971,11 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">work_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exp_manager</span><span class="o">.</span><span class="n">work_dir</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exp_manager</span><span class="o">.</span><span class="n">work_dir</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">global_rank</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_global_rank</span></div>
 </pre></div>
 
            </div>

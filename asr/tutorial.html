@@ -105,6 +105,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#using-kenlm">Using KenLM</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#kaldi-compatibility">Kaldi Compatibility</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#references">References</a></li>
 </ul>
 </li>
@@ -494,6 +495,7 @@ Make sure it is installed.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">update</span> <span class="pre">&amp;&amp;</span> <span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">swig</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">pkg-config</span> <span class="pre">libflac-dev</span> <span class="pre">libogg-dev</span> <span class="pre">libvorbis-dev</span> <span class="pre">libboost-dev</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">libsndfile1-dev</span> <span class="pre">python-setuptools</span> <span class="pre">libboost-all-dev</span> <span class="pre">python-dev</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">cmake</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">./install_decoders.sh</span></code></p></li>
 </ul>
 </dd>
@@ -506,6 +508,24 @@ Make sure it is installed.</p>
 </pre></div>
 </div>
 </div></blockquote>
+</div>
+</div>
+<div class="section" id="kaldi-compatibility">
+<h2>Kaldi Compatibility<a class="headerlink" href="#kaldi-compatibility" title="Permalink to this headline">¶</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code> collection can also load datasets that are in a Kaldi-compatible format using the <code class="docutils literal notranslate"><span class="pre">KaldiFeatureDataLayer</span></code>.
+In order to load your Kaldi-formatted data, you will need to have a directory that contains the following files:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">feats.scp</span></code>, the file that maps from utterance IDs to the .ark files with the corresponding audio data.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">text</span></code>, the file that contains a mapping from the utterance IDs to transcripts.</p></li>
+<li><p>(Optional) <code class="docutils literal notranslate"><span class="pre">utt2dur</span></code>, the file that maps the utterance IDs to the audio file durations. This is required if you want to filter your audio based on duration.</p></li>
+</ul>
+<p>Of course, you will also need the .ark files that contain the audio data in the location that <code class="docutils literal notranslate"><span class="pre">feats.scp</span></code> expects.</p>
+<p>To load your Kaldi-formatted data, you can simply use the <code class="docutils literal notranslate"><span class="pre">KaldiFeatureDataLayer</span></code> instead of the <code class="docutils literal notranslate"><span class="pre">AudioToTextDataLayer</span></code>.
+The <code class="docutils literal notranslate"><span class="pre">KaldiFeatureDataLayer</span></code> takes in an argument <code class="docutils literal notranslate"><span class="pre">kaldi_dir</span></code> instead of a <code class="docutils literal notranslate"><span class="pre">manifest_filepath</span></code>, and this argument should be set to the directory that contains the files mentioned above.
+See <a class="reference external" href="https://nvidia.github.io/NeMo/collections/nemo_asr.html#nemo_asr.data_layer.KaldiFeatureDataLayer">the documentation</a> for more detailed information about the arguments to this data layer.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you are switching to a <code class="docutils literal notranslate"><span class="pre">KaldiFeatureDataLayer</span></code>, be sure to set any <code class="docutils literal notranslate"><span class="pre">feat_in</span></code> parameters to correctly reflect the dimensionality of your Kaldi features, such as in the Jasper encoder. Additionally, your data is likely already preprocessed (e.g. into MFCC format), in which case you can leave out any audio preprocessors like the <code class="docutils literal notranslate"><span class="pre">AudioToMelSpectrogramPreprocessor</span></code>.</p>
 </div>
 </div>
 <div class="section" id="references">

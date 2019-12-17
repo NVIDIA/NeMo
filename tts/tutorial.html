@@ -279,8 +279,9 @@ torch.distributed.launch module and sepcifying the num_gpus as the
 <div class="section" id="inference">
 <span id="tts-inference"></span><h2>Inference<a class="headerlink" href="#inference" title="Permalink to this headline">¶</a></h2>
 <p>You can now to inference with either your own trained Tacotron 2, or you can
-use our pre-trained Tacotron 2 model (LINK TO BE ADDED). Please download our
-pretrained model here (LINK TO BE ADDED). Next create the texts that you want
+use our pre-trained Tacotron 2 model. <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech">Please download our
+pretrained model here</a>.
+Next create the texts that you want
 to generate and add them to a json like the training dataset. They should
 have lines like so:</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;Talk to me!&quot;</span><span class="p">}</span>

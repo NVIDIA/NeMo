@@ -328,6 +328,7 @@
             <span class="n">attention_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">128</span><span class="p">,</span>
             <span class="n">attention_location_n_filters</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32</span><span class="p">,</span>
             <span class="n">attention_location_kernel_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">31</span><span class="p">,</span>
+            <span class="n">prenet_p_dropout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
             <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span> <span class="o">=</span> <span class="n">Decoder</span><span class="p">(</span>
@@ -344,6 +345,7 @@
             <span class="n">attention_dim</span><span class="o">=</span><span class="n">attention_dim</span><span class="p">,</span>
             <span class="n">attention_location_n_filters</span><span class="o">=</span><span class="n">attention_location_n_filters</span><span class="p">,</span>
             <span class="n">attention_location_kernel_size</span><span class="o">=</span><span class="n">attention_location_kernel_size</span><span class="p">,</span>
+            <span class="n">prenet_p_dropout</span><span class="o">=</span><span class="n">prenet_p_dropout</span><span class="p">,</span>
             <span class="n">early_stopping</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
 
@@ -464,12 +466,14 @@
             <span class="n">postnet_embedding_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
             <span class="n">postnet_kernel_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
             <span class="n">postnet_n_convolutions</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+            <span class="n">p_dropout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
             <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">postnet</span> <span class="o">=</span> <span class="n">Postnet</span><span class="p">(</span><span class="n">n_mel_channels</span><span class="o">=</span><span class="n">n_mel_channels</span><span class="p">,</span>
                                <span class="n">postnet_embedding_dim</span><span class="o">=</span><span class="n">postnet_embedding_dim</span><span class="p">,</span>
                                <span class="n">postnet_kernel_size</span><span class="o">=</span><span class="n">postnet_kernel_size</span><span class="p">,</span>
-                               <span class="n">postnet_n_convolutions</span><span class="o">=</span><span class="n">postnet_n_convolutions</span><span class="p">)</span>
+                               <span class="n">postnet_n_convolutions</span><span class="o">=</span><span class="n">postnet_n_convolutions</span><span class="p">,</span>
+                               <span class="n">p_dropout</span><span class="o">=</span><span class="n">p_dropout</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mel_input</span><span class="p">):</span>

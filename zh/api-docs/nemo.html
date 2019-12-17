@@ -1070,6 +1070,11 @@ mini-batch.</p></li>
 <dd></dd></dl>
 
 <dl class="method">
+<dt id="nemo.core.neural_factory.NeuralModuleFactory.global_rank">
+<em class="property">property </em><code class="sig-name descname">global_rank</code><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.global_rank" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
 <dt id="nemo.core.neural_factory.NeuralModuleFactory.infer">
 <code class="sig-name descname">infer</code><span class="sig-paren">(</span><em class="sig-param">tensors: List[nemo.core.neural_types.NmTensor], checkpoint_dir=None, ckpt_pattern='', verbose=True, cache=False, use_cache=False, offload_to_cpu=True, modules_to_restore=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.infer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.infer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Runs inference to obtain values for tensors</p>
@@ -1136,13 +1141,29 @@ where each element is now a batch of tensor values.</p>
 <dd></dd></dl>
 
 <dl class="method">
+<dt id="nemo.core.neural_factory.NeuralModuleFactory.sync_all_processes">
+<code class="sig-name descname">sync_all_processes</code><span class="sig-paren">(</span><em class="sig-param">status=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.sync_all_processes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.sync_all_processes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Helper function for testing that allows proccess 0 to inform all
+other processes of failures. Does nothing if not using distributed
+training. Usage example can be seen in examples/asr/jasper_an4.py</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>status</strong> (<em>bool</em>) – Defaults to True. If any proccess passes False, it
+will trigger a graceful exit on all other processes. It is
+assumed that the process that passed False will print an error
+message on its own and exit</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="method">
 <dt id="nemo.core.neural_factory.NeuralModuleFactory.tb_writer">
 <em class="property">property </em><code class="sig-name descname">tb_writer</code><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.tb_writer" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
 <dt id="nemo.core.neural_factory.NeuralModuleFactory.train">
-<code class="sig-name descname">train</code><span class="sig-paren">(</span><em class="sig-param">tensors_to_optimize</em>, <em class="sig-param">optimizer=None</em>, <em class="sig-param">optimization_params=None</em>, <em class="sig-param">callbacks: Optional[List[nemo.core.callbacks.ActionCallback]] = None</em>, <em class="sig-param">lr_policy=None</em>, <em class="sig-param">batches_per_step=None</em>, <em class="sig-param">stop_on_nan_loss=False</em>, <em class="sig-param">synced_batchnorm=False</em>, <em class="sig-param">synced_batchnorm_groupsize=0</em>, <em class="sig-param">gradient_predivide=False</em>, <em class="sig-param">reset=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.train" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">train</code><span class="sig-paren">(</span><em class="sig-param">tensors_to_optimize</em>, <em class="sig-param">optimizer=None</em>, <em class="sig-param">optimization_params=None</em>, <em class="sig-param">callbacks: Optional[List[nemo.core.callbacks.ActionCallback]] = None</em>, <em class="sig-param">lr_policy=None</em>, <em class="sig-param">batches_per_step=None</em>, <em class="sig-param">stop_on_nan_loss=False</em>, <em class="sig-param">synced_batchnorm=False</em>, <em class="sig-param">synced_batchnorm_groupsize=0</em>, <em class="sig-param">gradient_predivide=False</em>, <em class="sig-param">amp_max_loss_scale=16777216.0</em>, <em class="sig-param">reset=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/core/neural_factory.html#NeuralModuleFactory.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.core.neural_factory.NeuralModuleFactory.train" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1247,6 +1268,8 @@ parameters are extracted and passed to the optimizer.</p></li>
 <li><p><strong>d_format</strong> (<a class="reference internal" href="#nemo.core.neural_factory.DeploymentFormat" title="nemo.core.neural_factory.DeploymentFormat"><em>DeploymentFormat</em></a>) – which deployment format to use</p></li>
 <li><p><strong>input_example</strong> – sometimes tracing will require input examples</p></li>
 <li><p><strong>output_example</strong> – Should match inference on input_example</p></li>
+<li><p><strong>amp_max_loss_scale</strong> (<em>float</em>) – Max value for amp loss scaling.
+Defaults to 2.0**24.</p></li>
 </ul>
 </dd>
 </dl>
@@ -1286,7 +1309,7 @@ parameters are extracted and passed to the optimizer.</p></li>
 
 <dl class="method">
 <dt id="nemo.backends.pytorch.actions.PtActions.train">
-<code class="sig-name descname">train</code><span class="sig-paren">(</span><em class="sig-param">tensors_to_optimize</em>, <em class="sig-param">optimizer=None</em>, <em class="sig-param">optimization_params=None</em>, <em class="sig-param">callbacks: Optional[List[nemo.core.callbacks.ActionCallback]] = None</em>, <em class="sig-param">lr_policy=None</em>, <em class="sig-param">batches_per_step=None</em>, <em class="sig-param">stop_on_nan_loss=False</em>, <em class="sig-param">synced_batchnorm=False</em>, <em class="sig-param">synced_batchnorm_groupsize=0</em>, <em class="sig-param">gradient_predivide=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.train" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">train</code><span class="sig-paren">(</span><em class="sig-param">tensors_to_optimize</em>, <em class="sig-param">optimizer=None</em>, <em class="sig-param">optimization_params=None</em>, <em class="sig-param">callbacks: Optional[List[nemo.core.callbacks.ActionCallback]] = None</em>, <em class="sig-param">lr_policy=None</em>, <em class="sig-param">batches_per_step=None</em>, <em class="sig-param">stop_on_nan_loss=False</em>, <em class="sig-param">synced_batchnorm=False</em>, <em class="sig-param">synced_batchnorm_groupsize=0</em>, <em class="sig-param">gradient_predivide=False</em>, <em class="sig-param">amp_max_loss_scale=16777216.0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/actions.html#PtActions.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.actions.PtActions.train" title="Permalink to this definition">¶</a></dt>
 <dd><p>This action executes training and (optionally) evaluation.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>

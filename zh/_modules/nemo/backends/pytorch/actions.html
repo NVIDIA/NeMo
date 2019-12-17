@@ -261,6 +261,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">tb_writer</span> <span class="o">=</span> <span class="n">tb_writer</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_modules</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cache</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">amp_initialized</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">modules</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -548,7 +549,8 @@
         <span class="k">return</span> <span class="n">optimizer</span>
 
     <span class="k">def</span> <span class="nf">__initialize_amp</span><span class="p">(</span>
-            <span class="bp">self</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">optim_level</span><span class="p">,</span> <span class="n">amp_min_loss_scale</span><span class="o">=</span><span class="mf">1.0</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">optim_level</span><span class="p">,</span>
+            <span class="n">amp_max_loss_scale</span><span class="o">=</span><span class="mf">2.</span><span class="o">**</span><span class="mi">24</span><span class="p">,</span> <span class="n">amp_min_loss_scale</span><span class="o">=</span><span class="mf">1.0</span>
     <span class="p">):</span>
         <span class="k">if</span> <span class="n">optim_level</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">AmpOptimizations</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;__initialize_amp() was called with unknown &quot;</span>
@@ -568,11 +570,13 @@
                 <span class="n">pt_modules</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">_pt_module</span><span class="p">)</span>
 
         <span class="n">_</span><span class="p">,</span> <span class="n">optimizer</span> <span class="o">=</span> <span class="n">amp</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span>
+            <span class="n">max_loss_scale</span><span class="o">=</span><span class="n">amp_max_loss_scale</span><span class="p">,</span>
             <span class="n">min_loss_scale</span><span class="o">=</span><span class="n">amp_min_loss_scale</span><span class="p">,</span>
             <span class="n">models</span><span class="o">=</span><span class="n">pt_modules</span><span class="p">,</span>
             <span class="n">optimizers</span><span class="o">=</span><span class="n">optimizer</span><span class="p">,</span>
             <span class="n">opt_level</span><span class="o">=</span><span class="n">AmpOptimizations</span><span class="p">[</span><span class="n">optim_level</span><span class="p">],</span>
         <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">amp_initialized</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">return</span> <span class="n">optimizer</span>
 
     <span class="k">def</span> <span class="nf">__nm_graph_forward_pass</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
@@ -1008,12 +1012,12 @@
                     <span class="n">use_cache</span><span class="o">=</span><span class="n">use_cache</span>
                 <span class="p">)</span>
 
-                <span class="k">if</span> <span class="n">offload_to_cpu</span><span class="p">:</span>
-                    <span class="c1"># Take all cuda tensors and save them to value_dict as</span>
-                    <span class="c1"># cpu tensors to save GPU memory</span>
-                    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">registered_e_tensors</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
-                            <span class="n">registered_e_tensors</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">tensor</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+                <span class="c1"># if offload_to_cpu:</span>
+                <span class="c1">#     # Take all cuda tensors and save them to value_dict as</span>
+                <span class="c1">#     # cpu tensors to save GPU memory</span>
+                <span class="c1">#     for name, tensor in registered_e_tensors.items():</span>
+                <span class="c1">#         if isinstance(tensor, torch.Tensor):</span>
+                <span class="c1">#             registered_e_tensors[name] = tensor.cpu()</span>
                 <span class="k">if</span> <span class="n">cache</span><span class="p">:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">append_to_cache</span><span class="p">(</span><span class="n">registered_e_tensors</span><span class="p">)</span>
 
@@ -1072,10 +1076,15 @@
                             <span class="bp">self</span><span class="o">.</span><span class="n">depad_tensor</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span>
                             <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">size</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">tensors_list</span><span class="p">,</span> <span class="n">sizes</span><span class="p">)</span>
                         <span class="p">]</span>
+                        <span class="k">if</span> <span class="n">offload_to_cpu</span><span class="p">:</span>
+                            <span class="n">tensors_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tensors_list</span><span class="p">]</span>
                         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">global_rank</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
                             <span class="n">values_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">+=</span> <span class="n">tensors_list</span>
                     <span class="k">else</span><span class="p">:</span>  <span class="c1"># NON-DISTRIBUTED TRAINING</span>
-                        <span class="n">values_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">+=</span> <span class="p">[</span><span class="n">registered_e_tensors</span><span class="p">[</span><span class="n">key</span><span class="p">]]</span>
+                        <span class="n">tensor</span> <span class="o">=</span> <span class="n">registered_e_tensors</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="n">offload_to_cpu</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                            <span class="n">tensor</span> <span class="o">=</span> <span class="n">tensor</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+                        <span class="n">values_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">+=</span> <span class="p">[</span><span class="n">tensor</span><span class="p">]</span>
 
             <span class="k">if</span> <span class="ow">not</span> <span class="n">is_distributed</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">global_rank</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="n">inferred_tensors</span> <span class="o">=</span> <span class="p">[]</span>
@@ -1319,6 +1328,8 @@
 <span class="sd">            d_format (DeploymentFormat): which deployment format to use</span>
 <span class="sd">            input_example: sometimes tracing will require input examples</span>
 <span class="sd">            output_example: Should match inference on input_example</span>
+<span class="sd">            amp_max_loss_scale (float): Max value for amp loss scaling.</span>
+<span class="sd">                Defaults to 2.0**24.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
             <span class="n">PtActions</span><span class="o">.</span><span class="n">__module_export</span><span class="p">(</span>
@@ -1339,7 +1350,8 @@
               <span class="n">stop_on_nan_loss</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
               <span class="n">synced_batchnorm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
               <span class="n">synced_batchnorm_groupsize</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-              <span class="n">gradient_predivide</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+              <span class="n">gradient_predivide</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+              <span class="n">amp_max_loss_scale</span><span class="o">=</span><span class="mf">2.</span><span class="o">**</span><span class="mi">24</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">optimization_params</span><span class="p">:</span>
             <span class="n">optimization_params</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="n">num_epochs</span> <span class="o">=</span> <span class="n">optimization_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
@@ -1457,6 +1469,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">optimizers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__initialize_amp</span><span class="p">(</span>
                 <span class="n">optimizer</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">optimizers</span><span class="p">,</span>
                 <span class="n">optim_level</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span><span class="p">,</span>
+                <span class="n">amp_max_loss_scale</span><span class="o">=</span><span class="n">amp_max_loss_scale</span><span class="p">,</span>
                 <span class="n">amp_min_loss_scale</span><span class="o">=</span><span class="n">optimization_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
                     <span class="s1">&#39;amp_min_loss_scale&#39;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
             <span class="c1"># Use stored mapping to map amp_init opts to training loop</span>
@@ -1721,8 +1734,9 @@
                 <span class="n">mod</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="n">checkpoint</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_rank</span><span class="p">)</span>
 
         <span class="c1"># Init Amp</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span> <span class="ow">in</span> <span class="n">AmpOptimizations</span> <span class="ow">and</span> \
-                <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span> <span class="o">!=</span> <span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span> <span class="ow">in</span> <span class="n">AmpOptimizations</span>
+                <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span> <span class="o">!=</span> <span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO0</span>
+                <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">amp_initialized</span><span class="p">):</span>
             <span class="n">pt_modules</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">call_chain</span><span class="p">)):</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">call_chain</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
@@ -1737,6 +1751,7 @@
                 <span class="n">optimizers</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                 <span class="n">opt_level</span><span class="o">=</span><span class="n">AmpOptimizations</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_optim_level</span><span class="p">],</span>
             <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">amp_initialized</span> <span class="o">=</span> <span class="kc">True</span>
 
         <span class="c1"># Run infer</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_infer</span><span class="p">(</span><span class="n">tensors_to_return</span><span class="o">=</span><span class="n">tensors</span><span class="p">,</span>

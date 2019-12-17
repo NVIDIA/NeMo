@@ -183,8 +183,8 @@
 <p>In this tutorial, we are going to implement a joint intent and slot filling system with pretrained BERT model based on
 <a class="reference external" href="https://arxiv.org/abs/1902.10909">BERT for Joint Intent Classification and Slot Filling</a> <a class="reference internal" href="#nlp-slot-chen2019bert" id="id1">[NLP-SLOT1]</a>.
 All code used in this tutorial is based on <code class="docutils literal notranslate"><span class="pre">examples/nlp/joint_intent_slot_with_bert.py</span></code>.</p>
-<p>There are four pretrained BERT models that we can select from using the argument <cite>–pretrained_bert_model</cite>. We’re currently
-using the script for loading pretrained models from <cite>pytorch_transformers</cite>. See the list of available pretrained models
+<p>There are four pre-trained BERT models that we can select from using the argument <cite>–pretrained_bert_model</cite>. We’re currently
+using the script for loading pre-trained models from <cite>pytorch_transformers</cite>. See the list of available pre-trained models
 <a class="reference external" href="https://huggingface.co/pytorch-transformers/pretrained_models.html">here</a>.</p>
 <div class="section" id="preliminaries">
 <h2>Preliminaries<a class="headerlink" href="#preliminaries" title="Permalink to this headline">¶</a></h2>
@@ -216,20 +216,21 @@ You can find the pre-processing script in <code class="docutils literal notransl
 <p>First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level,
 3) local rank of the GPU, and 4) an experiment manager that creates a timestamped folder to store checkpoints, relevant outputs, log files, and TensorBoard graphs.</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
-                <span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
-                <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
-                <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
-                <span class="n">log_dir</span><span class="o">=</span><span class="n">work_dir</span><span class="p">,</span>
-                <span class="n">create_tb_writer</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
-                <span class="n">files_to_copy</span><span class="o">=</span><span class="p">[</span><span class="vm">__file__</span><span class="p">])</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
+                                       <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+                                       <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
+                                       <span class="n">log_dir</span><span class="o">=</span><span class="n">work_dir</span><span class="p">,</span>
+                                       <span class="n">create_tb_writer</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                                       <span class="n">files_to_copy</span><span class="o">=</span><span class="p">[</span><span class="vm">__file__</span><span class="p">],</span>
+                                       <span class="n">add_time_to_log_dir</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
 </pre></div>
 </div>
 </div></blockquote>
-<p>We define tokenizer which transforms text into BERT tokens, using a built-in tokenizer by <cite>pytorch_transformers</cite>.
+<p>We define the tokenizer which transforms text into BERT tokens, using a built-in tokenizer by <cite>pytorch_transformers</cite>.
 This will tokenize text following the mapping of the original BERT model.</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pytorch_transformers</span> <span class="kn">import</span> <span class="n">BertTokenizer</span>
+<span class="n">hidden_size</span> <span class="o">=</span> <span class="n">pretrained_bert_model</span><span class="o">.</span><span class="n">local_parameters</span><span class="p">[</span><span class="s2">&quot;hidden_size&quot;</span><span class="p">]</span>
 <span class="n">tokenizer</span> <span class="o">=</span> <span class="n">BertTokenizer</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">pretrained_bert_model</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -239,49 +240,19 @@ This will tokenize text following the mapping of the original BERT model.</p>
 <div><ul class="simple">
 <li><p>Process data: the <cite>JointIntentSlotDataDesc</cite> class in <cite>nemo_nlp/nemo_nlp/data/datasets/utils.py</cite> is supposed to do the preprocessing of raw data into the format data supported by <cite>BertJointIntentSlotDataset</cite>. Currently, it supports SNIPS and ATIS raw datasets, but you can also write your own preprocessing scripts for any dataset.</p></li>
 </ul>
-<p>A JointIntentSlotDataDesc object includes information such as <cite>self.train_file</cite>, <cite>self.train_slot_file</cite>, <cite>self.eval_file</cite>, <cite>self.eval_slot_file</cite>,
-<cite>self.intent_dict_file</cite>, and <cite>self.slot_dict_file</cite>.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">data_desc</span> <span class="o">=</span> <span class="n">JointIntentSlotDataDesc</span><span class="p">(</span>
-    <span class="n">args</span><span class="o">.</span><span class="n">dataset_name</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">data_dir</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">do_lower_case</span><span class="p">)</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p>Dataset: convert from the formatted dataset to a dataset that can be fed into DataLayerNM.</p></li>
-</ul>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">get_dataset</span><span class="p">(</span><span class="n">data_desc</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">num_samples</span><span class="p">):</span>
-    <span class="n">nf</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Loading {mode} data...&quot;</span><span class="p">)</span>
-    <span class="n">data_file</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">data_desc</span><span class="p">,</span> <span class="n">mode</span> <span class="o">+</span> <span class="s1">&#39;_file&#39;</span><span class="p">)</span>
-    <span class="n">slot_file</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">data_desc</span><span class="p">,</span> <span class="n">mode</span> <span class="o">+</span> <span class="s1">&#39;_slot_file&#39;</span><span class="p">)</span>
-    <span class="n">shuffle</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">shuffle_data</span> <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;train&#39;</span> <span class="k">else</span> <span class="bp">False</span>
-    <span class="k">return</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertJointIntentSlotDataset</span><span class="p">(</span>
-        <span class="n">input_file</span><span class="o">=</span><span class="n">data_file</span><span class="p">,</span>
-        <span class="n">slot_file</span><span class="o">=</span><span class="n">slot_file</span><span class="p">,</span>
-        <span class="n">pad_label</span><span class="o">=</span><span class="n">data_desc</span><span class="o">.</span><span class="n">pad_label</span><span class="p">,</span>
-        <span class="n">tokenizer</span><span class="o">=</span><span class="n">tokenizer</span><span class="p">,</span>
-        <span class="n">max_seq_length</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
-        <span class="n">num_samples</span><span class="o">=</span><span class="n">num_samples</span><span class="p">,</span>
-        <span class="n">shuffle</span><span class="o">=</span><span class="n">shuffle</span><span class="p">)</span>
-
-
-<span class="n">train_dataset</span> <span class="o">=</span> <span class="n">get_dataset</span><span class="p">(</span><span class="n">data_desc</span><span class="p">,</span> <span class="s1">&#39;train&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">num_train_samples</span><span class="p">)</span>
-<span class="n">eval_dataset</span> <span class="o">=</span> <span class="n">get_dataset</span><span class="p">(</span><span class="n">data_desc</span><span class="p">,</span> <span class="s1">&#39;eval&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">num_eval_samples</span><span class="p">)</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p>DataLayer: an extra layer to do the semantic checking for your dataset and convert it into DataLayerNM. You have to define <cite>input_ports</cite> and <cite>output_ports</cite>.</p></li>
-</ul>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertJointIntentSlotDataLayer</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span>
-                                        <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
-                                        <span class="n">num_workers</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-                                        <span class="n">local_rank</span><span class="o">=</span><span class="n">local_rank</span><span class="p">)</span>
-
-<span class="n">ids</span><span class="p">,</span> <span class="n">type_ids</span><span class="p">,</span> <span class="n">input_mask</span><span class="p">,</span> <span class="n">slot_mask</span><span class="p">,</span> <span class="n">intents</span><span class="p">,</span> <span class="n">slots</span> <span class="o">=</span> <span class="n">data_layer</span><span class="p">()</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">data_desc</span> <span class="o">=</span> <span class="n">JointIntentSlotDataDesc</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">data_dir</span><span class="p">,</span>
+                                        <span class="n">args</span><span class="o">.</span><span class="n">do_lower_case</span><span class="p">,</span>
+                                        <span class="n">args</span><span class="o">.</span><span class="n">dataset_name</span><span class="p">,</span>
+                                        <span class="n">args</span><span class="o">.</span><span class="n">none_slot_label</span><span class="p">,</span>
+                                        <span class="n">args</span><span class="o">.</span><span class="n">pad_label</span><span class="p">)</span>
 </pre></div>
 </div>
 <ul class="simple">
 <li><p>Load the pretrained model and get the hidden states for the corresponding inputs.</p></li>
 </ul>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">hidden_states</span> <span class="o">=</span> <span class="n">pretrained_bert_model</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">ids</span><span class="p">,</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">pretrained_bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span>
+<span class="n">pretrained_model_name</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">pretrained_bert_model</span><span class="p">,</span> <span class="n">factory</span><span class="o">=</span><span class="n">nf</span><span class="p">)</span>
+<span class="n">hidden_states</span> <span class="o">=</span> <span class="n">pretrained_bert_model</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">ids</span><span class="p">,</span>
                                       <span class="n">token_type_ids</span><span class="o">=</span><span class="n">type_ids</span><span class="p">,</span>
                                       <span class="n">attention_mask</span><span class="o">=</span><span class="n">input_mask</span><span class="p">)</span>
 </pre></div>
@@ -294,33 +265,102 @@ This will tokenize text following the mapping of the original BERT model.</p>
                                 <span class="n">num_intents</span><span class="o">=</span><span class="n">num_intents</span><span class="p">,</span>
                                 <span class="n">num_slots</span><span class="o">=</span><span class="n">num_slots</span><span class="p">,</span>
                                 <span class="n">dropout</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">fc_dropout</span><span class="p">)</span>
-
-<span class="n">intent_logits</span><span class="p">,</span> <span class="n">slot_logits</span> <span class="o">=</span> <span class="n">classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
 </pre></div>
 </div>
 <ul class="simple">
 <li><p>Create loss function</p></li>
 </ul>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">loss_fn</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">JointIntentSlotLoss</span><span class="p">(</span><span class="n">num_slots</span><span class="o">=</span><span class="n">num_slots</span><span class="p">)</span>
-
-<span class="n">loss</span> <span class="o">=</span> <span class="n">loss_fn</span><span class="p">(</span><span class="n">intent_logits</span><span class="o">=</span><span class="n">intent_logits</span><span class="p">,</span>
-               <span class="n">slot_logits</span><span class="o">=</span><span class="n">slot_logits</span><span class="p">,</span>
-               <span class="n">input_mask</span><span class="o">=</span><span class="n">input_mask</span><span class="p">,</span>
-               <span class="n">intents</span><span class="o">=</span><span class="n">intents</span><span class="p">,</span>
-               <span class="n">slots</span><span class="o">=</span><span class="n">slots</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">loss_fn</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">JointIntentSlotLoss</span><span class="p">(</span><span class="n">num_slots</span><span class="o">=</span><span class="n">data_desc</span><span class="o">.</span><span class="n">num_slots</span><span class="p">)</span>
 </pre></div>
 </div>
 <ul class="simple">
-<li><p>Create relevant callbacks for saving checkpoints, printing training progresses and evaluating results</p></li>
+<li><p>Create the pipelines for the train and evaluation processes. Each pipeline creates its own data layer (BertJointIntentSlotDataLayer). DataLayer is an extra layer to do the semantic checking for your dataset and convert it into DataLayerNM. You have to define <cite>input_ports</cite> and <cite>output_ports</cite>.</p></li>
 </ul>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">callback_train</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">create_pipeline</span><span class="p">(</span><span class="n">num_samples</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+                    <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+                    <span class="n">num_gpus</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                    <span class="n">local_rank</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                    <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;train&#39;</span><span class="p">):</span>
+    <span class="n">nf</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Loading {mode} data...&quot;</span><span class="p">)</span>
+    <span class="n">data_file</span> <span class="o">=</span> <span class="n">f</span><span class="s1">&#39;{data_desc.data_dir}/{mode}.tsv&#39;</span>
+    <span class="n">slot_file</span> <span class="o">=</span> <span class="n">f</span><span class="s1">&#39;{data_desc.data_dir}/{mode}_slots.tsv&#39;</span>
+    <span class="n">shuffle</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">shuffle_data</span> <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;train&#39;</span> <span class="k">else</span> <span class="bp">False</span>
+
+    <span class="n">data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertJointIntentSlotDataLayer</span><span class="p">(</span>
+        <span class="n">input_file</span><span class="o">=</span><span class="n">data_file</span><span class="p">,</span>
+        <span class="n">slot_file</span><span class="o">=</span><span class="n">slot_file</span><span class="p">,</span>
+        <span class="n">pad_label</span><span class="o">=</span><span class="n">data_desc</span><span class="o">.</span><span class="n">pad_label</span><span class="p">,</span>
+        <span class="n">tokenizer</span><span class="o">=</span><span class="n">tokenizer</span><span class="p">,</span>
+        <span class="n">max_seq_length</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
+        <span class="n">num_samples</span><span class="o">=</span><span class="n">num_samples</span><span class="p">,</span>
+        <span class="n">shuffle</span><span class="o">=</span><span class="n">shuffle</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
+        <span class="n">num_workers</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">local_rank</span><span class="o">=</span><span class="n">local_rank</span><span class="p">,</span>
+        <span class="n">ignore_extra_tokens</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">ignore_extra_tokens</span><span class="p">,</span>
+        <span class="n">ignore_start_end</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">ignore_start_end</span>
+        <span class="p">)</span>
+
+    <span class="n">ids</span><span class="p">,</span> <span class="n">type_ids</span><span class="p">,</span> <span class="n">input_mask</span><span class="p">,</span> <span class="n">loss_mask</span><span class="p">,</span> \
+        <span class="n">subtokens_mask</span><span class="p">,</span> <span class="n">intents</span><span class="p">,</span> <span class="n">slots</span> <span class="o">=</span> <span class="n">data_layer</span><span class="p">()</span>
+    <span class="n">data_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data_layer</span><span class="p">)</span>
+
+    <span class="k">print</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;The length of data layer is {data_size}&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">data_size</span> <span class="o">&lt;</span> <span class="n">batch_size</span><span class="p">:</span>
+        <span class="n">nf</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Batch_size is larger than the dataset size&quot;</span><span class="p">)</span>
+        <span class="n">nf</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Reducing batch_size to dataset size&quot;</span><span class="p">)</span>
+        <span class="n">batch_size</span> <span class="o">=</span> <span class="n">data_size</span>
+
+    <span class="n">steps_per_epoch</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">data_size</span> <span class="o">/</span> <span class="p">(</span><span class="n">batch_size</span> <span class="o">*</span> <span class="n">num_gpus</span><span class="p">))</span>
+    <span class="n">nf</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Steps_per_epoch = {steps_per_epoch}&quot;</span><span class="p">)</span>
+
+    <span class="n">hidden_states</span> <span class="o">=</span> <span class="n">pretrained_bert_model</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">ids</span><span class="p">,</span>
+                                          <span class="n">token_type_ids</span><span class="o">=</span><span class="n">type_ids</span><span class="p">,</span>
+                                          <span class="n">attention_mask</span><span class="o">=</span><span class="n">input_mask</span><span class="p">)</span>
+
+    <span class="n">intent_logits</span><span class="p">,</span> <span class="n">slot_logits</span> <span class="o">=</span> <span class="n">classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+
+    <span class="n">loss</span> <span class="o">=</span> <span class="n">loss_fn</span><span class="p">(</span><span class="n">intent_logits</span><span class="o">=</span><span class="n">intent_logits</span><span class="p">,</span>
+                   <span class="n">slot_logits</span><span class="o">=</span><span class="n">slot_logits</span><span class="p">,</span>
+                   <span class="n">loss_mask</span><span class="o">=</span><span class="n">loss_mask</span><span class="p">,</span>
+                   <span class="n">intents</span><span class="o">=</span><span class="n">intents</span><span class="p">,</span>
+                   <span class="n">slots</span><span class="o">=</span><span class="n">slots</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;train&#39;</span><span class="p">:</span>
+        <span class="n">tensors_to_evaluate</span> <span class="o">=</span> <span class="p">[</span><span class="n">loss</span><span class="p">,</span> <span class="n">intent_logits</span><span class="p">,</span> <span class="n">slot_logits</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">tensors_to_evaluate</span> <span class="o">=</span> <span class="p">[</span><span class="n">intent_logits</span><span class="p">,</span> <span class="n">slot_logits</span><span class="p">,</span> <span class="n">intents</span><span class="p">,</span>
+                               <span class="n">slots</span><span class="p">,</span> <span class="n">subtokens_mask</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">tensors_to_evaluate</span><span class="p">,</span> <span class="n">loss</span><span class="p">,</span> <span class="n">steps_per_epoch</span><span class="p">,</span> <span class="n">data_layer</span>
+
+
+<span class="n">train_tensors</span><span class="p">,</span> <span class="n">train_loss</span><span class="p">,</span> <span class="n">steps_per_epoch</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">num_train_samples</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+    <span class="n">num_gpus</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_gpus</span><span class="p">,</span>
+    <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+    <span class="n">mode</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">train_file_prefix</span><span class="p">)</span>
+<span class="n">eval_tensors</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span>  <span class="n">_</span><span class="p">,</span> <span class="n">data_layer</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">num_eval_samples</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+    <span class="n">num_gpus</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_gpus</span><span class="p">,</span>
+    <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+    <span class="n">mode</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">eval_file_prefix</span><span class="p">)</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>Create relevant callbacks for saving checkpoints, printing training progresses and evaluating results.</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">train_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
     <span class="n">tensors</span><span class="o">=</span><span class="n">train_tensors</span><span class="p">,</span>
     <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span> <span class="mi">3</span><span class="p">)),</span>
     <span class="n">tb_writer</span><span class="o">=</span><span class="n">nf</span><span class="o">.</span><span class="n">tb_writer</span><span class="p">,</span>
     <span class="n">get_tb_values</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">[[</span><span class="s2">&quot;loss&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]]],</span>
     <span class="n">step_freq</span><span class="o">=</span><span class="n">steps_per_epoch</span><span class="p">)</span>
 
-<span class="n">callback_eval</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span>
+<span class="n">eval_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span>
     <span class="n">eval_tensors</span><span class="o">=</span><span class="n">eval_tensors</span><span class="p">,</span>
     <span class="n">user_iter_callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">eval_iter_callback</span><span class="p">(</span>
         <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">data_layer</span><span class="p">),</span>
@@ -341,13 +381,14 @@ This will tokenize text following the mapping of the original BERT model.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">lr_policy_fn</span> <span class="o">=</span> <span class="n">get_lr_policy</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">lr_policy</span><span class="p">,</span>
                              <span class="n">total_steps</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span> <span class="o">*</span> <span class="n">steps_per_epoch</span><span class="p">,</span>
                              <span class="n">warmup_ratio</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">lr_warmup_proportion</span><span class="p">)</span>
+
 <span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
-     <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">callback_train</span><span class="p">,</span> <span class="n">callback_eval</span><span class="p">,</span> <span class="n">ckpt_callback</span><span class="p">],</span>
-     <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy_fn</span><span class="p">,</span>
-     <span class="n">optimizer</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">optimizer_kind</span><span class="p">,</span>
-     <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">num_epochs</span><span class="p">,</span>
-                          <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">lr</span><span class="p">,</span>
-                          <span class="s2">&quot;weight_decay&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">weight_decay</span><span class="p">})</span>
+         <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">train_callback</span><span class="p">,</span> <span class="n">eval_callback</span><span class="p">,</span> <span class="n">ckpt_callback</span><span class="p">],</span>
+         <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy_fn</span><span class="p">,</span>
+         <span class="n">optimizer</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">optimizer_kind</span><span class="p">,</span>
+         <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span><span class="p">,</span>
+                              <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">lr</span><span class="p">,</span>
+                              <span class="s2">&quot;weight_decay&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">weight_decay</span><span class="p">})</span>
 </pre></div>
 </div>
 </div></blockquote>
