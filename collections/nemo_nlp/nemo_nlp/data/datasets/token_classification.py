@@ -97,7 +97,6 @@ def get_features(queries,
 
             if with_label:
                 labels.extend([query_labels[j]] * len(word_tokens))
-
         # add eos token
         subtokens.append('[SEP]')
         loss_mask.append(1 - ignore_start_end)
@@ -162,7 +161,6 @@ def get_features(queries,
         if with_label:
             logger.info(
                 "labels: %s" % " ".join(list(map(str, all_labels[i]))))
-
     return (all_input_ids,
             all_segment_ids,
             all_input_mask,
@@ -319,7 +317,8 @@ class BertTokenClassificationDataset(Dataset):
         infold = text_file[:text_file.rfind('/')]
         merged_labels = itertools.chain.from_iterable(self.all_labels)
         logger.info('Three most popular labels')
-        utils.get_label_stats(merged_labels, infold + '/label_stats.tsv')
+        _, self.label_frequencies = \
+            utils.get_label_stats(merged_labels, infold + '/label_stats.tsv')
 
         # save label_ids
         out = open(infold + '/label_ids.csv', 'w')
@@ -352,17 +351,9 @@ class BertTokenClassificationInferDataset(Dataset):
     BertTokenClassificationDataset.
 
     Args:
-        text_file (str): file to sequences, each line should a sentence,
-            No header.
-        label_file (str): file to labels, each line corresponds to
-            word labels for a sentence in the text_file. No header.
+        queries (list): list of queries to run inference on
         max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
         tokenizer (Tokenizer): such as NemoBertTokenizer
-        num_samples (int): number of samples you want to use for the dataset.
-            If -1, use all dataset. Useful for testing.
-        shuffle (bool): whether to shuffle your data.
-        pad_label (str): pad value use for labels.
-            by default, it's the neutral label.
     """
 
     def __init__(self,

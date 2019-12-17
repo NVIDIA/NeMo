@@ -11,6 +11,7 @@ from nemo.utils.lr_policies import get_lr_policy
 import nemo_nlp
 from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer, \
     TokenClassifier, TokenClassificationLoss
+from nemo_nlp.data.datasets import utils
 from nemo_nlp.utils.callbacks.punctuation_capitalization import \
     eval_iter_callback, eval_epochs_done_callback
 
@@ -186,11 +187,7 @@ def create_pipeline(num_samples=-1,
         if args.use_weighted_loss_punct:
             nf.logger.info(f"Using weighted loss for punctuation task")
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
-            num_most_common = punct_label_freqs[0][1]
-
-            # sort label_frequences by class name
-            punct_label_freqs.sort()
-            class_weights = [num_most_common/x[1] for x in punct_label_freqs]
+            class_weights = utils.calc_class_weights(label_freqs)
 
         # Initialize punctuation loss
         punct_classifier = getattr(sys.modules[__name__], punct_classifier)
