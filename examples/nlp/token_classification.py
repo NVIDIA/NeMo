@@ -188,7 +188,7 @@ def create_pipeline(num_samples=-1,
                                 num_classes=len(label_ids),
                                 dropout=dropout,
                                 num_layers=num_layers)
-        
+
         task_loss = getattr(sys.modules[__name__], task_loss)
         task_loss = task_loss(num_classes=len(label_ids),
                               class_weights=class_weights)
