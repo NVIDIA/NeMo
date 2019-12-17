@@ -155,7 +155,7 @@ class WOZDSTDataset(Dataset):
             pickle.dump(self.mem_vocab, handle)
 
     def get_features(self):
-        filename = f'{self.data_dir}/{self.mode}_dialogs.json'
+        filename = f'{self.data_dir}/{self.mode}_dials.json'
         print(f'Reading from {filename}')
         dialogs = json.load(open(filename, 'r'))
 
@@ -172,8 +172,8 @@ class WOZDSTDataset(Dataset):
                     domain_count[domain] = 0
                 domain_count[domain] += 1
 
-            for turn in dialog_dict['dialog']:
-                turn_uttr = turn['sys_transcript'] + ' ; ' + turn['transcript']
+            for turn in dialog_dict['dialogue']:
+                turn_uttr = turn['system_transcript'] + ' ; ' + turn['transcript']
                 turn_uttr = turn_uttr.strip()
                 dialog_histories.append(turn_uttr)
                 turn_beliefs = fix_general_label_error(turn['belief_state'],
@@ -196,7 +196,7 @@ class WOZDSTDataset(Dataset):
                         gating_slot = 'none'
                     gating_label.append(self.gating_dict[gating_slot])
 
-                sample = {'ID': dialog_dict['dialog_idx'],
+                sample = {'ID': dialog_dict['dialogue_idx'],
                           'domains': dialog_dict['domains'],
                           'turn_domain': turn['domain'],
                           'turn_id': turn['turn_idx'],
