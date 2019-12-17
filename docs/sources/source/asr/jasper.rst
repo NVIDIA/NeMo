@@ -10,14 +10,16 @@ Jasper family of models are denoted as Jasper_[BxR] where B is the number of blo
         :align: center
         :alt: japer model
 
-Pretrained models can be found: `here <https://ngc.nvidia.com/catalog/models/nvidia:jaspernet10x5dr>`_.
+Pretrained models can be found at the following links:
 
-============= ============ ====================================================================== 
-Network       Dataset      Download Link 
-============= ============ ====================================================================== 
-Jasper10x5dr  Librispeech  `here <https://ngc.nvidia.com/catalog/models/nvidia:jaspernet10x5dr>`_          
-Jasper10x5dr  Aishell1      NA         
-Jasper15x5SEP Aishell1      NA         
-Jasper15x5SEP Aishell2      NA     
-Jasper12x1SEP Aishell2      NA           
-============= ============ ======================================================================
+============= ======================= =================================================================================
+Network       Dataset                 Download Link 
+============= ======================= =================================================================================
+Jasper10x5dr  Librispeech             `here <https://ngc.nvidia.com/catalog/models/nvidia:jaspernet10x5dr>`__
+Jasper10x5dr  | Librispeech,          `here <https://ngc.nvidia.com/catalog/models/nvidia:multidataset_jasper10x5dr>`__
+              | Mozilla Common Voice,
+              | WSJ,
+              | Fisher,
+              | Switchboard
+Jasper15x5SEP Aishell2                `here <https://ngc.nvidia.com/catalog/models/nvidia:aishell2_jasper10x5dr>`__
+============= ======================= =================================================================================
