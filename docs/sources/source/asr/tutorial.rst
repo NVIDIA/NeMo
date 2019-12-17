@@ -332,6 +332,25 @@ Perform the following steps:
 
         python <nemo_git_repo_root>/examples/asr/jasper_eval.py --model_config=<nemo_git_repo_root>/examples/asr/configs/quartznet15x5.yaml --eval_datasets "<path_to_data>/dev_clean.json" --load_dir=<directory_containing_checkpoints> --lm_path=<path_to_6gram.binary>
 
+Kaldi Compatibility
+-------------------
+
+The ``nemo_asr`` collection can also load datasets that are in a Kaldi-compatible format using the ``KaldiFeatureDataLayer``.
+In order to load your Kaldi-formatted data, you will need to have a directory that contains the following files:
+
+* ``feats.scp``, the file that maps from utterance IDs to the .ark files with the corresponding audio data.
+* ``text``, the file that contains a mapping from the utterance IDs to transcripts.
+* (Optional) ``utt2dur``, the file that maps the utterance IDs to the audio file durations. This is required if you want to filter your audio based on duration.
+
+Of course, you will also need the .ark files that contain the audio data in the location that ``feats.scp`` expects.
+
+To load your Kaldi-formatted data, you can simply use the ``KaldiFeatureDataLayer`` instead of the ``AudioToTextDataLayer``.
+The ``KaldiFeatureDataLayer`` takes in an argument ``kaldi_dir`` instead of a ``manifest_filepath``, and this argument should be set to the directory that contains the files mentioned above.
+See `the documentation <https://nvidia.github.io/NeMo/collections/nemo_asr.html#nemo_asr.data_layer.KaldiFeatureDataLayer>`_ for more detailed information about the arguments to this data layer.
+
+.. note::
+
+  If you are switching to a ``KaldiFeatureDataLayer``, be sure to set any ``feat_in`` parameters to correctly reflect the dimensionality of your Kaldi features, such as in the Jasper encoder. Additionally, your data is likely already preprocessed (e.g. into MFCC format), in which case you can leave out any audio preprocessors like the ``AudioToMelSpectrogramPreprocessor``.
 
 References
 ----------
