@@ -11,3 +11,15 @@ Jasper 家族的模型可以用 Jasper_[BxR] 来表示，其中 B 是块的个�
         :alt: japer model
 
 预训练的模型在 `这里 <https://ngc.nvidia.com/catalog/models/nvidia:jaspernet10x5dr>`_ 。
+
+============= ======================= =================================================================================
+Network       Dataset                 Download Link 
+============= ======================= =================================================================================
+Jasper10x5dr  Librispeech             `这里 <https://ngc.nvidia.com/catalog/models/nvidia:jaspernet10x5dr>`__
+Jasper10x5dr  | Librispeech,          `这里 <https://ngc.nvidia.com/catalog/models/nvidia:multidataset_jasper10x5dr>`__
+              | Mozilla Common Voice,
+              | WSJ,
+              | Fisher,
+              | Switchboard
+Jasper15x5SEP Aishell2                `这里 <https://ngc.nvidia.com/catalog/models/nvidia:aishell2_jasper10x5dr>`__
+============= ======================= =================================================================================

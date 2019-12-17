@@ -15,6 +15,16 @@ Similarly to Jasper, QuartzNet family of models are denoted as QuartzNet_[BxR] w
 
 Pretrained models can be found, `here <https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`_.
 
+============= ===================== ==============================================================================
+Network       Dataset               Download Link 
+============= ===================== ==============================================================================
+QuartzNet15x5 Librispeech,          `here <https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5>`__
+              Mozilla Common Voice
+QuartzNet15x5 Librispeech,          `here <https://ngc.nvidia.com/catalog/models/nvidia:wsj_quartznet_15x5>`__
+              Mozilla Common Voice,
+              WSJ
+QuartzNet15x5 Aishell2              `here <https://ngc.nvidia.com/catalog/models/nvidia:aishell2_quartznet15x5>`__
+============= ===================== ==============================================================================
 
 References
 ----------
