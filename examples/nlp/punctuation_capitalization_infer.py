@@ -25,11 +25,9 @@ parser.add_argument("--queries", action='append',
                              'how are you',
                              'how\'s the weather today',
                              'okay',
-                             'fine',
-                             'nowhere',
-                             'we bought four shirts one mug and ten thousand ' +
-                             'titan rtx graphics cards the more you buy the ' +
-                             'more you save'],
+                             'we bought four shirts one mug and ten ' +
+                             'thousand titan rtx graphics cards the more ' +
+                             'you buy the more you save'],
                     help="Example: --queries 'san francisco' --queries 'la'")
 parser.add_argument("--add_brackets", action='store_false',
                     help="Whether to take predicted label in brackets or \

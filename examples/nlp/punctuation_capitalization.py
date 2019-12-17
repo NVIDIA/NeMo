@@ -207,19 +207,14 @@ def create_pipeline(num_samples=-1,
                                             num_classes=len(capit_label_ids),
                                             dropout=dropout,
                                             name='Capitalization')
-        ch_dir='output/nemo_checkpoint/2019-12-13_15-49-58/checkpoints/'
-        capit_classifier.restore_from(os.path.join(ch_dir, 'CapitalizationTokenClassifier-STEP-37480.pt'))
-        punct_classifier.restore_from(os.path.join(ch_dir, 'PunctuationTokenClassifier-STEP-37480.pt'))
-        model.restore_from(os.path.join(ch_dir, 'BERT-STEP-37480.pt'))
-        print (f'------>restored')
         capit_loss = getattr(sys.modules[__name__], capit_loss)
         capit_loss = capit_loss(num_classes=len(capit_label_ids))
 
         task_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
     hidden_states = model(input_ids=input_ids,
-                               token_type_ids=input_type_ids,
-                               attention_mask=input_mask)
+                          token_type_ids=input_type_ids,
+                          attention_mask=input_mask)
 
     punct_logits = punct_classifier(hidden_states=hidden_states)
     capit_logits = capit_classifier(hidden_states=hidden_states)
