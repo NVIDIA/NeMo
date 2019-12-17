@@ -104,6 +104,7 @@ class PtActions(Actions):
         self.tb_writer = tb_writer
         self._modules = set()
         self.cache = None
+        self.amp_initialized = False
 
     @property
     def modules(self):
@@ -391,7 +392,8 @@ class PtActions(Actions):
         return optimizer
 
     def __initialize_amp(
-            self, optimizer, optim_level, amp_min_loss_scale=1.0
+            self, optimizer, optim_level,
+            amp_max_loss_scale=2.**24, amp_min_loss_scale=1.0
     ):
         if optim_level not in AmpOptimizations:
             raise ValueError(f"__initialize_amp() was called with unknown "
@@ -411,11 +413,13 @@ class PtActions(Actions):
                 pt_modules.append(module._pt_module)
 
         _, optimizer = amp.initialize(
+            max_loss_scale=amp_max_loss_scale,
             min_loss_scale=amp_min_loss_scale,
             models=pt_modules,
             optimizers=optimizer,
             opt_level=AmpOptimizations[optim_level],
         )
+        self.amp_initialized = True
         return optimizer
 
     def __nm_graph_forward_pass(self,
@@ -851,12 +855,12 @@ class PtActions(Actions):
                     use_cache=use_cache
                 )
 
-                if offload_to_cpu:
-                    # Take all cuda tensors and save them to value_dict as
-                    # cpu tensors to save GPU memory
-                    for name, tensor in registered_e_tensors.items():
-                        if isinstance(tensor, torch.Tensor):
-                            registered_e_tensors[name] = tensor.cpu()
+                # if offload_to_cpu:
+                #     # Take all cuda tensors and save them to value_dict as
+                #     # cpu tensors to save GPU memory
+                #     for name, tensor in registered_e_tensors.items():
+                #         if isinstance(tensor, torch.Tensor):
+                #             registered_e_tensors[name] = tensor.cpu()
                 if cache:
                     self.append_to_cache(registered_e_tensors)
 
@@ -915,10 +919,15 @@ class PtActions(Actions):
                             self.depad_tensor(t, size)
                             for t, size in zip(tensors_list, sizes)
                         ]
+                        if offload_to_cpu:
+                            tensors_list = [t.cpu() for t in tensors_list]
                         if self.global_rank == 0:
                             values_dict[key] += tensors_list
                     else:  # NON-DISTRIBUTED TRAINING
-                        values_dict[key] += [registered_e_tensors[key]]
+                        tensor = registered_e_tensors[key]
+                        if offload_to_cpu and isinstance(tensor, torch.Tensor):
+                            tensor = tensor.cpu()
+                        values_dict[key] += [tensor]
 
             if not is_distributed or self.global_rank == 0:
                 inferred_tensors = []
@@ -1162,6 +1171,8 @@ class PtActions(Actions):
             d_format (DeploymentFormat): which deployment format to use
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
+            amp_max_loss_scale (float): Max value for amp loss scaling.
+                Defaults to 2.0**24.
         """
         with torch.no_grad():
             PtActions.__module_export(
@@ -1182,7 +1193,8 @@ class PtActions(Actions):
               stop_on_nan_loss=False,
               synced_batchnorm=False,
               synced_batchnorm_groupsize=0,
-              gradient_predivide=False):
+              gradient_predivide=False,
+              amp_max_loss_scale=2.**24):
         if not optimization_params:
             optimization_params = {}
         num_epochs = optimization_params.get("num_epochs", None)
@@ -1300,6 +1312,7 @@ class PtActions(Actions):
             self.optimizers = self.__initialize_amp(
                 optimizer=self.optimizers,
                 optim_level=self._optim_level,
+                amp_max_loss_scale=amp_max_loss_scale,
                 amp_min_loss_scale=optimization_params.get(
                     'amp_min_loss_scale', 1.0))
             # Use stored mapping to map amp_init opts to training loop
@@ -1564,8 +1577,9 @@ class PtActions(Actions):
                 mod.restore_from(checkpoint, self._local_rank)
 
         # Init Amp
-        if self._optim_level in AmpOptimizations and \
-                self._optim_level != Optimization.mxprO0:
+        if (self._optim_level in AmpOptimizations
+                and self._optim_level != Optimization.mxprO0
+                and not self.amp_initialized):
             pt_modules = []
             for i in range(len(call_chain)):
                 if isinstance(call_chain[i][0], nn.Module):
@@ -1580,6 +1594,7 @@ class PtActions(Actions):
                 optimizers=None,
                 opt_level=AmpOptimizations[self._optim_level],
             )
+            self.amp_initialized = True
 
         # Run infer
         return self._infer(tensors_to_return=tensors,

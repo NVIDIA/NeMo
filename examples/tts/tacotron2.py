@@ -2,6 +2,7 @@
 import argparse
 import copy
 from functools import partial
+import math
 import os
 
 from ruamel.yaml import YAML
@@ -86,7 +87,7 @@ def create_NMs(tacotron2_params, logger=None, decoder_infer=False):
             **tacotron2_params["Tacotron2Decoder"])
     t2_postnet = nemo_tts.Tacotron2Postnet(
         **tacotron2_params["Tacotron2Postnet"])
-    t2_loss = nemo_tts.Tacotron2Loss()
+    t2_loss = nemo_tts.Tacotron2Loss(**tacotron2_params["Tacotron2Loss"])
     makegatetarget = nemo_tts.MakeGate()
 
     if logger:
@@ -128,7 +129,7 @@ def create_train_dag(neural_factory,
     )
 
     N = len(data_layer)
-    steps_per_epoch = int(N / (batch_size * neural_factory.world_size))
+    steps_per_epoch = math.ceil(N / (batch_size * neural_factory.world_size))
     neural_factory.logger.info(f'Have {N} examples to train on.')
 
     # Train DAG
@@ -161,7 +162,7 @@ def create_train_dag(neural_factory,
     train_callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[loss_t, spec_target, mel_postnet, gate, gate_target,
                  alignments],
-        print_func=lambda x: print(f"Loss: {x[0].data}"),
+        print_func=lambda x: neural_factory.logger.info(f"Loss: {x[0].data}"),
         log_to_tb_func=partial(
             tacotron2_log_to_tb_func, log_images=True,
             log_images_freq=log_freq),
