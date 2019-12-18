@@ -2,7 +2,6 @@ import argparse
 
 import numpy as np
 from transformers import BertTokenizer
-from sklearn.metrics import confusion_matrix, classification_report
 
 import nemo
 import nemo_nlp
@@ -23,7 +22,8 @@ parser.add_argument("--data_dir",
                     type=str)
 parser.add_argument("--query", default='please turn on the light', type=str)
 parser.add_argument("--work_dir",
-                    default='outputs/SNIPS-ALL/20191010-164934/checkpoints',
+                    required=True,
+                    help="your checkpoint folder",
                     type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])

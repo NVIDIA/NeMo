@@ -172,7 +172,7 @@ class KaldiFeatureDataLayer(DataLayerNM):
     It assumes that you have a directory that contains:
 
     - feats.scp: A mapping from utterance IDs to .ark files that
-            contain the corresponding MFCC (or other format) data
+            contains the corresponding MFCC (or other format) data
     - text: A mapping from utterance IDs to transcripts
     - utt2dur (optional): A mapping from utterance IDs to audio durations,
             needed if you want to filter based on duration

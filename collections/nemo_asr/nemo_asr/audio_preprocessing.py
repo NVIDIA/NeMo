@@ -24,18 +24,21 @@ __all__ = ['AudioPreprocessing',
 
 from abc import abstractmethod
 import math
+import warnings
+
 import torch
 try:
     import torchaudio
-    have_torchaudio = True
+    HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
-    have_torchaudio = False
-    print('Could not import torchaudio. Some features might not work.')
+    HAVE_TORCHAUDIO = False
+    warnings.warn('Could not import torchaudio. Some features might not work.')
 try:
     from apex import amp
 except (AttributeError, ModuleNotFoundError) as e:
-    print("Unable to import APEX. Mixed precision and distributed training "
-          "will not work.")
+    warnings.warn(
+        "Unable to import APEX. Mixed precision and distributed training "
+        "will not work.")
 
 from nemo.backends.pytorch import NonTrainableNM
 from nemo.core import Optimization
@@ -141,7 +144,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             normalized=True,
             **kwargs
     ):
-        if not have_torchaudio:
+        if not HAVE_TORCHAUDIO:
             raise ModuleNotFoundError(
                 "torchaudio is not installed but is necessary for "
                 "AudioToSpectrogramPreprocessor. We recommend you try "
@@ -225,6 +228,14 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             Defaults to None
         log (bool): Log features.
             Defaults to True
+        log_zero_guard_type(str): Need to avoid taking the log of zero. There
+            are two options: "add" or "clamp".
+            Defaults to "add".
+        log_zero_guard_value(float, or str): Add or clamp requires the number
+            to add with or clamp to. log_zero_guard_value can either be a float
+            or "tiny" or "eps". torch.finfo is used if "tiny" or "eps" is
+            passed.
+            Defaults to 2**-24.
         dither (float): Amount of white-noise dithering.
             Defaults to 1e-5
         pad_to (int): Ensures that the output size of the time dimension is
@@ -274,6 +285,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             lowfreq=0,
             highfreq=None,
             log=True,
+            log_zero_guard_type="add",
+            log_zero_guard_value=2**-24,
             dither=1e-5,
             pad_to=16,
             frame_splicing=1,
@@ -307,6 +320,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             lowfreq=lowfreq,
             highfreq=highfreq,
             log=log,
+            log_zero_guard_type=log_zero_guard_type,
+            log_zero_guard_value=log_zero_guard_value,
             dither=dither,
             pad_to=pad_to,
             frame_splicing=frame_splicing,
@@ -399,7 +414,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
             norm='ortho',
             log=True,
             **kwargs):
-        if not have_torchaudio:
+        if not HAVE_TORCHAUDIO:
             raise ModuleNotFoundError(
                 "torchaudio is not installed but is necessary for "
                 "AudioToMFCCPreprocessor. We recommend you try "

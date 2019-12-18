@@ -32,9 +32,12 @@ parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-uncased", type=str)
-parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
-parser.add_argument("--dataset_name", default='snips-all', type=str)
+                    default="bert-base-uncased",
+                    type=str)
+parser.add_argument("--bert_checkpoint", default="", type=str)
+parser.add_argument("--bert_config", default="", type=str)
+parser.add_argument("--data_dir", default='data/nlu/atis', type=str)
+parser.add_argument("--dataset_name", default='atis', type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--none_slot_label", default='O', type=str)
@@ -45,9 +48,11 @@ parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
-parser.add_argument("--do_lower_case", action='store_false')
-parser.add_argument("--shuffle_data", action='store_false')
+parser.add_argument("--do_lower_case", action='store_true')
+parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--intent_loss_weight", default=0.6, type=float)
+parser.add_argument("--class_balancing", default="regular", type=str,
+                    choices=["regular", "weighted_loss"])
 
 args = parser.parse_args()
 
@@ -63,14 +68,21 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    files_to_copy=[__file__],
                                    add_time_to_log_dir=True)
 
+tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
+
 """ Load the pretrained BERT parameters
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.huggingface.BERT(
-    pretrained_model_name=args.pretrained_bert_model, factory=nf)
+if args.bert_checkpoint and args.bert_config:
+    pretrained_bert_model = nemo_nlp.huggingface.BERT(
+        config_filename=args.bert_config, factory=nf)
+    pretrained_bert_model.restore_from(args.bert_checkpoint)
+else:
+    pretrained_bert_model = nemo_nlp.huggingface.BERT(
+        pretrained_model_name=args.pretrained_bert_model, factory=nf)
+
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
-tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
 data_desc = JointIntentSlotDataDesc(args.data_dir,
                                     args.do_lower_case,
@@ -85,7 +97,17 @@ classifier = nemo_nlp.JointIntentSlotClassifier(
     num_slots=data_desc.num_slots,
     dropout=args.fc_dropout)
 
-loss_fn = nemo_nlp.JointIntentSlotLoss(num_slots=data_desc.num_slots)
+if args.class_balancing == 'weighted_loss':
+    # Using weighted loss will enable weighted loss for both intents and slots
+    # Use the intent_loss_weight hyperparameter to adjust intent loss to
+    # prevent overfitting or underfitting.
+    loss_fn = nemo_nlp.JointIntentSlotLoss(
+      num_slots=data_desc.num_slots,
+      slot_classes_loss_weights=data_desc.slot_weights,
+      intent_classes_loss_weights=data_desc.intent_weights,
+      intent_loss_weight=args.intent_loss_weight)
+else:
+    loss_fn = nemo_nlp.JointIntentSlotLoss(num_slots=data_desc.num_slots)
 
 
 def create_pipeline(num_samples=-1,
@@ -116,6 +138,8 @@ def create_pipeline(num_samples=-1,
     ids, type_ids, input_mask, loss_mask, \
         subtokens_mask, intents, slots = data_layer()
     data_size = len(data_layer)
+
+    print(f'The length of data layer is {data_size}')
 
     if data_size < batch_size:
         nf.logger.warning("Batch_size is larger than the dataset size")

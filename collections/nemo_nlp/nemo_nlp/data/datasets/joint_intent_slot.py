@@ -56,8 +56,8 @@ def get_features(queries,
     for i, query in enumerate(queries):
         words = query.strip().split()
         subtokens = ['[CLS]']
-        loss_mask = [not ignore_start_end]
-        subtokens_mask = [False]
+        loss_mask = [1 - ignore_start_end]
+        subtokens_mask = [0]
         if with_label:
             slots = [pad_label]
 
@@ -65,19 +65,19 @@ def get_features(queries,
             word_tokens = tokenizer.tokenize(word)
             subtokens.extend(word_tokens)
 
-            loss_mask.append(True)
+            loss_mask.append(1)
             loss_mask.extend([not ignore_extra_tokens] *
                              (len(word_tokens) - 1))
 
-            subtokens_mask.append(True)
-            subtokens_mask.extend([False] * (len(word_tokens) - 1))
+            subtokens_mask.append(1)
+            subtokens_mask.extend([0] * (len(word_tokens) - 1))
 
             if with_label:
                 slots.extend([raw_slots[i][j]] * len(word_tokens))
 
         subtokens.append('[SEP]')
         loss_mask.append(not ignore_start_end)
-        subtokens_mask.append(False)
+        subtokens_mask.append(0)
         sent_lengths.append(len(subtokens))
         all_subtokens.append(subtokens)
         all_loss_mask.append(loss_mask)
@@ -96,9 +96,9 @@ def get_features(queries,
         if len(subtokens) > max_seq_length:
             subtokens = ['[CLS]'] + subtokens[-max_seq_length + 1:]
             all_input_mask[i] = [1] + all_input_mask[i][-max_seq_length + 1:]
-            all_loss_mask[i] = [not ignore_start_end] + \
+            all_loss_mask[i] = [1 - ignore_start_end] + \
                 all_loss_mask[i][-max_seq_length + 1:]
-            all_subtokens_mask[i] = [False] + \
+            all_subtokens_mask[i] = [0] + \
                 all_subtokens_mask[i][-max_seq_length + 1:]
 
             if with_label:
@@ -111,8 +111,8 @@ def get_features(queries,
         if len(subtokens) < max_seq_length:
             extra = (max_seq_length - len(subtokens))
             all_input_ids[i] = all_input_ids[i] + [0] * extra
-            all_loss_mask[i] = all_loss_mask[i] + [False] * extra
-            all_subtokens_mask[i] = all_subtokens_mask[i] + [False] * extra
+            all_loss_mask[i] = all_loss_mask[i] + [0] * extra
+            all_subtokens_mask[i] = all_subtokens_mask[i] + [0] * extra
             all_input_mask[i] = all_input_mask[i] + [0] * extra
 
             if with_label:
@@ -207,13 +207,6 @@ class BertJointIntentSlotDataset(Dataset):
         self.all_subtokens_mask = features[4]
         self.all_slots = features[5]
         self.all_intents = raw_intents
-
-        infold = input_file[:input_file.rfind('/')]
-        logger.info('Three most popular intents')
-        utils.get_label_stats(self.all_intents, infold + '/intent_stats.tsv')
-        merged_slots = itertools.chain.from_iterable(self.all_slots)
-        logger.info('Three most popular slots')
-        utils.get_label_stats(merged_slots, infold + '/slot_stats.tsv')
 
     def __len__(self):
         return len(self.all_input_ids)

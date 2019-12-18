@@ -22,6 +22,7 @@ def read_intent_slot_outputs(queries,
     slot_dict = get_vocab(slot_file)
     pred_intents = np.argmax(intent_logits, 1)
     pred_slots = np.argmax(slot_logits, axis=2)
+    slot_masks = slot_masks > 0.5
     for i, query in enumerate(queries):
         logger.info(f'Query: {query}')
         pred = pred_intents[i]
