@@ -660,7 +660,7 @@ class NeuralModuleFactory(object):
             # disable masked convolutions
             m_count = 0
             for m in module.modules():
-                if type(module).__name__ == "MaskedConv1d":
+                if type(m).__name__ == "MaskedConv1d":
                     m.use_mask = False
                     m_count += 1
             self.logger.warning(f"Turned off {m_count} masked convolutions")
