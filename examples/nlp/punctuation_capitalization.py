@@ -187,7 +187,7 @@ def create_pipeline(num_samples=-1,
         if args.use_weighted_loss_punct:
             nf.logger.info(f"Using weighted loss for punctuation task")
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
-            class_weights = utils.calc_class_weights(label_freqs)
+            class_weights = utils.calc_class_weights(punct_label_freqs)
 
         # Initialize punctuation loss
         punct_classifier = getattr(sys.modules[__name__], punct_classifier)
