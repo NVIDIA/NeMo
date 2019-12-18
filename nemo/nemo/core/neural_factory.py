@@ -600,6 +600,7 @@ class NeuralModuleFactory(object):
               synced_batchnorm=False,
               synced_batchnorm_groupsize=0,
               gradient_predivide=False,
+              amp_max_loss_scale=2.**24,
               reset=False):
         if reset:
             self.reset_trainer()
@@ -613,7 +614,8 @@ class NeuralModuleFactory(object):
             stop_on_nan_loss=stop_on_nan_loss,
             synced_batchnorm=synced_batchnorm,
             synced_batchnorm_groupsize=synced_batchnorm_groupsize,
-            gradient_predivide=gradient_predivide)
+            gradient_predivide=gradient_predivide,
+            amp_max_loss_scale=amp_max_loss_scale)
 
     def eval(self,
              callbacks: List[EvaluatorCallback]):
@@ -646,6 +648,23 @@ class NeuralModuleFactory(object):
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
         """
+        # Custom hacks
+        # We are checking type like this to avoid taking dependency on nemo_asr
+        if type(module).__name__ == "JasperEncoder":
+            self.logger.warning(f"Module is JasperEncoder. We are removing"
+                                f"input and output length ports since they "
+                                f"are not needed for deployment")
+            del module._input_ports['length']
+            del module._output_ports['encoded_lengths']
+
+            # disable masked convolutions
+            m_count = 0
+            for m in module.modules():
+                if type(module).__name__ == "MaskedConv1d":
+                    m.use_mask = False
+                    m_count += 1
+            self.logger.warning(f"Turned off {m_count} masked convolutions")
+
         return self._trainer.deployment_export(
             module=module,
             output=output,
@@ -740,6 +759,34 @@ class NeuralModuleFactory(object):
         del self._trainer
         self._trainer = self._get_trainer(tb_writer=self._tb_writer)
 
+    def sync_all_processes(self, status=True):
+        """ Helper function for testing that allows proccess 0 to inform all
+        other processes of failures. Does nothing if not using distributed
+        training. Usage example can be seen in examples/asr/jasper_an4.py
+
+        Args:
+            status (bool): Defaults to True. If any proccess passes False, it
+                will trigger a graceful exit on all other processes. It is
+                assumed that the process that passed False will print an error
+                message on its own and exit
+        """
+        if self._world_size == 1:
+            self.logger.info("sync_all_processes does nothing if there is "
+                             "one process")
+            return
+        if self._backend == Backend.PyTorch:
+            import torch
+            status_tensor = torch.cuda.IntTensor([status])
+            torch.distributed.all_reduce(
+                status_tensor, op=torch.distributed.ReduceOp.MIN)
+            if status_tensor.item() == 0:
+                self.logger.error("At least one process had a failure")
+                if status:
+                    raise ValueError(
+                        f"Process with global rank {self._global_rank} entered"
+                        " sync_all_processes with a passing status, but "
+                        "another process indicated a failure")
+
     @property
     def world_size(self):
         return self._world_size
@@ -767,3 +814,7 @@ class NeuralModuleFactory(object):
     @property
     def work_dir(self):
         return self._exp_manager.work_dir
+
+    @property
+    def global_rank(self):
+        return self._global_rank

@@ -38,7 +38,7 @@ URLS = {
 
 def __maybe_download_file(destination, source):
     """
-    Downloads source to destination if not exists.
+    Downloads source to destination if it doesn't exist.
     If exists, skips download
     Args:
         destination: local filepath
@@ -47,7 +47,7 @@ def __maybe_download_file(destination, source):
     """
     source = URLS[source]
     if not os.path.exists(destination):
-        print("{0} does not exists. Downloading ...".format(destination))
+        print("{0} does not exist. Downloading ...".format(destination))
         urllib.request.urlretrieve(source, filename=destination + ".tmp")
         os.rename(destination + ".tmp", destination)
         print("Downloaded {0}.".format(destination))

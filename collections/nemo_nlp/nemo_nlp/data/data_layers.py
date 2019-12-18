@@ -1,8 +1,9 @@
 # Copyright (c) 2019 NVIDIA Corporation
-"""
-If you want to add your own data layer, you should put its name in
-__all__ so that it can be imported with 'from text_data_layers import *'
-"""
+
+# If you want to add your own data layer, you should put its name in
+# __all__ so that it can be imported with 'from text_data_layers import *'
+
+
 __all__ = ['TextDataLayer',
            'BertSentenceClassificationDataLayer',
            'BertJointIntentSlotDataLayer',
@@ -117,13 +118,17 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
     All the data processing is done in BertJointIntentSlotDataset.
 
     input_mask: used to ignore some of the input tokens like paddings
+
     loss_mask: used to mask and ignore tokens in the loss function
+
     subtokens_mask: used to ignore the outputs of unwanted tokens in
-                    the inference and evaluation like the start and end tokens
+    the inference and evaluation like the start and end tokens
+
     Args:
         dataset (BertJointIntentSlotDataset):
-                the dataset that needs to be converted to DataLayerNM
+            the dataset that needs to be converted to DataLayerNM
     """
+
     @staticmethod
     def create_ports():
         output_ports = {
@@ -191,14 +196,17 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
     All the data processing is done in BertJointIntentSlotInferDataset.
 
     input_mask: used to ignore some of the input tokens like paddings
+
     loss_mask: used to mask and ignore tokens in the loss function
+
     subtokens_mask: used to ignore the outputs of unwanted tokens in
-                    the inference and evaluation like the start and end tokens
+    the inference and evaluation like the start and end tokens
 
     Args:
         dataset (BertJointIntentSlotInferDataset):
-                the dataset that needs to be converted to DataLayerNM
+            the dataset that needs to be converted to DataLayerNM
     """
+
     @staticmethod
     def create_ports():
         output_ports = {
@@ -333,6 +341,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
                  tokenizer,
                  max_seq_length,
                  pad_label='O',
+                 label_ids=None,
                  num_samples=-1,
                  shuffle=False,
                  batch_size=64,
@@ -350,6 +359,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
                           'num_samples': num_samples,
                           'shuffle': shuffle,
                           'pad_label': pad_label,
+                          'label_ids': label_ids,
                           'ignore_extra_tokens': ignore_extra_tokens,
                           'ignore_start_end': ignore_start_end,
                           'use_cache': use_cache}
@@ -472,6 +482,7 @@ class BertPretrainingDataLayer(TextDataLayer):
 class BertPretrainingPreprocessedDataLayer(DataLayerNM):
     """
     Data layer for masked language modeling task.
+
     Args:
         tokenizer (TokenizerSpec): tokenizer
         dataset (str): directory or a single file with dataset documents

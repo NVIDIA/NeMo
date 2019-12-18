@@ -2,6 +2,7 @@
 import argparse
 import copy
 from functools import partial
+import math
 import os
 
 from ruamel.yaml import YAML
@@ -100,7 +101,7 @@ def create_all_dags(args, neural_factory):
     )
 
     N = len(data_layer)
-    steps_per_epoch = int(
+    steps_per_epoch = math.ceil(
         N / (args.batch_size * args.iter_per_step * args.num_gpus))
     logger.info('Have {0} examples to train on.'.format(N))
 

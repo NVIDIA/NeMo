@@ -113,6 +113,8 @@ class FilterbankFeatures(nn.Module):
             lowfreq=0,
             highfreq=None,
             log=True,
+            log_zero_guard_type="add",
+            log_zero_guard_value=2**-24,
             dither=CONSTANT,
             pad_to=16,
             max_duration=16.7,
@@ -202,6 +204,28 @@ class FilterbankFeatures(nn.Module):
         self.pad_value = pad_value
         self.mag_power = mag_power
 
+        # We want to avoid taking the log of zero
+        # There are two options: either adding or clamping to a small value
+        if log_zero_guard_type not in ["add", "clamp"]:
+            raise ValueError(
+                f"{self} received {log_zero_guard_type} for the "
+                f"log_zero_guard_type parameter. It must be either 'add' or "
+                f"'clamp'.")
+        # log_zero_guard_value is the the small we want to use, we support
+        # an actual number, or "tiny", or "eps"
+        self.log_zero_guard_value = lambda _: log_zero_guard_value
+        if isinstance(log_zero_guard_value, str):
+            if log_zero_guard_value == "tiny":
+                self.log_zero_guard_value = lambda x: torch.finfo(x.dtype).tiny
+            elif log_zero_guard_value == "eps":
+                self.log_zero_guard_value = lambda x: torch.finfo(x.dtype).eps
+            else:
+                raise ValueError(
+                    f"{self} received {log_zero_guard_value} for the "
+                    f"log_zero_guard_type parameter. It must be either a "
+                    f"number, 'tiny', or 'eps'")
+        self.log_zero_guard_type = log_zero_guard_type
+
     def get_seq_len(self, seq_len):
         return torch.ceil(seq_len / self.hop_length).to(dtype=torch.long)
 
@@ -236,7 +260,12 @@ class FilterbankFeatures(nn.Module):
 
         # log features if required
         if self.log:
-            x = torch.log(torch.clamp(x, min=1e-5))
+            if self.log_zero_guard_type == "add":
+                x = torch.log(x + self.log_zero_guard_value(x))
+            elif self.log_zero_guard_type == "clamp":
+                x = torch.log(torch.clamp(x, min=self.log_zero_guard_value(x)))
+            else:
+                raise ValueError("log_zero_guard_type was not understood")
 
         # frame splicing if required
         if self.frame_splicing > 1:
