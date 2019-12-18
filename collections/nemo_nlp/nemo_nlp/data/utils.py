@@ -78,6 +78,8 @@ def clean_src_and_target(src_ids,
 
 
 def remove_punctuation_from_sentence(sentence):
+    import re
+    import string
     sentence = re.sub('[' + string.punctuation + ']', '', sentence)
     sentence = sentence.lower()
     return sentence

@@ -271,20 +271,20 @@ class LanguageModelingDataLayer(TextDataLayer):
         input_ports = {}
         output_ports = {
             "input_ids":
-            NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
+                NeuralType({
+                    0: AxisType(BatchTag),
+                    1: AxisType(TimeTag)
+                }),
             "input_mask":
-            NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
+                NeuralType({
+                    0: AxisType(BatchTag),
+                    1: AxisType(TimeTag)
+                }),
             "labels":
-            NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            })
+                NeuralType({
+                    0: AxisType(BatchTag),
+                    1: AxisType(TimeTag)
+                })
         }
 
         return input_ports, output_ports
@@ -350,7 +350,6 @@ class BertTokenClassificationDataLayer(TextDataLayer):
                  use_cache=False,
                  dataset_type=BertTokenClassificationDataset,
                  **kwargs):
-
         kwargs['batch_size'] = batch_size
         dataset_params = {'text_file': text_file,
                           'label_file': label_file,
@@ -591,15 +590,15 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
             for f_id in range(self.num_files):
                 data_file = self.files[f_id]
                 train_data = BertPretrainingPreprocessedDataset(
-                                input_file=data_file,
-                                max_pred_length=self.max_pred_length)
+                    input_file=data_file,
+                    max_pred_length=self.max_pred_length)
                 train_sampler = pt_data.RandomSampler(train_data)
                 train_dataloader = pt_data.DataLoader(
-                                    dataset=train_data,
-                                    batch_size=self.batch_size,
-                                    collate_fn=self._collate_fn,
-                                    shuffle=train_sampler is None,
-                                    sampler=train_sampler)
+                    dataset=train_data,
+                    batch_size=self.batch_size,
+                    collate_fn=self._collate_fn,
+                    shuffle=train_sampler is None,
+                    sampler=train_sampler)
                 for x in train_dataloader:
                     yield x
 
@@ -756,7 +755,6 @@ class GlueDataLayerClassification(TextDataLayer):
                  batch_size=64,
                  dataset_type=GLUEDataset,
                  **kwargs):
-
         kwargs['batch_size'] = batch_size
         dataset_params = {'data_dir': data_dir,
                           'output_mode': 'classification',
@@ -814,7 +812,6 @@ class GlueDataLayerRegression(TextDataLayer):
                  batch_size=64,
                  dataset_type=GLUEDataset,
                  **kwargs):
-
         kwargs['batch_size'] = batch_size
         dataset_params = {'data_dir': data_dir,
                           'output_mode': 'regression',
@@ -841,9 +838,9 @@ class WOZDSTDataLayer(TextDataLayer):
             }),
             "tgt_ids": NeuralType({
                 0: AxisType(BatchTag),
-                1: AxisType(ChannelTag), # number of slots
+                1: AxisType(ChannelTag),  # number of slots
                 2: AxisType(TimeTag)
-                
+
             }),
             "tgt_lens": NeuralType({
                 0: AxisType(BatchTag),
@@ -860,6 +857,7 @@ class WOZDSTDataLayer(TextDataLayer):
     def __init__(self,
                  data_dir,
                  domains,
+                 num_samples=-1,
                  batch_size=16,
                  mode='train',
                  dataset_type=WOZDSTDataset,
@@ -868,6 +866,7 @@ class WOZDSTDataLayer(TextDataLayer):
         kwargs['batch_size'] = batch_size
         dataset_params = {'data_dir': data_dir,
                           'domains': domains,
+                          'num_samples': num_samples,
                           'mode': mode}
         super().__init__(dataset_type, dataset_params, **kwargs)
 
@@ -881,9 +880,10 @@ class WOZDSTDataLayer(TextDataLayer):
         """ data is a list of batch_size sample
         each sample is a dictionary of features
         """
+
         def pad_batch_context(sequences):
             '''
-            merge from batch * sent_len to batch * max_len 
+            merge from batch * sent_len to batch * max_len
             '''
             lengths = [len(seq) for seq in sequences]
             max_len = 1 if max(lengths) == 0 else max(lengths)
@@ -922,7 +922,7 @@ class WOZDSTDataLayer(TextDataLayer):
 
         # merge sequences
         src_ids, src_lens = pad_batch_context(item_info['context_ids'])
-        tgt_ids, tgt_lens = pad_batch_response(item_info['responses'],
+        tgt_ids, tgt_lens = pad_batch_response(item_info['responses_ids'],
                                                self._dataset.vocab.pad_id)
         gating_label = torch.tensor(item_info['gating_label'])
         turn_domain = torch.tensor(item_info['turn_domain'])
