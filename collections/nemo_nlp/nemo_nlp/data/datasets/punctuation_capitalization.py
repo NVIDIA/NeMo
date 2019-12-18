@@ -38,9 +38,11 @@ logger = get_logger('')
 def get_features(queries,
                  max_seq_length,
                  tokenizer,
-                 label_ids=None,
+                 punct_label_ids=None,
+                 capit_label_ids=None,
                  pad_label='O',
-                 raw_labels=None,
+                 punct_labels_lines=None,
+                 capit_labels_lines=None,
                  ignore_extra_tokens=False,
                  ignore_start_end=False):
     """
@@ -50,10 +52,14 @@ def get_features(queries,
     tokenizer (Tokenizer): such as NemoBertTokenizer
     pad_label (str): pad value use for labels.
         by default, it's the neutral label.
-    raw_labels (list of str): list of labels for every word in a sequence
-    label_ids (dict): dict to map labels to label ids. Starts
+    punct_label_ids (dict): dict to map punctuation labels to label ids.
+        Starts with pad_label->0 and then increases in alphabetical order.
+        Required for training and evaluation, not needed for inference.
+    capit_label_ids (dict): dict to map labels to label ids. Starts
         with pad_label->0 and then increases in alphabetical order.
         Required for training and evaluation, not needed for inference.
+    punct_labels (list of str): list of labels for every word in a sequence
+    capit_labels (list of str): list of labels for every word in a sequence
     ignore_extra_tokens (bool): whether to ignore extra tokens in
         the loss_mask,
     ignore_start_end (bool): whether to ignore bos and eos tokens in
@@ -66,10 +72,11 @@ def get_features(queries,
     all_input_ids = []
     all_input_mask = []
     sent_lengths = []
-    all_labels = []
+    punct_all_labels = []
+    capit_all_labels = []
     with_label = False
 
-    if raw_labels is not None:
+    if punct_labels_lines and capit_labels_lines:
         with_label = True
 
     for i, query in enumerate(queries):
@@ -80,9 +87,14 @@ def get_features(queries,
         loss_mask = [1 - ignore_start_end]
         subtokens_mask = [0]
         if with_label:
-            pad_id = label_ids[pad_label]
-            labels = [pad_id]
-            query_labels = [label_ids[lab] for lab in raw_labels[i]]
+            pad_id = punct_label_ids[pad_label]
+            punct_labels = [pad_id]
+            punct_query_labels = \
+                [punct_label_ids[lab] for lab in punct_labels_lines[i]]
+
+            capit_labels = [pad_id]
+            capit_query_labels = \
+                [capit_label_ids[lab] for lab in capit_labels_lines[i]]
 
         for j, word in enumerate(words):
             word_tokens = tokenizer.text_to_tokens(word)
@@ -96,7 +108,9 @@ def get_features(queries,
             subtokens_mask.extend([0] * (len(word_tokens) - 1))
 
             if with_label:
-                labels.extend([query_labels[j]] * len(word_tokens))
+                punct_labels.extend([punct_query_labels[j]] * len(word_tokens))
+                capit_labels.extend([capit_query_labels[j]] * len(word_tokens))
+
         # add eos token
         subtokens.append('[SEP]')
         loss_mask.append(1 - ignore_start_end)
@@ -108,8 +122,10 @@ def get_features(queries,
         all_input_mask.append([1] * len(subtokens))
 
         if with_label:
-            labels.append(pad_id)
-            all_labels.append(labels)
+            punct_labels.append(pad_id)
+            punct_all_labels.append(punct_labels)
+            capit_labels.append(pad_id)
+            capit_all_labels.append(capit_labels)
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
     logger.info(f'Max length: {max_seq_length}')
@@ -126,7 +142,10 @@ def get_features(queries,
                 all_subtokens_mask[i][-max_seq_length + 1:]
 
             if with_label:
-                all_labels[i] = [pad_id] + all_labels[i][-max_seq_length + 1:]
+                punct_all_labels[i] = \
+                    [pad_id] + punct_all_labels[i][-max_seq_length + 1:]
+                capit_all_labels[i] = \
+                    [pad_id] + capit_all_labels[i][-max_seq_length + 1:]
             too_long_count += 1
 
         all_input_ids.append([tokenizer.tokens_to_ids(t)
@@ -140,7 +159,8 @@ def get_features(queries,
             all_input_mask[i] = all_input_mask[i] + [0] * extra
 
             if with_label:
-                all_labels[i] = all_labels[i] + [pad_id] * extra
+                punct_all_labels[i] = punct_all_labels[i] + [pad_id] * extra
+                capit_all_labels[i] = capit_all_labels[i] + [pad_id] * extra
 
         all_segment_ids.append([0] * max_seq_length)
 
@@ -159,17 +179,23 @@ def get_features(queries,
             "subtokens_mask: %s" % " ".join(list(map(
                 str, all_subtokens_mask[i]))))
         if with_label:
-            logger.info(
-                "labels: %s" % " ".join(list(map(str, all_labels[i]))))
+            logger.info("punct_labels: %s" %
+                        " ".join(list(map(str, punct_all_labels[i]))))
+            logger.info("capit_labels: %s" %
+                        " ".join(list(map(str, capit_all_labels[i]))))
+
     return (all_input_ids,
             all_segment_ids,
             all_input_mask,
             all_loss_mask,
             all_subtokens_mask,
-            all_labels)
+            punct_all_labels,
+            capit_all_labels,
+            punct_label_ids,
+            capit_label_ids)
 
 
-class BertTokenClassificationDataset(Dataset):
+class BertPunctuationCapitalizationDataset(Dataset):
     """
     Creates dataset to use during training for token classification
     tasks with a pretrained model.
@@ -178,7 +204,7 @@ class BertTokenClassificationDataset(Dataset):
     NMDataLayer.
 
     For dataset to use during inference without labels, see
-    BertTokenClassificationInferDataset.
+    BertPunctuationCapitalizationInferDataset.
 
     Args:
         text_file (str): file to sequences, each line should a sentence,
@@ -192,7 +218,8 @@ class BertTokenClassificationDataset(Dataset):
         shuffle (bool): whether to shuffle your data.
         pad_label (str): pad value use for labels.
             by default, it's the neutral label.
-        label_ids (dict): label_ids (dict): dict to map labels to label ids.
+        punct_label_ids and capit_label_ids (dict):
+            dict to map labels to label ids.
             Starts with pad_label->0 and then increases in alphabetical order
             For dev set use label_ids generated during training to support
             cases when not all labels are present in the dev set.
@@ -211,7 +238,8 @@ class BertTokenClassificationDataset(Dataset):
                  num_samples=-1,
                  shuffle=False,
                  pad_label='O',
-                 label_ids=None,
+                 punct_label_ids=None,
+                 capit_label_ids=None,
                  ignore_extra_tokens=False,
                  ignore_start_end=False,
                  use_cache=False):
@@ -224,18 +252,13 @@ class BertTokenClassificationDataset(Dataset):
             if not filename.endswith('.txt'):
                 raise ValueError("{text_file} should have extension .txt")
 
-            features_pkl = os.path.join(data_dir,
-                                        filename[:-4] + "_features.pkl")
-            label_ids_pkl = os.path.join(data_dir, "label_ids.pkl")
+            filename = filename[:-4]
+            features_pkl = os.path.join(data_dir, filename + "_features.pkl")
 
-        if use_cache and \
-                os.path.exists(features_pkl) and os.path.exists(label_ids_pkl):
+        if use_cache and os.path.exists(features_pkl):
             # If text_file was already processed, load from pickle
             features = pickle.load(open(features_pkl, 'rb'))
             logger.info(f'features restored from {features_pkl}')
-
-            label_ids = pickle.load(open(label_ids_pkl, 'rb'))
-            logger.info(f'Labels to ids dict restored from {label_ids_pkl}')
         else:
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
@@ -244,20 +267,30 @@ class BertTokenClassificationDataset(Dataset):
                 text_lines = f.readlines()
 
             # Collect all possible labels
-            unique_labels = set([])
-            labels_lines = []
+            punct_unique_labels = set([])
+            capit_unique_labels = set([])
+            punct_labels_lines = []
+            capit_labels_lines = []
             with open(label_file, 'r') as f:
                 for line in f:
                     line = line.strip().split()
-                    labels_lines.append(line)
-                    unique_labels.update(line)
 
-            if len(labels_lines) != len(text_lines):
+                    # extract punctuation and capitalization labels
+                    punct_line, capit_line = zip(*line)
+                    punct_labels_lines.append(punct_line)
+                    capit_labels_lines.append(capit_line)
+
+                    punct_unique_labels.update(punct_line)
+                    capit_unique_labels.update(capit_line)
+
+            if len(punct_labels_lines) != len(text_lines):
                 raise ValueError(
                     "Labels file should contain labels for every word")
 
             if shuffle or num_samples > 0:
-                dataset = list(zip(text_lines, labels_lines))
+                dataset = list(zip(text_lines,
+                                   punct_labels_lines,
+                                   capit_labels_lines))
                 random.shuffle(dataset)
 
                 if num_samples > 0:
@@ -265,15 +298,16 @@ class BertTokenClassificationDataset(Dataset):
 
                 dataset = list(zip(*dataset))
                 text_lines = dataset[0]
-                labels_lines = dataset[1]
+                punct_labels_lines = dataset[1]
+                capit_labels_lines = dataset[2]
 
             # for dev/test sets use label mapping from training set
-            if label_ids:
-                if len(label_ids) != len(unique_labels):
+            if punct_label_ids:
+                if len(punct_label_ids) != len(punct_unique_labels):
                     logger.info(f'Not all labels from the specified' +
-                                ' label_ids dictionary are present in the' +
-                                ' current dataset. Using the provided' +
-                                ' label_ids dictionary.')
+                                'label_ids dictionary are present in the' +
+                                'current dataset. Using the provided' +
+                                'label_ids dictionary.')
                 else:
                     logger.info(f'Using the provided label_ids dictionary.')
             else:
@@ -284,18 +318,25 @@ class BertTokenClassificationDataset(Dataset):
                             ' present in the dev/test sets.' +
                             ' For training set label_ids should be None.')
 
-                label_ids = {pad_label: 0}
-                if pad_label in unique_labels:
-                    unique_labels.remove(pad_label)
-                for label in sorted(unique_labels):
-                    label_ids[label] = len(label_ids)
+                def create_label_ids(unique_labels, pad_label=pad_label):
+                    label_ids = {pad_label: 0}
+                    if pad_label in unique_labels:
+                        unique_labels.remove(pad_label)
+                    for label in sorted(unique_labels):
+                        label_ids[label] = len(label_ids)
+                    return label_ids
+
+                punct_label_ids = create_label_ids(punct_unique_labels)
+                capit_label_ids = create_label_ids(capit_unique_labels)
 
             features = get_features(text_lines,
                                     max_seq_length,
                                     tokenizer,
                                     pad_label=pad_label,
-                                    raw_labels=labels_lines,
-                                    label_ids=label_ids,
+                                    punct_labels_lines=punct_labels_lines,
+                                    capit_labels_lines=capit_labels_lines,
+                                    punct_label_ids=punct_label_ids,
+                                    capit_label_ids=capit_label_ids,
                                     ignore_extra_tokens=ignore_extra_tokens,
                                     ignore_start_end=ignore_start_end)
 
@@ -303,29 +344,41 @@ class BertTokenClassificationDataset(Dataset):
                 pickle.dump(features, open(features_pkl, "wb"))
                 logger.info(f'features saved to {features_pkl}')
 
-                pickle.dump(label_ids, open(label_ids_pkl, "wb"))
-                logger.info(f'labels to ids dict saved to {label_ids_pkl}')
-
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
         self.all_input_mask = features[2]
         self.all_loss_mask = features[3]
         self.all_subtokens_mask = features[4]
-        self.all_labels = features[5]
-        self.label_ids = label_ids
-
-        infold = text_file[:text_file.rfind('/')]
-        merged_labels = itertools.chain.from_iterable(self.all_labels)
-        logger.info('Three most popular labels')
-        _, self.label_frequencies = \
-            utils.get_label_stats(merged_labels, infold + '/label_stats.tsv')
+        self.punct_all_labels = features[5]
+        self.capit_all_labels = features[6]
+        self.punct_label_ids = features[7]
+        self.capit_label_ids = features[8]
 
         # save label_ids
-        out = open(infold + '/label_ids.csv', 'w')
-        labels, _ = zip(*sorted(self.label_ids.items(),  key=lambda x: x[1]))
-        out.write('\n'.join(labels))
-        logger.info(f'Labels: {self.label_ids}')
-        logger.info(f'Labels mapping saved to : {out.name}')
+        def get_stats_and_save(all_labels, label_ids, name):
+            infold = text_file[:text_file.rfind('/')]
+            merged_labels = itertools.chain.from_iterable(all_labels)
+            logger.info('Three most popular labels')
+            _, label_frequencies = \
+                utils.get_label_stats(merged_labels,
+                                      infold + '/label_count_' + name + '.tsv')
+
+            out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
+            labels, _ = zip(*sorted(label_ids.items(),  key=lambda x: x[1]))
+            out.write('\n'.join(labels))
+            logger.info(f'Labels: {label_ids}')
+            logger.info(f'Labels mapping saved to : {out.name}')
+
+            return label_frequencies
+
+        self.punct_label_frequencies = \
+            get_stats_and_save(self.punct_all_labels,
+                               self.punct_label_ids,
+                               'punct')
+        self.capit_label_frequencies = \
+            get_stats_and_save(self.capit_all_labels,
+                               self.capit_label_ids,
+                               'capit')
 
     def __len__(self):
         return len(self.all_input_ids)
@@ -336,10 +389,11 @@ class BertTokenClassificationDataset(Dataset):
                 np.array(self.all_input_mask[idx], dtype=np.float32),
                 np.array(self.all_loss_mask[idx]),
                 np.array(self.all_subtokens_mask[idx]),
-                np.array(self.all_labels[idx]))
+                np.array(self.punct_all_labels[idx]),
+                np.array(self.capit_all_labels[idx]))
 
 
-class BertTokenClassificationInferDataset(Dataset):
+class BertPunctuationCapitalizationInferDataset(Dataset):
     """
     Creates dataset to use during inference for token classification
     tasks with a pretrained model.
@@ -348,7 +402,7 @@ class BertTokenClassificationInferDataset(Dataset):
     NMDataLayer.
 
     For dataset to use during training with labels, see
-    BertTokenClassificationDataset.
+    BertPunctuationCapitalizationDataset.
 
     Args:
         queries (list): list of queries to run inference on
