@@ -1,8 +1,8 @@
-""" An implentation of the paper "Transferable Multi-Domain State Generator
+""" An implementation of the paper "Transferable Multi-Domain State Generator
 for Task-Oriented Dialogue Systems" (Wu et al., 2019)
-
-
+Adopted from: https://github.com/jasonwu0731/trade-dst
 """
+
 import argparse
 import os
 
@@ -15,12 +15,11 @@ import nemo_nlp
 from nemo_nlp.utils.callbacks.trade_dst import \
     eval_iter_callback, eval_epochs_done_callback
 
-
 parser = argparse.ArgumentParser(
     description='TRADE for MultiWOZ 2.1 dialog state tracking')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=16, type=int)
-parser.add_argument("--eval_batch_size", default=24, type=int)
+parser.add_argument("--eval_batch_size", default=16, type=int)
 parser.add_argument("--max_seq_length", default=50, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
@@ -44,9 +43,10 @@ parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
-parser.add_argument("--do_lower_case", action='store_false')
-parser.add_argument("--shuffle_data", action='store_false')
-
+parser.add_argument("--do_lower_case", action='store_true')
+parser.add_argument("--shuffle_data", action='store_true')
+parser.add_argument("--num_train_samples", default=-1, type=int)
+parser.add_argument("--num_eval_samples", default=-1, type=int)
 
 # parser.add_argument('--vocab_size', default=1, type=int)
 
@@ -82,6 +82,7 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
 
 data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                       DOMAINS,
+                                      num_samples=args.num_train_samples,
                                       batch_size=args.batch_size,
                                       mode='train')
 src_ids, src_lens, tgt_ids, tgt_lens, gate_labels, turn_domain = data_layer()
@@ -110,11 +111,6 @@ point_outputs, gate_outputs = decoder(encoder_hidden=hidden,
                                       src_ids=src_ids,
                                       targets=tgt_ids)
 
-eval_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
-                                           DOMAINS,
-                                           batch_size=args.batch_size,
-                                           mode='dev')
-eval_data_layer()
 # gate_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 ptr_loss_fn = nemo_nlp.DSTMaskedCrossEntropy()
 
@@ -125,6 +121,7 @@ train_loss = ptr_loss_fn(logits=point_outputs,
 
 eval_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                            DOMAINS,
+                                           num_samples=args.num_eval_samples,
                                            batch_size=args.batch_size,
                                            mode='dev')
 (eval_src_ids, eval_src_lens, eval_tgt_ids,
@@ -148,7 +145,6 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     tb_writer=nf.tb_writer,
     get_tb_values=lambda x: [["loss", x[0]]],
     step_freq=steps_per_epoch)
-
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,

@@ -69,6 +69,8 @@ class WOZDSTDataset(Dataset):
     def __init__(self,
                  data_dir,
                  domains,
+                 mode,
+                 num_samples=-1,
                  all_domains={'attraction': 0,
                               'restaurant': 1,
                               'taxi': 2,
@@ -76,8 +78,8 @@ class WOZDSTDataset(Dataset):
                               'hotel': 4,
                               'hospital': 5,
                               'bus': 6,
-                              'police': 7},
-                 mode='train'):
+                              'police': 7}):
+
         print(f'Processing {mode} data')
         self.data_dir = data_dir
         self.mode = mode
@@ -91,8 +93,8 @@ class WOZDSTDataset(Dataset):
 
         self.get_slots()
         self.get_vocab()
-        self.features, self.max_len = self.get_features()
-        print(self.features[0])
+        self.features, self.max_len = self.get_features(num_samples)
+        print("Sample 0: " + str(self.features[0]))
 
     def get_vocab(self):
         self.vocab_file = f'{self.data_dir}/vocab.pkl'
@@ -144,7 +146,7 @@ class WOZDSTDataset(Dataset):
                 lengths.append(max_value_len)
                 max_value_len = max(lengths)
 
-        if f'f{max_value_len-1}' not in self.mem_vocab.word2idx:
+        if f'f{max_value_len - 1}' not in self.mem_vocab.word2idx:
             for time_i in range(max_value_len):
                 self.mem_vocab.add_words(f't{time_i}', 'utterance')
 
@@ -154,7 +156,11 @@ class WOZDSTDataset(Dataset):
         with open(self.mem_vocab_file, 'wb') as handle:
             pickle.dump(self.mem_vocab, handle)
 
-    def get_features(self):
+    def get_features(self, num_samples):
+
+        if num_samples == 0:
+            raise ValueError("num_samples has to be positive", num_samples)
+
         filename = f'{self.data_dir}/{self.mode}_dials.json'
         print(f'Reading from {filename}')
         dialogs = json.load(open(filename, 'r'))
@@ -164,6 +170,9 @@ class WOZDSTDataset(Dataset):
         max_resp_len, max_value_len = 0, 0
 
         for dialog_dict in dialogs:
+            if num_samples > 0 and len(data) >= num_samples:
+                break
+
             dialog_histories = []
             for domain in dialog_dict['domains']:
                 if domain not in self.domains:
@@ -173,14 +182,16 @@ class WOZDSTDataset(Dataset):
                 domain_count[domain] += 1
 
             for turn in dialog_dict['dialogue']:
+                if num_samples > 0 and len(data) >= num_samples:
+                    break
+
                 turn_uttr = turn['system_transcript'] + ' ; ' + turn['transcript']
                 turn_uttr = turn_uttr.strip()
                 dialog_histories.append(turn_uttr)
                 turn_beliefs = fix_general_label_error(turn['belief_state'],
                                                        self.slots)
 
-                turn_belief_list = [f'{k}-{v}'
-                                    for k, v in turn_beliefs.items()]
+                turn_belief_list = [f'{k}-{v}' for k, v in turn_beliefs.items()]
 
                 gating_label, responses = [], []
 
@@ -190,7 +201,7 @@ class WOZDSTDataset(Dataset):
                         gating_slot = 'ptr'
 
                     if slot in turn_beliefs:
-                        responses.append(turn_beliefs[slot])
+                        responses.append(str(turn_beliefs[slot]))
                     else:
                         responses.append('none')
                         gating_slot = 'none'
@@ -205,6 +216,12 @@ class WOZDSTDataset(Dataset):
                           'gating_label': gating_label,
                           'turn_uttr': turn_uttr,
                           'responses': responses}
+
+                sample['context_ids'] = self.vocab.tokens2ids(sample['dialog_history'].split())
+                sample['responses_ids'] = [self.vocab.tokens2ids(y.split() + [self.vocab.eos])
+                                           for y in sample['responses']]
+                sample['turn_domain'] = self.all_domains[sample['turn_domain']]
+
                 data.append(sample)
 
                 resp_len = len(sample['dialog_history'].split())
@@ -220,13 +237,20 @@ class WOZDSTDataset(Dataset):
 
     def __getitem__(self, idx):
         item = self.features[idx]
-        context_ids = self.vocab.tokens2ids(item['dialog_history'].split())
-        # feature['context_ids'] = torch.Tensor(context_ids)
-        item['context_ids'] = context_ids
-        y_ids = [self.vocab.tokens2ids(y.split() + [self.vocab.eos])
-                 for y in item['responses']]
-        item['responses'] = y_ids
-        item['turn_domain'] = self.all_domains[item['turn_domain']]
+        # context_ids = self.vocab.tokens2ids(item['dialog_history'].split())
+        # # feature['context_ids'] = torch.Tensor(context_ids)
+        # item['context_ids'] = context_ids
+        #
+        # # TODO: Edited
+        # #print(item['responses'])
+        # try:
+        # 	y_ids = [self.vocab.tokens2ids(y.split() + [self.vocab.eos])
+        # 			 for y in item['responses']]
+        # except:
+        # 	print(item['responses'], idx)
+        #
+        # item['responses'] = y_ids
+        # item['turn_domain'] = self.all_domains[item['turn_domain']]
 
         return {'dialog_id': item['ID'],
                 'turn_id': item['turn_id'],
@@ -234,7 +258,7 @@ class WOZDSTDataset(Dataset):
                 'gating_label': item['gating_label'],
                 'context_ids': item['context_ids'],
                 'turn_domain': item['turn_domain'],
-                'responses': item['responses']}
+                'responses_ids': item['responses_ids']}
 
 
 def fix_general_label_error(labels, slots):
@@ -288,7 +312,7 @@ def fix_general_label_error(labels, slots):
         "monda": "monday",
         # parking
         "free parking":
-        "free",
+            "free",
         # internet
         "free internet": "yes",
         # star
@@ -329,11 +353,11 @@ def fix_general_label_error(labels, slots):
 
             # miss match slot and value
             if (slot == "hotel-type" and label_dict[slot] in hotel_ranges) or \
-                (slot == "hotel-internet" and label_dict[slot] == "4") or \
-                (slot == "hotel-pricerange" and label_dict[slot] == "2") or \
-                (slot == "attraction-type" and
-                    label_dict[slot] in locations) or \
-                ("area" in slot and label_dict[slot] in ["moderate"]) or \
+                    (slot == "hotel-internet" and label_dict[slot] == "4") or \
+                    (slot == "hotel-pricerange" and label_dict[slot] == "2") or \
+                    (slot == "attraction-type" and
+                     label_dict[slot] in locations) or \
+                    ("area" in slot and label_dict[slot] in ["moderate"]) or \
                     ("day" in slot and label_dict[slot] == "t"):
                 label_dict[slot] = "none"
             elif slot == "hotel-type" and label_dict[slot] in detailed_hotels:
@@ -360,7 +384,7 @@ def fix_general_label_error(labels, slots):
             # some out-of-define classification slot values
             if (slot == "restaurant-area" and label_dict[slot] in areas) or \
                     (slot == "attraction-area" and
-                        label_dict[slot] in attr_areas):
+                     label_dict[slot] in attr_areas):
                 label_dict[slot] = "none"
 
     return label_dict
