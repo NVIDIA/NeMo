@@ -17,8 +17,11 @@ parser.add_argument("--pretrained_bert_model",
                     default="bert-base-cased", type=str)
 parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument("--queries", action='append',
-                    default=['we bought four shirts from the nvidia gear store\
-                    in santa clara', 'Nvidia is a company'],
+                    default=['we bought four shirts from the nvidia gear ' +
+                             'store in santa clara', 'Nvidia is a company',
+                             'The Adventures of Tom Sawyer by Mark Twain ' +
+                             'is an 1876 novel about a young boy growing ' +
+                             'up along the Mississippi River'],
                     help="Example: --queries 'San Francisco' --queries 'LA'")
 parser.add_argument("--add_brackets", action='store_false',
                     help="Whether to take predicted label in brackets or \

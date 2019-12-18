@@ -6,5 +6,7 @@ from .joint_intent_slot import (BertJointIntentSlotDataset,
 from .language_modeling import LanguageModelingDataset
 from .token_classification import (BertTokenClassificationDataset,
                                    BertTokenClassificationInferDataset)
+from .punctuation_capitalization import BertPunctuationCapitalizationDataset,\
+  BertPunctuationCapitalizationInferDataset
 from .sentence_classification import BertSentenceClassificationDataset
 from .translation import TranslationDataset

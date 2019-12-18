@@ -119,9 +119,12 @@ class TokenClassificationLoss(LossNM):
         }
         return input_ports, output_ports
 
-    def __init__(self, num_classes, **kwargs):
+    def __init__(self, num_classes, class_weights=None, **kwargs):
         LossNM.__init__(self, **kwargs)
-        self._criterion = nn.CrossEntropyLoss()
+        if class_weights:
+            class_weights = torch.FloatTensor(class_weights).to(self._device)
+
+        self._criterion = nn.CrossEntropyLoss(weight=class_weights)
         self.num_classes = num_classes
 
     def _loss_function(self, logits, labels, loss_mask):
