@@ -1,9 +1,10 @@
 model: "Jasper"
-sample_rate: 16000
-dropout: &drop 0.0 
+sample_rate: &sample_rate 16000
+dropout: &drop 0.0
 repeat:  &rep  1
 
 AudioToTextDataLayer:
+    sample_rate: *sample_rate
     train:
         shuffle: true
     eval:
@@ -14,13 +15,14 @@ AudioToMelSpectrogramPreprocessor:
     window_size: 0.02
     window_stride: 0.01
     window: "hann"
-    features: 64
+    features: &n_mels 64
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
     stft_conv: true
 
 JasperEncoder:
+    feat_in: *n_mels
     activation: "relu"
 
     jasper:
@@ -72,13 +74,16 @@ JasperEncoder:
           dropout: 0.0
           residual: false
 
-        - filters: 1024
+        - filters: &enc_feat_out 1024
           repeat: 1
           kernel: [1]
           stride: [1]
           dilation: [1]
           dropout: 0.0
           residual: false
+
+JasperDecoderForCTC:
+    feat_in: *enc_feat_out
 
 labels: [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
          "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]

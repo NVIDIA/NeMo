@@ -92,7 +92,7 @@ Once finished, you may delete the 10 minute long .wav files if you wish.
 Run the following script to convert the HUB5 data into a format expected by the `nemo_asr` collection.
 
 Similarly to the Fisher dataset processing scripts, this script converts the .sph files to .wav, slices the audio files and transcripts into utterances, and combines them into segments of some minimum length (default is 10 seconds).
-The resulting segments are all written out to an audio directory, and the corresponding transcripts are written to a manifest JSON.
+The resulting segments are all written out to an audio directory, and the corresponding transcripts are written to a manifest JSON file.
 
 .. note::
   You will need 5GB of free space to run this script.
@@ -109,3 +109,44 @@ Run the following to process the 2000 HUB5 English Evaluation Speech samples:
     --dest_root=<target_dir>
 
 You may optionally include `--min_slice_duration=<num_seconds>` if you would like to change the minimum audio segment duration.
+
+AN4 Dataset
+-----------
+
+This is a small dataset recorded and distributed by Carnegie Mellon University, and consists of recordings of people spelling out addresses, names, etc.
+Information about this dataset can be found on the `official CMU site <http://www.speech.cs.cmu.edu/databases/an4/>`_.
+
+Please download and extract the dataset (which is labeled "NIST's Sphere audio (.sph) format (64M)" on the site linked above): http://www.speech.cs.cmu.edu/databases/an4/an4_sphere.tar.gz.
+
+Running the following script will convert the .sph files to .wav using sox, and build one training and one test manifest.
+
+.. code-block:: bash
+
+  python process_an4_data.py --data_root=<path_to_extracted_data>
+
+Once this script finishes, you should have a `train_manifest.json` and `test_manifest.json` in the `<data_root>/an4/` directory.
+
+Aishell1
+-----------------------------------
+
+Run these scripts to download Aishell1 data and convert it into format expected by `nemo_asr`.
+
+.. code-block:: bash
+
+    # install sox
+    sudo apt-get install sox
+    mkdir data
+    python get_aishell_data.py --data_root=data
+
+After this, your `data` folder should contain a `data_aishell` folder which contains wav, transcript folder and related `.json` files and `vocab.txt`.
+
+Aishell2
+-----------------------------------
+
+Run the script to process AIShell-2 dataset in order to generate files in the supported format of  `nemo_asr`. You should set the data folder of AIShell-2 using `--audio_folder` and where to push these files using `--dest_folder`.
+
+.. code-block:: bash
+
+    python process_aishell2_data.py --audio_folder=<data directory> --dest_folder=<destination directory>
+
+Then, you should have `train.json` `dev.json` `test.json` and `vocab.txt` in `dest_folder`. 

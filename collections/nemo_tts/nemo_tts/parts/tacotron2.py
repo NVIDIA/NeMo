@@ -91,9 +91,10 @@ class Attention(nn.Module):
 
 
 class Prenet(nn.Module):
-    def __init__(self, in_dim, sizes):
+    def __init__(self, in_dim, sizes, p_dropout=0.5):
         super(Prenet, self).__init__()
         in_sizes = [in_dim] + sizes[:-1]
+        self.p_dropout = p_dropout
         self.layers = nn.ModuleList(
             [LinearNorm(in_size, out_size, bias=False)
              for (in_size, out_size) in zip(in_sizes, sizes)])
@@ -109,7 +110,8 @@ class Prenet(nn.Module):
                 x = x*mask*2
         else:
             for linear in self.layers:
-                x = F.dropout(F.relu(linear(x)), p=0.5, training=True)
+                x = F.dropout(
+                    F.relu(linear(x)), p=0., training=True)
         return x
 
 
@@ -119,7 +121,8 @@ class Postnet(nn.Module):
     """
 
     def __init__(self, n_mel_channels, postnet_embedding_dim,
-                 postnet_kernel_size, postnet_n_convolutions):
+                 postnet_kernel_size, postnet_n_convolutions,
+                 p_dropout=0.5):
         super(Postnet, self).__init__()
         self.convolutions = nn.ModuleList()
 
@@ -151,12 +154,13 @@ class Postnet(nn.Module):
                          dilation=1, w_init_gain='linear'),
                 nn.BatchNorm1d(n_mel_channels))
         )
+        self.p_dropout = p_dropout
 
     def forward(self, x):
         for i in range(len(self.convolutions) - 1):
             x = F.dropout(torch.tanh(
                 self.convolutions[i](x)), 0.5, self.training)
-        x = F.dropout(self.convolutions[-1](x), 0.5, self.training)
+        x = F.dropout(self.convolutions[-1](x), self.p_dropout, self.training)
 
         return x
 
@@ -221,7 +225,8 @@ class Decoder(nn.Module):
                  gate_threshold,
                  p_attention_dropout,
                  p_decoder_dropout,
-                 early_stopping):
+                 early_stopping,
+                 prenet_p_dropout=0.5):
         super(Decoder, self).__init__()
         self.n_mel_channels = n_mel_channels
         self.n_frames_per_step = n_frames_per_step
@@ -237,7 +242,8 @@ class Decoder(nn.Module):
 
         self.prenet = Prenet(
             n_mel_channels * n_frames_per_step,
-            [prenet_dim, prenet_dim])
+            [prenet_dim, prenet_dim],
+            prenet_p_dropout)
 
         self.attention_rnn = nn.LSTMCell(
             prenet_dim + encoder_embedding_dim,

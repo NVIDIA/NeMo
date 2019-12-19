@@ -24,18 +24,21 @@ __all__ = ['AudioPreprocessing',
 
 from abc import abstractmethod
 import math
+import warnings
+
 import torch
 try:
     import torchaudio
-    have_torchaudio = True
+    HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
-    have_torchaudio = False
-    print('Could not import torchaudio. Some features might not work.')
+    HAVE_TORCHAUDIO = False
+    warnings.warn('Could not import torchaudio. Some features might not work.')
 try:
     from apex import amp
 except (AttributeError, ModuleNotFoundError) as e:
-    print("Unable to import APEX. Mixed precision and distributed training "
-          "will not work.")
+    warnings.warn(
+        "Unable to import APEX. Mixed precision and distributed training "
+        "will not work.")
 
 from nemo.backends.pytorch import NonTrainableNM
 from nemo.core import Optimization
@@ -141,7 +144,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             normalized=True,
             **kwargs
     ):
-        if not have_torchaudio:
+        if not HAVE_TORCHAUDIO:
             raise ModuleNotFoundError(
                 "torchaudio is not installed but is necessary for "
                 "AudioToSpectrogramPreprocessor. We recommend you try "
@@ -411,7 +414,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
             norm='ortho',
             log=True,
             **kwargs):
-        if not have_torchaudio:
+        if not HAVE_TORCHAUDIO:
             raise ModuleNotFoundError(
                 "torchaudio is not installed but is necessary for "
                 "AudioToMFCCPreprocessor. We recommend you try "
