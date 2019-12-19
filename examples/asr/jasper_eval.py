@@ -200,7 +200,6 @@ def main():
                     f'{best_beam_wer[0]}, '
                     f'WER: {best_beam_wer[1]:.2f}%')
 
-
     if args.save_logprob:
         # Convert logits to list of numpy arrays
         logprob = []
