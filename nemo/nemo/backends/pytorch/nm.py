@@ -201,6 +201,14 @@ class DataLayerNM(NeuralModule):
         NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
 
+    def input_port_definitions(self):
+        """DataLayer by definition does not have any input ports.
+
+            Returns:
+                An empty dictionary.
+        """
+        return {}
+
     def get_weights(self):
         logging.warning(
             "Data Layer does not have any weights to return. "
