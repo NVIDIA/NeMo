@@ -12,6 +12,28 @@ from ....core.neural_types import *
 
 class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
     """Module which learns Taylor's coefficients."""
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        Returns:
+          A (dict) of module's input ports names to NeuralTypes mapping
+        """
+        return {
+            "x": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})
+        }
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        Returns:
+          A (dict) of module's output ports names to NeuralTypes mapping
+        """
+        return {
+            "y_pred": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)})
+        }
+
     @staticmethod
     def create_ports():
         input_ports = {
@@ -105,8 +127,20 @@ class RealFunctionDataLayer(DataLayerNM):
         x_lo: Lower bound of domain to sample
         x_hi: Upper bound of domain to sample
     """
+
     def __len__(self):
         return self._n
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports
+
+        Returns:
+          A (dict) of module's output ports names to NeuralTypes mapping
+        """
+        return {
+            "x": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "y": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+        }
 
     @staticmethod
     def create_ports():
@@ -148,6 +182,30 @@ class RealFunctionDataLayer(DataLayerNM):
 
 
 class MSELoss(LossNM):
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        Returns:
+          A (dict) of module's input ports names to NeuralTypes mapping
+        """
+        return {
+            "predictions": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "target": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+        }
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        Returns:
+          A (dict) of module's output ports names to NeuralTypes mapping
+        """
+        return {
+            "loss": NeuralType(None)
+        }
+
     @staticmethod
     def create_ports():
         input_ports = {
@@ -241,8 +299,8 @@ class DopeDualLoss(LossNM):
         # output, each belief map layers.
         for l in kwargs["belief_predictions"]:
             loss_tmp = (
-                    (l - kwargs["belief_labels"]) * (
-                     l - kwargs["belief_labels"])
+                (l - kwargs["belief_labels"]) * (
+                    l - kwargs["belief_labels"])
             ).mean()
             loss += loss_tmp
 
@@ -250,8 +308,8 @@ class DopeDualLoss(LossNM):
         # output, each belief map layers.
         for l in kwargs["affinity_predictions"]:
             loss_tmp = (
-                    (l - kwargs["affinity_labels"]) * (
-                     l - kwargs["affinity_labels"])
+                (l - kwargs["affinity_labels"]) * (
+                    l - kwargs["affinity_labels"])
             ).mean()
             loss += loss_tmp
 
