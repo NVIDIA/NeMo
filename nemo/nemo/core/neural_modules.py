@@ -38,7 +38,6 @@ class NeuralModule(ABC):
     Args:
         pretrained_model_name (str): name of pretrained model to use in order
             to initialize this neural module
-        create_port_args (dict): arguments that are passed to create_ports()
         factory (NeuralModuleFactory): :class:`NeuralModuleFactory` which
             created or which should mange this instance. Required for
             multi-gpu training.
@@ -50,18 +49,12 @@ class NeuralModule(ABC):
     def __init__(
             self, *,
             pretrained_model_name=None,
-            create_port_args=None,
             factory=None,
             placement=None,
             **kwargs
     ):
         self._pretrained_model_name = pretrained_model_name
         self._local_parameters = self.update_local_params()
-
-        if create_port_args is None:
-            create_port_args = {}
-        self._input_ports, self._output_ports = self.create_ports(
-            **create_port_args)
 
         default_factory = NeuralModuleFactory.get_default_factory()
         if (factory is None) and (default_factory is not None):
@@ -89,6 +82,22 @@ class NeuralModule(ABC):
         #        "arguments:".format(self.__class__.__name__))
         #    self._logger.warning("{}".format(kwargs.keys()))
 
+    @abstractmethod
+    def input_port_definitions(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module input ports
+
+        Returns:
+          A (dict) of module's input ports names to NeuralTypes mapping
+        """
+
+    @abstractmethod
+    def output_port_definitions(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports
+
+        Returns:
+          A (dict) of module's output ports names to NeuralTypes mapping
+        """
+
     @staticmethod
     def pretrained_storage():
         return ''
@@ -115,15 +124,19 @@ class NeuralModule(ABC):
         #    raise ValueError("We currently do not support calling same NM"
         #                     "more than once")
 
+        # Get input and output ports definitions.
+        input_port_defs = self.input_port_definitions()
+        output_port_defs = self.output_port_definitions()
+
         first_input_nmtensor_type = None
         input_nmtensors_are_of_same_type = True
         for port_name, tgv in kwargs.items():
-            if port_name not in self._input_ports.keys():
+            if port_name not in input_port_defs.keys():
                 raise NeuralPortNameMismatchError(
                     "Wrong input port name: {0}".format(port_name)
                 )
 
-            type_comatibility = self._input_ports[port_name].compare(tgv)
+            type_comatibility = input_port_defs[port_name].compare(tgv)
 
             if first_input_nmtensor_type is None:
                 first_input_nmtensor_type = NeuralType(tgv._axis2type)
@@ -145,7 +158,7 @@ class NeuralModule(ABC):
                     .format(
                         self.__class__.__name__,
                         port_name,
-                        self._input_ports[port_name],
+                        input_port_defs[port_name],
                         tgv,
                         type_comatibility
                     )
@@ -153,9 +166,9 @@ class NeuralModule(ABC):
             if type_comatibility == NeuralTypeComparisonResult.LESS:
                 print('Types were raised')
 
-        if len(self._output_ports) == 1:
-            out_name = list(self._output_ports)[0]
-            out_type = self._output_ports[out_name]
+        if len(output_port_defs) == 1:
+            out_name = list(output_port_defs)[0]
+            out_type = output_port_defs[out_name]
             if out_type is None:
                 if input_nmtensors_are_of_same_type:
                     out_type = first_input_nmtensor_type
@@ -171,7 +184,7 @@ class NeuralModule(ABC):
             )
         else:
             result = []
-            for out_port, n_type in self._output_ports.items():
+            for out_port, n_type in output_port_defs.items():
                 out_type = n_type
                 if out_type is None:
                     if input_nmtensors_are_of_same_type:
@@ -364,24 +377,6 @@ class NeuralModule(ABC):
         return self._local_parameters
 
     @property
-    def input_ports(self) -> Optional[Dict[str, NeuralType]]:
-        """Get all module's input ports
-
-        Returns:
-          A (dict) of module's input ports names to NeuralTypes mapping
-        """
-        return self._input_ports
-
-    @property
-    def output_ports(self) -> Optional[Dict[str, NeuralType]]:
-        """Get all module's output ports
-
-        Returns:
-          A (dict) of module's output ports names to NeuralTypes mapping
-        """
-        return self._output_ports
-
-    @property
     def unique_instance_id(self):
         """A unique instance id for this object
 
@@ -403,19 +398,6 @@ class NeuralModule(ABC):
         """Number of module's weights
         """
         pass
-
-    @staticmethod
-    @abstractmethod
-    def create_ports(**kwargs):
-        """
-        A static function that must be defined by the child Neural Module. It
-        returns the input and output ports of the module.
-
-        Returns:
-            Two dictionaries, the first representing the input ports of the
-            module and the second representing the output ports of the module
-        """
-        return {}, {}
 
     @staticmethod
     def update_local_params():
