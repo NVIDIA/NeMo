@@ -11,6 +11,7 @@ from nemo.utils.lr_policies import get_lr_policy
 import nemo_nlp
 from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer, \
     TokenClassifier, TokenClassificationLoss
+from nemo_nlp.data.datasets import utils
 from nemo_nlp.utils.callbacks.token_classification import \
     eval_iter_callback, eval_epochs_done_callback
 
@@ -31,6 +32,7 @@ parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--data_dir", default="/data", type=str)
 parser.add_argument("--fc_dropout", default=0.5, type=float)
+parser.add_argument("--num_fc_layers", default=2, type=int)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
@@ -60,6 +62,8 @@ parser.add_argument("--save_step_freq", default=-1, type=int,
                     '-1' - step checkpoint won't be saved")
 parser.add_argument("--loss_step_freq", default=250, type=int,
                     help="Frequency of printing loss")
+parser.add_argument("--use_weighted_loss", action='store_true',
+                    help="Flag to indicate whether to use weighted loss")
 
 args = parser.parse_args()
 
@@ -87,11 +91,10 @@ if args.bert_checkpoint is None:
     nemo_nlp.huggingface.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    bert_model = nemo_nlp.huggingface.BERT(
+    model = nemo_nlp.huggingface.BERT(
         pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
-    Replace BERT-STEP-150000.pt with the path to your checkpoint.
     """
     if args.tokenizer == "sentencepiece":
         tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
@@ -109,9 +112,10 @@ else:
             pretrained_model_name=args.pretrained_bert_model)
 
     model.restore_from(args.bert_checkpoint)
+    nf.logger.info(f"Model restored from {args.bert_checkpoint}")
 
 
-hidden_size = bert_model.local_parameters["hidden_size"]
+hidden_size = model.local_parameters["hidden_size"]
 
 classifier = "TokenClassifier"
 task_loss = "TokenClassificationLoss"
@@ -128,7 +132,8 @@ def create_pipeline(num_samples=-1,
                     ignore_extra_tokens=args.ignore_extra_tokens,
                     ignore_start_end=args.ignore_start_end,
                     use_cache=args.use_cache,
-                    dropout=args.fc_dropout):
+                    dropout=args.fc_dropout,
+                    num_layers=args.num_fc_layers):
 
     global classifier, task_loss
 
@@ -169,16 +174,28 @@ def create_pipeline(num_samples=-1,
 
     if mode == 'train':
         label_ids = data_layer.dataset.label_ids
+        class_weights = None
+
+        if args.use_weighted_loss:
+            nf.logger.info(f"Using weighted loss")
+            label_freqs = data_layer.dataset.label_frequencies
+            class_weights = utils.calc_class_weights(label_freqs)
+
+            nf.logger.info(f"class_weights: {class_weights}")
+
         classifier = getattr(sys.modules[__name__], classifier)
         classifier = classifier(hidden_size=hidden_size,
                                 num_classes=len(label_ids),
-                                dropout=dropout)
-        task_loss = getattr(sys.modules[__name__], task_loss)
-        task_loss = task_loss(num_classes=len(label_ids))
+                                dropout=dropout,
+                                num_layers=num_layers)
 
-    hidden_states = bert_model(input_ids=input_ids,
-                               token_type_ids=input_type_ids,
-                               attention_mask=input_mask)
+        task_loss = getattr(sys.modules[__name__], task_loss)
+        task_loss = task_loss(num_classes=len(label_ids),
+                              class_weights=class_weights)
+
+    hidden_states = model(input_ids=input_ids,
+                          token_type_ids=input_type_ids,
+                          attention_mask=input_mask)
 
     logits = classifier(hidden_states=hidden_states)
     loss = task_loss(logits=logits, labels=labels, loss_mask=loss_mask)

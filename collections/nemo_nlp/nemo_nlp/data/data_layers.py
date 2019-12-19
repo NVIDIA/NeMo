@@ -1,8 +1,9 @@
 # Copyright (c) 2019 NVIDIA Corporation
-"""
-If you want to add your own data layer, you should put its name in
-__all__ so that it can be imported with 'from text_data_layers import *'
-"""
+
+# If you want to add your own data layer, you should put its name in
+# __all__ so that it can be imported with 'from text_data_layers import *'
+
+
 __all__ = ['TextDataLayer',
            'BertSentenceClassificationDataLayer',
            'BertJointIntentSlotDataLayer',
@@ -10,6 +11,8 @@ __all__ = ['TextDataLayer',
            'LanguageModelingDataLayer',
            'BertTokenClassificationDataLayer',
            'BertTokenClassificationInferDataLayer',
+           'BertPunctuationCapitalizationDataLayer',
+           'BertPunctuationCapitalizationInferDataLayer',
            'BertPretrainingDataLayer',
            'BertPretrainingPreprocessedDataLayer',
            'TranslationDataLayer',
@@ -117,13 +120,17 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
     All the data processing is done in BertJointIntentSlotDataset.
 
     input_mask: used to ignore some of the input tokens like paddings
+
     loss_mask: used to mask and ignore tokens in the loss function
+
     subtokens_mask: used to ignore the outputs of unwanted tokens in
-                    the inference and evaluation like the start and end tokens
+    the inference and evaluation like the start and end tokens
+
     Args:
         dataset (BertJointIntentSlotDataset):
-                the dataset that needs to be converted to DataLayerNM
+            the dataset that needs to be converted to DataLayerNM
     """
+
     @staticmethod
     def create_ports():
         output_ports = {
@@ -191,14 +198,17 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
     All the data processing is done in BertJointIntentSlotInferDataset.
 
     input_mask: used to ignore some of the input tokens like paddings
+
     loss_mask: used to mask and ignore tokens in the loss function
+
     subtokens_mask: used to ignore the outputs of unwanted tokens in
-                    the inference and evaluation like the start and end tokens
+    the inference and evaluation like the start and end tokens
 
     Args:
         dataset (BertJointIntentSlotInferDataset):
-                the dataset that needs to be converted to DataLayerNM
+            the dataset that needs to be converted to DataLayerNM
     """
+
     @staticmethod
     def create_ports():
         output_ports = {
@@ -400,6 +410,117 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 
+class BertPunctuationCapitalizationDataLayer(TextDataLayer):
+    @staticmethod
+    def create_ports():
+        input_ports = {}
+        output_ports = {
+            "input_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_type_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "loss_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "subtokens_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "punct_labels": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "capit_labels": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            })
+        }
+        return input_ports, output_ports
+
+    def __init__(self,
+                 text_file,
+                 label_file,
+                 tokenizer,
+                 max_seq_length,
+                 pad_label='O',
+                 punct_label_ids=None,
+                 capit_label_ids=None,
+                 num_samples=-1,
+                 shuffle=False,
+                 batch_size=64,
+                 ignore_extra_tokens=False,
+                 ignore_start_end=False,
+                 use_cache=False,
+                 dataset_type=BertPunctuationCapitalizationDataset,
+                 **kwargs):
+
+        kwargs['batch_size'] = batch_size
+        dataset_params = {'text_file': text_file,
+                          'label_file': label_file,
+                          'max_seq_length': max_seq_length,
+                          'tokenizer': tokenizer,
+                          'num_samples': num_samples,
+                          'shuffle': shuffle,
+                          'pad_label': pad_label,
+                          'punct_label_ids': punct_label_ids,
+                          'capit_label_ids': capit_label_ids,
+                          'ignore_extra_tokens': ignore_extra_tokens,
+                          'ignore_start_end': ignore_start_end,
+                          'use_cache': use_cache}
+        super().__init__(dataset_type, dataset_params, **kwargs)
+
+
+class BertPunctuationCapitalizationInferDataLayer(TextDataLayer):
+    @staticmethod
+    def create_ports():
+        input_ports = {}
+        output_ports = {
+            "input_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_type_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "loss_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "subtokens_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            })
+        }
+        return input_ports, output_ports
+
+    def __init__(self,
+                 queries,
+                 tokenizer,
+                 max_seq_length,
+                 batch_size=1,
+                 dataset_type=BertTokenClassificationInferDataset,
+                 **kwargs):
+        kwargs['batch_size'] = batch_size
+        dataset_params = {'queries': queries,
+                          'tokenizer': tokenizer,
+                          'max_seq_length': max_seq_length}
+        super().__init__(dataset_type, dataset_params, **kwargs)
+
+
 class BertPretrainingDataLayer(TextDataLayer):
     """
     Data layer for masked language modeling task.
@@ -474,6 +595,7 @@ class BertPretrainingDataLayer(TextDataLayer):
 class BertPretrainingPreprocessedDataLayer(DataLayerNM):
     """
     Data layer for masked language modeling task.
+
     Args:
         tokenizer (TokenizerSpec): tokenizer
         dataset (str): directory or a single file with dataset documents

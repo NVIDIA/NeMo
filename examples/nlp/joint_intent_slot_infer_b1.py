@@ -2,7 +2,6 @@ import argparse
 
 import numpy as np
 from pytorch_transformers import BertTokenizer
-from sklearn.metrics import confusion_matrix, classification_report
 
 import nemo
 import nemo_nlp

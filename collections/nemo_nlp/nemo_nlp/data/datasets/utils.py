@@ -120,6 +120,54 @@ def process_imdb(data_dir, uncased, modes=['train', 'test']):
     return outfold
 
 
+def process_thucnews(data_dir):
+    modes = ['train', 'test']
+    train_size = 0.8
+    if not os.path.exists(data_dir):
+        link = 'thuctc.thunlp.org/'
+        raise ValueError(f'Data not found at {data_dir}. '
+                         f'Please download THUCNews from {link}.')
+
+    outfold = f'{data_dir}/nemo-processed-thucnews'
+
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
+        logger.info(DATABASE_EXISTS_TMP.format('THUCNews', outfold))
+        return outfold
+    logger.info(f'Processing THUCNews dataset and store at {outfold}')
+
+    os.makedirs(outfold, exist_ok=True)
+
+    outfiles = {}
+
+    for mode in modes:
+        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'a+',
+                              encoding='utf-8')
+        outfiles[mode].write('sentence\tlabel\n')
+    categories = ['体育', '娱乐', '家居', '彩票', '房产', '教育', '时尚',
+                  '时政', '星座', '游戏', '社会', '科技', '股票', '财经']
+    for category in categories:
+        label = categories.index(category)
+        category_files = glob.glob(f'{data_dir}/{category}/*.txt')
+        test_num = int(len(category_files) * (1 - train_size))
+        test_files = category_files[:test_num]
+        train_files = category_files[test_num:]
+        for mode in modes:
+            logger.info(f'Processing {mode} data of the category {category}')
+            if mode == 'test':
+                files = test_files
+            else:
+                files = train_files
+            for file in tqdm(files):
+                with open(file, 'r', encoding='utf-8') as f:
+                    news = f.read().strip().replace('\r', '')
+                    news = news.replace('\n', '').replace('\t', ' ')
+                    outfiles[mode].write(f'{news}\t{label}\n')
+    for mode in modes:
+        outfiles[mode].close()
+
+    return outfold
+
+
 def process_nlu(filename,
                 uncased,
                 modes=['train', 'test'],
@@ -1117,6 +1165,10 @@ class SentenceClassificationDataDesc:
             self.num_labels = 2
             self.data_dir = process_imdb(data_dir, do_lower_case)
             self.eval_file = self.data_dir + '/test.tsv'
+        elif dataset_name == 'thucnews':
+            self.num_labels = 14
+            self.data_dir = process_thucnews(data_dir)
+            self.eval_file = self.data_dir + '/test.tsv'
         elif dataset_name.startswith('nlu-'):
             if dataset_name.endswith('chat'):
                 self.data_dir = f'{data_dir}/ChatbotCorpus.json'
@@ -1143,11 +1195,42 @@ class SentenceClassificationDataDesc:
             intents = get_intent_labels(f'{self.data_dir}/dict.intents.csv')
             self.num_labels = len(intents)
         else:
-            logger.info("Looks like you passed a dataset name that isn't "
-                        "already supported by NeMo. Please make sure that "
-                        "you build the preprocessing method for it.")
+            raise ValueError("Looks like you passed a dataset name that isn't "
+                             "already supported by NeMo. Please make sure "
+                             "that you build the preprocessing method for it.")
 
         self.train_file = self.data_dir + '/train.tsv'
+
+        for mode in ['train', 'test', 'eval']:
+
+            if not if_exist(self.data_dir, [f'{mode}.tsv']):
+                logger.info(f' Stats calculation for {mode} mode'
+                            f' is skipped as {mode}.tsv was not found.')
+                continue
+
+            input_file = f'{self.data_dir}/{mode}.tsv'
+            with open(input_file, 'r') as f:
+                input_lines = f.readlines()[1:]  # Skipping headers at index 0
+
+            queries, raw_sentences = [], []
+            for input_line in input_lines:
+                parts = input_line.strip().split()
+                raw_sentences.append(int(parts[-1]))
+                queries.append(' '.join(parts[:-1]))
+
+            infold = input_file[:input_file.rfind('/')]
+
+            logger.info(f'Three most popular classes during {mode}ing')
+            total_sents, sent_label_freq = get_label_stats(
+                raw_sentences, infold + f'/{mode}_sentence_stats.tsv')
+
+            if mode == 'train':
+
+                self.class_weights = calc_class_weights(sent_label_freq)
+                logger.info(f'Class weights are - {self.class_weights}')
+
+            logger.info(f'Total Sentences - {total_sents}')
+            logger.info(f'Sentence class frequencies - {sent_label_freq}')
 
 
 def create_vocab_lm(data_dir, do_lower_case):
