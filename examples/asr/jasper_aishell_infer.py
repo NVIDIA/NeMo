@@ -124,7 +124,7 @@ def main():
     logger.info(
         f"Number of parameters in decoder: {jasper_decoder.num_weights}")
     logger.info(
-        f"Total number of parameters in decoder: "
+        f"Total number of parameters in model: "
         f"{jasper_decoder.num_weights + jasper_encoder.num_weights}")
     logger.info('================================')
 
