@@ -1,7 +1,7 @@
 import argparse
 
 import numpy as np
-from pytorch_transformers import BertTokenizer
+from transformers import BertTokenizer
 
 import nemo
 import nemo_nlp

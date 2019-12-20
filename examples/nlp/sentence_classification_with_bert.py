@@ -2,7 +2,7 @@ import argparse
 import math
 
 import numpy as np
-from pytorch_transformers import BertTokenizer
+from transformers import BertTokenizer
 from torch import nn
 import torch
 

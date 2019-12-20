@@ -1,10 +1,10 @@
 # Copyright (c) 2019 NVIDIA Corporation
 from typing import Optional, List
 
-from pytorch_transformers import (BertConfig,
-                                  BertModel,
-                                  BERT_PRETRAINED_MODEL_ARCHIVE_MAP,
-                                  BERT_PRETRAINED_CONFIG_ARCHIVE_MAP)
+from transformers import (BertConfig,
+                          BertModel,
+                          BERT_PRETRAINED_MODEL_ARCHIVE_MAP,
+                          BERT_PRETRAINED_CONFIG_ARCHIVE_MAP)
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_modules import PretrainedModelInfo
@@ -18,7 +18,7 @@ from nemo.core.neural_types import (AxisType,
 class BERT(TrainableNM):
     """
     BERT wraps around the Huggingface implementation of BERT from their
-    pytorch-transformers repository for easy use within NeMo.
+    transformers repository for easy use within NeMo.
 
     Args:
         pretrained_model_name (str): If using a pretrained model, this should

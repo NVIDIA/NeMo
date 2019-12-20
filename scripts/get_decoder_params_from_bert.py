@@ -1,6 +1,6 @@
 import torch
-from pytorch_transformers import BERT_PRETRAINED_MODEL_ARCHIVE_MAP
-from pytorch_transformers.file_utils import cached_path
+from transformers import BERT_PRETRAINED_MODEL_ARCHIVE_MAP
+from transformers.file_utils import cached_path
 import argparse
 
 state_dict_mappings = {
