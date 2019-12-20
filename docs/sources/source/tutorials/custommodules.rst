@@ -150,21 +150,22 @@ This example wraps PyTorch's *ImageFolder* dataset into a neural module data lay
 
     class ImageFolderDataLayer(DataLayerNM):
 
-    def output_ports(self):
-        """Returns definitions of module output ports."""
-        # Note: we define the size of the height and width of our output
-        # tensors, and thus require a size parameter.
-        return {
-            "image": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, size),
-                    3: AxisType(WidthTag, size),
-                }
-            ),
-            "label": NeuralType({0: AxisType(BatchTag)}),
-        }
+        @property
+        def output_ports(self):
+            """Returns definitions of module output ports."""
+            # Note: we define the size of the height and width of our output
+            # tensors, and thus require a size parameter.
+            return {
+                "image": NeuralType(
+                    {
+                        0: AxisType(BatchTag),
+                        1: AxisType(ChannelTag),
+                        2: AxisType(HeightTag, size),
+                        3: AxisType(WidthTag, size),
+                    }
+                ),
+                "label": NeuralType({0: AxisType(BatchTag)}),
+            }
 
         def __init__(self, **kwargs):
             DataLayerNM.__init__(self, **kwargs)
