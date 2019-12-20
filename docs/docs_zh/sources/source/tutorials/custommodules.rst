@@ -32,23 +32,24 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (1) 首先继承 :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` 类。
-(2) 创建 ``create_ports()`` 静态方法，定义输入输出端口
-    如果你的 ``create_ports()`` 方法需要一些参数，把它作为 ``create_port_args`` 的部分参数传递给基类的构造函数。
+(2) 实现 ``input_ports`` 和 ``output_ports`` 属性，定义输入输出端口。
 
 .. code-block:: python
 
-    @staticmethod
-    def create_ports(size):
-        input_ports = {...}
-        output_ports = {...}
-        return input_ports, output_ports
+    @property
+    def input_ports(self):
+        return {...}
+
+    @property
+    def output_ports(self):
+        return {...}
 
 (3) 在构造函数里，首先调用基类的构造函数
 
 .. code-block:: python
 
-    def __init__(self, *, module_params, .., size, **kwargs)
-        super().__init__(create_port_args={"size": size}, **kwargs)
+    def __init__(self, *, module_params, ..., **kwargs)
+        super().__init__(**kwargs)
 
 (4) 实现 ``torch.nn.Module`` 模块里的 ``forward`` 方法 
 
@@ -63,14 +64,17 @@
     class TaylorNet(TrainableNM): # (1) 注意继承 TrainableNM 类
         """学习Taylor系数的模块"""
 
-        # (2) create_ports()定义输入输出端口
-        @staticmethod
-        def create_ports():
-            input_ports = {"x": NeuralType({0: AxisType(BatchTag),
-                                            1: AxisType(ChannelTag)})}
-            output_ports = {"y_pred": NeuralType({0: AxisType(BatchTag),
-                                                  1: AxisType(ChannelTag)})}
-            return input_ports, output_ports
+        # (2) 定义输入输出端口
+        @property
+        def input_ports(self):
+            return {"x": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(ChannelTag)})}
+        @property
+        def output_ports(self):
+            return {"y_pred": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(ChannelTag)})}
 
         def __init__(self, **kwargs):
             # (3) 调用基类构造函数
@@ -98,17 +102,18 @@
 
 (1) 如果你已经有 PyTorch 的类继承自 ``torch.nn.Module`` ，把那个继承改成继承
     :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` 类。
-(2) 创建 ``create_ports()`` 静态方法
+(2) 实现 ``input_ports`` 和 ``output_ports`` 属性
 (3) 修改构造函数，首先调用基类构造函数
 
 .. code-block:: python
 
     class MyNeuralModule(TrainableNM):
-        @staticmethod
-        def create_ports():
-            input_ports = {...}
-            output_ports = {...}
-            return input_ports, output_ports
+        @property
+        def input_ports(self):
+            return {...}
+        @property
+        def output_ports(self):
+            return {...}
 
         def __init__(self, *, module_params, .., **kwargs)
             TrainableNM.__init__(self, **kwargs)
@@ -121,7 +126,7 @@
 (2) 实现 ``__len__`` 方法，返回数据集大小
 (3) 实现 ``dataset`` 或者 ``data_iterator`` 属性，返回一个PyTorch数据集对象或者你的数据集的迭代器。(没有使用的属性应该返回None)
 
-当实现构造函数的时候，你首先要调用基类构造函数，并且定义在create_ports()定义 *仅输出端口* 。
+当实现构造函数的时候，你首先要调用基类构造函数，并且定义在output_ports定义 *仅输出端口* 。
 另外，模块应该接收像是 ``batch_size`` 和 ``shuffle`` 的参数。
 
 如果你使用了 ``torch.utils.data.Dataset`` 类 (*推荐方法*)，那么你可以实现 ``dataset`` 属性，一个数据加载器就会自动给你创建。
@@ -141,23 +146,24 @@
     """这个类把 Pytorch 的 ImageFolder 数据集的 API 封装成了神经模块"""
 
     class ImageFolderDataLayer(DataLayerNM):
-        @staticmethod
-        def create_ports(size):
+        @property
+        def output_ports(size):
             # 注意，我们会定义输出的高和宽
             # 因此需要一个size参数
-            input_ports = {}
-            output_ports = {
-                "image": NeuralType({0: AxisType(BatchTag),
-                                     1: AxisType(ChannelTag),
-                                     2: AxisType(HeightTag, size),
-                                     3: AxisType(WidthTag, size)}),
-                "label": NeuralType({0: AxisType(BatchTag)})
+            return {
+                "image": NeuralType(
+                    {
+                        0: AxisType(BatchTag),
+                        1: AxisType(ChannelTag),
+                        2: AxisType(HeightTag, size),
+                        3: AxisType(WidthTag, size),
+                    }
+                ),
+                "label": NeuralType({0: AxisType(BatchTag)}),
             }
-            return input_ports, output_ports
 
         def __init__(self, **kwargs):
-            create_port_args = {"size": kwargs["input_size"]}
-            DataLayerNM.__init__(self, create_port_args=create_port_args, **kwargs)
+            DataLayerNM.__init__(self, **kwargs)
 
             self._input_size = kwargs["input_size"]
             self._path = kwargs["path"]
@@ -186,7 +192,7 @@
 ----------------
 
 (1) 继承自 :class:`LossNM<nemo.backends.pytorch.nm.LossNM>` 类
-(2) 创建create_ports()方法
+(2) 实现 ``input_ports`` 和 ``output_ports`` 属性
 (3) 在构造函数里调用基类构造函数
 (4) 实现 :meth:`_loss_function<nemo.backends.pytorch.nm.LossNM._loss_function>` 方法。
 
@@ -196,13 +202,19 @@ Example
 .. code-block:: python
 
     class CrossEntropyLoss(LossNM):
-        @staticmethod
-        def create_ports():
-            input_ports = {"predictions": NeuralType({0: AxisType(BatchTag),
-                                                      1: AxisType(ChannelTag)}),
-                           "labels": NeuralType({0: AxisType(BatchTag)})}
-            output_ports = {"loss": NeuralType(None)}
-            return input_ports, output_ports
+        @property
+        def input_ports(self):
+            return {"predictions": NeuralType({
+                        0: AxisType(BatchTag),
+                        1: AxisType(ChannelTag)}),
+                    "labels": NeuralType({
+                        0: AxisType(BatchTag)
+                        })
+                    }
+
+        @property
+        def output_ports(self):
+            return {"loss": NeuralType(None)}
 
         def __init__(self, **kwargs):
             # 神经模块 API
