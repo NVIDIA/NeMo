@@ -40,7 +40,9 @@ class Mock(MagicMock):
         if name in MOCK_CLASSES:
             # return object  # Sphinx renders object in base classes
             return type(name, (object,), {'__module__': MOCK_CLASSES[name]})
-        elif name == '__file__':  # Sphinx tries to find source code, but doesn't matter because it's mocked
+        elif name == '__file__':
+            # Sphinx tries to find source code, but
+            # doesn't matter because it's mocked
             return "FOO"
         elif name == '__loader__':
             return "BAR"
