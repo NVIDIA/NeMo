@@ -87,12 +87,12 @@ class ZerosDataLayer(DataLayerNM):
                                 dtype=self._type)
 
     @property
-    def inputs(self):
+    def input_ports(self):
         return {
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         return self._output_ports
 
     def __len__(self):

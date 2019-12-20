@@ -10,7 +10,7 @@ class ImageFolderDataLayer(DataLayerNM):
     NeuralModule."""
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         image:

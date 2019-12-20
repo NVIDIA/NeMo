@@ -17,7 +17,7 @@ class CTCLossNM(LossNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         log_probs:
@@ -52,7 +52,7 @@ class CTCLossNM(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:

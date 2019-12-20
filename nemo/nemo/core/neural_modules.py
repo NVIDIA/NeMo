@@ -93,7 +93,7 @@ class NeuralModule(ABC):
 
     @property
     @abstractmethod
-    def inputs(self) -> Optional[Dict[str, NeuralType]]:
+    def input_ports(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module input ports
 
         Returns:
@@ -102,7 +102,7 @@ class NeuralModule(ABC):
 
     @property
     @abstractmethod
-    def outputs(self) -> Optional[Dict[str, NeuralType]]:
+    def output_ports(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports
 
         Returns:
@@ -136,8 +136,8 @@ class NeuralModule(ABC):
         #                     "more than once")
 
         # Get input and output ports definitions.
-        input_port_defs = self.inputs
-        output_port_defs = self.outputs
+        input_port_defs = self.input_ports
+        output_port_defs = self.output_ports
 
         first_input_nmtensor_type = None
         input_nmtensors_are_of_same_type = True

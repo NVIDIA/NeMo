@@ -45,7 +45,7 @@ class AudioDataLayer(DataLayerNM):
     """
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         audio_signal:

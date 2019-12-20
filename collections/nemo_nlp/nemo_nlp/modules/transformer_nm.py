@@ -46,7 +46,7 @@ class TransformerEncoderNM(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         input_ids:
@@ -71,7 +71,7 @@ class TransformerEncoderNM(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         hidden_states:
@@ -158,7 +158,7 @@ class TransformerDecoderNM(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         input_ids_tgt:
@@ -204,7 +204,7 @@ class TransformerDecoderNM(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         hidden_states:
@@ -290,7 +290,7 @@ class GreedyLanguageGeneratorNM(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         input_ids:
@@ -306,7 +306,7 @@ class GreedyLanguageGeneratorNM(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         output_ids:
@@ -372,7 +372,7 @@ class BeamSearchTranslatorNM(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         hidden_states_src:
@@ -402,7 +402,7 @@ class BeamSearchTranslatorNM(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         output_ids:

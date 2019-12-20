@@ -36,7 +36,7 @@ class WaveGlowNM(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         mel_spectrogram:
@@ -62,7 +62,7 @@ class WaveGlowNM(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         audio:
@@ -158,7 +158,7 @@ class WaveGlowInferNM(WaveGlowNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         mel_spectrogram:
@@ -176,7 +176,7 @@ class WaveGlowInferNM(WaveGlowNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         audio:
@@ -266,7 +266,7 @@ class WaveGlowLoss(LossNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         z:
@@ -290,7 +290,7 @@ class WaveGlowLoss(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:

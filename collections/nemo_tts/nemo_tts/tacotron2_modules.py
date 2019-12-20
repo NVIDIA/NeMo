@@ -23,7 +23,7 @@ class TextEmbedding(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         char_phone
@@ -38,7 +38,7 @@ class TextEmbedding(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         char_phone_embeddings:
@@ -81,7 +81,7 @@ class Tacotron2Encoder(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         char_phone_embeddings:
@@ -104,7 +104,7 @@ class Tacotron2Encoder(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         char_phone_embeddings:
@@ -178,7 +178,7 @@ class Tacotron2Decoder(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         char_phone_encoded:
@@ -212,7 +212,7 @@ class Tacotron2Decoder(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         mel_output:
@@ -331,7 +331,7 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         char_phone_encoded:
@@ -354,7 +354,7 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         mel_output:
@@ -425,7 +425,7 @@ class Tacotron2Postnet(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         mel_input:
@@ -444,7 +444,7 @@ class Tacotron2Postnet(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         mel_output:
@@ -498,7 +498,7 @@ class Tacotron2Loss(LossNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         mel_out:
@@ -564,7 +564,7 @@ class Tacotron2Loss(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -623,7 +623,7 @@ class MakeGate(NonTrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         target_len:
@@ -646,7 +646,7 @@ class MakeGate(NonTrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         gate_target:

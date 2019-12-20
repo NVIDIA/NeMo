@@ -74,7 +74,7 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
     """
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         input_ids:
@@ -152,7 +152,7 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
     """
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         input_ids:
@@ -264,7 +264,7 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
     """
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         input_ids:
@@ -343,7 +343,7 @@ class LanguageModelingDataLayer(TextDataLayer):
     """
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         input_ids: indices of tokens which constitute batches of text segments
@@ -398,7 +398,7 @@ class LanguageModelingDataLayer(TextDataLayer):
 class BertTokenClassificationDataLayer(TextDataLayer):
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
             input_ids:
@@ -492,7 +492,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
 class BertTokenClassificationInferDataLayer(TextDataLayer):
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         input_ids:
@@ -561,7 +561,7 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
 class BertPunctuationCapitalizationDataLayer(TextDataLayer):
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         input_ids:
@@ -667,7 +667,7 @@ class BertPunctuationCapitalizationDataLayer(TextDataLayer):
 class BertPunctuationCapitalizationInferDataLayer(TextDataLayer):
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         input_ids:
@@ -749,7 +749,7 @@ class BertPretrainingDataLayer(TextDataLayer):
     """
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         input_ids: indices of tokens which constitute batches of text segments
@@ -840,7 +840,7 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
     """
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         input_ids: indices of tokens which constitute batches of text segments
@@ -988,7 +988,7 @@ class TranslationDataLayer(TextDataLayer):
     """
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         src_ids: indices of tokens which correspond to source sentences
@@ -1109,7 +1109,7 @@ class GlueDataLayerClassification(TextDataLayer):
     """
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
             input_ids:
@@ -1186,7 +1186,7 @@ class GlueDataLayerRegression(TextDataLayer):
     """
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
             input_ids:

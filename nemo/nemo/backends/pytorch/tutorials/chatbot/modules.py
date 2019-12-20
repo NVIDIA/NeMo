@@ -18,7 +18,7 @@ class DialogDataLayer(DataLayerNM):
     """Class representing data layer for a chatbot."""
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         src:
@@ -103,7 +103,7 @@ class EncoderRNN(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         input_seq:
@@ -121,7 +121,7 @@ class EncoderRNN(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         outputs:
@@ -199,7 +199,7 @@ class EncoderRNN(TrainableNM):
 class LuongAttnDecoderRNN(TrainableNM):
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         targets:
@@ -228,7 +228,7 @@ class LuongAttnDecoderRNN(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         outputs:
@@ -385,7 +385,7 @@ class LuongAttnDecoderRNN(TrainableNM):
 class MaskedXEntropyLoss(LossNM):
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         predictions
@@ -416,7 +416,7 @@ class MaskedXEntropyLoss(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -447,7 +447,7 @@ class MaskedXEntropyLoss(LossNM):
 class GreedyLuongAttnDecoderRNN(TrainableNM):
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         encoder_outputs:
@@ -465,7 +465,7 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         outputs:

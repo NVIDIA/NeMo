@@ -13,14 +13,14 @@ class AddsTen(NonTrainableNM):
         super().__init__(**kwargs)
 
     @property
-    def inputs(self):
+    def input_ports(self):
         return {
             "mod_in": NeuralType({0: AxisType(BatchTag),
                                   1: AxisType(BaseTag, dim=1)})
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         return {
             "mod_out": NeuralType({0: AxisType(BatchTag),
                                    1: AxisType(BaseTag, dim=1)})
@@ -35,14 +35,14 @@ class SubtractsTen(NonTrainableNM):
         super().__init__(**kwargs)
 
     @property
-    def inputs(self):
+    def input_ports(self):
         return {
             "mod_in": NeuralType({0: AxisType(BatchTag),
                                   1: AxisType(BaseTag, dim=1)})
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         return {
             "mod_out": NeuralType({0: AxisType(BatchTag),
                                    1: AxisType(BaseTag, dim=1)})

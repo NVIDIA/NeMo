@@ -24,13 +24,13 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
         self._pt_module.to(self._device)
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
         """
         return self._input_ports
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
         """
         return self._output_ports

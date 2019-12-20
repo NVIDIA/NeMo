@@ -37,7 +37,7 @@ class SequenceLoss(LossNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         log_probs:
@@ -66,7 +66,7 @@ class SequenceLoss(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -137,7 +137,7 @@ class CrossEntropyLoss(LossNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         logits:
@@ -160,7 +160,7 @@ class CrossEntropyLoss(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -186,7 +186,7 @@ class CrossEntropyLoss(LossNM):
 class MSELoss(LossNM):
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         preds:
@@ -205,7 +205,7 @@ class MSELoss(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:

@@ -36,7 +36,7 @@ class BERT(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         input_ids:
@@ -70,7 +70,7 @@ class BERT(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         hidden_states:
