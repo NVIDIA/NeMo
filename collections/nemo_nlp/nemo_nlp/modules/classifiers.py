@@ -32,9 +32,17 @@ class BertTokenClassifier(TrainableNM):
         dropout (float): dropout ratio applied to MLP
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        hidden_states:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "hidden_states": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
@@ -42,14 +50,23 @@ class BertTokenClassifier(TrainableNM):
             })
         }
 
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "logits": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag)
             })
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  hidden_size,
@@ -100,9 +117,17 @@ class TokenClassifier(TrainableNM):
         dropout (float): dropout ratio applied to MLP
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        hidden_states:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "hidden_states": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
@@ -110,14 +135,23 @@ class TokenClassifier(TrainableNM):
             })
         }
 
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "logits": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag)
             })
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  hidden_size,
@@ -171,9 +205,17 @@ class SequenceClassifier(TrainableNM):
         dropout (float): dropout ratio applied to MLP
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        hidden_states:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "hidden_states": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
@@ -181,13 +223,20 @@ class SequenceClassifier(TrainableNM):
             })
         }
 
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "logits": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(ChannelTag)
-            }),
+                0: AxisType(ChannelTag),
+                1: AxisType(TimeTag)
+            })
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  hidden_size,
@@ -229,9 +278,17 @@ class JointIntentSlotClassifier(TrainableNM):
         dropout (float): dropout to be applied to the layer
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        hidden_states:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "hidden_states": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
@@ -239,7 +296,22 @@ class JointIntentSlotClassifier(TrainableNM):
             })
         }
 
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        intent_logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+
+        slot_logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "intent_logits": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(ChannelTag)
@@ -250,7 +322,6 @@ class JointIntentSlotClassifier(TrainableNM):
                 2: AxisType(ChannelTag)
             })
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  hidden_size,
@@ -298,9 +369,17 @@ class SequenceRegression(TrainableNM):
         dropout (float): dropout ratio applied to MLP
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        hidden_states:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "hidden_states": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
@@ -308,12 +387,17 @@ class SequenceRegression(TrainableNM):
             })
         }
 
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        preds:
+            0: AxisType(RegressionTag)
+        """
+        return {
             "preds": NeuralType({
                 0: AxisType(RegressionTag)
             }),
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  hidden_size,
