@@ -22,7 +22,8 @@ class TextEmbedding(TrainableNM):
             Defaults to 512.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         char_phone
@@ -36,7 +37,8 @@ class TextEmbedding(TrainableNM):
                 1: AxisType(TimeTag)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         char_phone_embeddings:
@@ -78,7 +80,8 @@ class Tacotron2Encoder(TrainableNM):
             Defaults to 3
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         char_phone_embeddings:
@@ -100,7 +103,8 @@ class Tacotron2Encoder(TrainableNM):
                 0: AxisType(BatchTag)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         char_phone_embeddings:
@@ -173,7 +177,8 @@ class Tacotron2Decoder(TrainableNM):
             Defaults to 31.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         char_phone_encoded:
@@ -206,7 +211,8 @@ class Tacotron2Decoder(TrainableNM):
                 2: AxisType(TimeTag)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         mel_output:
@@ -324,7 +330,8 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
             Defaults to 31.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         char_phone_encoded:
@@ -346,7 +353,8 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
                 0: AxisType(BatchTag)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         mel_output:
@@ -416,7 +424,8 @@ class Tacotron2Postnet(TrainableNM):
             Defaults to 5.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         mel_input:
@@ -434,7 +443,8 @@ class Tacotron2Postnet(TrainableNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         mel_output:
@@ -487,7 +497,8 @@ class Tacotron2Loss(LossNM):
             we pad the generated mel with this value. Default is ~log(1e-5).
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         mel_out:
@@ -552,7 +563,8 @@ class Tacotron2Loss(LossNM):
                 0: AxisType(BatchTag)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -610,7 +622,8 @@ class MakeGate(NonTrainableNM):
     """MakeGate is a helper Neural Module that makes the target stop value.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         target_len:
@@ -632,7 +645,8 @@ class MakeGate(NonTrainableNM):
                 2: AxisType(TimeTag)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         gate_target:

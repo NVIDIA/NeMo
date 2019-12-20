@@ -116,7 +116,8 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         normalized (bool): Whether to normalize by magnitude after stft
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         input_signal:
@@ -135,7 +136,8 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             "length": NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         processed_signal:
@@ -279,7 +281,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             Defaults to 2 for a power spec
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         input_signal:
@@ -298,7 +301,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             "length": NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         processed_signal:
@@ -433,7 +437,8 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
             Defaults to True.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         input_signal:
@@ -452,7 +457,8 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
             "length": NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         processed_signal:
@@ -579,7 +585,8 @@ class SpectrogramAugmentation(NonTrainableNM):
             Defaults to 25.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         input_spec:
@@ -596,7 +603,8 @@ class SpectrogramAugmentation(NonTrainableNM):
                                       2: AxisType(TimeTag)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         augmented_spec:
@@ -666,7 +674,8 @@ class MultiplyBatch(NonTrainableNM):
         mult_batch (int): number of repeats
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         in_x:
@@ -701,7 +710,8 @@ class MultiplyBatch(NonTrainableNM):
             "in_y_len": NeuralType({0: AxisType(BatchTag)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         out_x:

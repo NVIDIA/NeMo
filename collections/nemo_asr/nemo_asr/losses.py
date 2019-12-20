@@ -16,7 +16,8 @@ class CTCLossNM(LossNM):
             This count should not include the CTC blank symbol.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         log_probs:
@@ -50,7 +51,8 @@ class CTCLossNM(LossNM):
             "target_length": NeuralType({0: AxisType(BatchTag)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:

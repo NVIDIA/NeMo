@@ -71,7 +71,8 @@ class JasperEncoder(TrainableNM):
     """
     length: Optional[torch.Tensor]
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         audio_signal:
@@ -91,7 +92,8 @@ class JasperEncoder(TrainableNM):
             "length": NeuralType({0: AxisType(BatchTag)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         outputs:
@@ -193,7 +195,8 @@ class JasperDecoderForCTC(TrainableNM):
             Defaults to "xavier_uniform".
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         encoder_output:
@@ -211,7 +214,8 @@ class JasperDecoderForCTC(TrainableNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         output:

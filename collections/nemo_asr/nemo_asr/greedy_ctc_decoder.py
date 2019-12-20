@@ -11,7 +11,8 @@ class GreedyCTCDecoder(TrainableNM):
     Greedy decoder that computes the argmax over a softmax distribution
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         log_probs:
@@ -29,7 +30,8 @@ class GreedyCTCDecoder(TrainableNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         predictions:

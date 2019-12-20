@@ -45,7 +45,8 @@ class TransformerEncoderNM(TrainableNM):
         hidden_act: activation function applied in intermediate FFN module
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         input_ids:
@@ -69,7 +70,8 @@ class TransformerEncoderNM(TrainableNM):
             }),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         hidden_states:
@@ -155,7 +157,8 @@ class TransformerDecoderNM(TrainableNM):
         hidden_act: activation function applied in intermediate FFN module
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         input_ids_tgt:
@@ -200,7 +203,8 @@ class TransformerDecoderNM(TrainableNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         hidden_states:
@@ -285,7 +289,8 @@ class GreedyLanguageGeneratorNM(TrainableNM):
             tokens are provided
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         input_ids:
@@ -300,7 +305,8 @@ class GreedyLanguageGeneratorNM(TrainableNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         output_ids:
@@ -365,7 +371,8 @@ class BeamSearchTranslatorNM(TrainableNM):
         length_penalty: parameter which penalizes shorter sequences
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         hidden_states_src:
@@ -394,7 +401,8 @@ class BeamSearchTranslatorNM(TrainableNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         output_ids:

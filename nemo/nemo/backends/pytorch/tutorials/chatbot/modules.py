@@ -17,7 +17,8 @@ from .....core.neural_types import *
 class DialogDataLayer(DataLayerNM):
     """Class representing data layer for a chatbot."""
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         src:
@@ -101,7 +102,8 @@ class EncoderRNN(TrainableNM):
     """RNN-based encoder Neural Module
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         input_seq:
@@ -118,7 +120,8 @@ class EncoderRNN(TrainableNM):
             "input_lengths": NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         outputs:
@@ -195,7 +198,8 @@ class EncoderRNN(TrainableNM):
 
 class LuongAttnDecoderRNN(TrainableNM):
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         targets:
@@ -223,7 +227,8 @@ class LuongAttnDecoderRNN(TrainableNM):
             "max_target_len": NeuralType(None),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         outputs:
@@ -379,7 +384,8 @@ class LuongAttnDecoderRNN(TrainableNM):
 
 class MaskedXEntropyLoss(LossNM):
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         predictions
@@ -409,7 +415,8 @@ class MaskedXEntropyLoss(LossNM):
             "mask": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -439,7 +446,8 @@ class MaskedXEntropyLoss(LossNM):
 
 class GreedyLuongAttnDecoderRNN(TrainableNM):
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         encoder_outputs:
@@ -456,7 +464,8 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
             )
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         outputs:
