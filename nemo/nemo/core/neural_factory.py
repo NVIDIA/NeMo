@@ -657,8 +657,8 @@ class NeuralModuleFactory(object):
             # self.logger.warning(f"Module is JasperEncoder. We are removing"
             #                    f"input and output length ports since they "
             #                    f"are not needed for deployment")
-            #del module._input_ports['length']
-            #del module._output_ports['encoded_lengths']
+            # del module._input_ports['length']
+            # del module._output_ports['encoded_lengths']
 
             # disable masked convolutions
             m_count = 0
