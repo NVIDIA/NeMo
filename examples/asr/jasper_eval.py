@@ -4,6 +4,7 @@
 import argparse
 import copy
 import os
+import pickle
 
 from ruamel.yaml import YAML
 import numpy as np
@@ -115,7 +116,7 @@ def main():
     logger.info(
         f"Number of parameters in decoder: {jasper_decoder.num_weights}")
     logger.info(
-        f"Total number of parameters in decoder: "
+        f"Total number of parameters in model: "
         f"{jasper_decoder.num_weights + jasper_encoder.num_weights}")
     logger.info('================================')
 
@@ -198,6 +199,17 @@ def main():
         logger.info('Best (alpha, beta): '
                     f'{best_beam_wer[0]}, '
                     f'WER: {best_beam_wer[1]:.2f}%')
+
+    if args.save_logprob:
+        # Convert logits to list of numpy arrays
+        logprob = []
+        for i, batch in enumerate(evaluated_tensors[0]):
+            for j in range(batch.shape[0]):
+                logprob.append(
+                    batch[j][:evaluated_tensors[4][i][j], :].cpu().numpy()
+                )
+        with open(args.save_logprob, 'wb') as f:
+            pickle.dump(logprob, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == "__main__":

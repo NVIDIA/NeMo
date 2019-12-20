@@ -1,16 +1,13 @@
 # Copyright (c) 2019 NVIDIA Corporation
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
-import os
 import random
-import time
 
-import matplotlib
-from matplotlib import pyplot as plt
 import numpy as np
-from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.metrics import classification_report
 
 from nemo_nlp.data.datasets.utils import list2str, tensor2list
+from nemo_nlp.utils.nlp_utils import plot_confusion_matrix
 from nemo.utils.exp_logging import get_logger
 
 
@@ -53,7 +50,8 @@ def eval_iter_callback(tensors, global_vars):
 def eval_epochs_done_callback(global_vars,
                               label_ids,
                               graph_fold=None,
-                              none_label_id=0):
+                              none_label_id=0,
+                              normalize_cm=True):
     labels = np.asarray(global_vars['all_labels'])
     preds = np.asarray(global_vars['all_preds'])
     subtokens_mask = np.asarray(global_vars['all_subtokens_mask']) > 0.5
@@ -81,25 +79,10 @@ def eval_epochs_done_callback(global_vars,
 
     # calculate and plot confusion_matrix
     if graph_fold:
-        ids_to_labels = {label_ids[k]: k for k in label_ids}
-        classes = [0] + \
-            [ids_to_labels[id] for id in sorted(label_ids.values())]
-
-        cm = confusion_matrix(labels, preds)
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.set(xticks=np.arange(cm.shape[1]),
-               yticks=np.arange(cm.shape[0]),
-               xticklabels=classes, yticklabels=classes,
-               title='Confusion matrix',
-               ylabel='True label',
-               xlabel='Predicted label')
-        cax = ax.matshow(cm)
-        plt.title('Confusion matrix of the classifier')
-        fig.colorbar(cax)
-        plt.xlabel('Predicted')
-        plt.ylabel('True')
-        os.makedirs(graph_fold, exist_ok=True)
-        plt.savefig(os.path.join(graph_fold, time.strftime('%Y%m%d-%H%M%S')))
+        plot_confusion_matrix(label_ids,
+                              labels,
+                              preds,
+                              graph_fold,
+                              normalize=normalize_cm)
 
     return dict({'Accuracy': accuracy})
