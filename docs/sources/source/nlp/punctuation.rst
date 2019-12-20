@@ -1,77 +1,82 @@
 Tutorial
 ========
 
-Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this
-tutorial. See the :ref:`installation` section.
-
-Introduction
-------------
 
 An ASR system typically generates text with no punctuation and capitalization of the words. This tutorial explains how to implement a model in NeMo that will predict punctuation and capitalization for each word in a sentence to make ASR output more readable and to boost performance of the downstream tasks such as name entity recoginition or machine translation. We'll show how to train network for this task using a pre-trained BERT model. 
 
-Task Description
-----------------
-For every word in our training dataset we're going to predict 1) a punctuation mark that should follow the word and 2)whether the word should be capitalized. The following punctuation marks are considered for this task: commas, periods, question marks. Labels format: ``OL``, ``,L``, ``,U``, ``.L``, ``.U``, ``?L``, ``?U``, ``OU``, where the first symbol of the label indicates the punctuation mark (``O`` - no punctuation needed), and the second symbol determines is the word needs to be upper or lower cased.
-
 .. tip::
 
-    We recommend you try this out in a Jupyter notebook examples/nlp/PunctuationWithBERT.ipynb.
+    We recommend you to try this example in Jupyter notebook examples/nlp/PunctuationWithBERT.ipynb.
 
-Get Data
+Task Description
 ----------------
 
-For this tutorial, we're going to use the `Tatoeba collection of sentences`_. Use `this`_ script to download and preprocess the dataset. Note that any text dataset will work, the only requirement is that the data is splitted into 2 files: text.txt and labels.txt. The text.txt files should be formatted like this:
+For every word in our training dataset we're going to predict:
+1. a punctuation mark that should follow the word and
+2. whether the word should be capitalized.
+
+In this model, we're jointly train 2 token-level classifiers on top of the pretrained BERT model: one classifier to predict punctuation and the other one for word capitalization.
+
+Dataset
+-------
+
+This model can work with any dataset as long as it follows the specifed below format. For this tutorial, we're going to use the `Tatoeba collection of sentences`_. `This`_ script downloads and preprocesses the dataset. 
 
 .. _Tatoeba collection of sentences: https://tatoeba.org/eng
-.. _this: https://github.com/NVIDIA/NeMo/tree/master/scripts/get_tatoeba_data.py
+.. _This: https://github.com/NVIDIA/NeMo/tree/master/scripts/get_tatoeba_data.py
 
-.. code-block::
 
+The training and evaluation data is splitted into 2 files: text.txt and labels.txt. Each line of the text.txt file contains text sequences, where words are separated with spaces:
+[WORD] [SPACE] [WORD] [SPACE] [WORD], for example:
+
+  ::
+    
     when is the next flight to new york
     the next flight is ...
     ...
 
-The labels.txt files should be formatted like this:
+The labels.txt file contains corresponding labels for each word in text.txt, the labels are separated with spaces.
+Each label in labels.txt file consists of 2 symbols:
+1. the first symbol of the label indicates what punctuation mark should follow the word (``O`` - no punctuation needed);
+2. the second symbol determines if the word needs to be capitalized or not (``U`` - means the accosiated to this label word should be upper cased, ``O`` - no capitalization required.)
 
-.. code-block::
+We're considering the following punctuation marks for this task: commas, periods, question marks.
+Each line of the labels.txt should follow the format: 
+[LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt). For example, labels for the above text.txt file should be:
 
-    OU OL OL OL OL OL OU ?U 
-    OU OL OL OL ...
+::
+    
+    OU OO OO OO OO OO OU ?U 
+    OU OO OO OO ...
     ...
 
-Each line of the text.txt file contains text sequences, where words are separated with spaces. 
-The labels.txt file contains corresponding labels for each word in text.txt, the labels are separated with spaces.
-Each line of the files should follow the format: 
-[WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).
+The complite list of all possible labels for this task, considering we're using only commas, periods and questions marks: ``OO``, ``,O``, ``.O``, ``?O``, ``OU``, ``,U``, ``.U``, ``?U``.
 
-Set parameters for the model
-----------------------------
+Code overview
+-------------
+
+First, let's set some parameters that we're going to need through out the tutorial.
+
     .. code-block:: python
         
         DATA_DIR = "PATH_TO_WHERE_THE_DATA_IS"
         WORK_DIR = "PATH_TO_WHERE_TO_STORE_CHECKPOINTS_AND_LOGS"
+        PRETRAINED_BERT_MODEL = "bert-base-uncased"
 
         # model parameters
         BATCHES_PER_STEP = 1
         BATCH_SIZE = 32
         CLASSIFICATION_DROPOUT = 0.1
         MAX_SEQ_LENGTH = 128
-        NUM_EPOCHS = 3
+        NUM_EPOCHS = 10
         LEARNING_RATE = 0.00005
         LR_WARMUP_PROPORTION = 0.1
         OPTIMIZER = "adam"
-        PRETRAINED_BERT_MODEL = "bert-base-cased"
+        STEP_FREQ=200 # determines how often loss will be printed and checkpoint saved
+        PUNCT_NUM_FC_LAYERS = 3
+        NUM_SAMPLES = 50000
 
-        # It's import to specify the none_label correctly depending on a task at hand.
-        # For combined punctuation and capitalization task use 'OL' for a pucntuation only model the default 'O' will work
-        NONE_LABEL = 'OL'
-        # determines how often loss will be printed
-        STEP_FREQ=200
-
-Training
---------
-
-First, we need to create our neural factory with the supported backend. How you should define it depends on whether you'd like to multi-GPU or mixed-precision training. This tutorial assumes that you're training on one GPU, without mixed precision (``optimization_level="O0"``). If you want to use mixed precision, set ``optimization_level`` to ``O1`` or ``O2``.
+Then, we need to create our neural factory with the supported backend. How you should define it depends on whether you'd like to multi-GPU or mixed-precision training. This tutorial assumes that you're training on one GPU, without mixed precision (``optimization_level="O0"``). If you want to use mixed precision, set ``optimization_level`` to ``O1`` or ``O2``.
 
     .. code-block:: python
 
@@ -97,70 +102,103 @@ Now, create the train and evaluation data layers:
 
     .. code-block:: python
 
-        train_data_layer = nemo_nlp.BertTokenClassificationDataLayer(
-        tokenizer=tokenizer,
-        text_file=os.path.join(DATA_DIR, 'text_train.txt'),
-        label_file=os.path.join(DATA_DIR, 'labels_train.txt'),
-        max_seq_length=MAX_SEQ_LENGTH,
-        batch_size=BATCH_SIZE,
-        pad_label=NONE_LABEL)
+        train_data_layer = nemo_nlp.BertPunctuationCapitalizationDataLayer(
+                                                             tokenizer=tokenizer,
+                                                             text_file=os.path.join(DATA_DIR, 'text_train.txt'),
+                                                             label_file=os.path.join(DATA_DIR, 'labels_train.txt'),
+                                                             max_seq_length=MAX_SEQ_LENGTH,
+                                                             batch_size=BATCH_SIZE,
+                                                             num_samples=NUM_SAMPLES)
 
-        label_ids = train_data_layer.dataset.label_ids
-        num_classes = len(label_ids)
+        punct_label_ids = train_data_layer.dataset.punct_label_ids
+        capit_label_ids = train_data_layer.dataset.capit_label_ids
 
-        eval_data_layer = nemo_nlp.BertTokenClassificationDataLayer(
-        tokenizer=tokenizer,
-        text_file=os.path.join(DATA_DIR, 'text_dev.txt'),
-        label_file=os.path.join(DATA_DIR, 'labels_dev.txt'),
-        max_seq_length=MAX_SEQ_LENGTH,
-        batch_size=BATCH_SIZE,
-        pad_label=NONE_LABEL,
-        label_ids=label_ids)
+        hidden_size = bert_model.local_parameters["hidden_size"]
+
+        # Note that you need to specify punct_label_ids and capit_label_ids  - mapping form labels to label_ids generated
+        # during creation of the train_data_layer to make sure that the mapping is correct in case some of the labels from
+        # the train set are missing in the dev set.
+        eval_data_layer = nemo_nlp.BertPunctuationCapitalizationDataLayer(
+                                                            tokenizer=tokenizer,
+                                                            text_file=os.path.join(DATA_DIR, 'text_dev.txt'),
+                                                            label_file=os.path.join(DATA_DIR, 'labels_dev.txt'),
+                                                            max_seq_length=MAX_SEQ_LENGTH,
+                                                            batch_size=BATCH_SIZE,
+                                                            punct_label_ids=punct_label_ids,
+                                                            capit_label_ids=capit_label_ids,
+                                                            num_samples=NUM_SAMPLES)
 
 
-We need to create the classifier to sit on top of the pretrained model and define the loss function:
+Now, create punctuation and capitalization classifiers to sit on top of the pretrained model and define the task loss function:
 
   .. code-block:: python
 
-      hidden_size = bert_model.local_parameters["hidden_size"]
-      classifier = nemo_nlp.TokenClassifier(
-          hidden_size=hidden_size,
-          num_classes=num_classes,
-          dropout=CLASSIFICATION_DROPOUT)
+      punct_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
+                                            num_classes=len(punct_label_ids),
+                                            dropout=CLASSIFICATION_DROPOUT,
+                                            num_layers=PUNCT_NUM_FC_LAYERS,
+                                            name='Punctuation')
 
-      task_loss = nemo_nlp.TokenClassificationLoss(
-          d_model=hidden_size,
-          num_classes=num_classes,
-          dropout=CLASSIFICATION_DROPOUT)
+      capit_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
+                                                  num_classes=len(capit_label_ids),
+                                                  dropout=CLASSIFICATION_DROPOUT,
+                                                  name='Capitalization')
 
-      input_ids, input_type_ids, input_mask, loss_mask, _, labels = train_data_layer()
+
+      # If you don't want to use weighted loss for Punctuation task, use class_weights=None
+      punct_label_freqs = train_data_layer.dataset.punct_label_frequencies
+      class_weights = utils.calc_class_weights(punct_label_freqs)
+
+      # define loss
+      punct_loss = nemo_nlp.TokenClassificationLoss(num_classes=len(punct_label_ids),
+                                                    class_weights=class_weights)
+      capit_loss = nemo_nlp.TokenClassificationLoss(num_classes=len(capit_label_ids))
+      task_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
+
+
+Below we're passing the output of datalayers through the pretrained BERT model and to the classifiers:
+
+  .. code-block:: python
+
+      input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, punct_labels, capit_labels = train_data_layer()
 
       hidden_states = bert_model(input_ids=input_ids,
-                                 token_type_ids=input_type_ids,
-                                 attention_mask=input_mask)
+                            token_type_ids=input_type_ids,
+                            attention_mask=input_mask)
 
-      logits = classifier(hidden_states=hidden_states)
-      loss = task_loss(logits=logits, labels=labels, loss_mask=loss_mask)
+      punct_logits = punct_classifier(hidden_states=hidden_states)
+      capit_logits = capit_classifier(hidden_states=hidden_states)
 
-      eval_input_ids, eval_input_type_ids, eval_input_mask, _, eval_subtokens_mask, eval_labels \
+      punct_loss = punct_loss(logits=punct_logits,
+                              labels=punct_labels,
+                              loss_mask=loss_mask)
+      capit_loss = capit_loss(logits=capit_logits,
+                              labels=capit_labels,
+                              loss_mask=loss_mask)
+      task_loss = task_loss(loss_1=punct_loss,
+                            loss_2=capit_loss)
+
+      eval_input_ids, eval_input_type_ids, eval_input_mask, _, eval_subtokens_mask, eval_punct_labels, eval_capit_labels\
           = eval_data_layer()
 
-      hidden_states = bert_model(
-          input_ids=eval_input_ids,
-          token_type_ids=eval_input_type_ids,
-          attention_mask=eval_input_mask)
+      hidden_states = bert_model(input_ids=eval_input_ids,
+                                 token_type_ids=eval_input_type_ids,
+                                 attention_mask=eval_input_mask)
 
-      eval_logits = classifier(hidden_states=hidden_states)
+      eval_punct_logits = punct_classifier(hidden_states=hidden_states)
+      eval_capit_logits = capit_classifier(hidden_states=hidden_states)
+
+
 
 Now, we will set up our callbacks. We will use 3 callbacks:
 * `SimpleLossLoggerCallback` to print loss values during training
-* `EvaluatorCallback` to evaluate our F1 score on the dev dataset. In this example, `EvaluatorCallback` will also output predictions to `output.txt`, which can be helpful with debugging what our model gets wrong.
+* `EvaluatorCallback` to evaluate our F1 score on the dev dataset.
 * `CheckpointCallback` to save and restore checkpoints.
 
     .. code-block:: python
 
         callback_train = nemo.core.SimpleLossLoggerCallback(
-        tensors=[loss],
+        tensors=[task_loss, punct_loss, capit_loss, punct_logits, capit_logits],
         print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
         step_freq=STEP_FREQ)
 
@@ -172,15 +210,20 @@ Now, we will set up our callbacks. We will use 3 callbacks:
 
         # Callback to evaluate the model
         callback_eval = nemo.core.EvaluatorCallback(
-            eval_tensors=[eval_logits, eval_labels, eval_subtokens_mask],
+            eval_tensors=[eval_punct_logits,
+                          eval_capit_logits,
+                          eval_punct_labels,
+                          eval_capit_labels,
+                          eval_subtokens_mask],
             user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-            user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, label_ids),
+            user_epochs_done_callback=lambda x: eval_epochs_done_callback(x,
+                                                                          punct_label_ids,
+                                                                          capit_label_ids),
             eval_step=steps_per_epoch)
 
         # Callback to store checkpoints
-        ckpt_callback = nemo.core.CheckpointCallback(
-            folder=nf.checkpoint_dir,
-            epoch_freq=1)
+        ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir,
+                                                     step_freq=STEP_FREQ)
 
 Finally, we will define our learning rate policy and our optimizer, and start training.
 
@@ -189,7 +232,7 @@ Finally, we will define our learning rate policy and our optimizer, and start tr
         lr_policy = WarmupAnnealing(NUM_EPOCHS * steps_per_epoch,
                             warmup_ratio=LR_WARMUP_PROPORTION)
 
-        nf.train(tensors_to_optimize=[loss],
+        nf.train(tensors_to_optimize=[task_loss],
                  callbacks=[callback_train, callback_eval, ckpt_callback],
                  lr_policy=lr_policy,
                  batches_per_step=BATCHES_PER_STEP,
@@ -207,23 +250,16 @@ To see how the model performs, let's run inference for a few samples. We need to
 .. code-block:: python
 
     queries = ['we bought four shirts from the nvidia gear store in santa clara', 
-           'tom sam and i are going to travel do you want to join',
-           'nvidia is a company',
-           'can i help you',
-           'we bought four shirts one mug and ten thousand titan rtx graphics cards the more you buy the more you save']
+               'nvidia is a company',
+               'can i help you',
+               'how are you',
+               'okay',
+               'we bought four shirts one mug and ten thousand titan rtx graphics cards the more you buy the more you save']
+    infer_data_layer = nemo_nlp.BertTokenClassificationInferDataLayer(queries=queries,
+                                                                  tokenizer=tokenizer,
+                                                                  max_seq_length=MAX_SEQ_LENGTH,
+                                                                  batch_size=1)
 
-    # helper functions
-    def concatenate(lists):
-    return np.concatenate([t.cpu() for t in lists])
-
-    def get_preds(logits):
-        return np.argmax(logits, 1)
-
-    infer_data_layer = nemo_nlp.BertTokenClassificationInferDataLayer(
-                                                queries=queries,
-                                                tokenizer=tokenizer,
-                                                max_seq_length=MAX_SEQ_LENGTH,
-                                                batch_size=1)
 
 Run inference and append punctuation and capitalize words based on the generated predictions.
 
@@ -234,43 +270,50 @@ Run inference and append punctuation and capitalize words based on the generated
     hidden_states = bert_model(input_ids=input_ids,
                                           token_type_ids=input_type_ids,
                                           attention_mask=input_mask)
-    logits = classifier(hidden_states=hidden_states)
+    punct_logits = punct_classifier(hidden_states=hidden_states)
+    capit_logits = capit_classifier(hidden_states=hidden_states)
 
-    evaluated_tensors = nf.infer(tensors=[logits, subtokens_mask], checkpoint_dir=WORK_DIR + '/checkpoints')
+    evaluated_tensors = nf.infer(tensors=[punct_logits, capit_logits, subtokens_mask],
+                                 checkpoint_dir=WORK_DIR + '/checkpoints')
 
 
 
-    ids_to_labels = {label_ids[k]: k for k in label_ids}
+    # helper functions
+    def concatenate(lists):
+        return np.concatenate([t.cpu() for t in lists])
 
-    logits, subtokens_mask = [concatenate(tensors) for tensors in evaluated_tensors]
+    punct_ids_to_labels = {punct_label_ids[k]: k for k in punct_label_ids}
+    capit_ids_to_labels = {capit_label_ids[k]: k for k in capit_label_ids}
 
-    preds = np.argmax(logits, axis=2)
+    punct_logits, capit_logits, subtokens_mask = [concatenate(tensors) for tensors in evaluated_tensors]
+    punct_preds = np.argmax(punct_logits, axis=2)
+    capit_preds = np.argmax(capit_logits, axis=2)
 
     for i, query in enumerate(queries):
         nf.logger.info(f'Query: {query}')
 
-        pred = preds[i][subtokens_mask[i] > 0.5]
+        punct_pred = punct_preds[i][subtokens_mask[i] > 0.5]
+        capit_pred = capit_preds[i][subtokens_mask[i] > 0.5]
         words = query.strip().split()
-        if len(pred) != len(words):
+        if len(punct_pred) != len(words) or len(capit_pred) != len(words):
             raise ValueError('Pred and words must be of the same length')
 
         output = ''
-        for j, word in enumerate(words):
-            label = ids_to_labels[pred[j]]
-        
-            if label != NONE_LABEL:
-                if 'U' in label:
-                    word = word.capitalize()
-                if label[0] != 'O':
-                    word += label[0]
-                
-            output += word
+        for j, w in enumerate(words):
+            punct_label = punct_ids_to_labels[punct_pred[j]]
+            capit_label = capit_ids_to_labels[capit_pred[j]]
+
+            if capit_label != 'O':
+                w = w.capitalize()
+            output += w
+            if punct_label != 'O':
+                output += punct_label
             output += ' '
         nf.logger.info(f'Combined: {output.strip()}\n')
 
 Result for the sample queries should look something like that:
     
-    .. code-block:: python
+    ::
 
         Query: we bought four shirts from the nvidia gear store in santa clara
         Combined: We bought four shirts from the nvidia gear store in santa clara.
@@ -295,15 +338,15 @@ To run the provided training script:
 
 .. code-block:: bash
 
-    python examples/nlp/token_classification.py --data_dir path/to/data --none_label 'OL' --pretrained_bert_model=bert-base-cased --work_dir output
+    python examples/nlp/punctuation_capitalization.py --data_dir path/to/data --pretrained_bert_model=bert-base-uncased --work_dir output
 
 To run inference:
 
 .. code-block:: bash
 
-    python examples/nlp/token_classification_infer.py --none_label 'OL' --labels_dict path/to/data/label_ids.csv --work_dir output/checkpoints/
+    python examples/nlp/punctuation_capitalization_infer.py --punct_labels_dict path/to/data/punct_label_ids.csv --capit_labels_dict path/to/data/capit_label_ids.csv --work_dir output/checkpoints/
 
-Note, label_ids.csv file will be generated during training and stored in the data_dir folder.
+Note, punct_label_ids.csv and capit_label_ids.csv files will be generated during training and stored in the data_dir folder.
 
 Multi GPU Training
 ------------------
@@ -313,4 +356,4 @@ To run training on multiple GPUs, run
 .. code-block:: bash
 
     export NUM_GPUS=2
-    python -m torch.distributed.launch --nproc_per_node=$NUM_GPUS examples/nlp/token_classification.py --num_gpus $NUM_GPUS --none_label 'OL' 
+    python -m torch.distributed.launch --nproc_per_node=$NUM_GPUS examples/nlp/punctuation_capitalization.py --num_gpus $NUM_GPUS --data_dir path/to/data
