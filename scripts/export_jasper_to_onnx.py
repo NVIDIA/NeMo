@@ -103,5 +103,4 @@ def main(config_file, nn_encoder, nn_decoder, nn_onnx_encoder,
 if __name__ == "__main__":
     args = get_parser().parse_args()
     main(args.config, args.nn_encoder, args.nn_decoder, args.onnx_encoder,
-         args.onnx_decoder, disable_mask_conv=args.disable_mask_conv,
-         pre_v09_model=args.pre_v09_model)
+         args.onnx_decoder, pre_v09_model=args.pre_v09_model)

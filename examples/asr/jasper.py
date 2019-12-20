@@ -43,6 +43,8 @@ def parse_args():
     parser.add_argument("--beta1", default=0.95, type=float)
     parser.add_argument("--beta2", default=0.25, type=float)
     parser.add_argument("--warmup_steps", default=0, type=int)
+    parser.add_argument("--load_dir", default=None, type=str,
+                        help="directory with pre-trained checkpoint")
 
     args = parser.parse_args()
 
@@ -159,7 +161,7 @@ def create_all_dags(args, neural_factory):
     logger.info(
         f"Number of parameters in decoder: {jasper_decoder.num_weights}")
     logger.info(
-        f"Total number of parameters in decoder: "
+        f"Total number of parameters in model: "
         f"{jasper_decoder.num_weights + jasper_encoder.num_weights}")
     logger.info('================================')
 
@@ -205,6 +207,7 @@ def create_all_dags(args, neural_factory):
 
     chpt_callback = nemo.core.CheckpointCallback(
         folder=neural_factory.checkpoint_dir,
+        load_from_folder=args.load_dir,
         step_freq=args.checkpoint_save_freq)
 
     callbacks = [train_callback, chpt_callback]

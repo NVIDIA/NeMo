@@ -12,12 +12,12 @@ import nemo_nlp
 from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer, \
     TokenClassifier, TokenClassificationLoss
 from nemo_nlp.data.datasets import utils
-from nemo_nlp.utils.callbacks.token_classification import \
+from nemo_nlp.utils.callbacks.punctuation_capitalization import \
     eval_iter_callback, eval_epochs_done_callback
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description="Token classification\
-                        with pretrained BERT")
+parser = argparse.ArgumentParser(description="Punctuation and \
+    capitalization model with pretrained BERT")
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=8, type=int)
 parser.add_argument("--max_seq_length", default=128, type=int)
@@ -31,17 +31,19 @@ parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0",
                     type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--data_dir", default="/data", type=str)
-parser.add_argument("--fc_dropout", default=0.5, type=float)
-parser.add_argument("--num_fc_layers", default=2, type=int)
+parser.add_argument("--punct_num_fc_layers", default=3, type=int)
+parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
-parser.add_argument("--shuffle_data", action='store_false')
+parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-cased", type=str)
+                    default="bert-base-uncased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str,
                     help="Path to bert config file in json format")
+parser.add_argument("--punct_classifier_checkpoint", default=None, type=str)
+parser.add_argument("--capit_classifier_checkpoint", default=None, type=str)
 parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str,
                     help="Path to pretrained tokenizer model, \
                     only used if --tokenizer is sentencepiece")
@@ -57,21 +59,19 @@ parser.add_argument("--use_cache", action='store_true',
 parser.add_argument("--save_epoch_freq", default=1, type=int,
                     help="Frequency of saving checkpoint\
                     '-1' - step checkpoint won't be saved")
-parser.add_argument("--save_step_freq", default=-1, type=int,
+parser.add_argument("--save_step_freq", default=200, type=int,
                     help="Frequency of saving checkpoint \
                     '-1' - step checkpoint won't be saved")
 parser.add_argument("--loss_step_freq", default=250, type=int,
                     help="Frequency of printing loss")
-parser.add_argument("--use_weighted_loss", action='store_true',
-                    help="Flag to indicate whether to use weighted loss")
+parser.add_argument("--use_weighted_loss_punct", action='store_true',
+                    help="Flag to indicate whether to use weighted loss \
+                    to mitigate classs unbalancing for the punctuation task")
 
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
-    raise FileNotFoundError("Dataset not found. For NER, CoNLL-2003 dataset"
-                            "can be obtained at"
-                            "https://github.com/kyzhouhzau/BERT"
-                            "-NER/tree/master/data.")
+    raise FileNotFoundError("Dataset not found.")
 
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
@@ -117,8 +117,12 @@ else:
 
 hidden_size = model.local_parameters["hidden_size"]
 
-classifier = "TokenClassifier"
-task_loss = "TokenClassificationLoss"
+punct_classifier = "TokenClassifier"
+punct_loss = "TokenClassificationLoss"
+
+capit_classifier = "TokenClassifier"
+capit_loss = "TokenClassificationLoss"
+task_loss = None
 
 
 def create_pipeline(num_samples=-1,
@@ -128,14 +132,16 @@ def create_pipeline(num_samples=-1,
                     local_rank=args.local_rank,
                     num_gpus=args.num_gpus,
                     mode='train',
-                    label_ids=None,
+                    punct_label_ids=None,
+                    capit_label_ids=None,
                     ignore_extra_tokens=args.ignore_extra_tokens,
                     ignore_start_end=args.ignore_start_end,
                     use_cache=args.use_cache,
                     dropout=args.fc_dropout,
-                    num_layers=args.num_fc_layers):
+                    punct_num_layers=args.punct_num_fc_layers):
 
-    global classifier, task_loss
+    global punct_classifier, punct_loss, \
+        capit_classifier, capit_loss, task_loss
 
     nf.logger.info(f"Loading {mode} data...")
     shuffle = args.shuffle_data if mode == 'train' else False
@@ -154,12 +160,13 @@ def create_pipeline(num_samples=-1,
            [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
            [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).')
 
-    data_layer = nemo_nlp.BertTokenClassificationDataLayer(
+    data_layer = nemo_nlp.BertPunctuationCapitalizationDataLayer(
         tokenizer=tokenizer,
         text_file=text_file,
         label_file=label_file,
         pad_label=pad_label,
-        label_ids=label_ids,
+        punct_label_ids=punct_label_ids,
+        capit_label_ids=capit_label_ids,
         max_seq_length=max_seq_length,
         batch_size=batch_size,
         num_workers=0,
@@ -170,55 +177,86 @@ def create_pipeline(num_samples=-1,
         use_cache=use_cache)
 
     input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, \
-        labels = data_layer()
+        punct_labels, capit_labels = data_layer()
 
     if mode == 'train':
-        label_ids = data_layer.dataset.label_ids
+        punct_label_ids = data_layer.dataset.punct_label_ids
+        capit_label_ids = data_layer.dataset.capit_label_ids
         class_weights = None
 
-        if args.use_weighted_loss:
-            nf.logger.info(f"Using weighted loss")
-            label_freqs = data_layer.dataset.label_frequencies
-            class_weights = utils.calc_class_weights(label_freqs)
+        if args.use_weighted_loss_punct:
+            nf.logger.info(f"Using weighted loss for punctuation task")
+            punct_label_freqs = data_layer.dataset.punct_label_frequencies
+            class_weights = utils.calc_class_weights(punct_label_freqs)
 
-            nf.logger.info(f"class_weights: {class_weights}")
+        # Initialize punctuation loss
+        punct_classifier = getattr(sys.modules[__name__], punct_classifier)
+        punct_classifier = punct_classifier(hidden_size=hidden_size,
+                                            num_classes=len(punct_label_ids),
+                                            dropout=dropout,
+                                            num_layers=punct_num_layers,
+                                            name='Punctuation')
 
-        classifier = getattr(sys.modules[__name__], classifier)
-        classifier = classifier(hidden_size=hidden_size,
-                                num_classes=len(label_ids),
-                                dropout=dropout,
-                                num_layers=num_layers)
+        punct_loss = getattr(sys.modules[__name__], punct_loss)
+        punct_loss = punct_loss(num_classes=len(punct_label_ids),
+                                class_weights=class_weights)
 
-        task_loss = getattr(sys.modules[__name__], task_loss)
-        task_loss = task_loss(num_classes=len(label_ids),
-                              class_weights=class_weights)
+        # Initialize capitalization loss
+        capit_classifier = getattr(sys.modules[__name__], capit_classifier)
+        capit_classifier = capit_classifier(hidden_size=hidden_size,
+                                            num_classes=len(capit_label_ids),
+                                            dropout=dropout,
+                                            name='Capitalization')
+        capit_loss = getattr(sys.modules[__name__], capit_loss)
+        capit_loss = capit_loss(num_classes=len(capit_label_ids))
+
+        task_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
     hidden_states = model(input_ids=input_ids,
                           token_type_ids=input_type_ids,
                           attention_mask=input_mask)
 
-    logits = classifier(hidden_states=hidden_states)
-    loss = task_loss(logits=logits, labels=labels, loss_mask=loss_mask)
-
-    steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
+    punct_logits = punct_classifier(hidden_states=hidden_states)
+    capit_logits = capit_classifier(hidden_states=hidden_states)
 
     if mode == 'train':
-        tensors_to_evaluate = [loss, logits]
+        punct_loss = punct_loss(logits=punct_logits,
+                                labels=punct_labels,
+                                loss_mask=loss_mask)
+        capit_loss = capit_loss(logits=capit_logits,
+                                labels=capit_labels,
+                                loss_mask=loss_mask)
+        task_loss = task_loss(loss_1=punct_loss, loss_2=capit_loss)
+
+        steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
+
+        losses = [task_loss, punct_loss, capit_loss]
+        logits = [punct_logits, capit_logits]
+        return (losses, logits,
+                steps_per_epoch,
+                punct_label_ids,
+                capit_label_ids)
     else:
-        tensors_to_evaluate = [logits, labels, subtokens_mask]
-    return tensors_to_evaluate, loss, steps_per_epoch, label_ids, data_layer
+        tensors_to_evaluate = [punct_logits,
+                               capit_logits,
+                               punct_labels,
+                               capit_labels,
+                               subtokens_mask]
+        return tensors_to_evaluate, data_layer
 
 
-train_tensors, train_loss, steps_per_epoch, label_ids, _ = create_pipeline()
+losses, train_logits, steps_per_epoch, punct_label_ids, capit_label_ids = \
+    create_pipeline()
 
-eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev',
-                                                    label_ids=label_ids)
+eval_tensors, data_layer = create_pipeline(mode='dev',
+                                           punct_label_ids=punct_label_ids,
+                                           capit_label_ids=capit_label_ids)
 
 nf.logger.info(f"steps_per_epoch = {steps_per_epoch}")
 
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=train_tensors,
+    tensors=losses + train_logits,
     print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer)
@@ -227,7 +265,10 @@ eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(x, y),
     user_epochs_done_callback=lambda x:
-        eval_epochs_done_callback(x, label_ids, f'{nf.work_dir}/graphs'),
+        eval_epochs_done_callback(x,
+                                  punct_label_ids,
+                                  capit_label_ids,
+                                  f'{nf.work_dir}/graphs'),
     tb_writer=nf.tb_writer,
     eval_step=steps_per_epoch)
 
@@ -240,7 +281,7 @@ lr_policy_fn = get_lr_policy(args.lr_policy,
                              total_steps=args.num_epochs * steps_per_epoch,
                              warmup_ratio=args.lr_warmup_proportion)
 
-nf.train(tensors_to_optimize=[train_loss],
+nf.train(tensors_to_optimize=[losses[0]],
          callbacks=[train_callback, eval_callback, ckpt_callback],
          lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
