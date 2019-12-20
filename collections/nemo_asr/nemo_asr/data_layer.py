@@ -228,12 +228,12 @@ class KaldiFeatureDataLayer(DataLayerNM):
         processed_length:
             0: AxisType(BatchTag)
 
-        transcripts: 
+        transcripts:
             0: AxisType(BatchTag)
 
             1: AxisType(TimeTag)
 
-        transcript_length: 
+        transcript_length:
             0: AxisType(BatchTag)
 
         """
