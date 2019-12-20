@@ -28,13 +28,29 @@ class SimpleCombiner(TrainableNM):
 
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {"x1": NeuralType({}), "x2": NeuralType({})}
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
 
-        output_ports = {"combined": None}
+        x1:
+            Empty?!?
 
-        return input_ports, output_ports
+        x2:
+            Empty?!?
+        """
+        return {
+            "x1": NeuralType({}),
+            "x2": NeuralType({})
+        }
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        combined:
+            None
+        """
+        return {
+            "combined": None
+        }
 
     def __init__(self, mode="add", **kwargs):
         TrainableNM.__init__(self, **kwargs)
@@ -55,17 +71,34 @@ class ArgMaxSimple(TrainableNM):  # Notice TWO base classes
     """
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "x": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        x:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+        """
+        return {
+            "x": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(ChannelTag)
+            })
         }
-        output_ports = {
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        values:
+            0: AxisType(BatchTag)
+
+        indices:
+            0: AxisType(BatchTag)
+        """
+        return {
             "values": NeuralType({0: AxisType(BatchTag)}),
             "indices": NeuralType({0: AxisType(BatchTag)}),
         }
-
-        return input_ports, output_ports
 
     def __init__(self, **kwargs):
         TrainableNM.__init__(self, **kwargs)
@@ -79,6 +112,38 @@ class ArgMaxSimple(TrainableNM):  # Notice TWO base classes
 
 class TableLookUp(NeuralModule):
     """Performs a table lookup. For example, convert class ids to names"""
+
+    def __init__(self, ids2classes=None, **kwargs):
+        NeuralModule.__init__(self, **kwargs)
+
+        if ids2classes is None:
+            ids2classes = {}
+        self._ids2classes = ids2classes
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        indices:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+        """
+        return {
+            "indices": NeuralType(
+                {0: AxisType(TimeTag), 1: AxisType(BatchTag)})
+        }
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+            indices:
+                0: AxisType(BatchTag)
+                1: AxisType(TimeTag)
+        """
+        return {
+            "indices": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag)})
+        }
 
     def set_weights(self, name2weight: Dict[(str, bool)],
                     name2name_and_transform):
@@ -98,27 +163,6 @@ class TableLookUp(NeuralModule):
 
     def unfreeze(self, weights: Set[str] = None):
         pass
-
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "indices": NeuralType(
-                {0: AxisType(TimeTag), 1: AxisType(BatchTag)})
-        }
-        output_ports = {
-            "indices": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag)})
-        }
-
-        return input_ports, output_ports
-
-    def __init__(self, ids2classes=None, **kwargs):
-        NeuralModule.__init__(self, **kwargs)
-
-        if ids2classes is None:
-            ids2classes = {}
-        self._ids2classes = ids2classes
-        # self._input_ports = {"indices": NeuralType({0: AxisType(BatchTag)})}
 
     def __call__(self, force_pt=False, *input, **kwargs):
         pt_call = len(input) > 0 or force_pt
@@ -173,15 +217,22 @@ class TableLookUp2(NeuralModule):
     def unfreeze(self, weights: Set[str] = None):
         pass
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "indices": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag)})
-        }
-        output_ports = {"classes": None}
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
 
-        return input_ports, output_ports
+        """
+        return {
+        }
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        classes:
+            None
+        """
+        return {
+            "classes": None
+        }
 
     def __init__(self, detokenizer=None, **kwargs):
         NeuralModule.__init__(self, **kwargs)
@@ -215,20 +266,39 @@ class TableLookUp2(NeuralModule):
 
 
 class SequenceEmbedding(TrainableNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "input_seq": NeuralType(
-                {0: AxisType(TimeTag), 1: AxisType(BatchTag)})
-        }
-        output_ports = {
-            "outputs": NeuralType(
-                {0: AxisType(TimeTag), 1: AxisType(BatchTag),
-                 2: AxisType(ChannelTag)}
-            )
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        input_seq:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+        """
+        return {
+            "input_seq": NeuralType({
+                0: AxisType(TimeTag),
+                1: AxisType(BatchTag)
+            })
         }
 
-        return input_ports, output_ports
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        outputs:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
+            "outputs": NeuralType({
+                0: AxisType(TimeTag),
+                1: AxisType(BatchTag),
+                2: AxisType(ChannelTag)
+            })
+        }
 
     def __init__(self, *, voc_size, hidden_size, dropout=0.0, **kwargs):
         TrainableNM.__init__(self, **kwargs)
@@ -248,12 +318,26 @@ class SequenceEmbedding(TrainableNM):
 
 
 class SequenceProjection(TrainableNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {"input_seq": NeuralType({})}
-        output_ports = {"outputs": None}
 
-        return input_ports, output_ports
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        input_seq:
+            Empty Type?!?
+        """
+        return {
+            "input_seq": NeuralType({})
+        }
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        outputs:
+            None
+        """
+        return {
+            "outputs": None
+        }
 
     def __init__(self, *, from_dim, to_dim, dropout=0.0, **kwargs):
         TrainableNM.__init__(self, **kwargs)
@@ -273,23 +357,37 @@ class SequenceProjection(TrainableNM):
 
 
 class ZerosLikeNM(TrainableNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        input_type_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "input_type_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
             })
         }
 
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        input_type_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "input_type_ids":
             NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
             })
         }
-        return input_ports, output_ports
 
     def __init__(self, **kwargs):
         TrainableNM.__init__(self, **kwargs)
