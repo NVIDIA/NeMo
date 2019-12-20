@@ -35,9 +35,25 @@ class BERT(TrainableNM):
         sequence.
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        input_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        token_type_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        attention_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -52,15 +68,23 @@ class BERT(TrainableNM):
             })
         }
 
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        hidden_states:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "hidden_states": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag)
             })
         }
-
-        return input_ports, output_ports
 
     def __init__(self, *,
                  pretrained_model_name=None,
