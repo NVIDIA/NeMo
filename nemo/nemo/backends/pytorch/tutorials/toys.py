@@ -13,7 +13,8 @@ from ....core.neural_types import *
 class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
     """Module which learns Taylor's coefficients."""
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         Returns:
@@ -23,7 +24,8 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
             "x": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         Returns:
@@ -60,7 +62,8 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
 class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
     """Module which learns Taylor's coefficients."""
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         x:
@@ -78,7 +81,8 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
             "o": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         y_pred:
@@ -139,7 +143,8 @@ class RealFunctionDataLayer(DataLayerNM):
     def __len__(self):
         return self._n
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports
 
         x:
@@ -187,7 +192,8 @@ class RealFunctionDataLayer(DataLayerNM):
 
 class MSELoss(LossNM):
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         predictions:
@@ -207,7 +213,8 @@ class MSELoss(LossNM):
                 {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -227,7 +234,8 @@ class MSELoss(LossNM):
 
 class L1Loss(LossNM):
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         predictions:
@@ -247,7 +255,8 @@ class L1Loss(LossNM):
                 {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -267,7 +276,8 @@ class L1Loss(LossNM):
 
 class CrossEntropyLoss(LossNM):
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         predictions:
@@ -284,7 +294,8 @@ class CrossEntropyLoss(LossNM):
             "labels": NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -310,7 +321,8 @@ class DopeDualLoss(LossNM):
     The dual loss function that DOPE uses
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         belief_predictions:
@@ -340,7 +352,8 @@ class DopeDualLoss(LossNM):
             "affinity_labels": NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:

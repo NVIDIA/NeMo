@@ -32,7 +32,8 @@ class BertTokenClassifier(TrainableNM):
         dropout (float): dropout ratio applied to MLP
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         hidden_states:
@@ -50,7 +51,8 @@ class BertTokenClassifier(TrainableNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         logits:
@@ -117,7 +119,8 @@ class TokenClassifier(TrainableNM):
         dropout (float): dropout ratio applied to MLP
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         hidden_states:
@@ -135,7 +138,8 @@ class TokenClassifier(TrainableNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         logits:
@@ -205,7 +209,8 @@ class SequenceClassifier(TrainableNM):
         dropout (float): dropout ratio applied to MLP
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         hidden_states:
@@ -223,7 +228,8 @@ class SequenceClassifier(TrainableNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         logits:
@@ -278,7 +284,8 @@ class JointIntentSlotClassifier(TrainableNM):
         dropout (float): dropout to be applied to the layer
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         hidden_states:
@@ -296,7 +303,8 @@ class JointIntentSlotClassifier(TrainableNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         intent_logits:
@@ -369,7 +377,8 @@ class SequenceRegression(TrainableNM):
         dropout (float): dropout ratio applied to MLP
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         hidden_states:
@@ -387,7 +396,8 @@ class SequenceRegression(TrainableNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         preds:

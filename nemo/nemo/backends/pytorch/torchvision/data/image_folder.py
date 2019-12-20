@@ -9,7 +9,8 @@ class ImageFolderDataLayer(DataLayerNM):
     """This class wraps Torchvision's ImageFolder data set API into
     NeuralModule."""
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         image:

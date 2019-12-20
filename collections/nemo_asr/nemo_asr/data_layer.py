@@ -77,7 +77,8 @@ transcript_n}
         perturb_config (dict): Currently disabled.
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         audio_signal:
@@ -215,7 +216,8 @@ class KaldiFeatureDataLayer(DataLayerNM):
         num_workers (int): See PyTorch DataLoader. Defaults to 0.
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         processed_signal:
@@ -359,7 +361,8 @@ class TranscriptDataLayer(DataLayerNM):
             Defaults to 0.
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         texts:

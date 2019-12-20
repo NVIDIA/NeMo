@@ -3,6 +3,8 @@
 __all__ = ['WeightShareTransform',
            'NeuralModule']
 
+
+import warnings
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from enum import Enum
@@ -82,16 +84,25 @@ class NeuralModule(ABC):
         #        "arguments:".format(self.__class__.__name__))
         #    self._logger.warning("{}".format(kwargs.keys()))
 
+    @staticmethod
+    def create_ports(**kwargs):
+        """ Deprecated method, to be remoted in the next release."""
+        warnings.warn(
+            'Deprecated method. Please implement inputs and outputs \
+                 properties to define module ports')
+
+    @property
     @abstractmethod
-    def input_port_definitions(self) -> Optional[Dict[str, NeuralType]]:
+    def inputs(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module input ports
 
         Returns:
           A (dict) of module's input ports names to NeuralTypes mapping
         """
 
+    @property
     @abstractmethod
-    def output_port_definitions(self) -> Optional[Dict[str, NeuralType]]:
+    def outputs(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports
 
         Returns:
@@ -125,8 +136,8 @@ class NeuralModule(ABC):
         #                     "more than once")
 
         # Get input and output ports definitions.
-        input_port_defs = self.input_port_definitions()
-        output_port_defs = self.output_port_definitions()
+        input_port_defs = self.inputs
+        output_port_defs = self.outputs
 
         first_input_nmtensor_type = None
         input_nmtensors_are_of_same_type = True

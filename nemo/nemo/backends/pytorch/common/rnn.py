@@ -50,7 +50,8 @@ class DecoderRNN(TrainableNM):
 
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         targets:
@@ -77,7 +78,8 @@ class DecoderRNN(TrainableNM):
             }, optional=True)
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         log_probs:

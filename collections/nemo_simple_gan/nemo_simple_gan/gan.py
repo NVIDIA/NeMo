@@ -15,7 +15,8 @@ class SimpleDiscriminator(TrainableNM):
     and assigns a score to it.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         image:
@@ -34,7 +35,8 @@ class SimpleDiscriminator(TrainableNM):
                                  3: AxisType(WidthTag, 28)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         decision:
@@ -74,7 +76,8 @@ class SimpleGenerator(TrainableNM):
     (64, 4, 4) and produces a 28x28 greyscale image.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         latents:
@@ -94,7 +97,8 @@ class SimpleGenerator(TrainableNM):
                 3: AxisType(WidthTag, 4)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         image:
@@ -143,7 +147,8 @@ class DiscriminatorLoss(LossNM):
         neg (bool): Whether to negate the final loss
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         decision:
@@ -157,7 +162,8 @@ class DiscriminatorLoss(LossNM):
                 1: AxisType(ChannelTag, 1)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -187,7 +193,8 @@ class GradientPenalty(LossNM):
         lambda_ (float): lambda parameter indicating the weight of the loss.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         interpolated_image:
@@ -215,7 +222,8 @@ class GradientPenalty(LossNM):
                 1: AxisType(ChannelTag, 1)}),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -252,7 +260,8 @@ class InterpolateImage(TrainableNM):
     """Linearly interpolates an image between image1 and image2
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         image1:
@@ -286,7 +295,8 @@ class InterpolateImage(TrainableNM):
                 3: AxisType(WidthTag, 28)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         interpolated_image:
@@ -326,7 +336,8 @@ class RandomDataLayer(DataLayerNM):
         batch_size (int)
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         latent:
@@ -389,7 +400,8 @@ class MnistGanDataLayer(DataLayerNM):
         shuffle (bool)
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         latent:

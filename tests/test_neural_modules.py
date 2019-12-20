@@ -9,11 +9,13 @@ class TestNM1(TrainableNM):
     def __init__(self, var1, var2=2, var3=3, **kwargs):
         super(TestNM1, self).__init__(**kwargs)
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports."""
         return {}
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports."""
         return {}
 
@@ -25,11 +27,13 @@ class TestNM2(TestNM1):
     def __init__(self, var2, **kwargs):
         super(TestNM2, self).__init__(**kwargs)
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports."""
         return {}
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports."""
         return {}
 
@@ -41,11 +45,13 @@ class BrokenNM(TrainableNM):
     def __init__(self, var2, *error, **kwargs):
         super(BrokenNM, self).__init__(**kwargs)
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports."""
         return {}
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports."""
         return {}
 
