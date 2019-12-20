@@ -1054,8 +1054,8 @@ class PtActions(Actions):
             raise FileExistsError(f"Destination {output} already exists. "
                                   f"Aborting export.")
 
-        input_names = list(module.input_ports.keys())
-        output_names = list(module.output_ports.keys())
+        input_names = list(module.input_port_definitions().keys())
+        output_names = list(module.output_port_definitions().keys())
         dynamic_axes = defaultdict(list)
 
         def __extract_dynamic_axes(port_name: str, ntype: NeuralType,
@@ -1066,10 +1066,10 @@ class PtActions(Actions):
                             axistype.semantics, TimeTag):
                         dynamic_axes[port_name].append(axis_id)
         # for input_ports
-        for port_name, ntype in module.input_ports.items():
+        for port_name, ntype in module.input_port_definitions().items():
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)
         # for output_ports
-        for port_name, ntype in module.output_ports.items():
+        for port_name, ntype in module.output_port_definitions().items():
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)
         if len(dynamic_axes) == 0:
             dynamic_axes = None
