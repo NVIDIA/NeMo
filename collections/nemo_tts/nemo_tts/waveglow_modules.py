@@ -34,24 +34,53 @@ class WaveGlowNM(TrainableNM):
         wn_kernel_size (int): The kernel size of the wavenet submodule.
             Defaults to 3
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        mel_spectrogram:
+            0: AxisType(BatchTag)
+
+                1: AxisType(MelSpectrogramSignalTag)
+
+                2: AxisType(TimeTag)
+
+        audio:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "mel_spectrogram": NeuralType(
                 {0: AxisType(BatchTag),
                  1: AxisType(MelSpectrogramSignalTag),
                  2: AxisType(TimeTag)}),
-            "audio": NeuralType({0: AxisType(BatchTag),
-                                 1: AxisType(TimeTag)})
+            "audio": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)})
         }
 
-        output_ports = {
-            "audio": NeuralType({0: AxisType(BatchTag),
-                                 1: AxisType(TimeTag)}),
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        audio:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        log_s_list:
+            List?
+
+        log_det_W_list:
+            List?
+        """
+        return {
+            "audio": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)}),
             "log_s_list": NeuralType(),
             "log_det_W_list": NeuralType(),
         }
-        return input_ports, output_ports
 
     def __init__(
             self,
@@ -123,20 +152,37 @@ class WaveGlowInferNM(WaveGlowNM):
         sigma (float): Standard deviation of the normal distribution from which
             we sample z. Defaults to 0.6.
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        mel_spectrogram:
+            0: AxisType(BatchTag)
+
+            1: AxisType(MelSpectrogramSignalTag)
+
+            2: AxisType(TimeTag)
+        """
+        return {
             "mel_spectrogram": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(MelSpectrogramSignalTag),
                 2: AxisType(TimeTag)})
         }
 
-        output_ports = {
-            "audio": NeuralType({0: AxisType(BatchTag),
-                                 1: AxisType(TimeTag)})
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        audio:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
+            "audio": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)})
         }
-        return input_ports, output_ports
 
     def __str__(self):
         return "WaveGlowNM"
@@ -212,17 +258,38 @@ class WaveGlowLoss(LossNM):
             are aiming to model.
             Defaults to 1.
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "z": NeuralType({0: AxisType(BatchTag),
-                             1: AxisType(TimeTag)}),
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        z:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        log_s_list:
+            List?
+
+        log_det_W_list:
+            List?
+        """
+        return {
+            "z": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)}),
             "log_s_list": NeuralType(),
             "log_det_W_list": NeuralType(),
         }
 
-        output_ports = {"loss": NeuralType(None)}
-        return input_ports, output_ports
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {
+            "loss": NeuralType(None)
+        }
 
     def __init__(self, sigma: float = 1.0, **kwargs):
         super().__init__(**kwargs)
