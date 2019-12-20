@@ -171,7 +171,8 @@ class PtActions(Actions):
             # and nm is inside all_nodes
             if node not in all_nodes:
                 all_nodes[node] = {
-                    k: None for k in nmtensor.producer.output_port_definitions()}
+                    k: None for k in
+                    nmtensor.producer.output_port_definitions()}
             # second, populate output port with current nmtensor
             # where applicable
             all_nodes[node][nmtensor.name] = nmtensor

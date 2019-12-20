@@ -31,7 +31,7 @@ class CTCLossNM(LossNM):
 
             1: AxisType(TimeTag)
 
-        input_length: 
+        input_length:
             0: AxisType(BatchTag)
 
         target_length:
