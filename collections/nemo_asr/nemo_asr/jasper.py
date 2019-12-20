@@ -72,7 +72,7 @@ class JasperEncoder(TrainableNM):
     length: Optional[torch.Tensor]
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         audio_signal:
@@ -93,7 +93,7 @@ class JasperEncoder(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         outputs:
@@ -196,7 +196,7 @@ class JasperDecoderForCTC(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         encoder_output:
@@ -215,7 +215,7 @@ class JasperDecoderForCTC(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         output:

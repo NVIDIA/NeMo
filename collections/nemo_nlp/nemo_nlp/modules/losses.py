@@ -23,7 +23,7 @@ class MaskedLanguageModelingLossNM(LossNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         logits:
@@ -63,7 +63,7 @@ class MaskedLanguageModelingLossNM(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -91,7 +91,7 @@ class LossAggregatorNM(LossNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         """
@@ -102,7 +102,7 @@ class LossAggregatorNM(LossNM):
         return input_ports
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -139,7 +139,7 @@ class TokenClassificationLoss(LossNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         logits:
@@ -176,7 +176,7 @@ class TokenClassificationLoss(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -226,7 +226,7 @@ class JointIntentSlotLoss(LossNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         intent_logits:
@@ -279,7 +279,7 @@ class JointIntentSlotLoss(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -352,7 +352,7 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         logits:
@@ -382,7 +382,7 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:

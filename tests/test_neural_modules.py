@@ -10,12 +10,12 @@ class TestNM1(TrainableNM):
         super(TestNM1, self).__init__(**kwargs)
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports."""
         return {}
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports."""
         return {}
 
@@ -28,12 +28,12 @@ class TestNM2(TestNM1):
         super(TestNM2, self).__init__(**kwargs)
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports."""
         return {}
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports."""
         return {}
 
@@ -46,12 +46,12 @@ class BrokenNM(TrainableNM):
         super(BrokenNM, self).__init__(**kwargs)
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports."""
         return {}
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports."""
         return {}
 

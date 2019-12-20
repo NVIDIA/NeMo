@@ -19,7 +19,7 @@ class JasperRNNConnector(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         tensor:
@@ -38,7 +38,7 @@ class JasperRNNConnector(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         tensor:

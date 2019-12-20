@@ -14,7 +14,7 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
     """Module which learns Taylor's coefficients."""
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         Returns:
@@ -25,7 +25,7 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         Returns:
@@ -63,7 +63,7 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
     """Module which learns Taylor's coefficients."""
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         x:
@@ -82,7 +82,7 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         y_pred:
@@ -144,7 +144,7 @@ class RealFunctionDataLayer(DataLayerNM):
         return self._n
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports
 
         x:
@@ -193,7 +193,7 @@ class RealFunctionDataLayer(DataLayerNM):
 class MSELoss(LossNM):
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         predictions:
@@ -214,7 +214,7 @@ class MSELoss(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -235,7 +235,7 @@ class MSELoss(LossNM):
 class L1Loss(LossNM):
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         predictions:
@@ -256,7 +256,7 @@ class L1Loss(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -277,7 +277,7 @@ class L1Loss(LossNM):
 class CrossEntropyLoss(LossNM):
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         predictions:
@@ -295,7 +295,7 @@ class CrossEntropyLoss(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -322,7 +322,7 @@ class DopeDualLoss(LossNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         belief_predictions:
@@ -353,7 +353,7 @@ class DopeDualLoss(LossNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         loss:

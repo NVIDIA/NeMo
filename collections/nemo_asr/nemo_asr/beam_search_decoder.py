@@ -39,7 +39,7 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         "log_probs":
@@ -60,7 +60,7 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         predictions:
