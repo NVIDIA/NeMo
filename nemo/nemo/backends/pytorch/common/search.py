@@ -31,16 +31,40 @@ class GreedySearch(NonTrainableNM):
 
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        encoder_outputs:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             'encoder_outputs': NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag),
             }, optional=True)
         }
-        output_ports = {
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        predictions:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        attention_weights:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(TimeTag)
+        """
+        return {
             'predictions': NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -51,7 +75,6 @@ class GreedySearch(NonTrainableNM):
                 2: AxisType(TimeTag)
             })
         }
-        return input_ports, output_ports
 
     def __init__(self, decoder, pad_id, bos_id, eos_id, max_len,
                  batch_size=None, **kwargs):

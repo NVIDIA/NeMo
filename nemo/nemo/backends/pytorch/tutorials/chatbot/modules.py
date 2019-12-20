@@ -16,18 +16,38 @@ from .....core.neural_types import *
 
 class DialogDataLayer(DataLayerNM):
     """Class representing data layer for a chatbot."""
-    @staticmethod
-    def create_ports():
-        input_ports = {}
 
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        src:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+
+        src_lengths:
+            0: AxisType(BatchTag)
+
+        tgt:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+
+        mask:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+
+        max_tgt_lengths:
+            None
+        """
+        return {
             "src": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
             "src_lengths": NeuralType({0: AxisType(BatchTag)}),
             "tgt": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
             "mask": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
             "max_tgt_lengths": NeuralType(None),
         }
-        return input_ports, output_ports
 
     def __init__(
             self, *,
@@ -81,14 +101,39 @@ class EncoderRNN(TrainableNM):
     """RNN-based encoder Neural Module
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        input_seq:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+
+        input_lengths:
+            0: AxisType(BatchTag)
+        """
+        return {
             "input_seq": NeuralType(
                 {0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
             "input_lengths": NeuralType({0: AxisType(BatchTag)}),
         }
-        output_ports = {
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        outputs:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+
+            2: AxisType(ChannelTag)
+
+        hidden:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+        """
+        return {
             "outputs": NeuralType(
                 {0: AxisType(TimeTag), 1: AxisType(BatchTag),
                  2: AxisType(ChannelTag)}
@@ -96,7 +141,6 @@ class EncoderRNN(TrainableNM):
             "hidden": NeuralType(
                 {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
-        return input_ports, output_ports
 
     def __init__(
             self, *,
@@ -150,9 +194,26 @@ class EncoderRNN(TrainableNM):
 
 
 class LuongAttnDecoderRNN(TrainableNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        targets:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+
+        encoder_outputs:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+
+            2: AxisType(ChannelTag)
+
+        max_target_len:
+            None
+        """
+        return {
             "targets": NeuralType(
                 {0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
             "encoder_outputs": NeuralType(
@@ -162,7 +223,22 @@ class LuongAttnDecoderRNN(TrainableNM):
             "max_target_len": NeuralType(None),
         }
 
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        outputs:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+
+            2: AxisType(ChannelTag)
+
+        hidden:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+        """
+        return {
             "outputs": NeuralType(
                 {0: AxisType(TimeTag), 1: AxisType(BatchTag),
                  2: AxisType(ChannelTag)}
@@ -170,7 +246,6 @@ class LuongAttnDecoderRNN(TrainableNM):
             "hidden": NeuralType(
                 {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
-        return input_ports, output_ports
 
     def __init__(
             self, *,
@@ -303,9 +378,28 @@ class LuongAttnDecoderRNN(TrainableNM):
 
 
 class MaskedXEntropyLoss(LossNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        predictions
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+
+            2: AxisType(ChannelTag)}
+
+        target:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+
+        mask:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+        """
+        return {
             "predictions": NeuralType(
                 {0: AxisType(TimeTag), 1: AxisType(BatchTag),
                  2: AxisType(ChannelTag)}
@@ -315,8 +409,15 @@ class MaskedXEntropyLoss(LossNM):
             "mask": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
         }
 
-        output_ports = {"loss": NeuralType(None)}
-        return input_ports, output_ports
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {
+            "loss": NeuralType(None)
+        }
 
     def __init__(self, **kwargs):
         LossNM.__init__(self, **kwargs)
@@ -337,15 +438,38 @@ class MaskedXEntropyLoss(LossNM):
 
 
 class GreedyLuongAttnDecoderRNN(TrainableNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        encoder_outputs:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "encoder_outputs": NeuralType(
                 {0: AxisType(TimeTag), 1: AxisType(BatchTag),
                  2: AxisType(ChannelTag)}
             )
         }
-        output_ports = {
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        outputs:
+            0: AxisType(TimeTag)
+
+            1: AxisType(BatchTag)
+
+        hidden:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+        """
+        return {
             "outputs": NeuralType(
                 {
                     0: AxisType(TimeTag),
@@ -356,7 +480,6 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
             "hidden": NeuralType(
                 {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
-        return input_ports, output_ports
 
     def __init__(
             self, *,
