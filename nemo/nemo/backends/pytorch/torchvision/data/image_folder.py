@@ -40,9 +40,9 @@ class ImageFolderDataLayer(DataLayerNM):
 
     def __init__(self, *, input_size=32, batch_size, path, shuffle=True,
                  is_eval=False, **kwargs):
-        self._input_size = input_size
         DataLayerNM.__init__(self, **kwargs)
 
+        self._input_size = input_size
         self._batch_size = batch_size
         self._shuffle = shuffle
         self._path = path

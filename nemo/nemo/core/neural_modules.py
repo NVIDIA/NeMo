@@ -4,7 +4,6 @@ __all__ = ['WeightShareTransform',
            'NeuralModule']
 
 
-import warnings
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from enum import Enum
@@ -87,7 +86,7 @@ class NeuralModule(ABC):
     @staticmethod
     def create_ports(**kwargs):
         """ Deprecated method, to be remoted in the next release."""
-        warnings.warn(
+        raise Exception(
             'Deprecated method. Please implement inputs and outputs \
                  properties to define module ports')
 
