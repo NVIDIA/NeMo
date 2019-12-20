@@ -38,7 +38,8 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
             beam search, default 40.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         "log_probs":
@@ -58,7 +59,8 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
             "log_probs_length": NeuralType({0: AxisType(BatchTag)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         predictions:

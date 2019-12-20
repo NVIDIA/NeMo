@@ -31,7 +31,8 @@ class GreedySearch(NonTrainableNM):
 
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         encoder_outputs:
@@ -49,7 +50,8 @@ class GreedySearch(NonTrainableNM):
             }, optional=True)
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         predictions:

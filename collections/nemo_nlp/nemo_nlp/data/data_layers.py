@@ -73,7 +73,8 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
                 the dataset that needs to be converted to DataLayerNM
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         input_ids:
@@ -150,7 +151,8 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
             the dataset that needs to be converted to DataLayerNM
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         input_ids:
@@ -261,7 +263,8 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
             the dataset that needs to be converted to DataLayerNM
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         input_ids:
@@ -339,7 +342,8 @@ class LanguageModelingDataLayer(TextDataLayer):
             segments of text when constructing batches
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         input_ids: indices of tokens which constitute batches of text segments
@@ -393,7 +397,8 @@ class LanguageModelingDataLayer(TextDataLayer):
 
 class BertTokenClassificationDataLayer(TextDataLayer):
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
             input_ids:
@@ -486,7 +491,8 @@ class BertTokenClassificationDataLayer(TextDataLayer):
 
 class BertTokenClassificationInferDataLayer(TextDataLayer):
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         input_ids:
@@ -554,7 +560,8 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
 
 class BertPunctuationCapitalizationDataLayer(TextDataLayer):
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         input_ids:
@@ -659,7 +666,8 @@ class BertPunctuationCapitalizationDataLayer(TextDataLayer):
 
 class BertPunctuationCapitalizationInferDataLayer(TextDataLayer):
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         input_ids:
@@ -740,7 +748,8 @@ class BertPretrainingDataLayer(TextDataLayer):
             Defualts to 0.1.
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         input_ids: indices of tokens which constitute batches of text segments
@@ -830,7 +839,8 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
             Defualts to 0.1.
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         input_ids: indices of tokens which constitute batches of text segments
@@ -977,7 +987,8 @@ class TranslationDataLayer(TextDataLayer):
             and should not be used in evaluation data layer
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         src_ids: indices of tokens which correspond to source sentences
@@ -1097,7 +1108,8 @@ class GlueDataLayerClassification(TextDataLayer):
                 the dataset that needs to be converted to DataLayerNM
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
             input_ids:
@@ -1173,7 +1185,8 @@ class GlueDataLayerRegression(TextDataLayer):
                 the dataset that needs to be converted to DataLayerNM
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
             input_ids:

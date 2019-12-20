@@ -28,7 +28,8 @@ class SimpleCombiner(TrainableNM):
 
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         x1:
@@ -42,7 +43,8 @@ class SimpleCombiner(TrainableNM):
             "x2": NeuralType({})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         combined:
@@ -71,7 +73,8 @@ class ArgMaxSimple(TrainableNM):  # Notice TWO base classes
     """
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         x:
@@ -86,7 +89,8 @@ class ArgMaxSimple(TrainableNM):  # Notice TWO base classes
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         values:
@@ -120,7 +124,8 @@ class TableLookUp(NeuralModule):
             ids2classes = {}
         self._ids2classes = ids2classes
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         indices:
@@ -133,7 +138,8 @@ class TableLookUp(NeuralModule):
                 {0: AxisType(TimeTag), 1: AxisType(BatchTag)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
             indices:
@@ -217,14 +223,16 @@ class TableLookUp2(NeuralModule):
     def unfreeze(self, weights: Set[str] = None):
         pass
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         """
         return {
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         classes:
@@ -267,7 +275,8 @@ class TableLookUp2(NeuralModule):
 
 class SequenceEmbedding(TrainableNM):
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         input_seq:
@@ -282,7 +291,8 @@ class SequenceEmbedding(TrainableNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         outputs:
@@ -319,7 +329,8 @@ class SequenceEmbedding(TrainableNM):
 
 class SequenceProjection(TrainableNM):
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         input_seq:
@@ -329,7 +340,8 @@ class SequenceProjection(TrainableNM):
             "input_seq": NeuralType({})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         outputs:
@@ -358,7 +370,8 @@ class SequenceProjection(TrainableNM):
 
 class ZerosLikeNM(TrainableNM):
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         input_type_ids:
@@ -373,7 +386,8 @@ class ZerosLikeNM(TrainableNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         input_type_ids:

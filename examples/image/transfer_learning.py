@@ -65,7 +65,7 @@ dl_train = neural_factory.get_module(
     name="ImageFolderDataLayer", collection="torchvision",
     params={"batch_size": batch_size,
             "input_size":
-                resnet.input_port_definitions()["x"].axis2type[2].dim,
+                resnet.inputs["x"].axis2type[2].dim,
             "shuffle": True,
             "path": "hymenoptera_data/train",
             })
@@ -74,7 +74,7 @@ dl_eval = neural_factory.get_module(
     name="ImageFolderDataLayer", collection="torchvision",
     params={"batch_size": batch_size,
             "input_size":
-                resnet.input_port_definitions()["x"].axis2type[2].dim,
+                resnet.inputs["x"].axis2type[2].dim,
             "shuffle": False,
             "path": "hymenoptera_data/val",
             })

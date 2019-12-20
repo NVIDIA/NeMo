@@ -35,7 +35,8 @@ class WaveGlowNM(TrainableNM):
             Defaults to 3
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         mel_spectrogram:
@@ -60,7 +61,8 @@ class WaveGlowNM(TrainableNM):
                 1: AxisType(TimeTag)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         audio:
@@ -73,7 +75,9 @@ class WaveGlowNM(TrainableNM):
 
         log_det_W_list:
             List?
+
         """
+        # TODO @blisc: please take a look at those definitions
         return {
             "audio": NeuralType({
                 0: AxisType(BatchTag),
@@ -153,7 +157,8 @@ class WaveGlowInferNM(WaveGlowNM):
             we sample z. Defaults to 0.6.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         mel_spectrogram:
@@ -170,7 +175,8 @@ class WaveGlowInferNM(WaveGlowNM):
                 2: AxisType(TimeTag)})
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         audio:
@@ -259,7 +265,8 @@ class WaveGlowLoss(LossNM):
             Defaults to 1.
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         z:
@@ -273,6 +280,7 @@ class WaveGlowLoss(LossNM):
         log_det_W_list:
             List?
         """
+        # TODO @blisc: please take a look at those definitions
         return {
             "z": NeuralType({
                 0: AxisType(BatchTag),
@@ -281,7 +289,8 @@ class WaveGlowLoss(LossNM):
             "log_det_W_list": NeuralType(),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:

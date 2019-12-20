@@ -86,11 +86,13 @@ class ZerosDataLayer(DataLayerNM):
         self._dataset = _ZeroDS(size=self._size, shapes=self._shapes,
                                 dtype=self._type)
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         return {
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         return self._output_ports
 
     def __len__(self):

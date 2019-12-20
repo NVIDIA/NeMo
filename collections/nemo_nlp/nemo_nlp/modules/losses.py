@@ -22,7 +22,8 @@ class MaskedLanguageModelingLossNM(LossNM):
         label_smoothing (float): label smoothing regularization coefficient
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         logits:
@@ -61,7 +62,8 @@ class MaskedLanguageModelingLossNM(LossNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -88,7 +90,8 @@ class LossAggregatorNM(LossNM):
         num_inputs (int): number of input losses
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         """
@@ -98,7 +101,8 @@ class LossAggregatorNM(LossNM):
 
         return input_ports
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -134,7 +138,8 @@ class TokenClassificationLoss(LossNM):
         loss_mask (long): to differentiate from original tokens and paddings
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         logits:
@@ -170,7 +175,8 @@ class TokenClassificationLoss(LossNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -219,7 +225,8 @@ class JointIntentSlotLoss(LossNM):
 
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         intent_logits:
@@ -271,7 +278,8 @@ class JointIntentSlotLoss(LossNM):
             }),
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:
@@ -343,7 +351,8 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
             calculation, important for fast evaluation of LM perplexity
     """
 
-    def input_port_definitions(self):
+    @property
+    def inputs(self):
         """Returns definitions of module input ports.
 
         logits:
@@ -372,7 +381,8 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
             })
         }
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         loss:

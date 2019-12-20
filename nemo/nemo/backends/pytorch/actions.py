@@ -172,7 +172,7 @@ class PtActions(Actions):
             if node not in all_nodes:
                 all_nodes[node] = {
                     k: None for k in
-                    nmtensor.producer.output_port_definitions()}
+                    nmtensor.producer.outputs}
             # second, populate output port with current nmtensor
             # where applicable
             all_nodes[node][nmtensor.name] = nmtensor
@@ -1054,8 +1054,8 @@ class PtActions(Actions):
             raise FileExistsError(f"Destination {output} already exists. "
                                   f"Aborting export.")
 
-        input_names = list(module.input_port_definitions().keys())
-        output_names = list(module.output_port_definitions().keys())
+        input_names = list(module.inputs.keys())
+        output_names = list(module.outputs.keys())
         dynamic_axes = defaultdict(list)
 
         def __extract_dynamic_axes(port_name: str, ntype: NeuralType,
@@ -1066,10 +1066,10 @@ class PtActions(Actions):
                             axistype.semantics, TimeTag):
                         dynamic_axes[port_name].append(axis_id)
         # for input_ports
-        for port_name, ntype in module.input_port_definitions().items():
+        for port_name, ntype in module.inputs.items():
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)
         # for output_ports
-        for port_name, ntype in module.output_port_definitions().items():
+        for port_name, ntype in module.outputs.items():
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)
         if len(dynamic_axes) == 0:
             dynamic_axes = None

@@ -44,7 +44,8 @@ class AudioDataLayer(DataLayerNM):
             Defaults to 0 which indicates to load the whole file.
     """
 
-    def output_port_definitions(self):
+    @property
+    def outputs(self):
         """Returns definitions of module output ports.
 
         audio_signal:
