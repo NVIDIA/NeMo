@@ -147,7 +147,7 @@
 
     class ImageFolderDataLayer(DataLayerNM):
         @property
-        def output_ports(size):
+        def output_ports(self):
             # 注意，我们会定义输出的高和宽
             # 因此需要一个size参数
             return {
@@ -155,8 +155,8 @@
                     {
                         0: AxisType(BatchTag),
                         1: AxisType(ChannelTag),
-                        2: AxisType(HeightTag, size),
-                        3: AxisType(WidthTag, size),
+                        2: AxisType(HeightTag, self._input_size),
+                        3: AxisType(WidthTag, self._input_size),
                     }
                 ),
                 "label": NeuralType({0: AxisType(BatchTag)}),
