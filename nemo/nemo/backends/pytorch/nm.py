@@ -23,8 +23,6 @@ class TrainableNM(NeuralModule, nn.Module):
 
       def __init__(self, **kwargs):
         TrainableNM.__init__(self, **kwargs)
-        self._input_ports = {..}
-        self._output_ports = {..}
         .... # you code
 
     Then make sure that your forward(..) method accepts arguments named like
