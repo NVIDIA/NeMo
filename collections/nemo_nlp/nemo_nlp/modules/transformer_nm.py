@@ -381,13 +381,13 @@ class BeamSearchTranslatorNM(TrainableNM):
             1: AxisType(TimeTag)
         """
         return {
-            "logits":
+            "hidden_states_src":
             NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag)
             }),
-            "target_ids":
+            "input_mask_src":
             NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
