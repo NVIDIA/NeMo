@@ -115,7 +115,7 @@ class BertSentenceClassificationDataset(Dataset):
 
         return (np.array(feature.input_ids),
                 np.array(feature.segment_ids),
-                np.array(feature.input_mask, dtype=np.float32),
+                np.array(feature.input_mask, dtype=np.long),
                 feature.sent_label)
 
     def convert_sequences_to_features(self,

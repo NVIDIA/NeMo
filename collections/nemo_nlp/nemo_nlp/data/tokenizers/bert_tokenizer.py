@@ -1,5 +1,5 @@
 from .tokenizer_spec import TokenizerSpec
-from pytorch_transformers import BertTokenizer
+from transformers import BertTokenizer
 import re
 
 

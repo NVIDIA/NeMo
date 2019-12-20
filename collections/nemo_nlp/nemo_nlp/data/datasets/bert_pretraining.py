@@ -249,7 +249,7 @@ class BertPretrainingDataset(Dataset):
 
         input_ids, output_mask = self.mask_ids(output_ids)
 
-        input_mask = np.zeros(self.max_seq_length, dtype=np.float32)
+        input_mask = np.zeros(self.max_seq_length, dtype=np.long)
         input_mask[:len(input_ids)] = 1
 
         input_type_ids = np.zeros(self.max_seq_length, dtype=np.int)
@@ -263,7 +263,7 @@ class BertPretrainingDataset(Dataset):
 
         # TODO: wrap the return value with () for consistent style.
         return np.array(input_ids), input_type_ids,\
-            np.array(input_mask, dtype=np.float32), np.array(output_ids),\
+            np.array(input_mask, dtype=np.long), np.array(output_ids),\
             np.array(output_mask, dtype=np.float32), is_next
 
     def mask_ids(self, ids):
