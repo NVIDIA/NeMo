@@ -117,7 +117,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         input_signal:
@@ -137,7 +137,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         processed_signal:
@@ -282,7 +282,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         input_signal:
@@ -302,7 +302,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         processed_signal:
@@ -438,7 +438,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         input_signal:
@@ -458,7 +458,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         processed_signal:
@@ -586,7 +586,7 @@ class SpectrogramAugmentation(NonTrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         input_spec:
@@ -604,7 +604,7 @@ class SpectrogramAugmentation(NonTrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         augmented_spec:
@@ -675,7 +675,7 @@ class MultiplyBatch(NonTrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         in_x:
@@ -711,7 +711,7 @@ class MultiplyBatch(NonTrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         out_x:

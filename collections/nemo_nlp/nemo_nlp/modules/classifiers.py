@@ -33,7 +33,7 @@ class BertTokenClassifier(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         hidden_states:
@@ -52,7 +52,7 @@ class BertTokenClassifier(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         logits:
@@ -120,7 +120,7 @@ class TokenClassifier(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         hidden_states:
@@ -139,7 +139,7 @@ class TokenClassifier(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         logits:
@@ -210,7 +210,7 @@ class SequenceClassifier(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         hidden_states:
@@ -229,7 +229,7 @@ class SequenceClassifier(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         logits:
@@ -285,7 +285,7 @@ class JointIntentSlotClassifier(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         hidden_states:
@@ -304,7 +304,7 @@ class JointIntentSlotClassifier(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         intent_logits:
@@ -378,7 +378,7 @@ class SequenceRegression(TrainableNM):
     """
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """Returns definitions of module input ports.
 
         hidden_states:
@@ -397,7 +397,7 @@ class SequenceRegression(TrainableNM):
         }
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         preds:

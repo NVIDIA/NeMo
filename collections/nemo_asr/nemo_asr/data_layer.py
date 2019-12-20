@@ -78,7 +78,7 @@ transcript_n}
     """
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         audio_signal:
@@ -217,7 +217,7 @@ class KaldiFeatureDataLayer(DataLayerNM):
     """
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         processed_signal:
@@ -362,7 +362,7 @@ class TranscriptDataLayer(DataLayerNM):
     """
 
     @property
-    def outputs(self):
+    def output_ports(self):
         """Returns definitions of module output ports.
 
         texts:

@@ -86,7 +86,6 @@ def plot_confusion_matrix(label_ids,
                           graph_fold,
                           normalize=False,
                           prefix=''):
-
     '''
     Plot confusion matrix.
     Args:

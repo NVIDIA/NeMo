@@ -200,7 +200,7 @@ class DataLayerNM(NeuralModule):
         self._device = get_cuda_device(self.placement)
 
     @property
-    def inputs(self):
+    def input_ports(self):
         """DataLayer by definition does not have any input ports.
 
             Returns:
