@@ -683,9 +683,9 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
             [np.stack(x, axis=0) for x in components]
         src_ids = torch.Tensor(src_ids).long().to(self._device)
         src_segment_ids = torch.Tensor(src_segment_ids).long().to(self._device)
-        src_mask = torch.Tensor(src_mask).float().to(self._device)
+        src_mask = torch.Tensor(src_mask).long().to(self._device)
         tgt_ids = torch.Tensor(tgt_ids).long().to(self._device)
-        tgt_mask = torch.Tensor(tgt_mask).float().to(self._device)
+        tgt_mask = torch.Tensor(tgt_mask).long().to(self._device)
         sent_ids = torch.Tensor(sent_ids).long().to(self._device)
         return src_ids, src_segment_ids, src_mask, tgt_ids, tgt_mask, sent_ids
 
