@@ -73,9 +73,29 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
                 the dataset that needs to be converted to DataLayerNM
     """
 
-    @staticmethod
-    def create_ports():
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        input_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_type_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        labels:
+            0: AxisType(BatchTag)
+
+        """
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -92,7 +112,6 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
                 0: AxisType(BatchTag),
             }),
         }
-        return {}, output_ports
 
     def __init__(self,
                  input_file,
@@ -131,9 +150,43 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
             the dataset that needs to be converted to DataLayerNM
     """
 
-    @staticmethod
-    def create_ports():
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        input_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_type_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        loss_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        subtokens_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        intents:
+            0: AxisType(BatchTag)
+
+        slots:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -162,7 +215,6 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
                 1: AxisType(TimeTag)
             }),
         }
-        return {}, output_ports
 
     def __init__(self,
                  input_file,
@@ -209,9 +261,36 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
             the dataset that needs to be converted to DataLayerNM
     """
 
-    @staticmethod
-    def create_ports():
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        input_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_type_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        loss_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        subtokens_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        """
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -233,7 +312,6 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
                 1: AxisType(TimeTag)
             }),
         }
-        return {}, output_ports
 
     def __init__(self,
                  queries,
@@ -261,17 +339,27 @@ class LanguageModelingDataLayer(TextDataLayer):
             segments of text when constructing batches
     """
 
-    @staticmethod
-    def create_ports():
-        """
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
         input_ids: indices of tokens which constitute batches of text segments
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         input_mask: bool tensor with 0s in place of tokens to be masked
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         labels: indices of tokens which should be predicted from each of the
             corresponding tokens in input_ids; for left-to-right language
             modeling equals to input_ids shifted by 1 to the right
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
         """
-        input_ports = {}
-        output_ports = {
+        return {
             "input_ids":
             NeuralType({
                 0: AxisType(BatchTag),
@@ -289,8 +377,6 @@ class LanguageModelingDataLayer(TextDataLayer):
             })
         }
 
-        return input_ports, output_ports
-
     def __init__(self,
                  dataset,
                  tokenizer,
@@ -306,10 +392,41 @@ class LanguageModelingDataLayer(TextDataLayer):
 
 
 class BertTokenClassificationDataLayer(TextDataLayer):
-    @staticmethod
-    def create_ports():
-        input_ports = {}
-        output_ports = {
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+            input_ids:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            input_type_ids:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            input_mask:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            loss_mask:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            subtokens_mask:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            labels:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+        """
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -335,7 +452,6 @@ class BertTokenClassificationDataLayer(TextDataLayer):
                 1: AxisType(TimeTag)
             })
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  text_file,
@@ -369,10 +485,37 @@ class BertTokenClassificationDataLayer(TextDataLayer):
 
 
 class BertTokenClassificationInferDataLayer(TextDataLayer):
-    @staticmethod
-    def create_ports():
-        input_ports = {}
-        output_ports = {
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        input_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_type_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        loss_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        subtokens_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        """
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -394,7 +537,6 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
                 1: AxisType(TimeTag)
             })
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  queries,
@@ -411,10 +553,47 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
 
 
 class BertPunctuationCapitalizationDataLayer(TextDataLayer):
-    @staticmethod
-    def create_ports():
-        input_ports = {}
-        output_ports = {
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        input_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_type_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        loss_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        subtokens_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        punct_labels:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        capit_labels:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        """
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -444,7 +623,6 @@ class BertPunctuationCapitalizationDataLayer(TextDataLayer):
                 1: AxisType(TimeTag)
             })
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  text_file,
@@ -480,10 +658,37 @@ class BertPunctuationCapitalizationDataLayer(TextDataLayer):
 
 
 class BertPunctuationCapitalizationInferDataLayer(TextDataLayer):
-    @staticmethod
-    def create_ports():
-        input_ports = {}
-        output_ports = {
+
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        input_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_type_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        loss_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        subtokens_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        """
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -505,7 +710,6 @@ class BertPunctuationCapitalizationInferDataLayer(TextDataLayer):
                 1: AxisType(TimeTag)
             })
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  queries,
@@ -536,20 +740,41 @@ class BertPretrainingDataLayer(TextDataLayer):
             Defualts to 0.1.
     """
 
-    @staticmethod
-    def create_ports():
-        """
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
         input_ids: indices of tokens which constitute batches of text segments
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         input_type_ids: indices of token types (e.g., sentences A & B in BERT)
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         input_mask: bool tensor with 0s in place of tokens to be masked
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         output_ids: indices of output tokens which should be predicted
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         output_mask: bool tensor with 0s in place of tokens to be excluded
             from loss calculation
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         labels: indices of classes to be predicted from [CLS] token of text
             segments (e.g, 0 or 1 in next sentence prediction task)
+            0: AxisType(BatchTag)
+
         """
-        input_ports = {}
-        output_ports = {
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -572,8 +797,6 @@ class BertPretrainingDataLayer(TextDataLayer):
             }),
             "labels": NeuralType({0: AxisType(BatchTag)}),
         }
-
-        return input_ports, output_ports
 
     def __init__(self,
                  tokenizer,
@@ -607,20 +830,41 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
             Defualts to 0.1.
     """
 
-    @staticmethod
-    def create_ports():
-        """
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
         input_ids: indices of tokens which constitute batches of text segments
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         input_type_ids: indices of token types (e.g., sentences A & B in BERT)
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         input_mask: bool tensor with 0s in place of tokens to be masked
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         output_ids: indices of output tokens which should be predicted
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         output_mask: bool tensor with 0s in place of tokens to be excluded
             from loss calculation
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         labels: indices of classes to be predicted from [CLS] token of text
             segments (e.g, 0 or 1 in next sentence prediction task)
+            0: AxisType(BatchTag)
+
         """
-        input_ports = {}
-        output_ports = {
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -643,8 +887,6 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
             }),
             "labels": NeuralType({0: AxisType(BatchTag)}),
         }
-
-        return input_ports, output_ports
 
     def __init__(self,
                  dataset,
@@ -704,15 +946,15 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
             for f_id in range(self.num_files):
                 data_file = self.files[f_id]
                 train_data = BertPretrainingPreprocessedDataset(
-                                input_file=data_file,
-                                max_pred_length=self.max_pred_length)
+                    input_file=data_file,
+                    max_pred_length=self.max_pred_length)
                 train_sampler = pt_data.RandomSampler(train_data)
                 train_dataloader = pt_data.DataLoader(
-                                    dataset=train_data,
-                                    batch_size=self.batch_size,
-                                    collate_fn=self._collate_fn,
-                                    shuffle=train_sampler is None,
-                                    sampler=train_sampler)
+                    dataset=train_data,
+                    batch_size=self.batch_size,
+                    collate_fn=self._collate_fn,
+                    shuffle=train_sampler is None,
+                    sampler=train_sampler)
                 for x in train_dataloader:
                     yield x
 
@@ -735,21 +977,42 @@ class TranslationDataLayer(TextDataLayer):
             and should not be used in evaluation data layer
     """
 
-    @staticmethod
-    def create_ports():
-        """
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
         src_ids: indices of tokens which correspond to source sentences
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         src_mask: bool tensor with 0s in place of source tokens to be masked
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         tgt_ids: indices of tokens which correspond to target sentences
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         tgt_mask: bool tensor with 0s in place of target tokens to be masked
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         labels: indices of tokens which should be predicted from each of the
             corresponding target tokens in tgt_ids; for standard neural
             machine translation equals to tgt_ids shifted by 1 to the right
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
         sent_ids: indices of the sentences in a batch; important for
             evaluation with external metrics, such as SacreBLEU
+            0: AxisType(BatchTag)
+
         """
-        input_ports = {}
-        output_ports = {
+        return {
             "src_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -774,8 +1037,6 @@ class TranslationDataLayer(TextDataLayer):
                 0: AxisType(BatchTag)
             })
         }
-
-        return input_ports, output_ports
 
     def __init__(self,
                  tokenizer_src,
@@ -836,9 +1097,28 @@ class GlueDataLayerClassification(TextDataLayer):
                 the dataset that needs to be converted to DataLayerNM
     """
 
-    @staticmethod
-    def create_ports():
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+            input_ids:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            input_type_ids:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            input_mask:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            labels:
+                0: AxisType(CategoricalTag)
+        """
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -855,7 +1135,6 @@ class GlueDataLayerClassification(TextDataLayer):
                 0: AxisType(CategoricalTag),
             }),
         }
-        return {}, output_ports
 
     def __init__(self,
                  data_dir,
@@ -894,9 +1173,28 @@ class GlueDataLayerRegression(TextDataLayer):
                 the dataset that needs to be converted to DataLayerNM
     """
 
-    @staticmethod
-    def create_ports():
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+            input_ids:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            input_type_ids:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            input_mask:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            labels:
+                0: AxisType(RegressionTag)
+        """
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -913,7 +1211,6 @@ class GlueDataLayerRegression(TextDataLayer):
                 0: AxisType(RegressionTag),
             }),
         }
-        return {}, output_ports
 
     def __init__(self,
                  data_dir,
