@@ -9,10 +9,23 @@ class ImageFolderDataLayer(DataLayerNM):
     """This class wraps Torchvision's ImageFolder data set API into
     NeuralModule."""
 
-    @staticmethod
-    def create_ports(input_size=32):
-        input_ports = {}
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        image:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+
+            2: AxisType(HeightTag, input_size)
+
+            3: AxisType(WidthTag, input_size)
+
+
+        label:
+            0: AxisType(BatchTag)
+        """
+        return {
             "image": NeuralType(
                 {
                     0: AxisType(BatchTag),
@@ -23,16 +36,14 @@ class ImageFolderDataLayer(DataLayerNM):
             ),
             "label": NeuralType({0: AxisType(BatchTag)}),
         }
-        return input_ports, output_ports
 
-    def __init__(self, *, input_size, batch_size, path, shuffle=True,
+    def __init__(self, *, input_size=32, batch_size, path, shuffle=True,
                  is_eval=False, **kwargs):
         self._input_size = input_size
-        create_port_args = {"input_size": self._input_size}
-        DataLayerNM.__init__(self, create_port_args=create_port_args, **kwargs)
+        DataLayerNM.__init__(self, **kwargs)
 
         self._batch_size = batch_size
-        self._shuffle = shuffl
+        self._shuffle = shuffle
         self._path = path
         self._eval = is_eval
 
