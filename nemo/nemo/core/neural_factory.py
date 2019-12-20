@@ -651,11 +651,14 @@ class NeuralModuleFactory(object):
         # Custom hacks
         # We are checking type like this to avoid taking dependency on nemo_asr
         if type(module).__name__ == "JasperEncoder":
-            self.logger.warning(f"Module is JasperEncoder. We are removing"
-                                f"input and output length ports since they "
-                                f"are not needed for deployment")
-            del module._input_ports['length']
-            del module._output_ports['encoded_lengths']
+            # TK: Commenting this as this is not the way it works now.
+            # Not sure what are the consequences...
+
+            # self.logger.warning(f"Module is JasperEncoder. We are removing"
+            #                    f"input and output length ports since they "
+            #                    f"are not needed for deployment")
+            #del module._input_ports['length']
+            #del module._output_ports['encoded_lengths']
 
             # disable masked convolutions
             m_count = 0
