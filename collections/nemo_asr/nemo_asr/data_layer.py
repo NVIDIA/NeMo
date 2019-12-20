@@ -15,7 +15,7 @@ from nemo.core import DeviceType
 from nemo.core.neural_types import *
 from nemo.utils.misc import pad_to
 from .parts.dataset import (
-        AudioDataset, seq_collate_fn, KaldiFeatureDataset, TranscriptDataset)
+    AudioDataset, seq_collate_fn, KaldiFeatureDataset, TranscriptDataset)
 from .parts.features import WaveformFeaturizer
 
 
@@ -77,10 +77,27 @@ transcript_n}
         perturb_config (dict): Currently disabled.
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {}
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        audio_signal:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        a_sig_length:
+            0: AxisType(BatchTag)
+
+        transcripts:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        transcript_length:
+            0: AxisType(BatchTag)
+
+        """
+        return {
             "audio_signal": NeuralType({0: AxisType(BatchTag),
                                         1: AxisType(TimeTag)}),
 
@@ -91,7 +108,6 @@ transcript_n}
 
             "transcript_length": NeuralType({0: AxisType(BatchTag)})
         }
-        return input_ports, output_ports
 
     def __init__(
             self, *,
@@ -199,10 +215,29 @@ class KaldiFeatureDataLayer(DataLayerNM):
         num_workers (int): See PyTorch DataLoader. Defaults to 0.
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {}
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        processed_signal:
+            0: AxisType(BatchTag)
+
+            1: AxisType(SpectrogramSignalTag)
+
+            2: AxisType(ProcessedTimeTag)
+
+        processed_length:
+            0: AxisType(BatchTag)
+
+        transcripts: 
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        transcript_length: 
+            0: AxisType(BatchTag)
+
+        """
+        return {
             "processed_signal": NeuralType({0: AxisType(BatchTag),
                                             1: AxisType(SpectrogramSignalTag),
                                             2: AxisType(ProcessedTimeTag)}),
@@ -214,7 +249,6 @@ class KaldiFeatureDataLayer(DataLayerNM):
 
             "transcript_length": NeuralType({0: AxisType(BatchTag)})
         }
-        return input_ports, output_ports
 
     def __init__(
             self, *,
@@ -325,10 +359,19 @@ class TranscriptDataLayer(DataLayerNM):
             Defaults to 0.
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {}
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        texts:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        texts_length:
+            0: AxisType(BatchTag)
+
+        """
+        return {
             'texts': NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -336,7 +379,6 @@ class TranscriptDataLayer(DataLayerNM):
 
             "texts_length": NeuralType({0: AxisType(BatchTag)})
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  path,
@@ -362,7 +404,7 @@ class TranscriptDataLayer(DataLayerNM):
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
             sampler = torch.utils.data.distributed.DistributedSampler(
-                    self._dataset)
+                self._dataset)
         else:
             sampler = None
 
