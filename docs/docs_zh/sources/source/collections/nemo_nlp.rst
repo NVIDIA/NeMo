@@ -7,7 +7,7 @@ NLP 数据处理模块
     :members:
     :undoc-members:
     :show-inheritance:
-    :exclude-members: forward, create_ports
+    :exclude-members: forward
 
 NLP 分词器
 --------------
@@ -54,27 +54,27 @@ NLP 神经模块
    :members:
    :undoc-members:
    :show-inheritance:
-   :exclude-members: forward, create_ports
+   :exclude-members: forward
 
 
 .. automodule:: nemo_nlp.modules.losses
    :members:
    :undoc-members:
    :show-inheritance:
-   :exclude-members: forward, create_ports
+   :exclude-members: forward
 
 
 .. automodule:: nemo_nlp.modules.pytorch_utils
    :members:
    :undoc-members:
    :show-inheritance:
-   :exclude-members: forward, create_ports
+   :exclude-members: forward
 
 .. automodule:: nemo_nlp.modules.transformer_nm
    :members:
    :undoc-members:
    :show-inheritance:
-   :exclude-members: forward, create_ports
+   :exclude-members: forward
 
 NLP Hugging Face 神经模块
 -------------------------------
@@ -83,4 +83,4 @@ NLP Hugging Face 神经模块
    :members:
    :undoc-members:
    :show-inheritance:
-   :exclude-members: forward, create_ports
+   :exclude-members: forward

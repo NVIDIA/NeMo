@@ -7,7 +7,7 @@ NLP data processing modules
     :members:
     :undoc-members:
     :show-inheritance:
-    :exclude-members: forward, create_ports
+    :exclude-members: forward
 
 NLP Tokenizers
 --------------
@@ -54,27 +54,27 @@ NLP Neural Modules
    :members:
    :undoc-members:
    :show-inheritance:
-   :exclude-members: forward, create_ports
+   :exclude-members: forward
 
 
 .. automodule:: nemo_nlp.modules.losses
    :members:
    :undoc-members:
    :show-inheritance:
-   :exclude-members: forward, create_ports
+   :exclude-members: forward
 
 
 .. automodule:: nemo_nlp.modules.pytorch_utils
    :members:
    :undoc-members:
    :show-inheritance:
-   :exclude-members: forward, create_ports
+   :exclude-members: forward
 
 .. automodule:: nemo_nlp.modules.transformer_nm
    :members:
    :undoc-members:
    :show-inheritance:
-   :exclude-members: forward, create_ports
+   :exclude-members: forward
 
 NLP Hugging Face Neural Modules
 -------------------------------
@@ -83,4 +83,4 @@ NLP Hugging Face Neural Modules
    :members:
    :undoc-members:
    :show-inheritance:
-   :exclude-members: forward, create_ports
+   :exclude-members: forward
