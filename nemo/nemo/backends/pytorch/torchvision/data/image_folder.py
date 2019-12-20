@@ -31,8 +31,8 @@ class ImageFolderDataLayer(DataLayerNM):
                 {
                     0: AxisType(BatchTag),
                     1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, input_size),
-                    3: AxisType(WidthTag, input_size),
+                    2: AxisType(HeightTag, self._input_size),
+                    3: AxisType(WidthTag, self._input_size),
                 }
             ),
             "label": NeuralType({0: AxisType(BatchTag)}),
