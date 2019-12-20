@@ -58,7 +58,7 @@ This will tokenize text following the mapping of the original BERT model.
 
     .. code-block:: python
 
-        from pytorch_transformers import BertTokenizer
+        from transformers import BertTokenizer
         hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
         tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
