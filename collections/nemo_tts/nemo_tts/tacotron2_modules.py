@@ -21,19 +21,37 @@ class TextEmbedding(TrainableNM):
         symbols_embedding_dim (int): The size of the embedding dimension.
             Defaults to 512.
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "char_phone": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(TimeTag)})
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        char_phone
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
+            "char_phone": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)})
         }
 
-        output_ports = {
-            "char_phone_embeddings": NeuralType({0: AxisType(BatchTag),
-                                                 1: AxisType(EmbeddedTextTag),
-                                                 2: AxisType(TimeTag)})
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        char_phone_embeddings:
+            0: AxisType(BatchTag)
+
+            1: AxisType(EmbeddedTextTag)
+
+            2: AxisType(TimeTag)})
+        """
+        return {
+            "char_phone_embeddings": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(EmbeddedTextTag),
+                2: AxisType(TimeTag)})
         }
-        return input_ports, output_ports
 
     def __init__(self, n_symbols, symbols_embedding_dim: int = 512, **kwargs):
         super().__init__(**kwargs)
@@ -59,22 +77,45 @@ class Tacotron2Encoder(TrainableNM):
         encoder_kernel_size (int): The kernel size of the convolution layers.
             Defaults to 3
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "char_phone_embeddings": NeuralType({0: AxisType(BatchTag),
-                                                 1: AxisType(EmbeddedTextTag),
-                                                 2: AxisType(TimeTag)}),
-            "embedding_length": NeuralType({0: AxisType(BatchTag)})
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        char_phone_embeddings:
+            0: AxisType(BatchTag)
+
+            1: AxisType(EmbeddedTextTag)
+
+            2: AxisType(TimeTag)
+
+        embedding_length:
+            0: AxisType(BatchTag)
+        """
+        return {
+            "char_phone_embeddings": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(EmbeddedTextTag),
+                2: AxisType(TimeTag)}),
+            "embedding_length": NeuralType({
+                0: AxisType(BatchTag)})
         }
 
-        output_ports = {
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        char_phone_embeddings:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(EncodedRepresentationTag)})
+        """
+        return {
             "char_phone_encoded": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(EncodedRepresentationTag)})
         }
-        return input_ports, output_ports
 
     def __init__(
             self,
@@ -131,30 +172,75 @@ class Tacotron2Decoder(TrainableNM):
             convolution for the location part of the attention mechanism.
             Defaults to 31.
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        char_phone_encoded:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(EncodedRepresentationTag)
+
+        encoded_length:
+            0: AxisType(BatchTag)
+
+        mel_target:
+            0: AxisType(BatchTag)
+
+            1: AxisType(MelSpectrogramSignalTag)
+
+            2: AxisType(TimeTag)
+        """
+        return {
             "char_phone_encoded": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(EncodedRepresentationTag)}),
-            "encoded_length": NeuralType({0: AxisType(BatchTag)}),
-            "mel_target": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(MelSpectrogramSignalTag),
-                                      2: AxisType(TimeTag)})
+            "encoded_length": NeuralType({
+                0: AxisType(BatchTag)}),
+            "mel_target": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(MelSpectrogramSignalTag),
+                2: AxisType(TimeTag)})
         }
 
-        output_ports = {
-            "mel_output": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(MelSpectrogramSignalTag),
-                                      2: AxisType(TimeTag)}),
-            "gate_output": NeuralType({0: AxisType(BatchTag),
-                                       1: AxisType(TimeTag)}),
-            "alignments": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(TimeTag),
-                                      2: AxisType(TimeTag)})
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        mel_output:
+            0: AxisType(BatchTag)
+
+            1: AxisType(MelSpectrogramSignalTag)
+
+            2: AxisType(TimeTag)
+
+        gate_output:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        alignments:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(TimeTag)
+        """
+        return {
+            "mel_output": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(MelSpectrogramSignalTag),
+                2: AxisType(TimeTag)}),
+            "gate_output": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)}),
+            "alignments": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(TimeTag)})
         }
-        return input_ports, output_ports
 
     def __init__(
             self,
@@ -237,28 +323,69 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
             convolution for the location part of the attention mechanism.
             Defaults to 31.
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        char_phone_encoded:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(EncodedRepresentationTag)
+
+        encoded_length:
+            0: AxisType(BatchTag)
+        """
+        return {
             "char_phone_encoded": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(EncodedRepresentationTag)}),
-            "encoded_length": NeuralType({0: AxisType(BatchTag)})
+            "encoded_length": NeuralType({
+                0: AxisType(BatchTag)})
         }
 
-        output_ports = {
-            "mel_output": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(MelSpectrogramSignalTag),
-                                      2: AxisType(TimeTag)}),
-            "gate_output": NeuralType({0: AxisType(BatchTag),
-                                       1: AxisType(TimeTag)}),
-            "alignments": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(TimeTag),
-                                      2: AxisType(TimeTag)}),
-            "mel_len": NeuralType({0: AxisType(BatchTag)})
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        mel_output:
+            0: AxisType(BatchTag)
+
+            1: AxisType(MelSpectrogramSignalTag)
+
+            2: AxisType(TimeTag)
+
+        gate_output:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        alignments:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(TimeTag)
+
+        mel_len:
+            0: AxisType(BatchTag)
+        """
+        return {
+            "mel_output": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(MelSpectrogramSignalTag),
+                2: AxisType(TimeTag)}),
+            "gate_output": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)}),
+            "alignments": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(TimeTag)}),
+            "mel_len": NeuralType({
+                0: AxisType(BatchTag)})
         }
-        return input_ports, output_ports
 
     def __str__(self):
         return "Tacotron2Decoder"
@@ -288,20 +415,42 @@ class Tacotron2Postnet(TrainableNM):
         postnet_n_convolutions (int): Number of convolution layers.
             Defaults to 5.
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "mel_input": NeuralType({0: AxisType(BatchTag),
-                                     1: AxisType(MelSpectrogramSignalTag),
-                                     2: AxisType(TimeTag)}),
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        mel_input:
+            0: AxisType(BatchTag)
+
+            1: AxisType(MelSpectrogramSignalTag)
+
+            2: AxisType(TimeTag)
+        """
+        return {
+            "mel_input": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(MelSpectrogramSignalTag),
+                2: AxisType(TimeTag),
+            })
         }
 
-        output_ports = {
-            "mel_output": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(MelSpectrogramSignalTag),
-                                      2: AxisType(TimeTag)}),
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        mel_output:
+            0: AxisType(BatchTag)
+
+            1: AxisType(MelSpectrogramSignalTag)
+
+            2: AxisType(TimeTag)
+        """
+        return {
+            "mel_output": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(MelSpectrogramSignalTag),
+                2: AxisType(TimeTag)
+            }),
         }
-        return input_ports, output_ports
 
     def __init__(
             self,
@@ -337,29 +486,81 @@ class Tacotron2Loss(LossNM):
             forcing, if the generated mel is shorter than the reference mel,
             we pad the generated mel with this value. Default is ~log(1e-5).
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "mel_out": NeuralType({0: AxisType(BatchTag),
-                                   1: AxisType(MelSpectrogramSignalTag),
-                                   2: AxisType(TimeTag)}),
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        mel_out:
+            0: AxisType(BatchTag)
+
+            1: AxisType(MelSpectrogramSignalTag)
+
+            2: AxisType(TimeTag)
+
+        mel_out_postnet:
+            0: AxisType(BatchTag)
+
+            1: AxisType(MelSpectrogramSignalTag)
+
+            2: AxisType(TimeTag)
+
+        gate_out:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        mel_target:
+            0: AxisType(BatchTag)
+
+            1: AxisType(MelSpectrogramSignalTag)
+
+            2: AxisType(TimeTag)
+
+        gate_target:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        target_len:
+            0: AxisType(BatchTag)
+
+        seq_len:
+            0: AxisType(BatchTag)
+        """
+        return {
+            "mel_out": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(MelSpectrogramSignalTag),
+                2: AxisType(TimeTag)}),
             "mel_out_postnet": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(MelSpectrogramSignalTag),
                 2: AxisType(TimeTag)}),
-            "gate_out": NeuralType({0: AxisType(BatchTag),
-                                    1: AxisType(TimeTag)}),
-            "mel_target": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(MelSpectrogramSignalTag),
-                                      2: AxisType(TimeTag)}),
-            "gate_target": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(TimeTag)}),
-            "target_len": NeuralType({0: AxisType(BatchTag)}),
-            "seq_len": NeuralType({0: AxisType(BatchTag)}),
+            "gate_out": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)}),
+            "mel_target": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(MelSpectrogramSignalTag),
+                2: AxisType(TimeTag)}),
+            "gate_target": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)}),
+            "target_len": NeuralType({
+                0: AxisType(BatchTag)}),
+            "seq_len": NeuralType({
+                0: AxisType(BatchTag)}),
         }
 
-        output_ports = {"loss": NeuralType(None)}
-        return input_ports, output_ports
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {
+            "loss": NeuralType(None)
+        }
 
     def __init__(self, pad_value: float = -11.52, **kwargs):
         super().__init__(**kwargs)
@@ -408,20 +609,42 @@ class Tacotron2Loss(LossNM):
 class MakeGate(NonTrainableNM):
     """MakeGate is a helper Neural Module that makes the target stop value.
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "target_len": NeuralType({0: AxisType(BatchTag)}),
-            "mel_target": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(MelSpectrogramSignalTag),
-                                      2: AxisType(TimeTag)}),
+
+    def input_port_definitions(self):
+        """Returns definitions of module input ports.
+
+        target_len:
+            0: AxisType(BatchTag)
+
+        mel_target:
+            0: AxisType(BatchTag)
+
+            1: AxisType(MelSpectrogramSignalTag)
+
+            2: AxisType(TimeTag)
+        """
+        return {
+            "target_len": NeuralType({
+                0: AxisType(BatchTag)}),
+            "mel_target": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(MelSpectrogramSignalTag),
+                2: AxisType(TimeTag)}),
         }
 
-        output_ports = {
-            "gate_target": NeuralType({0: AxisType(BatchTag),
-                                       1: AxisType(TimeTag)})
+    def output_port_definitions(self):
+        """Returns definitions of module output ports.
+
+        gate_target:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
+            "gate_target": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)})
         }
-        return input_ports, output_ports
 
     def forward(self, target_len, mel_target):
         max_len = mel_target.shape[2]
