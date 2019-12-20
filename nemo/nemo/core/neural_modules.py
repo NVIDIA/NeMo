@@ -399,11 +399,6 @@ class NeuralModule(ABC):
         """
         pass
 
-    # TO BE REMOVED!
-    @staticmethod
-    def create_ports(**kwargs):
-        return {}, {}
-
     @staticmethod
     def update_local_params():
         """
