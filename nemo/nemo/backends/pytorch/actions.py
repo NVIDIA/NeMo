@@ -1065,12 +1065,28 @@ class PtActions(Actions):
                     if issubclass(axistype.semantics, BatchTag) or issubclass(
                             axistype.semantics, TimeTag):
                         dynamic_axes[port_name].append(axis_id)
+
+        # This is a hack for Jasper to Jarvis export -- need re-design for this
+        inputs_to_drop = set()
+        outputs_to_drop = set()
+        if type(module).__name__ == "JasperEncoder":
+            print(f"Module is JasperEncoder. We are removing"
+                  f"input and output length ports since they "
+                  f"are not needed for deployment")
+            inputs_to_drop.add("length")
+            outputs_to_drop.add("encoded_lengths")
+
         # for input_ports
         for port_name, ntype in module.input_ports.items():
+            if port_name in inputs_to_drop:
+                continue
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)
         # for output_ports
         for port_name, ntype in module.output_ports.items():
+            if port_name in outputs_to_drop:
+                continue
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)
+
         if len(dynamic_axes) == 0:
             dynamic_axes = None
 
