@@ -15,9 +15,30 @@ class CTCLossNM(LossNM):
         num_classes (int): Number of characters in ASR model's vocab/labels.
             This count should not include the CTC blank symbol.
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        log_probs:
+            1: AxisType(TimeTag)
+
+            0: AxisType(BatchTag)
+
+            2: AxisType(ChannelTag)
+
+        targets:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_length:
+            0: AxisType(BatchTag)
+
+        target_length:
+            0: AxisType(BatchTag)
+        """
+        return {
             "log_probs": NeuralType({1: AxisType(TimeTag),
                                      0: AxisType(BatchTag),
                                      2: AxisType(ChannelTag)}),
@@ -30,8 +51,16 @@ class CTCLossNM(LossNM):
             "target_length": NeuralType({0: AxisType(BatchTag)})
         }
 
-        output_ports = {"loss": NeuralType(None)}
-        return input_ports, output_ports
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {
+            "loss": NeuralType(None)
+        }
 
     def __init__(self, *, num_classes, **kwargs):
         LossNM.__init__(self, **kwargs)

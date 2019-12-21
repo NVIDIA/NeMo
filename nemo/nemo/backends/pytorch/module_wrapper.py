@@ -10,13 +10,6 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
     """This class wraps an instance of Pytorch's nn.Module and
     returns NeuralModule's instance."""
 
-    @staticmethod
-    def create_ports():
-        """
-        Ports are passed in the constructor and handled there
-        """
-        return {}, {}
-
     def __init__(self, pt_nn_module, input_ports_dict, output_ports_dict,
                  **kwargs):
         NeuralModule.__init__(self, **kwargs)
@@ -29,6 +22,18 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
         )
         self._pt_module = pt_nn_module
         self._pt_module.to(self._device)
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+        """
+        return self._input_ports
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+        """
+        return self._output_ports
 
     # def forward(self, *input):
     #  return self._pt_module(input)

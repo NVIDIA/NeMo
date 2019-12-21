@@ -23,8 +23,6 @@ class TrainableNM(NeuralModule, nn.Module):
 
       def __init__(self, **kwargs):
         TrainableNM.__init__(self, **kwargs)
-        self._input_ports = {..}
-        self._output_ports = {..}
         .... # you code
 
     Then make sure that your forward(..) method accepts arguments named like
@@ -200,6 +198,15 @@ class DataLayerNM(NeuralModule):
         #    kwargs['batch_size'] = 1
         NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
+
+    @property
+    def input_ports(self):
+        """DataLayer by definition does not have any input ports.
+
+            Returns:
+                An empty dictionary.
+        """
+        return {}
 
     def get_weights(self):
         logging.warning(

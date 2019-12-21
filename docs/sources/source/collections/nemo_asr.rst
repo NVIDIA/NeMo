@@ -7,7 +7,7 @@ Speech data processing modules
     :members:
     :undoc-members:
     :show-inheritance:
-    :exclude-members: forward, create_ports
+    :exclude-members: forward
 
 Automatic Speech Recognition modules
 ------------------------------------
@@ -15,4 +15,4 @@ Automatic Speech Recognition modules
     :members:
     :undoc-members:
     :show-inheritance:
-    :exclude-members: forward, create_ports
+    :exclude-members: forward

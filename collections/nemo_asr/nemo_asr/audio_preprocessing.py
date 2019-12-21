@@ -52,6 +52,7 @@ class AudioPreprocessor(NonTrainableNM):
     A base class for Neural Modules that performs audio preprocessing,
     transforming the wav files to features.
     """
+
     def __init__(self, win_length, hop_length, **kwargs):
         super().__init__(**kwargs)
 
@@ -74,7 +75,7 @@ class AudioPreprocessor(NonTrainableNM):
         if self.disable_casts:
             with amp.disable_casts():
                 processed_signal = self.get_features(
-                        input_signal.to(torch.float), length)
+                    input_signal.to(torch.float), length)
         else:
             processed_signal = self.get_features(input_signal, length)
 
@@ -114,23 +115,51 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             Defaults to "hann"
         normalized (bool): Whether to normalize by magnitude after stft
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        input_signal:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        length:
+            0: AxisType(BatchTag)
+
+        """
+        return {
             "input_signal": NeuralType({0: AxisType(BatchTag),
                                         1: AxisType(TimeTag)}),
 
             "length": NeuralType({0: AxisType(BatchTag)}),
         }
 
-        output_ports = {
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        processed_signal:
+
+            0: AxisType(BatchTag)
+
+            1: AxisType(SpectrogramSignalTag)
+
+            2: AxisType(ProcessedTimeTag)
+
+        processed_length:
+
+            0: AxisType(BatchTag)
+
+        """
+        return {
             "processed_signal": NeuralType({0: AxisType(BatchTag),
                                             1: AxisType(SpectrogramSignalTag),
                                             2: AxisType(ProcessedTimeTag)}),
 
             "processed_length": NeuralType({0: AxisType(BatchTag)})
         }
-        return input_ports, output_ports
 
     def __init__(
             self, *,
@@ -251,16 +280,45 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             prior to multiplication with mel basis.
             Defaults to 2 for a power spec
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        input_signal:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        length:
+            0: AxisType(BatchTag)
+
+        """
+        return {
             "input_signal": NeuralType({0: AxisType(BatchTag),
                                         1: AxisType(TimeTag)}),
 
             "length": NeuralType({0: AxisType(BatchTag)}),
         }
 
-        output_ports = {
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        processed_signal:
+
+            0: AxisType(BatchTag)
+
+            1: AxisType(MelSpectrogramSignalTag)
+
+            2: AxisType(ProcessedTimeTag)
+
+        processed_length:
+
+            0: AxisType(BatchTag)
+
+        """
+        return {
             "processed_signal": NeuralType(
                 {0: AxisType(BatchTag),
                  1: AxisType(MelSpectrogramSignalTag),
@@ -268,7 +326,6 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
 
             "processed_length": NeuralType({0: AxisType(BatchTag)})
         }
-        return input_ports, output_ports
 
     def __init__(
             self, *,
@@ -379,23 +436,51 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         log: Whether to use log-mel spectrograms instead of db-scaled.
             Defaults to True.
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        input_signal:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        length:
+            0: AxisType(BatchTag)
+
+        """
+        return {
             "input_signal": NeuralType({0: AxisType(BatchTag),
                                         1: AxisType(TimeTag)}),
 
             "length": NeuralType({0: AxisType(BatchTag)}),
         }
 
-        output_ports = {
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        processed_signal:
+
+            0: AxisType(BatchTag)
+
+            1: AxisType(MFCCSignalTag)
+
+            2: AxisType(ProcessedTimeTag)
+
+        processed_length:
+
+            0: AxisType(BatchTag)
+
+        """
+        return {
             "processed_signal": NeuralType({0: AxisType(BatchTag),
                                             1: AxisType(MFCCSignalTag),
                                             2: AxisType(ProcessedTimeTag)}),
 
             "processed_length": NeuralType({0: AxisType(BatchTag)})
         }
-        return input_ports, output_ports
 
     def __init__(
             self, *,
@@ -499,20 +584,43 @@ class SpectrogramAugmentation(NonTrainableNM):
             dimension
             Defaults to 25.
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        input_spec:
+            0: AxisType(BatchTag)
+
+            1: AxisType(SpectrogramSignalTag)
+
+            2: AxisType(TimeTag)
+
+        """
+        return {
             "input_spec": NeuralType({0: AxisType(BatchTag),
                                       1: AxisType(SpectrogramSignalTag),
                                       2: AxisType(TimeTag)})
         }
 
-        output_ports = {
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        augmented_spec:
+
+            0: AxisType(BatchTag)
+
+            1: AxisType(SpectrogramSignalTag)
+
+            2: AxisType(ProcessedTimeTag)
+
+        """
+        return {
             "augmented_spec": NeuralType({0: AxisType(BatchTag),
                                           1: AxisType(SpectrogramSignalTag),
                                           2: AxisType(ProcessedTimeTag)})
         }
-        return input_ports, output_ports
 
     def __init__(
             self, *,
@@ -565,9 +673,31 @@ class MultiplyBatch(NonTrainableNM):
     Args:
         mult_batch (int): number of repeats
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        in_x:
+            0: AxisType(BatchTag)
+
+            1: AxisType(SpectrogramSignalTag)
+
+            2: AxisType(TimeTag)
+
+        in_x_len:
+            0: AxisType(BatchTag)
+
+        in_y:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        in_y_len:
+            0: AxisType(BatchTag)
+
+        """
+        return {
             "in_x": NeuralType({0: AxisType(BatchTag),
                                 1: AxisType(SpectrogramSignalTag),
                                 2: AxisType(TimeTag)}),
@@ -580,7 +710,30 @@ class MultiplyBatch(NonTrainableNM):
             "in_y_len": NeuralType({0: AxisType(BatchTag)})
         }
 
-        output_ports = {
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        out_x:
+            0: AxisType(BatchTag)
+
+            1: AxisType(SpectrogramSignalTag)
+
+            2: AxisType(TimeTag)
+
+        out_x_len:
+            0: AxisType(BatchTag)
+
+        out_y:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        out_y_len:
+            0: AxisType(BatchTag)
+
+        """
+        return {
             "out_x": NeuralType({0: AxisType(BatchTag),
                                  1: AxisType(SpectrogramSignalTag),
                                  2: AxisType(TimeTag)}),
@@ -592,7 +745,6 @@ class MultiplyBatch(NonTrainableNM):
 
             "out_y_len": NeuralType({0: AxisType(BatchTag)})
         }
-        return input_ports, output_ports
 
     def __init__(self, *, mult_batch=1, **kwargs):
         NonTrainableNM.__init__(self, **kwargs)

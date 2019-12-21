@@ -9,9 +9,15 @@ class TestNM1(TrainableNM):
     def __init__(self, var1, var2=2, var3=3, **kwargs):
         super(TestNM1, self).__init__(**kwargs)
 
-    @staticmethod
-    def create_ports():
-        return {}, {}
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports."""
+        return {}
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports."""
+        return {}
 
     def foward(self):
         pass
@@ -21,9 +27,15 @@ class TestNM2(TestNM1):
     def __init__(self, var2, **kwargs):
         super(TestNM2, self).__init__(**kwargs)
 
-    @staticmethod
-    def create_ports():
-        return {}, {}
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports."""
+        return {}
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports."""
+        return {}
 
     def foward(self):
         pass
@@ -33,9 +45,15 @@ class BrokenNM(TrainableNM):
     def __init__(self, var2, *error, **kwargs):
         super(BrokenNM, self).__init__(**kwargs)
 
-    @staticmethod
-    def create_ports():
-        return {}, {}
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports."""
+        return {}
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports."""
+        return {}
 
     def foward(self):
         pass

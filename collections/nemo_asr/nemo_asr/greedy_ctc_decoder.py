@@ -10,21 +10,41 @@ class GreedyCTCDecoder(TrainableNM):
     """
     Greedy decoder that computes the argmax over a softmax distribution
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "log_probs": NeuralType({0: AxisType(BatchTag),
-                                     1: AxisType(TimeTag),
-                                     2: AxisType(ChannelTag)})
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        log_probs:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
+            "log_probs": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(ChannelTag)
+            })
         }
 
-        output_ports = {
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        predictions:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "predictions": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             })
         }
-        return input_ports, output_ports
 
     def __init__(self, **kwargs):
         TrainableNM.__init__(self, **kwargs)
