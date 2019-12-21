@@ -70,25 +70,52 @@ class JasperEncoder(TrainableNM):
             Defaults to "xavier_uniform".
     """
     length: Optional[torch.Tensor]
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        audio_signal:
+            0: AxisType(BatchTag)
+
+            1: AxisType(SpectrogramSignalTag)
+
+            2: AxisType(ProcessedTimeTag)
+
+        length:
+            0: AxisType(BatchTag)
+        """
+        return {
             "audio_signal": NeuralType({0: AxisType(BatchTag),
                                         1: AxisType(SpectrogramSignalTag),
                                         2: AxisType(ProcessedTimeTag)}),
             "length": NeuralType({0: AxisType(BatchTag)})
         }
 
-        output_ports = {
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        outputs:
+            0: AxisType(BatchTag)
+
+            1: AxisType(EncodedRepresentationTag)
+
+            2: AxisType(ProcessedTimeTag)
+
+        encoded_lengths:
+            0: AxisType(BatchTag)
+
+        """
+        return {
             "outputs": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(EncodedRepresentationTag),
-                2: AxisType(ProcessedTimeTag),
+                2: AxisType(ProcessedTimeTag)
             }),
 
             "encoded_lengths": NeuralType({0: AxisType(BatchTag)})
         }
-        return input_ports, output_ports
 
     def __init__(
             self, *,
@@ -168,20 +195,43 @@ class JasperDecoderForCTC(TrainableNM):
             Defaults to "xavier_uniform".
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "encoder_output": NeuralType(
-                {0: AxisType(BatchTag),
-                 1: AxisType(EncodedRepresentationTag),
-                 2: AxisType(ProcessedTimeTag)})}
-        output_ports = {
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        encoder_output:
+            0: AxisType(BatchTag)
+
+            1: AxisType(EncodedRepresentationTag)
+
+            2: AxisType(ProcessedTimeTag)
+        """
+        return {
+            "encoder_output": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(EncodedRepresentationTag),
+                2: AxisType(ProcessedTimeTag)
+            })
+        }
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        output:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "output": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag)
-            })}
-        return input_ports, output_ports
+            })
+        }
 
     def __init__(
             self, *,

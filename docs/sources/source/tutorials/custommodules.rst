@@ -32,24 +32,24 @@ Defining a module from scratch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (1) Inherit from :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` class.
-(2) Create the ``create_ports()`` static method that defines your input and output ports.
-    If your ``create_ports()`` method requires some params, pass it to the base class
-    constructor as part of the ``create_port_args`` param.
+(2) Create the ``input_ports`` and ``output_ports`` properties that define your input and output ports.
 
 .. code-block:: python
 
-    @staticmethod
-    def create_ports(size):
-        input_ports = {...}
-        output_ports = {...}
-        return input_ports, output_ports
+    @property
+    def input_ports(self):
+        return {...}
+
+    @property
+    def output_ports(self):
+        return {...}
 
 (3) In the constructor, call base class constructor first
 
 .. code-block:: python
 
-    def __init__(self, *, module_params, .., size, **kwargs)
-        super().__init__(create_port_args={"size": size}, **kwargs)
+    def __init__(self, *, module_params, ..., **kwargs)
+        super().__init__(**kwargs)
 
 (4) Implement ``forward`` method from ``torch.nn.Module``
 
@@ -64,14 +64,17 @@ Example 1
     class TaylorNet(TrainableNM): # (1) Note inheritance from TrainableNM
         """Module which learns Taylor's coefficients."""
 
-        # (2) Code create_ports() to define input and output ports
-        @staticmethod
-        def create_ports():
-            input_ports = {"x": NeuralType({0: AxisType(BatchTag),
-                                            1: AxisType(ChannelTag)})}
-            output_ports = {"y_pred": NeuralType({0: AxisType(BatchTag),
-                                                  1: AxisType(ChannelTag)})}
-            return input_ports, output_ports
+        # (2) Code to define input and output ports
+        @property
+        def input_ports(self):
+            return {"x": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(ChannelTag)})}
+        @property
+        def output_ports(self):
+            return {"y_pred": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(ChannelTag)})}
 
         def __init__(self, **kwargs):
             # (3) Call base constructor
@@ -84,7 +87,7 @@ Example 1
                 "cuda" if self.placement == DeviceType.GPU else "cpu")
             self.to(self._device)
 
-        # IMPORTANT: input arguments to forward must match input input ports' names
+        # IMPORTANT: input arguments to forward must match input ports' names
         def forward(self, x):
             # (4) Implement the forward method
             lst = []
@@ -100,17 +103,18 @@ Converting from PyTorch's nn.Module
 
 (1) If you already have a PyTorch class which inherits from ``torch.nn.Module``, replace that inheritance with inheritance from
     :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` class.
-(2) Create the ``create_ports()`` static method
+(2) Implement the ``input_ports`` and ``output_ports`` properties
 (3) Modify your constructor to call the base class constructor first.
 
 .. code-block:: python
 
     class MyNeuralModule(TrainableNM):
-        @staticmethod
-        def create_ports():
-            input_ports = {...}
-            output_ports = {...}
-            return input_ports, output_ports
+        @property
+        def input_ports(self):
+            return {...}
+        @property
+        def output_ports(self):
+            return {...}
 
         def __init__(self, *, module_params, .., **kwargs)
             TrainableNM.__init__(self, **kwargs)
@@ -124,7 +128,7 @@ Data Layer Module
 (3) Implement either the ``dataset`` or ``data_iterator`` property to return a PyTorch Dataset object or an iterator over your dataset, respectively. (The unused property should return None.)
 
 When implementing the constructor, you should first call the base class constructor and
-define *output ports only* in create_ports().  Also, module should accept
+define *output ports only* in ``output_ports``.  Also, module should accept
 parameters such as ``batch_size`` and ``shuffle``.
 
 If you are using ``torch.utils.data.Dataset`` class (*recommended approach*), then you can implement the ``dataset`` property, and a DataLoader will be created for you.
@@ -145,23 +149,26 @@ This example wraps PyTorch's *ImageFolder* dataset into a neural module data lay
     """This class wraps Torchvision's ImageFolder data set API into NeuralModule."""
 
     class ImageFolderDataLayer(DataLayerNM):
-        @staticmethod
-        def create_ports(size):
+
+        @property
+        def output_ports(self):
+            """Returns definitions of module output ports."""
             # Note: we define the size of the height and width of our output
             # tensors, and thus require a size parameter.
-            input_ports = {}
-            output_ports = {
-                "image": NeuralType({0: AxisType(BatchTag),
-                                     1: AxisType(ChannelTag),
-                                     2: AxisType(HeightTag, size),
-                                     3: AxisType(WidthTag, size)}),
-                "label": NeuralType({0: AxisType(BatchTag)})
+            return {
+                "image": NeuralType(
+                    {
+                        0: AxisType(BatchTag),
+                        1: AxisType(ChannelTag),
+                        2: AxisType(HeightTag, self._input_size),
+                        3: AxisType(WidthTag, self._input_size),
+                    }
+                ),
+                "label": NeuralType({0: AxisType(BatchTag)}),
             }
-            return input_ports, output_ports
 
         def __init__(self, **kwargs):
-            create_port_args = {"size": kwargs["input_size"]}
-            DataLayerNM.__init__(self, create_port_args=create_port_args, **kwargs)
+            DataLayerNM.__init__(self, **kwargs)
 
             self._input_size = kwargs["input_size"]
             self._path = kwargs["path"]
@@ -190,7 +197,7 @@ Loss Neural Module
 ------------------
 
 (1) Inherit from :class:`LossNM<nemo.backends.pytorch.nm.LossNM>` class
-(2) Create create_ports() method
+(2) Create ports using the ``input_ports`` and ``output_ports`` properties
 (3) In your constructor, call base class constructor
 (4) Implement :meth:`_loss_function<nemo.backends.pytorch.nm.LossNM._loss_function>` method.
 
@@ -201,13 +208,20 @@ Example
 .. code-block:: python
 
     class CrossEntropyLoss(LossNM):
-        @staticmethod
-        def create_ports():
-            input_ports = {"predictions": NeuralType({0: AxisType(BatchTag),
-                                                      1: AxisType(ChannelTag)}),
-                           "labels": NeuralType({0: AxisType(BatchTag)})}
-            output_ports = {"loss": NeuralType(None)}
-            return input_ports, output_ports
+
+        @property
+        def input_ports(self):
+            return {"predictions": NeuralType({
+                        0: AxisType(BatchTag),
+                        1: AxisType(ChannelTag)}),
+                    "labels": NeuralType({
+                        0: AxisType(BatchTag)
+                        })
+                    }
+
+        @property
+        def output_ports(self):
+            return {"loss": NeuralType(None)}
 
         def __init__(self, **kwargs):
             # Neural Module API specific

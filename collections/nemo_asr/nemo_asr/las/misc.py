@@ -18,23 +18,43 @@ class JasperRNNConnector(TrainableNM):
 
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        tensor:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+
+            2: AxisType(TimeTag)
+        """
+        return {
             'tensor': NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(ChannelTag),
                 2: AxisType(TimeTag)
             })
         }
-        output_ports = {
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        tensor:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             'tensor': NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag)
             })
         }
-        return input_ports, output_ports
 
     def __init__(self, in_channels, out_channels, **kwargs):
         super().__init__(**kwargs)
