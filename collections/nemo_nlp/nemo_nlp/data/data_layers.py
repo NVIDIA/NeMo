@@ -848,7 +848,7 @@ class WOZDSTDataLayer(TextDataLayer):
             }),
             "gating_labels": NeuralType({
                 0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
+                1: AxisType(ChannelTag)
             }),
             'turn_domain': NeuralType(None)
         }
@@ -875,6 +875,7 @@ class WOZDSTDataLayer(TextDataLayer):
                                               shuffle=False,
                                               collate_fn=self._collate_fn)
         self.pad_id = self._dataset.vocab.pad_id
+        self.gating_dict = self._dataset.gating_dict
 
     def _collate_fn(self, data):
         """ data is a list of batch_size sample
@@ -911,6 +912,8 @@ class WOZDSTDataLayer(TextDataLayer):
             lengths = torch.tensor(lengths)
             return padded_seqs, lengths
 
+
+        # TODO: check here
         """ sort the lengths for pack_padded_sequence, otherwise this error
         `lengths` array must be sorted in decreasing order when
         `enforce_sorted` is True

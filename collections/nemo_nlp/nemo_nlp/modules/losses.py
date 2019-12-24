@@ -11,7 +11,8 @@ __all__ = ['MaskedLanguageModelingLossNM',
            'LossAggregatorNM',
            'TokenClassificationLoss',
            'JointIntentSlotLoss',
-           'PaddedSmoothedCrossEntropyLossNM']
+           'PaddedSmoothedCrossEntropyLossNM',
+           'CrossEntropyLoss3D']
 
 
 class MaskedLanguageModelingLossNM(LossNM):
@@ -81,6 +82,50 @@ class LossAggregatorNM(LossNM):
         loss = values[0]
         for loss_i in values[1:]:
             loss = loss.add(loss_i)
+        return loss
+
+
+class CrossEntropyLoss3D(LossNM):
+    """
+    Neural module which implements Token Classification loss.
+
+    Args:
+        num_classes (int): number of classes in a classifier, e.g. size
+            of the vocabulary in language modeling objective
+        logits (float): output of the classifier
+        labels (long): ground truth labels
+        loss_mask (long): to differentiate from original tokens and paddings
+    """
+
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            "logits": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(ChannelTag),
+                2: AxisType(ChannelTag)
+            }),
+            "labels": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(ChannelTag)
+            }),
+        }
+
+        output_ports = {
+            "loss": NeuralType(None),
+        }
+        return input_ports, output_ports
+
+    def __init__(self, num_classes, **kwargs):
+        LossNM.__init__(self, **kwargs)
+        self._criterion = nn.CrossEntropyLoss()
+        self.num_classes = num_classes
+
+    def _loss_function(self, logits, labels):
+        logits_flatten = logits.view(-1, self.num_classes)
+        labels_flatten = labels.view(-1)
+
+        loss = self._criterion(logits_flatten, labels_flatten)
         return loss
 
 
