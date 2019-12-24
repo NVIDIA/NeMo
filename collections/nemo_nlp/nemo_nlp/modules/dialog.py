@@ -58,7 +58,7 @@ class DSTGenerator(TrainableNM):
             }),
             'gate_outputs': NeuralType({
                 0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
+                1: AxisType(ChannelTag),
                 2: AxisType(ChannelTag)
             })
         }
@@ -186,7 +186,7 @@ class DSTGenerator(TrainableNM):
             all_point_outputs[:, :, wi, :] = torch.reshape(
                 final_p_vocab,
                 (batch_size, len(self.slots), self.vocab_size))
-
+            # TODO: check here
             if use_teacher_forcing or True:
                 slot_emb = self.embedding(torch.flatten(targets[:, :, wi]))
                 # targets[:, wi, :].transpose(1, 0)))

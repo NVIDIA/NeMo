@@ -12,7 +12,7 @@ import nemo
 from nemo.backends.pytorch.common import EncoderRNN
 from nemo.utils.lr_policies import get_lr_policy
 import nemo_nlp
-from nemo_nlp.utils.callbacks.trade_dst import \
+from nemo_nlp.utils.callbacks.state_tracking_trade import \
     eval_iter_callback, eval_epochs_done_callback
 
 parser = argparse.ArgumentParser(
@@ -111,19 +111,23 @@ point_outputs, gate_outputs = decoder(encoder_hidden=hidden,
                                       src_ids=src_ids,
                                       targets=tgt_ids)
 
-# gate_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
+gate_loss_fn = \
+    nemo_nlp.CrossEntropyLoss3D(num_classes=len(data_layer.gating_dict))
 ptr_loss_fn = nemo_nlp.DSTMaskedCrossEntropy()
+total_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
-# gate_loss = gate_loss_fn()
-train_loss = ptr_loss_fn(logits=point_outputs,
-                         targets=tgt_ids,
-                         mask=tgt_lens)
+gate_loss = gate_loss_fn(logits=gate_outputs,
+                         labels=gate_labels)
+ptr_loss = ptr_loss_fn(logits=point_outputs,
+                        targets=tgt_ids,
+                        mask=tgt_lens)
+train_loss = total_loss(loss_1=gate_loss, loss_2=ptr_loss)
 
 eval_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                            DOMAINS,
                                            num_samples=args.num_eval_samples,
                                            batch_size=args.batch_size,
-                                           mode='dev')
+                                           mode='train')
 (eval_src_ids, eval_src_lens, eval_tgt_ids,
  eval_tgt_lens, eval_gate_labels, eval_turn_domain) = eval_data_layer()
 outputs, hidden = encoder(inputs=eval_src_ids, input_lens=eval_src_lens)
@@ -136,12 +140,14 @@ eval_loss = ptr_loss_fn(logits=eval_point_outputs,
                         targets=eval_tgt_ids,
                         mask=eval_tgt_lens)
 eval_tensors = [eval_loss, eval_point_outputs, eval_gate_outputs,
-                eval_gate_labels, eval_turn_domain]
+                eval_gate_labels, eval_turn_domain, eval_tgt_ids, eval_tgt_lens]
 
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=[train_loss],
-    print_func=lambda x: print('Loss:', str(np.round(x[0].item(), 3))),
+    tensors=[train_loss, gate_loss, ptr_loss],
+    print_func=lambda x: print(f'Loss:{str(np.round(x[0].item(), 3))}, '
+                               f'Gate Loss:{str(np.round(x[1].item(), 3))}, '
+                               f'Pointer Loss:{str(np.round(x[2].item(), 3))}'),
     tb_writer=nf.tb_writer,
     get_tb_values=lambda x: [["loss", x[0]]],
     step_freq=steps_per_epoch)
@@ -149,7 +155,7 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(
-        x, y, data_layer),
+        x, y, eval_data_layer),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x, f'{nf.work_dir}/graphs'),
     tb_writer=nf.tb_writer,
