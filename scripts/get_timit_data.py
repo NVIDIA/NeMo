@@ -1,4 +1,4 @@
-# Copyright (c) 2019 NVIDIA Corporation
+
 #
 # USAGE: python get_timit_data.py --data_root=<where timit is>
 #        --data_new_root=<where to put new data .json>
@@ -15,8 +15,11 @@ from sox import Transformer
 import sys
 
 #
-# TIMIT IS NOT FREE, PLEASE FIRST DOWNLOAD THE data_set
+# TIMIT IS NOT FREE, please first dowload the dataset
 # https://catalog.ldc.upenn.edu/LDC93S1
+#
+# This script proposes to create the *json manifest necessary to use the TIMIT
+# dataset. Please note that this is the PHONEME classification task of TIMIT.
 #
 
 #
@@ -26,17 +29,17 @@ import sys
 #
 
 PHN_DICT = {
-    "aa":"aa","ae":"ae","ah":"ah","ao":"aa","aw":"aw","ax":"ah",
-    "ax-h":	"ah","axr":"er","ay":"ay","b":"b","bcl"	:"sil",
-    "ch":"ch","d":"d","dcl"	:"sil","dh":"dh","dx":"dx","eh":"eh",
-    "el":"l","em":"m","en":"n","eng":"ng","epi":"sil","er":"er",
-    "ey":"ey","f":"f","g":"g","gcl":"sil","h#":"sil","hh":"hh",
-    "hv":"hh","ih":"ih","ix":"ih","iy":"iy","jh":"jh","k":"k",
-    "kcl":"sil","l":"l","m"	:"m","n":"n","ng":"ng","nx":"n",
-    "ow":"ow","oy":"oy","p":"p","pau":"sil","pcl":"sil","q":"",
-    "r"	:"r","s":"s","sh":"sh","t":"t","tcl":"sil","th":"th",
-    "uh":"uh","uw":"uw","ux":"uw","v":"v","w":"w","y":"y",
-    "z"	:"z","zh":"sh","h#":""}
+    "aa": "aa", "ae": "ae", "ah": "ah", "ao": "aa", "aw": "aw", "ax": "ah",
+    "ax-h": 	"ah", "axr": "er", "ay": "ay", "b": "b", "bcl"	: "sil",
+    "ch": "ch", "d": "d", "dcl"	: "sil", "dh": "dh", "dx": "dx", "eh": "eh",
+    "el": "l", "em": "m", "en": "n", "eng": "ng", "epi": "sil", "er": "er",
+    "ey": "ey", "f": "f", "g": "g", "gcl": "sil", "h#": "sil", "hh": "hh",
+    "hv": "hh", "ih": "ih", "ix": "ih", "iy": "iy", "jh": "jh", "k": "k",
+    "kcl": "sil", "l": "l", "m"	: "m", "n": "n", "ng": "ng", "nx": "n",
+    "ow": "ow", "oy": "oy", "p": "p", "pau": "sil", "pcl": "sil", "q": "",
+    "r"	: "r", "s": "s", "sh": "sh", "t": "t", "tcl": "sil", "th": "th",
+    "uh": "uh", "uw": "uw", "ux": "uw", "v": "v", "w": "w", "y": "y",
+    "z"	: "z", "zh": "sh", "h#": ""}
 
 #
 # DEFINE STANDARD SPEAKERS LISTS
@@ -81,24 +84,24 @@ def __process_data(data_folder: str, dst_folder: str):
 
     files_train = []
     files_dev = []
-    files_test  = []
+    files_test = []
 
     for data_set in ['TRAIN', 'TEST']:
-        for r, d, f in os.walk(os.path.join(data_folder,data_set)):
+        for r, d, f in os.walk(os.path.join(data_folder, data_set)):
             spk = r.split('/')[-1].lower()
             for filename in fnmatch.filter(f, '*.PHN'):
                 if data_set == 'TRAIN':
                     if 'SA' not in filename and 'SA' not in filename:
-                        files_train.append(os.path.join(r,filename))
+                        files_train.append(os.path.join(r, filename))
                 else:
                     if spk in DEV_LIST and 'SA' not in filename:
-                        files_dev.append(os.path.join(r,filename))
+                        files_dev.append(os.path.join(r, filename))
                     elif spk in TEST_LIST and 'SA' not in filename:
-                        files_test.append(os.path.join(r,filename))
+                        files_test.append(os.path.join(r, filename))
 
     print("Training samples:" + str(len(files_train)))
-    print("Validation samples:"+ str(len(files_dev)))
-    print("Test samples:"+ str(len(files_test)))
+    print("Validation samples:" + str(len(files_dev)))
+    print("Test samples:" + str(len(files_test)))
 
     for data_set in ['train', 'dev', 'test']:
 
@@ -131,7 +134,7 @@ def __process_data(data_folder: str, dst_folder: str):
                 entry['text'] = phn_transcript
                 entries.append(entry)
 
-        with open(os.path.join(dst_folder,data_set + ".json"), 'w') as fout:
+        with open(os.path.join(dst_folder, data_set + ".json"), 'w') as fout:
             for m in entries:
                 fout.write(json.dumps(m) + '\n')
 
