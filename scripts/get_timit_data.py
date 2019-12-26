@@ -1,4 +1,3 @@
-
 #
 # USAGE: python get_timit_data.py --data_root=<where timit is>
 #        --data_new_root=<where to put new data .json>
@@ -15,11 +14,13 @@ from sox import Transformer
 import sys
 
 #
-# TIMIT IS NOT FREE, please first dowload the dataset
-# https://catalog.ldc.upenn.edu/LDC93S1
-#
 # This script proposes to create the *json manifest necessary to use the TIMIT
 # dataset. Please note that this is the PHONEME classification task of TIMIT.
+#
+
+#
+# TIMIT IS NOT FREE, please first dowload the dataset
+# https://catalog.ldc.upenn.edu/LDC93S1
 #
 
 #
