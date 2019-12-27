@@ -48,6 +48,9 @@ parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--num_train_samples", default=-1, type=int)
 parser.add_argument("--num_eval_samples", default=-1, type=int)
 
+parser.add_argument("--grad_norm_clip", type=float, default=10.0,
+                    help="gradient clipping")
+
 # parser.add_argument('--vocab_size', default=1, type=int)
 
 # # Testing Setting
@@ -114,14 +117,18 @@ point_outputs, gate_outputs = decoder(encoder_hidden=hidden,
 gate_loss_fn = \
     nemo_nlp.CrossEntropyLoss3D(num_classes=len(data_layer.gating_dict))
 ptr_loss_fn = nemo_nlp.DSTMaskedCrossEntropy()
-total_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
-gate_loss = gate_loss_fn(logits=gate_outputs,
-                         labels=gate_labels)
-ptr_loss = ptr_loss_fn(logits=point_outputs,
-                        targets=tgt_ids,
-                        mask=tgt_lens)
-train_loss = total_loss(loss_1=gate_loss, loss_2=ptr_loss)
+#TODO: check here
+total_loss = nemo_nlp.LossAggregatorNM(num_inputs=2) # 1 or 2
+
+gate_loss_train = gate_loss_fn(logits=gate_outputs,
+                                 labels=gate_labels)
+ptr_loss_train = ptr_loss_fn(logits=point_outputs,
+                                targets=tgt_ids,
+                                mask=tgt_lens)
+
+train_loss = total_loss(loss_1=gate_loss_train, loss_2=ptr_loss_train)
+#train_loss = total_loss(loss_1=gate_loss_train)
 
 eval_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                            DOMAINS,
@@ -136,15 +143,23 @@ eval_point_outputs, eval_gate_outputs = decoder(encoder_hidden=hidden,
                                                 input_lens=eval_src_lens,
                                                 src_ids=eval_src_ids,
                                                 targets=eval_tgt_ids)
-eval_loss = ptr_loss_fn(logits=eval_point_outputs,
-                        targets=eval_tgt_ids,
-                        mask=eval_tgt_lens)
+
+gate_loss_eval = gate_loss_fn(logits=eval_gate_outputs,
+                                 labels=eval_gate_labels)
+
+ptr_loss_eval = ptr_loss_fn(logits=eval_point_outputs,
+                            targets=eval_tgt_ids,
+                            mask=eval_tgt_lens)
+
+eval_loss = total_loss(loss_1=gate_loss_eval, loss_2=ptr_loss_eval)
+#eval_loss = total_loss(loss_1=gate_loss_eval)
+
 eval_tensors = [eval_loss, eval_point_outputs, eval_gate_outputs,
                 eval_gate_labels, eval_turn_domain, eval_tgt_ids, eval_tgt_lens]
 
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=[train_loss, gate_loss, ptr_loss],
+    tensors=[train_loss, gate_loss_train, ptr_loss_train],
     print_func=lambda x: print(f'Loss:{str(np.round(x[0].item(), 3))}, '
                                f'Gate Loss:{str(np.round(x[1].item(), 3))}, '
                                f'Pointer Loss:{str(np.round(x[2].item(), 3))}'),
@@ -173,8 +188,10 @@ lr_policy_fn = get_lr_policy(args.lr_policy,
 
 nf.train(tensors_to_optimize=[train_loss],
          callbacks=[train_callback, eval_callback, ckpt_callback],
-         lr_policy=lr_policy_fn,
+         #lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,
                               "lr": args.lr,
-                              "weight_decay": args.weight_decay})
+                              "grad_norm_clip": args.grad_norm_clip,
+                              #"weight_decay": args.weight_decay
+                              })
