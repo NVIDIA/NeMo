@@ -38,6 +38,8 @@ def eval_iter_callback(tensors,
         global_vars['eval_res'] = []
     if 'eval_mask' not in global_vars:
         global_vars['eval_mask'] = []
+    if 'eval_gate' not in global_vars:
+        global_vars['eval_gate'] = []
 
     for kv, v in tensors.items():
         if kv.startswith('loss'):
@@ -84,8 +86,12 @@ def eval_iter_callback(tensors,
     #comp_res = np.logical_or(comp_res, mask_gating)
     #comp_res = np.all(comp_res, axis=-1, keepdims=False)
 
+    gate_outputs_max = np.argmax(gate_outputs, axis=-1)
+    eval_gate = (gating_labels == gate_outputs_max)
+
     global_vars['eval_res'].extend(comp_res)
     global_vars['eval_mask'].extend(mask_gating)
+    global_vars['eval_gate'].extend(eval_gate)
 
 
     # all_prediction = []
@@ -151,9 +157,13 @@ def eval_epochs_done_callback(global_vars, graph_fold):
     joint_acc, turn_acc, F1 = \
         evaluate_metrics(global_vars['eval_res'], global_vars['eval_mask'])
 
+    eval_gate_flatten = np.asarray(global_vars['eval_gate']).ravel()
+    gate_acc = np.sum(eval_gate_flatten) / len(eval_gate_flatten)
+
     evaluation_metrics = {"Joint_Acc": joint_acc,
                           "Turn_Acc": turn_acc,
-                          "Joint_F1": F1}
+                          "Joint_F1": F1,
+                          "Gate_Acc": gate_acc}
     print(evaluation_metrics)
 
     return evaluation_metrics

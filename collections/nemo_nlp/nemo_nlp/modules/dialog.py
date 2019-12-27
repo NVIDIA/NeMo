@@ -143,18 +143,22 @@ class DSTGenerator(TrainableNM):
         slot_emb = domain_emb + subslot_emb  # 30 x 400
         slot_emb = slot_emb[None, :]  # 1 x 30 x 400
         slot_emb = slot_emb.repeat(batch_size, 1, 1)  # 16 x 30 x 400
-        slot_emb = self.dropout(
+        decoder_input = self.dropout(
             slot_emb).view(-1, self.hidden_size)  # 480 x 400
         # print('encoder_hidden', encoder_hidden.shape) # 16 x 1 x 400
-        hidden = encoder_hidden.repeat(len(self.slots), 1, 1)
+        hidden = encoder_hidden.repeat(1, len(self.slots), 1)
+
+        hidden = hidden.view(-1, self.hidden_size).unsqueeze(0)
         # print('hidden', hidden.shape) # 480 x 1 x 400
-        hidden = hidden.transpose(0, 1)  # 1 x 480 x 400
+        #hidden = hidden.transpose(0, 1)  # 1 x 480 x 400
         # 1 * (batch*|slot|) * emb
         for wi in range(max_res_len):
-            dec_state, hidden = self.rnn(slot_emb.unsqueeze(1),
+            dec_state, hidden = self.rnn(decoder_input.unsqueeze(1),
                                          hidden)
             enc_out = encoder_outputs.repeat(len(self.slots), 1, 1)
-            enc_len = input_lens * len(self.slots)
+            # TODO: check here, take it out of loop
+            #enc_len = input_lens * len(self.slots)
+            enc_len = input_lens.repeat(len(self.slots))
             context_vec, logits, prob = self.attend(enc_out,
                                                     hidden.squeeze(0),
                                                     # 480 x 400
@@ -166,9 +170,9 @@ class DSTGenerator(TrainableNM):
 
             p_vocab = self.attend_vocab(self.embedding.weight,
                                         hidden.squeeze(0))
-            slot_emb = slot_emb.squeeze(1)
+            #decoder_input = decoder_input.squeeze(1)
             p_gen_vec = torch.cat(
-                [dec_state.squeeze(1), context_vec, slot_emb], -1)
+                [dec_state.squeeze(1), context_vec, decoder_input], -1)
             vocab_pointer_switches = self.sigmoid(self.w_ratio(p_gen_vec))
             p_context_ptr = torch.zeros(p_vocab.size())
             p_context_ptr = p_context_ptr.to(self._device)
@@ -187,15 +191,15 @@ class DSTGenerator(TrainableNM):
                 final_p_vocab,
                 (batch_size, len(self.slots), self.vocab_size))
             # TODO: check here
-            if use_teacher_forcing or True:
-                slot_emb = self.embedding(torch.flatten(targets[:, :, wi]))
+            if use_teacher_forcing:
+                decoder_input = self.embedding(torch.flatten(targets[:, :, wi]))
                 # targets[:, wi, :].transpose(1, 0)))
                 # print('targets[:, wi, :]', targets[:, wi, :].shape)
                 # print('torch.flatten(targets[:, wi, :]', torch.flatten(targets[:, wi, :]).shape)
             else:
-                slot_emb = self.embedding(pred_word)
+                decoder_input = self.embedding(pred_word)
 
-            slot_emb = slot_emb.to(self._device)
+            decoder_input = decoder_input.to(self._device)
 
         return all_point_outputs, all_gate_outputs
 
