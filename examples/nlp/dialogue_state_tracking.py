@@ -7,7 +7,7 @@ import argparse
 import os
 
 import numpy as np
-
+from nemo.core import DeviceType
 import nemo
 from nemo.backends.pytorch.common import EncoderRNN
 from nemo.utils.lr_policies import get_lr_policy
@@ -35,10 +35,10 @@ parser.add_argument("--data_dir", default='data/statetracking/multiwoz', type=st
 parser.add_argument("--dataset_name", default='multiwoz', type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
-parser.add_argument("--none_slot_label", default='O', type=str)
-parser.add_argument("--pad_label", default=-1, type=int)
+#parser.add_argument("--none_slot_label", default='O', type=str)
+#parser.add_argument("--pad_label", default=-1, type=int)
 parser.add_argument("--work_dir", default='outputs', type=str)
-parser.add_argument("--save_epoch_freq", default=1, type=int)
+parser.add_argument("--save_epoch_freq", default=-1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0",
@@ -81,7 +81,10 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    log_dir=work_dir,
                                    create_tb_writer=True,
                                    files_to_copy=[__file__],
-                                   add_time_to_log_dir=True)
+                                   add_time_to_log_dir=True,
+                                   placement=DeviceType.GPU
+                                   #placement=DeviceType.CPU
+                                   )
 
 data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                       DOMAINS,
@@ -134,7 +137,7 @@ eval_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                            DOMAINS,
                                            num_samples=args.num_eval_samples,
                                            batch_size=args.batch_size,
-                                           mode='train')
+                                           mode=args.eval_file_prefix)
 (eval_src_ids, eval_src_lens, eval_tgt_ids,
  eval_tgt_lens, eval_gate_labels, eval_turn_domain) = eval_data_layer()
 outputs, hidden = encoder(inputs=eval_src_ids, input_lens=eval_src_lens)
@@ -145,7 +148,7 @@ eval_point_outputs, eval_gate_outputs = decoder(encoder_hidden=hidden,
                                                 targets=eval_tgt_ids)
 
 gate_loss_eval = gate_loss_fn(logits=eval_gate_outputs,
-                                 labels=eval_gate_labels)
+                                labels=eval_gate_labels)
 
 ptr_loss_eval = ptr_loss_fn(logits=eval_point_outputs,
                             targets=eval_tgt_ids,
@@ -164,7 +167,9 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
                                f'Gate Loss:{str(np.round(x[1].item(), 3))}, '
                                f'Pointer Loss:{str(np.round(x[2].item(), 3))}'),
     tb_writer=nf.tb_writer,
-    get_tb_values=lambda x: [["loss", x[0]]],
+    get_tb_values=lambda x: [["loss", x[0]],
+                             ["gate_loss", x[1]],
+                             ["pointer_loss", x[2]]],
     step_freq=steps_per_epoch)
 
 eval_callback = nemo.core.EvaluatorCallback(
@@ -172,7 +177,7 @@ eval_callback = nemo.core.EvaluatorCallback(
     user_iter_callback=lambda x, y: eval_iter_callback(
         x, y, eval_data_layer),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, f'{nf.work_dir}/graphs'),
+        x, f'{nf.work_dir}/graphs', eval_data_layer),
     tb_writer=nf.tb_writer,
     eval_step=steps_per_epoch)
 
@@ -192,6 +197,6 @@ nf.train(tensors_to_optimize=[train_loss],
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,
                               "lr": args.lr,
-                              "grad_norm_clip": args.grad_norm_clip,
+                              #"grad_norm_clip": args.grad_norm_clip,
                               #"weight_decay": args.weight_decay
                               })

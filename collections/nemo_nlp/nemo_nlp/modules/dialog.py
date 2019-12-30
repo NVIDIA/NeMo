@@ -105,9 +105,9 @@ class DSTGenerator(TrainableNM):
         split_slots = list(set(sum(split_slots, [])))
         self.slot_w2i = {split_slots[i]: i for i in range(len(split_slots))}
         self.domain_idx = torch.tensor(
-            [self.slot_w2i[domain] for domain in domains]).to(self._device)
+            [self.slot_w2i[domain] for domain in domains], device=self._device)
         self.subslot_idx = torch.tensor(
-            [self.slot_w2i[slot] for slot in slots]).to(self._device)
+            [self.slot_w2i[slot] for slot in slots], device=self._device)
 
     def forward(self,
                 encoder_hidden,
@@ -131,12 +131,12 @@ class DSTGenerator(TrainableNM):
         all_point_outputs = torch.zeros(batch_size,
                                         len(self.slots),
                                         max_res_len,
-                                        self.vocab_size)
+                                        self.vocab_size, device=self._device)
         all_gate_outputs = torch.zeros(batch_size,
                                        len(self.slots),
-                                       self.nb_gate)
-        all_point_outputs = all_point_outputs.to(self._device)
-        all_gate_outputs = all_gate_outputs.to(self._device)
+                                       self.nb_gate, device=self._device)
+        #all_point_outputs = all_point_outputs.to(self._device)
+        #all_gate_outputs = all_gate_outputs.to(self._device)
 
         domain_emb = self.slot_emb(self.domain_idx).to(self._device)
         subslot_emb = self.slot_emb(self.subslot_idx).to(self._device)
@@ -152,13 +152,13 @@ class DSTGenerator(TrainableNM):
         # print('hidden', hidden.shape) # 480 x 1 x 400
         #hidden = hidden.transpose(0, 1)  # 1 x 480 x 400
         # 1 * (batch*|slot|) * emb
+        enc_len = input_lens.repeat(len(self.slots))
+        # enc_len = input_lens * len(self.slots)
         for wi in range(max_res_len):
             dec_state, hidden = self.rnn(decoder_input.unsqueeze(1),
                                          hidden)
             enc_out = encoder_outputs.repeat(len(self.slots), 1, 1)
             # TODO: check here, take it out of loop
-            #enc_len = input_lens * len(self.slots)
-            enc_len = input_lens.repeat(len(self.slots))
             context_vec, logits, prob = self.attend(enc_out,
                                                     hidden.squeeze(0),
                                                     # 480 x 400
@@ -174,8 +174,8 @@ class DSTGenerator(TrainableNM):
             p_gen_vec = torch.cat(
                 [dec_state.squeeze(1), context_vec, decoder_input], -1)
             vocab_pointer_switches = self.sigmoid(self.w_ratio(p_gen_vec))
-            p_context_ptr = torch.zeros(p_vocab.size())
-            p_context_ptr = p_context_ptr.to(self._device)
+            p_context_ptr = torch.zeros(p_vocab.size(), device=self._device)
+            #p_context_ptr = p_context_ptr.to(self._device)
 
             p_context_ptr.scatter_add_(1,
                                        src_ids.repeat(len(self.slots), 1),
