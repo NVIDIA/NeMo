@@ -7,6 +7,7 @@ import argparse
 import os
 
 import numpy as np
+from tqdm import tqdm
 
 from nemo.core import DeviceType
 import nemo
@@ -181,12 +182,15 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
                              ["pointer_loss", x[2]]],
     step_freq=steps_per_epoch)
 
+batch_num_eval = int(eval_data_layer._dataset.__len__() / args.batch_size)
+progress_bar_eval = tqdm(total=batch_num_eval)
+
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(
-        x, y, eval_data_layer),
+        x, y, eval_data_layer, progress_bar_eval),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, f'{nf.work_dir}/graphs', eval_data_layer),
+        x, eval_data_layer, progress_bar_eval),
     tb_writer=nf.tb_writer,
     eval_step=steps_per_epoch)
 
