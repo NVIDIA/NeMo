@@ -861,19 +861,29 @@ class WOZDSTDataLayer(TextDataLayer):
                  batch_size=16,
                  mode='train',
                  dataset_type=WOZDSTDataset,
+                 shuffle=False,
+                 num_workers=0,
                  **kwargs):
 
         kwargs['batch_size'] = batch_size
         dataset_params = {'data_dir': data_dir,
                           'domains': domains,
                           'num_samples': num_samples,
-                          'mode': mode}
+                          'mode': mode,
+                          'shuffle': shuffle}
         super().__init__(dataset_type, dataset_params, **kwargs)
+
+        if self._placement == nemo.core.DeviceType.AllGpu:
+            sampler = pt_data.distributed.DistributedSampler(self._dataset)
+        else:
+            sampler = None
 
         self._dataloader = pt_data.DataLoader(dataset=self._dataset,
                                               batch_size=batch_size,
                                               shuffle=False,
-                                              collate_fn=self._collate_fn)
+                                              num_workers=num_workers,
+                                              collate_fn=self._collate_fn,
+                                              sampler=sampler)
         self.pad_id = self._dataset.vocab.pad_id
         self.gating_dict = self._dataset.gating_dict
 
