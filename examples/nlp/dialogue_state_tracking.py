@@ -7,6 +7,7 @@ import argparse
 import os
 
 import numpy as np
+
 from nemo.core import DeviceType
 import nemo
 from nemo.backends.pytorch.common import EncoderRNN
@@ -82,13 +83,18 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    create_tb_writer=True,
                                    files_to_copy=[__file__],
                                    add_time_to_log_dir=True,
-                                   placement=DeviceType.GPU
-                                   #placement=DeviceType.CPU
+                                   #placement=DeviceType.GPU , GPU
                                    )
+
+total_cpus = os.cpu_count()
+num_workers = 0 # max(int(total_cpus / nf.world_size), 1)
 
 data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                       DOMAINS,
                                       num_samples=args.num_train_samples,
+                                      shuffle=args.shuffle_data,
+                                      num_workers=num_workers,
+                                      local_rank=args.local_rank,
                                       batch_size=args.batch_size,
                                       mode='train')
 src_ids, src_lens, tgt_ids, tgt_lens, gate_labels, turn_domain = data_layer()
@@ -136,6 +142,9 @@ train_loss = total_loss(loss_1=gate_loss_train, loss_2=ptr_loss_train)
 eval_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                            DOMAINS,
                                            num_samples=args.num_eval_samples,
+                                           shuffle=False,
+                                           num_workers=num_workers,
+                                           local_rank=args.local_rank,
                                            batch_size=args.batch_size,
                                            mode=args.eval_file_prefix)
 (eval_src_ids, eval_src_lens, eval_tgt_ids,
