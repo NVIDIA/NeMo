@@ -5,8 +5,6 @@ import os
 import random
 import time
 
-import matplotlib
-from matplotlib import pyplot as plt
 import numpy as np
 from sklearn.metrics import confusion_matrix, classification_report
 
@@ -17,25 +15,17 @@ logger = get_logger('')
 
 def eval_iter_callback(tensors,
                        global_vars,
-                       eval_data_layer):
-    # print(tensors)
-    # print(global_vars)
+                       eval_data_layer,
+                       progress_bar):
+
     if 'loss' not in global_vars:
         global_vars['loss'] = []
-    # if 'point_outputs' not in global_vars:
-    #     global_vars['point_outputs'] = []
-    # if 'tgt_ids' not in global_vars:
-    #     global_vars['tgt_ids'] = []
-    # if 'tgt_lens' not in global_vars:
-    #     global_vars['tgt_lens'] = []
     if 'comp_res' not in global_vars:
         global_vars['comp_res'] = []
     if 'gating_labels' not in global_vars:
         global_vars['gating_labels'] = []
     if 'gating_preds' not in global_vars:
         global_vars['gating_preds'] = []
-    # if 'gate_outputs' not in global_vars:
-    #     global_vars['gate_outputs'] = []
 
     for kv, v in tensors.items():
         if kv.startswith('loss'):
@@ -43,20 +33,16 @@ def eval_iter_callback(tensors,
             global_vars['loss'].append(loss_numpy)
         if kv.startswith('point_outputs'):
             point_outputs = v[0].cpu().numpy()
-        #     global_vars['point_outputs'].extend(point_outputs)
         if kv.startswith('gate_outputs'):
             gate_outputs = v[0].cpu().numpy()
-            # global_vars['gate_outputs'].extend(gate_outputs)
         if kv.startswith('gating_labels'):
             gating_labels = v[0].cpu().numpy()
             global_vars['gating_labels'].extend(gating_labels)
         if kv.startswith('tgt_ids'):
             tgt_ids = v[0].cpu().numpy()
-        #     global_vars['tgt_ids'].extend(tgt_ids)
-        # if kv.startswith('tgt_lens'):
-        #     tgt_lens = v[0].cpu().numpy()
-        #     global_vars['tgt_lens'].extend(tgt_lens)
 
+    progress_bar.update()
+    progress_bar.set_description(f"Loss: {str(loss_numpy)}")
 
     # # Set to not-training mode to disable dropout
     # self.encoder.train(False)
@@ -138,9 +124,11 @@ def list2str(l):
     return ' '.join([str(j) for j in l])
 
 
-def eval_epochs_done_callback(global_vars, graph_fold, eval_data_layer):
+def eval_epochs_done_callback(global_vars, eval_data_layer, progress_bar):
     #loss = np.mean(global_vars['loss'])
     #print(f'Loss: {loss}')
+
+    progress_bar.reset()
 
     joint_acc, turn_acc, F1 = \
         evaluate_metrics(global_vars['comp_res'],
