@@ -90,7 +90,7 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
 total_cpus = os.cpu_count()
 num_workers = 0 # max(int(total_cpus / nf.world_size), 1)
 
-data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
+train_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                       DOMAINS,
                                       num_samples=args.num_train_samples,
                                       shuffle=args.shuffle_data,
@@ -98,9 +98,9 @@ data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                       local_rank=args.local_rank,
                                       batch_size=args.batch_size,
                                       mode='train')
-src_ids, src_lens, tgt_ids, tgt_lens, gate_labels, turn_domain = data_layer()
-vocab_size = len(data_layer._dataset.vocab)
-steps_per_epoch = len(data_layer) // args.batch_size
+src_ids, src_lens, tgt_ids, tgt_lens, gate_labels, turn_domain = train_data_layer()
+vocab_size = len(train_data_layer._dataset.vocab)
+steps_per_epoch = len(train_data_layer) // args.batch_size
 
 encoder = EncoderRNN(vocab_size,
                      args.emb_dim,
@@ -110,12 +110,12 @@ encoder = EncoderRNN(vocab_size,
 
 outputs, hidden = encoder(inputs=src_ids, input_lens=src_lens)
 
-decoder = nemo_nlp.DSTGenerator(data_layer._dataset.vocab,
+decoder = nemo_nlp.DSTGenerator(train_data_layer._dataset.vocab,
                                 encoder.embedding,
                                 args.hid_dim,
                                 args.dropout,
-                                data_layer._dataset.slots,
-                                len(data_layer._dataset.gating_dict),
+                                train_data_layer._dataset.slots,
+                                len(train_data_layer._dataset.gating_dict),
                                 teacher_forcing=0.5)
 
 point_outputs, gate_outputs = decoder(encoder_hidden=hidden,
@@ -125,7 +125,7 @@ point_outputs, gate_outputs = decoder(encoder_hidden=hidden,
                                       targets=tgt_ids)
 
 gate_loss_fn = \
-    nemo_nlp.CrossEntropyLoss3D(num_classes=len(data_layer.gating_dict))
+    nemo_nlp.CrossEntropyLoss3D(num_classes=len(train_data_layer.gating_dict))
 ptr_loss_fn = nemo_nlp.DSTMaskedCrossEntropy()
 
 #TODO: check here
@@ -170,6 +170,18 @@ eval_loss = total_loss(loss_1=gate_loss_eval, loss_2=ptr_loss_eval)
 eval_tensors = [eval_loss, eval_point_outputs, eval_gate_outputs,
                 eval_gate_labels, eval_turn_domain, eval_tgt_ids, eval_tgt_lens]
 
+# Create progress bars
+import math
+iter_num_eval = math.ceil(eval_data_layer._dataset.__len__() /
+                          args.batch_size / nf.world_size)
+progress_bar_eval = tqdm(total=iter_num_eval, position=0, leave=False)
+
+iter_num_train = math.ceil(train_data_layer._dataset.__len__() /
+                           args.batch_size / nf.world_size)
+progress_bar_train = tqdm(total=iter_num_train, position=0, leave=False)
+# print("salam", batch_num_eval, eval_data_layer._dataset.__len__(), args.batch_size)
+
+
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss, gate_loss_train, ptr_loss_train],
@@ -180,10 +192,8 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     get_tb_values=lambda x: [["loss", x[0]],
                              ["gate_loss", x[1]],
                              ["pointer_loss", x[2]]],
-    step_freq=steps_per_epoch)
-
-batch_num_eval = int(eval_data_layer._dataset.__len__() / args.batch_size)
-progress_bar_eval = tqdm(total=batch_num_eval)
+    step_freq=steps_per_epoch,
+    progress_bar=progress_bar_train)
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
@@ -205,7 +215,7 @@ lr_policy_fn = get_lr_policy(args.lr_policy,
                              warmup_ratio=args.lr_warmup_proportion)
 
 nf.train(tensors_to_optimize=[train_loss],
-         callbacks=[train_callback, eval_callback, ckpt_callback],
+         callbacks=[eval_callback, train_callback, ckpt_callback],
          #lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,
