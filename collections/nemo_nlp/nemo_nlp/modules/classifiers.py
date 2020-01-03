@@ -239,8 +239,8 @@ class SequenceClassifier(TrainableNM):
         """
         return {
             "logits": NeuralType({
-                0: AxisType(ChannelTag),
-                1: AxisType(TimeTag)
+                0: AxisType(BatchTag),
+                1: AxisType(ChannelTag)
             })
         }
 
