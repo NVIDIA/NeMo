@@ -48,29 +48,11 @@ parser.add_argument("--do_lower_case", action='store_true')
 parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--num_train_samples", default=-1, type=int)
 parser.add_argument("--num_eval_samples", default=-1, type=int)
-
 parser.add_argument("--grad_norm_clip", type=float, default=-1,
                     help="gradient clipping")
-
 parser.add_argument("--progress_bar", action='store_true')
-
-# parser.add_argument('--vocab_size', default=1, type=int)
-
-# # Testing Setting
-# parser.add_argument('-rundev', '--run_dev_testing', help='',
-#                     default=0, type=int)
-# parser.add_argument('-viz', '--vizualization',
-#                     help='vizualization', type=int, default=0)
-# parser.add_argument('-gs', '--genSample', help='Generate Sample',
-#                     type=int, default=0)
-# parser.add_argument('-evalp', '--evalp',
-#                     help='evaluation period', default=1)
-# parser.add_argument('-an', '--addName',
-#                     help='An add name for the save folder', default='')
-# parser.add_argument('-eb', '--eval_batch', help='Evaluation Batch_size',
-#                     type=int, default=0)
-
 args = parser.parse_args()
+
 DOMAINS = {"attraction": 0, "restaurant": 1, "taxi": 2, "train": 3, "hotel": 4}
 
 if not os.path.exists(args.data_dir):
@@ -85,7 +67,7 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    create_tb_writer=True,
                                    files_to_copy=[__file__],
                                    add_time_to_log_dir=True,
-                                   #placement=DeviceType.GPU , GPU
+                                   #placement=CPU
                                    )
 
 total_cpus = os.cpu_count()
@@ -142,7 +124,6 @@ gate_loss_fn = \
     nemo_nlp.CrossEntropyLoss3D(num_classes=len(train_data_layer.gating_dict))
 ptr_loss_fn = nemo_nlp.DSTMaskedCrossEntropy()
 
-#TODO: check here
 total_loss = nemo_nlp.LossAggregatorNM(num_inputs=2) # 1 or 2
 
 gate_loss_train = gate_loss_fn(logits=gate_outputs,
@@ -152,7 +133,6 @@ ptr_loss_train = ptr_loss_fn(logits=point_outputs,
                                 mask=tgt_lens)
 
 train_loss = total_loss(loss_1=gate_loss_train, loss_2=ptr_loss_train)
-#train_loss = total_loss(loss_1=gate_loss_train)
 
 eval_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                            DOMAINS,
@@ -179,18 +159,17 @@ ptr_loss_eval = ptr_loss_fn(logits=eval_point_outputs,
                             mask=eval_tgt_lens)
 
 eval_loss = total_loss(loss_1=gate_loss_eval, loss_2=ptr_loss_eval)
-#eval_loss = total_loss(loss_1=gate_loss_eval)
 
 eval_tensors = [eval_loss, eval_point_outputs, eval_gate_outputs,
                 eval_gate_labels, eval_turn_domain, eval_tgt_ids, eval_tgt_lens]
 
 # Create progress bars
 if args.progress_bar:
-    iter_num_eval = math.ceil(eval_data_layer._dataset.__len__() /
+    iter_num_eval = math.ceil(len(eval_data_layer) /
                               args.batch_size / nf.world_size)
     progress_bar_eval = tqdm(total=iter_num_eval, position=0, leave=False)
 
-    iter_num_train = math.ceil(train_data_layer._dataset.__len__() /
+    iter_num_train = math.ceil(len(train_data_layer) /
                                args.batch_size / nf.world_size)
     progress_bar_train = tqdm(total=iter_num_train, position=0, leave=False)
 else:
