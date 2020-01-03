@@ -37,8 +37,6 @@ parser.add_argument("--data_dir", default='data/statetracking/multiwoz', type=st
 parser.add_argument("--dataset_name", default='multiwoz', type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
-#parser.add_argument("--none_slot_label", default='O', type=str)
-#parser.add_argument("--pad_label", default=-1, type=int)
 parser.add_argument("--work_dir", default='outputs', type=str)
 parser.add_argument("--save_epoch_freq", default=-1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
@@ -98,7 +96,8 @@ train_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                       local_rank=args.local_rank,
                                       batch_size=args.batch_size,
                                       mode='train')
-src_ids, src_lens, tgt_ids, tgt_lens, gate_labels, turn_domain = train_data_layer()
+src_ids, src_lens, tgt_ids, tgt_lens, gate_labels, turn_domain = \
+    train_data_layer()
 vocab_size = len(train_data_layer._dataset.vocab)
 steps_per_epoch = len(train_data_layer) // args.batch_size
 
@@ -179,8 +178,6 @@ progress_bar_eval = tqdm(total=iter_num_eval, position=0, leave=False)
 iter_num_train = math.ceil(train_data_layer._dataset.__len__() /
                            args.batch_size / nf.world_size)
 progress_bar_train = tqdm(total=iter_num_train, position=0, leave=False)
-# print("salam", batch_num_eval, eval_data_layer._dataset.__len__(), args.batch_size)
-
 
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(
