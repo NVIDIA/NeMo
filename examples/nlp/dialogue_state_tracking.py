@@ -50,7 +50,7 @@ parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--num_train_samples", default=-1, type=int)
 parser.add_argument("--num_eval_samples", default=-1, type=int)
 
-parser.add_argument("--grad_norm_clip", type=float, default=10.0,
+parser.add_argument("--grad_norm_clip", type=float, default=-1,
                     help="gradient clipping")
 
 # parser.add_argument('--vocab_size', default=1, type=int)
@@ -214,12 +214,13 @@ lr_policy_fn = get_lr_policy(args.lr_policy,
                              total_steps=args.num_epochs * steps_per_epoch,
                              warmup_ratio=args.lr_warmup_proportion)
 
+grad_norm_clip = args.grad_norm_clip if args.grad_norm_clip > 0 else None
 nf.train(tensors_to_optimize=[train_loss],
          callbacks=[eval_callback, train_callback, ckpt_callback],
          #lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,
                               "lr": args.lr,
-                              #"grad_norm_clip": args.grad_norm_clip,
+                              "grad_norm_clip": grad_norm_clip,
                               #"weight_decay": args.weight_decay
                               })
