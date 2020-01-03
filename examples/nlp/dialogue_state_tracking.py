@@ -183,7 +183,6 @@ eval_tensors = [eval_loss, eval_point_outputs, eval_gate_outputs,
                 eval_gate_labels, eval_turn_domain, eval_tgt_ids, eval_tgt_lens]
 
 # Create progress bars
-import math
 iter_num_eval = math.ceil(eval_data_layer._dataset.__len__() /
                           args.batch_size / nf.world_size)
 progress_bar_eval = tqdm(total=iter_num_eval, position=0, leave=False)
