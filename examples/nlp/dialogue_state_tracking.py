@@ -5,6 +5,7 @@ Adopted from: https://github.com/jasonwu0731/trade-dst
 
 import argparse
 import os
+import math
 
 import numpy as np
 from tqdm import tqdm
@@ -99,7 +100,19 @@ train_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
 src_ids, src_lens, tgt_ids, tgt_lens, gate_labels, turn_domain = \
     train_data_layer()
 vocab_size = len(train_data_layer._dataset.vocab)
-steps_per_epoch = len(train_data_layer) // args.batch_size
+
+train_data_size = len(train_data_layer)
+print(f'The length of train data layer is {train_data_size}')
+
+batch_size = args.batch_size
+if train_data_size < batch_size:
+    nf.logger.warning("Batch_size is larger than the train dataset size")
+    nf.logger.warning("Reducing batch_size to dataset size")
+    batch_size = train_data_size
+
+steps_per_epoch = math.ceil(train_data_size / (batch_size * args.num_gpus))
+nf.logger.info(f"Steps_per_epoch Train= {steps_per_epoch}")
+
 
 encoder = EncoderRNN(vocab_size,
                      args.emb_dim,
