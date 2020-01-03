@@ -16,7 +16,7 @@ logger = get_logger('')
 def eval_iter_callback(tensors,
                        global_vars,
                        eval_data_layer,
-                       progress_bar):
+                       progress_bar=None):
 
     if 'loss' not in global_vars:
         global_vars['loss'] = []
@@ -41,8 +41,9 @@ def eval_iter_callback(tensors,
         if kv.startswith('tgt_ids'):
             tgt_ids = v[0].cpu().numpy()
 
-    progress_bar.update()
-    progress_bar.set_description(f"Loss: {str(loss_numpy)}")
+    if progress_bar:
+        progress_bar.update()
+        progress_bar.set_description(f"Loss: {str(loss_numpy)}")
 
     # # Set to not-training mode to disable dropout
     # self.encoder.train(False)
@@ -124,11 +125,12 @@ def list2str(l):
     return ' '.join([str(j) for j in l])
 
 
-def eval_epochs_done_callback(global_vars, eval_data_layer, progress_bar):
+def eval_epochs_done_callback(global_vars, eval_data_layer, progress_bar=None):
     #loss = np.mean(global_vars['loss'])
     #print(f'Loss: {loss}')
 
-    progress_bar.reset()
+    if progress_bar:
+        progress_bar.reset()
 
     joint_acc, turn_acc, F1 = \
         evaluate_metrics(global_vars['comp_res'],

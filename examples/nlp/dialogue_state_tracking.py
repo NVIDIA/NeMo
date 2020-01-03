@@ -52,6 +52,8 @@ parser.add_argument("--num_eval_samples", default=-1, type=int)
 parser.add_argument("--grad_norm_clip", type=float, default=-1,
                     help="gradient clipping")
 
+parser.add_argument("--progress_bar", action='store_true')
+
 # parser.add_argument('--vocab_size', default=1, type=int)
 
 # # Testing Setting
@@ -183,13 +185,17 @@ eval_tensors = [eval_loss, eval_point_outputs, eval_gate_outputs,
                 eval_gate_labels, eval_turn_domain, eval_tgt_ids, eval_tgt_lens]
 
 # Create progress bars
-iter_num_eval = math.ceil(eval_data_layer._dataset.__len__() /
-                          args.batch_size / nf.world_size)
-progress_bar_eval = tqdm(total=iter_num_eval, position=0, leave=False)
+if args.progress_bar:
+    iter_num_eval = math.ceil(eval_data_layer._dataset.__len__() /
+                              args.batch_size / nf.world_size)
+    progress_bar_eval = tqdm(total=iter_num_eval, position=0, leave=False)
 
-iter_num_train = math.ceil(train_data_layer._dataset.__len__() /
-                           args.batch_size / nf.world_size)
-progress_bar_train = tqdm(total=iter_num_train, position=0, leave=False)
+    iter_num_train = math.ceil(train_data_layer._dataset.__len__() /
+                               args.batch_size / nf.world_size)
+    progress_bar_train = tqdm(total=iter_num_train, position=0, leave=False)
+else:
+    progress_bar_eval = None
+    progress_bar_train = None
 
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(
