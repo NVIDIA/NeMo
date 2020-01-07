@@ -17,7 +17,8 @@ __all__ = ['TextDataLayer',
            'BertPretrainingPreprocessedDataLayer',
            'TranslationDataLayer',
            'GlueDataLayerClassification',
-           'GlueDataLayerRegression']
+           'GlueDataLayerRegression',
+           'BertSquadDataLayer']
 
 # from abc import abstractmethod
 import sys
@@ -730,6 +731,86 @@ class BertPunctuationCapitalizationInferDataLayer(TextDataLayer):
         dataset_params = {'queries': queries,
                           'tokenizer': tokenizer,
                           'max_seq_length': max_seq_length}
+        super().__init__(dataset_type, dataset_params, **kwargs)
+
+
+class BertSquadDataLayer(TextDataLayer):
+    """
+    Creates the data layer to use for the Squad classification tasks,
+    """
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+            input_ids:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            input_type_ids:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            input_mask:
+                0: AxisType(BatchTag)
+
+                1: AxisType(TimeTag)
+
+            start_positions:
+                0: AxisType(CategoricalTag)
+
+            end_positions:
+                0: AxisType(CategoricalTag)
+        """
+        return {
+            "input_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_type_ids": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "input_mask": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "start_positions": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "end_positions": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+        }
+
+    def __init__(self,
+                 data_dir,
+                 tokenizer,
+                 task_name,
+                 doc_stride,
+                 max_query_length,
+                 max_seq_length,
+                 evaluate=False,
+                 token_params={},
+                 num_samples=-1,
+                 shuffle=False,
+                 batch_size=64,
+                 dataset_type=SquadDataset,
+                 **kwargs):
+        kwargs['batch_size'] = batch_size
+        dataset_params = {'data_dir': data_dir,
+                          'evaluate': evaluate,
+                          'token_params': token_params,
+                          'tokenizer': tokenizer,
+                          'task_name': task_name,
+                          'max_query_length': max_query_length,
+                          'max_seq_length': max_seq_length,
+                          'doc_stride': doc_stride}
+
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 
