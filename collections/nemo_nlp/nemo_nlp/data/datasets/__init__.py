@@ -1,6 +1,7 @@
 from .bert_pretraining import (BertPretrainingDataset,
                                BertPretrainingPreprocessedDataset)
 from .glue import GLUEDataset
+from .squad import SquadDataset
 from .joint_intent_slot import (BertJointIntentSlotDataset,
                                 BertJointIntentSlotInferDataset)
 from .language_modeling import LanguageModelingDataset

@@ -8,10 +8,93 @@ from ..utils.nlp_utils import mask_padded_tokens
 
 
 __all__ = ['MaskedLanguageModelingLossNM',
+           'QuestionAnsweringLoss',
            'LossAggregatorNM',
            'TokenClassificationLoss',
            'JointIntentSlotLoss',
            'PaddedSmoothedCrossEntropyLossNM']
+
+
+class QuestionAnsweringLoss(LossNM):
+    """
+    Neural module which implements Token Classification loss.
+
+    Args:
+        num_classes (int): number of classes in a classifier, e.g. size
+            of the vocabulary in language modeling objective
+        logits (float): output of the classifier
+        labels (long): ground truth labels
+        loss_mask (long): to differentiate from original tokens and paddings
+    """
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+
+        start_positions:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        end_positions:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
+            "logits": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag),
+                2: AxisType(ChannelTag)
+            }),
+            "start_positions": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            }),
+            "end_positions": NeuralType({
+                0: AxisType(BatchTag),
+                1: AxisType(TimeTag)
+            })
+        }
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {
+            "loss": NeuralType(None)
+        }
+
+    def __init__(self, **kwargs):
+        LossNM.__init__(self, **kwargs)
+
+    def _loss_function(self, logits, start_positions, end_positions):
+        start_logits, end_logits = logits.split(1, dim=-1)
+        start_logits = start_logits.squeeze(-1)
+        end_logits = end_logits.squeeze(-1)
+        if len(start_positions.size()) > 1:
+            start_positions = start_positions.squeeze(-1)
+        if len(end_positions.size()) > 1:
+            end_positions = end_positions.squeeze(-1)
+        ignored_index = start_logits.size(1)
+        start_positions.clamp_(0, ignored_index)
+        end_positions.clamp_(0, ignored_index)
+
+        loss_fct = nn.CrossEntropyLoss(ignore_index=ignored_index)
+        start_loss = loss_fct(start_logits, start_positions)
+        end_loss = loss_fct(end_logits, end_positions)
+        total_loss = (start_loss + end_loss) / 2
+        return total_loss
 
 
 class MaskedLanguageModelingLossNM(LossNM):
