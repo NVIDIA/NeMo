@@ -79,12 +79,14 @@ class EncoderRNN(TrainableNM):
         self.to(self._device)
 
     def forward(self, inputs, input_lens=None):
-        bi_mask = np.random.binomial([np.ones(inputs.size())],
-                                     1 - self.input_dropout)[0]
-        rand_mask = torch.Tensor(bi_mask).long().to(self._device)
-        inputs_masked = inputs * rand_mask
-
-        embedded = self.embedding(inputs_masked)
+        if self.input_dropout > 0:
+            bi_mask = np.random.binomial([np.ones(inputs.size())],
+                                         1.0 - self.input_dropout)[0]
+            rand_mask = torch.Tensor(bi_mask).long().to(self._device)
+            embedding_input = inputs * rand_mask
+        else:
+            embedding_input = inputs
+        embedded = self.embedding(embedding_input)
         embedded = self.dropout(embedded)
         if input_lens is not None:
             embedded = nn.utils.rnn.pack_padded_sequence(embedded,
