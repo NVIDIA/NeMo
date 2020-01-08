@@ -62,7 +62,7 @@ class EncoderRNN(TrainableNM):
                  input_dropout=0.0):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
-        self.input_dropout(input_dropout)
+        self.input_dropout = input_dropout
         self.embedding = nn.Embedding(input_dim, emb_dim, padding_idx=pad_idx)
         if embedding_to_load is not None:
             self.embedding.weight.data.copy_(embedding_to_load)
