@@ -103,7 +103,6 @@ class DSTGenerator(TrainableNM):
         domains = [split_slot[0] for split_slot in split_slots]
         slots = [split_slot[1] for split_slot in split_slots]
         split_slots = list({s: 0 for s in sum(split_slots, [])})
-        #split_slots = list(set(sum(split_slots, [])))
         self.slot_w2i = {split_slots[i]: i for i in range(len(split_slots))}
         self.domain_idx = torch.tensor(
             [self.slot_w2i[domain] for domain in domains], device=self._device)
@@ -123,12 +122,12 @@ class DSTGenerator(TrainableNM):
 
 
         # TODO: commented here
-        # if (not self.training) \
-        #         or (random.random() > self.teacher_forcing):
-        #     use_teacher_forcing = False
-        # else:
-        #     use_teacher_forcing = True
-        use_teacher_forcing = False
+        if (not self.training) \
+                or (random.random() > self.teacher_forcing):
+            use_teacher_forcing = False
+        else:
+            use_teacher_forcing = True
+        # use_teacher_forcing = False
 
         # TODO: made it 10 if not training, make it work with no targets
         max_res_len = targets.shape[2]

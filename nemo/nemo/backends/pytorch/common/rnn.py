@@ -61,12 +61,10 @@ class EncoderRNN(TrainableNM):
                  sum_hidden=True):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
-        # TODO: changed here added + 1
         self.embedding = nn.Embedding(input_dim, emb_dim, padding_idx=pad_idx)
         if embedding_to_load is not None:
             self.embedding.weight.data.copy_(embedding_to_load)
         else:
-            #torch.cuda.manual_seed_all(999)
             self.embedding.weight.data.normal_(0, 0.1)
         self.rnn = nn.GRU(emb_dim,
                           hid_dim,
