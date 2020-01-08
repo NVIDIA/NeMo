@@ -60,12 +60,6 @@ if not os.path.exists(args.data_dir):
 
 work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
 
-
-# TODO: added some stuff
-import torch
-torch.backends.cudnn.deterministic = True
-
-
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
@@ -77,7 +71,7 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    )
 
 total_cpus = os.cpu_count()
-num_workers = 0 # max(int(total_cpus / nf.world_size), 1)
+num_workers = 0  # max(int(total_cpus / nf.world_size), 1)
 
 train_data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                       DOMAINS,
@@ -102,10 +96,6 @@ if train_data_size < batch_size:
 
 steps_per_epoch = math.ceil(train_data_size / (batch_size * args.num_gpus))
 nf.logger.info(f"Steps_per_epoch Train= {steps_per_epoch}")
-
-torch.manual_seed(999)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(999)
 
 
 encoder = EncoderRNN(vocab_size,
@@ -220,8 +210,7 @@ lr_policy_fn = get_lr_policy(args.lr_policy,
 
 grad_norm_clip = args.grad_norm_clip if args.grad_norm_clip > 0 else None
 nf.train(tensors_to_optimize=[train_loss],
-         #callbacks=[eval_callback, train_callback, ckpt_callback],
-         callbacks=[train_callback, ckpt_callback],
+         callbacks=[eval_callback, train_callback, ckpt_callback],
          #lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,
