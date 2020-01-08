@@ -759,10 +759,10 @@ class BertSquadDataLayer(TextDataLayer):
                 1: AxisType(TimeTag)
 
             start_positions:
-                0: AxisType(CategoricalTag)
+                0: AxisType(BatchTag)
 
             end_positions:
-                0: AxisType(CategoricalTag)
+                0: AxisType(BatchTag)
         """
         return {
             "input_ids": NeuralType({
@@ -778,13 +778,13 @@ class BertSquadDataLayer(TextDataLayer):
                 1: AxisType(TimeTag)
             }),
             "start_positions": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
+                0: AxisType(BatchTag)
             }),
             "end_positions": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
+                0: AxisType(BatchTag)
             }),
+            "unique_ids":
+                NeuralType({0: AxisType(BatchTag)})
         }
 
     def __init__(self,
@@ -794,7 +794,7 @@ class BertSquadDataLayer(TextDataLayer):
                  doc_stride,
                  max_query_length,
                  max_seq_length,
-                 evaluate=False,
+                 mode="train",
                  token_params={},
                  num_samples=-1,
                  shuffle=False,
@@ -803,7 +803,7 @@ class BertSquadDataLayer(TextDataLayer):
                  **kwargs):
         kwargs['batch_size'] = batch_size
         dataset_params = {'data_dir': data_dir,
-                          'evaluate': evaluate,
+                          'mode': mode,
                           'token_params': token_params,
                           'tokenizer': tokenizer,
                           'task_name': task_name,

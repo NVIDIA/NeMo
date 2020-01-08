@@ -39,6 +39,8 @@ from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
 from nemo_nlp.utils.callbacks.glue import \
     eval_iter_callback, eval_epochs_done_callback
 from nemo_nlp import QuestionAnsweringLoss
+from nemo_nlp.utils.callbacks.squad import \
+    eval_iter_callback, eval_epochs_done_callback
 
 parser = argparse.ArgumentParser(description="Squad_with_pretrained_BERT")
 
@@ -73,6 +75,9 @@ parser.add_argument("--num_epochs", default=3, type=int,
                     help="Total number of training epochs to perform.")
 parser.add_argument("--batch_size", default=8, type=int,
                     help="Batch size per GPU/CPU for training/evaluation.")
+parser.add_argument("--do_lower_case",
+                        action='store_true',
+                        help="Whether to lower case the input text. True for uncased models, False for cased models.")
 parser.add_argument("--doc_stride", default=128, type=int,
                     help="When splitting up a long document into chunks, how much stride to take between chunks.")
 parser.add_argument("--max_query_length", default=64, type=int,
@@ -102,8 +107,21 @@ parser.add_argument("--save_step_freq", default=-1, type=int,
                     help="Frequency of saving checkpoint \
                     '-1' - step checkpoint won't be saved")
 parser.add_argument("--loss_step_freq", default=25, type=int,
-                    help="Frequency of printing loss")
-
+                    help="Frequency of printing loss")    
+parser.add_argument(
+        "--version_2_with_negative",
+        action="store_true",
+        help="If true, the SQuAD examples contain some that do not have an answer.",
+    )
+parser.add_argument('--null_score_diff_threshold',
+                    type=float, default=0.0,
+                    help="If null_score - best_non_null is greater than the threshold predict null.")
+parser.add_argument("--n_best_size", default=20, type=int,
+                    help="The total number of n-best predictions to generate in the nbest_predictions.json "
+                            "output file.")
+parser.add_argument("--max_answer_length", default=30, type=int,
+                    help="The maximum length of an answer that can be generated. This is needed because the start "
+                            "and end predictions are not conditioned on one another.")
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
@@ -172,19 +190,15 @@ token_params={}
 def create_pipeline(max_query_length=args.max_query_length, max_seq_length=args.max_seq_length,
                     doc_stride=args.doc_stride,
                     batch_size=args.batch_size,
-                    local_rank=args.local_rank,
                     num_gpus=args.num_gpus,
-                    evaluate=False):
+                    mode="train"):
 
-    data_layer = 'BertSquadDataLayer'
-    data_layer = getattr(sys.modules[__name__], data_layer)
 
-    data_layer = data_layer(
-                    evaluate=evaluate,
+    data_layer = BertSquadDataLayer(
+                    mode=mode,
                     task_name="SquadV1",
                     batch_size=batch_size,
                     num_workers=0,
-                    local_rank=local_rank,
                     tokenizer=tokenizer,
                     data_dir=args.data_dir,
                     max_query_length=max_query_length,
@@ -192,7 +206,7 @@ def create_pipeline(max_query_length=args.max_query_length, max_seq_length=args.
                     doc_stride=doc_stride,
                     token_params=token_params)
 
-    input_ids, input_type_ids, input_mask, start_positions, end_positions = data_layer()
+    input_ids, input_type_ids, input_mask, start_positions, end_positions, unique_ids = data_layer()
 
     hidden_states = model(input_ids=input_ids,
                           token_type_ids=input_type_ids,
@@ -200,25 +214,30 @@ def create_pipeline(max_query_length=args.max_query_length, max_seq_length=args.
 
 
     qa_output = qa_head(hidden_states=hidden_states)
-    loss = squad_loss(logits=qa_output, start_positions=start_positions, end_positions=end_positions)
+    loss, start_logits, end_logits = squad_loss(logits=qa_output, start_positions=start_positions, end_positions=end_positions)
 
     steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
-    return loss, steps_per_epoch, data_layer
+    return loss, steps_per_epoch, [start_logits, end_logits, unique_ids], data_layer
 
 
-train_loss, steps_per_epoch, _= create_pipeline()
-# _, _, eval_data_layer, eval_tensors = create_pipeline(evaluate=True)
+train_loss, train_steps_per_epoch, _, _= create_pipeline(mode="train")
+eval_loss, eval_steps_per_epoch, eval_output, eval_data_layer = create_pipeline(mode="dev")
 
-# callbacks_eval = [nemo.core.EvaluatorCallback(
-#     eval_tensors=eval_tensors,
-#     user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-#     user_epochs_done_callback=lambda x:
-#         eval_epochs_done_callback(x, args.work_dir, eval_task_names[0]),
-#     tb_writer=nf.tb_writer,
-#     eval_step=steps_per_epoch)]
+callbacks_eval = nemo.core.EvaluatorCallback(
+    eval_tensors=eval_output,
+    user_iter_callback=lambda x, y: eval_iter_callback(x, y),
+    user_epochs_done_callback=lambda x:
+        eval_epochs_done_callback(x, eval_data_layer=eval_data_layer,
+        do_lower_case=args.do_lower_case,
+        n_best_size=args.n_best_size,
+        max_answer_length=args.max_answer_length,
+        version_2_with_negative=args.version_2_with_negative,
+        null_score_diff_threshold=args.null_score_diff_threshold),
+    tb_writer=nf.tb_writer,
+    eval_step=1)
 
 
-nf.logger.info(f"steps_per_epoch = {steps_per_epoch}")
+nf.logger.info(f"steps_per_epoch = {train_steps_per_epoch}")
 callback_train = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
@@ -232,11 +251,11 @@ ckpt_callback = nemo.core.CheckpointCallback(
     step_freq=args.save_step_freq)
 
 lr_policy_fn = get_lr_policy(args.lr_policy,
-                             total_steps=args.num_epochs * steps_per_epoch,
+                             total_steps=args.num_epochs * train_steps_per_epoch,
                              warmup_ratio=args.lr_warmup_proportion)
 
 nf.train(tensors_to_optimize=[train_loss],
-         callbacks=[callback_train, ckpt_callback],
+         callbacks=[callback_train, ckpt_callback, callbacks_eval],
          lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,
