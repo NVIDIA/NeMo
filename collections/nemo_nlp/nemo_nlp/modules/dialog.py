@@ -102,7 +102,8 @@ class DSTGenerator(TrainableNM):
         split_slots = [slot.split('-') for slot in self.slots]
         domains = [split_slot[0] for split_slot in split_slots]
         slots = [split_slot[1] for split_slot in split_slots]
-        split_slots = list(set(sum(split_slots, [])))
+        split_slots = list({s: 0 for s in sum(split_slots, [])})
+        #split_slots = list(set(sum(split_slots, [])))
         self.slot_w2i = {split_slots[i]: i for i in range(len(split_slots))}
         self.domain_idx = torch.tensor(
             [self.slot_w2i[domain] for domain in domains], device=self._device)
@@ -119,21 +120,27 @@ class DSTGenerator(TrainableNM):
         # need domain + slot emb to be of the same size
         # domain emb + slot emb is batch_size x num_slots x slot_emb_dim
         # print('encoder_hidden', encoder_hidden.shape)
-        if (not self.training) \
-                or (random.random() <= self.teacher_forcing):
-            use_teacher_forcing = False
-        else:
-            use_teacher_forcing = True
 
+
+        # TODO: commented here
+        # if (not self.training) \
+        #         or (random.random() > self.teacher_forcing):
+        #     use_teacher_forcing = False
+        # else:
+        #     use_teacher_forcing = True
+        use_teacher_forcing = False
+
+        # TODO: made it 10 if not training, make it work with no targets
         max_res_len = targets.shape[2]
         batch_size = encoder_hidden.shape[0]
 
-        all_point_outputs = torch.zeros(batch_size,
-                                        len(self.slots),
+        targets = targets.transpose(0, 1)
+        all_point_outputs = torch.zeros(len(self.slots),
+                                        batch_size,
                                         max_res_len,
                                         self.vocab_size, device=self._device)
-        all_gate_outputs = torch.zeros(batch_size,
-                                       len(self.slots),
+        all_gate_outputs = torch.zeros(len(self.slots),
+                                       batch_size,
                                        self.nb_gate, device=self._device)
         #all_point_outputs = all_point_outputs.to(self._device)
         #all_gate_outputs = all_gate_outputs.to(self._device)
@@ -141,12 +148,14 @@ class DSTGenerator(TrainableNM):
         domain_emb = self.slot_emb(self.domain_idx).to(self._device)
         subslot_emb = self.slot_emb(self.subslot_idx).to(self._device)
         slot_emb = domain_emb + subslot_emb  # 30 x 400
-        slot_emb = slot_emb[None, :]  # 1 x 30 x 400
-        slot_emb = slot_emb.repeat(batch_size, 1, 1)  # 16 x 30 x 400
+        #slot_emb = slot_emb[None, :]  # 1 x 30 x 400
+        slot_emb = slot_emb.unsqueeze(1) #[None, :]  # 1 x 30 x 400
+        slot_emb = slot_emb.repeat(1, batch_size, 1)  # 16 x 30 x 400
         decoder_input = self.dropout(
             slot_emb).view(-1, self.hidden_size)  # 480 x 400
         # print('encoder_hidden', encoder_hidden.shape) # 16 x 1 x 400
-        hidden = encoder_hidden.repeat(1, len(self.slots), 1)
+        hidden = encoder_hidden.transpose(0, 1).repeat(len(self.slots), 1, 1)
+        #hidden = encoder_hidden.repeat(1, len(self.slots), 1)
 
         hidden = hidden.view(-1, self.hidden_size).unsqueeze(0)
         # print('hidden', hidden.shape) # 480 x 1 x 400
@@ -159,6 +168,9 @@ class DSTGenerator(TrainableNM):
                                          hidden)
             enc_out = encoder_outputs.repeat(len(self.slots), 1, 1)
             # TODO: check here, take it out of loop
+
+            #hidden = hidden.view(16, 30, -1).transpose(0, 1).clone().view(-1, 400)
+
             context_vec, logits, prob = self.attend(enc_out,
                                                     hidden.squeeze(0),
                                                     # 480 x 400
@@ -189,7 +201,7 @@ class DSTGenerator(TrainableNM):
 
             all_point_outputs[:, :, wi, :] = torch.reshape(
                 final_p_vocab,
-                (batch_size, len(self.slots), self.vocab_size))
+                (len(self.slots), batch_size, self.vocab_size))
             # TODO: check here
             if use_teacher_forcing:
                 decoder_input = self.embedding(torch.flatten(targets[:, :, wi]))
@@ -200,7 +212,8 @@ class DSTGenerator(TrainableNM):
                 decoder_input = self.embedding(pred_word)
 
             decoder_input = decoder_input.to(self._device)
-
+        all_point_outputs = all_point_outputs.transpose(0, 1).contiguous()
+        all_gate_outputs = all_gate_outputs.transpose(0, 1).contiguous()
         return all_point_outputs, all_gate_outputs
 
     def attend(self, seq, cond, lens):
