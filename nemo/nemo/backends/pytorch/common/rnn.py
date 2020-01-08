@@ -58,9 +58,11 @@ class EncoderRNN(TrainableNM):
                  n_layers=1,
                  pad_idx=1,
                  embedding_to_load=None,
-                 sum_hidden=True):
+                 sum_hidden=True,
+                 input_dropout=0.0):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
+        self.input_dropout(input_dropout)
         self.embedding = nn.Embedding(input_dim, emb_dim, padding_idx=pad_idx)
         if embedding_to_load is not None:
             self.embedding.weight.data.copy_(embedding_to_load)
@@ -76,6 +78,7 @@ class EncoderRNN(TrainableNM):
         self.to(self._device)
 
     def forward(self, inputs, input_lens=None):
+        embedded = self.input_dropout(inputs)
         embedded = self.embedding(inputs)
         embedded = self.dropout(embedded)
         if input_lens is not None:

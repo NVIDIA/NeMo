@@ -102,7 +102,8 @@ encoder = EncoderRNN(vocab_size,
                      args.emb_dim,
                      args.hid_dim,
                      args.dropout,
-                     args.n_layers)
+                     args.n_layers,
+                     input_dropout=args.dropout)
 
 outputs, hidden = encoder(inputs=src_ids, input_lens=src_lens)
 
