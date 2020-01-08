@@ -78,8 +78,8 @@ class EncoderRNN(TrainableNM):
         self.to(self._device)
 
     def forward(self, inputs, input_lens=None):
-        embedded = self.input_dropout(inputs)
-        embedded = self.embedding(embedded)
+        inputs_masked = self.input_dropout(inputs)
+        embedded = self.embedding(inputs_masked)
         embedded = self.dropout(embedded)
         if input_lens is not None:
             embedded = nn.utils.rnn.pack_padded_sequence(embedded,
