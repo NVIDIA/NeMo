@@ -29,27 +29,20 @@ python squad.py  \
 import argparse
 import os
 import sys
-
-import nemo
-from nemo.utils.lr_policies import get_lr_policy
 import json
+import nemo
 import nemo_nlp
+from nemo.utils.lr_policies import get_lr_policy
 from nemo_nlp import BertSquadDataLayer
 from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
-from nemo_nlp.utils.callbacks.glue import \
-    eval_iter_callback, eval_epochs_done_callback
 from nemo_nlp import QuestionAnsweringLoss
 from nemo_nlp.utils.callbacks.squad import \
     eval_iter_callback, eval_epochs_done_callback
 
 parser = argparse.ArgumentParser(description="Squad_with_pretrained_BERT")
-
-# Parsing arguments
 parser.add_argument("--data_dir", type=str, required=True,
-                    help="The input data dir. Should contain train.json, dev.json    \
-                    files (or other data files) for the task.")
-parser.add_argument("--dataset_type", type=str,
-                    help="The input data type.")
+                    help="The input data dir. Should contain train.*.json, "
+                    "dev.*.json files (or other data files) for the task.")
 parser.add_argument("--pretrained_bert_model", default="bert-base-uncased",
                     type=str, help="Name of the pre-trained model")
 parser.add_argument("--bert_checkpoint", default=None, type=str,
@@ -66,30 +59,30 @@ parser.add_argument("--tokenizer", default="nemobert", type=str,
 parser.add_argument("--optimizer_kind", default="adam", type=str,
                     help="Optimizer kind")
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
-parser.add_argument("--lr", default=5e-5, type=float,
+parser.add_argument("--lr", default=3e-5, type=float,
                     help="The initial learning rate.")
-parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
+parser.add_argument("--lr_warmup_proportion", default=0.0, type=float)
 parser.add_argument("--weight_decay", default=0.0, type=float,
                     help="Weight deay if we apply some.")
-parser.add_argument("--num_epochs", default=3, type=int,
+parser.add_argument("--num_epochs", default=2, type=int,
                     help="Total number of training epochs to perform.")
 parser.add_argument("--batch_size", default=8, type=int,
                     help="Batch size per GPU/CPU for training/evaluation.")
-parser.add_argument("--do_lower_case",
-                        action='store_true',
-                        help="Whether to lower case the input text. True for uncased models, False for cased models.")
+parser.add_argument("--do_lower_case", action='store_true',
+                    help="Whether to lower case the input text. "
+                    "True for uncased models, False for cased models.")
 parser.add_argument("--doc_stride", default=128, type=int,
-                    help="When splitting up a long document into chunks, how much stride to take between chunks.")
+                    help="When splitting up a long document into chunks, "
+                    "how much stride to take between chunks.")
 parser.add_argument("--max_query_length", default=64, type=int,
-                    help="The maximum number of tokens for the question. Questions longer than this will "
-                            "be truncated to this length.")
-parser.add_argument(
-        "--max_seq_length",
-        default=384,
-        type=int,
-        help="The maximum total input sequence length after WordPiece tokenization. Sequences "
-        "longer than this will be truncated, and sequences shorter than this will be padded.",
-    )
+                    help="The maximum number of tokens for the question. "
+                    "Questions longer than this will be truncated to "
+                    "this length.")
+parser.add_argument("--max_seq_length", default=384, type=int,
+                    help="The maximum total input sequence length after "
+                    "WordPiece tokenization. Sequences longer than this "
+                    "will be truncated, and sequences shorter than this "
+                    " will be padded.")
 parser.add_argument("--num_gpus", default=1, type=int,
                     help="Number of GPUs")
 parser.add_argument("--amp_opt_level", default="O0", type=str,
@@ -106,33 +99,34 @@ parser.add_argument("--save_epoch_freq", default=1, type=int,
 parser.add_argument("--save_step_freq", default=-1, type=int,
                     help="Frequency of saving checkpoint \
                     '-1' - step checkpoint won't be saved")
-parser.add_argument("--loss_step_freq", default=25, type=int,
-                    help="Frequency of printing loss")    
-parser.add_argument(
-        "--version_2_with_negative",
-        action="store_true",
-        help="If true, the SQuAD examples contain some that do not have an answer.",
-    )
+parser.add_argument("--loss_step_freq", default=100, type=int,
+                    help="Frequency of printing loss")
+parser.add_argument("--eval_step_freq", default=500, type=int,
+                    help="Frequency of evaluation on dev data")
+parser.add_argument("--version_2_with_negative", action="store_true",
+                    help="If true, the SQuAD examples contain some that "
+                    "do not have an answer.")
 parser.add_argument('--null_score_diff_threshold',
                     type=float, default=0.0,
-                    help="If null_score - best_non_null is greater than the threshold predict null.")
+                    help="If null_score - best_non_null is greater than the "
+                    "threshold predict null.")
 parser.add_argument("--n_best_size", default=20, type=int,
-                    help="The total number of n-best predictions to generate in the nbest_predictions.json "
-                            "output file.")
+                    help="The total number of n-best predictions to "
+                    "generate in the nbest_predictions.json output file.")
 parser.add_argument("--max_answer_length", default=30, type=int,
-                    help="The maximum length of an answer that can be generated. This is needed because the start "
-                            "and end predictions are not conditioned on one another.")
+                    help="The maximum length of an answer that can be "
+                    "generated. This is needed because the start "
+                    "and end predictions are not conditioned on one another.")
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
-    raise FileNotFoundError("GLUE datasets not found. Datasets can be "
-                            "obtained at https://gist.github.com/W4ngatang/ \
-                            60c2bdb54d156a41194446737ce03e2e")
+    raise FileNotFoundError("SQUAD datasets not found. Datasets can be "
+                            "obtained using scripts/download_squad.py")
 
-args.work_dir = f'{args.work_dir}/squad1.1'
-
-label_list = ""
-num_labels = len(label_list)
+if not args.version_2_with_negative:
+    args.work_dir = f'{args.work_dir}/squad1.1'
+else:
+    args.work_dir = f'{args.work_dir}/squad2.0'
 
 # Instantiate neural factory with supported backend
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
@@ -143,98 +137,96 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    files_to_copy=[__file__],
                                    add_time_to_log_dir=True)
 
-if args.bert_checkpoint is None:
+
+if args.tokenizer == "sentencepiece":
+    try:
+        tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
+    except Exception:
+        parser.error("Using --tokenizer=sentencepiece \
+                     requires valid --tokenizer_model")
+    tokenizer.add_special_tokens(["[CLS]", "[SEP]"])
+elif args.tokenizer == "nemobert":
+    tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
+else:
+    raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
+
+if args.bert_config is not None:
+    with open(args.bert_config) as json_file:
+        config = json.load(json_file)
+    model = nemo_nlp.huggingface.BERT(**config)
+else:
     """ Use this if you're using a standard BERT model.
     To see the list of pretrained models, call:
     nemo_nlp.huggingface.BERT.list_pretrained_models()
     """
-    tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
     model = nemo_nlp.huggingface.BERT(
         pretrained_model_name=args.pretrained_bert_model)
-else:
-    """ Use this if you're using a BERT model that you pre-trained yourself.
-    Replace BERT-STEP-150000.pt with the path to your checkpoint.
-    """
-    if args.tokenizer == "sentencepiece":
-        tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
-        tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
-    elif args.tokenizer == "nemobert":
-        tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    else:
-        raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
-    if args.bert_config is not None:
-        with open(args.bert_config) as json_file:
-            config = json.load(json_file)
-        model = nemo_nlp.huggingface.BERT(**config)
-    else:
-        model = nemo_nlp.huggingface.BERT(
-            pretrained_model_name=args.pretrained_bert_model)
 
+if args.bert_checkpoint is not None:
     model.restore_from(args.bert_checkpoint)
 
 hidden_size = model.local_parameters["hidden_size"]
 
-# uses [CLS] token for classification (the first token)
-
-qa_head = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
-                                        num_classes=2,
-                                        num_layers=1,
-                                        log_softmax=False)
+qa_head = nemo_nlp.TokenClassifier(
+                                hidden_size=hidden_size,
+                                num_classes=2,
+                                num_layers=1,
+                                log_softmax=False)
 squad_loss = QuestionAnsweringLoss()
 
-# token_params = {'bos_token': None,
-#                 'eos_token': '[SEP]',
-#                 'pad_token': '[PAD]',
-#                 'cls_token': '[CLS]'}
-token_params={}
-def create_pipeline(max_query_length=args.max_query_length, max_seq_length=args.max_seq_length,
+
+def create_pipeline(max_query_length=args.max_query_length,
+                    max_seq_length=args.max_seq_length,
                     doc_stride=args.doc_stride,
                     batch_size=args.batch_size,
                     num_gpus=args.num_gpus,
+                    version_2_with_negative=args.version_2_with_negative,
                     mode="train"):
-
 
     data_layer = BertSquadDataLayer(
                     mode=mode,
-                    task_name="SquadV1",
+                    version_2_with_negative=version_2_with_negative,
                     batch_size=batch_size,
                     num_workers=0,
                     tokenizer=tokenizer,
                     data_dir=args.data_dir,
                     max_query_length=max_query_length,
                     max_seq_length=max_seq_length,
-                    doc_stride=doc_stride,
-                    token_params=token_params)
+                    doc_stride=doc_stride)
 
-    input_ids, input_type_ids, input_mask, start_positions, end_positions, unique_ids = data_layer()
+    input_ids, input_type_ids, input_mask, \
+        start_positions, end_positions, unique_ids = data_layer()
 
     hidden_states = model(input_ids=input_ids,
                           token_type_ids=input_type_ids,
                           attention_mask=input_mask)
 
-
     qa_output = qa_head(hidden_states=hidden_states)
-    loss, start_logits, end_logits = squad_loss(logits=qa_output, start_positions=start_positions, end_positions=end_positions)
+    loss, start_logits, end_logits = squad_loss(
+        logits=qa_output, start_positions=start_positions,
+        end_positions=end_positions)
 
     steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
-    return loss, steps_per_epoch, [start_logits, end_logits, unique_ids], data_layer
+    return loss, steps_per_epoch, \
+        [start_logits, end_logits, unique_ids], data_layer
 
 
-train_loss, train_steps_per_epoch, _, _= create_pipeline(mode="train")
-eval_loss, eval_steps_per_epoch, eval_output, eval_data_layer = create_pipeline(mode="dev")
+train_loss, train_steps_per_epoch, _, _ = create_pipeline(mode="train")
+_, _, eval_output, eval_data_layer = create_pipeline(mode="dev")
 
 callbacks_eval = nemo.core.EvaluatorCallback(
     eval_tensors=eval_output,
     user_iter_callback=lambda x, y: eval_iter_callback(x, y),
     user_epochs_done_callback=lambda x:
-        eval_epochs_done_callback(x, eval_data_layer=eval_data_layer,
-        do_lower_case=args.do_lower_case,
-        n_best_size=args.n_best_size,
-        max_answer_length=args.max_answer_length,
-        version_2_with_negative=args.version_2_with_negative,
-        null_score_diff_threshold=args.null_score_diff_threshold),
-    tb_writer=nf.tb_writer,
-    eval_step=1)
+        eval_epochs_done_callback(
+            x, eval_data_layer=eval_data_layer,
+            do_lower_case=args.do_lower_case,
+            n_best_size=args.n_best_size,
+            max_answer_length=args.max_answer_length,
+            version_2_with_negative=args.version_2_with_negative,
+            null_score_diff_threshold=args.null_score_diff_threshold),
+        tb_writer=nf.tb_writer,
+        eval_step=args.eval_step_freq)
 
 
 nf.logger.info(f"steps_per_epoch = {train_steps_per_epoch}")
@@ -250,9 +242,10 @@ ckpt_callback = nemo.core.CheckpointCallback(
     epoch_freq=args.save_epoch_freq,
     step_freq=args.save_step_freq)
 
-lr_policy_fn = get_lr_policy(args.lr_policy,
-                             total_steps=args.num_epochs * train_steps_per_epoch,
-                             warmup_ratio=args.lr_warmup_proportion)
+lr_policy_fn = get_lr_policy(
+                args.lr_policy,
+                total_steps=args.num_epochs * train_steps_per_epoch,
+                warmup_ratio=args.lr_warmup_proportion)
 
 nf.train(tensors_to_optimize=[train_loss],
          callbacks=[callback_train, ckpt_callback, callbacks_eval],
