@@ -34,6 +34,7 @@ parser.add_argument("--emb_dim", default=400, type=int)
 parser.add_argument("--hid_dim", default=400, type=int)
 parser.add_argument("--n_layers", default=1, type=int)
 parser.add_argument("--dropout", default=0.2, type=float)
+parser.add_argument("--input_dropout", default=0.2, type=float)
 parser.add_argument("--data_dir", default='data/statetracking/multiwoz', type=str)
 parser.add_argument("--dataset_name", default='multiwoz', type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
@@ -51,6 +52,7 @@ parser.add_argument("--num_eval_samples", default=-1, type=int)
 parser.add_argument("--grad_norm_clip", type=float, default=-1,
                     help="gradient clipping")
 parser.add_argument("--progress_bar", action='store_true')
+parser.add_argument("--teacher_forcing", default=0.0, type=float)
 args = parser.parse_args()
 
 DOMAINS = {"attraction": 0, "restaurant": 1, "taxi": 2, "train": 3, "hotel": 4}
@@ -112,7 +114,7 @@ encoder = EncoderRNN(vocab_size,
                      args.hid_dim,
                      args.dropout,
                      args.n_layers,
-                     input_dropout=args.dropout)
+                     input_dropout=args.input_dropout)
 
 outputs, hidden = encoder(inputs=src_ids, input_lens=src_lens)
 
@@ -123,7 +125,7 @@ decoder = nemo_nlp.DSTGenerator(train_data_layer._dataset.vocab,
                                 train_data_layer._dataset.slots,
                                 len(train_data_layer._dataset.gating_dict),
                                 # TODO
-                                teacher_forcing=0.5)
+                                teacher_forcing=args.teacher_forcing)
 
 point_outputs, gate_outputs = decoder(encoder_hidden=hidden,
                                       encoder_outputs=outputs,
@@ -135,7 +137,7 @@ gate_loss_fn = \
     nemo_nlp.CrossEntropyLoss3D(num_classes=len(train_data_layer.gating_dict))
 ptr_loss_fn = nemo_nlp.DSTMaskedCrossEntropy()
 
-total_loss = nemo_nlp.LossAggregatorNM(num_inputs=2) # 1 or 2
+total_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
 gate_loss_train = gate_loss_fn(logits=gate_outputs,
                                  labels=gate_labels)
@@ -223,7 +225,7 @@ grad_norm_clip = args.grad_norm_clip if args.grad_norm_clip > 0 else None
 # TODO
 nf.train(tensors_to_optimize=[train_loss],
          callbacks=[eval_callback, train_callback, ckpt_callback],
-         #callbacks=[train_callback, ckpt_callback],
+         # callbacks=[train_callback, ckpt_callback],
          #lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,
