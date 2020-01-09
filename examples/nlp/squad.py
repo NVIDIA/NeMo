@@ -33,7 +33,7 @@ import json
 import nemo
 import nemo_nlp
 from nemo.utils.lr_policies import get_lr_policy
-from nemo_nlp import BertSquadDataLayer
+from nemo_nlp import BertQuestionAnsweringDataLayer
 from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
 from nemo_nlp import QuestionAnsweringLoss
 from nemo_nlp.utils.callbacks.squad import \
@@ -183,7 +183,7 @@ def create_pipeline(max_query_length=args.max_query_length,
                     version_2_with_negative=args.version_2_with_negative,
                     mode="train"):
 
-    data_layer = BertSquadDataLayer(
+    data_layer = BertQuestionAnsweringDataLayer(
                     mode=mode,
                     version_2_with_negative=version_2_with_negative,
                     batch_size=batch_size,
