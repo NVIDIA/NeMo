@@ -60,6 +60,15 @@ if not os.path.exists(args.data_dir):
 
 work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
 
+# TODO
+# import torch
+# torch.backends.cudnn.deterministic = True
+#
+# torch.manual_seed(999)
+# if torch.cuda.is_available():
+#     torch.cuda.manual_seed_all(999)
+
+
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
@@ -113,6 +122,7 @@ decoder = nemo_nlp.DSTGenerator(train_data_layer._dataset.vocab,
                                 args.dropout,
                                 train_data_layer._dataset.slots,
                                 len(train_data_layer._dataset.gating_dict),
+                                # TODO
                                 teacher_forcing=0.5)
 
 point_outputs, gate_outputs = decoder(encoder_hidden=hidden,
@@ -210,8 +220,10 @@ lr_policy_fn = get_lr_policy(args.lr_policy,
                              warmup_ratio=args.lr_warmup_proportion)
 
 grad_norm_clip = args.grad_norm_clip if args.grad_norm_clip > 0 else None
+# TODO
 nf.train(tensors_to_optimize=[train_loss],
          callbacks=[eval_callback, train_callback, ckpt_callback],
+         #callbacks=[train_callback, ckpt_callback],
          #lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,

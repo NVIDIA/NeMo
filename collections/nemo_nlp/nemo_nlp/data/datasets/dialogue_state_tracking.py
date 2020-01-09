@@ -193,11 +193,13 @@ class WOZDSTDataset(Dataset):
                 if num_samples > 0 and len(data) >= num_samples:
                     break
 
-                turn_uttr = turn['system_transcript'] + ' ; ' + turn['transcript'] + ' ; '
+                turn_uttr = turn['system_transcript'] + ' ; ' + \
+                            turn['transcript'] + ' ; '
                 #turn_uttr = turn_uttr.strip()
                 dialog_histories.append(turn_uttr)
-                turn_beliefs = fix_general_label_error(turn['belief_state'],
-                                                       self.slots)
+                turn_beliefs = \
+                    self.fix_general_label_error(turn['belief_state'],
+                                                 self.slots)
 
                 turn_belief_list = [f'{k}-{v}' for k, v in turn_beliefs.items()]
 

@@ -166,7 +166,6 @@ class DSTGenerator(TrainableNM):
             dec_state, hidden = self.rnn(decoder_input.unsqueeze(1),
                                          hidden)
             enc_out = encoder_outputs.repeat(len(self.slots), 1, 1)
-            # TODO: check here, take it out of loop
 
             #hidden = hidden.view(16, 30, -1).transpose(0, 1).clone().view(-1, 400)
 
@@ -272,32 +271,32 @@ class DSTMaskedCrossEntropy(LossNM):
         # -1 means infered from other dimentions
         logits_flat = logits.view(-1, logits.size(-1))
         # print(logits_flat.size())
-        log_probs_flat = torch.log(logits_flat)
+        eps = 1e-8
+        log_probs_flat = torch.log(torch.clamp(logits_flat, min=eps))
         # print("log_probs_flat", log_probs_flat)
         target_flat = targets.view(-1, 1)
         # print("target_flat", target_flat)
         losses_flat = -torch.gather(log_probs_flat, dim=1, index=target_flat)
         losses = losses_flat.view(*targets.size())  # b * |s| * m
-        loss = masking(losses, mask)
+        loss = self.masking(losses, mask)
         return loss
 
-
-def masking(losses, mask):
-    mask_ = []
-    batch_size = mask.size(0)
-    max_len = losses.size(2)
-    for si in range(mask.size(1)):
-        seq_range = torch.arange(0, max_len).long()
-        seq_range_expand = seq_range.unsqueeze(0).expand(batch_size, max_len)
-        if mask[:, si].is_cuda:
-            seq_range_expand = seq_range_expand.cuda()
-        seq_length_expand = mask[:, si].unsqueeze(
-            1).expand_as(seq_range_expand)
-        mask_.append((seq_range_expand < seq_length_expand))
-    mask_ = torch.stack(mask_)
-    mask_ = mask_.transpose(0, 1)
-    if losses.is_cuda:
-        mask_ = mask_.cuda()
-    losses = losses * mask_.float()
-    loss = losses.sum() / (mask_.sum().float())
-    return loss
+    def masking(self, losses, mask):
+        mask_ = []
+        batch_size = mask.size(0)
+        max_len = losses.size(2)
+        for si in range(mask.size(1)):
+            seq_range = torch.arange(0, max_len).long()
+            seq_range_expand = seq_range.unsqueeze(0).expand(batch_size, max_len)
+            if mask[:, si].is_cuda:
+                seq_range_expand = seq_range_expand.cuda()
+            seq_length_expand = mask[:, si].unsqueeze(
+                1).expand_as(seq_range_expand)
+            mask_.append((seq_range_expand < seq_length_expand))
+        mask_ = torch.stack(mask_)
+        mask_ = mask_.transpose(0, 1)
+        if losses.is_cuda:
+            mask_ = mask_.cuda()
+        losses = losses * mask_.float()
+        loss = losses.sum() / (mask_.sum().float())
+        return loss
