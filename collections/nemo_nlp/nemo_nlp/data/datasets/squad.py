@@ -21,17 +21,20 @@ https://github.com/huggingface/transformers
 """
 import os
 import sys
-import numpy as np
 import json
 import collections
+import pickle
+import string
+
+import numpy as np
 from tqdm import tqdm
+
 from torch.utils.data import Dataset
 import torch
-import pickle
 from nemo.utils.exp_logging import get_logger
 from .utils import DataProcessor
 from ...utils.metrics.squad_metrics import _compute_softmax, _get_best_indexes, metric_max_over_ground_truths, exact_match_score, f1_score, get_final_text, normalize_answer
-import string
+from nemo_nlp.utils.nlp_utils import _is_whitespace
 
 logger = get_logger('')
 
@@ -43,12 +46,15 @@ class SquadDataset(Dataset):
                  doc_stride,
                  max_query_length,
                  max_seq_length,
-                 task_name,
-                 mode,
-                 token_params):
+                 version_2_with_negative,
+                 mode):
         self.tokenizer = tokenizer
+        if not version_2_with_negative:
+            processor_name = 'SquadV1Processor'
+        else:
+            processor_name = 'SquadV2Processor' 
         self.processor = getattr(sys.modules[__name__],
-                                 task_name+'Processor')()
+                                 processor_name)()
         if mode == "dev":
             self.examples = self.processor.get_dev_examples(
                                 data_dir=data_dir)
@@ -71,8 +77,7 @@ class SquadDataset(Dataset):
                                     max_seq_length=max_seq_length,
                                     doc_stride=doc_stride,
                                     max_query_length=max_query_length,
-                                    is_training=True,
-                                    **token_params)
+                                    has_groundtruth=True)
                 if (not torch.distributed.is_initialized()
                     or torch.distributed.get_rank() == 0):
                     logger.info("  Saving train features into cached file %s",
@@ -86,8 +91,7 @@ class SquadDataset(Dataset):
                                     max_seq_length=max_seq_length,
                                     doc_stride=doc_stride,
                                     max_query_length=max_query_length,
-                                    is_training=True,
-                                    **token_params)
+                                    has_groundtruth=True)
         else:
             raise Exception
         
@@ -103,7 +107,6 @@ class SquadDataset(Dataset):
                 np.array(feature.end_position),
                 np.array(feature.unique_id))
 
-
     def get_predictions(self, unique_ids, start_logits, end_logits,
                         n_best_size, max_answer_length, do_lower_case,
                         version_2_with_negative, null_score_diff_threshold):
@@ -117,7 +120,7 @@ class SquadDataset(Dataset):
         for feature in self.features:
             example_index_to_features[feature.example_index].append(feature)
 
-        _PrelimPrediction = collections.namedtuple(  # pylint: disable=invalid-name
+        _PrelimPrediction = collections.namedtuple(
             "PrelimPrediction", [
                 "feature_index", "start_index", "end_index", "start_logit",
                 "end_logit"
@@ -358,7 +361,7 @@ def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer,
 
 
 def convert_examples_to_features(examples, tokenizer, max_seq_length,
-                                 doc_stride, max_query_length, is_training):
+                                 doc_stride, max_query_length, has_groundtruth):
     """Loads a data file into a list of `InputBatch`s."""
 
     unique_id = 1000000000
@@ -382,10 +385,10 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
 
         tok_start_position = None
         tok_end_position = None
-        if is_training and example.is_impossible:
+        if has_groundtruth and example.is_impossible:
             tok_start_position = -1
             tok_end_position = -1
-        if is_training and not example.is_impossible:
+        if has_groundtruth and not example.is_impossible:
             tok_start_position = orig_to_tok_index[example.start_position]
             if example.end_position < len(example.doc_tokens) - 1:
                 tok_end_position = orig_to_tok_index[
@@ -456,7 +459,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
 
             start_position = None
             end_position = None
-            if is_training and not example.is_impossible:
+            if has_groundtruth and not example.is_impossible:
                 # For training, if our document chunk does not contain
                 # an annotation we throw it out, since there is nothing
                 # to predict.
@@ -474,10 +477,10 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
                     start_position = tok_start_position - doc_start \
                         + doc_offset
                     end_position = tok_end_position - doc_start + doc_offset
-            if is_training and example.is_impossible:
+            if has_groundtruth and example.is_impossible:
                 start_position = 0
                 end_position = 0
-            if example_index < 20:
+            if example_index < 1:
                 logger.info("*** Example ***")
                 logger.info("unique_id: %s" % (unique_id))
                 logger.info("example_index: %s" % (example_index))
@@ -498,9 +501,9 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
                 logger.info(
                     "segment_ids: %s" % " ".join(
                         [str(x) for x in segment_ids]))
-                if is_training and example.is_impossible:
+                if has_groundtruth and example.is_impossible:
                     logger.info("impossible example")
-                if is_training and not example.is_impossible:
+                if has_groundtruth and not example.is_impossible:
                     answer_text = " ".join(
                                     tokens[start_position:(end_position + 1)])
                     logger.info("start_position: %d" % (start_position))
@@ -623,7 +626,7 @@ class SquadProcessor(DataProcessor):
                 training and evaluating.
             filename: None by default, specify this if the evaluation file
                 has a different name than the original one which is
-                `train-v1.1.json` and `train-v2.0.json` for squad
+                `dev-v1.1.json` and `dev-v2.0.json` for squad
                 versions 1.1 and 2.0 respectively.
         """
         if data_dir is None:
@@ -691,12 +694,6 @@ class SquadV2Processor(SquadProcessor):
     dev_file = "dev-v2.0.json"
 
 
-def _is_whitespace(c):
-    if c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F:
-        return True
-    return False
-
-
 class SquadExample(object):
     """
     A single training/test example for the Squad dataset, as loaded from disk.
@@ -762,69 +759,3 @@ class SquadExample(object):
                 min(start_position_character + len(answer_text) - 1,
                     len(char_to_word_offset) - 1)
             ]
-
-
-class SquadFeatures(object):
-    """
-    Single squad example features to be fed to a model.
-    Those features are model-specific and can be crafted from
-    :class `SquadExample` using the :method: `convert_examples_to_features`.
-    Args:
-        input_ids: Indices of input sequence tokens in the vocabulary.
-        attention_mask: Mask to avoid performing attention on
-            padding token indices.
-        token_type_ids: Segment token indices to indicate first and
-            second portions of the inputs.
-        cls_index: the index of the CLS token.
-        p_mask: Mask identifying tokens that can be answers vs.
-            tokens that cannot.
-            Mask with 1 for tokens than cannot be in the answer
-            and 0 for token that can be in an answer
-        example_index: the index of the example
-        unique_id: The unique Feature identifier
-        paragraph_len: The length of the context
-        token_is_max_context: List of booleans identifying which tokens
-            have their maximum context in this feature object.
-            If a token does not have their maximum context in this
-            feature object, it means that another feature object
-            has more information related to that token and should be
-            prioritized over this feature for that token.
-        tokens: list of tokens corresponding to the input ids
-        token_to_orig_map: mapping between the tokens and the original text,
-            needed in order to identify the answer.
-        start_position: start of the answer token index
-        end_position: end of the answer token index
-    """
-
-    def __init__(
-        self,
-        input_ids,
-        attention_mask,
-        token_type_ids,
-        cls_index,
-        p_mask,
-        example_index,
-        unique_id,
-        paragraph_len,
-        token_is_max_context,
-        tokens,
-        token_to_orig_map,
-        start_position,
-        end_position,
-    ):
-        self.input_ids = input_ids
-        self.attention_mask = attention_mask
-        self.token_type_ids = token_type_ids
-        self.cls_index = cls_index
-        self.p_mask = p_mask
-
-        self.example_index = example_index
-        self.unique_id = unique_id
-        self.paragraph_len = paragraph_len
-        self.token_is_max_context = token_is_max_context
-        self.tokens = tokens
-        self.token_to_orig_map = token_to_orig_map
-
-        self.start_position = start_position
-        self.end_position = end_position
-

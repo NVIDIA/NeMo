@@ -18,20 +18,21 @@ __all__ = ['TextDataLayer',
            'TranslationDataLayer',
            'GlueDataLayerClassification',
            'GlueDataLayerRegression',
-           'BertSquadDataLayer']
+           'BertQuestionAnsweringDataLayer']
 
 # from abc import abstractmethod
 import sys
+import os
+import random
 
+import numpy as np
+import h5py
 import torch
 from torch.utils import data as pt_data
-import os
-import h5py
+
 import nemo
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core.neural_types import *
-import random
-import numpy as np
 from .datasets import *
 
 
@@ -734,9 +735,9 @@ class BertPunctuationCapitalizationInferDataLayer(TextDataLayer):
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 
-class BertSquadDataLayer(TextDataLayer):
+class BertQuestionAnsweringDataLayer(TextDataLayer):
     """
-    Creates the data layer to use for the Squad classification tasks,
+    Creates the data layer to use for the Squad classification task.
     """
 
     @property
@@ -763,6 +764,10 @@ class BertSquadDataLayer(TextDataLayer):
 
             end_positions:
                 0: AxisType(BatchTag)
+
+            unique_ids:
+                0: AxisType(BatchTag)
+
         """
         return {
             "input_ids": NeuralType({
@@ -783,30 +788,26 @@ class BertSquadDataLayer(TextDataLayer):
             "end_positions": NeuralType({
                 0: AxisType(BatchTag)
             }),
-            "unique_ids":
-                NeuralType({0: AxisType(BatchTag)})
+            "unique_ids": NeuralType({
+                0: AxisType(BatchTag)})
         }
 
     def __init__(self,
                  data_dir,
                  tokenizer,
-                 task_name,
+                 version_2_with_negative,
                  doc_stride,
                  max_query_length,
                  max_seq_length,
                  mode="train",
-                 token_params={},
-                 num_samples=-1,
-                 shuffle=False,
                  batch_size=64,
                  dataset_type=SquadDataset,
                  **kwargs):
         kwargs['batch_size'] = batch_size
         dataset_params = {'data_dir': data_dir,
                           'mode': mode,
-                          'token_params': token_params,
                           'tokenizer': tokenizer,
-                          'task_name': task_name,
+                          'version_2_with_negative': version_2_with_negative,
                           'max_query_length': max_query_length,
                           'max_seq_length': max_seq_length,
                           'doc_stride': doc_stride}

@@ -17,14 +17,7 @@ __all__ = ['MaskedLanguageModelingLossNM',
 
 class QuestionAnsweringLoss(LossNM):
     """
-    Neural module which implements Token Classification loss.
-
-    Args:
-        num_classes (int): number of classes in a classifier, e.g. size
-            of the vocabulary in language modeling objective
-        logits (float): output of the classifier
-        labels (long): ground truth labels
-        loss_mask (long): to differentiate from original tokens and paddings
+    Neural module which implements QuestionAnswering loss.
     """
 
     @property
@@ -64,6 +57,16 @@ class QuestionAnsweringLoss(LossNM):
 
         loss:
             NeuralType(None)
+
+        start_logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        end_logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
         """
         return {
             "loss": NeuralType(None),
