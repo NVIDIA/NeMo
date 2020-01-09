@@ -229,5 +229,5 @@ nf.train(tensors_to_optimize=[train_loss],
          optimization_params={"num_epochs": args.num_epochs,
                               "lr": args.lr,
                               "grad_norm_clip": grad_norm_clip,
-                              #"weight_decay": args.weight_decay
+                              "weight_decay": args.weight_decay
                               })
