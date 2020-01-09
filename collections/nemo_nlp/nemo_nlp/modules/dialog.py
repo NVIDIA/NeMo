@@ -271,7 +271,7 @@ class DSTMaskedCrossEntropy(LossNM):
         # -1 means infered from other dimentions
         logits_flat = logits.view(-1, logits.size(-1))
         # print(logits_flat.size())
-        eps = 1e-8
+        eps = 1e-10
         log_probs_flat = torch.log(torch.clamp(logits_flat, min=eps))
         # print("log_probs_flat", log_probs_flat)
         target_flat = targets.view(-1, 1)

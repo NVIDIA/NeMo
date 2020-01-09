@@ -8,10 +8,10 @@ from torch.utils.data import Dataset
 
 class Vocab:
     """
+    UNK_token = 0
     PAD_token = 1
     SOS_token = 3
     EOS_token = 2
-    UNK_token = 0
     """
 
     def __init__(self):
@@ -144,7 +144,7 @@ class WOZDSTDataset(Dataset):
                 self.vocab.add_words(turn['system_transcript'], 'utterance')
                 self.vocab.add_words(turn['transcript'], 'utterance')
 
-                turn_beliefs = fix_general_label_error(turn['belief_state'],
+                turn_beliefs = self.fix_general_label_error(turn['belief_state'],
                                                        self.slots)
                 # self.mem_vocab.add_words(turn_beliefs, 'belief')
 
