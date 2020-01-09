@@ -199,7 +199,7 @@ class FilterbankFeatures(nn.Module):
         # Calculate maximum sequence length
         max_length = self.get_seq_len(
             torch.tensor(max_duration * sample_rate, dtype=torch.float))
-        max_pad = pad_to - (max_length % pad_to)
+        max_pad = pad_to - (max_length % pad_to) if pad_to > 0 else 0
         self.max_length = max_length + max_pad
         self.pad_value = pad_value
         self.mag_power = mag_power
