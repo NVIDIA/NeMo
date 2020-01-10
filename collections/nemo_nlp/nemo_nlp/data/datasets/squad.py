@@ -64,9 +64,8 @@ class SquadDataset(Dataset):
         else:
             raise Exception
         if mode == "train":
-            cached_train_features_file = data_dir+'/cache' + '_{0}_{1}_{2}'.format(
-                str(max_seq_length), str(doc_stride),
-                str(max_query_length))
+            cached_train_features_file = data_dir+'/cache' + '_{0}_{1}_{2}_{3}'.format(
+                mode, str(max_seq_length), str(doc_stride), str(max_query_length))
             try:
                 with open(cached_train_features_file, "rb") as reader:
                     self.features = pickle.load(reader)
@@ -102,7 +101,7 @@ class SquadDataset(Dataset):
         feature = self.features[idx]
         return (np.array(feature.input_ids),
                 np.array(feature.segment_ids),
-                np.array(feature.input_mask, dtype=np.long),
+                np.array(feature.input_mask),
                 np.array(feature.start_position),
                 np.array(feature.end_position),
                 np.array(feature.unique_id))
@@ -373,9 +372,10 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         if len(query_tokens) > max_query_length:
             query_tokens = query_tokens[0:max_query_length]
 
-        tok_to_orig_index = []
-        orig_to_tok_index = []
-        all_doc_tokens = []
+        tok_to_orig_index = [] # context: index of token -> index of word
+        orig_to_tok_index = [] # context: index of word -> index of first token in token list
+        all_doc_tokens = [] # context without white spaces after tokenization
+        # doc tokens is word separated context
         for (i, token) in enumerate(example.doc_tokens):
             orig_to_tok_index.append(len(all_doc_tokens))
             sub_tokens = tokenizer.text_to_tokens(token)
@@ -383,6 +383,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
                 tok_to_orig_index.append(i)
                 all_doc_tokens.append(sub_token)
 
+        # idx of query token start and end in context
         tok_start_position = None
         tok_end_position = None
         if has_groundtruth and example.is_impossible:
@@ -395,11 +396,13 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
                     example.end_position + 1] - 1
             else:
                 tok_end_position = len(all_doc_tokens) - 1
+
             (tok_start_position, tok_end_position) = _improve_answer_span(
                 all_doc_tokens, tok_start_position, tok_end_position,
                 tokenizer, example.answer_text)
 
         # The -3 accounts for [CLS], [SEP] and [SEP]
+        # doc_spans contains all possible contexts options of given length 
         max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
         _DocSpan = collections.namedtuple(
             "DocSpan", ["start", "length"])
@@ -416,6 +419,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
 
         for (doc_span_index, doc_span) in enumerate(doc_spans):
             tokens = []
+            # maps context tokens idx in final input -> word idx in context 
             token_to_orig_map = {}
             token_is_max_context = {}
             segment_ids = []
@@ -457,12 +461,12 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             assert len(input_mask) == max_seq_length
             assert len(segment_ids) == max_seq_length
 
+            
+            # calculate start and end position in final array of tokens in answer
+            # if no answer, 0 for both pointing to [CLS]
             start_position = None
             end_position = None
             if has_groundtruth and not example.is_impossible:
-                # For training, if our document chunk does not contain
-                # an annotation we throw it out, since there is nothing
-                # to predict.
                 doc_start = doc_span.start
                 doc_end = doc_span.start + doc_span.length - 1
                 out_of_span = False
@@ -478,8 +482,12 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
                         + doc_offset
                     end_position = tok_end_position - doc_start + doc_offset
             if has_groundtruth and example.is_impossible:
+                # if our document chunk does not contain
+                # an annotation we throw it out, since there is nothing
+                # to predict.
                 start_position = 0
                 end_position = 0
+
             if example_index < 1:
                 logger.info("*** Example ***")
                 logger.info("unique_id: %s" % (unique_id))
@@ -655,14 +663,13 @@ class SquadProcessor(DataProcessor):
                     start_position_character = None
                     answer_text = None
                     answers = []
-
                     if "is_impossible" in qa:
                         is_impossible = qa["is_impossible"]
                     else:
                         is_impossible = False
 
                     if not is_impossible:
-                        if set_type == "training" or set_type == "dev":
+                        if set_type == "train" or set_type == "dev":
                             answer = qa["answers"][0]
                             answer_text = answer["text"]
                             start_position_character = answer["answer_start"]
@@ -703,7 +710,7 @@ class SquadExample(object):
         context_text: The context string
         answer_text: The answer string
         start_position_character: The character position of the start of
-            the answer
+            the answer, 0 indexed
         title: The title of the example
         answers: None by default, this is used during evaluation.
             Holds answers as well as their start positions.
@@ -738,6 +745,9 @@ class SquadExample(object):
 
         # Split on whitespace so that different tokens
         # may be attributed to their original position.
+        # ex: context_text = ["hi yo"] 
+        #     char_to_word_offset = [0, 0, 0, 1, 1]
+        #     doc_tokens = ["hi", "yo"]
         for c in self.context_text:
             if _is_whitespace(c):
                 prev_is_whitespace = True
@@ -754,6 +764,7 @@ class SquadExample(object):
 
         # Start end end positions only has a value during evaluation.
         if start_position_character is not None and not is_impossible:
+            # start_position is index of word, end_position inclusive
             self.start_position = char_to_word_offset[start_position_character]
             self.end_position = char_to_word_offset[
                 min(start_position_character + len(answer_text) - 1,
