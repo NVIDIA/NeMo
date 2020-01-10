@@ -206,6 +206,10 @@ if not args.only_mlm_loss:
     bert_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
 # tie weights of MLM softmax layer and embedding layer of the encoder
+if (mlm_classifier.mlp.last_linear_layer.weight.shape !=
+        bert_model.bert.embeddings.word_embeddings.weight.shape):
+    raise ValueError("Final classification layer does not match embedding "
+                     "layer.")
 mlm_classifier.mlp.last_linear_layer.weight = \
     bert_model.bert.embeddings.word_embeddings.weight
 
