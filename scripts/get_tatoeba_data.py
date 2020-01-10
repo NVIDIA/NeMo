@@ -99,7 +99,8 @@ def __process_english_sentences(in_file,
                     samples_count += 1
                 lines_to_combine.append(line)
 
-    if len(lines_to_combine) > 0 and (samples_count < num_samples or num_samples < 0):
+    if len(lines_to_combine) > 0 and \
+            (samples_count < num_samples or num_samples < 0):
         out_file.write(' '.join(lines_to_combine) + '\n')
 
 

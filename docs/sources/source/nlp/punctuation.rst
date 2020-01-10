@@ -16,7 +16,7 @@ For every word in our training dataset we're going to predict:
 1. punctuation mark that should follow the word and
 2. whether the word should be capitalized
 
-In this model, we're jointly training 2 token-level classifiers on top of the pretrained BERT model: one classifier to predict punctuation and the other one for word capitalization.
+In this model, we're jointly training 2 token-level classifiers on top of the pretrained BERT model: one classifier to predict punctuation and the other one - capitalization.
 
 Dataset
 -------
@@ -40,7 +40,7 @@ The labels.txt file contains corresponding labels for each word in text.txt, the
 Each label in labels.txt file consists of 2 symbols:
 
 * the first symbol of the label indicates what punctuation mark should follow the word (where ``O`` means no punctuation needed);
-* the second symbol determines if the word needs to be capitalized or not (where ``U`` indicates that the associated with this label word should be upper cased, and ``O`` - no capitalization required.)
+* the second symbol determines if the word needs to be capitalized or not (where ``U`` indicates that the associated with this label word should be upper cased, and ``O`` - no capitalization needed.)
 
 We're considering only commas, periods, and question marks for this task; the rest punctuation marks were removed.
 Each line of the labels.txt should follow the format: 
@@ -52,7 +52,7 @@ Each line of the labels.txt should follow the format:
     OU OO OO OO ...
     ...
 
-The complete list of all possible labels for this joint task is: ``OO``, ``,O``, ``.O``, ``?O``, ``OU``, ``,U``, ``.U``, ``?U``.
+The complete list of all possible labels for this task is: ``OO``, ``,O``, ``.O``, ``?O``, ``OU``, ``,U``, ``.U``, ``?U``.
 
 Code overview
 -------------
@@ -67,23 +67,30 @@ First, let's set some parameters that we're going to need through out this tutor
 
         # model parameters
         BATCHES_PER_STEP = 1
-        BATCH_SIZE = 32
+        BATCH_SIZE = 128
         CLASSIFICATION_DROPOUT = 0.1
-        MAX_SEQ_LENGTH = 128
+        MAX_SEQ_LENGTH = 64
         NUM_EPOCHS = 10
-        LEARNING_RATE = 0.00005
+        LEARNING_RATE = 0.00002
         LR_WARMUP_PROPORTION = 0.1
         OPTIMIZER = "adam"
-        STEP_FREQ=200 # determines how often loss will be printed and checkpoint saved
+        STEP_FREQ = 200 # determines how often loss will be printed and checkpoint saved
         PUNCT_NUM_FC_LAYERS = 3
+        NUM_SAMPLES = 100000
 
-Then, we need to create our neural factory with the supported backend. This tutorial assumes that you're training on a single GPU, without mixed precision (``optimization_level="O0"``). If you want to use mixed precision, set ``optimization_level`` to ``O1`` or ``O2``.
+To download an d preprocess a subset of the Tatoeba collection of sentences, run:
+
+.. code-block:: bash
+        
+        python ../../scripts/get_tatoeba_data.py --data_dir DATA_DIR --num_sample NUM_SAMPLES
+
+Then, we need to create our neural factory with the supported backend. This tutorial assumes that you're training on a single GPU, with mixed precision (``optimization_level="O1"``). If you don't want to use mixed precision, set ``optimization_level`` to ``O0``.
 
     .. code-block:: python
 
         nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                            local_rank=None,
-                                           optimization_level="O0",
+                                           optimization_level="O1",
                                            log_dir=WORK_DIR,
                                            placement=nemo.core.DeviceType.GPU)
 
@@ -94,10 +101,6 @@ Next, we'll need to define our tokenizer and our BERT model. If you're using a s
         tokenizer = NemoBertTokenizer(pretrained_model=PRETRAINED_BERT_MODEL)
         bert_model = nemo_nlp.huggingface.BERT(
             pretrained_model_name=PRETRAINED_BERT_MODEL)
-
-See this `example`_ on how to use a BERT model that you pre-trained yourself.
-
-.. _example: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/token_classification.py
 
 Now, create the train and evaluation data layers:
 
@@ -157,7 +160,7 @@ Now, create punctuation and capitalization classifiers to sit on top of the pret
       task_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
 
-Below we're passing the output of datalayers through the pretrained BERT model and to the classifiers:
+Below, we're passing the output of the datalayers through the pretrained BERT model and to the classifiers:
 
   .. code-block:: python
 
@@ -193,9 +196,9 @@ Below we're passing the output of datalayers through the pretrained BERT model a
 
 Now, we will set up our callbacks. We will use 3 callbacks:
 
-* `SimpleLossLoggerCallback` to print loss values during training
-* `EvaluatorCallback` to evaluate our F1 score on the dev dataset.
-* `CheckpointCallback` to save and restore checkpoints.
+* `SimpleLossLoggerCallback` prints loss values during training;
+* `EvaluatorCallback` calculates the performance metrics for the dev dataset;
+* `CheckpointCallback` is used to save and restore checkpoints.
 
     .. code-block:: python
 
@@ -227,7 +230,7 @@ Now, we will set up our callbacks. We will use 3 callbacks:
         ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir,
                                                      step_freq=STEP_FREQ)
 
-Finally, we will define our learning rate policy and our optimizer, and start training.
+Finally, we'll define our learning rate policy and our optimizer, and start training:
 
     .. code-block:: python
 
@@ -242,8 +245,6 @@ Finally, we will define our learning rate policy and our optimizer, and start tr
                  optimization_params={"num_epochs": NUM_EPOCHS,
                                       "lr": LEARNING_RATE})
 
-Training for 3 epochs will take less than 10 mins on a single GPU, expected F1 score is around 0.65.
-
 Inference
 ---------
 
@@ -251,13 +252,11 @@ To see how the model performs, let's run inference on a few samples. We need to 
 
 .. code-block:: python
 
-    queries = ['we bought four shirts from the nvidia gear store in santa clara', 
-               'nvidia is a company',
-               'can i help you',
-               'how are you',
-               'okay',
-               'we bought four shirts one mug and ten thousand titan rtx graphics ' +
-               'cards the more you buy the more you save']
+    queries = ['can i help you',
+               'yes please',
+               'we bought four shirts from the nvidia gear store in santa clara',
+               'we bought four shirts one mug and ten thousand titan rtx graphics cards',
+               'the more you buy the more you save']
     infer_data_layer = nemo_nlp.BertTokenClassificationInferDataLayer(
                                                             queries=queries,
                                                             tokenizer=tokenizer,
@@ -265,7 +264,7 @@ To see how the model performs, let's run inference on a few samples. We need to 
                                                             batch_size=1)
 
 
-Run inference and append punctuation and capitalize words based on the generated predictions:
+Run inference, append punctuation and capitalize words based on the generated predictions:
 
 .. code-block:: python
 
@@ -319,20 +318,20 @@ Inference results:
     
     ::
 
-        Query: we bought four shirts from the nvidia gear store in santa clara
-        Combined: We bought four shirts from the nvidia gear store in santa clara.
-
-        Query: tom sam and i are going to travel do you want to join
-        Combined: Tom Sam, and I are going to travel. Do you want to join?
-
-        Query: nvidia is a company
-        Combined: Nvidia is a company.
-
         Query: can i help you
         Combined: Can I help you?
 
-        Query: we bought four shirts one mug and ten thousand titan rtx graphics cards the more you buy the more you save
-        Combined: We bought four shirts, one mug and ten thousand titan, Rtx graphics cards. The more you buy, the more you save.
+        Query: yes please
+        Combined: Yes, please.
+
+        Query: we bought four shirts from the nvidia gear store in santa clara
+        Combined: We bought four shirts from the Nvidia gear store in Santa Clara.
+
+        Query: we bought four shirts one mug and ten thousand titan rtx graphics cards
+        Combined: We bought four shirts, one mug, and ten thousand Titan Rtx graphics cards.
+
+        Query: the more you buy the more you save
+        Combined: The more you buy, the more you save.
 
 
 To train the model with the provided scripts

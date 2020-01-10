@@ -170,6 +170,7 @@ class Encoder(nn.Module):
         - Three 1-d convolution banks
         - Bidirectional LSTM
     """
+
     def __init__(self, encoder_n_convolutions,
                  encoder_embedding_dim, encoder_kernel_size):
         super(Encoder, self).__init__()

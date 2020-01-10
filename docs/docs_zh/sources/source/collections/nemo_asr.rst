@@ -7,7 +7,7 @@ NeMo_ASR collection
     :members:
     :undoc-members:
     :show-inheritance:
-    :exclude-members: forward, create_ports
+    :exclude-members: forward
 
 语音识别模块
 ------------------------------------
@@ -15,4 +15,4 @@ NeMo_ASR collection
     :members:
     :undoc-members:
     :show-inheritance:
-    :exclude-members: forward, create_ports
+    :exclude-members: forward

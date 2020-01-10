@@ -7,7 +7,7 @@ NeMo_TTS collection
     :members:
     :undoc-members:
     :show-inheritance:
-    :exclude-members: forward, create_ports
+    :exclude-members: forward
 
 Tacotron 2 模块
 ------------------
@@ -15,7 +15,7 @@ Tacotron 2 模块
     :members:
     :undoc-members:
     :show-inheritance:
-    :exclude-members: forward, create_ports
+    :exclude-members: forward
 
 Waveglow 模块
 ------------------
@@ -23,4 +23,4 @@ Waveglow 模块
     :members:
     :undoc-members:
     :show-inheritance:
-    :exclude-members: forward, create_ports
+    :exclude-members: forward

@@ -648,14 +648,14 @@ class NeuralModuleFactory(object):
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
         """
-        # Custom hacks
+        # Custom hacks: These will be put into a proper place soon
         # We are checking type like this to avoid taking dependency on nemo_asr
         if type(module).__name__ == "JasperEncoder":
-            self.logger.warning(f"Module is JasperEncoder. We are removing"
-                                f"input and output length ports since they "
-                                f"are not needed for deployment")
-            del module._input_ports['length']
-            del module._output_ports['encoded_lengths']
+            # self.logger.warning(f"Module is JasperEncoder. We are removing"
+            #                    f"input and output length ports since they "
+            #                    f"are not needed for deployment")
+            # del module._input_ports['length']
+            # del module._output_ports['encoded_lengths']
 
             # disable masked convolutions
             m_count = 0
@@ -671,7 +671,7 @@ class NeuralModuleFactory(object):
             d_format=d_format,
             input_example=input_example,
             output_example=output_example,
-            logger=self.logger
+            logger=self.logger,
         )
 
     def infer(self,

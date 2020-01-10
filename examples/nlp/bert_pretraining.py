@@ -118,6 +118,8 @@ parser.add_argument("--max_steps", default=-1,
                         Used for preprocessed data")
 parser.add_argument("--dataset_name", default="wikitext-2", type=str)
 parser.add_argument("--load_dir", default=None, type=str)
+parser.add_argument("--bert_checkpoint", default=None, type=str,
+                    help="specify path to pretrained BERT weights")
 parser.add_argument("--work_dir", default="outputs/bert_lm", type=str)
 parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=100, type=int)
@@ -178,6 +180,9 @@ bert_model = nemo_nlp.huggingface.BERT(
     max_position_embeddings=args.max_seq_length,
     hidden_act=args.hidden_act
     )
+
+if args.bert_checkpoint is not None:
+    bert_model.restore_from(args.bert_checkpoint)
 
 """ create necessary modules for the whole translation pipeline, namely
 data layers, BERT encoder, and MLM and NSP loss functions

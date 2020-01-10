@@ -36,9 +36,24 @@ class SequenceLoss(LossNM):
 
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        log_probs:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+
+        targets:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        """
+        return {
             'log_probs': NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
@@ -49,10 +64,18 @@ class SequenceLoss(LossNM):
                 1: AxisType(TimeTag)
             })
         }
-        output_ports = {
-            'loss': NeuralType(None)
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+
+        """
+        return {
+            "loss": NeuralType(None)
         }
-        return input_ports, output_ports
 
     def __init__(self, pad_id=0, smoothing_coef=0.0, sample_wise=False,
                  aux_ctc=False, ctc_initial_coef=0.1, ctc_blank_id=None,
@@ -112,9 +135,21 @@ class CrossEntropyLoss(LossNM):
     CrossEntropyLoss
 
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+
+        labels:
+            0: AxisType(BatchTag)
+
+        """
+        return {
             "logits": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(ChannelTag)
@@ -124,10 +159,16 @@ class CrossEntropyLoss(LossNM):
             })
         }
 
-        output_ports = {
-            "loss": NeuralType(None),
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {
+            "loss": NeuralType(None)
         }
-        return input_ports, output_ports
 
     def __init__(self, weight=None, **kwargs):
         LossNM.__init__(self, **kwargs)
@@ -143,9 +184,18 @@ class CrossEntropyLoss(LossNM):
 
 
 class MSELoss(LossNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        preds:
+            0: AxisType(RegressionTag)
+
+        labels:
+            0: AxisType(RegressionTag)
+        """
+        return {
             "preds": NeuralType({
                 0: AxisType(RegressionTag)
             }),
@@ -154,10 +204,16 @@ class MSELoss(LossNM):
             })
         }
 
-        output_ports = {
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {
             "loss": NeuralType(None)
         }
-        return input_ports, output_ports
 
     def __init__(self, **kwargs):
         LossNM.__init__(self, **kwargs)
