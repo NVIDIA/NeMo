@@ -45,9 +45,21 @@ class TransformerEncoderNM(TrainableNM):
         hidden_act: activation function applied in intermediate FFN module
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        input_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_mask_src:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -58,14 +70,24 @@ class TransformerEncoderNM(TrainableNM):
             }),
         }
 
-        output_ports = {
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        hidden_states:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "hidden_states": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag)
             })
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  vocab_size,
@@ -135,9 +157,33 @@ class TransformerDecoderNM(TrainableNM):
         hidden_act: activation function applied in intermediate FFN module
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        input_ids_tgt:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        hidden_states_src:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+
+        input_mask_src:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        input_mask_tgt:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "input_ids_tgt": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -154,17 +200,27 @@ class TransformerDecoderNM(TrainableNM):
             "input_mask_tgt": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
-            }),
+            })
         }
 
-        output_ports = {
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        hidden_states:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "hidden_states": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag)
             })
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  vocab_size,
@@ -233,22 +289,37 @@ class GreedyLanguageGeneratorNM(TrainableNM):
             tokens are provided
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        input_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "input_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             })
         }
 
-        output_ports = {
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        output_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "output_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             })
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  decoder,
@@ -300,27 +371,51 @@ class BeamSearchTranslatorNM(TrainableNM):
         length_penalty: parameter which penalizes shorter sequences
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "hidden_states_src": NeuralType({
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        hidden_states_src:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+
+        input_mask_src:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
+            "hidden_states_src":
+            NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
                 2: AxisType(ChannelTag)
             }),
-            "input_mask_src": NeuralType({
+            "input_mask_src":
+            NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             })
         }
 
-        output_ports = {
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        output_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "output_ids": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             })
         }
-        return input_ports, output_ports
 
     @property
     def num_weights(self):

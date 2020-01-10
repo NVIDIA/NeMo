@@ -44,16 +44,24 @@ class AudioDataLayer(DataLayerNM):
             Defaults to 0 which indicates to load the whole file.
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {}
-        output_ports = {
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        audio_signal:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        a_sig_length:
+            0: AxisType(BatchTag)
+        """
+        return {
             "audio_signal": NeuralType({0: AxisType(BatchTag),
                                         1: AxisType(TimeTag)}),
 
             "a_sig_length": NeuralType({0: AxisType(BatchTag)}),
         }
-        return input_ports, output_ports
 
     def __init__(
             self, *,

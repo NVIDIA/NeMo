@@ -60,7 +60,8 @@ resnet = neural_factory.get_module(name="resnet50",
 dl_train = neural_factory.get_module(
     name="ImageFolderDataLayer", collection="torchvision",
     params={"batch_size": batch_size,
-            "input_size": resnet.input_ports["x"].axis2type[2].dim,
+            "input_size":
+                resnet.inputs["x"].axis2type[2].dim,
             "shuffle": True,
             "path": args.data_root + "train",
             # "path": "/mnt/D1/Data/ImageNet/ImageFolder/train",
@@ -74,7 +75,8 @@ L_train = neural_factory.get_module(
 dl_eval = neural_factory.get_module(
     name="ImageFolderDataLayer", collection="torchvision",
     params={"batch_size": batch_size,
-            "input_size": resnet.input_ports["x"].axis2type[2].dim,
+            "input_size":
+                resnet.inputs["x"].axis2type[2].dim,
             "shuffle": False,
             "is_eval": True,
             "path": args.data_root + "val",

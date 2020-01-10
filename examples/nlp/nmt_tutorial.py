@@ -13,7 +13,7 @@ from nemo_nlp.utils.callbacks.translation import \
     eval_iter_callback, eval_epochs_done_callback
 
 parser = nemo.utils.NemoArgParser(
-        description='Transformer for Neural Machine Translation')
+    description='Transformer for Neural Machine Translation')
 parser.set_defaults(train_dataset="train",
                     eval_datasets=["valid"],
                     work_dir="outputs/transformer_nmt",
@@ -78,7 +78,7 @@ if args.src_lang == 'en' and args.tgt_lang == 'de':
     English & German data for both source and target languages.
     """
     src_tokenizer = nemo_nlp.YouTokenToMeTokenizer(
-            model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
+        model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
     src_vocab_size = src_tokenizer.vocab_size
     if args.src_tokenizer_model == args.tgt_tokenizer_model:
         tgt_tokenizer = src_tokenizer
@@ -96,10 +96,10 @@ elif args.src_lang == 'en' and args.tgt_lang == 'zh':
     and CharTokenizer for tgt since the tgt contains Chinese characters.
     """
     src_tokenizer = nemo_nlp.YouTokenToMeTokenizer(
-            model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
+        model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
     src_vocab_size = src_tokenizer.vocab_size
     tgt_tokenizer = nemo_nlp.CharTokenizer(
-            vocab_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
+        vocab_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
     tgt_vocab_size = tgt_tokenizer.vocab_size
     # source and target use different tokenizers, set tie_weight to False
     tie_weight = False

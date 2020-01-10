@@ -22,9 +22,28 @@ class MaskedLanguageModelingLossNM(LossNM):
         label_smoothing (float): label smoothing regularization coefficient
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+
+        output_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        output_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "logits":
             NeuralType({
                 0: AxisType(BatchTag),
@@ -40,11 +59,19 @@ class MaskedLanguageModelingLossNM(LossNM):
             NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
-            }),
+            })
         }
 
-        output_ports = {"loss": NeuralType(None)}
-        return input_ports, output_ports
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {
+            "loss": NeuralType(None)
+        }
 
     def __init__(self, label_smoothing=0.0, **kwargs):
         LossNM.__init__(self, **kwargs)
@@ -63,17 +90,32 @@ class LossAggregatorNM(LossNM):
         num_inputs (int): number of input losses
     """
 
-    @staticmethod
-    def create_ports(num_losses=2):
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        """
         input_ports = {}
-        for i in range(num_losses):
+        for i in range(self.num_losses):
             input_ports["loss_" + str(i + 1)] = NeuralType(None)
 
-        output_ports = {"loss": NeuralType(None)}
-        return input_ports, output_ports
+        return input_ports
 
-    def __init__(self, *, num_inputs, **kwargs):
-        kwargs["create_port_args"] = {"num_losses": num_inputs}
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {
+            "loss": NeuralType(None)
+        }
+
+    def __init__(self, *, num_inputs=2, **kwargs):
+        # Store number of inputs/losses.
+        self.num_losses = num_inputs
+        # kwargs["create_port_args"] = {"num_losses": num_inputs}
         LossNM.__init__(self, **kwargs)
 
     def _loss_function(self, **kwargs):
@@ -96,9 +138,28 @@ class TokenClassificationLoss(LossNM):
         loss_mask (long): to differentiate from original tokens and paddings
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+
+        labels:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        loss_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "logits": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
@@ -114,10 +175,16 @@ class TokenClassificationLoss(LossNM):
             })
         }
 
-        output_ports = {
-            "loss": NeuralType(None),
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {
+            "loss": NeuralType(None)
         }
-        return input_ports, output_ports
 
     def __init__(self, num_classes, class_weights=None, **kwargs):
         LossNM.__init__(self, **kwargs)
@@ -157,9 +224,37 @@ class JointIntentSlotLoss(LossNM):
             (1 - intent_loss_weight) * slot_loss
 
     """
-    @staticmethod
-    def create_ports():
-        input_ports = {
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        intent_logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+
+        slot_logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+
+        loss_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        intents:
+            0: AxisType(BatchTag)
+
+        slots:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "intent_logits": NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(ChannelTag)
@@ -183,10 +278,16 @@ class JointIntentSlotLoss(LossNM):
             }),
         }
 
-        output_ports = {
-            "loss": NeuralType(None),
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {
+            "loss": NeuralType(None)
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  num_slots,
@@ -202,12 +303,12 @@ class JointIntentSlotLoss(LossNM):
 
         # For weighted loss to tackle class imbalance
         if slot_classes_loss_weights:
-            self.slot_classes_loss_weights = \
-                torch.FloatTensor(slot_classes_loss_weights).to(self._device)
+            self.slot_classes_loss_weights = torch.FloatTensor(
+                slot_classes_loss_weights).to(self._device)
 
         if intent_classes_loss_weights:
-            self.intent_classes_loss_weights = \
-                torch.FloatTensor(intent_classes_loss_weights).to(self._device)
+            self.intent_classes_loss_weights = torch.FloatTensor(
+                intent_classes_loss_weights).to(self._device)
 
         self._criterion_intent = nn.CrossEntropyLoss(
             weight=self.intent_classes_loss_weights)
@@ -250,9 +351,23 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
             calculation, important for fast evaluation of LM perplexity
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+
+        target_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+        """
+        return {
             "logits":
             NeuralType({
                 0: AxisType(BatchTag),
@@ -263,11 +378,19 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
             NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
-            }),
+            })
         }
 
-        output_ports = {"loss": NeuralType(None)}
-        return input_ports, output_ports
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {
+            "loss": NeuralType(None)
+        }
 
     def __init__(self, **kwargs):
         LossNM.__init__(self, **kwargs)

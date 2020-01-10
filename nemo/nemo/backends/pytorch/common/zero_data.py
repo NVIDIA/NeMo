@@ -69,15 +69,6 @@ class ZerosDataLayer(DataLayerNM):
             Defaults to None.
     """
 
-    @staticmethod
-    def create_ports():
-        """
-        Note that the creation of output ports is difference from all other
-        Neural Modules in that the user has to define all output ports prior
-        and pass it to the constructor.
-        """
-        return {}, {}
-
     def __init__(self, *, size, output_ports, dtype, batch_size, shapes=None,
                  **kwargs):
         DataLayerNM.__init__(self, **kwargs)
@@ -94,6 +85,15 @@ class ZerosDataLayer(DataLayerNM):
 
         self._dataset = _ZeroDS(size=self._size, shapes=self._shapes,
                                 dtype=self._type)
+
+    @property
+    def input_ports(self):
+        return {
+        }
+
+    @property
+    def output_ports(self):
+        return self._output_ports
 
     def __len__(self):
         return len(self._dataset)

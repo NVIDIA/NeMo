@@ -233,28 +233,3 @@ texinfo_documents = [
         "Miscellaneous",
     )
 ]
-
-
-def process_docstring(app, what, name, obj, options, lines):
-    if isinstance(obj, type) and issubclass(obj, nemo.core.NeuralModule):
-        input_ports, output_ports = obj.create_ports()
-        if input_ports:
-            lines.append("Input Ports:")
-            for port_name, port_type in input_ports.items():
-                lines.append("  - **{}**:".format(port_name))
-                lines.append("")
-                for port in str(port_type).split("\n"):
-                    lines.append("    - {}".format(port))
-                lines.append("")
-        if output_ports:
-            lines.append("Output Ports:")
-            for port_name, port_type in output_ports.items():
-                lines.append("  - **{}**:".format(port_name))
-                lines.append("")
-                for port in str(port_type).split("\n"):
-                    lines.append("    - {}".format(port))
-                lines.append("")
-
-
-def setup(app):
-    app.connect('autodoc-process-docstring', process_docstring)

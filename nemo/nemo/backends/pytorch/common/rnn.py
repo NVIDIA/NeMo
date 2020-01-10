@@ -50,9 +50,23 @@ class DecoderRNN(TrainableNM):
 
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        targets:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        encoder_outputs:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             'targets': NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
@@ -63,7 +77,26 @@ class DecoderRNN(TrainableNM):
                 2: AxisType(ChannelTag)
             }, optional=True)
         }
-        output_ports = {
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        log_probs:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+
+        attention_weights:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(TimeTag)
+        """
+        return {
             'log_probs': NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag),
@@ -75,7 +108,6 @@ class DecoderRNN(TrainableNM):
                 2: AxisType(TimeTag)
             }, optional=True)
         }
-        return input_ports, output_ports
 
     def __init__(self,
                  voc_size,
