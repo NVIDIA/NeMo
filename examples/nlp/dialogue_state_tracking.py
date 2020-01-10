@@ -225,7 +225,7 @@ grad_norm_clip = args.grad_norm_clip if args.grad_norm_clip > 0 else None
 # TODO
 nf.train(tensors_to_optimize=[train_loss],
          callbacks=[eval_callback, train_callback, ckpt_callback],
-         # callbacks=[train_callback, ckpt_callback],
+         #callbacks=[train_callback, ckpt_callback],
          #lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,
