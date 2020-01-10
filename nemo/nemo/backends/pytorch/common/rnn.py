@@ -79,7 +79,7 @@ class EncoderRNN(TrainableNM):
         self.to(self._device)
 
     def forward(self, inputs, input_lens=None):
-        if self.input_dropout > 0 and not self.training:
+        if self.input_dropout > 0 and self.training:
             bi_mask = np.random.binomial([np.ones(inputs.size())],
                                          1.0 - self.input_dropout)[0]
             rand_mask = torch.Tensor(bi_mask).long().to(self._device)
