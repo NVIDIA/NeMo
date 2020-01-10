@@ -130,7 +130,7 @@ class DSTGenerator(TrainableNM):
         # use_teacher_forcing = False
 
         # TODO: made it 10 if not training, make it work with no targets
-        max_res_len = targets.shape[2]
+        max_res_len = targets.shape[2] if self.encoder.training else 10
         batch_size = encoder_hidden.shape[0]
 
         targets = targets.transpose(0, 1)
