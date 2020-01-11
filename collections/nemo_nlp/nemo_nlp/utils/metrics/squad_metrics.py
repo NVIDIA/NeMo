@@ -5,6 +5,7 @@ import string
 from transformers.tokenization_bert import BasicTokenizer
 
 
+
 def _get_best_indexes(logits, n_best_size):
     """Get the n-best logits from a list."""
     index_and_score = sorted(enumerate(logits), key=lambda x: x[1], reverse=True)
