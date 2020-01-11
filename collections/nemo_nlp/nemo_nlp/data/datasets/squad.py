@@ -33,7 +33,9 @@ from torch.utils.data import Dataset
 import torch
 from nemo.utils.exp_logging import get_logger
 from .utils import DataProcessor
-from ...utils.metrics.squad_metrics import _compute_softmax, _get_best_indexes, metric_max_over_ground_truths, exact_match_score, f1_score, get_final_text, normalize_answer
+from ...utils.metrics.squad_metrics import _compute_softmax, _get_best_indexes, \
+    apply_no_ans_threshold, metric_max_over_ground_truths, exact_match_score, \
+    make_eval_dict, f1_score, get_final_text, normalize_answer, merge_eval, find_all_best_thresh
 from nemo_nlp.utils.nlp_utils import _is_whitespace
 
 logger = get_logger('')
@@ -109,7 +111,6 @@ class SquadDataset(Dataset):
     def get_predictions(self, unique_ids, start_logits, end_logits,
                         n_best_size, max_answer_length, do_lower_case,
                         version_2_with_negative, null_score_diff_threshold):
-
         example_index_to_features = collections.defaultdict(list)
 
         unique_id_to_pos = {}
@@ -304,30 +305,85 @@ class SquadDataset(Dataset):
 
         return all_predictions, all_nbest_json, scores_diff_json
 
+    # for v1.1
+    def evaluate_predictions(self, all_predictions, no_answer_probs=None, no_answer_probability_threshold=1.0):
+        qas_id_to_has_answer = {example.qas_id: bool(example.answers) for example in self.examples}
+        has_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer]
+        no_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if not has_answer]
+        if no_answer_probs is None:
+            no_answer_probs = {k: 0.0 for k in all_predictions}
 
-    def evaluate_predictions(self, all_predictions):
+        exact, f1 = self.get_raw_scores(all_predictions)
 
-        exact_match = 0.
-        f1 = 0.
-        # Loop over all the examples and evaluate the predictions
+
+        exact_threshold = apply_no_ans_threshold(
+            exact, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold
+        )
+        f1_threshold = apply_no_ans_threshold(f1, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold)
+
+        evaluation = make_eval_dict(exact_threshold, f1_threshold)
+
+        if has_answer_qids:
+            has_ans_eval = make_eval_dict(exact_threshold, f1_threshold, qid_list=has_answer_qids)
+            merge_eval(evaluation, has_ans_eval, "HasAns")
+
+        if no_answer_qids:
+            no_ans_eval = make_eval_dict(exact_threshold, f1_threshold, qid_list=no_answer_qids)
+            merge_eval(evaluation, no_ans_eval, "NoAns")
+
+        if no_answer_probs:
+            find_all_best_thresh(evaluation, all_predictions, exact, f1, no_answer_probs, qas_id_to_has_answer)
+
+        return evaluation["best_exact"], evaluation["best_f1"]
+
+        # exact_match = 0.
+        # f1 = 0.
+        # # Loop over all the examples and evaluate the predictions
+        # for example in self.examples:
+
+        #     qas_id = example.qas_id
+        #     if qas_id not in all_predictions:
+        #         continue
+
+        #     ground_truths = [answer["text"] for answer in example.answers]
+        #     prediction = all_predictions[qas_id]
+        #     try:
+        #         exact_match += metric_max_over_ground_truths(
+        #             exact_match_score, prediction, ground_truths)
+        #     except:
+        #         import ipdb; ipdb.set_trace()
+        #     f1 += metric_max_over_ground_truths(f1_score, prediction,
+        #                                         ground_truths)
+
+        # exact_match = 100.0 * exact_match / len(self.examples)
+        # f1 = 100.0 * f1 / len(self.examples)
+
+        # return exact_match, f1
+
+    def get_raw_scores(self, preds):
+        """
+        Computes the exact and f1 scores from the examples and the model predictions
+        """
+        exact_scores = {}
+        f1_scores = {}
+
         for example in self.examples:
-
             qas_id = example.qas_id
-            if qas_id not in all_predictions:
+            gold_answers = [answer["text"] for answer in example.answers if normalize_answer(answer["text"])]
+
+            if not gold_answers:
+                # For unanswerable questions, only correct answer is empty string
+                gold_answers = [""]
+
+            if qas_id not in preds:
+                print("Missing prediction for %s" % qas_id)
                 continue
 
-            ground_truths = [answer["text"] for answer in example.answers if normalize_answer(answer["text"])]
-            prediction = all_predictions[qas_id]
-            exact_match += metric_max_over_ground_truths(
-                exact_match_score, prediction, ground_truths)
+            prediction = preds[qas_id]
+            exact_scores[qas_id] = max(exact_match_score(a, prediction) for a in gold_answers)
+            f1_scores[qas_id] = max(f1_score(a, prediction) for a in gold_answers)
 
-            f1 += metric_max_over_ground_truths(f1_score, prediction,
-                                                ground_truths)
-
-        exact_match = 100.0 * exact_match / len(self.examples)
-        f1 = 100.0 * f1 / len(self.examples)
-
-        return exact_match, f1
+        return exact_scores, f1_scores
 
     def calculate_exact_match_and_f1(self, unique_ids, start_logits,
                                      end_logits, n_best_size,
