@@ -300,12 +300,8 @@ class SquadDataset(Dataset):
                     all_predictions[example.qas_id] = best_non_null_entry.text
                 all_nbest_json[example.qas_id] = nbest_json
 
-        # with open("output_predictions.json", "w") as writer:
-        #    writer.write(json.dumps(all_predictions, indent=4) + "\n")
-
         return all_predictions, all_nbest_json, scores_diff_json
 
-    # for v1.1
     def evaluate_predictions(self, all_predictions, no_answer_probs=None, no_answer_probability_threshold=1.0):
         qas_id_to_has_answer = {example.qas_id: bool(example.answers) for example in self.examples}
         has_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer]
@@ -336,30 +332,6 @@ class SquadDataset(Dataset):
 
         return evaluation["best_exact"], evaluation["best_f1"]
 
-        # exact_match = 0.
-        # f1 = 0.
-        # # Loop over all the examples and evaluate the predictions
-        # for example in self.examples:
-
-        #     qas_id = example.qas_id
-        #     if qas_id not in all_predictions:
-        #         continue
-
-        #     ground_truths = [answer["text"] for answer in example.answers]
-        #     prediction = all_predictions[qas_id]
-        #     try:
-        #         exact_match += metric_max_over_ground_truths(
-        #             exact_match_score, prediction, ground_truths)
-        #     except:
-        #         import ipdb; ipdb.set_trace()
-        #     f1 += metric_max_over_ground_truths(f1_score, prediction,
-        #                                         ground_truths)
-
-        # exact_match = 100.0 * exact_match / len(self.examples)
-        # f1 = 100.0 * f1 / len(self.examples)
-
-        # return exact_match, f1
-
     def get_raw_scores(self, preds):
         """
         Computes the exact and f1 scores from the examples and the model predictions
@@ -385,7 +357,7 @@ class SquadDataset(Dataset):
 
         return exact_scores, f1_scores
 
-    def calculate_exact_match_and_f1(self, unique_ids, start_logits,
+    def evaluate(self, unique_ids, start_logits,
                                      end_logits, n_best_size,
                                      max_answer_length, do_lower_case,
                                      version_2_with_negative,
@@ -398,21 +370,7 @@ class SquadDataset(Dataset):
 
         exact_match, f1 = self.evaluate_predictions(all_predictions)
 
-        return exact_match, f1
-
-def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer,
-                         orig_answer_text):
-    """Returns tokenized answer spans that
-    better match the annotated answer."""
-    tok_answer_text = " ".join(tokenizer.text_to_tokens(orig_answer_text))
-
-    for new_start in range(input_start, input_end + 1):
-        for new_end in range(input_end, new_start - 1, -1):
-            text_span = " ".join(doc_tokens[new_start:(new_end + 1)])
-            if text_span == tok_answer_text:
-                return (new_start, new_end)
-
-    return (input_start, input_end)
+        return exact_match, f1, all_predictions
 
 
 def convert_examples_to_features(examples, tokenizer, max_seq_length,
@@ -623,28 +581,6 @@ class InputFeatures(object):
         self.end_position = end_position
         self.is_impossible = is_impossible
 
-
-def _check_is_max_context(doc_spans, cur_span_index, position):
-    """Check if this is the 'max context' doc span for the token."""
-    best_score = None
-    best_span_index = None
-    for (span_index, doc_span) in enumerate(doc_spans):
-        end = doc_span.start + doc_span.length - 1
-        if position < doc_span.start:
-            continue
-        if position > end:
-            continue
-        num_left_context = position - doc_span.start
-        num_right_context = end - position
-        score = min(num_left_context, num_right_context) + \
-            0.01 * doc_span.length
-        if best_score is None or score > best_score:
-            best_score = score
-            best_span_index = span_index
-
-    return cur_span_index == best_span_index
-
-
 class SquadProcessor(DataProcessor):
     """
     Processor for the SQuAD data set.
@@ -826,3 +762,38 @@ class SquadExample(object):
                 min(start_position_character + len(answer_text) - 1,
                     len(char_to_word_offset) - 1)
             ]
+
+
+def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer,
+                         orig_answer_text):
+    """Returns tokenized answer spans that
+    better match the annotated answer."""
+    tok_answer_text = " ".join(tokenizer.text_to_tokens(orig_answer_text))
+
+    for new_start in range(input_start, input_end + 1):
+        for new_end in range(input_end, new_start - 1, -1):
+            text_span = " ".join(doc_tokens[new_start:(new_end + 1)])
+            if text_span == tok_answer_text:
+                return (new_start, new_end)
+
+    return (input_start, input_end)
+
+def _check_is_max_context(doc_spans, cur_span_index, position):
+    """Check if this is the 'max context' doc span for the token."""
+    best_score = None
+    best_span_index = None
+    for (span_index, doc_span) in enumerate(doc_spans):
+        end = doc_span.start + doc_span.length - 1
+        if position < doc_span.start:
+            continue
+        if position > end:
+            continue
+        num_left_context = position - doc_span.start
+        num_right_context = end - position
+        score = min(num_left_context, num_right_context) + \
+            0.01 * doc_span.length
+        if best_score is None or score > best_score:
+            best_score = score
+            best_span_index = span_index
+
+    return cur_span_index == best_span_index

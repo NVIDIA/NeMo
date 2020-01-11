@@ -29,7 +29,7 @@ def eval_iter_callback(tensors, global_vars):
 def eval_epochs_done_callback(global_vars, eval_data_layer, do_lower_case,
                               n_best_size, max_answer_length,
                               version_2_with_negative, null_score_diff_threshold):
-    exact_match, f1 = eval_data_layer.dataset.calculate_exact_match_and_f1(
+    exact_match, f1, _ = eval_data_layer.dataset.evaluate(
         unique_ids=global_vars["eval_unique_ids"],
         start_logits=global_vars["eval_start_logits"],
         end_logits=global_vars["eval_end_logits"],
