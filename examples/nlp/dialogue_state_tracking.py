@@ -63,12 +63,14 @@ if not os.path.exists(args.data_dir):
 work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
 
 # TODO
-# import torch
-# torch.backends.cudnn.deterministic = True
-#
-# torch.manual_seed(999)
-# if torch.cuda.is_available():
-#     torch.cuda.manual_seed_all(999)
+import torch
+torch.backends.cudnn.deterministic = True
+
+torch.manual_seed(999)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(999)
+import random
+random.seed(30)
 
 
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
@@ -91,7 +93,8 @@ data_layer_train = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                       num_workers=num_workers,
                                       local_rank=args.local_rank,
                                       batch_size=args.batch_size,
-                                      mode='train')
+                                      mode='train',
+                                      input_dropout=args.input_dropout)
 src_ids_train, src_lens_train, tgt_ids_train, \
     tgt_lens_train, gate_labels_train, turn_domain_train =  data_layer_train()
 vocab_size = len(data_layer_train._dataset.vocab)
@@ -113,8 +116,7 @@ encoder = EncoderRNN(vocab_size,
                      args.emb_dim,
                      args.hid_dim,
                      args.dropout,
-                     args.n_layers,
-                     input_dropout=args.input_dropout)
+                     args.n_layers)
 
 outputs_train, hidden_train = encoder(inputs=src_ids_train,
                                       input_lens=src_lens_train)
@@ -155,7 +157,9 @@ data_layer_eval = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                            num_workers=num_workers,
                                            local_rank=args.local_rank,
                                            batch_size=args.batch_size,
-                                           mode=args.eval_file_prefix)
+                                           mode=args.eval_file_prefix,
+                                           input_dropout=args.input_dropout)
+
 (src_ids_eval, src_lens_eval, tgt_ids_eval,
  tgt_lens_eval, gate_labels_eval, turn_domain_eval) = data_layer_eval()
 outputs, hidden = encoder(inputs=src_ids_eval, input_lens=src_lens_eval)
@@ -225,7 +229,7 @@ lr_policy_fn = get_lr_policy(args.lr_policy,
 grad_norm_clip = args.grad_norm_clip if args.grad_norm_clip > 0 else None
 # TODO
 nf.train(tensors_to_optimize=[loss_train],
-         callbacks=[eval_callback, train_callback, ckpt_callback],
+          callbacks=[eval_callback, train_callback, ckpt_callback],
          #callbacks=[train_callback, ckpt_callback],
          #lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
