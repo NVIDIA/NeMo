@@ -864,6 +864,7 @@ class WOZDSTDataLayer(TextDataLayer):
                  shuffle=False,
                  num_workers=0,
                  input_dropout=0,
+                 is_training=False,
                  **kwargs):
 
         kwargs['batch_size'] = batch_size
@@ -888,7 +889,7 @@ class WOZDSTDataLayer(TextDataLayer):
         self.pad_id = self._dataset.vocab.pad_id
         self.gating_dict = self._dataset.gating_dict
         self.input_dropout = input_dropout
-        self.mode = mode
+        self.is_training = is_training
 
     def _collate_fn(self, data):
         """ data is a list of batch_size sample
@@ -944,9 +945,9 @@ class WOZDSTDataLayer(TextDataLayer):
         turn_domain = torch.tensor(item_info['turn_domain'])
         #print(src_lens.cpu())
 
-        if self.input_dropout > 0 and self.mode == 'train':
+        if self.input_dropout > 0 and self.is_training:
             # TODO
-            # np.random.seed(0)
+            #np.random.seed(0)
             bi_mask = np.random.binomial([np.ones(src_ids.size())],
                                          1.0 - self.input_dropout)[0]
             rand_mask = torch.Tensor(bi_mask).long().to(src_ids.device)
