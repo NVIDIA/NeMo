@@ -135,7 +135,7 @@ class BERT(TrainableNM):
         else:
             raise ValueError("Either pretrained_model_name or vocab_size must"
                              + " be passed into the BERT constructor")
-        self.fwdctr = 0
+
         model.to(self._device)
 
         self.add_module("bert", model)
@@ -155,13 +155,6 @@ class BERT(TrainableNM):
             pretrained_models.append(model_info)
         return pretrained_models
 
-
     def forward(self, input_ids, token_type_ids, attention_mask):
-        self.fwdctr += 1
-        if self.fwdctr < 3:
-            t = timeit.Timer(lambda: self.bert(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)).timeit(number=10)
-            print("###### FORWARD time ", t / 10.)
-
-        fwd = self.bert(input_ids, token_type_ids=token_type_ids,
+        return self.bert(input_ids, token_type_ids=token_type_ids,
                          attention_mask=attention_mask)[0]
-        return fwd
