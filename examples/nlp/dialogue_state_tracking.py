@@ -94,6 +94,7 @@ data_layer_train = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                       local_rank=args.local_rank,
                                       batch_size=args.batch_size,
                                       mode='train',
+                                      is_training=True,
                                       input_dropout=args.input_dropout)
 src_ids_train, src_lens_train, tgt_ids_train, \
     tgt_lens_train, gate_labels_train, turn_domain_train =  data_layer_train()
@@ -158,6 +159,7 @@ data_layer_eval = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                            local_rank=args.local_rank,
                                            batch_size=args.batch_size,
                                            mode=args.eval_file_prefix,
+                                           is_training=False,
                                            input_dropout=args.input_dropout)
 
 (src_ids_eval, src_lens_eval, tgt_ids_eval,
