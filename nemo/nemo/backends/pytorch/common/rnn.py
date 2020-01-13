@@ -7,7 +7,6 @@ import torch
 # noinspection PyPep8Naming
 import torch.nn.functional as F
 from torch import nn
-import numpy as np
 
 from nemo.backends.pytorch.common.parts import Attention
 from nemo.backends.pytorch.nm import TrainableNM
@@ -59,11 +58,9 @@ class EncoderRNN(TrainableNM):
                  n_layers=1,
                  pad_idx=1,
                  embedding_to_load=None,
-                 sum_hidden=True,
-                 input_dropout=0.0):
+                 sum_hidden=True):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
-        self.input_dropout = input_dropout
         self.embedding = nn.Embedding(input_dim, emb_dim, padding_idx=pad_idx)
         if embedding_to_load is not None:
             self.embedding.weight.data.copy_(embedding_to_load)
@@ -79,14 +76,7 @@ class EncoderRNN(TrainableNM):
         self.to(self._device)
 
     def forward(self, inputs, input_lens=None):
-        if self.input_dropout > 0 and self.training:
-            bi_mask = np.random.binomial([np.ones(inputs.size())],
-                                         1.0 - self.input_dropout)[0]
-            rand_mask = torch.Tensor(bi_mask).long().to(self._device)
-            embedding_input = inputs * rand_mask
-        else:
-            embedding_input = inputs
-        embedded = self.embedding(embedding_input)
+        embedded = self.embedding(inputs)
         embedded = self.dropout(embedded)
         if input_lens is not None:
             embedded = nn.utils.rnn.pack_padded_sequence(embedded,
