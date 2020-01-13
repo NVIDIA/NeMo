@@ -33,9 +33,11 @@ from torch.utils.data import Dataset
 import torch
 from nemo.utils.exp_logging import get_logger
 from .utils import DataProcessor
-from ...utils.metrics.squad_metrics import _compute_softmax, _get_best_indexes, \
-    apply_no_ans_threshold, metric_max_over_ground_truths, exact_match_score, \
-    make_eval_dict, f1_score, get_final_text, normalize_answer, merge_eval, find_all_best_thresh
+from ...utils.metrics.squad_metrics import _compute_softmax, \
+            _get_best_indexes, apply_no_ans_threshold, \
+            metric_max_over_ground_truths, exact_match_score, \
+            make_eval_dict, f1_score, get_final_text, normalize_answer, \
+            merge_eval, find_all_best_thresh
 from nemo_nlp.utils.nlp_utils import _is_whitespace
 
 logger = get_logger('')
@@ -54,7 +56,7 @@ class SquadDataset(Dataset):
         if not version_2_with_negative:
             processor_name = 'SquadV1Processor'
         else:
-            processor_name = 'SquadV2Processor' 
+            processor_name = 'SquadV2Processor'
         self.processor = getattr(sys.modules[__name__],
                                  processor_name)()
         if mode == "dev":
@@ -66,12 +68,17 @@ class SquadDataset(Dataset):
         else:
             raise Exception
         if mode == "train":
-            cached_train_features_file = data_dir+'/cache' + '_{0}_{1}_{2}_{3}'.format(
-                mode, str(max_seq_length), str(doc_stride), str(max_query_length))
-            try:
+            cached_train_features_file = data_dir + '/cache' + \
+                '_{0}_{1}_{2}_{3}'.format(
+                    mode,
+                    str(max_seq_length),
+                    str(doc_stride),
+                    str(max_query_length))
+
+            if os.path.exists(cached_train_features_file):
                 with open(cached_train_features_file, "rb") as reader:
                     self.features = pickle.load(reader)
-            except Exception:
+            else:
                 self.features = convert_examples_to_features(
                                     examples=self.examples,
                                     tokenizer=tokenizer,
@@ -79,8 +86,9 @@ class SquadDataset(Dataset):
                                     doc_stride=doc_stride,
                                     max_query_length=max_query_length,
                                     has_groundtruth=True)
-                if (not torch.distributed.is_initialized()
-                    or torch.distributed.get_rank() == 0):
+                master_device = not torch.distributed.is_initialized() \
+                    or torch.distributed.get_rank() == 0
+                if master_device:
                     logger.info("  Saving train features into cached file %s",
                                 cached_train_features_file)
                     with open(cached_train_features_file, "wb") as writer:
@@ -95,7 +103,7 @@ class SquadDataset(Dataset):
                                     has_groundtruth=True)
         else:
             raise Exception
-        
+
     def __len__(self):
         return len(self.features)
 
@@ -136,10 +144,14 @@ class SquadDataset(Dataset):
 
             prelim_predictions = []
             # keep track of the minimum score of null start+end of position 0
-            score_null = 1000000  # large and positive
-            min_null_feature_index = 0  # the paragraph slice with min null score
-            null_start_logit = 0  # start logit at the slice with min null score
-            null_end_logit = 0  # end logit at the slice with min null score
+            # large and positive
+            score_null = 1000000
+            # the paragraph slice with min null score
+            min_null_feature_index = 0
+            # start logit at the slice with min null score
+            null_start_logit = 0
+            # end logit at the slice with min null score
+            null_end_logit = 0
             for (feature_index, feature) in enumerate(features):
                 pos = unique_id_to_pos[feature.unique_id]
                 start_indexes = _get_best_indexes(start_logits[pos],
@@ -246,8 +258,9 @@ class SquadDataset(Dataset):
                                          start_logit=null_start_logit,
                                          end_logit=null_end_logit))
 
-                # In very rare edge cases we could only have single null pred.
-                # We just create a nonce prediction in this case to avoid failure.
+                # In very rare edge cases we could only
+                # have single null pred. We just create a nonce prediction
+                # in this case to avoid failure.
                 if len(nbest) == 1:
                     nbest.insert(
                         0,
@@ -302,49 +315,71 @@ class SquadDataset(Dataset):
 
         return all_predictions, all_nbest_json, scores_diff_json
 
-    def evaluate_predictions(self, all_predictions, no_answer_probs=None, no_answer_probability_threshold=1.0):
-        qas_id_to_has_answer = {example.qas_id: bool(example.answers) for example in self.examples}
-        has_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer]
-        no_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if not has_answer]
+    def evaluate_predictions(self, all_predictions,
+                             no_answer_probs=None,
+                             no_answer_probability_threshold=1.0):
+        qas_id_to_has_answer = {example.qas_id:
+                                bool(example.answers) for
+                                example in self.examples}
+        has_answer_qids = [qas_id for qas_id, has_answer in
+                           qas_id_to_has_answer.items() if has_answer]
+        no_answer_qids = [qas_id for qas_id, has_answer in
+                          qas_id_to_has_answer.items() if not has_answer]
         if no_answer_probs is None:
             no_answer_probs = {k: 0.0 for k in all_predictions}
 
         exact, f1 = self.get_raw_scores(all_predictions)
 
-
         exact_threshold = apply_no_ans_threshold(
-            exact, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold
-        )
-        f1_threshold = apply_no_ans_threshold(f1, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold)
+                            exact,
+                            no_answer_probs,
+                            qas_id_to_has_answer,
+                            no_answer_probability_threshold)
+        f1_threshold = apply_no_ans_threshold(f1,
+                                              no_answer_probs,
+                                              qas_id_to_has_answer,
+                                              no_answer_probability_threshold)
 
         evaluation = make_eval_dict(exact_threshold, f1_threshold)
 
         if has_answer_qids:
-            has_ans_eval = make_eval_dict(exact_threshold, f1_threshold, qid_list=has_answer_qids)
+            has_ans_eval = make_eval_dict(exact_threshold,
+                                          f1_threshold,
+                                          qid_list=has_answer_qids)
             merge_eval(evaluation, has_ans_eval, "HasAns")
 
         if no_answer_qids:
-            no_ans_eval = make_eval_dict(exact_threshold, f1_threshold, qid_list=no_answer_qids)
+            no_ans_eval = make_eval_dict(exact_threshold,
+                                         f1_threshold,
+                                         qid_list=no_answer_qids)
             merge_eval(evaluation, no_ans_eval, "NoAns")
 
         if no_answer_probs:
-            find_all_best_thresh(evaluation, all_predictions, exact, f1, no_answer_probs, qas_id_to_has_answer)
+            find_all_best_thresh(evaluation,
+                                 all_predictions,
+                                 exact,
+                                 f1,
+                                 no_answer_probs,
+                                 qas_id_to_has_answer)
 
         return evaluation["best_exact"], evaluation["best_f1"]
 
     def get_raw_scores(self, preds):
         """
-        Computes the exact and f1 scores from the examples and the model predictions
+        Computes the exact and f1 scores from the examples
+        and the model predictions
         """
         exact_scores = {}
         f1_scores = {}
 
         for example in self.examples:
             qas_id = example.qas_id
-            gold_answers = [answer["text"] for answer in example.answers if normalize_answer(answer["text"])]
+            gold_answers = [answer["text"] for answer in example.answers
+                            if normalize_answer(answer["text"])]
 
             if not gold_answers:
-                # For unanswerable questions, only correct answer is empty string
+                # For unanswerable questions,
+                # only correct answer is empty string
                 gold_answers = [""]
 
             if qas_id not in preds:
@@ -352,21 +387,25 @@ class SquadDataset(Dataset):
                 continue
 
             prediction = preds[qas_id]
-            exact_scores[qas_id] = max(exact_match_score(a, prediction) for a in gold_answers)
-            f1_scores[qas_id] = max(f1_score(a, prediction) for a in gold_answers)
+            exact_scores[qas_id] = \
+                max(exact_match_score(a, prediction) for a in gold_answers)
+            f1_scores[qas_id] = \
+                max(f1_score(a, prediction) for a in gold_answers)
 
         return exact_scores, f1_scores
 
     def evaluate(self, unique_ids, start_logits,
-                                     end_logits, n_best_size,
-                                     max_answer_length, do_lower_case,
-                                     version_2_with_negative,
-                                     null_score_diff_threshold):
+                 end_logits, n_best_size,
+                 max_answer_length, do_lower_case,
+                 version_2_with_negative,
+                 null_score_diff_threshold):
 
         all_predictions, all_nbest_json, scores_diff_json = \
-            self.get_predictions(unique_ids, start_logits, end_logits, n_best_size,
+            self.get_predictions(unique_ids, start_logits,
+                                 end_logits, n_best_size,
                                  max_answer_length, do_lower_case,
-                                 version_2_with_negative, null_score_diff_threshold)
+                                 version_2_with_negative,
+                                 null_score_diff_threshold)
 
         exact_match, f1 = self.evaluate_predictions(all_predictions)
 
@@ -374,7 +413,8 @@ class SquadDataset(Dataset):
 
 
 def convert_examples_to_features(examples, tokenizer, max_seq_length,
-                                 doc_stride, max_query_length, has_groundtruth):
+                                 doc_stride, max_query_length,
+                                 has_groundtruth):
     """Loads a data file into a list of `InputBatch`s."""
 
     unique_id = 1000000000
@@ -386,9 +426,12 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         if len(query_tokens) > max_query_length:
             query_tokens = query_tokens[0:max_query_length]
 
-        tok_to_orig_index = [] # context: index of token -> index of word
-        orig_to_tok_index = [] # context: index of word -> index of first token in token list
-        all_doc_tokens = [] # context without white spaces after tokenization
+        # context: index of token -> index of word
+        tok_to_orig_index = []
+        # context: index of word -> index of first token in token list
+        orig_to_tok_index = []
+        # context without white spaces after tokenization
+        all_doc_tokens = []
         # doc tokens is word separated context
         for (i, token) in enumerate(example.doc_tokens):
             orig_to_tok_index.append(len(all_doc_tokens))
@@ -416,7 +459,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
                 tokenizer, example.answer_text)
 
         # The -3 accounts for [CLS], [SEP] and [SEP]
-        # doc_spans contains all possible contexts options of given length 
+        # doc_spans contains all possible contexts options of given length
         max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
         _DocSpan = collections.namedtuple(
             "DocSpan", ["start", "length"])
@@ -433,7 +476,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
 
         for (doc_span_index, doc_span) in enumerate(doc_spans):
             tokens = []
-            # maps context tokens idx in final input -> word idx in context 
+            # maps context tokens idx in final input -> word idx in context
             token_to_orig_map = {}
             token_is_max_context = {}
             segment_ids = []
@@ -475,9 +518,9 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             assert len(input_mask) == max_seq_length
             assert len(segment_ids) == max_seq_length
 
-            
-            # calculate start and end position in final array of tokens in answer
-            # if no answer, 0 for both pointing to [CLS]
+            # calculate start and end position in final array
+            # of tokens in answer if no answer,
+            # 0 for both pointing to [CLS]
             start_position = None
             end_position = None
             if has_groundtruth and not example.is_impossible:
@@ -581,6 +624,7 @@ class InputFeatures(object):
         self.end_position = end_position
         self.is_impossible = is_impossible
 
+
 class SquadProcessor(DataProcessor):
     """
     Processor for the SQuAD data set.
@@ -590,7 +634,6 @@ class SquadProcessor(DataProcessor):
 
     train_file = None
     dev_file = None
-
 
     def get_train_examples(self, data_dir, filename=None):
         """
@@ -737,7 +780,7 @@ class SquadExample(object):
 
         # Split on whitespace so that different tokens
         # may be attributed to their original position.
-        # ex: context_text = ["hi yo"] 
+        # ex: context_text = ["hi yo"]
         #     char_to_word_offset = [0, 0, 0, 1, 1]
         #     doc_tokens = ["hi", "yo"]
         for c in self.context_text:
@@ -777,6 +820,7 @@ def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer,
                 return (new_start, new_end)
 
     return (input_start, input_end)
+
 
 def _check_is_max_context(doc_spans, cur_span_index, position):
     """Check if this is the 'max context' doc span for the token."""
