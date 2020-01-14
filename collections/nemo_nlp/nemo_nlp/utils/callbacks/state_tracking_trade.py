@@ -69,22 +69,26 @@ def eval_iter_callback(tensors,
 
     global_vars['gating_preds'].extend(np.argmax(gate_outputs, axis=-1))
 
+    # batch_size, slots_num, _ = gating_labels.size()
+    # words_all = [eval_data_layer.vocab.idx2word[w_idx.item()]
+    #          for w_idx in point_outputs_max.view(-1)]
+    #
     # all_prediction = []
     # for bi in range(batch_size):
-    #     #if data_dev["ID"][bi] not in all_prediction.keys():
-    #     #    all_prediction[data_dev["ID"][bi]] = {}
-    #     predictions = {}
-    #     predictions["turn_belief"] = turn_beliefs[bi]
-    #
+    #     words_point_out = [[] for i in range(slots_num)]
+    #     words = words_all[bi]
+    #     for si in range(words_point_out):
+    #         words_point_out[si].append(words[si * batch_size:(si + 1) * batch_size])
+    #     prediction = {"turn_belief": data_dev["turn_belief"][bi]}
     #     predict_belief_bsz_ptr, predict_belief_bsz_class = [], []
-    #     gate = gating_labels[bi] #np.argmax(gates.transpose(0, 1)[bi], dim=1)
+    #     gate = torch.argmax(gates.transpose(0, 1)[bi], dim=1)
     #
     #     # pointer-generator results
-    #     if eval_data_layer.use_gate:
+    #     if args["use_gate"]:
     #         for si, sg in enumerate(gate):
-    #             if sg == eval_data_layer.gating_dict["none"]:
+    #             if sg == self.gating_dict["none"]:
     #                 continue
-    #             elif sg == eval_data_layer.gating_dict["ptr"]:
+    #             elif sg == self.gating_dict["ptr"]:
     #                 pred = np.transpose(words[si])[bi]
     #                 st = []
     #                 for e in pred:
@@ -115,10 +119,6 @@ def eval_iter_callback(tensors,
     #                 predict_belief_bsz_ptr.append(slot_temp[si] + "-" + str(st))
     #
     #     all_prediction[data_dev["ID"][bi]][data_dev["turn_id"][bi]]["pred_bs_ptr"] = predict_belief_bsz_ptr
-    #
-    #     if set(data_dev["turn_belief"][bi]) != set(predict_belief_bsz_ptr) and args["genSample"]:
-    #         print("True", set(data_dev["turn_belief"][bi]))
-    #         print("Pred", set(predict_belief_bsz_ptr), "\n")
 
 
 def list2str(l):
