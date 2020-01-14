@@ -121,7 +121,6 @@ class DSTGenerator(TrainableNM):
         # print('encoder_hidden', encoder_hidden.shape)
 
 
-        # TODO: commented here
         if (not self.training) \
                 or (random.random() > self.teacher_forcing):
             use_teacher_forcing = False
@@ -200,7 +199,7 @@ class DSTGenerator(TrainableNM):
             all_point_outputs[:, :, wi, :] = torch.reshape(
                 final_p_vocab,
                 (len(self.slots), batch_size, self.vocab_size))
-            # TODO: check here
+
             if use_teacher_forcing:
                 decoder_input = self.embedding(torch.flatten(targets[:, :, wi]))
                 # targets[:, wi, :].transpose(1, 0)))
