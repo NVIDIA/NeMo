@@ -6,7 +6,11 @@ from shutil import copyfile
 import subprocess
 import sys
 
-loggers = {}
+import nemo
+
+
+def get_logger(name):
+    return nemo.logging
 
 
 class ContextFilter(logging.Filter):
@@ -29,18 +33,6 @@ class ContextFilter(logging.Filter):
     def filter(self, record):
         record.local_rank = self.local_rank
         return True
-
-
-def get_logger(name):
-    """ A wrapper function around logging.getLogger
-    to ensure that we don't create duplicate loggers
-    """
-    global loggers
-
-    if name not in loggers:
-        loggers[name] = logging.getLogger(name)
-
-    return loggers[name]
 
 
 class ExpManager:
@@ -160,7 +152,7 @@ class ExpManager:
             self.make_dir(self.ckpt_dir, exist_ok)
 
     def create_logger(self, name='', level=logging.INFO, log_file=True):
-        logger = get_logger(name)
+        logger = nemo.logging
         tmp = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
         if self.global_rank == 0:
