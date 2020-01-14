@@ -195,7 +195,7 @@ class ExpManager:
             self.make_dir(self.tb_dir, exist_ok)
 
             try:
-                from tensorboardX import SummaryWriter
+                from torch.utils.tensorboard import SummaryWriter
                 self.tb_writer = SummaryWriter(self.tb_dir)
             except ImportError:
                 self.tb_writer = None

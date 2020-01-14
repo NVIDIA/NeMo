@@ -15,8 +15,7 @@ html2text
 nltk
 progressbar
 matplotlib
-wget 
-tensorboardX
+wget
 pandas
 onnx
 wget
