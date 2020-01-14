@@ -17,7 +17,7 @@ from nemo.backends.pytorch.nm import TrainableNM
 
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
-from .optimizers import Novograd, AdamW, Lamb, master_params
+from .optimizers import Novograd, AdamW, master_params
 from ...core import NmTensor, DeviceType, NeuralModule, DeploymentFormat
 from ...core.neural_types import *
 from ...core.callbacks import (ActionCallback,
@@ -358,12 +358,6 @@ class PtActions(Actions):
                     reg_inside_moment=True,
                     grad_averaging=False,
                     betas=optimization_params.get("betas", (0.95, 0.25)),
-                )
-            elif optimizer_class.lower() == "lamb":
-                optimizer = Lamb(
-                    params_to_optimize,
-                    lr=lr,
-                    weight_decay=optimization_params.get("weight_decay", 0.0),
                 )
             elif optimizer_class.lower() == "fused_lamb":
                 optimizer = FusedLAMB(
