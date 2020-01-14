@@ -36,7 +36,7 @@ def normalize_batch(x, seq_len, normalize_type):
         x_mean = torch.tensor(normalize_type["fixed_mean"], device=x.device)
         x_std = torch.tensor(normalize_type["fixed_std"], device=x.device)
         return ((x - x_mean.view(x.shape[0], x.shape[1]).unsqueeze(2)) /
-                 x_std.view(x.shape[0], x.shape[1]).unsqueeze(2))
+                x_std.view(x.shape[0], x.shape[1]).unsqueeze(2))
     else:
         return x
 
