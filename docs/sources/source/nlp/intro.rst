@@ -35,6 +35,15 @@ Named Entity Recognition
    ner
 
 
+Punctuation and Word Capitalization
+-----------------------------------
+
+.. toctree::
+   :maxdepth: 8
+
+   punctuation
+
+
 Intent and Slot filling
 -----------------------
 .. toctree::
