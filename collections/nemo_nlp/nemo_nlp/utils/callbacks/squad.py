@@ -1,3 +1,20 @@
+"""
+Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
+
+
 def eval_iter_callback(tensors, global_vars):
     if "eval_start_logits" not in global_vars.keys():
         global_vars["eval_start_logits"] = []
@@ -28,7 +45,8 @@ def eval_iter_callback(tensors, global_vars):
 
 def eval_epochs_done_callback(global_vars, eval_data_layer, do_lower_case,
                               n_best_size, max_answer_length,
-                              version_2_with_negative, null_score_diff_threshold):
+                              version_2_with_negative,
+                              null_score_diff_threshold):
     exact_match, f1, _ = eval_data_layer.dataset.evaluate(
         unique_ids=global_vars["eval_unique_ids"],
         start_logits=global_vars["eval_start_logits"],
