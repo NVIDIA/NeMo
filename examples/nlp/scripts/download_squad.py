@@ -64,13 +64,12 @@ class SquadDownloader:
                     handle.write(response.read())
 
 
-parser = argparse.ArgumentParser(description='Download Squad')
-parser.add_argument('--destDir', type=str, required=False,
-                    help='directory to store data',
-                    default=os.path.split(os.path.abspath(__file__))[0]
-                    + '/../data/lm')
-
-
-args = parser.parse_args()
-squad_dl = SquadDownloader(args.destDir)
-squad_dl.download()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Download Squad')
+    parser.add_argument('--destDir', type=str, required=False,
+                        help='directory to store data',
+                        default=os.path.split(os.path.abspath(__file__))[0]
+                        + '/../data/lm')
+    args = parser.parse_args()
+    squad_dl = SquadDownloader(args.destDir)
+    squad_dl.download()

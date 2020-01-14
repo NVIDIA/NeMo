@@ -14,10 +14,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
-Utility functions for Squad tasks
-Some transformer of this code were adapted from the HuggingFace library at
-https://github.com/huggingface/transformers
 """
 import os
 import sys

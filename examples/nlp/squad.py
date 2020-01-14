@@ -20,10 +20,43 @@ https://github.com/huggingface/transformers
 Download the Squad data by running the script:
 examples/nlp/scripts/download_squad.py
 
-To run this example on 1 GPU:
-python squad.py  \
---data_dir /path_to_data_dir/squad/v1.1 \
+To finetune Squad v1.1 on pretrained BERT large uncased on 1 GPU:
+python squad.py
+--data_dir /path_to_data_dir/squad/v1.1
 --work_dir /path_to_output_folder
+--bert_checkpoint /path_to_bert_checkpoint
+--amp_opt_level "O1"
+--batch_size 24
+--num_epochs 2
+--lr_policy WarmupAnnealing
+--lr_warmup_proportion 0.0
+--optimizer adam_w
+--weight_decay 0.0
+--lr 3e-5
+--do_lower_case
+
+If --bert_checkpoint is not specified, training starts from
+Huggingface pretrained checkpoints.
+
+To finetune Squad v1.1 on pretrained BERT large uncased on 8 GPU:
+python -m torch.distributed.launch --nproc_per_node=8 squad.py
+--amp_opt_level "O1"
+--data_dir /path_to_data_dir/squad/v1.1
+--bert_checkpoint /path_to_bert_checkpoint
+--batch_size 3
+--num_gpus 8
+--num_epochs 2
+--lr_policy WarmupAnnealing
+--lr_warmup_proportion 0.0
+--optimizer adam_w
+--weight_decay 0.0
+--lr 3e-5
+--do_lower_case
+
+On Huggingface the final Exact Match (EM) and F1 scores are as follows:
+Model	                EM      F1
+BERT Based uncased      80.59    88.34
+BERT Large uncased      83.88    90.65
 """
 
 import argparse
@@ -45,8 +78,10 @@ parser.add_argument("--data_dir", type=str, required=True,
                     "dev.*.json files (or other data files) for the task.")
 parser.add_argument("--pretrained_bert_model", default="bert-base-uncased",
                     type=str, help="Name of the pre-trained model")
+parser.add_argument("--checkpoint_dir", default=None, type=str,
+                    help="Checkpoint directory for inference.")
 parser.add_argument("--bert_checkpoint", default=None, type=str,
-                    help="Path to model checkpoint")
+                    help="Path to BERT model checkpoint for finetuning.")
 parser.add_argument("--bert_config", default=None, type=str,
                     help="Path to bert config file in json format")
 parser.add_argument("--tokenizer_model", default="tokenizer.model", type=str,
@@ -71,6 +106,8 @@ parser.add_argument("--batch_size", default=8, type=int,
 parser.add_argument("--do_lower_case", action='store_true',
                     help="Whether to lower case the input text. "
                     "True for uncased models, False for cased models.")
+parser.add_argument("--evaluation_only", action='store_true',
+                    help="Whether to only do evaluation.")
 parser.add_argument("--doc_stride", default=128, type=int,
                     help="When splitting up a long document into chunks, "
                     "how much stride to take between chunks.")
@@ -113,10 +150,16 @@ parser.add_argument('--null_score_diff_threshold',
 parser.add_argument("--n_best_size", default=20, type=int,
                     help="The total number of n-best predictions to "
                     "generate in the nbest_predictions.json output file.")
+parser.add_argument("--batches_per_step", default=1, type=int,
+                    help="Number of iterations per step.")
 parser.add_argument("--max_answer_length", default=30, type=int,
                     help="The maximum length of an answer that can be "
                     "generated. This is needed because the start "
                     "and end predictions are not conditioned on one another.")
+parser.add_argument("--output_prediction_file", type=str, required=False,
+                    default="predictions.json",
+                    help="File to write predictions to. "
+                    "Only in evaluation mode.")
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
@@ -162,9 +205,6 @@ else:
     model = nemo_nlp.huggingface.BERT(
         pretrained_model_name=args.pretrained_bert_model)
 
-if args.bert_checkpoint is not None:
-    model.restore_from(args.bert_checkpoint)
-
 hidden_size = model.local_parameters["hidden_size"]
 
 qa_head = nemo_nlp.TokenClassifier(
@@ -173,6 +213,9 @@ qa_head = nemo_nlp.TokenClassifier(
                                 num_layers=1,
                                 log_softmax=False)
 squad_loss = QuestionAnsweringLoss()
+
+if args.bert_checkpoint is not None:
+    model.restore_from(args.checkpoint)
 
 
 def create_pipeline(max_query_length=args.max_query_length,
@@ -206,50 +249,82 @@ def create_pipeline(max_query_length=args.max_query_length,
         logits=qa_output, start_positions=start_positions,
         end_positions=end_positions)
 
-    steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
+    steps_per_epoch = len(data_layer) // (batch_size * num_gpus * args.batches_per_step)
     return loss, steps_per_epoch, \
         [start_logits, end_logits, unique_ids], data_layer
 
 
-train_loss, train_steps_per_epoch, _, _ = create_pipeline(mode="train")
+if not args.evaluation_only:
+    train_loss, train_steps_per_epoch, _, _ = create_pipeline(mode="train")
 _, _, eval_output, eval_data_layer = create_pipeline(mode="dev")
 
-callbacks_eval = nemo.core.EvaluatorCallback(
-    eval_tensors=eval_output,
-    user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-    user_epochs_done_callback=lambda x:
-        eval_epochs_done_callback(
-            x, eval_data_layer=eval_data_layer,
-            do_lower_case=args.do_lower_case,
-            n_best_size=args.n_best_size,
-            max_answer_length=args.max_answer_length,
-            version_2_with_negative=args.version_2_with_negative,
-            null_score_diff_threshold=args.null_score_diff_threshold),
-        tb_writer=nf.tb_writer,
-        eval_step=args.eval_step_freq)
+if not args.evaluation_only:
+    nf.logger.info(f"steps_per_epoch = {train_steps_per_epoch}")
+    callback_train = nemo.core.SimpleLossLoggerCallback(
+        tensors=[train_loss],
+        print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+        get_tb_values=lambda x: [["loss", x[0]]],
+        step_freq=args.loss_step_freq,
+        tb_writer=nf.tb_writer)
 
+    ckpt_callback = nemo.core.CheckpointCallback(
+        folder=nf.checkpoint_dir,
+        epoch_freq=args.save_epoch_freq,
+        step_freq=args.save_step_freq)
+    callbacks_eval = nemo.core.EvaluatorCallback(
+        eval_tensors=eval_output,
+        user_iter_callback=lambda x, y: eval_iter_callback(x, y),
+        user_epochs_done_callback=lambda x:
+            eval_epochs_done_callback(
+                x, eval_data_layer=eval_data_layer,
+                do_lower_case=args.do_lower_case,
+                n_best_size=args.n_best_size,
+                max_answer_length=args.max_answer_length,
+                version_2_with_negative=args.version_2_with_negative,
+                null_score_diff_threshold=args.null_score_diff_threshold),
+            tb_writer=nf.tb_writer,
+            eval_step=args.eval_step_freq)
 
-nf.logger.info(f"steps_per_epoch = {train_steps_per_epoch}")
-callback_train = nemo.core.SimpleLossLoggerCallback(
-    tensors=[train_loss],
-    print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
-    get_tb_values=lambda x: [["loss", x[0]]],
-    step_freq=args.loss_step_freq,
-    tb_writer=nf.tb_writer)
+    lr_policy_fn = get_lr_policy(
+                    args.lr_policy,
+                    total_steps=args.num_epochs * train_steps_per_epoch,
+                    warmup_ratio=args.lr_warmup_proportion)
 
-ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir,
-    epoch_freq=args.save_epoch_freq,
-    step_freq=args.save_step_freq)
+    nf.train(tensors_to_optimize=[train_loss],
+             callbacks=[callback_train, ckpt_callback, callbacks_eval],
+             lr_policy=lr_policy_fn,
+             optimizer=args.optimizer_kind,
+             batches_per_step=args.batches_per_step,
+             optimization_params={"num_epochs": args.num_epochs,
+                                  "lr": args.lr})
+else:
 
-lr_policy_fn = get_lr_policy(
-                args.lr_policy,
-                total_steps=args.num_epochs * train_steps_per_epoch,
-                warmup_ratio=args.lr_warmup_proportion)
+    if args.checkpoint_dir is not None:
+        load_from_folder = args.checkpoint
+    evaluated_tensors = nf.infer(
+                tensors=eval_output,
+                checkpoint_dir=load_from_folder,
+                cache=True)
+    unique_ids = []
+    start_logits = []
+    end_logits = []
+    for t in evaluated_tensors[2]:
+        unique_ids.extend(t.tolist())
+    for t in evaluated_tensors[0]:
+        start_logits.extend(t.tolist())
+    for t in evaluated_tensors[1]:
+        end_logits.extend(t.tolist())
 
-nf.train(tensors_to_optimize=[train_loss],
-         callbacks=[callback_train, ckpt_callback, callbacks_eval],
-         lr_policy=lr_policy_fn,
-         optimizer=args.optimizer_kind,
-         optimization_params={"num_epochs": args.num_epochs,
-                              "lr": args.lr})
+    exact_match, f1, all_predictions = eval_data_layer.dataset.evaluate(
+        unique_ids=unique_ids,
+        start_logits=start_logits,
+        end_logits=end_logits,
+        n_best_size=args.n_best_size,
+        max_answer_length=args.max_answer_length,
+        version_2_with_negative=args.version_2_with_negative,
+        null_score_diff_threshold=args.null_score_diff_threshold,
+        do_lower_case=args.do_lower_case)
+    nf.logger.info(f"exact_match: {exact_match}, f1: {f1}")
+    if args.output_prediction_file is not None:
+        with open(args.output_prediction_file, "w") as writer:
+            writer.write(json.dumps(all_predictions, indent=4) + "\n")
