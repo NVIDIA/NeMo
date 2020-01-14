@@ -1490,10 +1490,12 @@ class PtActions(Actions):
                 nan = False
                 for tensor in curr_tensors_to_optimize:
                     if torch.isnan(
+                            registered_tensors[tensor.unique_name]).any() \
+                            or torch.isinf(
                             registered_tensors[tensor.unique_name]).any():
                         if stop_on_nan_loss:
-                            raise ValueError('Loss is NaN exiting')
-                        self.logger.warning('WARNING: Loss is NaN')
+                            raise ValueError('Loss is NaN or inf - exiting')
+                        self.logger.warning('WARNING: Loss is NaN or inf')
                         curr_optimizer.zero_grad()
                         nan = True
                         break
@@ -1507,10 +1509,12 @@ class PtActions(Actions):
                             curr_optimizer,
                             delay_unscale=disable_allreduce
                     ) as scaled_loss:
-                        if torch.isnan(scaled_loss).any():
+                        if torch.isnan(scaled_loss).any() \
+                                or torch.isinf(scaled_loss).any():
                             if stop_on_nan_loss:
-                                raise ValueError('Loss is NaN exiting')
-                            self.logger.warning('WARNING: Loss is NaN')
+                                raise ValueError('Loss is NaN or inf -'
+                                                 ' exiting')
+                            self.logger.warning('WARNING: Loss is NaN or inf')
                             curr_optimizer.zero_grad()
                             continue
                         scaled_loss.backward(
