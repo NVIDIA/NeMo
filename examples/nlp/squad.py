@@ -215,7 +215,7 @@ qa_head = nemo_nlp.TokenClassifier(
 squad_loss = QuestionAnsweringLoss()
 
 if args.bert_checkpoint is not None:
-    model.restore_from(args.checkpoint)
+    model.restore_from(args.bert_checkpoint)
 
 
 def create_pipeline(max_query_length=args.max_query_length,
