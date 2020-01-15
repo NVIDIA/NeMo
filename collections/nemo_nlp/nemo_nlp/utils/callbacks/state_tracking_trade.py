@@ -160,13 +160,25 @@ def evaluate_metrics(comp_res, gating_labels, gating_preds, ptr_code):
     for result_idx, result in enumerate(comp_res):
         turn_wrong = False
         total_turns += 1
-        for slot_idx, slot in enumerate(result):
+        for slot_idx, slot_eq in enumerate(result):
             total_slots += 1
-            if gating_labels[result_idx][slot_idx] == gating_preds[result_idx][slot_idx] and \
-               (gating_labels[result_idx][slot_idx] != ptr_code or slot):
+            if gating_labels == ptr_code:
+                if slot_eq:
+                    correct_slots += 1
+                else:
+                    turn_wrong = True
+            elif gating_labels[result_idx][slot_idx] \
+                    == gating_preds[result_idx][slot_idx] \
+                    or (slot_eq and
+                        gating_preds[result_idx][slot_idx] == ptr_code):
                 correct_slots += 1
             else:
                 turn_wrong = True
+            # if gating_labels[result_idx][slot_idx] == gating_preds[result_idx][slot_idx] and \
+            #    (gating_labels[result_idx][slot_idx] != ptr_code or slot_eq):
+            #     correct_slots += 1
+            # else:
+            #     turn_wrong = True
         if not turn_wrong:
             correct_turns += 1
 
