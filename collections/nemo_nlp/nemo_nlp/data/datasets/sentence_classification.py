@@ -20,17 +20,13 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-import logging
 import random
-import string
-import time
 
+import nemo
 import numpy as np
 from torch.utils.data import Dataset
 
 from . import utils
-
-logger = logging.getLogger('log')
 
 
 class BertSentenceClassificationDataset(Dataset):
@@ -60,7 +56,7 @@ class BertSentenceClassificationDataset(Dataset):
             too_long_count = 0
 
             lines = f.readlines()[1:]
-            logger.info(f'{input_file}: {len(lines)}')
+            nemo.logging.info(f'{input_file}: {len(lines)}')
 
             if shuffle or num_samples > -1:
                 random.seed(0)
@@ -70,7 +66,7 @@ class BertSentenceClassificationDataset(Dataset):
 
             for index, line in enumerate(lines):
                 if index % 20000 == 0:
-                    logger.debug(f"Processing line {index}/{len(lines)}")
+                    nemo.logging.debug(f"Processing line {index}/{len(lines)}")
 
                 sent_label = int(line.split()[-1])
                 sent_labels.append(sent_label)
@@ -95,7 +91,7 @@ class BertSentenceClassificationDataset(Dataset):
                 all_sent_subtokens[i] = ['[CLS]'] + shorten_sent
                 too_long_count += 1
 
-        logger.info(f'{too_long_count} out of {len(sent_lengths)} \
+        nemo.logging.info(f'{too_long_count} out of {len(sent_lengths)} \
                        sentencess with more than {max_seq_length} subtokens.')
 
         self.convert_sequences_to_features(all_sent_subtokens,
@@ -149,12 +145,13 @@ class BertSentenceClassificationDataset(Dataset):
             assert len(input_mask) == max_seq_length
 
             if sent_id == 0:
-                logger.info("*** Example ***")
-                logger.info("example_index: %s" % sent_id)
-                logger.info("subtokens: %s" % " ".join(sent_subtokens))
-                logger.info("sent_label: %s" % sent_label)
-                logger.info("input_ids: %s" % utils.list2str(input_ids))
-                logger.info("input_mask: %s" % utils.list2str(input_mask))
+                nemo.logging.info("*** Example ***")
+                nemo.logging.info("example_index: %s" % sent_id)
+                nemo.logging.info("subtokens: %s" % " ".join(sent_subtokens))
+                nemo.logging.info("sent_label: %s" % sent_label)
+                nemo.logging.info("input_ids: %s" % utils.list2str(input_ids))
+                nemo.logging.info(
+                    "input_mask: %s" % utils.list2str(input_mask))
 
             self.features.append(InputFeatures(
                 sent_id=sent_id,

@@ -141,8 +141,7 @@ class AudioDataset(Dataset):
                                        max_utts=max_utts,
                                        blank_index=blank_index,
                                        unk_index=unk_index,
-                                       normalize=normalize,
-                                       logger=logger)
+                                       normalize=normalize)
         self.featurizer = featurizer
         self.trim = trim
         self.eos_id = eos_id

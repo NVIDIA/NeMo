@@ -24,13 +24,10 @@ __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 import os
 import random
 
+import nemo
 import numpy as np
 from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import matthews_corrcoef, f1_score
-
-from nemo.utils.exp_logging import get_logger
-
-logger = get_logger('')
 
 
 def eval_iter_callback(tensors, global_vars):
@@ -80,9 +77,9 @@ def eval_epochs_done_callback(global_vars, output_dir, task_name):
     if preds.shape[0] > 21:
         i = random.randint(0, preds.shape[0] - 21)
 
-    logger.info("Task name: %s" % task_name.upper())
-    logger.info("Sampled preds: [%s]" % list2str(preds[i:i+20]))
-    logger.info("Sampled labels: [%s]" % list2str(labels[i:i+20]))
+    nemo.logging.info("Task name: %s" % task_name.upper())
+    nemo.logging.info("Sampled preds: [%s]" % list2str(preds[i:i+20]))
+    nemo.logging.info("Sampled labels: [%s]" % list2str(labels[i:i+20]))
 
     results = compute_metrics(task_name, preds, labels)
 
@@ -91,7 +88,7 @@ def eval_epochs_done_callback(global_vars, output_dir, task_name):
         f.write('labels\t' + list2str(labels) + '\n')
         f.write('preds\t' + list2str(preds) + '\n')
 
-    logger.info(results)
+    nemo.logging.info(results)
 
     return results
 

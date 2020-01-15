@@ -1,9 +1,9 @@
 # Taken straight from Patter https://github.com/ryanleary/patter
 # TODO: review, and copyright and fix/add comments
 import json
+import nemo
 import string
 
-from nemo.utils import get_logger
 from .cleaners import clean_text
 
 
@@ -17,8 +17,7 @@ class ManifestBase():
                  max_utts=0,
                  blank_index=-1,
                  unk_index=-1,
-                 normalize=True,
-                 logger=None):
+                 normalize=True):
         self.min_duration = min_duration
         self.max_duration = max_duration
         self.sort_by_duration = sort_by_duration
@@ -27,9 +26,6 @@ class ManifestBase():
         self.unk_index = unk_index
         self.normalize = normalize
         self.labels_map = {label: i for i, label in enumerate(labels)}
-        self.logger = logger
-        if logger is None:
-            self.logger = get_logger('')
 
         data = []
         duration = 0.0
@@ -53,9 +49,9 @@ class ManifestBase():
                 filtered_duration += item['duration']
                 continue
             if normalize:
-                text = self.normalize_text(text, labels, logger=self.logger)
+                text = self.normalize_text(text, labels)
             if not isinstance(text, str):
-                self.logger.warning(
+                nemo.logging.warning(
                     "WARNING: Got transcript: {}. It is not a "
                     "string. Dropping data point".format(text)
                 )
@@ -69,7 +65,7 @@ class ManifestBase():
 
             # support files using audio_filename
             if 'audio_filename' in item and 'audio_filepath' not in item:
-                self.logger.warning(
+                nemo.logging.warning(
                     "Malformed manifest: The key audio_filepath was not "
                     "found in the manifest. Using audio_filename instead."
                 )
@@ -79,7 +75,7 @@ class ManifestBase():
             duration += item['duration']
 
             if max_utts > 0 and len(data) >= max_utts:
-                self.logger.info(
+                nemo.logging.info(
                     'Stop parsing due to max_utts ({})'.format(max_utts))
                 break
 
@@ -155,7 +151,7 @@ class ManifestEN(ManifestBase):
         super().__init__(*args, **kwargs)
 
     @staticmethod
-    def normalize_text(text, labels, logger=None):
+    def normalize_text(text, labels):
         # Punctuation to remove
         punctuation = string.punctuation
         # Define punctuation that will be handled by text cleaner
@@ -183,10 +179,7 @@ class ManifestEN(ManifestBase):
         try:
             text = clean_text(text, table, punctuation_to_replace)
         except BaseException:
-            if logger:
-                logger.warning("WARNING: Normalizing {} failed".format(text))
-            else:
-                print("WARNING: Normalizing {} failed".format(text))
+            nemo.logging.warning("WARNING: Normalizing {} failed".format(text))
             return None
 
         return text

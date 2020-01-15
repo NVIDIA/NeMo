@@ -13,8 +13,9 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
-from nemo.backends.pytorch.nm import TrainableNM
 
+import nemo
+from nemo.backends.pytorch.nm import TrainableNM
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
 from .optimizers import Novograd, AdamW, master_params
@@ -93,8 +94,7 @@ class PtActions(Actions):
         super(PtActions, self).__init__(
             local_rank=local_rank,
             global_rank=global_rank,
-            optimization_level=optimization_level,
-            logger=logger)
+            optimization_level=optimization_level)
 
         # will be [unique_instance_id -> (NMModule, PTModule)]
         self.module_reference_table = {}
@@ -369,7 +369,7 @@ class PtActions(Actions):
                     "Unknown optimizer class: {0}".format(optimizer_class))
 
             if optimization_params.get("larc", False):
-                self.logger.info("Enabling larc")
+                nemo.logging.info("Enabling larc")
                 optimizer = LARC(
                     optimizer,
                     trust_coefficient=optimization_params.get("larc_eta", 2e-2)
@@ -555,7 +555,7 @@ class PtActions(Actions):
                 assert dist.is_initialized()
                 is_distributed = True
                 world_size = torch.distributed.get_world_size()
-                # self.logger.info(
+                # nemo.logging.info(
                 #     "Doing distributed evaluation. Rank {0} of {1}".format(
                 #         self.local_rank, world_size
                 #     )
@@ -608,7 +608,7 @@ class PtActions(Actions):
                         num_batches < 10 or (
                         epoch_i % int(num_batches / 10) == 0)
                 ):
-                    self.logger.info(
+                    nemo.logging.info(
                         f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
                 if isinstance(data, torch.Tensor):
@@ -636,7 +636,7 @@ class PtActions(Actions):
                 for t2e in tensors_2_evaluate:
                     key = t2e.unique_name
                     if key not in registered_e_tensors.keys():
-                        self.logger.info(
+                        nemo.logging.info(
                             "WARNING: Tensor {} was not found during "
                             "eval".format(
                                 key)
@@ -756,7 +756,7 @@ class PtActions(Actions):
                 assert dist.is_initialized()
                 is_distributed = True
                 world_size = torch.distributed.get_world_size()
-                # self.logger.info(
+                # nemo.logging.info(
                 #     "Doing distributed evaluation. Rank {0} of {1}".format(
                 #         self.local_rank, world_size
                 #     )
@@ -819,7 +819,7 @@ class PtActions(Actions):
                         num_batches < 10 or (
                         epoch_i % int(num_batches / 10) == 0)
                 ):
-                    self.logger.info(
+                    nemo.logging.info(
                         f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
                 if use_cache:
@@ -864,7 +864,7 @@ class PtActions(Actions):
                 for t2e in tensors_to_return:
                     key = t2e.unique_name
                     if key not in registered_e_tensors.keys():
-                        self.logger.info(
+                        nemo.logging.info(
                             "WARNING: Tensor {} was not found during "
                             "eval".format(
                                 key)
@@ -1337,7 +1337,7 @@ class PtActions(Actions):
             #     raise NotImplementedError(
             #         "Distributed training does nor work with multiple "
             #         "optimizers")
-            self.logger.info("Doing distributed training")
+            nemo.logging.info("Doing distributed training")
             if t_dataset is not None:
                 train_sampler = \
                     torch.utils.data.distributed.DistributedSampler(
@@ -1489,7 +1489,7 @@ class PtActions(Actions):
                             registered_tensors[tensor.unique_name]).any():
                         if stop_on_nan_loss:
                             raise ValueError('Loss is NaN or inf - exiting')
-                        self.logger.warning('WARNING: Loss is NaN or inf')
+                        nemo.logging.warning('WARNING: Loss is NaN or inf')
                         curr_optimizer.zero_grad()
                         nan = True
                         break
@@ -1508,7 +1508,7 @@ class PtActions(Actions):
                             if stop_on_nan_loss:
                                 raise ValueError('Loss is NaN or inf -'
                                                  ' exiting')
-                            self.logger.warning('WARNING: Loss is NaN or inf')
+                            nemo.logging.warning('WARNING: Loss is NaN or inf')
                             curr_optimizer.zero_grad()
                             continue
                         scaled_loss.backward(

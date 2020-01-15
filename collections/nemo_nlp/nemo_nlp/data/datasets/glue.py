@@ -20,12 +20,9 @@ Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 """
 
+import nemo
 import numpy as np
 from torch.utils.data import Dataset
-
-from nemo.utils.exp_logging import get_logger
-
-logger = get_logger('')
 
 
 class GLUEDataset(Dataset):
@@ -112,7 +109,8 @@ def convert_examples_to_features(examples,
     features = []
     for ex_index, example in enumerate(examples):
         if ex_index % 10000 == 0:
-            logger.info("Writing example %d of %d" % (ex_index, len(examples)))
+            nemo.logging.info(
+                "Writing example %d of %d" % (ex_index, len(examples)))
 
         tokens_a = tokenizer.text_to_tokens(example.text_a)
 
@@ -199,17 +197,17 @@ def convert_examples_to_features(examples,
             raise KeyError(output_mode)
 
         if ex_index < 5:
-            logger.info("*** Example ***")
-            logger.info("guid: %s" % (example.guid))
-            logger.info(
+            nemo.logging.info("*** Example ***")
+            nemo.logging.info("guid: %s" % (example.guid))
+            nemo.logging.info(
                 "tokens: %s" % " ".join(list(map(str, tokens))))
-            logger.info(
+            nemo.logging.info(
                 "input_ids: %s" % " ".join(list(map(str, input_ids))))
-            logger.info(
+            nemo.logging.info(
                 "input_mask: %s" % " ".join(list(map(str, input_mask))))
-            logger.info(
+            nemo.logging.info(
                 "segment_ids: %s" % " ".join(list(map(str, segment_ids))))
-            logger.info(
+            nemo.logging.info(
                 "label: %s (id = %d)" % (example.label, label_id))
 
         features.append(
