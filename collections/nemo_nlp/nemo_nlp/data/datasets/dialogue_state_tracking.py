@@ -181,7 +181,7 @@ class WOZDSTDataset(Dataset):
             if num_samples > 0 and len(data) >= num_samples:
                 break
 
-            dialog_histories = []
+            dialog_history = ""
             for domain in dialog_dict['domains']:
                 if domain not in self.domains:
                     continue
@@ -194,9 +194,11 @@ class WOZDSTDataset(Dataset):
                     break
 
                 turn_uttr = turn['system_transcript'] + ' ; ' + \
-                            turn['transcript'] + ' ; '
-                #turn_uttr = turn_uttr.strip()
-                dialog_histories.append(turn_uttr)
+                            turn['transcript']
+                turn_uttr_strip = turn_uttr.strip()
+                dialog_history += (turn["system_transcript"] + " ; " + turn["transcript"] + " ; ")
+                source_text = dialog_history.strip()
+
                 turn_beliefs = \
                     self.fix_general_label_error(turn['belief_state'],
                                                  self.slots)
@@ -233,10 +235,10 @@ class WOZDSTDataset(Dataset):
                           'domains': dialog_dict['domains'],
                           'turn_domain': turn['domain'],
                           'turn_id': turn['turn_idx'],
-                          'dialogue_history': ''.join(dialog_histories).strip(),
+                          'dialogue_history': source_text,
                           'turn_belief': turn_belief_list,
                           'gating_label': gating_label,
-                          'turn_uttr': turn_uttr,
+                          'turn_uttr': turn_uttr_strip,
                           'responses': responses}
 
                 sample['context_ids'] = self.vocab.tokens2ids(sample['dialogue_history'].split())
