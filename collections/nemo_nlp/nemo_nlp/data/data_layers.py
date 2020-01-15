@@ -737,7 +737,7 @@ class BertPunctuationCapitalizationInferDataLayer(TextDataLayer):
 
 class BertQuestionAnsweringDataLayer(TextDataLayer):
     """
-    Creates the data layer to use for the Squad classification task.
+    Creates the data layer to use for Question Answering classification task.
     """
 
     @property
