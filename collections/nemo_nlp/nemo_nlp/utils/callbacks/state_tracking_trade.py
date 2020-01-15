@@ -162,7 +162,7 @@ def evaluate_metrics(comp_res, gating_labels, gating_preds, ptr_code):
         total_turns += 1
         for slot_idx, slot_eq in enumerate(result):
             total_slots += 1
-            if gating_labels == ptr_code:
+            if gating_labels[result_idx][slot_idx] == ptr_code:
                 if slot_eq:
                     correct_slots += 1
                 else:
