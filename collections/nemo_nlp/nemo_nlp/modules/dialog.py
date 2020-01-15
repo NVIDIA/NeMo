@@ -40,7 +40,7 @@ class DSTGenerator(TrainableNM):
             }),
             'targets': NeuralType({
                 0: AxisType(BatchTag),
-                1: AxisType(ChannelTag),  # the number of slots
+                1: AxisType(ChannelTag),
                 2: AxisType(TimeTag)
             }),
 
@@ -116,11 +116,12 @@ class DSTGenerator(TrainableNM):
         else:
             use_teacher_forcing = True
 
-        max_res_len = targets.shape[2] if targets is not None else 10
+        #TODO: set max_res_len to 10 in evaluation mode
+        max_res_len = targets.shape[2] # if targets is not None else 10
         batch_size = encoder_hidden.shape[0]
 
-        if targets is not None:
-            targets = targets.transpose(0, 1)
+        targets = targets.transpose(0, 1)
+
         all_point_outputs = torch.zeros(len(self.slots),
                                         batch_size,
                                         max_res_len,
@@ -178,7 +179,7 @@ class DSTGenerator(TrainableNM):
                 final_p_vocab,
                 (len(self.slots), batch_size, self.vocab_size))
 
-            if use_teacher_forcing and targets is not None:
+            if use_teacher_forcing:
                 decoder_input = self.embedding(torch.flatten(targets[:, :, wi]))
             else:
                 decoder_input = self.embedding(pred_word)
@@ -257,7 +258,8 @@ class DSTMaskedCrossEntropy(LossNM):
         max_len = losses.size(2)
         for si in range(mask.size(1)):
             seq_range = torch.arange(0, max_len).long()
-            seq_range_expand = seq_range.unsqueeze(0).expand(batch_size, max_len)
+            seq_range_expand = \
+                seq_range.unsqueeze(0).expand(batch_size, max_len)
             if mask[:, si].is_cuda:
                 seq_range_expand = seq_range_expand.cuda()
             seq_length_expand = mask[:, si].unsqueeze(

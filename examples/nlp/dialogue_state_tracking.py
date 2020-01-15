@@ -128,7 +128,6 @@ decoder = nemo_nlp.DSTGenerator(data_layer_train._dataset.vocab,
                                 args.dropout,
                                 data_layer_train._dataset.slots,
                                 len(data_layer_train._dataset.gating_dict),
-                                # TODO
                                 teacher_forcing=args.teacher_forcing)
 
 point_outputs_train, gate_outputs_train = decoder(encoder_hidden=hidden_train,
