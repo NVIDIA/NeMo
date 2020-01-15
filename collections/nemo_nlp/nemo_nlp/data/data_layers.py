@@ -882,7 +882,7 @@ class WOZDSTDataLayer(TextDataLayer):
 
         self._dataloader = pt_data.DataLoader(dataset=self._dataset,
                                               batch_size=batch_size,
-                                              shuffle=False,
+                                              shuffle=sampler is None,
                                               num_workers=num_workers,
                                               collate_fn=self._collate_fn,
                                               sampler=sampler)

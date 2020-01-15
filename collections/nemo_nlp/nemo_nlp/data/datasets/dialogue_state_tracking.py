@@ -219,18 +219,6 @@ class WOZDSTDataset(Dataset):
                         responses.append("none")
                         gating_label.append(self.gating_dict["none"])
 
-                # for slot in self.slots:
-                #     gating_slot = slot
-                #     if gating_slot not in ['dontcare', 'none']:
-                #         gating_slot = 'ptr'
-                #
-                #     if slot in turn_beliefs:
-                #         responses.append(str(turn_beliefs[slot]))
-                #     else:
-                #         responses.append('none')
-                #         gating_slot = 'none'
-                #     gating_label.append(self.gating_dict[gating_slot])
-
                 sample = {'ID': dialog_dict['dialogue_idx'],
                           'domains': dialog_dict['domains'],
                           'turn_domain': turn['domain'],
