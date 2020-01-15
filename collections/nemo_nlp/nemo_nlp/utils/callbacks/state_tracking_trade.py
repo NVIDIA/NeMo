@@ -1,12 +1,7 @@
 # Copyright (c) 2019 NVIDIA Corporation
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
-import os
-import random
-import time
-
 import numpy as np
-from sklearn.metrics import confusion_matrix, classification_report
 
 from nemo.utils.exp_logging import get_logger
 
@@ -45,89 +40,16 @@ def eval_iter_callback(tensors,
         progress_bar.update()
         progress_bar.set_description(f"Loss: {str(loss_numpy)}")
 
-    # # Set to not-training mode to disable dropout
-    # self.encoder.train(False)
-    # self.decoder.train(False)
-    #print("STARTING EVALUATION")
-    #all_prediction = {}
-    #inverse_unpoint_slot = dict([(v, k) for k, v in eval_data_layer.gating_dict.items()])
-
-    #batch_size = len(data_dev['context_len'])
-    #batch_size = len(gating_labels)
-    #_, gates, words, class_words = self.encode_and_decode(data_dev, False, slot_temp)
-
     point_outputs_max = np.argmax(point_outputs, axis=-1)
     mask_paddings = (tgt_ids == eval_data_layer.pad_id)
     comp_res = np.logical_or(point_outputs_max == tgt_ids, mask_paddings)
     comp_res = np.all(comp_res, axis=-1, keepdims=False)
     global_vars['comp_res'].extend(comp_res)
 
-    # TODO: replace gating_lables with gating_outputs
-    #mask_gating = (gating_labels == eval_data_layer.gating_dict["ptr"])
-    #comp_res = np.logical_or(comp_res, mask_gating)
-    #comp_res = np.all(comp_res, axis=-1, keepdims=False)
-
     global_vars['gating_preds'].extend(np.argmax(gate_outputs, axis=-1))
-
-    # batch_size, slots_num, _ = gating_labels.size()
-    # words_all = [eval_data_layer.vocab.idx2word[w_idx.item()]
-    #          for w_idx in point_outputs_max.view(-1)]
-    #
-    # all_prediction = []
-    # for bi in range(batch_size):
-    #     words_point_out = [[] for i in range(slots_num)]
-    #     words = words_all[bi]
-    #     for si in range(words_point_out):
-    #         words_point_out[si].append(words[si * batch_size:(si + 1) * batch_size])
-    #     prediction = {"turn_belief": data_dev["turn_belief"][bi]}
-    #     predict_belief_bsz_ptr, predict_belief_bsz_class = [], []
-    #     gate = torch.argmax(gates.transpose(0, 1)[bi], dim=1)
-    #
-    #     # pointer-generator results
-    #     if args["use_gate"]:
-    #         for si, sg in enumerate(gate):
-    #             if sg == self.gating_dict["none"]:
-    #                 continue
-    #             elif sg == self.gating_dict["ptr"]:
-    #                 pred = np.transpose(words[si])[bi]
-    #                 st = []
-    #                 for e in pred:
-    #                     if e == 'EOS':
-    #                         break
-    #                     else:
-    #                         st.append(e)
-    #                 st = " ".join(st)
-    #                 if st == "none":
-    #                     continue
-    #                 else:
-    #                     predict_belief_bsz_ptr.append(slot_temp[si] + "-" + str(st))
-    #             else:
-    #                 predict_belief_bsz_ptr.append(slot_temp[si] + "-" + inverse_unpoint_slot[sg.item()])
-    #     else:
-    #         for si, _ in enumerate(gate):
-    #             pred = np.transpose(words[si])[bi]
-    #             st = []
-    #             for e in pred:
-    #                 if e == 'EOS':
-    #                     break
-    #                 else:
-    #                     st.append(e)
-    #             st = " ".join(st)
-    #             if st == "none":
-    #                 continue
-    #             else:
-    #                 predict_belief_bsz_ptr.append(slot_temp[si] + "-" + str(st))
-    #
-    #     all_prediction[data_dev["ID"][bi]][data_dev["turn_id"][bi]]["pred_bs_ptr"] = predict_belief_bsz_ptr
-
-
-def list2str(l):
-    return ' '.join([str(j) for j in l])
 
 
 def eval_epochs_done_callback(global_vars, eval_data_layer, progress_bar=None):
-    #loss = np.mean(global_vars['loss'])
-    #print(f'Loss: {loss}')
 
     if progress_bar:
         progress_bar.reset()
@@ -174,11 +96,6 @@ def evaluate_metrics(comp_res, gating_labels, gating_preds, ptr_code):
                 correct_slots += 1
             else:
                 turn_wrong = True
-            # if gating_labels[result_idx][slot_idx] == gating_preds[result_idx][slot_idx] and \
-            #    (gating_labels[result_idx][slot_idx] != ptr_code or slot_eq):
-            #     correct_slots += 1
-            # else:
-            #     turn_wrong = True
         if not turn_wrong:
             correct_turns += 1
 

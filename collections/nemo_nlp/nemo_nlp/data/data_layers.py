@@ -944,7 +944,6 @@ class WOZDSTDataLayer(TextDataLayer):
                                                self._dataset.vocab.pad_id)
         gating_label = torch.tensor(item_info['gating_label'])
         turn_domain = torch.tensor(item_info['turn_domain'])
-        #print(src_lens.cpu())
 
         if self.input_dropout > 0 and self.is_training:
             # TODO
@@ -953,7 +952,7 @@ class WOZDSTDataLayer(TextDataLayer):
                                          1.0 - self.input_dropout)[0]
             rand_mask = torch.Tensor(bi_mask).long().to(src_ids.device)
             src_ids = src_ids * rand_mask
-        #print(item_info['turn_belief'])
+
         return (src_ids.to(self._device),
                 src_lens.to(self._device),
                 tgt_ids.to(self._device),
