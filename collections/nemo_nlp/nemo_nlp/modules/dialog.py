@@ -108,10 +108,7 @@ class DSTGenerator(TrainableNM):
                 encoder_outputs,
                 input_lens,
                 src_ids,
-                targets):
-        # encoder_hidden is batch_size x num_layers x hid_size
-        # need domain + slot emb to be of the same size
-        # domain emb + slot emb is batch_size x num_slots x slot_emb_dim
+                targets=None):
 
         if (not self.training) \
                 or (random.random() > self.teacher_forcing):
@@ -119,11 +116,11 @@ class DSTGenerator(TrainableNM):
         else:
             use_teacher_forcing = True
 
-        # TODO: made it 10 if not training, make it work with no targets
-        max_res_len = targets.shape[2]  # if self.training else 10
+        max_res_len = targets.shape[2] if targets is not None else 10
         batch_size = encoder_hidden.shape[0]
 
-        targets = targets.transpose(0, 1)
+        if targets is not None:
+            targets = targets.transpose(0, 1)
         all_point_outputs = torch.zeros(len(self.slots),
                                         batch_size,
                                         max_res_len,
@@ -181,7 +178,7 @@ class DSTGenerator(TrainableNM):
                 final_p_vocab,
                 (len(self.slots), batch_size, self.vocab_size))
 
-            if use_teacher_forcing:
+            if use_teacher_forcing and targets is not None:
                 decoder_input = self.embedding(torch.flatten(targets[:, :, wi]))
             else:
                 decoder_input = self.embedding(pred_word)
