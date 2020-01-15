@@ -264,7 +264,7 @@ class KaldiFeatureDataset(Dataset):
                     text = line[split_idx:].strip()
                     if normalize:
                         text = ManifestEN.normalize_text(
-                            text, labels, logger=logger)
+                            text, labels)
                     dur = id2dur[utt_id] if id2dur else None
 
                     # Filter by duration if specified & utt2dur exists
