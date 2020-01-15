@@ -39,6 +39,11 @@ from nemo_nlp.utils.nlp_utils import _is_whitespace
 logger = get_logger('')
 
 
+"""
+Utility functions for Question Answering NLP tasks
+Some parts of this code were adapted from the HuggingFace library at
+https://github.com/huggingface/transformers
+"""
 class SquadDataset(Dataset):
     def __init__(self,
                  data_dir,
