@@ -5,11 +5,14 @@ import time
 from shutil import copyfile
 import subprocess
 import sys
+import warnings
 
 import nemo
 
 
 def get_logger(name):
+    warnings.warn("This function will be deprecated in the future. You "
+                  "can just use nemo.logging instead")
     return nemo.logging
 
 
