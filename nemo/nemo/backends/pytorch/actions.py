@@ -1236,7 +1236,6 @@ class PtActions(Actions):
                 self.__get_top_sorted_modules_and_dataloader(
                     hook=tensors_to_optimize
                 )
-
             # Extract trainable weights which will be optimized
             params_list = [
                 p[0].parameters() for p in opt_call_chain

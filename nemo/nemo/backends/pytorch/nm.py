@@ -1,11 +1,11 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import logging
 from abc import abstractmethod
 from typing import Dict, Set, Tuple, Optional, List
 
 import torch as t
 import torch.nn as nn
 
+import nemo
 from ...core import NeuralModule, DeviceType, WeightShareTransform
 from ...utils.helpers import rgetattr, rsetattr, get_cuda_device
 
@@ -193,7 +193,7 @@ class DataLayerNM(NeuralModule):
 
     def __init__(self, **kwargs):
         # if 'batch_size' not in kwargs:
-        #    logging.warning("No batch_size specified in the data layer. "
+        #    nemo.logging.warning("No batch_size specified in the data layer. "
         #                    "Setting batch_size to 1.")
         #    kwargs['batch_size'] = 1
         NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
@@ -209,7 +209,7 @@ class DataLayerNM(NeuralModule):
         return {}
 
     def get_weights(self):
-        logging.warning(
+        nemo.logging.warning(
             "Data Layer does not have any weights to return. "
             "This get_weights call returns None."
         )
@@ -217,21 +217,21 @@ class DataLayerNM(NeuralModule):
 
     def set_weights(self, name2weight: Dict[(str, bool)],
                     name2name_and_transform):
-        logging.warning(
+        nemo.logging.warning(
             "Data Layer does not have any weights to set. "
             "This set_weights call is ignored."
         )
         return None
 
     def tie_weights_with(self, module, weight_names):
-        logging.warning(
+        nemo.logging.warning(
             "Data Layer does not have any weights to tie. "
             "This tie_weights_with call is ignored."
         )
         return None
 
     def save_to(self, path):
-        logging.warning(
+        nemo.logging.warning(
             "Data Layer does not have any state to save. "
             "This save_to call is ignored."
         )
@@ -244,14 +244,14 @@ class DataLayerNM(NeuralModule):
         return None
 
     def freeze(self, weights: Set[str] = None):
-        logging.warning(
+        nemo.logging.warning(
             "Data Layer does not have any weights to freeze. "
             "This freeze call is ignored."
         )
         return None
 
     def unfreeze(self, weights: Set[str] = None):
-        logging.warning(
+        nemo.logging.warning(
             "Data Layer does not have any weights to unfreeze. "
             "This unfreeze call is ignored."
         )
@@ -295,28 +295,28 @@ class LossNM(NeuralModule):
         self._device = get_cuda_device(self.placement)
 
     def get_weights(self):
-        # logging.warning("Loss function module does not have any weights to
-        # return. "
-        #                "This get_weights call returns None.")
+        # nemo.logging.warning(
+        #     "Loss function module does not have any weights "
+        #      "to return. This get_weights call returns None.")
         return None
 
     def set_weights(self, name2weight: Dict[(str, bool)],
                     name2name_and_transform):
-        logging.warning(
+        nemo.logging.warning(
             "Loss function module does not have any weights to set. "
             "This set_weights call is ignored."
         )
         return None
 
     def tie_weights_with(self, module, weight_names):
-        logging.warning(
+        nemo.logging.warning(
             "Loss function module does not have any weights to tie. "
             "This tie_weights_with call is ignored."
         )
         return None
 
     def save_to(self, path):
-        logging.warning(
+        nemo.logging.warning(
             "Loss function module does not have any state to save. "
             "This save_to call is ignored."
         )
@@ -330,14 +330,14 @@ class LossNM(NeuralModule):
         return None
 
     def freeze(self, weights: Set[str] = None):
-        logging.warning(
+        nemo.logging.warning(
             "Loss function module does not have any weights to freeze. "
             "This freeze call is ignored."
         )
         return None
 
     def unfreeze(self, weights: Set[str] = None):
-        logging.warning(
+        nemo.logging.warning(
             "Loss function module does not have any weights to "
             "unfreeze. This unfreeze call is ignored."
         )
