@@ -299,7 +299,7 @@ if not args.evaluation_only:
 else:
 
     if args.checkpoint_dir is not None:
-        load_from_folder = args.checkpoint
+        load_from_folder = args.checkpoint_dir
     evaluated_tensors = nf.infer(
                 tensors=eval_output,
                 checkpoint_dir=load_from_folder,
