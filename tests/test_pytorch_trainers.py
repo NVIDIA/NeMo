@@ -33,6 +33,11 @@ class TestPytorchTrainers(NeMoUnitTest):
         loss = nemo.backends.pytorch.tutorials.MSELoss()
 
         data = data_source()
+        self.assertEqual(
+            first=type(data).__name__,
+            second='RealFunctionDataLayerOutput',
+            msg='Check output class naming coherence.',
+        )
         y_pred = trainable_module(x=data.x)
         loss_tensor = loss(predictions=y_pred, target=data.y)
 

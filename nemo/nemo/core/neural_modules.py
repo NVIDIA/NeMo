@@ -216,8 +216,12 @@ class NeuralModule(ABC):
                 )
 
             # Creating ad-hoc class for returning from module's forward pass.
+            output_class_name = f'{self.__class__.__name__}Output'
             field_names = list(output_port_defs)
-            result_type = collections.namedtuple('NmOutput', field_names)
+            result_type = collections.namedtuple(
+                typename=output_class_name,
+                field_names=field_names,
+            )
 
             # Tie tuple of output tensors with corresponding names.
             result = result_type(*result)
