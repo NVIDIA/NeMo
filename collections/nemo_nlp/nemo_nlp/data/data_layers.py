@@ -890,6 +890,7 @@ class WOZDSTDataLayer(TextDataLayer):
         self.gating_dict = self._dataset.gating_dict
         self.input_dropout = input_dropout
         self.is_training = is_training
+        self.vocab = self._dataset.vocab
 
     def _collate_fn(self, data):
         """ data is a list of batch_size sample
@@ -952,7 +953,7 @@ class WOZDSTDataLayer(TextDataLayer):
                                          1.0 - self.input_dropout)[0]
             rand_mask = torch.Tensor(bi_mask).long().to(src_ids.device)
             src_ids = src_ids * rand_mask
-
+        #print(item_info['turn_belief'])
         return (src_ids.to(self._device),
                 src_lens.to(self._device),
                 tgt_ids.to(self._device),
