@@ -63,14 +63,14 @@ if not os.path.exists(args.data_dir):
 work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
 
 # TODO
-import torch
-torch.backends.cudnn.deterministic = True
-
-torch.manual_seed(999)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(999)
-import random
-random.seed(30)
+# import torch
+# torch.backends.cudnn.deterministic = True
+#
+# torch.manual_seed(999)
+# if torch.cuda.is_available():
+#     torch.cuda.manual_seed_all(999)
+# import random
+# random.seed(30)
 
 
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
@@ -231,7 +231,7 @@ lr_policy_fn = get_lr_policy(args.lr_policy,
 grad_norm_clip = args.grad_norm_clip if args.grad_norm_clip > 0 else None
 # TODO
 nf.train(tensors_to_optimize=[loss_train],
-          callbacks=[eval_callback, train_callback, ckpt_callback],
+         callbacks=[eval_callback, train_callback, ckpt_callback],
          #callbacks=[train_callback, ckpt_callback],
          #lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
