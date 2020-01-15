@@ -10,13 +10,15 @@ __all__ = ['Backend',
 from abc import ABC, abstractmethod
 import random
 from typing import List, Optional
+import warnings
 
 from enum import Enum
 import numpy as np
 
+import nemo
 from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *
-from ..utils import ExpManager, get_logger
+from ..utils import ExpManager
 
 
 class DeploymentFormat(Enum):
@@ -66,16 +68,12 @@ class Actions(ABC):
             self,
             local_rank,
             global_rank,
-            optimization_level=Optimization.mxprO0,
-            logger=None):
+            optimization_level=Optimization.mxprO0):
         self._local_rank = local_rank
         self._global_rank = global_rank
         self._optim_level = optimization_level
         self.step = None
         self.epoch_num = None
-        self.logger = logger
-        if logger is None:
-            self.logger = get_logger('')
 
     @property
     def local_rank(self):
@@ -670,8 +668,7 @@ class NeuralModuleFactory(object):
             output=output,
             d_format=d_format,
             input_example=input_example,
-            output_example=output_example,
-            logger=self.logger,
+            output_example=output_example
         )
 
     def infer(self,
@@ -716,7 +713,6 @@ class NeuralModuleFactory(object):
             checkpoint_dir=checkpoint_dir,
             ckpt_pattern=ckpt_pattern,
             verbose=verbose,
-            logger=self.logger,
             cache=cache,
             use_cache=use_cache,
             offload_to_cpu=offload_to_cpu,
@@ -735,8 +731,7 @@ class NeuralModuleFactory(object):
                 local_rank=self._local_rank,
                 global_rank=self._global_rank,
                 tb_writer=tb_writer,
-                optimization_level=self._optim_level,
-                logger=self.logger)
+                optimization_level=self._optim_level)
             return instance
         else:
             raise ValueError("Only PyTorch backend is currently supported.")
@@ -805,7 +800,9 @@ class NeuralModuleFactory(object):
 
     @property
     def logger(self):
-        return self._exp_manager.logger
+        warnings.warn("This will be deprecated in future releases. Please use "
+                      "nemo.logging instead")
+        return nemo.logging
 
     @property
     def checkpoint_dir(self):

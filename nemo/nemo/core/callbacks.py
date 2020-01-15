@@ -5,8 +5,11 @@ import glob
 import os
 import sys
 import time
+import warnings
 
-from ..utils import get_logger, get_checkpoint_from_dir
+import nemo
+
+from ..utils import get_checkpoint_from_dir
 
 
 class ActionCallback(ABC):
@@ -47,10 +50,9 @@ class ActionCallback(ABC):
 
     @property
     def logger(self):
-        if self.action is None or self.action.logger is None:
-            return get_logger('')
-        else:
-            return self.action.logger
+        warnings.warn("This will be deprecated in future releases. Please use "
+                      "nemo.logging instead")
+        return nemo.logging
 
     def on_action_start(self):
         pass
@@ -106,9 +108,9 @@ class ModuleSaverCallback(ActionCallback):
                     file_name = fn
                 else:
                     file_name = os.path.join(self._folder, fn)
-                self.logger.info(f"Saving module {class_name} in {file_name}")
+                nemo.logging.info(f"Saving module {class_name} in {file_name}")
                 m.save_to(file_name)
-                self.logger.info("Saved.")
+                nemo.logging.info("Saved.")
             self._saved_ckpts.append(f'-{self.step}.pt')
             if len(self._saved_ckpts) > self._ckpt2keep:
                 for end in self._saved_ckpts[:-self._ckpt2keep]:
@@ -127,9 +129,9 @@ class ModuleSaverCallback(ActionCallback):
                     file_name = fn
                 else:
                     file_name = os.path.join(self._folder, fn)
-                self.logger.info(f"Saving module {class_name} in {file_name}")
+                nemo.logging.info(f"Saving module {class_name} in {file_name}")
                 m.save_to(file_name)
-                self.logger.info("Saved.")
+                nemo.logging.info("Saved.")
 
 
 class SimpleLossLoggerCallback(ActionCallback):
@@ -165,25 +167,25 @@ class SimpleLossLoggerCallback(ActionCallback):
 
     def on_action_start(self):
         if self.global_rank is None or self.global_rank == 0:
-            self.logger.info("Starting .....")
+            nemo.logging.info("Starting .....")
             self._start_time = time.time()
 
     def on_action_end(self):
         if self.global_rank is None or self.global_rank == 0:
             if self._swriter is not None:
                 self._swriter.close()
-            self.logger.info(f"Done in {time.time() - self._start_time}")
+            nemo.logging.info(f"Done in {time.time() - self._start_time}")
 
     def on_epoch_start(self):
         if self.global_rank is None or self.global_rank == 0:
-            self.logger.info(f"Starting epoch {self.epoch_num}")
+            nemo.logging.info(f"Starting epoch {self.epoch_num}")
             self._last_epoch_start = time.time()
 
     def on_epoch_end(self):
         if self.global_rank is None or self.global_rank == 0:
             step = self.step
             run_time = time.time() - self._last_epoch_start
-            self.logger.info(f"Finished epoch {self.epoch_num} in {run_time}")
+            nemo.logging.info(f"Finished epoch {self.epoch_num} in {run_time}")
             if self._swriter is not None:
                 value = self.epoch_num
                 self._swriter.add_scalar('misc/epoch', value, step)
@@ -203,7 +205,7 @@ class SimpleLossLoggerCallback(ActionCallback):
                     for t in self.tensors
                 ]
 
-                self.logger.info(f"Step: {step}")
+                nemo.logging.info(f"Step: {step}")
                 if self._print_func:
                     self._print_func(tensor_values)
                 sys.stdout.flush()
@@ -219,7 +221,7 @@ class SimpleLossLoggerCallback(ActionCallback):
                     run_time = time.time() - self._last_iter_start
                     self._swriter.add_scalar('misc/step_time', run_time, step)
                 run_time = time.time() - self._last_iter_start
-                self.logger.info(f"Step time: {run_time} seconds")
+                nemo.logging.info(f"Step time: {run_time} seconds")
 
 
 class CheckpointCallback(ActionCallback):
@@ -232,13 +234,13 @@ class CheckpointCallback(ActionCallback):
                  epoch_freq=-1, checkpoints_to_keep=4, force_load=False):
         super().__init__()
         if step_freq == -1 and epoch_freq == -1:
-            self.logger.warning(
+            nemo.logging.warning(
                 "No checkpoints will be saved because step_freq and "
                 "epoch_freq are both -1."
             )
 
         if step_freq > -1 and epoch_freq > -1:
-            self.logger.warning(
+            nemo.logging.warning(
                 "You config the model to save by both steps and epochs. "
                 "Save by step_freq only"
             )
@@ -258,7 +260,7 @@ class CheckpointCallback(ActionCallback):
         if self.global_rank is not None and self.global_rank != 0:
             return
         if not os.path.isdir(path):
-            self.logger.info(f"Creating {path} folder")
+            nemo.logging.info(f"Creating {path} folder")
             os.makedirs(path, exist_ok=True)
         unique_mod_names = set()
         for module in self.action.modules:
@@ -288,16 +290,16 @@ class CheckpointCallback(ActionCallback):
                 for file in glob.glob(f'{path}/*{end}'):
                     os.remove(file)
             self._saved_ckpts = self._saved_ckpts[-self._ckpt2keep:]
-        self.logger.info(f'Saved checkpoint: {path}/{filename}')
+        nemo.logging.info(f'Saved checkpoint: {path}/{filename}')
 
     def __restore_from(self, path):
         if not os.path.isdir(path):
             if self._force_load:
                 raise ValueError("force_load was set to True for checkpoint "
                                  "callback but a checkpoint was not found.")
-            self.logger.warning(f"Checkpoint folder {path} not found!")
+            nemo.logging.warning(f"Checkpoint folder {path} not found!")
         else:
-            self.logger.info(f"Restoring checkpoint from folder {path} ...")
+            nemo.logging.info(f"Restoring checkpoint from folder {path} ...")
             modules_to_restore = []
             modules_to_restore_name = []
             for module in self.action.modules:
@@ -317,8 +319,8 @@ class CheckpointCallback(ActionCallback):
                     raise ValueError(
                         "force_load was set to True for checkpoint callback"
                         "but a checkpoint was not found.")
-                self.logger.warning(e)
-                self.logger.warning(
+                nemo.logging.warning(e)
+                nemo.logging.warning(
                     f"Checkpoint folder {path} present but did not restore")
                 return
 
@@ -328,8 +330,8 @@ class CheckpointCallback(ActionCallback):
                 for tr, checkpoint in zip([self.action], trainer_checkpoints):
                     tr.restore_state_from(checkpoint)
             except (BaseException, ValueError) as e:
-                self.logger.warning(e)
-                self.logger.warning("Trainer state wasn't restored")
+                nemo.logging.warning(e)
+                nemo.logging.warning("Trainer state wasn't restored")
                 return
 
     def on_action_start(self):
@@ -343,11 +345,11 @@ class CheckpointCallback(ActionCallback):
                         "overwrite __str__() of one of the modules.")
                 unique_mod_names.add(str(module))
                 num_parameters += module.num_weights
-        self.logger.info(f"Found {len(unique_mod_names)} modules with "
-                         f"weights:")
+        nemo.logging.info(f"Found {len(unique_mod_names)} modules with "
+                          f"weights:")
         for name in unique_mod_names:
-            self.logger.info(f"{name}")
-        self.logger.info(f"Total model parameters: {num_parameters}")
+            nemo.logging.info(f"{name}")
+        nemo.logging.info(f"Total model parameters: {num_parameters}")
         self.__restore_from(path=self._load_from_folder)
 
     def on_iteration_end(self):
@@ -366,7 +368,7 @@ class CheckpointCallback(ActionCallback):
         if self._epoch_freq > 0:
             if self.global_rank is None or self.global_rank == 0:
                 run_time = time.time() - self._last_epoch_start
-                self.logger.info(
+                nemo.logging.info(
                     f'Finished epoch {self.epoch_num} in {run_time}')
                 if (self.epoch_num + 1) % self._epoch_freq == 0:
                     self.__save_to(path=self._folder)
@@ -430,22 +432,22 @@ class EvaluatorCallback(ActionCallback):
         step = self.step
         if step % self._eval_frequency == 0:
             if self.global_rank == 0 or self.global_rank is None:
-                self.logger.info('Doing Evaluation ' + '.' * 30)
+                nemo.logging.info('Doing Evaluation ' + '.' * 30)
             start_time = time.time()
             self.action._eval(self._eval_tensors, self, step)
             elapsed_time = time.time() - start_time
             if self.global_rank == 0 or self.global_rank is None:
-                self.logger.info(f'Evaluation time: {elapsed_time} seconds')
+                nemo.logging.info(f'Evaluation time: {elapsed_time} seconds')
 
     def on_action_end(self):
         step = self.step
         if self.global_rank == 0 or self.global_rank is None:
-            self.logger.info('Final Evaluation ' + '.' * 30)
+            nemo.logging.info('Final Evaluation ' + '.' * 30)
         start_time = time.time()
         self.action._eval(self._eval_tensors, self, step)
         elapsed_time = time.time() - start_time
         if self.global_rank == 0 or self.global_rank is None:
-            self.logger.info(f'Evaluation time: {elapsed_time} seconds')
+            nemo.logging.info(f'Evaluation time: {elapsed_time} seconds')
 
     def clear_global_var_dict(self):
         self._global_var_dict = {}

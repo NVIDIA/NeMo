@@ -21,4 +21,4 @@ from .backends.pytorch import tutorials
 
 __version__ = "0.9.0"
 
-logging = logging.getLogger()
+logging = logging.getLogger(__name__)

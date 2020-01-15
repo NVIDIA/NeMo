@@ -2,12 +2,9 @@ import os
 import time
 
 from matplotlib import pyplot as plt
+import nemo
 import numpy as np
 from sklearn.metrics import confusion_matrix
-
-from nemo.utils.exp_logging import get_logger
-
-logger = get_logger('')
 
 
 def mask_padded_tokens(tokens, pad_id):
@@ -29,11 +26,11 @@ def read_intent_slot_outputs(queries,
     pred_slots = np.argmax(slot_logits, axis=2)
     slot_masks = slot_masks > 0.5
     for i, query in enumerate(queries):
-        logger.info(f'Query: {query}')
+        nemo.logging.info(f'Query: {query}')
         pred = pred_intents[i]
-        logger.info(f'Predicted intent:\t{pred}\t{intent_dict[pred]}')
+        nemo.logging.info(f'Predicted intent:\t{pred}\t{intent_dict[pred]}')
         if intents is not None:
-            logger.info(
+            nemo.logging.info(
                 f'True intent:\t{intents[i]}\t{intent_dict[intents[i]]}')
 
         pred_slot = pred_slots[i][slot_masks[i]]
@@ -46,7 +43,7 @@ def read_intent_slot_outputs(queries,
             output = f'{token}\t{slot_dict[pred_slot[j]]}'
             if slots is not None:
                 output = f'{output}\t{slot_dict[slots[i][j]]}'
-            logger.info(output)
+            nemo.logging.info(output)
 
 
 def get_vocab(file):
