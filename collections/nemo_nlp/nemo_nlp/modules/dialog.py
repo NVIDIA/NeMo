@@ -38,10 +38,6 @@ class DSTGenerator(TrainableNM):
                 0: AxisType(BatchTag),
                 1: AxisType(TimeTag)
             }),
-            # 'tgt_lens': NeuralType({
-            #     0: AxisType(BatchTag),
-            #     1: AxisType(ChannelTag)
-            # }),
             'targets': NeuralType({
                 0: AxisType(BatchTag),
                 1: AxisType(ChannelTag),  # the number of slots
@@ -71,7 +67,6 @@ class DSTGenerator(TrainableNM):
                  dropout,
                  slots,
                  nb_gate,
-                 # batch_size=16,
                  teacher_forcing=0.5):
         super().__init__()
         self.vocab_size = len(vocab)
@@ -95,7 +90,6 @@ class DSTGenerator(TrainableNM):
         self._slots_split_to_index()
         self.slot_emb = nn.Embedding(len(self.slot_w2i), hid_size)
         self.slot_emb.weight.data.normal_(0, 0.1)
-        # self.batch_size = batch_size
         self.to(self._device)
 
     def _slots_split_to_index(self):
@@ -118,15 +112,12 @@ class DSTGenerator(TrainableNM):
         # encoder_hidden is batch_size x num_layers x hid_size
         # need domain + slot emb to be of the same size
         # domain emb + slot emb is batch_size x num_slots x slot_emb_dim
-        # print('encoder_hidden', encoder_hidden.shape)
-
 
         if (not self.training) \
                 or (random.random() > self.teacher_forcing):
             use_teacher_forcing = False
         else:
             use_teacher_forcing = True
-        # use_teacher_forcing = False
 
         # TODO: made it 10 if not training, make it work with no targets
         max_res_len = targets.shape[2]  # if self.training else 10
@@ -140,34 +131,24 @@ class DSTGenerator(TrainableNM):
         all_gate_outputs = torch.zeros(len(self.slots),
                                        batch_size,
                                        self.nb_gate, device=self._device)
-        #all_point_outputs = all_point_outputs.to(self._device)
-        #all_gate_outputs = all_gate_outputs.to(self._device)
 
         domain_emb = self.slot_emb(self.domain_idx).to(self._device)
         subslot_emb = self.slot_emb(self.subslot_idx).to(self._device)
-        slot_emb = domain_emb + subslot_emb  # 30 x 400
-        #slot_emb = slot_emb[None, :]  # 1 x 30 x 400
-        slot_emb = slot_emb.unsqueeze(1) #[None, :]  # 1 x 30 x 400
-        slot_emb = slot_emb.repeat(1, batch_size, 1)  # 16 x 30 x 400
+        slot_emb = domain_emb + subslot_emb
+        slot_emb = slot_emb.unsqueeze(1)
+        slot_emb = slot_emb.repeat(1, batch_size, 1)
         decoder_input = self.dropout(
-            slot_emb).view(-1, self.hidden_size)  # 480 x 400
-        # print('encoder_hidden', encoder_hidden.shape) # 16 x 1 x 400
+            slot_emb).view(-1, self.hidden_size)
         hidden = encoder_hidden.transpose(0, 1).repeat(len(self.slots), 1, 1)
-        #hidden = encoder_hidden.repeat(1, len(self.slots), 1)
 
         hidden = hidden.view(-1, self.hidden_size).unsqueeze(0)
-        # print('hidden', hidden.shape) # 480 x 1 x 400
-        #hidden = hidden.transpose(0, 1)  # 1 x 480 x 400
-        # 1 * (batch*|slot|) * emb
+
         enc_len = input_lens.repeat(len(self.slots))
-        # enc_len = input_lens * len(self.slots)
         for wi in range(max_res_len):
             dec_state, hidden = self.rnn(decoder_input.unsqueeze(1),
                                          hidden)
+
             enc_out = encoder_outputs.repeat(len(self.slots), 1, 1)
-
-            #hidden = hidden.view(16, 30, -1).transpose(0, 1).clone().view(-1, 400)
-
             context_vec, logits, prob = self.attend(enc_out,
                                                     hidden.squeeze(0),
                                                     # 480 x 400
@@ -179,22 +160,22 @@ class DSTGenerator(TrainableNM):
 
             p_vocab = self.attend_vocab(self.embedding.weight,
                                         hidden.squeeze(0))
-            #decoder_input = decoder_input.squeeze(1)
             p_gen_vec = torch.cat(
                 [dec_state.squeeze(1), context_vec, decoder_input], -1)
             vocab_pointer_switches = self.sigmoid(self.w_ratio(p_gen_vec))
             p_context_ptr = torch.zeros(p_vocab.size(), device=self._device)
-            #p_context_ptr = p_context_ptr.to(self._device)
 
             p_context_ptr.scatter_add_(1,
                                        src_ids.repeat(len(self.slots), 1),
                                        prob)
 
-            final_p_vocab = (1 - vocab_pointer_switches).expand_as(p_context_ptr) * p_context_ptr + \
+            final_p_vocab = \
+                (1 - vocab_pointer_switches).expand_as(p_context_ptr) \
+                * p_context_ptr + \
                 vocab_pointer_switches.expand_as(p_context_ptr) * p_vocab
             pred_word = torch.argmax(final_p_vocab, dim=1)
-            words = [self.vocab.idx2word[w_idx.item()]
-                     for w_idx in pred_word]
+            # words = [self.vocab.idx2word[w_idx.item()]
+            #          for w_idx in pred_word]
 
             all_point_outputs[:, :, wi, :] = torch.reshape(
                 final_p_vocab,
@@ -202,9 +183,6 @@ class DSTGenerator(TrainableNM):
 
             if use_teacher_forcing:
                 decoder_input = self.embedding(torch.flatten(targets[:, :, wi]))
-                # targets[:, wi, :].transpose(1, 0)))
-                # print('targets[:, wi, :]', targets[:, wi, :].shape)
-                # print('torch.flatten(targets[:, wi, :]', torch.flatten(targets[:, wi, :]).shape)
             else:
                 decoder_input = self.embedding(pred_word)
 
@@ -267,14 +245,10 @@ class DSTMaskedCrossEntropy(LossNM):
         LossNM.__init__(self)
 
     def _loss_function(self, logits, targets, mask):
-        # -1 means infered from other dimentions
         logits_flat = logits.view(-1, logits.size(-1))
-        # print(logits_flat.size())
         eps = 1e-10
         log_probs_flat = torch.log(torch.clamp(logits_flat, min=eps))
-        # print("log_probs_flat", log_probs_flat)
         target_flat = targets.view(-1, 1)
-        # print("target_flat", target_flat)
         losses_flat = -torch.gather(log_probs_flat, dim=1, index=target_flat)
         losses = losses_flat.view(*targets.size())  # b * |s| * m
         loss = self.masking(losses, mask)

@@ -29,7 +29,7 @@ parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
 parser.add_argument("--lr", default=0.001, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
-parser.add_argument("--weight_decay", default=0.01, type=float)
+parser.add_argument("--weight_decay", default=0.0, type=float)
 parser.add_argument("--emb_dim", default=400, type=int)
 parser.add_argument("--hid_dim", default=400, type=int)
 parser.add_argument("--n_layers", default=1, type=int)
@@ -49,10 +49,10 @@ parser.add_argument("--do_lower_case", action='store_true')
 parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--num_train_samples", default=-1, type=int)
 parser.add_argument("--num_eval_samples", default=-1, type=int)
-parser.add_argument("--grad_norm_clip", type=float, default=-1,
+parser.add_argument("--grad_norm_clip", type=float, default=10,
                     help="gradient clipping")
 parser.add_argument("--progress_bar", action='store_true')
-parser.add_argument("--teacher_forcing", default=0.0, type=float)
+parser.add_argument("--teacher_forcing", default=0.5, type=float)
 args = parser.parse_args()
 
 DOMAINS = {"attraction": 0, "restaurant": 1, "taxi": 2, "train": 3, "hotel": 4}

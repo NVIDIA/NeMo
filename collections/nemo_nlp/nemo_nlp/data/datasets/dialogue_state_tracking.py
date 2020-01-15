@@ -89,7 +89,6 @@ class WOZDSTDataset(Dataset):
         self.domains = domains
         self.all_domains = all_domains
         self.vocab = Vocab()
-        # self.mem_vocab = Vocab()
 
         ontology_file = open(f'{self.data_dir}/ontology.json', 'r')
         self.ontology = json.load(ontology_file)
@@ -101,26 +100,16 @@ class WOZDSTDataset(Dataset):
 
     def get_vocab(self):
         self.vocab_file = f'{self.data_dir}/vocab.pkl'
-        # self.mem_vocab_file = f'{self.data_dir}/mem_vocab.pkl'
 
         if self.mode != 'train' and (not os.path.exists(self.vocab_file)):
-        # if self.mode != 'train' and (not os.path.exists(self.vocab_file) or
-        #                              not os.path.exists(self.mem_vocab_file)):
-        #     raise ValueError(f"{self.vocab_file} and {self.mem_vocab_file}"
-        #                      " don't exist!")
             raise ValueError(f"{self.vocab_file} doesn't exist!")
 
         if os.path.exists(self.vocab_file):
-        # if os.path.exists(self.vocab_file) and \
-        #         os.path.exists(self.mem_vocab_file):
             print(f'Loading vocab from {self.data_dir}')
-            # print(f'Loading vocab and mem_vocab from {self.data_dir}')
             self.vocab = pickle.load(open(self.vocab_file, 'rb'))
-            #self.mem_vocab = pickle.load(open(self.mem_vocab_file, 'rb'))
         else:
             self.create_vocab()
 
-        # print('Mem vocab size', len(self.mem_vocab))
         print('Vocab size', len(self.vocab))
 
     def get_slots(self):
@@ -131,7 +120,6 @@ class WOZDSTDataset(Dataset):
 
     def create_vocab(self):
         self.vocab.add_words(self.slots, 'slot')
-        #self.mem_vocab.add_words(self.slots, 'slot')
 
         filename = f'{self.data_dir}/train_dials.json'
         print(f'Building vocab from {filename}')
@@ -144,25 +132,17 @@ class WOZDSTDataset(Dataset):
                 self.vocab.add_words(turn['system_transcript'], 'utterance')
                 self.vocab.add_words(turn['transcript'], 'utterance')
 
-                turn_beliefs = self.fix_general_label_error(turn['belief_state'],
-                                                       self.slots)
-                # self.mem_vocab.add_words(turn_beliefs, 'belief')
-
+                turn_beliefs = \
+                    self.fix_general_label_error(turn['belief_state'],
+                                                 self.slots)
                 lengths = [len(turn_beliefs[slot])
                            for slot in self.slots if slot in turn_beliefs]
                 lengths.append(max_value_len)
                 max_value_len = max(lengths)
 
-        # if f'f{max_value_len - 1}' not in self.mem_vocab.word2idx:
-        #     for time_i in range(max_value_len):
-        #         self.mem_vocab.add_words(f't{time_i}', 'utterance')
-
-        # print(f'Saving vocab and mem_vocab to {self.data_dir}')
         print(f'Saving vocab to {self.data_dir}')
         with open(self.vocab_file, 'wb') as handle:
             pickle.dump(self.vocab, handle)
-        # with open(self.mem_vocab_file, 'wb') as handle:
-        #     pickle.dump(self.mem_vocab, handle)
 
     def get_features(self, num_samples, shuffle):
 
@@ -254,20 +234,6 @@ class WOZDSTDataset(Dataset):
 
     def __getitem__(self, idx):
         item = self.features[idx]
-        # context_ids = self.vocab.tokens2ids(item['dialog_history'].split())
-        # # feature['context_ids'] = torch.Tensor(context_ids)
-        # item['context_ids'] = context_ids
-        #
-        # # TODO: Edited
-        # #print(item['responses'])
-        # try:
-        # 	y_ids = [self.vocab.tokens2ids(y.split() + [self.vocab.eos])
-        # 			 for y in item['responses']]
-        # except:
-        # 	print(item['responses'], idx)
-        #
-        # item['responses'] = y_ids
-        # item['turn_domain'] = self.all_domains[item['turn_domain']]
 
         return {'dialog_id': item['ID'],
                 'turn_id': item['turn_id'],
