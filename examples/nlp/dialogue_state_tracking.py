@@ -25,7 +25,7 @@ parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
 parser.add_argument("--lr", default=0.001, type=float)
-parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
+parser.add_argument("--lr_policy", default=None, type=str)
 parser.add_argument("--weight_decay", default=0.0, type=float)
 parser.add_argument("--emb_dim", default=400, type=int)
 parser.add_argument("--hid_dim", default=400, type=int)
@@ -191,15 +191,18 @@ ckpt_callback = nemo.core.CheckpointCallback(
     epoch_freq=args.save_epoch_freq,
     step_freq=args.save_step_freq)
 
-lr_policy_fn = get_lr_policy(args.lr_policy,
-                             total_steps=args.num_epochs * steps_per_epoch,
-                             warmup_ratio=args.lr_warmup_proportion)
+if args.lr_policy is not None:
+    lr_policy_fn = get_lr_policy(args.lr_policy,
+                                 total_steps=args.num_epochs * steps_per_epoch,
+                                 warmup_ratio=args.lr_warmup_proportion)
+else:
+    lr_policy_fn = None
 
 grad_norm_clip = args.grad_norm_clip if args.grad_norm_clip > 0 else None
 
 nf.train(tensors_to_optimize=[loss_train],
          callbacks=[eval_callback, train_callback, ckpt_callback],
-         #lr_policy=lr_policy_fn,
+         lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,
                               "lr": args.lr,
