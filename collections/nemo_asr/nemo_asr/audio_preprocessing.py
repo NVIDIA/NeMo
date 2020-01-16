@@ -384,8 +384,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             frame_splicing=frame_splicing,
             stft_conv=stft_conv,
             pad_value=pad_value,
-            mag_power=mag_power,
-            logger=self._logger
+            mag_power=mag_power
         )
         self.featurizer.to(self._device)
 

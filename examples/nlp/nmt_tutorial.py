@@ -104,7 +104,7 @@ elif args.src_lang == 'en' and args.tgt_lang == 'zh':
     # source and target use different tokenizers, set tie_weight to False
     tie_weight = False
 else:
-    nf.logger.info(
+    nemo.logging.info(
         f"Unsupported language pair:{args.src_lang}-{args.tgt_lang}.")
     exit(1)
 
