@@ -248,7 +248,8 @@ def create_pipeline(max_query_length=args.max_query_length,
         logits=qa_output, start_positions=start_positions,
         end_positions=end_positions)
 
-    steps_per_epoch = len(data_layer) // (batch_size * num_gpus * args.batches_per_step)
+    steps_per_epoch = len(data_layer) \
+        // (batch_size * num_gpus * args.batches_per_step)
     return loss, steps_per_epoch, \
         [start_logits, end_logits, unique_ids], data_layer
 
