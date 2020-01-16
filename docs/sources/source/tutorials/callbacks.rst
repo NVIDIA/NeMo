@@ -28,16 +28,13 @@ training. The two reccomended arguments to override are print_func(), and
 either get_tb_values() or log_to_tb_func().
 
 print_func() should be used to log values to screen. We recommend using
-neural_factory.logger.info() in place
+nemo.logging.info() in place
 of print(). For example, it can be used to print the loss value:
 
 .. code-block:: python
 
-    def my_print_func(tensors, logger=None):
-        if logger:
-            logger.info(f"Loss {tensors[0]}")
-        else:
-            print(f"Loss {tensors[0]}")
+    def my_print_func(tensors):
+        nemo.logging.info(f"Loss {tensors[0]}")
 
 We provide two methods to log to tensorboard: get_tb_values() and
 log_to_tb_func(). For simple use case of logging scalars, we recommend
@@ -76,8 +73,7 @@ SimpleLossLoggerCallback can be constructed as follows:
         # Define tensors that we want to pass to print_func, and get_tb_values
         tensors=[train_loss],
         # Pass the print function that we want to use
-        # Note we use partial to specify additional parameters
-        print_func=partial(my_print_func, logger=neural_factory.logger),
+        print_func=my_print_func,
         # Pass the function that returns tensorboard tags and scalars
         get_tb_values=my_get_tb_values,
         # How often we want to call this callback
