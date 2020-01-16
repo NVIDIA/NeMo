@@ -838,13 +838,13 @@ class WOZDSTDataLayer(TextDataLayer):
             }),
             "tgt_ids": NeuralType({
                 0: AxisType(BatchTag),
-                1: AxisType(ChannelTag),  # number of slots
+                1: AxisType(ChannelTag),
                 2: AxisType(TimeTag)
 
             }),
             "tgt_lens": NeuralType({
                 0: AxisType(BatchTag),
-                1: AxisType(ChannelTag)  # number of slots
+                1: AxisType(ChannelTag)
             }),
             "gating_labels": NeuralType({
                 0: AxisType(BatchTag),
@@ -891,6 +891,7 @@ class WOZDSTDataLayer(TextDataLayer):
         self.input_dropout = input_dropout
         self.is_training = is_training
         self.vocab = self._dataset.vocab
+        self.slots = self._dataset.slots
 
     def _collate_fn(self, data):
         """ data is a list of batch_size sample
@@ -927,18 +928,11 @@ class WOZDSTDataLayer(TextDataLayer):
             lengths = torch.tensor(lengths)
             return padded_seqs, lengths
 
-
-        # TODO: check here
-        """ sort the lengths for pack_padded_sequence, otherwise this error
-        `lengths` array must be sorted in decreasing order when
-        `enforce_sorted` is True
-        """
         data.sort(key=lambda x: len(x['context_ids']), reverse=True)
         item_info = {}
         for key in data[0]:
             item_info[key] = [item[key] for item in data]
 
-        # merge sequences
         src_ids, src_lens = pad_batch_context(item_info['context_ids'])
         tgt_ids, tgt_lens = pad_batch_response(item_info['responses_ids'],
                                                self._dataset.vocab.pad_id)
@@ -946,8 +940,6 @@ class WOZDSTDataLayer(TextDataLayer):
         turn_domain = torch.tensor(item_info['turn_domain'])
 
         if self.input_dropout > 0 and self.is_training:
-            # TODO
-            #np.random.seed(0)
             bi_mask = np.random.binomial([np.ones(src_ids.size())],
                                          1.0 - self.input_dropout)[0]
             rand_mask = torch.Tensor(bi_mask).long().to(src_ids.device)

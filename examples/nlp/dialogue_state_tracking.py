@@ -8,9 +8,7 @@ import os
 import math
 
 import numpy as np
-from tqdm import tqdm
 
-from nemo.core import DeviceType
 import nemo
 from nemo.backends.pytorch.common import EncoderRNN
 from nemo.utils.lr_policies import get_lr_policy
@@ -51,7 +49,6 @@ parser.add_argument("--num_train_samples", default=-1, type=int)
 parser.add_argument("--num_eval_samples", default=-1, type=int)
 parser.add_argument("--grad_norm_clip", type=float, default=10,
                     help="gradient clipping")
-parser.add_argument("--progress_bar", action='store_true')
 parser.add_argument("--teacher_forcing", default=0.5, type=float)
 args = parser.parse_args()
 
@@ -62,43 +59,31 @@ if not os.path.exists(args.data_dir):
 
 work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
 
-# TODO
-# import torch
-# torch.backends.cudnn.deterministic = True
-#
-# torch.manual_seed(999)
-# if torch.cuda.is_available():
-#     torch.cuda.manual_seed_all(999)
-# import random
-# random.seed(30)
-
-
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
                                    optimization_level=args.amp_opt_level,
                                    log_dir=work_dir,
                                    create_tb_writer=True,
                                    files_to_copy=[__file__],
-                                   add_time_to_log_dir=True,
-                                   #placement=CPU
+                                   add_time_to_log_dir=True
                                    )
 
 total_cpus = os.cpu_count()
-num_workers = 0  # max(int(total_cpus / nf.world_size), 1)
+num_workers = 0
 
 data_layer_train = nemo_nlp.WOZDSTDataLayer(args.data_dir,
-                                      DOMAINS,
-                                      num_samples=args.num_train_samples,
-                                      shuffle=args.shuffle_data,
-                                      num_workers=num_workers,
-                                      local_rank=args.local_rank,
-                                      batch_size=args.batch_size,
-                                      mode='train',
-                                      is_training=True,
-                                      input_dropout=args.input_dropout)
+                                            DOMAINS,
+                                            num_samples=args.num_train_samples,
+                                            shuffle=args.shuffle_data,
+                                            num_workers=num_workers,
+                                            local_rank=args.local_rank,
+                                            batch_size=args.batch_size,
+                                            mode='train',
+                                            is_training=True,
+                                            input_dropout=args.input_dropout)
 src_ids_train, src_lens_train, tgt_ids_train, \
-    tgt_lens_train, gate_labels_train, turn_domain_train =  data_layer_train()
-vocab_size = len(data_layer_train._dataset.vocab)
+    tgt_lens_train, gate_labels_train, turn_domain_train = data_layer_train()
+vocab_size = len(data_layer_train.vocab)
 
 train_data_size = len(data_layer_train)
 print(f'The length of train data layer is {train_data_size}')
@@ -122,12 +107,12 @@ encoder = EncoderRNN(vocab_size,
 outputs_train, hidden_train = encoder(inputs=src_ids_train,
                                       input_lens=src_lens_train)
 
-decoder = nemo_nlp.DSTGenerator(data_layer_train._dataset.vocab,
+decoder = nemo_nlp.DSTGenerator(data_layer_train.vocab,
                                 encoder.embedding,
                                 args.hid_dim,
                                 args.dropout,
-                                data_layer_train._dataset.slots,
-                                len(data_layer_train._dataset.gating_dict),
+                                data_layer_train.slots,
+                                len(data_layer_train.gating_dict),
                                 teacher_forcing=args.teacher_forcing)
 
 point_outputs_train, gate_outputs_train = decoder(encoder_hidden=hidden_train,
@@ -143,10 +128,10 @@ ptr_loss_fn = nemo_nlp.DSTMaskedCrossEntropy()
 total_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
 gate_loss_train = gate_loss_fn(logits=gate_outputs_train,
-                                 labels=gate_labels_train)
+                               labels=gate_labels_train)
 ptr_loss_train = ptr_loss_fn(logits=point_outputs_train,
-                                targets=tgt_ids_train,
-                                mask=tgt_lens_train)
+                             targets=tgt_ids_train,
+                             mask=tgt_lens_train)
 
 loss_train = total_loss(loss_1=gate_loss_train, loss_2=ptr_loss_train)
 
@@ -171,7 +156,7 @@ point_outputs_eval, gate_outputs_eval = decoder(encoder_hidden=hidden,
                                                 targets=tgt_ids_eval)
 
 gate_loss_eval = gate_loss_fn(logits=gate_outputs_eval,
-                                labels=gate_labels_eval)
+                              labels=gate_labels_eval)
 
 ptr_loss_eval = ptr_loss_fn(logits=point_outputs_eval,
                             targets=tgt_ids_eval,
@@ -181,19 +166,6 @@ loss_eval = total_loss(loss_1=gate_loss_eval, loss_2=ptr_loss_eval)
 
 eval_tensors = [loss_eval, point_outputs_eval, gate_outputs_eval,
                 gate_labels_eval, turn_domain_eval, tgt_ids_eval, tgt_lens_eval]
-
-# Create progress bars
-if args.progress_bar:
-    iter_num_eval = math.ceil(len(data_layer_eval) /
-                              args.batch_size / nf.world_size)
-    progress_bar_eval = tqdm(total=iter_num_eval, position=0, leave=False)
-
-    iter_num_train = math.ceil(len(data_layer_train) /
-                               args.batch_size / nf.world_size)
-    progress_bar_train = tqdm(total=iter_num_train, position=0, leave=False)
-else:
-    progress_bar_eval = None
-    progress_bar_train = None
 
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(
@@ -205,19 +177,17 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     get_tb_values=lambda x: [["loss", x[0]],
                              ["gate_loss", x[1]],
                              ["pointer_loss", x[2]]],
-    step_freq=steps_per_epoch,
-    progress_bar=progress_bar_train)
+    step_freq=steps_per_epoch)
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(
-        x, y, data_layer_eval, progress_bar_eval),
+        x, y, data_layer_eval),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, data_layer_eval, progress_bar_eval),
+        x, data_layer_eval),
     tb_writer=nf.tb_writer,
     eval_step=steps_per_epoch)
 
-# Create callback to save checkpoints
 ckpt_callback = nemo.core.CheckpointCallback(
     folder=nf.checkpoint_dir,
     epoch_freq=args.save_epoch_freq,
@@ -228,10 +198,9 @@ lr_policy_fn = get_lr_policy(args.lr_policy,
                              warmup_ratio=args.lr_warmup_proportion)
 
 grad_norm_clip = args.grad_norm_clip if args.grad_norm_clip > 0 else None
-# TODO
+
 nf.train(tensors_to_optimize=[loss_train],
          callbacks=[eval_callback, train_callback, ckpt_callback],
-         #callbacks=[train_callback, ckpt_callback],
          #lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
          optimization_params={"num_epochs": args.num_epochs,

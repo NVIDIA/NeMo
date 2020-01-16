@@ -8,7 +8,6 @@ import torch
 from torch import nn as nn
 import torch.nn.functional as F
 
-import nemo
 from nemo.backends.pytorch.nm import TrainableNM, LossNM
 from nemo.core.neural_types import (NeuralType,
                                     AxisType,

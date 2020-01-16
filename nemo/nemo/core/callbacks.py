@@ -144,8 +144,7 @@ class SimpleLossLoggerCallback(ActionCallback):
                  get_tb_values=None,
                  log_to_tb_func=None,
                  step_freq=25,
-                 tb_writer=None,
-                 progress_bar=None):
+                 tb_writer=None):
 
         super().__init__()
         if not isinstance(tensors, list):
@@ -159,7 +158,6 @@ class SimpleLossLoggerCallback(ActionCallback):
         self._start_time = None
         self._last_epoch_start = None
         self._last_iter_start = None
-        self._progress_bar = progress_bar
 
     @property
     def tensors(self):
@@ -177,16 +175,12 @@ class SimpleLossLoggerCallback(ActionCallback):
             self.logger.info(f"Done in {time.time() - self._start_time}")
 
     def on_epoch_start(self):
-        if self._progress_bar:
-            self._progress_bar.reset()
         if self.global_rank is None or self.global_rank == 0:
             self.logger.info(f"Starting epoch {self.epoch_num}")
             self._last_epoch_start = time.time()
 
     def on_epoch_end(self):
         if self.global_rank is None or self.global_rank == 0:
-            if self._progress_bar:
-                self._progress_bar.reset()
             step = self.step
             run_time = time.time() - self._last_epoch_start
             self.logger.info(f"Finished epoch {self.epoch_num} in {run_time}")
@@ -202,8 +196,6 @@ class SimpleLossLoggerCallback(ActionCallback):
 
     def on_iteration_end(self):
         if self.global_rank is None or self.global_rank == 0:
-            if self._progress_bar:
-                self._progress_bar.update()
             step = self.step
             if step % self._step_freq == 0:
                 tensor_values = [

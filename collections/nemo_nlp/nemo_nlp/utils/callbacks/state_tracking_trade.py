@@ -10,8 +10,7 @@ logger = get_logger('')
 
 def eval_iter_callback(tensors,
                        global_vars,
-                       eval_data_layer,
-                       progress_bar=None):
+                       eval_data_layer):
 
     if 'loss' not in global_vars:
         global_vars['loss'] = []
@@ -36,10 +35,6 @@ def eval_iter_callback(tensors,
         if kv.startswith('tgt_ids'):
             tgt_ids = v[0].cpu().numpy()
 
-    if progress_bar:
-        progress_bar.update()
-        progress_bar.set_description(f"Loss: {str(loss_numpy)}")
-
     point_outputs_max = np.argmax(point_outputs, axis=-1)
     mask_paddings = (tgt_ids == eval_data_layer.pad_id)
     comp_res = np.logical_or(point_outputs_max == tgt_ids, mask_paddings)
@@ -49,11 +44,7 @@ def eval_iter_callback(tensors,
     global_vars['gating_preds'].extend(np.argmax(gate_outputs, axis=-1))
 
 
-def eval_epochs_done_callback(global_vars, eval_data_layer, progress_bar=None):
-
-    if progress_bar:
-        progress_bar.reset()
-
+def eval_epochs_done_callback(global_vars, eval_data_layer):
     joint_acc, turn_acc = \
         evaluate_metrics(global_vars['comp_res'],
                          global_vars['gating_labels'],
