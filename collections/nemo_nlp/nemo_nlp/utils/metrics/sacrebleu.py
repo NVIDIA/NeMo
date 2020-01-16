@@ -1316,7 +1316,6 @@ class UnicodeRegex:
 
     without depending on https://pypi.python.org/pypi/regex/."""
 
-    @staticmethod
     def _property_chars(prefix):
         return ''.join(
             chr(x) for x in range(sys.maxunicode)
