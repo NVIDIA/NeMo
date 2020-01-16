@@ -23,7 +23,7 @@ parser.add_argument("--batch_size", default=16, type=int)
 parser.add_argument("--eval_batch_size", default=16, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
-parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
+parser.add_argument("--lr_warmup_proportion", default=0.0, type=float)
 parser.add_argument("--lr", default=0.001, type=float)
 parser.add_argument("--lr_policy", default=None, type=str)
 parser.add_argument("--weight_decay", default=0.0, type=float)
@@ -194,7 +194,8 @@ ckpt_callback = nemo.core.CheckpointCallback(
 if args.lr_policy is not None:
     lr_policy_fn = get_lr_policy(args.lr_policy,
                                  total_steps=args.num_epochs * steps_per_epoch,
-                                 warmup_ratio=args.lr_warmup_proportion)
+                                 warmup_ratio=args.lr_warmup_proportion,
+                                 min_lr=1e-4)
 else:
     lr_policy_fn = None
 
