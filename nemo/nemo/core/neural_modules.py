@@ -8,7 +8,6 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 from enum import Enum
 from inspect import getargvalues, stack
-import logging
 from typing import Optional, Dict, Set, Tuple, List
 import uuid
 
@@ -66,8 +65,6 @@ class NeuralModule(ABC):
             else DeviceType.GPU
         self._opt_level = factory.optim_level if factory is not None\
             else Optimization.mxprO0
-        self._logger = factory.logger if factory is not None\
-            else logging
 
         # Update module properties using overrides if overrides exist
         if placement is not None:
@@ -77,11 +74,11 @@ class NeuralModule(ABC):
         self._uuid = str(uuid.uuid4())
 
         # if kwargs:
-        #    self._logger.warning(
+        #    nemo.logging.warning(
         #        "When constructing {}. The base "
         #        "NeuralModule class received the following unused "
         #        "arguments:".format(self.__class__.__name__))
-        #    self._logger.warning("{}".format(kwargs.keys()))
+        #    nemo.logging.warning("{}".format(kwargs.keys()))
 
     @staticmethod
     def create_ports(**kwargs):

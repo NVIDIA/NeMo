@@ -122,14 +122,13 @@ def get_cuda_device(placement):
 #                                          placement=device)
 
 
-def maybe_download_from_cloud(url, filename, logger=None) -> str:
+def maybe_download_from_cloud(url, filename) -> str:
     """
     Helper function to download pre-trained weights from the cloud
     Args:
         url: (str) URL of storage
         filename: (str) what to download. The request will be issued
         to url/filename or url/filename.tar.gz
-        logger: logger to log stuff
 
     Returns:
         If successful - absolute local path to the directory where
@@ -160,6 +159,5 @@ def maybe_download_from_cloud(url, filename, logger=None) -> str:
         else:
             return ""
     except (FileNotFoundError, ConnectionError, OSError):
-        if logger is not None:
-            logger.info(f"Could not obtain {filename} from the cloud")
+        nemo.logging.info(f"Could not obtain {filename} from the cloud")
         return ""

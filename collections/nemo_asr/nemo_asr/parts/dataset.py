@@ -8,6 +8,8 @@ import string
 import torch
 from torch.utils.data import Dataset
 
+import nemo
+
 from .manifest import ManifestBase, ManifestEN
 
 
@@ -131,7 +133,6 @@ class AudioDataset(Dataset):
             trim=False,
             bos_id=None,
             eos_id=None,
-            logger=False,
             load_audio=True,
             manifest_class=ManifestEN):
         m_paths = manifest_filepath.split(',')
@@ -147,12 +148,11 @@ class AudioDataset(Dataset):
         self.eos_id = eos_id
         self.bos_id = bos_id
         self.load_audio = load_audio
-        if logger:
-            logger.info(
-                "Dataset loaded with {0:.2f} hours. Filtered {1:.2f} "
-                "hours.".format(
-                    self.manifest.duration / 3600,
-                    self.manifest.filtered_duration / 3600))
+        nemo.logging.info(
+            "Dataset loaded with {0:.2f} hours. Filtered {1:.2f} "
+            "hours.".format(
+                self.manifest.duration / 3600,
+                self.manifest.filtered_duration / 3600))
 
     def __getitem__(self, index):
         sample = self.manifest[index]
@@ -213,8 +213,7 @@ class KaldiFeatureDataset(Dataset):
             unk_index=-1,
             blank_index=-1,
             normalize=True,
-            eos_id=None,
-            logger=None):
+            eos_id=None):
         self.eos_id = eos_id
         self.unk_index = unk_index
         self.blank_index = blank_index
@@ -244,8 +243,8 @@ class KaldiFeatureDataset(Dataset):
                 f"KaldiFeatureDataset max_duration or min_duration is set but"
                 f" utt2dur file not found in {kaldi_dir}."
             )
-        elif logger:
-            logger.info(
+        else:
+            nemo.logging.info(
                 f"Did not find utt2dur when loading data from "
                 f"{kaldi_dir}. Skipping dataset duration calculations."
             )
@@ -294,9 +293,9 @@ class KaldiFeatureDataset(Dataset):
                         print(f"Stop parsing due to max_utts ({max_utts})")
                         break
 
-        if logger and id2dur:
+        if id2dur:
             # utt2dur durations are in seconds
-            logger.info(
+            nemo.logging.info(
                     f"Dataset loaded with {duration/60 : .2f} hours. "
                     f"Filtered {filtered_duration/60 : .2f} hours.")
 

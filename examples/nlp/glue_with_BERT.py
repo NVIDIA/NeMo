@@ -292,7 +292,7 @@ if args.task_name == 'mnli':
         tb_writer=nf.tb_writer,
         eval_step=steps_per_epoch))
 
-nf.logger.info(f"steps_per_epoch = {steps_per_epoch}")
+nemo.logging.info(f"steps_per_epoch = {steps_per_epoch}")
 callback_train = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),

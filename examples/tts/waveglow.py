@@ -65,16 +65,15 @@ def parse_args():
     return args, "".join(exp_directory)
 
 
-def create_NMs(waveglow_params, logger=None):
+def create_NMs(waveglow_params):
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         **waveglow_params["AudioToMelSpectrogramPreprocessor"])
     waveglow = nemo_tts.WaveGlowNM(**waveglow_params["WaveGlowNM"])
     waveglow_loss = nemo_tts.WaveGlowLoss()
 
-    if logger:
-        logger.info('================================')
-        logger.info(f"Total number of parameters: {waveglow.num_weights}")
-        logger.info('================================')
+    nemo.logging.info('================================')
+    nemo.logging.info(f"Total number of parameters: {waveglow.num_weights}")
+    nemo.logging.info('================================')
     return (data_preprocessor, waveglow, waveglow_loss)
 
 
@@ -101,7 +100,7 @@ def create_train_dag(neural_factory,
 
     N = len(data_layer)
     steps_per_epoch = int(N / (batch_size * neural_factory.world_size))
-    neural_factory.logger.info('Have {0} examples to train on.'.format(N))
+    nemo.logging.info('Have {0} examples to train on.'.format(N))
 
     # Train DAG
     audio, audio_len, = data_layer()
@@ -215,7 +214,7 @@ def create_all_dags(neural_factory,
             eval_freq=eval_freq,
             cpu_per_dl=cpu_per_dl)
     else:
-        neural_factory.logger.info("There were no val datasets passed")
+        nemo.logging.info("There were no val datasets passed")
 
     callbacks = training_callbacks + eval_callbacks
     return training_loss, callbacks, steps_per_epoch
@@ -241,13 +240,13 @@ def main():
         tensorboard_dir=args.tensorboard_dir)
 
     if args.local_rank is not None:
-        neural_factory.logger.info('Doing ALL GPU')
+        nemo.logging.info('Doing ALL GPU')
 
     yaml = YAML(typ="safe")
     with open(args.model_config) as file:
         waveglow_params = yaml.load(file)
     # instantiate neural modules
-    neural_modules = create_NMs(waveglow_params, neural_factory.logger)
+    neural_modules = create_NMs(waveglow_params)
 
     # build dags
     train_loss, callbacks, steps_per_epoch = create_all_dags(

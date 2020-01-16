@@ -121,7 +121,7 @@ punct_preds = np.argmax(punct_logits, axis=2)
 capit_preds = np.argmax(capit_logits, axis=2)
 
 for i, query in enumerate(args.queries):
-    nf.logger.info(f'Query: {query}')
+    nemo.logging.info(f'Query: {query}')
 
     punct_pred = punct_preds[i][subtokens_mask[i] > 0.5]
     capit_pred = capit_preds[i][subtokens_mask[i] > 0.5]
@@ -140,4 +140,4 @@ for i, query in enumerate(args.queries):
         if punct_label != args.none_label:
             output += punct_label
         output += ' '
-    nf.logger.info(f'Combined: {output.strip()}\n')
+    nemo.logging.info(f'Combined: {output.strip()}\n')

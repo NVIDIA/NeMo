@@ -54,7 +54,7 @@ data_desc = JointIntentSlotDataDesc(args.data_dir,
                                     args.dataset_name)
 
 # Evaluation pipeline
-nf.logger.info("Loading eval data...")
+nemo.logging.info("Loading eval data...")
 data_layer = nemo_nlp.BertJointIntentSlotDataLayer(
     input_file=f'{data_desc.data_dir}/{args.eval_file_prefix}.tsv',
     slot_file=f'{data_desc.data_dir}/{args.eval_file_prefix}_slots.tsv',
@@ -105,13 +105,13 @@ intent_logits, slot_logits, loss_mask, subtokens_mask, intents, slot_labels =\
 
 
 pred_intents = np.argmax(intent_logits, 1)
-nf.logger.info('Intent prediction results')
+nemo.logging.info('Intent prediction results')
 
 intents = np.asarray(intents)
 pred_intents = np.asarray(pred_intents)
 intent_accuracy = sum(intents == pred_intents) / len(pred_intents)
-nf.logger.info(f'Intent accuracy: {intent_accuracy}')
-nf.logger.info(classification_report(intents, pred_intents))
+nemo.logging.info(f'Intent accuracy: {intent_accuracy}')
+nemo.logging.info(classification_report(intents, pred_intents))
 
 
 slot_preds = np.argmax(slot_logits, axis=2)
@@ -121,10 +121,10 @@ for i, sp in enumerate(slot_preds):
     slot_preds_list.extend(list(slot_preds[i][subtokens_mask[i]]))
     slot_labels_list.extend(list(slot_labels[i][subtokens_mask[i]]))
 
-nf.logger.info('Slot prediction results')
+nemo.logging.info('Slot prediction results')
 slot_labels_list = np.asarray(slot_labels_list)
 slot_preds_list = np.asarray(slot_preds_list)
 slot_accuracy = sum(slot_labels_list == slot_preds_list) / \
     len(slot_labels_list)
-nf.logger.info(f'Slot accuracy: {slot_accuracy}')
-nf.logger.info(classification_report(slot_labels_list, slot_preds_list))
+nemo.logging.info(f'Slot accuracy: {slot_accuracy}')
+nemo.logging.info(classification_report(slot_labels_list, slot_preds_list))

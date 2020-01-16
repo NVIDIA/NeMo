@@ -25,11 +25,11 @@ import argparse
 import gzip
 import hashlib
 import io
-import logging
 import math
 import os
 import re
 import sys
+import ssl
 import unicodedata
 import urllib.request
 
@@ -37,6 +37,7 @@ from collections import Counter, namedtuple
 from itertools import zip_longest
 from typing import List, Iterable, Tuple, Union
 
+from nemo import logging
 from .fairseq_tokenizer import tokenize_en
 
 
@@ -1315,6 +1316,7 @@ class UnicodeRegex:
 
     without depending on https://pypi.python.org/pypi/regex/."""
 
+    @staticmethod
     def _property_chars(prefix):
         return ''.join(
             chr(x) for x in range(sys.maxunicode)

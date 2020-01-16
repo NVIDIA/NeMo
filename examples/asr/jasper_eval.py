@@ -71,10 +71,9 @@ def main():
         local_rank=args.local_rank,
         optimization_level=nemo.core.Optimization.mxprO1,
         placement=device)
-    logger = neural_factory.logger
 
     if args.local_rank is not None:
-        logger.info('Doing ALL GPU')
+        nemo.logging.info('Doing ALL GPU')
 
     yaml = YAML(typ="safe")
     with open(args.model_config) as f:
@@ -96,7 +95,7 @@ def main():
         **eval_dl_params)
 
     N = len(data_layer)
-    logger.info('Evaluating {0} examples'.format(N))
+    nemo.logging.info('Evaluating {0} examples'.format(N))
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         sample_rate=sample_rate,
@@ -110,15 +109,15 @@ def main():
         num_classes=len(vocab))
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
-    logger.info('================================')
-    logger.info(
+    nemo.logging.info('================================')
+    nemo.logging.info(
         f"Number of parameters in encoder: {jasper_encoder.num_weights}")
-    logger.info(
+    nemo.logging.info(
         f"Number of parameters in decoder: {jasper_decoder.num_weights}")
-    logger.info(
+    nemo.logging.info(
         f"Total number of parameters in model: "
         f"{jasper_decoder.num_weights + jasper_encoder.num_weights}")
-    logger.info('================================')
+    nemo.logging.info('================================')
 
     audio_signal_e1, a_sig_length_e1, transcript_e1, transcript_len_e1 =\
         data_layer()
@@ -144,7 +143,7 @@ def main():
     references = post_process_transcripts(
         evaluated_tensors[2], evaluated_tensors[3], vocab)
     wer = word_error_rate(hypotheses=greedy_hypotheses, references=references)
-    logger.info("Greedy WER {:.2f}%".format(wer*100))
+    nemo.logging.info("Greedy WER {:.2f}%".format(wer*100))
 
     if args.lm_path:
         if args.alpha_max is None:
@@ -161,8 +160,8 @@ def main():
 
         for alpha in np.arange(args.alpha, args.alpha_max, args.alpha_step):
             for beta in np.arange(args.beta, args.beta_max, args.beta_step):
-                logger.info('================================')
-                logger.info(f'Infering with (alpha, beta): ({alpha}, {beta})')
+                nemo.logging.info('================================')
+                nemo.logging.info(f'Infering with (alpha, beta): ({alpha}, {beta})')
                 beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
                     vocab=vocab,
                     beam_width=args.beam_width,
@@ -188,15 +187,15 @@ def main():
 
                 wer = word_error_rate(
                     hypotheses=beam_hypotheses, references=references)
-                logger.info("Beam WER {:.2f}%".format(wer*100))
+                nemo.logging.info("Beam WER {:.2f}%".format(wer*100))
                 beam_wers.append(((alpha, beta), wer*100))
 
-        logger.info('Beam WER for (alpha, beta)')
-        logger.info('================================')
-        logger.info('\n' + '\n'.join([str(e) for e in beam_wers]))
-        logger.info('================================')
+        nemo.logging.info('Beam WER for (alpha, beta)')
+        nemo.logging.info('================================')
+        nemo.logging.info('\n' + '\n'.join([str(e) for e in beam_wers]))
+        nemo.logging.info('================================')
         best_beam_wer = min(beam_wers, key=lambda x: x[1])
-        logger.info('Best (alpha, beta): '
+        nemo.logging.info('Best (alpha, beta): '
                     f'{best_beam_wer[0]}, '
                     f'WER: {best_beam_wer[1]:.2f}%')
 
