@@ -161,7 +161,8 @@ def main():
         for alpha in np.arange(args.alpha, args.alpha_max, args.alpha_step):
             for beta in np.arange(args.beta, args.beta_max, args.beta_step):
                 nemo.logging.info('================================')
-                nemo.logging.info(f'Infering with (alpha, beta): ({alpha}, {beta})')
+                nemo.logging.info(
+                    f'Infering with (alpha, beta): ({alpha}, {beta})')
                 beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
                     vocab=vocab,
                     beam_width=args.beam_width,
@@ -196,8 +197,8 @@ def main():
         nemo.logging.info('================================')
         best_beam_wer = min(beam_wers, key=lambda x: x[1])
         nemo.logging.info('Best (alpha, beta): '
-                    f'{best_beam_wer[0]}, '
-                    f'WER: {best_beam_wer[1]:.2f}%')
+                          f'{best_beam_wer[0]}, '
+                          f'WER: {best_beam_wer[1]:.2f}%')
 
     if args.save_logprob:
         # Convert logits to list of numpy arrays
