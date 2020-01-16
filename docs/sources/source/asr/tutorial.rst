@@ -94,7 +94,6 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
         log_dir='jasper12x1SEP',
         create_tb_writer=True)
     tb_writer = nf.tb_writer
-    logger = nf.logger
 
     # Path to our training manifest
     train_dataset = "<path_to_where_you_put_data>/train_clean_100.json"
@@ -177,8 +176,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
         # To print logs to screen, define a print_func
         print_func=partial(
             monitor_asr_train_progress,
-            labels=labels,
-            logger=logger
+            labels=labels
         ))
 
     saver_callback = nemo.core.CheckpointCallback(
@@ -199,7 +197,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
             ),
         # how to aggregate statistics (e.g. WER) for the evaluation epoch
         user_epochs_done_callback=partial(
-            process_evaluation_epoch, tag="DEV-CLEAN", logger=logger
+            process_evaluation_epoch, tag="DEV-CLEAN"
             ),
         eval_step=500,
         tb_writer=tb_writer)
