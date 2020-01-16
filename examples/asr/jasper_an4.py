@@ -205,8 +205,8 @@ def main():
         nemo.logging.info("Testing greedy and beam search with LM WER.")
         # Create BeamSearch NM
         if nf.world_size > 1:
-            nemo.logging.warning("Skipping beam search WER as it does not work "
-                              "if doing distributed training.")
+            nemo.logging.warning("Skipping beam search WER as it does not "
+                                 "work if doing distributed training.")
         else:
             beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
                 vocab=vocab,
