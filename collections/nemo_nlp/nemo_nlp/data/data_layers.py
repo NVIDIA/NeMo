@@ -738,6 +738,25 @@ class BertPunctuationCapitalizationInferDataLayer(TextDataLayer):
 class BertQuestionAnsweringDataLayer(TextDataLayer):
     """
     Creates the data layer to use for Question Answering classification task.
+
+    Args:
+        data_dir (str): Directory that contains train.*.json and dev.*.json.
+        tokenizer (obj): Tokenizer object, e.g. NemoBertTokenizer.
+        version_2_with_negative (bool): True if training should allow
+            unanswerable questions.
+        doc_stride (int): When splitting up a long document into chunks,
+            how much stride to take between chunks.
+        max_query_length (iny): All training files which have a duration less
+            than min_duration are dropped. Can't be used if the `utt2dur` file
+            does not exist. Defaults to None.
+        max_seq_length (int): All training files which have a duration more
+            than max_duration are dropped. Can't be used if the `utt2dur` file
+            does not exist. Defaults to None.
+        mode (str): Use "train" or "dev" to define between
+            training and evaluation.
+        batch_size (int): Batch size. Defaults to 64.
+        dataset_type (class): Question Answering class.
+            Defaults to SquadDataset.
     """
 
     @property
