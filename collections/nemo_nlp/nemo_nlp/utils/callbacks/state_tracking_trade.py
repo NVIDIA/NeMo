@@ -54,7 +54,7 @@ def eval_epochs_done_callback(global_vars, eval_data_layer, progress_bar=None):
     if progress_bar:
         progress_bar.reset()
 
-    joint_acc, turn_acc, F1 = \
+    joint_acc, turn_acc = \
         evaluate_metrics(global_vars['comp_res'],
                          global_vars['gating_labels'],
                          global_vars['gating_preds'],
@@ -65,7 +65,6 @@ def eval_epochs_done_callback(global_vars, eval_data_layer, progress_bar=None):
 
     evaluation_metrics = {"Joint_Goal_Acc": joint_acc,
                           "Turn_Acc": turn_acc,
-                          "Joint_F1": F1,
                           "Gate_Acc": gating_acc}
     print(evaluation_metrics)
 
@@ -73,12 +72,11 @@ def eval_epochs_done_callback(global_vars, eval_data_layer, progress_bar=None):
 
 
 def evaluate_metrics(comp_res, gating_labels, gating_preds, ptr_code):
+    # TODO: Calculate precision, recall, and F1
     total_slots = 0
     correct_slots = 0
     total_turns = 0
     correct_turns = 0
-    TP, FP, FN = 0, 0, 0
-    F1 = 0
     for result_idx, result in enumerate(comp_res):
         turn_wrong = False
         total_turns += 1
@@ -101,4 +99,4 @@ def evaluate_metrics(comp_res, gating_labels, gating_preds, ptr_code):
 
     turn_acc = correct_slots / float(total_slots) if total_slots != 0 else 0
     joint_acc = correct_turns / float(total_turns) if total_turns != 0 else 0
-    return joint_acc, turn_acc, F1
+    return joint_acc, turn_acc
