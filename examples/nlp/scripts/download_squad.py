@@ -11,10 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import bz2
 import os
 import urllib.request
-import sys
 import argparse
 
 
