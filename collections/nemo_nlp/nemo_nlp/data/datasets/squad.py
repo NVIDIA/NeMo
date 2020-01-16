@@ -29,11 +29,12 @@ from torch.utils.data import Dataset
 import torch
 from nemo.utils.exp_logging import get_logger
 from .utils import DataProcessor
-from ...utils.metrics.squad_metrics import _compute_softmax, \
-            _get_best_indexes, apply_no_ans_threshold, \
-            metric_max_over_ground_truths, exact_match_score, \
-            make_eval_dict, f1_score, get_final_text, normalize_answer, \
-            merge_eval, find_all_best_thresh
+from ...utils.metrics.squad_metrics import (
+            _compute_softmax,
+            _get_best_indexes, apply_no_ans_threshold,
+            metric_max_over_ground_truths, exact_match_score,
+            make_eval_dict, f1_score, get_final_text, normalize_answer,
+            merge_eval, find_all_best_thresh)
 from nemo_nlp.utils.nlp_utils import _is_whitespace
 
 logger = get_logger('')
@@ -47,14 +48,34 @@ https://github.com/huggingface/transformers
 
 
 class SquadDataset(Dataset):
-    def __init__(self,
-                 data_dir,
-                 tokenizer,
-                 doc_stride,
-                 max_query_length,
-                 max_seq_length,
-                 version_2_with_negative,
-                 mode):
+    """
+    Creates SQuAD dataset for Question Answering.
+
+    Args:
+        data_dir (str): Directory that contains train.*.json and dev.*.json.
+        tokenizer (obj): Tokenizer object, e.g. NemoBertTokenizer.
+        version_2_with_negative (bool): True if training should allow
+            unanswerable questions.
+        doc_stride (int): When splitting up a long document into chunks,
+            how much stride to take between chunks.
+        max_query_length (iny): All training files which have a duration less
+            than min_duration are dropped. Can't be used if the `utt2dur` file
+            does not exist. Defaults to None.
+        max_seq_length (int): All training files which have a duration more
+            than max_duration are dropped. Can't be used if the `utt2dur` file
+            does not exist. Defaults to None.
+        mode (str): Use "train" or "dev" to define between
+            training and evaluation.
+    """
+    def __init__(
+            self,
+            data_dir,
+            tokenizer,
+            doc_stride,
+            max_query_length,
+            max_seq_length,
+            version_2_with_negative,
+            mode):
         self.tokenizer = tokenizer
         if not version_2_with_negative:
             processor_name = 'SquadV1Processor'
@@ -119,9 +140,16 @@ class SquadDataset(Dataset):
                 np.array(feature.end_position),
                 np.array(feature.unique_id))
 
-    def get_predictions(self, unique_ids, start_logits, end_logits,
-                        n_best_size, max_answer_length, do_lower_case,
-                        version_2_with_negative, null_score_diff_threshold):
+    def get_predictions(
+            self,
+            unique_ids,
+            start_logits,
+            end_logits,
+            n_best_size,
+            max_answer_length,
+            do_lower_case,
+            version_2_with_negative,
+            null_score_diff_threshold):
         example_index_to_features = collections.defaultdict(list)
 
         unique_id_to_pos = {}
@@ -318,9 +346,11 @@ class SquadDataset(Dataset):
 
         return all_predictions, all_nbest_json, scores_diff_json
 
-    def evaluate_predictions(self, all_predictions,
-                             no_answer_probs=None,
-                             no_answer_probability_threshold=1.0):
+    def evaluate_predictions(
+            self,
+            all_predictions,
+            no_answer_probs=None,
+            no_answer_probability_threshold=1.0):
         qas_id_to_has_answer = {example.qas_id:
                                 bool(example.answers) for
                                 example in self.examples}
@@ -367,7 +397,9 @@ class SquadDataset(Dataset):
 
         return evaluation["best_exact"], evaluation["best_f1"]
 
-    def get_raw_scores(self, preds):
+    def get_raw_scores(
+            self,
+            preds):
         """
         Computes the exact and f1 scores from the examples
         and the model predictions
@@ -397,11 +429,16 @@ class SquadDataset(Dataset):
 
         return exact_scores, f1_scores
 
-    def evaluate(self, unique_ids, start_logits,
-                 end_logits, n_best_size,
-                 max_answer_length, do_lower_case,
-                 version_2_with_negative,
-                 null_score_diff_threshold):
+    def evaluate(
+            self,
+            unique_ids,
+            start_logits,
+            end_logits,
+            n_best_size,
+            max_answer_length,
+            do_lower_case,
+            version_2_with_negative,
+            null_score_diff_threshold):
 
         all_predictions, all_nbest_json, scores_diff_json = \
             self.get_predictions(unique_ids, start_logits,
@@ -415,9 +452,12 @@ class SquadDataset(Dataset):
         return exact_match, f1, all_predictions
 
 
-def convert_examples_to_features(examples, tokenizer, max_seq_length,
-                                 doc_stride, max_query_length,
-                                 has_groundtruth):
+def convert_examples_to_features(
+        examples,
+        tokenizer,
+        max_seq_length,
+        doc_stride, max_query_length,
+        has_groundtruth):
     """Loads a data file into a list of `InputBatch`s."""
 
     unique_id = 1000000000
@@ -601,19 +641,20 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self,
-                 unique_id,
-                 example_index,
-                 doc_span_index,
-                 tokens,
-                 token_to_orig_map,
-                 token_is_max_context,
-                 input_ids,
-                 input_mask,
-                 segment_ids,
-                 start_position=None,
-                 end_position=None,
-                 is_impossible=None):
+    def __init__(
+            self,
+            unique_id,
+            example_index,
+            doc_span_index,
+            tokens,
+            token_to_orig_map,
+            token_is_max_context,
+            input_ids,
+            input_mask,
+            segment_ids,
+            start_position=None,
+            end_position=None,
+            is_impossible=None):
         self.unique_id = unique_id
         self.example_index = example_index
         self.doc_span_index = doc_span_index
@@ -638,7 +679,10 @@ class SquadProcessor(DataProcessor):
     train_file = None
     dev_file = None
 
-    def get_train_examples(self, data_dir, filename=None):
+    def get_train_examples(
+            self,
+            data_dir,
+            filename=None):
         """
         Returns the training examples from the data directory.
         Args:
@@ -664,7 +708,10 @@ class SquadProcessor(DataProcessor):
             input_data = json.load(reader)["data"]
         return self._create_examples(input_data, "train")
 
-    def get_dev_examples(self, data_dir, filename=None):
+    def get_dev_examples(
+            self,
+            data_dir,
+            filename=None):
         """
         Returns the evaluation example from the data directory.
         Args:
@@ -689,7 +736,10 @@ class SquadProcessor(DataProcessor):
             input_data = json.load(reader)["data"]
         return self._create_examples(input_data, "dev")
 
-    def _create_examples(self, input_data, set_type):
+    def _create_examples(
+            self,
+            input_data,
+            set_type):
         examples = []
         for entry in tqdm(input_data):
             title = entry["title"]
@@ -810,8 +860,12 @@ class SquadExample(object):
             ]
 
 
-def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer,
-                         orig_answer_text):
+def _improve_answer_span(
+        doc_tokens,
+        input_start,
+        input_end,
+        tokenizer,
+        orig_answer_text):
     """Returns tokenized answer spans that
     better match the annotated answer."""
     tok_answer_text = " ".join(tokenizer.text_to_tokens(orig_answer_text))
@@ -825,7 +879,10 @@ def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer,
     return (input_start, input_end)
 
 
-def _check_is_max_context(doc_spans, cur_span_index, position):
+def _check_is_max_context(
+        doc_spans,
+        cur_span_index,
+        position):
     """Check if this is the 'max context' doc span for the token."""
     best_score = None
     best_span_index = None

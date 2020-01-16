@@ -1,10 +1,9 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import unittest
-import os
-import sys
 import json
-
+import os
 import shutil
+import sys
+import unittest
 
 from .context import nemo, nemo_nlp
 from .common_setup import NeMoUnitTest
