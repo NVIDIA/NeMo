@@ -4,21 +4,21 @@
 # __all__ so that it can be imported with 'from text_data_layers import *'
 
 
-__all__ = ['TextDataLayer',
-           'BertSentenceClassificationDataLayer',
+__all__ = ['GlueDataLayerClassification',
+           'GlueDataLayerRegression',
            'BertJointIntentSlotDataLayer',
            'BertJointIntentSlotInferDataLayer',
-           'LanguageModelingDataLayer',
-           'BertTokenClassificationDataLayer',
-           'BertTokenClassificationInferDataLayer',
            'BertPunctuationCapitalizationDataLayer',
            'BertPunctuationCapitalizationInferDataLayer',
            'BertPretrainingDataLayer',
            'BertPretrainingPreprocessedDataLayer',
-           'TranslationDataLayer',
-           'GlueDataLayerClassification',
-           'GlueDataLayerRegression',
-           'BertQuestionAnsweringDataLayer']
+           'BertSentenceClassificationDataLayer',
+           'BertTokenClassificationDataLayer',
+           'BertTokenClassificationInferDataLayer',
+           'BertQuestionAnsweringDataLayer',
+           'LanguageModelingDataLayer',
+           'TextDataLayer',
+           'TranslationDataLayer']
 
 # from abc import abstractmethod
 import sys

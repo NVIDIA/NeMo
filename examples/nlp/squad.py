@@ -58,7 +58,6 @@ Model	                EM      F1
 BERT Based uncased      80.59    88.34
 BERT Large uncased      83.88    90.65
 """
-
 import argparse
 import json
 import os

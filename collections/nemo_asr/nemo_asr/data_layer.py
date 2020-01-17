@@ -15,7 +15,10 @@ from nemo.core import DeviceType
 from nemo.core.neural_types import *
 from nemo.utils.misc import pad_to
 from .parts.dataset import (
-    AudioDataset, seq_collate_fn, KaldiFeatureDataset, TranscriptDataset)
+    AudioDataset,
+    seq_collate_fn,
+    KaldiFeatureDataset,
+    TranscriptDataset)
 from .parts.features import WaveformFeaturizer
 
 
