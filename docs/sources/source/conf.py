@@ -22,12 +22,13 @@ import os
 import sys
 from unittest.mock import MagicMock
 
-sys.path.insert(0, os.path.abspath("."))
+#sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../../../"))
 sys.path.insert(0, os.path.abspath("../../../nemo/nemo"))
 sys.path.insert(0, os.path.abspath("../../../collections"))
 sys.path.insert(0, os.path.abspath("../../../collections/nemo_asr"))
 sys.path.insert(0, os.path.abspath("../../../collections/nemo_nlp"))
+sys.path.insert(0, os.path.abspath("../../../collections/nemo_tts"))
 # sys.path.insert(0, os.path.abspath("../../../collections/nemo_lpr"))
 
 # ---- Mocking up the classes. -----
@@ -55,7 +56,8 @@ MOCK_MODULES = ['torch', 'torch.nn', 'torch.utils', 'torch.optim',
                 'torch.utils.data', 'torch.utils.data.sampler',
                 'torchvision', 'torchvision.models',
                 'torchtext',
-                'h5py', 'kaldi_io'
+                'h5py', 'kaldi_io',
+                'transformers'
                 ]
 
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
