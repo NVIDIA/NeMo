@@ -1523,7 +1523,8 @@ class PtActions(Actions):
                             bps_scale.to(final_loss.get_device()))
                     # single device (CPU or GPU)
                     else:
-                        final_loss.backward()
+                        final_loss.backward(
+                            bps_scale.to(final_loss.get_device()))
 
                 batch_counter += 1
 
