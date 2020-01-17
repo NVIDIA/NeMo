@@ -14,7 +14,6 @@
   :target: https://coveralls.io/github/NVIDIA/NeMo?branch=master
   :alt: NeMo code test coverage
 
-
 .. image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
   :target: https://lgtm.com/projects/g/NVIDIA/NeMo/context:python
   :alt: Language grade: Python
