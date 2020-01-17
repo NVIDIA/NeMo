@@ -17,7 +17,7 @@ from nemo_nlp.utils.callbacks.state_tracking_trade import \
     eval_iter_callback, eval_epochs_done_callback
 
 parser = argparse.ArgumentParser(
-    description='TRADE for MultiWOZ 2.1 dialog state tracking')
+    description='TRADE for MultiWOZ dialog state tracking')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=16, type=int)
 parser.add_argument("--eval_batch_size", default=16, type=int)
@@ -32,7 +32,7 @@ parser.add_argument("--hid_dim", default=400, type=int)
 parser.add_argument("--n_layers", default=1, type=int)
 parser.add_argument("--dropout", default=0.2, type=float)
 parser.add_argument("--input_dropout", default=0.2, type=float)
-parser.add_argument("--data_dir", default='data/statetracking/multiwoz', type=str)
+parser.add_argument("--data_dir", default='data/statetracking/multiwoz2.1', type=str)
 parser.add_argument("--dataset_name", default='multiwoz', type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
