@@ -297,6 +297,7 @@ class PtActions(Actions):
             if isinstance(p, TrainableNM) or p.is_trainable()
         ]
         params_to_optimize = itertools.chain(*params_list)
+        params_to_optimize = set(params_to_optimize)
 
         if optimizer_params is None:
             optimizer_params = {}
@@ -1243,6 +1244,7 @@ class PtActions(Actions):
                 if isinstance(p[0], TrainableNM) or p[0].is_trainable()
             ]
             params_to_optimize = itertools.chain(*params_list)
+            params_to_optimize = set(params_to_optimize)
 
             # Setup optimizer instance. By default it is SGD
             optimizer_instance = None
