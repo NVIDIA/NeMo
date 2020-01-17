@@ -15,19 +15,20 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import os
-import sys
-import json
 import collections
+import json
+import os
 import pickle
 import string
+import sys
 
 import numpy as np
 from tqdm import tqdm
-
-from torch.utils.data import Dataset
 import torch
+from torch.utils.data import Dataset
+
 from nemo.utils.exp_logging import get_logger
+from nemo_nlp.utils.nlp_utils import _is_whitespace
 from .utils import DataProcessor
 from ...utils.metrics.squad_metrics import (
             _compute_softmax,
@@ -35,7 +36,6 @@ from ...utils.metrics.squad_metrics import (
             metric_max_over_ground_truths, exact_match_score,
             make_eval_dict, f1_score, get_final_text, normalize_answer,
             merge_eval, find_all_best_thresh)
-from nemo_nlp.utils.nlp_utils import _is_whitespace
 
 logger = get_logger('')
 

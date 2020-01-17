@@ -1,23 +1,32 @@
-from torch import nn
 import torch
+from torch import nn
+
+
 from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import *
-
 from .pytorch_utils import SmoothedCrossEntropyLoss
 from ..utils.nlp_utils import mask_padded_tokens
 
 
-__all__ = ['MaskedLanguageModelingLossNM',
-           'QuestionAnsweringLoss',
+__all__ = ['JointIntentSlotLoss',
            'LossAggregatorNM',
-           'TokenClassificationLoss',
-           'JointIntentSlotLoss',
-           'PaddedSmoothedCrossEntropyLossNM']
+           'MaskedLanguageModelingLossNM',
+           'PaddedSmoothedCrossEntropyLossNM',
+           'QuestionAnsweringLoss',
+           'TokenClassificationLoss']
 
 
 class QuestionAnsweringLoss(LossNM):
     """
     Neural module which implements QuestionAnswering loss.
+    Args:
+        logits: Output of question answering head, which is a token classfier.
+        start_positions: Ground truth start positions of the answer w.r.t.
+            input sequence. If question is unanswerable, this will be
+            pointing to start token, e.g. [CLS], of the input sequence.
+        end_positions: Ground truth end positions of the answer w.r.t.
+            input sequence. If question is unanswerable, this will be
+            pointing to start token, e.g. [CLS], of the input sequence.
     """
 
     @property
