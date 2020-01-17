@@ -16,7 +16,7 @@ setuptools.setup(
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
-        "License :: OSI Approved :: Apache Software License"
+        "License :: OSI Approved :: Apache Software License",
     ],
     install_requires=[
         'nemo_toolkit',
@@ -29,6 +29,7 @@ setuptools.setup(
         'marshmallow',
         'ruamel.yaml',
         'sox',
-        'unidecode'
-    ]
+        'unidecode',
+        'frozendict',
+    ],
 )

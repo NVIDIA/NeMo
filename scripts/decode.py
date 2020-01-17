@@ -5,32 +5,34 @@ from https://github.com/PaddlePaddle/DeepSpeech/decoders/swig
 
 import argparse
 import multiprocessing
-import os
 import pickle
-import sys
 
 import numpy as np
 import toml
 from ctc_decoders import Scorer
 from ctc_decoders import ctc_beam_search_decoder_batch
-from nemo_asr.parts.dataset import ManifestEN
-
+from nemo_asr.parts import char_parsers
+from nemo_asr.parts import manifests
 
 parser = argparse.ArgumentParser(
     description="CTC decoding and tuning with LM rescoring"
 )
-parser.add_argument("--mode", help="either 'eval' (default) or 'infer'",
-                    default="eval")
 parser.add_argument(
-    "--model_toml", help="Toml file describing the model and vocabulary",
-    required=True
+    "--mode", help="either 'eval' (default) or 'infer'", default="eval"
 )
 parser.add_argument(
-    "--infer_output_file", help="output CSV file for 'infer' mode",
-    required=False
+    "--model_toml",
+    help="Toml file describing the model and vocabulary",
+    required=True,
 )
-parser.add_argument("--logits", help="pickle file with CTC logits",
-                    required=True)
+parser.add_argument(
+    "--infer_output_file",
+    help="output CSV file for 'infer' mode",
+    required=False,
+)
+parser.add_argument(
+    "--logits", help="pickle file with CTC logits", required=True
+)
 parser.add_argument(
     "--labels",
     help="JSON file with audio filenames \
@@ -38,8 +40,9 @@ parser.add_argument(
     required=True,
 )
 parser.add_argument("--lm", help="KenLM binary file", required=True)
-parser.add_argument("--alpha", type=float, help="value of LM weight",
-                    required=True)
+parser.add_argument(
+    "--alpha", type=float, help="value of LM weight", required=True
+)
 parser.add_argument(
     "--alpha_max",
     type=float,
@@ -145,8 +148,11 @@ def get_logits(data, labels):
 
 
 def load_labels(csv_file, vocab):
-    # labels = np.loadtxt(csv_file, skiprows=1, delimiter=',', dtype=str)
-    return ManifestEN([csv_file], vocab, normalize=True).data
+    manifest = manifests.ASRAudioText(
+        csv_file, parser=char_parsers.ENCharParser(labels=vocab),
+    )
+
+    return manifest.data
 
 
 def load_vocab(model_toml):
@@ -213,8 +219,9 @@ if args.mode == "eval":
     best_result = {"wer": 1e6, "alpha": 0.0, "beta": 0.0, "beams": None}
     for alpha in np.arange(args.alpha, args.alpha_max, args.alpha_step):
         for beta in np.arange(args.beta, args.beta_max, args.beta_step):
-            scorer = Scorer(alpha, beta, model_path=args.lm,
-                            vocabulary=vocab[:-1])
+            scorer = Scorer(
+                alpha, beta, model_path=args.lm, vocabulary=vocab[:-1]
+            )
             res = ctc_beam_search_decoder_batch(
                 probs_batch,
                 vocab[:-1],
@@ -237,8 +244,11 @@ if args.mode == "eval":
                 best_result["alpha"] = alpha
                 best_result["beta"] = beta
                 best_result["beams"] = res
-            print("alpha={:.2f}, beta={:.2f}: WER={:.4f}".format(alpha, beta,
-                                                                 wer))
+            print(
+                "alpha={:.2f}, beta={:.2f}: WER={:.4f}".format(
+                    alpha, beta, wer
+                )
+            )
     print(
         "BEST: alpha={:.2f}, beta={:.2f}, WER={:.4f}".format(
             best_result["alpha"], best_result["beta"], best_result["wer"]
@@ -254,8 +264,9 @@ if args.mode == "eval":
                 f.write("E=>>>>>>>>\n")
 
 elif args.mode == "infer":
-    scorer = Scorer(args.alpha, args.beta, model_path=args.lm,
-                    vocabulary=vocab[:-1])
+    scorer = Scorer(
+        args.alpha, args.beta, model_path=args.lm, vocabulary=vocab[:-1]
+    )
     res = ctc_beam_search_decoder_batch(
         probs_batch,
         vocab[:-1],
