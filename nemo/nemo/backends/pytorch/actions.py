@@ -17,7 +17,7 @@ from nemo.backends.pytorch.nm import TrainableNM
 
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
-from .optimizers import Novograd, AdamW, Lamb, master_params
+from .optimizers import Novograd, AdamW, master_params
 from ...core import NmTensor, DeviceType, NeuralModule, DeploymentFormat
 from ...core.neural_types import *
 from ...core.callbacks import (ActionCallback,
@@ -358,12 +358,6 @@ class PtActions(Actions):
                     reg_inside_moment=True,
                     grad_averaging=False,
                     betas=optimization_params.get("betas", (0.95, 0.25)),
-                )
-            elif optimizer_class.lower() == "lamb":
-                optimizer = Lamb(
-                    params_to_optimize,
-                    lr=lr,
-                    weight_decay=optimization_params.get("weight_decay", 0.0),
                 )
             elif optimizer_class.lower() == "fused_lamb":
                 optimizer = FusedLAMB(
@@ -1490,10 +1484,12 @@ class PtActions(Actions):
                 nan = False
                 for tensor in curr_tensors_to_optimize:
                     if torch.isnan(
+                            registered_tensors[tensor.unique_name]).any() \
+                            or torch.isinf(
                             registered_tensors[tensor.unique_name]).any():
                         if stop_on_nan_loss:
-                            raise ValueError('Loss is NaN exiting')
-                        self.logger.warning('WARNING: Loss is NaN')
+                            raise ValueError('Loss is NaN or inf - exiting')
+                        self.logger.warning('WARNING: Loss is NaN or inf')
                         curr_optimizer.zero_grad()
                         nan = True
                         break
@@ -1507,10 +1503,12 @@ class PtActions(Actions):
                             curr_optimizer,
                             delay_unscale=disable_allreduce
                     ) as scaled_loss:
-                        if torch.isnan(scaled_loss).any():
+                        if torch.isnan(scaled_loss).any() \
+                                or torch.isinf(scaled_loss).any():
                             if stop_on_nan_loss:
-                                raise ValueError('Loss is NaN exiting')
-                            self.logger.warning('WARNING: Loss is NaN')
+                                raise ValueError('Loss is NaN or inf -'
+                                                 ' exiting')
+                            self.logger.warning('WARNING: Loss is NaN or inf')
                             curr_optimizer.zero_grad()
                             continue
                         scaled_loss.backward(

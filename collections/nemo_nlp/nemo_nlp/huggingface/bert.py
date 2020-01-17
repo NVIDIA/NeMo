@@ -119,6 +119,7 @@ class BERT(TrainableNM):
         if vocab_size is not None:
             config = BertConfig(
                 vocab_size_or_config_json_file=vocab_size,
+                vocab_size=vocab_size,
                 hidden_size=hidden_size,
                 num_hidden_layers=num_hidden_layers,
                 num_attention_heads=num_attention_heads,

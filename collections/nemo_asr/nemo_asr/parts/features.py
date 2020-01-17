@@ -32,6 +32,11 @@ def normalize_batch(x, seq_len, normalize_type):
         # make sure x_std is not zero
         x_std += CONSTANT
         return (x - x_mean.view(-1, 1, 1)) / x_std.view(-1, 1, 1)
+    elif "fixed_mean" in normalize_type and "fixed_std" in normalize_type:
+        x_mean = torch.tensor(normalize_type["fixed_mean"], device=x.device)
+        x_std = torch.tensor(normalize_type["fixed_std"], device=x.device)
+        return ((x - x_mean.view(x.shape[0], x.shape[1]).unsqueeze(2)) /
+                x_std.view(x.shape[0], x.shape[1]).unsqueeze(2))
     else:
         return x
 
@@ -199,7 +204,7 @@ class FilterbankFeatures(nn.Module):
         # Calculate maximum sequence length
         max_length = self.get_seq_len(
             torch.tensor(max_duration * sample_rate, dtype=torch.float))
-        max_pad = pad_to - (max_length % pad_to)
+        max_pad = pad_to - (max_length % pad_to) if pad_to > 0 else 0
         self.max_length = max_length + max_pad
         self.pad_value = pad_value
         self.mag_power = mag_power

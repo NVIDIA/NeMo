@@ -11,6 +11,7 @@ from inspect import getargvalues, stack
 import logging
 from typing import Optional, Dict, Set, Tuple, List
 import uuid
+import collections
 
 from nemo.core import NeuralModuleFactory
 
@@ -213,7 +214,19 @@ class NeuralModule(ABC):
                         ntype=out_type,
                     )
                 )
-            return tuple(result)
+
+            # Creating ad-hoc class for returning from module's forward pass.
+            output_class_name = f'{self.__class__.__name__}Output'
+            field_names = list(output_port_defs)
+            result_type = collections.namedtuple(
+                typename=output_class_name,
+                field_names=field_names,
+            )
+
+            # Tie tuple of output tensors with corresponding names.
+            result = result_type(*result)
+
+            return result
 
     def __str__(self):
         return self.__class__.__name__
