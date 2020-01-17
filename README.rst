@@ -18,7 +18,6 @@
   :target: https://lgtm.com/projects/g/NVIDIA/NeMo/context:python
   :alt: Language grade: Python
 
-
 .. image:: https://img.shields.io/lgtm/alerts/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
   :target: https://lgtm.com/projects/g/NVIDIA/NeMo/alerts/
   :alt: Total alerts
