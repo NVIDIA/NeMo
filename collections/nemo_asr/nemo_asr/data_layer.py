@@ -49,8 +49,8 @@ transcript_n}
         int_values (bool): Bool indicating whether the audio file is saved as
             int data or float data.
             Defaults to False.
-        eos_id (str): Dataset parameter.
-            End of string symbol used for seq2seq models.
+        eos_id (id): Dataset parameter.
+            End of string symbol id used for seq2seq models.
             Defaults to None.
         min_duration (float): Dataset parameter.
             All training files which have a duration less than min_duration
