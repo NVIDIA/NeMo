@@ -1,6 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import torch
-
 import nemo
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core import DeviceType
@@ -58,24 +57,25 @@ class AudioDataLayer(DataLayerNM):
             0: AxisType(BatchTag)
         """
         return {
-            "audio_signal": NeuralType({0: AxisType(BatchTag),
-                                        1: AxisType(TimeTag)}),
-
+            "audio_signal": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag)}
+            ),
             "a_sig_length": NeuralType({0: AxisType(BatchTag)}),
         }
 
     def __init__(
-            self, *,
-            manifest_filepath,
-            batch_size,
-            min_duration=0.1,
-            max_duration=None,
-            trim_silence=False,
-            drop_last=False,
-            shuffle=True,
-            num_workers=0,
-            n_segments=0,
-            **kwargs
+        self,
+        *,
+        manifest_filepath,
+        batch_size,
+        min_duration=0.1,
+        max_duration=None,
+        trim_silence=False,
+        drop_last=False,
+        shuffle=True,
+        num_workers=0,
+        n_segments=0,
+        **kwargs
     ):
         DataLayerNM.__init__(self, **kwargs)
 
@@ -91,7 +91,8 @@ class AudioDataLayer(DataLayerNM):
         if self._placement == DeviceType.AllGpu:
             nemo.logging.info('Parallelizing DATALAYER')
             sampler = torch.utils.data.distributed.DistributedSampler(
-                self._dataset)
+                self._dataset
+            )
 
         self._dataloader = torch.utils.data.DataLoader(
             dataset=self._dataset,
@@ -100,7 +101,7 @@ class AudioDataLayer(DataLayerNM):
             drop_last=drop_last,
             shuffle=shuffle if sampler is None else False,
             sampler=sampler,
-            num_workers=num_workers
+            num_workers=num_workers,
         )
 
     def __len__(self):
