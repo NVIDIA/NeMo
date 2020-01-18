@@ -27,12 +27,7 @@ import math
 import warnings
 
 import torch
-try:
-    import torchaudio
-    HAVE_TORCHAUDIO = True
-except ModuleNotFoundError:
-    HAVE_TORCHAUDIO = False
-    warnings.warn('Could not import torchaudio. Some features might not work.')
+import torchaudio
 try:
     from apex import amp
 except (AttributeError, ModuleNotFoundError) as e:
@@ -173,11 +168,6 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             normalized=True,
             **kwargs
     ):
-        if not HAVE_TORCHAUDIO:
-            raise ModuleNotFoundError(
-                "torchaudio is not installed but is necessary for "
-                "AudioToSpectrogramPreprocessor. We recommend you try "
-                "building it from source for the PyTorch version you have.")
         if window_size and n_window_size:
             raise ValueError(f"{self} received both window_size and "
                              f"n_window_size. Only one should be specified.")
@@ -499,11 +489,6 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
             norm='ortho',
             log=True,
             **kwargs):
-        if not HAVE_TORCHAUDIO:
-            raise ModuleNotFoundError(
-                "torchaudio is not installed but is necessary for "
-                "AudioToMFCCPreprocessor. We recommend you try "
-                "building it from source for the PyTorch version you have.")
         if window_size and n_window_size:
             raise ValueError(f"{self} received both window_size and "
                              f"n_window_size. Only one should be specified.")

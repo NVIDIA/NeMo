@@ -1,6 +1,7 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import os
 import tarfile
+import torchaudio
 import unittest
 import shutil
 
@@ -257,17 +258,6 @@ class TestASRPytorch(NeMoUnitTest):
             drop_last=True,
             shuffle=False
         )
-
-        installed_torchaudio = True
-        try:
-            import torchaudio
-        except ModuleNotFoundError:
-            installed_torchaudio = False
-            with self.assertRaises(ModuleNotFoundError):
-                to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(
-                    n_fft=400, window=None)
-            with self.assertRaises(ModuleNotFoundError):
-                to_mfcc = nemo_asr.AudioToMFCCPreprocessor(n_mfcc=15)
 
         if installed_torchaudio:
             to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(
