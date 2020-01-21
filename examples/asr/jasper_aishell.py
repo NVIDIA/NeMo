@@ -139,7 +139,7 @@ def create_all_dags(args, neural_factory):
 
             data_layers_eval.append(data_layer_eval)
     else:
-        nemo.logging.info("There were no val datasets passed")
+        nemo.logging.warning("There were no val datasets passed")
 
     jasper_encoder = nemo_asr.JasperEncoder(
         feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"],
