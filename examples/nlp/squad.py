@@ -198,7 +198,7 @@ def create_pipeline(
 
     hidden_states = model(
                         input_ids=input_data.input_ids,
-                        token_type_ids=input_data.token_type_ids,
+                        token_type_ids=input_data.input_type_ids,
                         attention_mask=input_data.input_mask)
 
     qa_output = head(hidden_states=hidden_states)
