@@ -586,8 +586,8 @@ def process_snips(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     return outfold
 
 
-def list2str(nums):
-    return ' '.join([str(num) for num in nums])
+# def list2str(nums):
+#     return ' '.join([str(num) for num in nums])
 
 
 def merge(data_dir, subdirs, dataset_name, modes=['train', 'test']):
@@ -688,12 +688,12 @@ def get_intents_slots_dialogflow(files, slot_labels):
                 for segment in query['data']:
                     query_text = ''.join([query_text, segment['text']])
                     if 'alias' in segment:
-                        for word in segment['text'].split():
+                        for _ in segment['text'].split():
                             slots = ' '.join([
-                                    slots,
-                                    slot_labels.get(segment['alias'])])
+                                slots,
+                                slot_labels.get(segment['alias'])])
                     else:
-                        for word in segment['text'].split():
+                        for _ in segment['text'].split():
                             slots = ' '.join([slots, slot_labels.get('O')])
                 query_text = f'{query_text.strip()}\t{index}\n'
                 intent_queries.append(query_text)
@@ -873,7 +873,7 @@ def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names,
                 annotated_entities = an[task_name]['annotations']['entities']
                 tags = annotated_entities[entities.get(i)]
                 untagged_words = utterance[lastptr:tags['startOffset']]
-                for word in untagged_words.split():
+                for _ in untagged_words.split():
                     slotlist.append(all_labels.get('O'))
                 anno_words = utterance[tags['startOffset']:tags['endOffset']]
                 # tagging with the IOB format.
@@ -887,7 +887,7 @@ def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names,
                 lastptr = tags['endOffset']
 
             untagged_words = utterance[lastptr:len(utterance)]
-            for word in untagged_words.split():
+            for _ in untagged_words.split():
                 slotlist.append(all_labels.get('O'))
 
             slotstr = ' '.join(slotlist)
@@ -983,11 +983,11 @@ def process_mturk(
 
 
 # The following works for the DialogFlow and Mturk output format
-def write_files(data, outfile):
-    with open(f'{outfile}', 'w') as f:
-        for item in data:
-            item = f'{item.strip()}\n'
-            f.write(item)
+# def write_files(data, outfile):
+#     with open(f'{outfile}', 'w') as f:
+#         for item in data:
+#             item = f'{item.strip()}\n'
+#             f.write(item)
 
 
 def calc_class_weights(label_freq):
@@ -1274,7 +1274,7 @@ def create_vocab_lm(data_dir, do_lower_case):
 def download_wkt2(data_dir):
     os.makedirs('data/lm', exist_ok=True)
     nemo.logging.warning(f'Data not found at {data_dir}. '
-                         f'Download {dataset_name} to data/lm')
+                         f'Downloading wikitext-2 to data/lm')
     data_dir = 'data/lm/wikitext-2'
     subprocess.call('scripts/get_wkt2.sh')
     return data_dir
@@ -1428,8 +1428,8 @@ class DataProcessor(object):
             reader = csv.reader(f, delimiter="\t", quotechar=quotechar)
             lines = []
             for line in reader:
-                if sys.version_info[0] == 2:
-                    line = list(unicode(cell, 'utf-8') for cell in line)
+                # if sys.version_info[0] == 2:
+                #     line = list(unicode(cell, 'utf-8') for cell in line)
                 lines.append(line)
             return lines
 
