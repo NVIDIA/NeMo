@@ -5,8 +5,15 @@ import time
 from shutil import copyfile
 import subprocess
 import sys
+import warnings
 
-loggers = {}
+import nemo
+
+
+def get_logger(unused):
+    warnings.warn("This function will be deprecated in the future. You "
+                  "can just use nemo.logging instead")
+    return nemo.logging
 
 
 class ContextFilter(logging.Filter):
@@ -29,18 +36,6 @@ class ContextFilter(logging.Filter):
     def filter(self, record):
         record.local_rank = self.local_rank
         return True
-
-
-def get_logger(name):
-    """ A wrapper function around logging.getLogger
-    to ensure that we don't create duplicate loggers
-    """
-    global loggers
-
-    if name not in loggers:
-        loggers[name] = logging.getLogger(name)
-
-    return loggers[name]
 
 
 class ExpManager:
@@ -159,8 +154,8 @@ class ExpManager:
         if self.ckpt_dir:
             self.make_dir(self.ckpt_dir, exist_ok)
 
-    def create_logger(self, name='', level=logging.INFO, log_file=True):
-        logger = get_logger(name)
+    def create_logger(self, level=logging.INFO, log_file=True):
+        logger = nemo.logging
         tmp = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
         if self.global_rank == 0:
@@ -199,20 +194,20 @@ class ExpManager:
                 self.tb_writer = SummaryWriter(self.tb_dir)
             except ImportError:
                 self.tb_writer = None
-                if self.logger is not None:
-                    self.logger.info('Not using TensorBoard.')
-                    self.logger.info('Install tensorboardX to use TensorBoard')
+                nemo.logging.info('Not using TensorBoard.')
+                nemo.logging.info('Install tensorboardX to use TensorBoard')
         return self.tb_writer
 
     def log_exp_info(self, params, print_everywhere=False):
         if print_everywhere or self.global_rank == 0:
-            self.logger.info("NEMO MODEL'S PARAMETERS")
+            nemo.logging.info("NEMO MODEL'S PARAMETERS")
             for key in params:
-                self.logger.info(f'{key}\t{params[key]}')
-            self.logger.info(f'Experiment output is stored in {self.work_dir}')
+                nemo.logging.info(f'{key}\t{params[key]}')
+            nemo.logging.info(
+                f'Experiment output is stored in {self.work_dir}')
 
     def reset_loggers(self):
-        self.logger.handlers = []
+        nemo.logging.handlers = []
 
 
 def get_git_hash():

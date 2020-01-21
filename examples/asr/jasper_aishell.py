@@ -76,7 +76,6 @@ def load_vocab(vocab_file):
 
 
 def create_all_dags(args, neural_factory):
-    logger = neural_factory.logger
     yaml = YAML(typ="safe")
     with open(args.model_config) as f:
         jasper_params = yaml.load(f)
@@ -105,7 +104,7 @@ def create_all_dags(args, neural_factory):
 
     N = len(data_layer)
     steps_per_epoch = int(N / (args.batch_size * args.num_gpus))
-    logger.info('Have {0} examples to train on.'.format(N))
+    nemo.logging.info('Have {0} examples to train on.'.format(N))
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         sample_rate=sample_rate,
@@ -140,7 +139,7 @@ def create_all_dags(args, neural_factory):
 
             data_layers_eval.append(data_layer_eval)
     else:
-        neural_factory.logger.info("There were no val datasets passed")
+        nemo.logging.warning("There were no val datasets passed")
 
     jasper_encoder = nemo_asr.JasperEncoder(
         feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"],
@@ -156,15 +155,15 @@ def create_all_dags(args, neural_factory):
 
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
-    logger.info('================================')
-    logger.info(
+    nemo.logging.info('================================')
+    nemo.logging.info(
         f"Number of parameters in encoder: {jasper_encoder.num_weights}")
-    logger.info(
+    nemo.logging.info(
         f"Number of parameters in decoder: {jasper_decoder.num_weights}")
-    logger.info(
+    nemo.logging.info(
         f"Total number of parameters in model: "
         f"{jasper_decoder.num_weights + jasper_encoder.num_weights}")
-    logger.info('================================')
+    nemo.logging.info('================================')
 
     # Train DAG
     audio_signal_t, a_sig_length_t, \
@@ -201,8 +200,7 @@ def create_all_dags(args, neural_factory):
         print_func=partial(
             monitor_asr_train_progress,
             labels=vocab,
-            eval_metric='CER',
-            logger=logger),
+            eval_metric='CER'),
         step_freq=args.train_eval_freq,
         get_tb_values=lambda x: [("loss", x[0])],
         tb_writer=neural_factory.tb_writer,
@@ -243,8 +241,7 @@ def create_all_dags(args, neural_factory):
             user_epochs_done_callback=partial(
                 process_evaluation_epoch,
                 eval_metric='CER',
-                tag=tagname,
-                logger=logger),
+                tag=tagname),
             eval_step=args.eval_freq,
             tb_writer=neural_factory.tb_writer)
 
@@ -279,10 +276,9 @@ def main():
         tensorboard_dir=args.tensorboard_dir)
     args.num_gpus = neural_factory.world_size
 
-    logger = neural_factory.logger
     checkpoint_dir = neural_factory.checkpoint_dir
     if args.local_rank is not None:
-        logger.info('Doing ALL GPU')
+        nemo.logging.info('Doing ALL GPU')
 
     # build dags
     train_loss, callbacks, steps_per_epoch = \

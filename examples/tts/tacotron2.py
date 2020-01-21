@@ -72,7 +72,7 @@ def parse_args():
     return args, "".join(exp_directory)
 
 
-def create_NMs(tacotron2_params, logger=None, decoder_infer=False):
+def create_NMs(tacotron2_params, decoder_infer=False):
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         **tacotron2_params["AudioToMelSpectrogramPreprocessor"])
     text_embedding = nemo_tts.TextEmbedding(
@@ -90,13 +90,12 @@ def create_NMs(tacotron2_params, logger=None, decoder_infer=False):
     t2_loss = nemo_tts.Tacotron2Loss(**tacotron2_params["Tacotron2Loss"])
     makegatetarget = nemo_tts.MakeGate()
 
-    if logger:
-        total_weights = (text_embedding.num_weights + t2_enc.num_weights
-                         + t2_dec.num_weights + t2_postnet.num_weights)
+    total_weights = (text_embedding.num_weights + t2_enc.num_weights
+                     + t2_dec.num_weights + t2_postnet.num_weights)
 
-        logger.info('================================')
-        logger.info(f"Total number of parameters: {total_weights}")
-        logger.info('================================')
+    nemo.logging.info('================================')
+    nemo.logging.info(f"Total number of parameters: {total_weights}")
+    nemo.logging.info('================================')
     return (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet,
             t2_loss, makegatetarget)
 
@@ -130,7 +129,7 @@ def create_train_dag(neural_factory,
 
     N = len(data_layer)
     steps_per_epoch = math.ceil(N / (batch_size * neural_factory.world_size))
-    neural_factory.logger.info(f'Have {N} examples to train on.')
+    nemo.logging.info(f'Have {N} examples to train on.')
 
     # Train DAG
     audio, audio_len, transcript, transcript_len = data_layer()
@@ -162,7 +161,7 @@ def create_train_dag(neural_factory,
     train_callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[loss_t, spec_target, mel_postnet, gate, gate_target,
                  alignments],
-        print_func=lambda x: neural_factory.logger.info(f"Loss: {x[0].data}"),
+        print_func=lambda x: nemo.logging.info(f"Loss: {x[0].data}"),
         log_to_tb_func=partial(
             tacotron2_log_to_tb_func, log_images=True,
             log_images_freq=log_freq),
@@ -241,8 +240,7 @@ def create_eval_dags(neural_factory,
             user_iter_callback=tacotron2_process_eval_batch,
             user_epochs_done_callback=partial(
                 tacotron2_process_final_eval,
-                tag=tagname,
-                logger=neural_factory.logger),
+                tag=tagname),
             tb_writer_func=partial(
                 tacotron2_eval_log_to_tb_func,
                 tag=tagname),
@@ -286,7 +284,7 @@ def create_all_dags(neural_factory,
             eval_freq=eval_freq,
             cpu_per_dl=cpu_per_dl)
     else:
-        neural_factory.logger.info("There were no val datasets passed")
+        nemo.logging.info("There were no val datasets passed")
 
     callbacks = training_callbacks + eval_callbacks
     return training_loss, callbacks, steps_per_epoch
@@ -312,13 +310,13 @@ def main():
         tensorboard_dir=args.tensorboard_dir)
 
     if args.local_rank is not None:
-        neural_factory.logger.info('Doing ALL GPU')
+        nemo.logging.info('Doing ALL GPU')
 
     yaml = YAML(typ="safe")
     with open(args.model_config) as file:
         tacotron2_params = yaml.load(file)
     # instantiate neural modules
-    neural_modules = create_NMs(tacotron2_params, neural_factory.logger)
+    neural_modules = create_NMs(tacotron2_params)
 
     # build dags
     train_loss, callbacks, steps_per_epoch = create_all_dags(

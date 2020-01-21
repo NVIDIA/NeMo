@@ -24,15 +24,11 @@ import os
 import pickle
 import random
 
+import nemo
 import numpy as np
 from torch.utils.data import Dataset
 
-from nemo.utils.exp_logging import get_logger
-
 from . import utils
-
-
-logger = get_logger('')
 
 
 def get_features(queries,
@@ -128,7 +124,7 @@ def get_features(queries,
             capit_all_labels.append(capit_labels)
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
-    logger.info(f'Max length: {max_seq_length}')
+    nemo.logging.info(f'Max length: {max_seq_length}')
     utils.get_stats(sent_lengths)
     too_long_count = 0
 
@@ -164,25 +160,25 @@ def get_features(queries,
 
         all_segment_ids.append([0] * max_seq_length)
 
-    logger.info(f'{too_long_count} are longer than {max_seq_length}')
+    nemo.logging.info(f'{too_long_count} are longer than {max_seq_length}')
 
     for i in range(min(len(all_input_ids), 5)):
-        logger.info("*** Example ***")
-        logger.info("i: %s" % (i))
-        logger.info(
+        nemo.logging.info("*** Example ***")
+        nemo.logging.info("i: %s" % (i))
+        nemo.logging.info(
             "subtokens: %s" % " ".join(list(map(str, all_subtokens[i]))))
-        logger.info(
+        nemo.logging.info(
             "loss_mask: %s" % " ".join(list(map(str, all_loss_mask[i]))))
-        logger.info(
+        nemo.logging.info(
             "input_mask: %s" % " ".join(list(map(str, all_input_mask[i]))))
-        logger.info(
+        nemo.logging.info(
             "subtokens_mask: %s" % " ".join(list(map(
                 str, all_subtokens_mask[i]))))
         if with_label:
-            logger.info("punct_labels: %s" %
-                        " ".join(list(map(str, punct_all_labels[i]))))
-            logger.info("capit_labels: %s" %
-                        " ".join(list(map(str, capit_all_labels[i]))))
+            nemo.logging.info("punct_labels: %s" %
+                              " ".join(list(map(str, punct_all_labels[i]))))
+            nemo.logging.info("capit_labels: %s" %
+                              " ".join(list(map(str, capit_all_labels[i]))))
 
     return (all_input_ids,
             all_segment_ids,
@@ -258,7 +254,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         if use_cache and os.path.exists(features_pkl):
             # If text_file was already processed, load from pickle
             features = pickle.load(open(features_pkl, 'rb'))
-            logger.info(f'features restored from {features_pkl}')
+            nemo.logging.info(f'features restored from {features_pkl}')
         else:
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
@@ -304,19 +300,22 @@ class BertPunctuationCapitalizationDataset(Dataset):
             # for dev/test sets use label mapping from training set
             if punct_label_ids:
                 if len(punct_label_ids) != len(punct_unique_labels):
-                    logger.info(f'Not all labels from the specified' +
-                                'label_ids dictionary are present in the' +
-                                'current dataset. Using the provided' +
-                                'label_ids dictionary.')
+                    nemo.logging.info(
+                        'Not all labels from the specified' +
+                        'label_ids dictionary are present in the' +
+                        'current dataset. Using the provided' +
+                        'label_ids dictionary.')
                 else:
-                    logger.info(f'Using the provided label_ids dictionary.')
+                    nemo.logging.info(
+                        'Using the provided label_ids dictionary.')
             else:
-                logger.info(f'Creating a new label to label_id dictionary.' +
-                            ' It\'s recommended to use label_ids generated' +
-                            ' during training for dev/test sets to avoid' +
-                            ' errors if some labels are not' +
-                            ' present in the dev/test sets.' +
-                            ' For training set label_ids should be None.')
+                nemo.logging.info(
+                    'Creating a new label to label_id dictionary.' +
+                    ' It\'s recommended to use label_ids generated' +
+                    ' during training for dev/test sets to avoid' +
+                    ' errors if some labels are not' +
+                    ' present in the dev/test sets.' +
+                    ' For training set label_ids should be None.')
 
                 def create_label_ids(unique_labels, pad_label=pad_label):
                     label_ids = {pad_label: 0}
@@ -342,7 +341,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
             if use_cache:
                 pickle.dump(features, open(features_pkl, "wb"))
-                logger.info(f'features saved to {features_pkl}')
+                nemo.logging.info(f'features saved to {features_pkl}')
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
@@ -358,7 +357,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         def get_stats_and_save(all_labels, label_ids, name):
             infold = text_file[:text_file.rfind('/')]
             merged_labels = itertools.chain.from_iterable(all_labels)
-            logger.info('Three most popular labels')
+            nemo.logging.info('Three most popular labels')
             _, label_frequencies = \
                 utils.get_label_stats(merged_labels,
                                       infold + '/label_count_' + name + '.tsv')
@@ -366,8 +365,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
             out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
             labels, _ = zip(*sorted(label_ids.items(),  key=lambda x: x[1]))
             out.write('\n'.join(labels))
-            logger.info(f'Labels: {label_ids}')
-            logger.info(f'Labels mapping saved to : {out.name}')
+            nemo.logging.info(f'Labels: {label_ids}')
+            nemo.logging.info(f'Labels mapping saved to : {out.name}')
 
             return label_frequencies
 

@@ -11,18 +11,17 @@ import shutil
 import subprocess
 import sys
 
+import nemo
 import numpy as np
 from sentencepiece import SentencePieceTrainer as SPT
 from tqdm import tqdm
 
-from nemo.utils.exp_logging import get_logger
 from ...utils.nlp_utils import (get_vocab,
                                 write_vocab,
                                 write_vocab_in_order,
                                 label2idx)
 
 
-logger = get_logger('')
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
 MODE_EXISTS_TMP = \
     '{} mode of {} dataset has already been processed and stored at {}'
@@ -30,12 +29,12 @@ MODE_EXISTS_TMP = \
 
 def get_stats(lengths):
     lengths = np.asarray(lengths)
-    logger.info(f'Min: {np.min(lengths)} | \
+    nemo.logging.info(f'Min: {np.min(lengths)} | \
                  Max: {np.max(lengths)} | \
                  Mean: {np.mean(lengths)} | \
                  Median: {np.median(lengths)}')
-    logger.info(f'75 percentile: {np.percentile(lengths, 75)}')
-    logger.info(f'99 percentile: {np.percentile(lengths, 99)}')
+    nemo.logging.info(f'75 percentile: {np.percentile(lengths, 75)}')
+    nemo.logging.info(f'99 percentile: {np.percentile(lengths, 99)}')
 
 
 def get_label_stats(labels, outfile='stats.tsv'):
@@ -47,7 +46,7 @@ def get_label_stats(labels, outfile='stats.tsv'):
     for k, v in label_frequencies:
         out.write(f'{k}\t{v/total}\n')
         if i < 3:
-            logger.info(f'{i} item: {k}, {v} out of {total}, {v/total}.')
+            nemo.logging.info(f'{i} item: {k}, {v} out of {total}, {v/total}.')
         i += 1
     return total, label_frequencies
 
@@ -74,7 +73,8 @@ def process_sst_2(data_dir):
         link = 'https://gluebenchmark.com/tasks'
         raise ValueError(f'Data not found at {data_dir}. '
                          f'Please download SST-2 from {link}.')
-    logger.info('Keep in mind that SST-2 is only available in lower case.')
+    nemo.logging.info(
+        'Keep in mind that SST-2 is only available in lower case.')
     return data_dir
 
 
@@ -90,9 +90,9 @@ def process_imdb(data_dir, uncased, modes=['train', 'test']):
         outfold = f'{outfold}_uncased'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logger.info(DATABASE_EXISTS_TMP.format('IMDB', outfold))
+        nemo.logging.info(DATABASE_EXISTS_TMP.format('IMDB', outfold))
         return outfold
-    logger.info(f'Processing IMDB dataset and store at {outfold}')
+    nemo.logging.info(f'Processing IMDB dataset and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -131,9 +131,9 @@ def process_thucnews(data_dir):
     outfold = f'{data_dir}/nemo-processed-thucnews'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logger.info(DATABASE_EXISTS_TMP.format('THUCNews', outfold))
+        nemo.logging.info(DATABASE_EXISTS_TMP.format('THUCNews', outfold))
         return outfold
-    logger.info(f'Processing THUCNews dataset and store at {outfold}')
+    nemo.logging.info(f'Processing THUCNews dataset and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -152,7 +152,8 @@ def process_thucnews(data_dir):
         test_files = category_files[:test_num]
         train_files = category_files[test_num:]
         for mode in modes:
-            logger.info(f'Processing {mode} data of the category {category}')
+            nemo.logging.info(
+                f'Processing {mode} data of the category {category}')
             if mode == 'test':
                 files = test_files
             else:
@@ -210,9 +211,10 @@ def process_nlu(filename,
         outfold = f'{outfold}_uncased'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logger.info(DATABASE_EXISTS_TMP.format(dataset_name.upper(), outfold))
+        nemo.logging.info(
+            DATABASE_EXISTS_TMP.format(dataset_name.upper(), outfold))
         return outfold
-    logger.info(f'Processing data and store at {outfold}')
+    nemo.logging.info(f'Processing data and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -274,9 +276,9 @@ def process_atis(infold, uncased, modes=['train', 'test'], dev_split=0):
         outfold = f'{outfold}-uncased'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logger.info(DATABASE_EXISTS_TMP.format('ATIS', outfold))
+        nemo.logging.info(DATABASE_EXISTS_TMP.format('ATIS', outfold))
         return outfold
-    logger.info(f'Processing ATIS dataset and store at {outfold}')
+    nemo.logging.info(f'Processing ATIS dataset and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -319,10 +321,11 @@ def process_jarvis_datasets(infold, uncased, dataset_name,
         outfold = f'{outfold}-uncased'
 
     if if_exist(outfold, ['dict.intents.csv', 'dict.slots.csv']):
-        logger.info(DATABASE_EXISTS_TMP.format(dataset_name, outfold))
+        nemo.logging.info(DATABASE_EXISTS_TMP.format(dataset_name, outfold))
         return outfold
 
-    logger.info(f'Processing {dataset_name} dataset and store at {outfold}')
+    nemo.logging.info(
+        f'Processing {dataset_name} dataset and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -340,13 +343,13 @@ def process_jarvis_datasets(infold, uncased, dataset_name,
 
     for mode in modes:
         if if_exist(outfold, [f'{mode}.tsv']):
-            logger.info(
+            nemo.logging.info(
                 MODE_EXISTS_TMP.format(mode, dataset_name, outfold, mode))
             continue
 
         if not if_exist(infold, [f'{mode}.tsv']):
-            logger.info(f'{mode} mode of {dataset_name}'
-                        f' is skipped as it was not found.')
+            nemo.logging.info(f'{mode} mode of {dataset_name}'
+                              f' is skipped as it was not found.')
             continue
 
         outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
@@ -549,14 +552,14 @@ def process_snips(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     exist = True
     for dataset in ['light', 'speak', 'all']:
         if if_exist(f'{outfold}/{dataset}', [f'{mode}.tsv' for mode in modes]):
-            logger.info(DATABASE_EXISTS_TMP.format(
+            nemo.logging.info(DATABASE_EXISTS_TMP.format(
                 'SNIPS-' + dataset.upper(), outfold))
         else:
             exist = False
     if exist:
         return outfold
 
-    logger.info(f'Processing SNIPS dataset and store at {outfold}')
+    nemo.logging.info(f'Processing SNIPS dataset and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -590,7 +593,7 @@ def list2str(nums):
 def merge(data_dir, subdirs, dataset_name, modes=['train', 'test']):
     outfold = f'{data_dir}/{dataset_name}'
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logger.info(DATABASE_EXISTS_TMP.format('SNIPS-ATIS', outfold))
+        nemo.logging.info(DATABASE_EXISTS_TMP.format('SNIPS-ATIS', outfold))
         slots = get_vocab(f'{outfold}/dict.slots.csv')
         none_slot = 0
         for key in slots:
@@ -916,10 +919,11 @@ def process_mturk(
     outfold = f'{data_dir}/nemo-processed'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logger.info(DATABASE_EXISTS_TMP.format('mturk', outfold))
+        nemo.logging.info(DATABASE_EXISTS_TMP.format('mturk', outfold))
         return outfold
 
-    logger.info(f'Processing dataset from mturk and storing at {outfold}')
+    nemo.logging.info(
+        f'Processing dataset from mturk and storing at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -1094,8 +1098,8 @@ class JointIntentSlotDataDesc:
         for mode in ['train', 'test', 'eval']:
 
             if not if_exist(self.data_dir, [f'{mode}.tsv']):
-                logger.info(f' Stats calculation for {mode} mode'
-                            f' is skipped as {mode}.tsv was not found.')
+                nemo.logging.info(f' Stats calculation for {mode} mode'
+                                  f' is skipped as {mode}.tsv was not found.')
                 continue
 
             slot_file = f'{self.data_dir}/{mode}_slots.tsv'
@@ -1124,27 +1128,28 @@ class JointIntentSlotDataDesc:
 
             infold = input_file[:input_file.rfind('/')]
 
-            logger.info(f'Three most popular intents during {mode}ing')
+            nemo.logging.info(f'Three most popular intents during {mode}ing')
             total_intents, intent_label_freq = get_label_stats(
                 raw_intents, infold + f'/{mode}_intent_stats.tsv')
             merged_slots = itertools.chain.from_iterable(raw_slots)
 
-            logger.info(f'Three most popular slots during {mode}ing')
+            nemo.logging.info(f'Three most popular slots during {mode}ing')
             slots_total, slots_label_freq = get_label_stats(
                 merged_slots, infold + f'/{mode}_slot_stats.tsv')
 
             if mode == 'train':
 
                 self.slot_weights = calc_class_weights(slots_label_freq)
-                logger.info(f'Slot weights are - {self.slot_weights}')
+                nemo.logging.info(f'Slot weights are - {self.slot_weights}')
 
                 self.intent_weights = calc_class_weights(intent_label_freq)
-                logger.info(f'Intent weights are - {self.intent_weights}')
+                nemo.logging.info(
+                    f'Intent weights are - {self.intent_weights}')
 
-            logger.info(f'Total intents - {total_intents}')
-            logger.info(f'Intent label frequency - {intent_label_freq}')
-            logger.info(f'Total Slots - {slots_total}')
-            logger.info(f'Slots label frequency - {slots_label_freq}')
+            nemo.logging.info(f'Total intents - {total_intents}')
+            nemo.logging.info(f'Intent label frequency - {intent_label_freq}')
+            nemo.logging.info(f'Total Slots - {slots_total}')
+            nemo.logging.info(f'Slots label frequency - {slots_label_freq}')
 
         if pad_label != -1:
             self.pad_label = pad_label
@@ -1204,8 +1209,8 @@ class SentenceClassificationDataDesc:
         for mode in ['train', 'test', 'eval']:
 
             if not if_exist(self.data_dir, [f'{mode}.tsv']):
-                logger.info(f' Stats calculation for {mode} mode'
-                            f' is skipped as {mode}.tsv was not found.')
+                nemo.logging.info(f' Stats calculation for {mode} mode'
+                                  f' is skipped as {mode}.tsv was not found.')
                 continue
 
             input_file = f'{self.data_dir}/{mode}.tsv'
@@ -1220,27 +1225,28 @@ class SentenceClassificationDataDesc:
 
             infold = input_file[:input_file.rfind('/')]
 
-            logger.info(f'Three most popular classes during {mode}ing')
+            nemo.logging.info(f'Three most popular classes during {mode}ing')
             total_sents, sent_label_freq = get_label_stats(
                 raw_sentences, infold + f'/{mode}_sentence_stats.tsv')
 
             if mode == 'train':
 
                 self.class_weights = calc_class_weights(sent_label_freq)
-                logger.info(f'Class weights are - {self.class_weights}')
+                nemo.logging.info(f'Class weights are - {self.class_weights}')
 
-            logger.info(f'Total Sentences - {total_sents}')
-            logger.info(f'Sentence class frequencies - {sent_label_freq}')
+            nemo.logging.info(f'Total Sentences - {total_sents}')
+            nemo.logging.info(
+                f'Sentence class frequencies - {sent_label_freq}')
 
 
 def create_vocab_lm(data_dir, do_lower_case):
     if if_exist(data_dir, ['train.txt', 'vocab.txt']):
-        logger.info("Vocabulary has been created.")
+        nemo.logging.info("Vocabulary has been created.")
         with open(os.path.join(data_dir, 'vocab.txt'), 'r') as f:
             vocab_size = len(f.readlines())
         return vocab_size
 
-    logger.info(f'Creating vocabulary from training data at {data_dir}')
+    nemo.logging.info(f'Creating vocabulary from training data at {data_dir}')
 
     with open(f'{data_dir}/train.txt', 'r') as f:
         txt = f.read()
@@ -1260,15 +1266,15 @@ def create_vocab_lm(data_dir, do_lower_case):
     with open(f'{data_dir}/vocab.txt', 'w') as f:
         for word in sorted(vocab.keys()):
             f.write(word + '\n')
-    logger.info(f"Created vocabulary of size {len(vocab)}")
+    nemo.logging.info(f"Created vocabulary of size {len(vocab)}")
 
     return len(vocab)
 
 
 def download_wkt2(data_dir):
     os.makedirs('data/lm', exist_ok=True)
-    logger.warning(f'Data not found at {data_dir}. '
-                   f'Download {dataset_name} to data/lm')
+    nemo.logging.warning(f'Data not found at {data_dir}. '
+                         f'Download {dataset_name} to data/lm')
     data_dir = 'data/lm/wikitext-2'
     subprocess.call('scripts/get_wkt2.sh')
     return data_dir
@@ -1282,9 +1288,10 @@ class LanguageModelDataDesc:
             self.vocab_size = create_vocab_lm(data_dir, do_lower_case)
             self.data_dir = data_dir
         else:
-            logger.info("Looks like you passed a dataset name that isn't "
-                        "already supported by NeMo. Please make sure that "
-                        "you build the preprocessing method for it.")
+            nemo.logging.warning(
+                "Looks like you passed a dataset name that isn't "
+                "already supported by NeMo. Please make sure that "
+                "you build the preprocessing method for it.")
 
 
 def create_vocab_mlm(data_dir,
@@ -1296,15 +1303,16 @@ def create_vocab_mlm(data_dir,
     vocab = special_tokens[:]
     bert_dir = f'{data_dir}/bert'
     if if_exist(bert_dir, ['tokenizer.model']):
-        logger.info(DATABASE_EXISTS_TMP.format('WikiText_BERT', bert_dir))
+        nemo.logging.info(
+            DATABASE_EXISTS_TMP.format('WikiText_BERT', bert_dir))
         return data_dir, f'{bert_dir}/tokenizer.model'
-    logger.info(f'Processing WikiText dataset and store at {bert_dir}')
+    nemo.logging.info(f'Processing WikiText dataset and store at {bert_dir}')
     os.makedirs(bert_dir, exist_ok=True)
 
     if not train_file:
         files = glob.glob(f'{data_dir}/*.txt')
         train_file = f'{bert_dir}/merged.txt'
-        logger.info(f"Merging {len(files)} txt files into {train_file}")
+        nemo.logging.info(f"Merging {len(files)} txt files into {train_file}")
 
         with open(train_file, "w") as merged:
             for file in tqdm(files):
@@ -1360,9 +1368,10 @@ class BERTPretrainingDataDesc:
                 special_tokens,
                 train_file)
         else:
-            logger.info("Looks like you passed a dataset name that isn't "
-                        "already supported by NeMo. Please make sure that "
-                        "you build the preprocessing method for it.")
+            nemo.logging.warning(
+                "Looks like you passed a dataset name that isn't "
+                "already supported by NeMo. Please make sure that "
+                "you build the preprocessing method for it.")
 
         self.train_file = f'{data_dir}/train.txt'
         self.eval_file = f'{data_dir}/valid.txt'
@@ -1430,7 +1439,7 @@ class MrpcProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        logger.info(f'LOOKING AT {os.path.join(data_dir, "train.tsv")}')
+        nemo.logging.info(f'LOOKING AT {os.path.join(data_dir, "train.tsv")}')
         return self._create_examples(
             self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 

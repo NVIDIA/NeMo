@@ -1,6 +1,7 @@
 # Copyright (c) 2019 NVIDIA Corporation
 
 import torch
+import nemo
 
 from .metrics import word_error_rate
 
@@ -31,8 +32,7 @@ def __ctc_decoder_predictions_tensor(tensor, labels):
 def monitor_asr_train_progress(tensors: list,
                                labels: list,
                                eval_metric='WER',
-                               tb_logger=None,
-                               logger=None):
+                               tb_logger=None):
     """
     Takes output of greedy ctc decoder and performs ctc decoding algorithm to
     remove duplicates and special symbol. Prints sample to screen, computes
@@ -42,7 +42,6 @@ def monitor_asr_train_progress(tensors: list,
       labels: A list of labels
       eval_metric: An optional string from 'WER', 'CER'. Defaults to 'WER'.
       tb_logger: Tensorboard logging object
-      logger:
     Returns:
       None
     """
@@ -72,16 +71,10 @@ def monitor_asr_train_progress(tensors: list,
     wer = word_error_rate(hypotheses, references, use_cer=use_cer)
     if tb_logger is not None:
         tb_logger.add_scalar(tag, wer)
-    if logger:
-        logger.info(f'Loss: {tensors[0]}')
-        logger.info(f'{tag}: {wer*100 : 5.2f}%')
-        logger.info(f'Prediction: {hypotheses[0]}')
-        logger.info(f'Reference: {references[0]}')
-    else:
-        print(f'Loss: {tensors[0]}')
-        print(f'{tag}: {wer*100 : 5.2f}%')
-        print(f'Prediction: {hypotheses[0]}')
-        print(f'Reference: {references[0]}')
+    nemo.logging.info(f'Loss: {tensors[0]}')
+    nemo.logging.info(f'{tag}: {wer*100 : 5.2f}%')
+    nemo.logging.info(f'Prediction: {hypotheses[0]}')
+    nemo.logging.info(f'Reference: {references[0]}')
 
 
 def __gather_losses(losses_list: list) -> list:
@@ -146,8 +139,7 @@ def process_evaluation_batch(tensors: dict, global_vars: dict, labels: list):
 
 def process_evaluation_epoch(global_vars: dict,
                              eval_metric='WER',
-                             tag=None,
-                             logger=None):
+                             tag=None):
     """
     Calculates the aggregated loss and WER across the entire evaluation dataset
     """
@@ -165,24 +157,14 @@ def process_evaluation_epoch(global_vars: dict,
                           use_cer=use_cer)
 
     if tag is None:
-        if logger:
-            logger.info(f"==========>>>>>>Evaluation Loss: {eloss}")
-            logger.info(f"==========>>>>>>Evaluation {eval_metric}: "
-                        f"{wer*100 : 5.2f}%")
-        else:
-            print(f"==========>>>>>>Evaluation Loss: {eloss}")
-            print(f"==========>>>>>>Evaluation {eval_metric}: "
-                  f"{wer*100 : 5.2f}%")
+        nemo.logging.info(f"==========>>>>>>Evaluation Loss: {eloss}")
+        nemo.logging.info(f"==========>>>>>>Evaluation {eval_metric}: "
+                          f"{wer*100 : 5.2f}%")
         return {"Evaluation_Loss": eloss, f"Evaluation_{eval_metric}": wer}
     else:
-        if logger:
-            logger.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
-            logger.info(f"==========>>>>>>Evaluation {eval_metric} {tag}: "
-                        f"{wer*100 : 5.2f}%")
-        else:
-            print(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
-            print(f"==========>>>>>>Evaluation {eval_metric} {tag}:"
-                  f" {wer*100 : 5.2f}%")
+        nemo.logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
+        nemo.logging.info(f"==========>>>>>>Evaluation {eval_metric} {tag}: "
+                          f"{wer*100 : 5.2f}%")
         return {f"Evaluation_Loss_{tag}": eloss,
                 f"Evaluation_{eval_metric}_{tag}": wer}
 

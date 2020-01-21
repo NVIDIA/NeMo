@@ -162,7 +162,7 @@ for eval_dataset in args.eval_datasets:
 
 def print_loss(x):
     loss = x[0].item()
-    nf.logger.info("Training loss: {:.4f}".format(loss))
+    nemo.logging.info("Training loss: {:.4f}".format(loss))
 
 
 # callbacks

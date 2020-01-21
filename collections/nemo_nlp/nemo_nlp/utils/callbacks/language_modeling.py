@@ -1,17 +1,13 @@
 # Copyright (c) 2019 NVIDIA Corporation
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
+import nemo
 import numpy as np
-
-from nemo.utils.exp_logging import get_logger
 
 GLOBAL_KEYS = ["eval_loss", "sys"]
 
-logger = get_logger('')
-
 
 def eval_iter_callback(tensors, global_vars):
-
     for key in GLOBAL_KEYS:
         if key not in global_vars.keys():
             global_vars[key] = []
@@ -26,10 +22,10 @@ def eval_epochs_done_callback(global_vars):
     eval_loss = np.mean(global_vars["eval_loss"])
     eval_ppl = np.exp(eval_loss)
 
-    logger.info("------------------------------------------------------------")
-    logger.info("Eval loss: {0}".format(np.round(eval_loss, 3)))
-    logger.info("Eval  ppl: {0}".format(np.round(eval_ppl, 3)))
-    logger.info("------------------------------------------------------------")
+    nemo.logging.info("------------------------------------------------------")
+    nemo.logging.info("Eval loss: {0}".format(np.round(eval_loss, 3)))
+    nemo.logging.info("Eval  ppl: {0}".format(np.round(eval_ppl, 3)))
+    nemo.logging.info("------------------------------------------------------")
     for key in GLOBAL_KEYS:
         global_vars[key] = []
     return dict({"Eval_loss": eval_loss, "Eval_ppl": eval_ppl})

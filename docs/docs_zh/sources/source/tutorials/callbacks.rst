@@ -24,16 +24,13 @@ SimpleLossLoggerCallback 是用来记录训练过程中的一些指标数据比�
 get_tb_values() 和 log_to_tb_func() 函数的输入。两个推荐重写的参数是 print_func() 和
 get_tb_values() 或者 log_to_tb_func() 任选其一。
 
-print_func() 应该用来记录打印到屏幕上的值。我们推荐使用 neural_factory.logger.info()
+print_func() 应该用来记录打印到屏幕上的值。我们推荐使用 nemo.logging.info()
 来取代 print() 函数。比如，可以这么打印 loss 值：
 
 .. code-block:: python
 
-    def my_print_func(tensors, logger=None):
-        if logger:
-            logger.info(f"Loss {tensors[0]}")
-        else:
-            print(f"Loss {tensors[0]}")
+    def my_print_func(tensors):
+        nemo.logging.info(f"Loss {tensors[0]}")
 
 我们提供了两个方法来打印到 tensorboard: get_tb_values() 和
 log_to_tb_func()。对于记录标量的简单用例，我们推荐使用 get_tb_values()。
@@ -69,8 +66,7 @@ SimpleLossLoggerCallback可以像下面这样创建:
         # 定义我们想要传给print_func和get_tb_values的张量
         tensors=[train_loss],
         # 传入我们想要用的打印函数
-        # 注意我们用 partial 来指定可以额外传入的参数
-        print_func=partial(my_print_func, logger=neural_factory.logger),
+        print_func=partial(my_print_func),
         # 传入可以返回tensorboard标签和张量的函数
         get_tb_values=my_get_tb_values,
         # 我们想要回调这个函数的频次

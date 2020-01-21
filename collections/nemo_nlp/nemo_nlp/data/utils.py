@@ -1,11 +1,10 @@
 import os
 import pickle
+import re
+import string
 
+import nemo
 import numpy as np
-
-from nemo.utils.exp_logging import get_logger
-
-logger = get_logger('')
 
 
 def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
@@ -25,10 +24,10 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
 
     cached_ids_dataset = dataset + str(".pkl")
     if os.path.isfile(cached_ids_dataset):
-        logger.info("Loading cached tokenized dataset ...")
+        nemo.logging.info("Loading cached tokenized dataset ...")
         ids = pickle.load(open(cached_ids_dataset, "rb"))
     else:
-        logger.info("Tokenizing dataset ...")
+        nemo.logging.info("Tokenizing dataset ...")
         data = open(dataset, "rb").readlines()
         ids = []
         for sentence in data:
@@ -38,7 +37,7 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
                            [tokenizer.eos_id()]
             ids.append(sent_ids)
         if cache_ids:
-            logger.info("Caching tokenized dataset ...")
+            nemo.logging.info("Caching tokenized dataset ...")
             pickle.dump(ids, open(cached_ids_dataset, "wb"))
     return ids
 

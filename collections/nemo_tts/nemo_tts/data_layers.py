@@ -1,6 +1,7 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import torch
 
+import nemo
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
@@ -83,13 +84,12 @@ class AudioDataLayer(DataLayerNM):
             max_duration=max_duration,
             min_duration=min_duration,
             trim=trim_silence,
-            logger=self._logger,
             n_segments=n_segments
         )
 
         sampler = None
         if self._placement == DeviceType.AllGpu:
-            self._logger.info('Parallelizing DATALAYER')
+            nemo.logging.info('Parallelizing DATALAYER')
             sampler = torch.utils.data.distributed.DistributedSampler(
                 self._dataset)
 

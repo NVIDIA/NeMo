@@ -10,13 +10,15 @@ __all__ = ['Backend',
 from abc import ABC, abstractmethod
 import random
 from typing import List, Optional
+import warnings
 
 from enum import Enum
 import numpy as np
 
+import nemo
 from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *
-from ..utils import ExpManager, get_logger
+from ..utils import ExpManager
 
 
 class DeploymentFormat(Enum):
@@ -66,16 +68,12 @@ class Actions(ABC):
             self,
             local_rank,
             global_rank,
-            optimization_level=Optimization.mxprO0,
-            logger=None):
+            optimization_level=Optimization.mxprO0):
         self._local_rank = local_rank
         self._global_rank = global_rank
         self._optim_level = optimization_level
         self.step = None
         self.epoch_num = None
-        self.logger = logger
-        if logger is None:
-            self.logger = get_logger('')
 
     @property
     def local_rank(self):
@@ -557,7 +555,7 @@ class NeuralModuleFactory(object):
         """
         if params is not None and "optimization_level" in params:
             if params["optimization_level"] != self._optim_level:
-                self.logger.warning(
+                nemo.logging.warning(
                     "Module's {0} requested optimization level {1} is"
                     "different from the one specified by factory - {2}."
                     "Using: {3} for this module".format(
@@ -651,9 +649,9 @@ class NeuralModuleFactory(object):
         # Custom hacks: These will be put into a proper place soon
         # We are checking type like this to avoid taking dependency on nemo_asr
         if type(module).__name__ == "JasperEncoder":
-            # self.logger.warning(f"Module is JasperEncoder. We are removing"
-            #                    f"input and output length ports since they "
-            #                    f"are not needed for deployment")
+            # nemo.logging.warning(f"Module is JasperEncoder. We are removing"
+            #                     f"input and output length ports since they "
+            #                     f"are not needed for deployment")
             # del module._input_ports['length']
             # del module._output_ports['encoded_lengths']
 
@@ -663,15 +661,14 @@ class NeuralModuleFactory(object):
                 if type(m).__name__ == "MaskedConv1d":
                     m.use_mask = False
                     m_count += 1
-            self.logger.warning(f"Turned off {m_count} masked convolutions")
+            nemo.logging.warning(f"Turned off {m_count} masked convolutions")
 
         return self._trainer.deployment_export(
             module=module,
             output=output,
             d_format=d_format,
             input_example=input_example,
-            output_example=output_example,
-            logger=self.logger,
+            output_example=output_example
         )
 
     def infer(self,
@@ -716,7 +713,6 @@ class NeuralModuleFactory(object):
             checkpoint_dir=checkpoint_dir,
             ckpt_pattern=ckpt_pattern,
             verbose=verbose,
-            logger=self.logger,
             cache=cache,
             use_cache=use_cache,
             offload_to_cpu=offload_to_cpu,
@@ -735,21 +731,20 @@ class NeuralModuleFactory(object):
                 local_rank=self._local_rank,
                 global_rank=self._global_rank,
                 tb_writer=tb_writer,
-                optimization_level=self._optim_level,
-                logger=self.logger)
+                optimization_level=self._optim_level)
             return instance
         else:
             raise ValueError("Only PyTorch backend is currently supported.")
 
     def get_trainer(self, tb_writer=None):
-        self.logger.warning(
+        nemo.logging.warning(
             f"This function is deprecated and will be removed"
             f"in future versions of NeMo."
             f"Please use .train(...), .eval(...), .infer(...) and "
             f".create_optimizer(...) directly methods from "
             f"NeuralModuleFactory instance.")
         if self._trainer:
-            self.logger.warning(
+            nemo.logging.warning(
                 "The trainer instance was created during initialization of "
                 "Neural factory, using the already created instance.")
             return self._trainer
@@ -771,8 +766,8 @@ class NeuralModuleFactory(object):
                 message on its own and exit
         """
         if self._world_size == 1:
-            self.logger.info("sync_all_processes does nothing if there is "
-                             "one process")
+            nemo.logging.info("sync_all_processes does nothing if there is "
+                              "one process")
             return
         if self._backend == Backend.PyTorch:
             import torch
@@ -780,7 +775,7 @@ class NeuralModuleFactory(object):
             torch.distributed.all_reduce(
                 status_tensor, op=torch.distributed.ReduceOp.MIN)
             if status_tensor.item() == 0:
-                self.logger.error("At least one process had a failure")
+                nemo.logging.error("At least one process had a failure")
                 if status:
                     raise ValueError(
                         f"Process with global rank {self._global_rank} entered"
@@ -805,7 +800,9 @@ class NeuralModuleFactory(object):
 
     @property
     def logger(self):
-        return self._exp_manager.logger
+        warnings.warn("This will be deprecated in future releases. Please use "
+                      "nemo.logging instead")
+        return nemo.logging
 
     @property
     def checkpoint_dir(self):
