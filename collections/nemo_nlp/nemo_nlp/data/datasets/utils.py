@@ -1288,7 +1288,7 @@ class LanguageModelDataDesc:
             self.vocab_size = create_vocab_lm(data_dir, do_lower_case)
             self.data_dir = data_dir
         else:
-            nemo.logging.info(
+            nemo.logging.warning(
                 "Looks like you passed a dataset name that isn't "
                 "already supported by NeMo. Please make sure that "
                 "you build the preprocessing method for it.")
@@ -1368,7 +1368,7 @@ class BERTPretrainingDataDesc:
                 special_tokens,
                 train_file)
         else:
-            nemo.logging.info(
+            nemo.logging.warning(
                 "Looks like you passed a dataset name that isn't "
                 "already supported by NeMo. Please make sure that "
                 "you build the preprocessing method for it.")

@@ -104,9 +104,8 @@ elif args.src_lang == 'en' and args.tgt_lang == 'zh':
     # source and target use different tokenizers, set tie_weight to False
     tie_weight = False
 else:
-    nemo.logging.info(
+    raise ValueError(
         f"Unsupported language pair:{args.src_lang}-{args.tgt_lang}.")
-    exit(1)
 
 # instantiate necessary modules for the whole translation pipeline, namely
 # data layers, encoder, decoder, output log_softmax, beam_search_translator

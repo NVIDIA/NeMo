@@ -5,10 +5,11 @@ import os
 import random
 import time
 
-import matplotlib
 from matplotlib import pyplot as plt  # nopep8
 import numpy as np  # nopep8
 from sklearn.metrics import confusion_matrix, classification_report  # nopep8
+
+import nemo
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 

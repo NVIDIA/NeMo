@@ -140,23 +140,23 @@ def get_features(queries,
 
         all_segment_ids.append([0] * max_seq_length)
 
-    nemo.logging.info(f'{too_long_count} are longer than {max_seq_length}')
+    nemo.logging.warning(f'{too_long_count} are longer than {max_seq_length}')
 
     for i in range(min(len(all_input_ids), 5)):
-        nemo.logging.info("*** Example ***")
-        nemo.logging.info("i: %s" % (i))
-        nemo.logging.info(
-            "subtokens: %s" % " ".join(list(map(str, all_subtokens[i]))))
-        nemo.logging.info(
-            "loss_mask: %s" % " ".join(list(map(str, all_loss_mask[i]))))
-        nemo.logging.info(
-            "input_mask: %s" % " ".join(list(map(str, all_input_mask[i]))))
-        nemo.logging.info(
-            "subtokens_mask: %s" % " ".join(list(map(
+        nemo.logging.debug("*** Example ***")
+        nemo.logging.debug("i: %s", i)
+        nemo.logging.debug(
+            "subtokens: %s", " ".join(list(map(str, all_subtokens[i]))))
+        nemo.logging.debug(
+            "loss_mask: %s", " ".join(list(map(str, all_loss_mask[i]))))
+        nemo.logging.debug(
+            "input_mask: %s", " ".join(list(map(str, all_input_mask[i]))))
+        nemo.logging.debug(
+            "subtokens_mask: %s", " ".join(list(map(
                 str, all_subtokens_mask[i]))))
         if with_label:
-            nemo.logging.info(
-                "labels: %s" % " ".join(list(map(str, all_labels[i]))))
+            nemo.logging.debug(
+                "labels: %s", " ".join(list(map(str, all_labels[i]))))
     return (all_input_ids,
             all_segment_ids,
             all_input_mask,
@@ -267,7 +267,7 @@ class BertTokenClassificationDataset(Dataset):
             # for dev/test sets use label mapping from training set
             if label_ids:
                 if len(label_ids) != len(unique_labels):
-                    nemo.logging.info(
+                    nemo.logging.warning(
                         f'Not all labels from the specified' +
                         ' label_ids dictionary are present in the' +
                         ' current dataset. Using the provided' +
