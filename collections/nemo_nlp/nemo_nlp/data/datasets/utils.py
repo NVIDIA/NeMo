@@ -1753,7 +1753,7 @@ processors = {
     "qqp": QqpProcessor,
     "qnli": QnliProcessor,
     "rte": RteProcessor,
-    "wnli": WnliProcessor,
+    "wnli": WnliProcessor
 }
 
 output_modes = {
