@@ -1,7 +1,6 @@
 from collections import Counter
 import csv
 import glob
-from io import open
 import itertools
 import json
 import os
@@ -9,7 +8,6 @@ import random
 import re
 import shutil
 import subprocess
-import sys
 
 import nemo
 import numpy as np
