@@ -19,7 +19,6 @@ import collections
 import json
 import os
 import pickle
-import string
 import sys
 
 import numpy as np
