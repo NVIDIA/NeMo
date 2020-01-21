@@ -53,7 +53,8 @@ MOCK_MODULES = ['torch', 'torch.nn', 'torch.utils', 'torch.optim',
                 'torch.utils.data', 'torch.utils.data.sampler',
                 'torchvision', 'torchvision.models',
                 'torchtext',
-                'h5py', 'kaldi_io'
+                'h5py', 'kaldi_io',
+                'transformers'
                 ]
 
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
