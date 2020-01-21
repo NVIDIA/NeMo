@@ -121,33 +121,33 @@ Next, we define all Neural Modules participating in our question answering class
     .. code-block:: python
 
         # training graph
-        input_ids, input_type_ids, input_mask, \
-            start_positions, end_positions, unique_ids = data_layer()
-        hidden_states = model(input_ids=ids,
-                            token_type_ids=type_ids,
-                            attention_mask=input_mask)
+        input_data = data_layer()
+        hidden_states = model(input_ids=input_data.input_ids,
+                        token_type_ids=input_data.input_type_ids,
+                        attention_mask=input_data.input_mask)
 
         qa_logits = qa_head(hidden_states=hidden_states)
         loss, start_logits, end_logits = squad_loss(
             logits=qa_logits,
-            start_positions=start_positions,
-            end_positions=end_positions)
+            start_positions=input_data.start_positions,
+            end_positions=input_data.end_positions)
         train_tensors = [loss]
 
         # evaluation graph
-        input_ids_eval, input_type_ids_eval, input_mask_eval, \
-            start_positions_eval, end_positions_eval, unique_ids_eval \
-            = data_layer_eval()
+        input_data_eval = data_layer_eval()
 
-        hidden_states_eval = model(input_ids=input_ids_eval,
-                                   token_type_ids=input_type_ids_eval,
-                                   attention_mask=input_mask_eval)
+        hidden_states_eval = model(
+            input_ids=input_data_eval.input_ids,
+            token_type_ids=input_data_eval.input_type_ids,
+            attention_mask=input_data_eval.input_mask)
 
         qa_logits_eval = qa_head(hidden_states=hidden_states_eval)
         loss_eval, start_logits_eval, end_logits_eval = squad_loss(
-            logits=qa_logits_eval, start_positions=start_positions_eval,
-            end_positions=end_positions_eval)
-        eval_tensors = [start_logits_eval, end_logits_eval, unique_ids_eval]
+            logits=qa_logits_eval,
+            start_positions=input_data_eval.start_positions,
+            end_positions=input_data_eval.end_positions)
+        eval_tensors = [start_logits_eval, end_logits_eval, 
+                        input_data_eval.unique_ids]
 
 
 
