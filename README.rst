@@ -1,18 +1,27 @@
 .. image:: http://www.repostatus.org/badges/latest/active.svg
-	:target: http://www.repostatus.org/#active
-	:alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
+  :target: http://www.repostatus.org/#active
+  :alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
 
 .. image:: https://img.shields.io/badge/documentation-github.io-blue.svg
-	:target: https://nvidia.github.io/NeMo/
-	:alt: NeMo documentation on GitHub pages
-   
+  :target: https://nvidia.github.io/NeMo/
+  :alt: NeMo documentation on GitHub pages
+
 .. image:: https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg
-	:target: https://github.com/NVIDIA/NeMo/blob/master/LICENSE
-	:alt: NeMo core license and license for collections in this repo
+  :target: https://github.com/NVIDIA/NeMo/blob/master/LICENSE
+  :alt: NeMo core license and license for collections in this repo
 
 .. image:: https://coveralls.io/repos/github/NVIDIA/NeMo/badge.svg?branch=master
-    :target: https://coveralls.io/github/NVIDIA/NeMo?branch=master
-	:alt: NeMo code test coverage
+  :target: https://coveralls.io/github/NVIDIA/NeMo?branch=master
+  :alt: NeMo code test coverage
+
+.. image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
+  :target: https://lgtm.com/projects/g/NVIDIA/NeMo/context:python
+  :alt: Language grade: Python
+
+.. image:: https://img.shields.io/lgtm/alerts/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
+  :target: https://lgtm.com/projects/g/NVIDIA/NeMo/alerts/
+  :alt: Total alerts
+
 
 
 NVIDIA Neural Modules: NeMo
