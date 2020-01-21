@@ -3,7 +3,6 @@ import json
 import os
 import shutil
 import sys
-import unittest
 
 from .context import nemo, nemo_nlp
 from .common_setup import NeMoUnitTest
