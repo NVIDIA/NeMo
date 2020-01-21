@@ -52,6 +52,14 @@ Intent and Slot filling
    joint_intent_slot_filling
 
 
+
+Question Answering 
+-----------------------
+.. toctree::
+   :maxdepth: 8
+
+   question_answering
+
 Improving speech recognition with BERTx2 post-processing model
 --------------------------------------------------------------
 .. toctree::
