@@ -10,6 +10,12 @@ from nemo.utils.exp_logging import get_logger
 logger = get_logger('')
 
 
+def _is_whitespace(c):
+    if c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F:
+        return True
+    return False
+
+
 def mask_padded_tokens(tokens, pad_id):
     mask = (tokens != pad_id)
     return mask
