@@ -64,12 +64,10 @@ import os
 
 import nemo
 import nemo_nlp
-from nemo_nlp import BertQuestionAnsweringDataLayer
-from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
-from nemo_nlp import QuestionAnsweringLoss
-from nemo_nlp.utils.callbacks.squad import \
-    eval_iter_callback, eval_epochs_done_callback
 from nemo.utils.lr_policies import get_lr_policy
+from nemo_nlp.utils.callbacks.squad import (
+    eval_iter_callback,
+    eval_epochs_done_callback)
 
 
 def parse_args():
@@ -88,12 +86,12 @@ def parse_args():
                         help="Path to bert config file in json format")
     parser.add_argument("--tokenizer_model", default="tokenizer.model",
                         type=str,
-                        help="Path to pretrained tokenizer model, \
-                        only used if --tokenizer is sentencepiece")
+                        help="Path to pretrained tokenizer model,"
+                        "only used if --tokenizer is sentencepiece")
     parser.add_argument("--tokenizer", default="nemobert", type=str,
                         choices=["nemobert", "sentencepiece"],
-                        help="tokenizer to use, \
-                        only relevant when using custom "
+                        help="tokenizer to use, "
+                        "only relevant when using custom "
                         "pretrained checkpoint.")
     parser.add_argument("--optimizer_kind", default="adam", type=str,
                         help="Optimizer kind")
@@ -136,11 +134,11 @@ def parse_args():
                         "model predictions and checkpoints "
                         "will be written.")
     parser.add_argument("--save_epoch_freq", default=1, type=int,
-                        help="Frequency of saving checkpoint \
-                        '-1' - epoch checkpoint won't be saved")
+                        help="Frequency of saving checkpoint "
+                        "'-1' - epoch checkpoint won't be saved")
     parser.add_argument("--save_step_freq", default=-1, type=int,
-                        help="Frequency of saving checkpoint \
-                        '-1' - step checkpoint won't be saved")
+                        help="Frequency of saving checkpoint "
+                        "'-1' - step checkpoint won't be saved")
     parser.add_argument("--loss_step_freq", default=100, type=int,
                         help="Frequency of printing loss")
     parser.add_argument("--eval_step_freq", default=500, type=int,
@@ -184,7 +182,7 @@ def create_pipeline(
         batches_per_step=1,
         mode="train"):
 
-    data_layer = BertQuestionAnsweringDataLayer(
+    data_layer = nemo_nlp.BertQuestionAnsweringDataLayer(
                     mode=mode,
                     version_2_with_negative=version_2_with_negative,
                     batch_size=batch_size,
@@ -202,14 +200,18 @@ def create_pipeline(
                         attention_mask=input_data.input_mask)
 
     qa_output = head(hidden_states=hidden_states)
-    loss, start_logits, end_logits = loss_fn(
+    loss_output = loss_fn(
         logits=qa_output, start_positions=input_data.start_positions,
         end_positions=input_data.end_positions)
 
     steps_per_epoch = len(data_layer) \
         // (batch_size * num_gpus * batches_per_step)
-    return loss, steps_per_epoch, \
-        [start_logits, end_logits, input_data.unique_ids], data_layer
+    return loss_output.loss, \
+        steps_per_epoch, \
+        [loss_output.start_logits,
+            loss_output.end_logits,
+            input_data.unique_ids], \
+        data_layer
 
 
 if __name__ == "__main__":
@@ -235,13 +237,14 @@ if __name__ == "__main__":
 
     if args.tokenizer == "sentencepiece":
         try:
-            tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
+            tokenizer = nemo_nlp.SentencePieceTokenizer(
+                model_path=args.tokenizer_model)
         except Exception:
             raise ValueError("Using --tokenizer=sentencepiece \
                         requires valid --tokenizer_model")
         tokenizer.add_special_tokens(["[CLS]", "[SEP]"])
     elif args.tokenizer == "nemobert":
-        tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
+        tokenizer = nemo_nlp.NemoBertTokenizer(args.pretrained_bert_model)
     else:
         raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
 
@@ -264,7 +267,7 @@ if __name__ == "__main__":
                                     num_classes=2,
                                     num_layers=1,
                                     log_softmax=False)
-    squad_loss = QuestionAnsweringLoss()
+    squad_loss = nemo_nlp.QuestionAnsweringLoss()
     if args.bert_checkpoint is not None:
         model.restore_from(args.bert_checkpoint)
 

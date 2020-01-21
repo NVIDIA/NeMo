@@ -127,11 +127,11 @@ Next, we define all Neural Modules participating in our question answering class
                         attention_mask=input_data.input_mask)
 
         qa_logits = qa_head(hidden_states=hidden_states)
-        loss, start_logits, end_logits = squad_loss(
+        loss_outputs = squad_loss(
             logits=qa_logits,
             start_positions=input_data.start_positions,
             end_positions=input_data.end_positions)
-        train_tensors = [loss]
+        train_tensors = [loss_outputs.loss]
 
         # evaluation graph
         input_data_eval = data_layer_eval()
@@ -142,11 +142,11 @@ Next, we define all Neural Modules participating in our question answering class
             attention_mask=input_data_eval.input_mask)
 
         qa_logits_eval = qa_head(hidden_states=hidden_states_eval)
-        loss_eval, start_logits_eval, end_logits_eval = squad_loss(
+        loss_outputs_eval = squad_loss(
             logits=qa_logits_eval,
             start_positions=input_data_eval.start_positions,
             end_positions=input_data_eval.end_positions)
-        eval_tensors = [start_logits_eval, end_logits_eval, 
+        eval_tensors = [loss_outputs_eval.start_logits, loss_outputs_eval.end_logits, 
                         input_data_eval.unique_ids]
 
 
@@ -164,7 +164,7 @@ Next, we define all Neural Modules participating in our question answering class
 
 
         eval_callback = nemo.core.EvaluatorCallback(
-            eval_tensors=eval_output,
+            eval_tensors=eval_tensors,
             user_iter_callback=lambda x, y: eval_iter_callback(x, y),
             user_epochs_done_callback=lambda x:
                 eval_epochs_done_callback(
@@ -190,7 +190,7 @@ Next, we define all Neural Modules participating in our question answering class
                                      total_steps=args.num_epochs * steps_per_epoch,
                                      warmup_ratio=args.lr_warmup_proportion)
 
-        nf.train(tensors_to_optimize=[loss],
+        nf.train(tensors_to_optimize=train_tensors,
                  callbacks=[train_callback, eval_callback, ckpt_callback],
                  lr_policy=lr_policy_fn,
                  optimizer=args.optimizer_kind,
