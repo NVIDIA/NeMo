@@ -25,12 +25,7 @@ import random
 import numpy as np
 from torch.utils.data import Dataset
 
-from nemo.utils.exp_logging import get_logger
-
 from . import utils
-
-
-logger = get_logger('')
 
 
 def get_features(queries,
@@ -88,7 +83,7 @@ def get_features(queries,
             all_slots.append(slots)
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
-    logger.info(f'Max length: {max_seq_length}')
+    nemo.logging.info(f'Max length: {max_seq_length}')
     utils.get_stats(sent_lengths)
     too_long_count = 0
 
@@ -120,7 +115,7 @@ def get_features(queries,
 
         all_segment_ids.append([0] * max_seq_length)
 
-    logger.info(f'{too_long_count} are longer than {max_seq_length}')
+    nemo.logging.info(f'{too_long_count} are longer than {max_seq_length}')
 
     return (all_input_ids,
             all_segment_ids,

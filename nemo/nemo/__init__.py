@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+import logging
+
 from . import backends
 from . import core
 from . import utils
 from .backends.pytorch import tutorials
 
 __version__ = "0.9.0"
+
+logging = logging.getLogger(__name__)

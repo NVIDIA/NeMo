@@ -97,7 +97,7 @@ def create_pipeline(num_samples=-1,
                     num_gpus=1,
                     local_rank=0,
                     mode='train'):
-    nf.logger.info(f"Loading {mode} data...")
+    nemo.logging.info(f"Loading {mode} data...")
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
     shuffle = args.shuffle_data if mode == 'train' else False
 
@@ -115,12 +115,12 @@ def create_pipeline(num_samples=-1,
     data_size = len(data_layer)
 
     if data_size < batch_size:
-        nf.logger.warning("Batch_size is larger than the dataset size")
-        nf.logger.warning("Reducing batch_size to dataset size")
+        nemo.logging.warning("Batch_size is larger than the dataset size")
+        nemo.logging.warning("Reducing batch_size to dataset size")
         batch_size = data_size
 
     steps_per_epoch = math.ceil(data_size / (batch_size * num_gpus))
-    nf.logger.info(f"Steps_per_epoch = {steps_per_epoch}")
+    nemo.logging.info(f"Steps_per_epoch = {steps_per_epoch}")
 
     hidden_states = pretrained_bert_model(input_ids=ids,
                                           token_type_ids=type_ids,

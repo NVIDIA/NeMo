@@ -123,7 +123,7 @@ def create_all_dags(args, neural_factory):
 
             data_layers_eval.append(data_layer_eval)
     else:
-        neural_factory.logger.info("There were no val datasets passed")
+        nemo.logging.warning("There were no val datasets passed")
 
     # create shared modules
 
@@ -193,8 +193,7 @@ def create_all_dags(args, neural_factory):
         tensors=[loss_t, predictions_t, transcript_t, transcript_len_t],
         print_func=partial(
             monitor_asr_train_progress,
-            labels=vocab,
-            logger=neural_factory.logger),
+            labels=vocab),
         get_tb_values=lambda x: [["loss", x[0]]],
         tb_writer=neural_factory.tb_writer)
 
@@ -238,8 +237,7 @@ def create_all_dags(args, neural_factory):
                 labels=vocab),
             user_epochs_done_callback=partial(
                 process_evaluation_epoch,
-                tag=tagname,
-                logger=neural_factory.logger),
+                tag=tagname),
             eval_step=args.eval_freq,
             tb_writer=neural_factory.tb_writer)
 
@@ -276,11 +274,10 @@ def main():
         tensorboard_dir=args.tensorboard_dir)
     args.num_gpus = neural_factory.world_size
 
-    logger = neural_factory.logger
     args.checkpoint_dir = neural_factory.checkpoint_dir
 
     if args.local_rank is not None:
-        logger.info('Doing ALL GPU')
+        nemo.logging.info('Doing ALL GPU')
 
     # build dags
     train_loss, callbacks, steps_per_epoch = \

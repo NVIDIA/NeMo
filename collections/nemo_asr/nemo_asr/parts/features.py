@@ -8,6 +8,8 @@ from .perturb import AudioAugmentor
 from .segment import AudioSegment
 from torch_stft import STFT
 
+import nemo
+
 CONSTANT = 1e-5
 
 
@@ -127,7 +129,6 @@ class FilterbankFeatures(nn.Module):
             stft_conv=False,
             pad_value=0,
             mag_power=2.,
-            logger=None
     ):
         super(FilterbankFeatures, self).__init__()
         if (n_window_size is None or n_window_stride is None
@@ -137,10 +138,7 @@ class FilterbankFeatures(nn.Module):
             raise ValueError(
                 f"{self} got an invalid value for either n_window_size or "
                 f"n_window_stride. Both must be positive ints.")
-        if logger:
-            logger.info(f"PADDING: {pad_to}")
-        else:
-            print(f"PADDING: {pad_to}")
+        nemo.logging.info(f"PADDING: {pad_to}")
 
         self.win_length = n_window_size
         self.hop_length = n_window_stride
@@ -148,10 +146,7 @@ class FilterbankFeatures(nn.Module):
         self.stft_conv = stft_conv
 
         if stft_conv:
-            if logger:
-                logger.info("STFT using conv")
-            else:
-                print("STFT using conv")
+            nemo.logging.info("STFT using conv")
 
             # Create helper class to patch forward func for use with AMP
             class STFTPatch(STFT):

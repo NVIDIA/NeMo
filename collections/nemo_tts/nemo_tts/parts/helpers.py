@@ -1,9 +1,10 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import librosa
-import matplotlib
 import matplotlib.pylab as plt
 import numpy as np
 import torch
+
+import nemo
 
 
 def waveglow_log_to_tb_func(swriter,
@@ -123,13 +124,10 @@ def tacotron2_process_eval_batch(tensors: dict, global_vars: dict):
     global_vars['EvalLoss'].append(torch.mean(torch.stack(tensors[loss_key])))
 
 
-def tacotron2_process_final_eval(global_vars: dict, tag=None, logger=None):
+def tacotron2_process_final_eval(global_vars: dict, tag=None):
     eloss = torch.mean(torch.stack(global_vars['EvalLoss'])).item()
     global_vars['EvalLoss'] = eloss
-    if logger:
-        logger.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
-    else:
-        print(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
+    nemo.logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
     return global_vars
 
 

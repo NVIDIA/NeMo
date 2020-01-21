@@ -81,7 +81,7 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    files_to_copy=[__file__],
                                    add_time_to_log_dir=True)
 
-nf.logger.info(args)
+nemo.logging.info(args)
 
 output_file = f'{nf.work_dir}/output.txt'
 
@@ -112,7 +112,7 @@ else:
             pretrained_model_name=args.pretrained_bert_model)
 
     model.restore_from(args.bert_checkpoint)
-    nf.logger.info(f"Model restored from {args.bert_checkpoint}")
+    nemo.logging.info(f"Model restored from {args.bert_checkpoint}")
 
 
 hidden_size = model.local_parameters["hidden_size"]
@@ -143,7 +143,7 @@ def create_pipeline(num_samples=-1,
     global punct_classifier, punct_loss, \
         capit_classifier, capit_loss, task_loss
 
-    nf.logger.info(f"Loading {mode} data...")
+    nemo.logging.info(f"Loading {mode} data...")
     shuffle = args.shuffle_data if mode == 'train' else False
 
     text_file = f'{args.data_dir}/text_{mode}.txt'
@@ -185,7 +185,7 @@ def create_pipeline(num_samples=-1,
         class_weights = None
 
         if args.use_weighted_loss_punct:
-            nf.logger.info(f"Using weighted loss for punctuation task")
+            nemo.logging.info(f"Using weighted loss for punctuation task")
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
             class_weights = utils.calc_class_weights(punct_label_freqs)
 
@@ -252,7 +252,7 @@ eval_tensors, data_layer = create_pipeline(mode='dev',
                                            punct_label_ids=punct_label_ids,
                                            capit_label_ids=capit_label_ids)
 
-nf.logger.info(f"steps_per_epoch = {steps_per_epoch}")
+nemo.logging.info(f"steps_per_epoch = {steps_per_epoch}")
 
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(

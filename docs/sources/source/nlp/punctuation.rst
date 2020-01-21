@@ -293,7 +293,7 @@ Run inference, append punctuation and capitalize words based on the generated pr
     capit_preds = np.argmax(capit_logits, axis=2)
 
     for i, query in enumerate(queries):
-        nf.logger.info(f'Query: {query}')
+        nemo.logging.info(f'Query: {query}')
 
         punct_pred = punct_preds[i][subtokens_mask[i] > 0.5]
         capit_pred = capit_preds[i][subtokens_mask[i] > 0.5]
@@ -312,7 +312,7 @@ Run inference, append punctuation and capitalize words based on the generated pr
             if punct_label != 'O':
                 output += punct_label
             output += ' '
-        nf.logger.info(f'Combined: {output.strip()}\n')
+        nemo.logging.info(f'Combined: {output.strip()}\n')
 
 Inference results:
     

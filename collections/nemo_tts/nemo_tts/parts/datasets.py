@@ -2,6 +2,7 @@
 import torch
 from torch.utils.data import Dataset
 
+import nemo
 from nemo_asr.parts.segment import AudioSegment
 from .manifest import AudioManifest
 
@@ -12,8 +13,7 @@ class AudioOnlyDataset(Dataset):
                  n_segments=0,
                  max_duration=None,
                  min_duration=None,
-                 trim=False,
-                 logger=False):
+                 trim=False):
         """See AudioDataLayer"""
         m_paths = manifest_filepath.split(',')
         self.manifest = AudioManifest(m_paths,
@@ -21,11 +21,10 @@ class AudioOnlyDataset(Dataset):
                                       min_duration=min_duration)
         self.trim = trim
         self.n_segments = n_segments
-        if logger:
-            logger.info(
-                f"Dataset loaded with {self.manifest.duration / 3600:.2f} "
-                f"hours. Filtered {self.manifest.filtered_duration / 3600:.2f}"
-                f" hours.")
+        nemo.logging.info(
+            f"Dataset loaded with {self.manifest.duration / 3600:.2f} "
+            f"hours. Filtered {self.manifest.filtered_duration / 3600:.2f}"
+            f" hours.")
 
     def AudioCollateFunc(self, batch):
         def find_max_len(seq, index):

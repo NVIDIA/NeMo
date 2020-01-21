@@ -99,7 +99,7 @@ logits, subtokens_mask = \
 preds = np.argmax(logits, axis=2)
 
 for i, query in enumerate(args.queries):
-    nf.logger.info(f'Query: {query}')
+    nemo.logging.info(f'Query: {query}')
 
     pred = preds[i][subtokens_mask[i] > 0.5]
     words = query.strip().split()
@@ -114,4 +114,4 @@ for i, query in enumerate(args.queries):
             label = add_brackets(label)
             output += label
         output += ' '
-    nf.logger.info(f'Combined: {output.strip()}')
+    nemo.logging.info(f'Combined: {output.strip()}')

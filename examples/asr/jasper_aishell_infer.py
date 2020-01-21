@@ -60,10 +60,9 @@ def main():
         local_rank=args.local_rank,
         optimization_level=nemo.core.Optimization.mxprO1,
         placement=device)
-    logger = neural_factory.logger
 
     if args.local_rank is not None:
-        logger.info('Doing ALL GPU')
+        nemo.logging.info('Doing ALL GPU')
 
     yaml = YAML(typ="safe")
     with open(args.model_config) as f:
@@ -88,7 +87,7 @@ def main():
         **eval_dl_params)
 
     n = len(data_layer)
-    logger.info('Evaluating {0} examples'.format(n))
+    nemo.logging.info('Evaluating {0} examples'.format(n))
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         sample_rate=sample_rate,
@@ -118,15 +117,15 @@ def main():
             lm_path=args.lm_path,
             num_cpus=max(os.cpu_count(), 1))
 
-    logger.info('================================')
-    logger.info(
+    nemo.logging.info('================================')
+    nemo.logging.info(
         f"Number of parameters in encoder: {jasper_encoder.num_weights}")
-    logger.info(
+    nemo.logging.info(
         f"Number of parameters in decoder: {jasper_decoder.num_weights}")
-    logger.info(
+    nemo.logging.info(
         f"Total number of parameters in model: "
         f"{jasper_decoder.num_weights + jasper_encoder.num_weights}")
-    logger.info('================================')
+    nemo.logging.info('================================')
 
     audio_signal_e1, a_sig_length_e1, transcript_e1, transcript_len_e1 = \
         data_layer()
@@ -158,7 +157,7 @@ def main():
     cer = word_error_rate(hypotheses=greedy_hypotheses,
                           references=references,
                           use_cer=True)
-    logger.info("Greedy CER {:.2f}%".format(cer * 100))
+    nemo.logging.info("Greedy CER {:.2f}%".format(cer * 100))
 
     if args.lm_path:
         beam_hypotheses = []
@@ -170,7 +169,7 @@ def main():
 
         cer = word_error_rate(
             hypotheses=beam_hypotheses, references=references, use_cer=True)
-        logger.info("Beam CER {:.2f}".format(cer * 100))
+        nemo.logging.info("Beam CER {:.2f}".format(cer * 100))
 
     if args.save_logprob:
         # Convert logits to list of numpy arrays

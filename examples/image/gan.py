@@ -121,10 +121,10 @@ eval_callback = nemo.core.EvaluatorCallback(
 
 def print_losses(tensors):
     g_loss, i_loss, r_loss, grad_p = tensors
-    neural_factory.logger.info(f"Generator Loss: {g_loss}")
-    neural_factory.logger.info(f"Interpolated Loss: {i_loss}")
-    neural_factory.logger.info(f"Real Loss: {r_loss}")
-    neural_factory.logger.info(f"Grad Penalty: {grad_p}")
+    nemo.logging.info(f"Generator Loss: {g_loss}")
+    nemo.logging.info(f"Interpolated Loss: {i_loss}")
+    nemo.logging.info(f"Real Loss: {r_loss}")
+    nemo.logging.info(f"Grad Penalty: {grad_p}")
 
 
 def get_tb_name_value(tensors):

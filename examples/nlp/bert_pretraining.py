@@ -156,12 +156,12 @@ if not args.preprocessed_data:
                                         special_tokens,
                                         'train.txt')
     if args.tokenizer == "sentence-piece":
-        nf.logger.info("To use SentencePieceTokenizer.")
+        nemo.logging.info("To use SentencePieceTokenizer.")
         tokenizer = nemo_nlp.SentencePieceTokenizer(
             model_path=data_desc.tokenizer_model)
         tokenizer.add_special_tokens(special_tokens)
     elif args.tokenizer == "nemo-bert":
-        nf.logger.info("To use NemoBertTokenizer.")
+        nemo.logging.info("To use NemoBertTokenizer.")
         vocab_file = os.path.join(args.data_dir, 'vocab.txt')
         # To train on a Chinese dataset, use NemoBertTokenizer
         tokenizer = nemo_nlp.NemoBertTokenizer(vocab_file=vocab_file)
@@ -292,7 +292,7 @@ else:
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=log_tensors,
     step_freq=args.print_step_freq,
-    print_func=lambda x: nf.logger.info(
+    print_func=lambda x: nemo.logging.info(
         print_msg.format(
             *[y.item() for y in x])),
     get_tb_values=lambda x: [["loss", x[0]]],
