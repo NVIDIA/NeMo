@@ -117,6 +117,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# VSCode project settins
+.vscode/
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -126,6 +129,8 @@ venv.bak/
 
 # mkdocs documentation
 /site
+/docs/html
+/docs/docs_zh/zh
 
 # mypy
 .mypy_cache/
