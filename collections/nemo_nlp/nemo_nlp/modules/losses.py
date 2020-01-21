@@ -94,7 +94,10 @@ class QuestionAnsweringLoss(LossNM):
     def __init__(self, **kwargs):
         LossNM.__init__(self, **kwargs)
 
-    def _loss_function(self, logits, start_positions, end_positions):
+    def _loss_function(self, **kwargs):
+        logits = kwargs['logits']
+        start_positions = kwargs['start_positions']
+        end_positions = kwargs['end_positions']
         start_logits, end_logits = logits.split(1, dim=-1)
         start_logits = start_logits.squeeze(-1)
         end_logits = end_logits.squeeze(-1)

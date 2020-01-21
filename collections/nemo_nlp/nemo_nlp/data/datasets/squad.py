@@ -31,8 +31,7 @@ from nemo_nlp.utils.nlp_utils import _is_whitespace
 from .utils import DataProcessor
 from ...utils.metrics.squad_metrics import (
             _compute_softmax,
-            _get_best_indexes, apply_no_ans_threshold,
-            metric_max_over_ground_truths, exact_match_score,
+            _get_best_indexes, apply_no_ans_threshold, exact_match_score,
             make_eval_dict, f1_score, get_final_text, normalize_answer,
             merge_eval, find_all_best_thresh)
 

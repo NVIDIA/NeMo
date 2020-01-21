@@ -19,21 +19,19 @@ __all__ = ['GlueDataLayerClassification',
            'LanguageModelingDataLayer',
            'TextDataLayer',
            'TranslationDataLayer']
-
-# from abc import abstractmethod
-import sys
 import os
 import random
+import sys
 
-import numpy as np
 import h5py
+import numpy as np
 import torch
 from torch.utils import data as pt_data
 
+from .datasets import *
 import nemo
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core.neural_types import *
-from .datasets import *
 
 
 class TextDataLayer(DataLayerNM):
