@@ -3,23 +3,24 @@ import collections
 import os
 from typing import Optional, List, Union
 
+import nemo
 import pandas as pd
-from nemo_asr.parts import asr_manifest
-from nemo_asr.parts import char_parsers
+from nemo_asr.parts import manifest
+from nemo_asr.parts import parsers
 
 
-class _Manifest(collections.UserList):
+class _Collection(collections.UserList):
     """List of parsed and preprocessed data."""
 
     OUTPUT_TYPE = None  # Single element output type.
 
 
-class Text(_Manifest):
+class Text(_Collection):
     """Simple list of preprocessed text entries, result in list of tokens."""
 
     OUTPUT_TYPE = collections.namedtuple('TextEntity', 'tokens')
 
-    def __init__(self, texts: List[str], parser: char_parsers.CharParser):
+    def __init__(self, texts: List[str], parser: parsers.CharParser):
         """Instantiates text manifest and do the preprocessing step.
 
         Args:
@@ -32,7 +33,7 @@ class Text(_Manifest):
             tokens = parser(text)
 
             if tokens is None:
-                # TODO(stanislavv): Add warning to logging or throw error.
+                nemo.logging.warning("Fail to parse '%s' text line.", text)
                 continue
 
             data.append(output_type(tokens))
@@ -43,7 +44,7 @@ class Text(_Manifest):
 class FromFileText(Text):
     """Another form of texts manifest with reading from file."""
 
-    def __init__(self, file: str, parser: char_parsers.CharParser):
+    def __init__(self, file: str, parser: parsers.CharParser):
         """Instantiates text manifest and do the preprocessing step.
 
         Args:
@@ -64,7 +65,7 @@ class FromFileText(Text):
         if ext == '.csv':
             texts = pd.read_csv(file)['transcript'].tolist()
         elif ext == '.json':  # Not really a correct json.
-            texts = list(item['text'] for item in asr_manifest.item_iter(file))
+            texts = list(item['text'] for item in manifest.item_iter(file))
         else:
             with open(file, 'r') as f:
                 texts = f.readlines()
@@ -72,7 +73,7 @@ class FromFileText(Text):
         return texts
 
 
-class AudioText(_Manifest):
+class AudioText(_Collection):
     """List of audio-transcript text correspondence with preprocessing."""
 
     OUTPUT_TYPE = collections.namedtuple(
@@ -85,7 +86,7 @@ class AudioText(_Manifest):
         audio_files: List[str],
         durations: List[float],
         texts: List[str],
-        parser: char_parsers.CharParser,
+        parser: parsers.CharParser,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
         max_number: Optional[int] = None,
@@ -118,7 +119,6 @@ class AudioText(_Manifest):
 
             text_tokens = parser(text)
             if text_tokens is None:
-                # TODO(stanislavv): Add warning to logging or throw error.
                 duration_filtered += duration
                 continue
 
@@ -131,8 +131,10 @@ class AudioText(_Manifest):
         if do_sort_by_duration:
             data.sort(key=lambda entity: entity.duration)
 
-        # TODO(stanislavv): Add filtering info logging.
-        print(duration_filtered)
+        nemo.logging.info(
+            "Filtered duration for loading collection is %f.",
+            duration_filtered,
+        )
 
         super().__init__(data)
 
@@ -152,7 +154,7 @@ class ASRAudioText(AudioText):
             **kwargs: Kwargs to pass to `AudioText` constructor.
         """
         audio_files, durations, texts = [], [], []
-        for item in asr_manifest.item_iter(manifests_files):
+        for item in manifest.item_iter(manifests_files):
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
             texts.append(item['text'])

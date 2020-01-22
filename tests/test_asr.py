@@ -6,8 +6,8 @@ import unittest
 
 from nemo.core import DeviceType
 from nemo_asr.parts import AudioDataset, WaveformFeaturizer
-from nemo_asr.parts import char_parsers
-from nemo_asr.parts import manifests
+from nemo_asr.parts import collections
+from nemo_asr.parts import parsers
 from ruamel.yaml import YAML
 
 from .common_setup import NeMoUnitTest
@@ -150,8 +150,8 @@ class TestASRPytorch(NeMoUnitTest):
                     '{"audio_filepath": "", "duration": 1.0, "text": '
                     f'"{s}"}}\n'
                 )
-        parser = char_parsers.make_parser(self.labels, 'en')
-        manifest = manifests.ASRAudioText(
+        parser = parsers.make_parser(self.labels, 'en')
+        manifest = collections.ASRAudioText(
             manifests_files=[manifest_paths], parser=parser,
         )
 
