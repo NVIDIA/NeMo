@@ -4,10 +4,10 @@
 import os
 
 import kaldi_io
-import nemo
 import torch
 from torch.utils.data import Dataset
 
+import nemo
 from nemo_asr.parts import collections
 from nemo_asr.parts import parsers
 

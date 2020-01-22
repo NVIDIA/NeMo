@@ -3,9 +3,10 @@
 import random
 
 import librosa
+from scipy import signal
+
 from nemo_asr.parts import collections
 from nemo_asr.parts import parsers
-from scipy import signal
 
 from .segment import AudioSegment
 
