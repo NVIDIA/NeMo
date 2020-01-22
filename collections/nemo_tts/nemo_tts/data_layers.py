@@ -84,7 +84,7 @@ class AudioDataLayer(DataLayerNM):
             max_duration=max_duration,
             min_duration=min_duration,
             trim=trim_silence,
-            n_segments=n_segments
+            n_segments=n_segments,
         )
 
         sampler = None

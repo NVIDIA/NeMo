@@ -1,6 +1,25 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import json
+import nemo
 from typing import Union, Iterator, Dict, Any, List
+
+
+class ManifestBase:
+    def __init__(self, *args, **kwargs):
+        raise ValueError(
+            "This class is deprecated, look at "
+            "https://github.com/NVIDIA/NeMo/pull/284 for "
+            "correct behaviour."
+        )
+
+
+class ManifestEN:
+    def __init__(self, *args, **kwargs):
+        raise ValueError(
+            "This class is deprecated, look at "
+            "https://github.com/NVIDIA/NeMo/pull/284 for "
+            "correct behaviour."
+        )
 
 
 def item_iter(
@@ -9,10 +28,11 @@ def item_iter(
     """Iterate through json lines of provided manifests.
 
     NeMo ASR pipelines often assume certain manifest files structure. In
-    particular, each manifest files should consist of line per samples files w
-    with each line being correct json dict. Each such json dict should have a
-    field for audio file string, a field for duration float and a field for
-    text string.
+    particular, each manifest file should consist of line-per-sample files with
+    each line being correct json dict. Each such json dict should have a field
+    for audio file string, a field for duration float and a field for text
+    string. Offset also could be additional field and is set to None by
+    default.
 
     Args:
         manifests_files: Either single string file or list of such -
@@ -73,6 +93,7 @@ def __parse_item(line: str) -> Dict[str, Any]:
         audio_file=item['audio_file'],
         duration=item['duration'],
         text=item['text'],
+        offset=item.get('offset', None),
     )
 
     return item
