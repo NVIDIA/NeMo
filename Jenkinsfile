@@ -1,7 +1,7 @@
 pipeline {
   agent any
   environment {
-      PATH="/home/mrjenkins/anaconda3/envs/py36p1.3.1c10/bin:$PATH"
+      PATH="/home/mrjenkins/anaconda3/envs/py37p1.4.0/bin:$PATH"
   }
   options {
     timeout(time: 1, unit: 'HOURS')
