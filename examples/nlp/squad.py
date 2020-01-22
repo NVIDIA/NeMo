@@ -302,7 +302,7 @@ if __name__ == "__main__":
             mode="dev")
 
     if not args.evaluation_only:
-        nf.logger.info(f"steps_per_epoch = {train_steps_per_epoch}")
+        nemo.logging.info(f"steps_per_epoch = {train_steps_per_epoch}")
         callback_train = nemo.core.SimpleLossLoggerCallback(
             tensors=[train_loss],
             print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
@@ -369,7 +369,7 @@ if __name__ == "__main__":
             version_2_with_negative=args.version_2_with_negative,
             null_score_diff_threshold=args.null_score_diff_threshold,
             do_lower_case=args.do_lower_case)
-        nf.logger.info(f"exact_match: {exact_match}, f1: {f1}")
+        nemo.logging.info(f"exact_match: {exact_match}, f1: {f1}")
         if args.output_prediction_file is not None:
             with open(args.output_prediction_file, "w") as writer:
                 writer.write(json.dumps(all_predictions, indent=4) + "\n")
