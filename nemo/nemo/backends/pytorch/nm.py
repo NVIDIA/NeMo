@@ -41,14 +41,14 @@ class TrainableNM(NeuralModule, nn.Module):
         else:
             return NeuralModule.__call__(self, **kwargs)
 
-    @t.jit.ignore()
+    @t.jit.ignore
     def get_weights(self):
         result = dict()
         for name, parameter in self.named_parameters():
             result[name] = (parameter, parameter.requires_grad)
         return result
 
-    @t.jit.ignore()
+    @t.jit.ignore
     def set_weights(self, name2weight, name2name_and_transform=None):
         if name2weight is not None and len(name2weight) > 0:
             if name2name_and_transform is None:
@@ -60,7 +60,7 @@ class TrainableNM(NeuralModule, nn.Module):
                     {key: name2weight[key][0] for key in name2weight.keys()}
                 )
 
-    @t.jit.ignore()
+    @t.jit.ignore
     def tie_weights_with(self, module, weight_names,
                          name2name_and_transform=None):
         if module is None:
@@ -94,12 +94,12 @@ class TrainableNM(NeuralModule, nn.Module):
                 else:
                     rsetattr(self, self_w_name, rgetattr(module, self_w_name))
 
-    @t.jit.ignore()
+    @t.jit.ignore
     def save_to(self, path):
         # t.save(self._pt_module.state_dict(), path)
         t.save(self.state_dict(), path)
 
-    @t.jit.ignore()
+    @t.jit.ignore
     def restore_from(self, path, local_rank=0):
         # self._pt_module.load_state_dict(t.load(path))
         if self.placement == DeviceType.AllGpu:
@@ -108,7 +108,7 @@ class TrainableNM(NeuralModule, nn.Module):
             load_device = self._device
         self.load_state_dict(t.load(path, map_location=load_device))
 
-    @t.jit.ignore()
+    @t.jit.ignore
     def freeze(self, weights=None):
         if hasattr(self, "_pt_module"):
             for name, param in self._pt_module.named_parameters():
@@ -119,7 +119,7 @@ class TrainableNM(NeuralModule, nn.Module):
                 if weights is None or name in weights:
                     param.requires_grad = False
 
-    @t.jit.ignore()
+    @t.jit.ignore
     def unfreeze(self, weights=None):
         if hasattr(self, "_pt_module"):
             for name, param in self._pt_module.named_parameters():
