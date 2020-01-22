@@ -6,9 +6,10 @@ import os
 import kaldi_io
 import nemo
 import torch
+from torch.utils.data import Dataset
+
 from nemo_asr.parts import collections
 from nemo_asr.parts import parsers
-from torch.utils.data import Dataset
 
 
 def seq_collate_fn(batch, token_pad_value=0):
