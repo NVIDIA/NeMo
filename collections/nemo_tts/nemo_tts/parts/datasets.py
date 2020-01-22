@@ -1,24 +1,24 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import torch
-import nemo
-from nemo_asr.parts import char_parsers
-from nemo_asr.parts import manifests
+from nemo_asr.parts import collections
+from nemo_asr.parts import parsers
 from nemo_asr.parts.segment import AudioSegment
 from torch.utils.data import Dataset
 
 
 class AudioOnlyDataset(Dataset):
-    def __init__(self,
-         manifest_filepath,
-         n_segments=0,
-         max_duration=None,
-         min_duration=None,
-         trim=False,
+    def __init__(
+        self,
+        manifest_filepath,
+        n_segments=0,
+        max_duration=None,
+        min_duration=None,
+        trim=False,
     ):
         """See AudioDataLayer"""
-        self.manifest = manifests.ASRAudioText(
+        self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
-            parser=char_parsers.make_parser([]),
+            parser=parsers.make_parser(),
             min_duration=min_duration,
             max_duration=max_duration,
         )
@@ -54,7 +54,7 @@ class AudioOnlyDataset(Dataset):
         return audio_signal, audio_lengths
 
     def __getitem__(self, index):
-        example = self.manifest[index]
+        example = self.collection[index]
         features = AudioSegment.segment_from_file(
             example.audio_file, n_segments=self.n_segments, trim=self.trim,
         )
@@ -64,4 +64,4 @@ class AudioOnlyDataset(Dataset):
         return f, fl
 
     def __len__(self):
-        return len(self.manifest)
+        return len(self.collection)

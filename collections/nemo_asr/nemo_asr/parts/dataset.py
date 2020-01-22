@@ -4,12 +4,11 @@
 import os
 
 import kaldi_io
-import torch
-from nemo_asr.parts import char_parsers
-from nemo_asr.parts import manifests
-from torch.utils.data import Dataset
-
 import nemo
+import torch
+from nemo_asr.parts import collections
+from nemo_asr.parts import parsers
+from torch.utils.data import Dataset
 
 
 def seq_collate_fn(batch, token_pad_value=0):
@@ -130,19 +129,19 @@ class AudioDataset(Dataset):
         max_utts=0,
         blank_index=-1,
         unk_index=-1,
-        do_normalize=True,
+        normalize=True,
         trim=False,
         bos_id=None,
         eos_id=None,
         load_audio=True,
     ):
-        self.manifest = manifests.ASRAudioText(
+        self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
-            parser=char_parsers.ENCharParser(
+            parser=parsers.ENCharParser(
                 labels=labels,
                 unk_id=unk_index,
                 blank_id=blank_index,
-                do_normalize=do_normalize,
+                do_normalize=normalize,
             ),
             min_duration=min_duration,
             max_duration=max_duration,
@@ -156,7 +155,7 @@ class AudioDataset(Dataset):
         self.load_audio = load_audio
 
     def __getitem__(self, index):
-        sample = self.manifest[index]
+        sample = self.collection[index]
         if self.load_audio:
             features = self.featurizer.process(
                 sample.audio_file,
@@ -179,7 +178,7 @@ class AudioDataset(Dataset):
         return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
     def __len__(self):
-        return len(self.manifest)
+        return len(self.collection)
 
 
 class KaldiFeatureDataset(Dataset):
@@ -251,7 +250,7 @@ class KaldiFeatureDataset(Dataset):
 
         # Match transcripts to features
         text_path = os.path.join(kaldi_dir, 'text')
-        parser = char_parsers.make_parser(
+        parser = parsers.make_parser(
             labels, 'en', unk_id=unk_index, blank_id=self.blank_index
         )
         with open(text_path, 'r') as f:
@@ -296,8 +295,9 @@ class KaldiFeatureDataset(Dataset):
         if id2dur:
             # utt2dur durations are in seconds
             nemo.logging.info(
-                    f"Dataset loaded with {duration/60 : .2f} hours. "
-                    f"Filtered {filtered_duration/60 : .2f} hours.")
+                f"Dataset loaded with {duration / 60 : .2f} hours. "
+                f"Filtered {filtered_duration / 60 : .2f} hours."
+            )
 
         self.data = data
 
@@ -327,8 +327,8 @@ class TranscriptDataset(Dataset):
     """
 
     def __init__(self, path, labels, bos_id=None, eos_id=None, lowercase=True):
-        parser = char_parsers.make_parser(labels, do_lowercase=lowercase)
-        self.texts = manifests.FromFileText(path, parser=parser)
+        parser = parsers.make_parser(labels, do_lowercase=lowercase)
+        self.texts = collections.FromFileText(path, parser=parser)
 
         self.bos_id = bos_id
         self.eos_id = eos_id

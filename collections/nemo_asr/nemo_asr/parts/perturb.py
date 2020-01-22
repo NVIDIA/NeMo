@@ -3,8 +3,8 @@
 import random
 
 import librosa
-from nemo_asr.parts import char_parsers
-from nemo_asr.parts import manifests
+from nemo_asr.parts import collections
+from nemo_asr.parts import parsers
 from scipy import signal
 
 from .segment import AudioSegment
@@ -49,8 +49,8 @@ class GainPerturbation(Perturbation):
 
 class ImpulsePerturbation(Perturbation):
     def __init__(self, manifest_path=None, rng=None):
-        self._manifest = manifests.ASRAudioText(
-            manifest_path, parser=char_parsers.make_parser([])
+        self._manifest = collections.ASRAudioText(
+            manifest_path, parser=parsers.make_parser([])
         )
         self._rng = random.Random() if rng is None else rng
 
@@ -95,8 +95,8 @@ class NoisePerturbation(Perturbation):
         max_gain_db=300.0,
         rng=None,
     ):
-        self._manifest = manifests.ASRAudioText(
-            manifest_path, parser=char_parsers.make_parser([])
+        self._manifest = collections.ASRAudioText(
+            manifest_path, parser=parsers.make_parser([])
         )
         self._rng = random.Random() if rng is None else rng
         self._min_snr_db = min_snr_db

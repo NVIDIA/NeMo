@@ -1,18 +1,10 @@
 # Copyright (c) 2019 NVIDIA Corporation
-"""
-This package contains Neural Modules responsible for ASR-related
-data layers.
-"""
-__all__ = [
-    'AudioToTextDataLayer',
-    'KaldiFeatureDataLayer',
-    'TranscriptDataLayer',
-]
+"""This package contains Neural Modules responsible for ASR data layers."""
 
 from functools import partial
 
-import torch
 import nemo
+import torch
 from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
@@ -25,6 +17,12 @@ from .parts.dataset import (
     TranscriptDataset,
 )
 from .parts.features import WaveformFeaturizer
+
+__all__ = [
+    'AudioToTextDataLayer',
+    'KaldiFeatureDataLayer',
+    'TranscriptDataLayer',
+]
 
 
 class AudioToTextDataLayer(DataLayerNM):
@@ -107,14 +105,14 @@ transcript_n}
 
         """
         return {
-            "audio_signal": NeuralType(
+            'audio_signal': NeuralType(
                 {0: AxisType(BatchTag), 1: AxisType(TimeTag)}
             ),
-            "a_sig_length": NeuralType({0: AxisType(BatchTag)}),
-            "transcripts": NeuralType(
+            'a_sig_length': NeuralType({0: AxisType(BatchTag)}),
+            'transcripts': NeuralType(
                 {0: AxisType(BatchTag), 1: AxisType(TimeTag)}
             ),
-            "transcript_length": NeuralType({0: AxisType(BatchTag)}),
+            'transcript_length': NeuralType({0: AxisType(BatchTag)}),
         }
 
     def __init__(
@@ -146,22 +144,23 @@ transcript_n}
         )
 
         # Set up dataset
-        dataset_params = {'manifest_filepath': manifest_filepath,
-                          'labels': labels,
-                          'featurizer': self._featurizer,
-                          'max_duration': max_duration,
-                          'min_duration': min_duration,
-                          'do_normalize': normalize_transcripts,
-                          'trim': trim_silence,
-                          'bos_id': bos_id,
-                          'eos_id': eos_id,
-                          'load_audio': load_audio}
-
+        dataset_params = {
+            'manifest_filepath': manifest_filepath,
+            'labels': labels,
+            'featurizer': self._featurizer,
+            'max_duration': max_duration,
+            'min_duration': min_duration,
+            'normalize': normalize_transcripts,
+            'trim': trim_silence,
+            'bos_id': bos_id,
+            'eos_id': eos_id,
+            'load_audio': load_audio,
+        }
         self._dataset = AudioDataset(**dataset_params)
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
-            nemo.logging.info('Parallelizing DATALAYER')
+            nemo.logging.info("Parallelizing Datalayer.")
             sampler = torch.utils.data.distributed.DistributedSampler(
                 self._dataset
             )
@@ -249,18 +248,18 @@ class KaldiFeatureDataLayer(DataLayerNM):
 
         """
         return {
-            "processed_signal": NeuralType(
+            'processed_signal': NeuralType(
                 {
                     0: AxisType(BatchTag),
                     1: AxisType(SpectrogramSignalTag),
                     2: AxisType(ProcessedTimeTag),
                 }
             ),
-            "processed_length": NeuralType({0: AxisType(BatchTag)}),
-            "transcripts": NeuralType(
+            'processed_length': NeuralType({0: AxisType(BatchTag)}),
+            'transcripts': NeuralType(
                 {0: AxisType(BatchTag), 1: AxisType(TimeTag)}
             ),
-            "transcript_length": NeuralType({0: AxisType(BatchTag)}),
+            'transcript_length': NeuralType({0: AxisType(BatchTag)}),
         }
 
     def __init__(
@@ -280,16 +279,18 @@ class KaldiFeatureDataLayer(DataLayerNM):
         super().__init__(**kwargs)
 
         # Set up dataset
-        dataset_params = {'kaldi_dir': kaldi_dir,
-                          'labels': labels,
-                          'min_duration': min_duration,
-                          'max_duration': max_duration,
-                          'normalize': normalize_transcripts}
+        dataset_params = {
+            "kaldi_dir": kaldi_dir,
+            "labels": labels,
+            "min_duration": min_duration,
+            "max_duration": max_duration,
+            "normalize": normalize_transcripts,
+        }
         self._dataset = KaldiFeatureDataset(**dataset_params)
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
-            nemo.logging.info('Parallelizing DATALAYER')
+            nemo.logging.info("Parallelizing DATALAYER")
             sampler = torch.utils.data.distributed.DistributedSampler(
                 self._dataset
             )
@@ -330,13 +331,13 @@ class KaldiFeatureDataLayer(DataLayerNM):
         for feat, feat_len, tkns, tkns_len in batch:
             feat_len = feat_len.item()
             if feat_len < max_feat_len:
-                pad = (0, max_feat_len - feat_len)
+                pad = [0, max_feat_len - feat_len]
                 feat = torch.nn.functional.pad(feat, pad)
             features.append(feat)
 
             tkns_len = tkns_len.item()
             if tkns_len < max_tokens_len:
-                pad = (0, max_tokens_len - tkns_len)
+                pad = [0, max_tokens_len - tkns_len]
                 tkns = torch.nn.functional.pad(tkns, pad)
             tokens.append(tkns)
 
@@ -388,7 +389,7 @@ class TranscriptDataLayer(DataLayerNM):
         """
         return {
             'texts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "texts_length": NeuralType({0: AxisType(BatchTag)}),
+            'texts_length': NeuralType({0: AxisType(BatchTag)}),
         }
 
     def __init__(

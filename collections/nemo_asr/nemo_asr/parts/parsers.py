@@ -141,21 +141,15 @@ NAME_TO_PARSER = frozendict.frozendict(
 
 
 def make_parser(
-    labels: List[str],
-    name: str = 'base',
-    *,
-    unk_id: int = -1,
-    blank_id: int = -1,
-    **kwargs,
+    labels: Optional[List[str]] = None, name: str = 'base', **kwargs,
 ) -> CharParser:
     """Creates parser from labels, set of arguments and concise parser name.
 
     Args:
-        labels: List of labels to allocate indexes for. Essentially,
-            this is a id to str mapping.
+        labels: List of labels to allocate indexes for. If set to
+            None then labels would be ascii table list. Essentially, this is a
+            id to str mapping (default: None).
         name: Concise name of parser to create (default: 'base').
-        unk_id: Index to choose for OOV words (default: -1).
-        blank_id: Index to filter out from final list of tokens
             (default: -1).
         **kwargs: Other set of kwargs to pass to parser constructor.
 
@@ -173,9 +167,10 @@ def make_parser(
     if name not in NAME_TO_PARSER:
         raise ValueError('Invalid parser name.')
 
+    if labels is None:
+        labels = list(string.printable)
+
     parser_type = NAME_TO_PARSER[name]
-    parser = parser_type(
-        labels=labels, unk_id=unk_id, blank_id=blank_id, **kwargs
-    )
+    parser = parser_type(labels=labels, **kwargs)
 
     return parser
