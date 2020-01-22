@@ -172,7 +172,6 @@ def construct_name(args, cfg):
         'bs' + str(cfg['optimization']['batch_size']),
         'epochs' + str(cfg['optimization']['params']['num_epochs']),
     )
-    name = name
     if args.work_dir:
         name = os.path.join(args.work_dir, name)
     return name

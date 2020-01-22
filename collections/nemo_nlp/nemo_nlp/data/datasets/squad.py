@@ -26,16 +26,19 @@ from tqdm import tqdm
 import torch
 from torch.utils.data import Dataset
 
-from nemo.utils.exp_logging import get_logger
+import nemo
 from nemo_nlp.utils.nlp_utils import _is_whitespace
 from .utils import DataProcessor
 from ...utils.metrics.squad_metrics import (
-            _compute_softmax,
-            _get_best_indexes, apply_no_ans_threshold, exact_match_score,
-            make_eval_dict, f1_score, get_final_text, normalize_answer,
-            merge_eval, find_all_best_thresh)
-
-logger = get_logger('')
+    _compute_softmax,
+    _get_best_indexes,
+    apply_no_ans_threshold,
+    exact_match_score,
+    make_eval_dict,
+    f1_score, get_final_text,
+    normalize_answer,
+    merge_eval,
+    find_all_best_thresh)
 
 
 """
@@ -111,8 +114,9 @@ class SquadDataset(Dataset):
                 master_device = not torch.distributed.is_initialized() \
                     or torch.distributed.get_rank() == 0
                 if master_device:
-                    logger.info("  Saving train features into cached file %s",
-                                cached_train_features_file)
+                    nemo.logging.info(
+                        "  Saving train features into cached file %s",
+                        cached_train_features_file)
                     with open(cached_train_features_file, "wb") as writer:
                         pickle.dump(self.features, writer)
         elif mode == "dev":
@@ -587,34 +591,34 @@ def convert_examples_to_features(
                 end_position = 0
 
             if example_index < 1:
-                logger.info("*** Example ***")
-                logger.info("unique_id: %s" % (unique_id))
-                logger.info("example_index: %s" % (example_index))
-                logger.info("doc_span_index: %s" % (doc_span_index))
-                logger.info("tokens: %s" % " ".join(tokens))
-                logger.info("token_to_orig_map: %s" % " ".join([
+                nemo.logging.info("*** Example ***")
+                nemo.logging.info("unique_id: %s" % (unique_id))
+                nemo.logging.info("example_index: %s" % (example_index))
+                nemo.logging.info("doc_span_index: %s" % (doc_span_index))
+                nemo.logging.info("tokens: %s" % " ".join(tokens))
+                nemo.logging.info("token_to_orig_map: %s" % " ".join([
                     "%d:%d" % (x, y) for (x, y)
                     in token_to_orig_map.items()]))
-                logger.info("token_is_max_context: %s" % " ".join([
+                nemo.logging.info("token_is_max_context: %s" % " ".join([
                     "%d:%s" % (x, y) for (x, y)
                     in token_is_max_context.items()
                 ]))
-                logger.info("input_ids: %s" % " ".join(
+                nemo.logging.info("input_ids: %s" % " ".join(
                     [str(x) for x in input_ids]))
-                logger.info(
+                nemo.logging.info(
                     "input_mask: %s" % " ".join(
                         [str(x) for x in input_mask]))
-                logger.info(
+                nemo.logging.info(
                     "segment_ids: %s" % " ".join(
                         [str(x) for x in segment_ids]))
                 if has_groundtruth and example.is_impossible:
-                    logger.info("impossible example")
+                    nemo.logging.info("impossible example")
                 if has_groundtruth and not example.is_impossible:
                     answer_text = " ".join(
                                     tokens[start_position:(end_position + 1)])
-                    logger.info("start_position: %d" % (start_position))
-                    logger.info("end_position: %d" % (end_position))
-                    logger.info(
+                    nemo.logging.info("start_position: %d" % (start_position))
+                    nemo.logging.info("end_position: %d" % (end_position))
+                    nemo.logging.info(
                         "answer: %s" % (answer_text))
 
             features.append(
