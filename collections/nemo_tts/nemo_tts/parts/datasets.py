@@ -1,9 +1,10 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import torch
+from torch.utils.data import Dataset
+
 from nemo_asr.parts import collections
 from nemo_asr.parts import parsers
 from nemo_asr.parts.segment import AudioSegment
-from torch.utils.data import Dataset
 
 
 class AudioOnlyDataset(Dataset):

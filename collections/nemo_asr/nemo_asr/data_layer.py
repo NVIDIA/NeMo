@@ -3,8 +3,9 @@
 
 from functools import partial
 
-import nemo
 import torch
+
+import nemo
 from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *

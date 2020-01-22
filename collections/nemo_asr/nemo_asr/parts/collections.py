@@ -3,8 +3,9 @@ import collections
 import os
 from typing import Optional, List, Union
 
-import nemo
 import pandas as pd
+
+import nemo
 from nemo_asr.parts import manifest
 from nemo_asr.parts import parsers
 
