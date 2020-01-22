@@ -875,8 +875,8 @@ def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names,
                     slotlist.append(all_labels.get('O'))
                 anno_words = utterance[tags['startOffset']:tags['endOffset']]
                 # tagging with the IOB format.
-                for i, word in enumerate(anno_words.split()):
-                    if i == 0:
+                for j, _ in enumerate(anno_words.split()):
+                    if j == 0:
                         b_slot = 'B-' + tags['label']
                         slotlist.append(all_labels.get(b_slot))
                     else:
