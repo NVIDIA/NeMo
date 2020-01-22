@@ -1,6 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import json
-import nemo
 from typing import Union, Iterator, Dict, Any, List
 
 

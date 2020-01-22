@@ -153,6 +153,7 @@ class ASRAudioText(AudioText):
             *args: Args to pass to `AudioText` constructor.
             **kwargs: Kwargs to pass to `AudioText` constructor.
         """
+
         audio_files, durations, texts = [], [], []
         for item in manifest.item_iter(manifests_files):
             audio_files.append(item['audio_file'])
