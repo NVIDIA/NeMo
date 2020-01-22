@@ -9,15 +9,16 @@ from .cleaners import clean_text
 
 class ManifestBase():
     def __init__(self,
-                 manifest_paths,
-                 labels,
-                 max_duration=None,
-                 min_duration=None,
-                 sort_by_duration=False,
-                 max_utts=0,
-                 blank_index=-1,
-                 unk_index=-1,
-                 normalize=True):
+         manifest_paths,
+         labels,
+         max_duration=None,
+         min_duration=None,
+         sort_by_duration=False,
+         max_utts=0,
+         blank_index=-1,
+         unk_index=-1,
+         normalize=True,
+    ):
         self.min_duration = min_duration
         self.max_duration = max_duration
         self.sort_by_duration = sort_by_duration
@@ -61,7 +62,8 @@ class ManifestBase():
 
             # tokenize transcript text
             item["tokens"] = self.tokenize_transcript(
-                    text, self.labels_map, self.unk_index, self.blank_index)
+                text, self.labels_map, self.unk_index, self.blank_index
+            )
 
             # support files using audio_filename
             if 'audio_filename' in item and 'audio_filepath' not in item:
@@ -155,11 +157,7 @@ class ManifestEN(ManifestBase):
         # Punctuation to remove
         punctuation = string.punctuation
         # Define punctuation that will be handled by text cleaner
-        punctuation_to_replace = {
-            "+": "plus",
-            "&": "and",
-            "%": "percent"
-        }
+        punctuation_to_replace = {"+": "plus", "&": "and", "%": "percent"}
         for char in punctuation_to_replace:
             punctuation = punctuation.replace(char, "")
         # We might also want to consider:
