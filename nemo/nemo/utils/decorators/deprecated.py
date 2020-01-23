@@ -28,12 +28,18 @@ class deprecated(object):
     # the warning for.
     warned_functions = []
 
-    def __init__(self, version=None, alternative_function=None):
+    def __init__(self, version=None, explanation=None):
         """
-        Constructor. Stores version and alvernative into local variables.
+        Constructor. Stores version and explanation into local variables.
+
+        Args:
+          version: Version in which the function will be removed (optional)
+          explanation: Additional explanation (optional), e.g. use method
+          ``blabla instead``.
+
         """
         self.version = version
-        self.alternative_function = alternative_function
+        self.explanation = explanation
 
     def __call__(self, func):
         """
@@ -41,7 +47,10 @@ class deprecated(object):
         required and calls the function func, passing the original arguments.
         """
         def wrapper(*args, **kwargs):
-
+            """
+            Function prints the adequate warning and calls the function func,
+            passing the original arguments.
+            """
             # Check if we already warned about that function.
             if func.__name__ not in deprecated.warned_functions:
                 # Add to list so we won't print it again.
@@ -56,10 +65,9 @@ class deprecated(object):
                         " It is going to be removed in version {}.".format(
                             self.version)
 
-                if self.alternative_function is not None:
-                    msg = msg + \
-                        " Please use ``{}`` instead.".format(
-                            self.alternative_function)
+                if self.explanation is not None:
+                    msg = msg + " " + self.explanation
+
                 # Display the deprecated warning.
                 nemo.logging.warning(msg)
 
