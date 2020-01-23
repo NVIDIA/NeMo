@@ -1,13 +1,8 @@
 # Copyright (c) 2019 NVIDIA Corporation
-"""
-This package contains Neural Modules responsible for ASR-related
-data layers.
-"""
-__all__ = ['AudioToTextDataLayer',
-           'KaldiFeatureDataLayer',
-           'TranscriptDataLayer']
+"""This package contains Neural Modules responsible for ASR data layers."""
 
 from functools import partial
+
 import torch
 
 import nemo
@@ -15,12 +10,20 @@ from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
 from nemo.utils.misc import pad_to
+
 from .parts.dataset import (
     AudioDataset,
     seq_collate_fn,
     KaldiFeatureDataset,
-    TranscriptDataset)
+    TranscriptDataset,
+)
 from .parts.features import WaveformFeaturizer
+
+__all__ = [
+    'AudioToTextDataLayer',
+    'KaldiFeatureDataLayer',
+    'TranscriptDataLayer',
+]
 
 
 class AudioToTextDataLayer(DataLayerNM):
@@ -103,62 +106,65 @@ transcript_n}
 
         """
         return {
-            "audio_signal": NeuralType({0: AxisType(BatchTag),
-                                        1: AxisType(TimeTag)}),
-
-            "a_sig_length": NeuralType({0: AxisType(BatchTag)}),
-
-            "transcripts": NeuralType({0: AxisType(BatchTag),
-                                       1: AxisType(TimeTag)}),
-
-            "transcript_length": NeuralType({0: AxisType(BatchTag)})
+            'audio_signal': NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag)}
+            ),
+            'a_sig_length': NeuralType({0: AxisType(BatchTag)}),
+            'transcripts': NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag)}
+            ),
+            'transcript_length': NeuralType({0: AxisType(BatchTag)}),
         }
 
     def __init__(
-            self, *,
-            manifest_filepath,
-            labels,
-            batch_size,
-            sample_rate=16000,
-            int_values=False,
-            bos_id=None,
-            eos_id=None,
-            pad_id=None,
-            min_duration=0.1,
-            max_duration=None,
-            normalize_transcripts=True,
-            trim_silence=False,
-            load_audio=True,
-            drop_last=False,
-            shuffle=True,
-            num_workers=0,
-            # perturb_config=None,
-            **kwargs
+        self,
+        *,
+        manifest_filepath,
+        labels,
+        batch_size,
+        sample_rate=16000,
+        int_values=False,
+        bos_id=None,
+        eos_id=None,
+        pad_id=None,
+        min_duration=0.1,
+        max_duration=None,
+        normalize_transcripts=True,
+        trim_silence=False,
+        load_audio=True,
+        drop_last=False,
+        shuffle=True,
+        num_workers=0,
+        # perturb_config=None,
+        **kwargs,
     ):
         super().__init__(**kwargs)
 
         self._featurizer = WaveformFeaturizer(
-            sample_rate=sample_rate, int_values=int_values, augmentor=None)
+            sample_rate=sample_rate, int_values=int_values, augmentor=None
+        )
 
         # Set up dataset
-        dataset_params = {'manifest_filepath': manifest_filepath,
-                          'labels': labels,
-                          'featurizer': self._featurizer,
-                          'max_duration': max_duration,
-                          'min_duration': min_duration,
-                          'normalize': normalize_transcripts,
-                          'trim': trim_silence,
-                          'bos_id': bos_id,
-                          'eos_id': eos_id,
-                          'load_audio': load_audio}
-
+        dataset_params = {
+            'manifest_filepath': manifest_filepath,
+            'labels': labels,
+            'featurizer': self._featurizer,
+            'max_duration': max_duration,
+            'min_duration': min_duration,
+            'normalize': normalize_transcripts,
+            'trim': trim_silence,
+            'bos_id': bos_id,
+            'eos_id': eos_id,
+            'load_audio': load_audio,
+        }
         self._dataset = AudioDataset(**dataset_params)
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
-            nemo.logging.info('Parallelizing DATALAYER')
+            nemo.logging.info("Parallelizing Datalayer.")
             sampler = torch.utils.data.distributed.DistributedSampler(
-                self._dataset)
+                self._dataset
+            )
         else:
             sampler = None
 
@@ -170,7 +176,7 @@ transcript_n}
             drop_last=drop_last,
             shuffle=shuffle if sampler is None else False,
             sampler=sampler,
-            num_workers=num_workers
+            num_workers=num_workers,
         )
 
     def __len__(self):
@@ -243,46 +249,52 @@ class KaldiFeatureDataLayer(DataLayerNM):
 
         """
         return {
-            "processed_signal": NeuralType({0: AxisType(BatchTag),
-                                            1: AxisType(SpectrogramSignalTag),
-                                            2: AxisType(ProcessedTimeTag)}),
-
-            "processed_length": NeuralType({0: AxisType(BatchTag)}),
-
-            "transcripts": NeuralType({0: AxisType(BatchTag),
-                                       1: AxisType(TimeTag)}),
-
-            "transcript_length": NeuralType({0: AxisType(BatchTag)})
+            'processed_signal': NeuralType(
+                {
+                    0: AxisType(BatchTag),
+                    1: AxisType(SpectrogramSignalTag),
+                    2: AxisType(ProcessedTimeTag),
+                }
+            ),
+            'processed_length': NeuralType({0: AxisType(BatchTag)}),
+            'transcripts': NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag)}
+            ),
+            'transcript_length': NeuralType({0: AxisType(BatchTag)}),
         }
 
     def __init__(
-            self, *,
-            kaldi_dir,
-            labels,
-            batch_size,
-            min_duration=None,
-            max_duration=None,
-            normalize_transcripts=True,
-            drop_last=False,
-            shuffle=True,
-            num_workers=0,
-            **kwargs
+        self,
+        *,
+        kaldi_dir,
+        labels,
+        batch_size,
+        min_duration=None,
+        max_duration=None,
+        normalize_transcripts=True,
+        drop_last=False,
+        shuffle=True,
+        num_workers=0,
+        **kwargs,
     ):
         super().__init__(**kwargs)
 
         # Set up dataset
-        dataset_params = {'kaldi_dir': kaldi_dir,
-                          'labels': labels,
-                          'min_duration': min_duration,
-                          'max_duration': max_duration,
-                          'normalize': normalize_transcripts}
+        dataset_params = {
+            "kaldi_dir": kaldi_dir,
+            "labels": labels,
+            "min_duration": min_duration,
+            "max_duration": max_duration,
+            "normalize": normalize_transcripts,
+        }
         self._dataset = KaldiFeatureDataset(**dataset_params)
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
-            nemo.logging.info('Parallelizing DATALAYER')
+            nemo.logging.info("Parallelizing DATALAYER")
             sampler = torch.utils.data.distributed.DistributedSampler(
-                self._dataset)
+                self._dataset
+            )
         else:
             sampler = None
 
@@ -293,7 +305,7 @@ class KaldiFeatureDataLayer(DataLayerNM):
             drop_last=drop_last,
             shuffle=shuffle if sampler is None else False,
             sampler=sampler,
-            num_workers=num_workers
+            num_workers=num_workers,
         )
 
     @staticmethod
@@ -320,13 +332,13 @@ class KaldiFeatureDataLayer(DataLayerNM):
         for feat, feat_len, tkns, tkns_len in batch:
             feat_len = feat_len.item()
             if feat_len < max_feat_len:
-                pad = (0, max_feat_len - feat_len)
+                pad = [0, max_feat_len - feat_len]
                 feat = torch.nn.functional.pad(feat, pad)
             features.append(feat)
 
             tkns_len = tkns_len.item()
             if tkns_len < max_tokens_len:
-                pad = (0, max_tokens_len - tkns_len)
+                pad = [0, max_tokens_len - tkns_len]
                 tkns = torch.nn.functional.pad(tkns, pad)
             tokens.append(tkns)
 
@@ -377,39 +389,40 @@ class TranscriptDataLayer(DataLayerNM):
 
         """
         return {
-            'texts': NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-
-            "texts_length": NeuralType({0: AxisType(BatchTag)})
+            'texts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            'texts_length': NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def __init__(self,
-                 path,
-                 labels,
-                 batch_size,
-                 bos_id=None,
-                 eos_id=None,
-                 pad_id=None,
-                 drop_last=False,
-                 num_workers=0,
-                 shuffle=True,
-                 **kwargs):
+    def __init__(
+        self,
+        path,
+        labels,
+        batch_size,
+        bos_id=None,
+        eos_id=None,
+        pad_id=None,
+        drop_last=False,
+        num_workers=0,
+        shuffle=True,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
 
         # Set up dataset
-        dataset_params = {'path': path,
-                          'labels': labels,
-                          'bos_id': bos_id,
-                          'eos_id': eos_id}
+        dataset_params = {
+            'path': path,
+            'labels': labels,
+            'bos_id': bos_id,
+            'eos_id': eos_id,
+        }
 
         self._dataset = TranscriptDataset(**dataset_params)
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
             sampler = torch.utils.data.distributed.DistributedSampler(
-                self._dataset)
+                self._dataset
+            )
         else:
             sampler = None
 
@@ -423,7 +436,7 @@ class TranscriptDataLayer(DataLayerNM):
             drop_last=drop_last,
             shuffle=shuffle if sampler is None else False,
             sampler=sampler,
-            num_workers=num_workers
+            num_workers=num_workers,
         )
 
     @staticmethod
@@ -433,8 +446,7 @@ class TranscriptDataLayer(DataLayerNM):
         if pad8:
             max_len = pad_to(max_len, 8)
 
-        texts = torch.empty(len(texts_list), max_len,
-                            dtype=torch.long)
+        texts = torch.empty(len(texts_list), max_len, dtype=torch.long)
         texts.fill_(pad_id)
 
         for i, s in enumerate(texts_list):

@@ -1,16 +1,15 @@
 # Audio dataset and corresponding functions taken from Patter
 # https://github.com/ryanleary/patter
 # TODO: review, and copyright and fix/add comments
-import kaldi_io
 import os
-import pandas as pd
-import string
+
+import kaldi_io
 import torch
 from torch.utils.data import Dataset
 
 import nemo
-
-from .manifest import ManifestBase, ManifestEN
+from nemo_asr.parts import collections
+from nemo_asr.parts import parsers
 
 
 def seq_collate_fn(batch, token_pad_value=0):
@@ -42,7 +41,8 @@ def seq_collate_fn(batch, token_pad_value=0):
         if tokens_i_len < max_tokens_len:
             pad = (0, max_tokens_len - tokens_i_len)
             tokens_i = torch.nn.functional.pad(
-                tokens_i, pad, value=token_pad_value)
+                tokens_i, pad, value=token_pad_value
+            )
         tokens.append(tokens_i)
 
     if has_audio:
@@ -119,56 +119,56 @@ class AudioDataset(Dataset):
         eos_id: Id of end of sequence symbol to append if not None
         load_audio: Boolean flag indicate whether do or not load audio
     """
+
     def __init__(
-            self,
-            manifest_filepath,
-            labels,
-            featurizer,
-            max_duration=None,
-            min_duration=None,
-            max_utts=0,
-            blank_index=-1,
-            unk_index=-1,
-            normalize=True,
-            trim=False,
-            bos_id=None,
-            eos_id=None,
-            load_audio=True,
-            manifest_class=ManifestEN):
-        m_paths = manifest_filepath.split(',')
-        self.manifest = manifest_class(m_paths, labels,
-                                       max_duration=max_duration,
-                                       min_duration=min_duration,
-                                       max_utts=max_utts,
-                                       blank_index=blank_index,
-                                       unk_index=unk_index,
-                                       normalize=normalize)
+        self,
+        manifest_filepath,
+        labels,
+        featurizer,
+        max_duration=None,
+        min_duration=None,
+        max_utts=0,
+        blank_index=-1,
+        unk_index=-1,
+        normalize=True,
+        trim=False,
+        bos_id=None,
+        eos_id=None,
+        load_audio=True,
+    ):
+        self.collection = collections.ASRAudioText(
+            manifests_files=manifest_filepath.split(','),
+            parser=parsers.ENCharParser(
+                labels=labels,
+                unk_id=unk_index,
+                blank_id=blank_index,
+                do_normalize=normalize,
+            ),
+            min_duration=min_duration,
+            max_duration=max_duration,
+            max_number=max_utts,
+        )
+
         self.featurizer = featurizer
         self.trim = trim
         self.eos_id = eos_id
         self.bos_id = bos_id
         self.load_audio = load_audio
-        nemo.logging.info(
-            "Dataset loaded with {0:.2f} hours. Filtered {1:.2f} "
-            "hours.".format(
-                self.manifest.duration / 3600,
-                self.manifest.filtered_duration / 3600))
 
     def __getitem__(self, index):
-        sample = self.manifest[index]
+        sample = self.collection[index]
         if self.load_audio:
-            duration = sample['duration'] if 'duration' in sample else 0
-            offset = sample['offset'] if 'offset' in sample else 0
-            features = self.featurizer.process(sample['audio_filepath'],
-                                               offset=offset,
-                                               duration=duration,
-                                               trim=self.trim)
+            features = self.featurizer.process(
+                sample.audio_file,
+                offset=0,
+                duration=sample.duration,
+                trim=self.trim,
+            )
             f, fl = features, torch.tensor(features.shape[0]).long()
-            # f = f / (torch.max(torch.abs(f)) + 1e-5)
         else:
             f, fl = None, None
 
-        t, tl = sample["tokens"], len(sample["tokens"])
+        t, tl = sample.text_tokens, len(sample.text_tokens)
         if self.bos_id is not None:
             t = [self.bos_id] + t
             tl += 1
@@ -176,12 +176,10 @@ class AudioDataset(Dataset):
             t = t + [self.eos_id]
             tl += 1
 
-        return \
-            f, fl, \
-            torch.tensor(t).long(), torch.tensor(tl).long()
+        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
     def __len__(self):
-        return len(self.manifest)
+        return len(self.collection)
 
 
 class KaldiFeatureDataset(Dataset):
@@ -203,17 +201,19 @@ class KaldiFeatureDataset(Dataset):
         normalize: whether to normalize transcript text. Defaults to True.
         eos_id: Id of end of sequence symbol to append if not None.
     """
+
     def __init__(
-            self,
-            kaldi_dir,
-            labels,
-            min_duration=None,
-            max_duration=None,
-            max_utts=0,
-            unk_index=-1,
-            blank_index=-1,
-            normalize=True,
-            eos_id=None):
+        self,
+        kaldi_dir,
+        labels,
+        min_duration=None,
+        max_duration=None,
+        max_utts=0,
+        unk_index=-1,
+        blank_index=-1,
+        normalize=True,
+        eos_id=None,
+    ):
         self.eos_id = eos_id
         self.unk_index = unk_index
         self.blank_index = blank_index
@@ -251,6 +251,9 @@ class KaldiFeatureDataset(Dataset):
 
         # Match transcripts to features
         text_path = os.path.join(kaldi_dir, 'text')
+        parser = parsers.make_parser(
+            labels, 'en', unk_id=unk_index, blank_id=self.blank_index
+        )
         with open(text_path, 'r') as f:
             for line in f:
                 split_idx = line.find(' ')
@@ -262,8 +265,9 @@ class KaldiFeatureDataset(Dataset):
 
                     text = line[split_idx:].strip()
                     if normalize:
-                        text = ManifestEN.normalize_text(
-                            text, labels)
+                        # TODO: WTF?
+                        text = parser._normalize(text)
+
                     dur = id2dur[utt_id] if id2dur else None
 
                     # Filter by duration if specified & utt2dur exists
@@ -277,13 +281,9 @@ class KaldiFeatureDataset(Dataset):
                     sample = {
                         'utt_id': utt_id,
                         'text': text,
-                        'tokens': ManifestBase.tokenize_transcript(
-                            text,
-                            self.labels_map,
-                            self.unk_index,
-                            self.blank_index),
+                        'tokens': parser(text),
                         'audio': audio_features.t(),
-                        'duration': dur
+                        'duration': dur,
                     }
 
                     data.append(sample)
@@ -296,8 +296,9 @@ class KaldiFeatureDataset(Dataset):
         if id2dur:
             # utt2dur durations are in seconds
             nemo.logging.info(
-                    f"Dataset loaded with {duration/60 : .2f} hours. "
-                    f"Filtered {filtered_duration/60 : .2f} hours.")
+                f"Dataset loaded with {duration / 60 : .2f} hours. "
+                f"Filtered {filtered_duration / 60 : .2f} hours."
+            )
 
         self.data = data
 
@@ -325,29 +326,11 @@ class TranscriptDataset(Dataset):
         labels (list): List of string labels to use when to str2int translation
         eos_id (int): Label position of end of string symbol
     """
-    def __init__(self, path, labels, bos_id=None, eos_id=None, lowercase=True):
-        _, ext = os.path.splitext(path)
-        if ext == '.csv':
-            texts = pd.read_csv(path)['transcript'].tolist()
-        elif ext == '.json':
-            # Assume it is in ASR manifest form
-            texts = []
-            for item in ManifestBase.json_item_gen([path]):
-                if 'text' in item:
-                    text = item['text']
-                elif 'text_filepath' in item:
-                    text = ManifestBase.load_transcript(item['text_filepath'])
-                else:
-                    raise ValueError(f"{self} obtained an invalid manifest.")
-                texts.append(text)
-        else:
-            with open(path, 'r') as f:
-                texts = f.readlines()
-        if lowercase:
-            texts = [l.strip().lower() for l in texts if len(l)]
-        self.texts = texts
 
-        self.char2num = {c: i for i, c in enumerate(labels)}
+    def __init__(self, path, labels, bos_id=None, eos_id=None, lowercase=True):
+        parser = parsers.make_parser(labels, do_lowercase=lowercase)
+        self.texts = collections.FromFileText(path, parser=parser)
+
         self.bos_id = bos_id
         self.eos_id = eos_id
 
@@ -355,11 +338,12 @@ class TranscriptDataset(Dataset):
         return len(self.texts)
 
     def __getitem__(self, item):
-        tokenized_text = ManifestBase.tokenize_transcript(
-            self.texts[item], self.char2num, -1, -1)
+        tokenized_text = self.texts[item].tokens
         if self.bos_id:
             tokenized_text = [self.bos_id] + tokenized_text
         if self.eos_id:
             tokenized_text = tokenized_text + [self.eos_id]
-        return (torch.tensor(tokenized_text, dtype=torch.long),
-                torch.tensor(len(tokenized_text), dtype=torch.long))
+        return (
+            torch.tensor(tokenized_text, dtype=torch.long),
+            torch.tensor(len(tokenized_text), dtype=torch.long),
+        )
