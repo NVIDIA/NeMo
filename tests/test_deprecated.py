@@ -42,51 +42,85 @@ class DeprecatedTestCase(unittest.TestCase):
 
         # Check error output.
         self.assertEqual(std_err.getvalue().strip(),
-                         'Function ``say_whee`` is depricated.')
+                         'Function ``say_whee`` is deprecated.')
 
-    def test_say_whee_deprecated_version(self):
+    def test_say_wow_twice_deprecated(self):
+        """ Tests whether both std and err streams return the right values
+        when a deprecated is alled twice."""
+
+        @deprecated()
+        def say_wow():
+            print("Woooow!")
+
+        # Mock up both std and stderr streams - first call
+        with patch('sys.stdout', new=StringIO()) as std_out:
+            with patch('sys.stderr', new=StringIO()) as std_err:
+                say_wow()
+
+        # Check std output.
+        self.assertEqual(std_out.getvalue().strip(),
+                         "Woooow!")
+
+        # Check error output.
+        self.assertEqual(std_err.getvalue().strip(),
+                         'Function ``say_wow`` is deprecated.')
+
+        # Second call.
+        with patch('sys.stdout', new=StringIO()) as std_out:
+            with patch('sys.stderr', new=StringIO()) as std_err:
+                say_wow()
+
+        # Check std output.
+        self.assertEqual(std_out.getvalue().strip(),
+                         "Woooow!")
+
+        # Check error output - should be empty.
+        self.assertEqual(std_err.getvalue().strip(),
+                         '')
+
+    def test_say_whoopie_deprecated_version(self):
         """ Tests whether both std and err streams return the right values
         when function is deprecated and version is provided. """
 
         @deprecated(version=0.1)
-        def say_whee():
-            print("Whee!")
+        def say_whoopie():
+            print("Whoopie!")
 
         # Mock up both std and stderr streams.
         with patch('sys.stdout', new=StringIO()) as std_out:
             with patch('sys.stderr', new=StringIO()) as std_err:
-                say_whee()
+                say_whoopie()
 
         # Check std output.
         self.assertEqual(std_out.getvalue().strip(),
-                         "Whee!")
+                         "Whoopie!")
 
         # Check error output.
         self.assertEqual(std_err.getvalue().strip(),
-                         'Function ``say_whee`` is depricated. It is going to \
-be removed in version 0.1.')
+                         'Function ``say_whoopie`` is deprecated. It is going \
+to be removed in version 0.1.')
 
-    def test_say_whee_deprecated_alternative(self):
+    def test_say_kowabunga_deprecated_alternative(self):
         """ Tests whether both std and err streams return the right values
         when function is deprecated and alternative function is provided. """
 
         @deprecated(alternative_function="print_ihaa")
-        def say_whee():
-            print("Whee!")
+        def say_kowabunga():
+            print("Kowabunga!")
 
         # Mock up both std and stderr streams.
         with patch('sys.stdout', new=StringIO()) as std_out:
             with patch('sys.stderr', new=StringIO()) as std_err:
-                say_whee()
+                say_kowabunga()
 
         # Check std output.
         self.assertEqual(std_out.getvalue().strip(),
-                         "Whee!")
+                         "Kowabunga!")
 
         # Check error output.
         self.assertEqual(std_err.getvalue().strip(),
-                         'Function ``say_whee`` is depricated. Please use \
-``print_ihaa`` instead.')
+                         'Function ``say_kowabunga`` is deprecated. Please \
+use ``print_ihaa`` instead.')
 
 
 # if __name__ == "__main__":

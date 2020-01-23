@@ -23,14 +23,14 @@ import nemo
 
 class deprecated(object):
     """ Decorator class used for indicating that a function is
-    depricated and going to be removed.
+    deprecated and going to be removed.
     Tracks down which functions printed the warning and 
     will print it only once per function. 
     """
 
     # Static variable - list of names of functions that we already printed
     # the warning for.
-    warned_functions = {}
+    warned_functions = []
 
     def __init__(self, version=None, alternative_function=None):
         """
@@ -49,21 +49,26 @@ class deprecated(object):
 
         def wrapper(*args, **kwargs):
 
-            # Prepare the warning message.
-            msg = "Function ``{}`` is depricated.".format(func.__name__)
+            # Check if we already warned about that function.
+            if func.__name__ not in deprecated.warned_functions:
+                # Add to list so we won't print it again.
+                deprecated.warned_functions.append(func.__name__)
 
-            # Optionally, add version and alternative.
-            if self.version is not None:
-                msg = msg + \
-                    " It is going to be removed in version {}.".format(
-                        self.version)
+                # Prepare the warning message.
+                msg = "Function ``{}`` is deprecated.".format(func.__name__)
 
-            if self.alternative_function is not None:
-                msg = msg + \
-                    " Please use ``{}`` instead.".format(
-                        self.alternative_function)
-            # Display the depricated warning.
-            nemo.logging.warning(msg)
+                # Optionally, add version and alternative.
+                if self.version is not None:
+                    msg = msg + \
+                        " It is going to be removed in version {}.".format(
+                            self.version)
+
+                if self.alternative_function is not None:
+                    msg = msg + \
+                        " Please use ``{}`` instead.".format(
+                            self.alternative_function)
+                # Display the deprecated warning.
+                nemo.logging.warning(msg)
 
             # Call the function.
             func(*args, **kwargs)
