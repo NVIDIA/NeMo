@@ -101,11 +101,11 @@ class DeprecatedTestCase(NeMoUnitTest):
                          'Function ``say_whoopie`` is deprecated. It is going \
 to be removed in version 0.1.')
 
-    def test_say_kowabunga_deprecated_alternative(self):
+    def test_say_kowabunga_deprecated_explanation(self):
         """ Tests whether both std and err streams return the right values
-        when function is deprecated and alternative function is provided. """
+        when function is deprecated and additional explanation is provided. """
 
-        @deprecated(alternative_function="print_ihaa")
+        @deprecated(explanation="Please use ``print_ihaa`` instead.")
         def say_kowabunga():
             print("Kowabunga!")
 
