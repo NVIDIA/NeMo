@@ -15,13 +15,14 @@
 __author__ = "Tomasz Kornuta"
 
 from io import StringIO
-import unittest
+
 from unittest.mock import patch
 
+from .common_setup import NeMoUnitTest
 from nemo.utils.decorators.deprecated import deprecated
 
 
-class DeprecatedTestCase(unittest.TestCase):
+class DeprecatedTestCase(NeMoUnitTest):
 
     def test_say_whee_deprecated(self):
         """ Tests whether both std and err streams return the right values
@@ -121,7 +122,3 @@ to be removed in version 0.1.')
         self.assertEqual(std_err.getvalue().strip(),
                          'Function ``say_kowabunga`` is deprecated. Please \
 use ``print_ihaa`` instead.')
-
-
-# if __name__ == "__main__":
-#    unittest.main(module=__name__, buffer=True, exit=False)
