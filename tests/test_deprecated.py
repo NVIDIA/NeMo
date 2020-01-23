@@ -47,7 +47,7 @@ class DeprecatedTestCase(NeMoUnitTest):
 
     def test_say_wow_twice_deprecated(self):
         """ Tests whether both std and err streams return the right values
-        when a deprecated is alled twice."""
+        when a deprecated is called twice."""
 
         @deprecated()
         def say_wow():
