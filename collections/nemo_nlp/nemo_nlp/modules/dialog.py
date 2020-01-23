@@ -115,8 +115,9 @@ class DSTGenerator(TrainableNM):
         else:
             use_teacher_forcing = True
 
-        #TODO: set max_res_len to 10 in evaluation mode
-        max_res_len = targets.shape[2] # if targets is not None else 10
+        # TODO: set max_res_len to 10 in evaluation mode.
+        #  if targets are not provided, set it to 10
+        max_res_len = targets.shape[2]
         batch_size = encoder_hidden.shape[0]
 
         targets = targets.transpose(0, 1)
@@ -148,7 +149,6 @@ class DSTGenerator(TrainableNM):
             enc_out = encoder_outputs.repeat(len(self.slots), 1, 1)
             context_vec, logits, prob = self.attend(enc_out,
                                                     hidden.squeeze(0),
-                                                    # 480 x 400
                                                     enc_len)
 
             if wi == 0:
