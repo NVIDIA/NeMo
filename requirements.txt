@@ -5,7 +5,6 @@ tqdm
 sox
 ruamel.yaml
 jupyterlab
-tqdm
 boto3
 requests
 six
@@ -18,7 +17,6 @@ matplotlib
 wget
 pandas
 onnx
-wget
 num2words
 librosa
 inflect
@@ -26,7 +24,5 @@ kaldi-io
 marshmallow
 unidecode
 sentencepiece
-boto3
-matplotlib
-h5py
 youtokentome
+frozendict

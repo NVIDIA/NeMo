@@ -1,185 +1,98 @@
-# Taken straight from Patter https://github.com/ryanleary/patter
-# TODO: review, and copyright and fix/add comments
+# Copyright (c) 2019 NVIDIA Corporation
 import json
-import nemo
-import string
-
-from .cleaners import clean_text
+from typing import Union, Iterator, Dict, Any, List
 
 
-class ManifestBase():
-    def __init__(self,
-                 manifest_paths,
-                 labels,
-                 max_duration=None,
-                 min_duration=None,
-                 sort_by_duration=False,
-                 max_utts=0,
-                 blank_index=-1,
-                 unk_index=-1,
-                 normalize=True):
-        self.min_duration = min_duration
-        self.max_duration = max_duration
-        self.sort_by_duration = sort_by_duration
-        self.max_utts = max_utts
-        self.blank_index = blank_index
-        self.unk_index = unk_index
-        self.normalize = normalize
-        self.labels_map = {label: i for i, label in enumerate(labels)}
-
-        data = []
-        duration = 0.0
-        filtered_duration = 0.0
-
-        for item in self.json_item_gen(manifest_paths):
-            if min_duration and item['duration'] < min_duration:
-                filtered_duration += item['duration']
-                continue
-            if max_duration and item['duration'] > max_duration:
-                filtered_duration += item['duration']
-                continue
-
-            # load and normalize transcript text, i.e. `text`
-            text = ""
-            if 'text' in item:
-                text = item['text']
-            elif 'text_filepath' in item:
-                text = self.load_transcript(item['text_filepath'])
-            else:
-                filtered_duration += item['duration']
-                continue
-            if normalize:
-                text = self.normalize_text(text, labels)
-            if not isinstance(text, str):
-                nemo.logging.warning(
-                    "WARNING: Got transcript: {}. It is not a "
-                    "string. Dropping data point".format(text)
-                )
-                filtered_duration += item['duration']
-                continue
-            # item['text'] = text
-
-            # tokenize transcript text
-            item["tokens"] = self.tokenize_transcript(
-                    text, self.labels_map, self.unk_index, self.blank_index)
-
-            # support files using audio_filename
-            if 'audio_filename' in item and 'audio_filepath' not in item:
-                nemo.logging.warning(
-                    "Malformed manifest: The key audio_filepath was not "
-                    "found in the manifest. Using audio_filename instead."
-                )
-                item['audio_filepath'] = item['audio_filename']
-
-            data.append(item)
-            duration += item['duration']
-
-            if max_utts > 0 and len(data) >= max_utts:
-                nemo.logging.info(
-                    'Stop parsing due to max_utts ({})'.format(max_utts))
-                break
-
-        if sort_by_duration:
-            data = sorted(data, key=lambda x: x['duration'])
-        self._data = data
-        self._size = len(data)
-        self._duration = duration
-        self._filtered_duration = filtered_duration
-
-    @staticmethod
-    def normalize_text(text, labels):
-        """for the base class remove surrounding whitespace only"""
-        return text.strip()
-
-    @staticmethod
-    def tokenize_transcript(transcript, labels_map, unk_index, blank_index):
-        """tokenize transcript to convert words/characters to indices"""
-        # allow for special labels such as "<NOISE>"
-        special_labels = set([l for l in labels_map.keys() if len(l) > 1])
-        tokens = []
-        # split by word to find special tokens
-        for i, word in enumerate(transcript.split(" ")):
-            if i > 0:
-                tokens.append(labels_map.get(" ", unk_index))
-            if word in special_labels:
-                tokens.append(labels_map.get(word))
-                continue
-            # split by character to get the rest of the tokens
-            for char in word:
-                tokens.append(labels_map.get(char, unk_index))
-        # if unk_index == blank_index, OOV tokens are removed from transcript
-        tokens = [x for x in tokens if x != blank_index]
-        return tokens
-
-    def __getitem__(self, item):
-        return self._data[item]
-
-    def __len__(self):
-        return self._size
-
-    def __iter__(self):
-        return iter(self._data)
-
-    @staticmethod
-    def json_item_gen(manifest_paths):
-        for manifest_path in manifest_paths:
-            with open(manifest_path, "r", encoding="utf-8") as fh:
-                for line in fh:
-                    yield json.loads(line)
-
-    @staticmethod
-    def load_transcript(transcript_path):
-        with open(transcript_path, 'r', encoding="utf-8") as transcript_file:
-            transcript = transcript_file.read().replace('\n', '')
-        return transcript
-
-    @property
-    def duration(self):
-        return self._duration
-
-    @property
-    def filtered_duration(self):
-        return self._filtered_duration
-
-    @property
-    def data(self):
-        return list(self._data)
-
-
-class ManifestEN(ManifestBase):
+class ManifestBase:
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        raise ValueError(
+            "This class is deprecated, look at "
+            "https://github.com/NVIDIA/NeMo/pull/284 for "
+            "correct behaviour."
+        )
 
-    @staticmethod
-    def normalize_text(text, labels):
-        # Punctuation to remove
-        punctuation = string.punctuation
-        # Define punctuation that will be handled by text cleaner
-        punctuation_to_replace = {
-            "+": "plus",
-            "&": "and",
-            "%": "percent"
-        }
-        for char in punctuation_to_replace:
-            punctuation = punctuation.replace(char, "")
-        # We might also want to consider:
-        # @ -> at
-        # -> number, pound, hashtag
-        # ~ -> tilde
-        # _ -> underscore
 
-        # If a punctuation symbol is inside our vocab, we do not remove
-        # from text
-        for l in labels:
-            punctuation = punctuation.replace(l, "")
+class ManifestEN:
+    def __init__(self, *args, **kwargs):
+        raise ValueError(
+            "This class is deprecated, look at "
+            "https://github.com/NVIDIA/NeMo/pull/284 for "
+            "correct behaviour."
+        )
 
-        # Turn all other punctuation to whitespace
-        table = str.maketrans(punctuation, " " * len(punctuation))
 
-        try:
-            text = clean_text(text, table, punctuation_to_replace)
-        except BaseException:
-            nemo.logging.warning("WARNING: Normalizing {} failed".format(text))
-            return None
+def item_iter(
+    manifests_files: Union[str, List[str]]
+) -> Iterator[Dict[str, Any]]:
+    """Iterate through json lines of provided manifests.
 
-        return text
+    NeMo ASR pipelines often assume certain manifest files structure. In
+    particular, each manifest file should consist of line-per-sample files with
+    each line being correct json dict. Each such json dict should have a field
+    for audio file string, a field for duration float and a field for text
+    string. Offset also could be additional field and is set to None by
+    default.
+
+    Args:
+        manifests_files: Either single string file or list of such -
+            manifests to yield items from.
+
+    Yields:
+        Parsed key to value item dicts.
+
+    Raises:
+        ValueError: If met invalid json line structure.
+    """
+
+    if isinstance(manifests_files, str):
+        manifests_files = [manifests_files]
+
+    for manifest_file in manifests_files:
+        with open(manifest_file, 'r') as f:
+            for line in f:
+                item = __parse_item(line)
+
+                yield item
+
+
+def __parse_item(line: str) -> Dict[str, Any]:
+    item = json.loads(line)
+
+    # Audio file
+    if 'audio_filename' in item:
+        item['audio_file'] = item.pop('audio_filename')
+    elif 'audio_filepath' in item:
+        item['audio_file'] = item.pop('audio_filepath')
+    else:
+        raise ValueError(
+            f"Manifest file {manifest_file} has invalid json line "
+            f"structure: {line} without proper audio file key."
+        )
+
+    # Duration.
+    if 'duration' not in item:
+        raise ValueError(
+            f"Manifest file {manifest_file} has invalid json line "
+            f"structure: {line} without proper duration key."
+        )
+
+    # Text.
+    if 'text' in item:
+        pass
+    elif 'text_filepath' in item:
+        with open(item.pop('text_filepath'), 'r') as f:
+            item['text'] = f.read().replace('\n', '')
+    else:
+        raise ValueError(
+            f"Manifest file {manifest_file} has invalid json line "
+            f"structure: {line} without proper text key."
+        )
+
+    item = dict(
+        audio_file=item['audio_file'],
+        duration=item['duration'],
+        text=item['text'],
+        offset=item.get('offset', None),
+    )
+
+    return item
