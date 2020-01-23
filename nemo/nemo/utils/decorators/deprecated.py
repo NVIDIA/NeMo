@@ -30,19 +30,16 @@ class deprecated(object):
 
     def __init__(self, version=None, alternative_function=None):
         """
-        If there are decorator arguments, the function
-        to be decorated is not passed to the constructor!
+        Constructor. Stores version and alvernative into local variables.
         """
         self.version = version
         self.alternative_function = alternative_function
 
     def __call__(self, func):
         """
-        If there are decorator arguments, __call__() is only called
-        once, as part of the decoration process! You can only give
-        it a single argument, which is the function object.
+        Method prints the adequate warning (only once per function) when
+        required and calls the function func, passing the original arguments.
         """
-
         def wrapper(*args, **kwargs):
 
             # Check if we already warned about that function.
