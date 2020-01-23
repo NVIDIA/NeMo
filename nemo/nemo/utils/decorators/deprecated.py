@@ -20,8 +20,8 @@ import nemo
 class deprecated(object):
     """ Decorator class used for indicating that a function is
     deprecated and going to be removed.
-    Tracks down which functions printed the warning and 
-    will print it only once per function. 
+    Tracks down which functions printed the warning and
+    will print it only once per function.
     """
 
     # Static variable - list of names of functions that we already printed
