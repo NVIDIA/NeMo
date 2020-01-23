@@ -14,10 +14,6 @@
 
 __author__ = "Tomasz Kornuta"
 
-from io import StringIO
-import unittest
-from unittest.mock import patch
-
 import nemo
 
 
