@@ -174,7 +174,7 @@ class TestNeuralTypes(NeMoUnitTest):
 
     def test_optional_input_no_input(self):
         data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(
-          n=100, batch_size=128)
+            n=100, batch_size=128)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNetO(dim=4)
         loss = nemo.backends.pytorch.tutorials.MSELoss()
         x, y = data_source()
@@ -279,7 +279,7 @@ class TestNeuralTypes(NeMoUnitTest):
                 feat_in=jasper_config[
                     'AudioToMelSpectrogramPreprocessor']['features'],
                 **jasper_config['JasperEncoder']
-                )
+            )
             jasper_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024,
                                                           num_classes=len(
                                                               labels))
@@ -298,7 +298,3 @@ class TestNeuralTypes(NeMoUnitTest):
             log_probs = jasper_decoder(encoder_output=processed_signal)
 
         self.assertRaises(NeuralPortNmTensorMismatchError, wrong)
-
-
-if __name__ == '__main__':
-    unittest.main()

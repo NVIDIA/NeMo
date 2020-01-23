@@ -119,7 +119,3 @@ class TestNeuralModulesPT(NeMoUnitTest):
         self.assertEqual(y.producer_args, {})
         self.assertEqual(x.producer, data_source)
         self.assertEqual(x.producer_args, {})
-
-
-if __name__ == '__main__':
-    unittest.main()
