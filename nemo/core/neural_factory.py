@@ -391,9 +391,6 @@ class NeuralModuleFactory(object):
             raise NotImplementedError(
                 "Only Pytorch backend is currently supported.")
 
-        if set_default:
-            NeuralModuleFactory.set_default_factory(self)
-
         # Create ExpManager
         # if log_dir is None, only create logger
         self._exp_manager = ExpManager(
@@ -411,6 +408,9 @@ class NeuralModuleFactory(object):
 
         # Create trainer
         self._trainer = self._get_trainer(tb_writer=self._tb_writer)
+
+        if set_default:
+            NeuralModuleFactory.set_default_factory(self)
 
     @classmethod
     def get_default_factory(cls):
