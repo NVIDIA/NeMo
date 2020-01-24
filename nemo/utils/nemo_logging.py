@@ -30,17 +30,15 @@ from nemo.constants import NEMO_ENV_VARNAME_SAVE_LOGS_TO_DIR
 from nemo.constants import NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR
 
 from nemo.utils.formatters import StdOutFormatter
-from nemo.utils.formatters import MLPerfFormatter
 
 from nemo.utils.formatters import StdFileFormatter
 from nemo.utils.formatters import MLPerfFileFormatter
 
 from nemo.utils.metaclasses import SingletonMetaClass
 
-# from nemo.utils import MPI_rank_and_size
-
 from nemo.utils import get_envbool
 from nemo.utils import get_env
+from nemo.utils import get_envint
 
 __all__ = [
     'Logger',
@@ -87,7 +85,7 @@ class Logger(metaclass=SingletonMetaClass):
 
         self.old_warnings_showwarning = None
 
-        if MPI_rank_and_size()[0] == 0:
+        if get_envint(os.environ["RANK"]) == 0:
             self._define_logger()
 
     def _define_logger(self):
@@ -99,7 +97,6 @@ class Logger(metaclass=SingletonMetaClass):
         with self._logger_lock:
 
             try:
-                # Scope the TensorFlow logger to not conflict with users' loggers.
                 self._logger = _logging.getLogger('nemo_logger')
                 self.reset_stream_handler()
 
@@ -111,7 +108,9 @@ class Logger(metaclass=SingletonMetaClass):
     def reset_stream_handler(self):
 
         if self._logger is None:
-            raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
+            raise RuntimeError(
+                "Impossible to set handlers if the Logger is not predefined"
+            )
 
         # ======== Remove Handler if already existing ========
 
@@ -142,10 +141,7 @@ class Logger(metaclass=SingletonMetaClass):
                 lambda record: record.levelno > _logging.INFO
             )
 
-        if get_envbool(NEMO_ENV_VARNAME_MLPERF_COMPLIANT, False):
-            Formatter = MLPerfFormatter
-        else:
-            Formatter = StdOutFormatter
+        Formatter = StdOutFormatter
 
         self._handlers["stream_stdout"].setFormatter(Formatter())
         self._logger.addHandler(self._handlers["stream_stdout"])
@@ -210,7 +206,7 @@ class Logger(metaclass=SingletonMetaClass):
                 warnings.showwarning = self.old_warnings_showwarning
                 self.old_warnings_showwarning = None
 
-    def _showwarning(self, message, category, filename, lineno, file=None, line=None):
+    def _showwarning(self, message, category, filename, lineno, line=None):
         """
         Implementation of showwarnings which redirects to logging.
         It will call warnings.formatwarning and will log the resulting string
@@ -252,7 +248,9 @@ class Logger(metaclass=SingletonMetaClass):
 
         logger.warning("Houston, we have a %s", "bit of a problem", exc_info=1)
         """
-        if self._logger is not None and self._logger.isEnabledFor(Logger.WARNING):
+        if self._logger is not None and \
+                self._logger.isEnabledFor(Logger.WARNING):
+
             self._logger._log(Logger.WARNING, msg, args, **kwargs)
 
     def error(self, msg, *args, **kwargs):
@@ -264,7 +262,8 @@ class Logger(metaclass=SingletonMetaClass):
 
         logger.error("Houston, we have a %s", "major problem", exc_info=1)
         """
-        if self._logger is not None and self._logger.isEnabledFor(Logger.ERROR):
+        if self._logger is not None and \
+                self._logger.isEnabledFor(Logger.ERROR):
             self._logger._log(Logger.ERROR, msg, args, **kwargs)
 
     def critical(self, msg, *args, **kwargs):
@@ -276,7 +275,8 @@ class Logger(metaclass=SingletonMetaClass):
 
         logger.critical("Houston, we have a %s", "major disaster", exc_info=1)
         """
-        if self._logger is not None and self._logger.isEnabledFor(Logger.CRITICAL):
+        if self._logger is not None and \
+                self._logger.isEnabledFor(Logger.CRITICAL):
             self._logger._log(Logger.CRITICAL, msg, args, **kwargs)
 
 

@@ -19,3 +19,9 @@
 from .argparse import NemoArgParser
 from .exp_logging import ExpManager, get_logger
 from .helpers import *
+
+from nemo.utils.env_var_parsing import get_env
+from nemo.utils.env_var_parsing import get_envbool
+from nemo.utils.env_var_parsing import get_envint
+from nemo.utils.env_var_parsing import get_envfloat
+
