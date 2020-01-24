@@ -95,29 +95,11 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 *Note*: For step 2 and 3, if you want to use NeMo in development mode, use: ``pip install -e .`` instead of ``pip install .``
 
 1) Clone the repository ``git clone https://github.com/NVIDIA/NeMo.git``
-2) Go to NeMo folder and install the toolkit:
-
-.. code-block:: bash
-
-	cd NeMo/nemo
-	pip install .
-
-3) Install the collection(s) you want.
+2) Go to NeMo folder and re-install the toolkit with collections:
 
 .. code-block:: bash
 	
-    # Install the ASR collection from collections/nemo_asr 
-    apt-get install libsndfile1
-    cd NeMo/collections/nemo_asr
-    pip install .
-        
-    # Install the NLP collection from collections/nemo_nlp
-    cd NeMo/collections/nemo_nlp
-    pip install .
-
-    # Install the TTS collection from collections/nemo_tts
-    cd NeMo/collections/nemo_tts
-    pip install .
+    ./reinstall.sh
 
 
 **Unittests**
