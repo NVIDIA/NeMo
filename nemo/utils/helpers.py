@@ -45,8 +45,7 @@ def get_checkpoint_from_dir(module_names, cpkt_dir, ckpt_pattern=''):
 
         module_ckpts = glob.glob(f'{cpkt_dir}/{module}*{ckpt_pattern}*')
         if not module_ckpts:
-            raise ValueError(f'For module {module}, '
-                             f'no file matches {ckpt_pattern} in {cpkt_dir}')
+            raise ValueError(f'For module {module}, ' f'no file matches {ckpt_pattern} in {cpkt_dir}')
 
         # if multiple checkpoints match a pattern, take the latest one
         def step_from_checkpoint(checkpoint_name):
@@ -67,7 +66,7 @@ def _call_args_to_string(call_args):
     result = "(force_pt=True,"
     counter = 0
     for key, value in call_dict.items():
-        result += (f"{key}={value}" if counter == 0 else f", {key}={value}")
+        result += f"{key}={value}" if counter == 0 else f", {key}={value}"
         counter += 1
     result += ")"
     return result

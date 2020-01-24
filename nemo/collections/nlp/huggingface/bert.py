@@ -1,18 +1,11 @@
 # Copyright (c) 2019 NVIDIA Corporation
-from typing import Optional, List
+from typing import List, Optional
 
-from transformers import (BertConfig,
-                          BertModel,
-                          BERT_PRETRAINED_MODEL_ARCHIVE_MAP,
-                          BERT_PRETRAINED_CONFIG_ARCHIVE_MAP)
+from transformers import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAINED_MODEL_ARCHIVE_MAP, BertConfig, BertModel
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_modules import PretrainedModelInfo
-from nemo.core.neural_types import (AxisType,
-                                    BatchTag,
-                                    ChannelTag,
-                                    NeuralType,
-                                    TimeTag)
+from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
 
 class BERT(TrainableNM):
@@ -55,18 +48,9 @@ class BERT(TrainableNM):
             1: AxisType(TimeTag)
         """
         return {
-            "input_ids": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-            "token_type_ids": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-            "attention_mask": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            })
+            "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "token_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "attention_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
 
     @property
@@ -80,25 +64,22 @@ class BERT(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {
-            "hidden_states": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            })
-        }
+        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
 
-    def __init__(self, *,
-                 pretrained_model_name=None,
-                 config_filename=None,
-                 vocab_size=None,
-                 hidden_size=768,
-                 num_hidden_layers=12,
-                 num_attention_heads=12,
-                 intermediate_size=3072,
-                 hidden_act="gelu",
-                 max_position_embeddings=512,
-                 **kwargs):
+    def __init__(
+        self,
+        *,
+        pretrained_model_name=None,
+        config_filename=None,
+        vocab_size=None,
+        hidden_size=768,
+        num_hidden_layers=12,
+        num_attention_heads=12,
+        intermediate_size=3072,
+        hidden_act="gelu",
+        max_position_embeddings=512,
+        **kwargs
+    ):
         TrainableNM.__init__(self, **kwargs)
 
         # Check that only one of pretrained_model_name, config_filename, and
@@ -112,9 +93,11 @@ class BERT(TrainableNM):
             total += 1
 
         if total != 1:
-            raise ValueError("Only one of pretrained_model_name, vocab_size, "
-                             + "or config_filename should be passed into the "
-                             + "BERT constructor.")
+            raise ValueError(
+                "Only one of pretrained_model_name, vocab_size, "
+                + "or config_filename should be passed into the "
+                + "BERT constructor."
+            )
 
         if vocab_size is not None:
             config = BertConfig(
@@ -125,7 +108,8 @@ class BERT(TrainableNM):
                 num_attention_heads=num_attention_heads,
                 intermediate_size=intermediate_size,
                 hidden_act=hidden_act,
-                max_position_embeddings=max_position_embeddings)
+                max_position_embeddings=max_position_embeddings,
+            )
             model = BertModel(config)
         elif pretrained_model_name is not None:
             model = BertModel.from_pretrained(pretrained_model_name)
@@ -133,8 +117,9 @@ class BERT(TrainableNM):
             config = BertConfig.from_json_file(config_filename)
             model = BertModel(config)
         else:
-            raise ValueError("Either pretrained_model_name or vocab_size must"
-                             + " be passed into the BERT constructor")
+            raise ValueError(
+                "Either pretrained_model_name or vocab_size must" + " be passed into the BERT constructor"
+            )
 
         model.to(self._device)
 
@@ -151,10 +136,10 @@ class BERT(TrainableNM):
                 pretrained_model_name=key,
                 description="weights by HuggingFace",
                 parameters=BERT_PRETRAINED_CONFIG_ARCHIVE_MAP[key],
-                location=value)
+                location=value,
+            )
             pretrained_models.append(model_info)
         return pretrained_models
 
     def forward(self, input_ids, token_type_ids, attention_mask):
-        return self.bert(input_ids, token_type_ids=token_type_ids,
-                         attention_mask=attention_mask)[0]
+        return self.bert(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask,)[0]

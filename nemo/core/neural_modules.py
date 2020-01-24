@@ -1,38 +1,40 @@
 # Copyright (c) 2019 NVIDIA Corporation
 """This file contains NeuralModule and NmTensor classes."""
-__all__ = ['WeightShareTransform',
-           'NeuralModule']
+__all__ = ['WeightShareTransform', 'NeuralModule']
 
 
+import collections
+import uuid
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from enum import Enum
 from inspect import getargvalues, stack
-from typing import Optional, Dict, Set, Tuple, List
-import uuid
-import collections
-
+from typing import Dict, List, Optional, Set, Tuple
 
 from nemo.core import NeuralModuleFactory
 from nemo.utils.decorators.deprecated import deprecated
 
-from .neural_factory import Optimization, DeviceType
-from .neural_types import (CanNotInferResultNeuralType,
-                           NeuralType, NeuralTypeComparisonResult,
-                           NeuralPortNameMismatchError,
-                           NeuralPortNmTensorMismatchError,
-                           NmTensor)
+from .neural_factory import DeviceType, Optimization
+from .neural_types import (
+    CanNotInferResultNeuralType,
+    NeuralPortNameMismatchError,
+    NeuralPortNmTensorMismatchError,
+    NeuralType,
+    NeuralTypeComparisonResult,
+    NmTensor,
+)
 
 
 class WeightShareTransform(Enum):
     """When sharing parameters, what kind of transform to apply."""
+
     SAME = 0
     TRANSPOSE = 1
 
 
-PretrainedModelInfo = namedtuple("PretrainedModleInfo",
-                                 ("pretrained_model_name", "description",
-                                  "parameters", "location"))
+PretrainedModelInfo = namedtuple(
+    "PretrainedModleInfo", ("pretrained_model_name", "description", "parameters", "location"),
+)
 
 
 class NeuralModule(ABC):
@@ -50,11 +52,7 @@ class NeuralModule(ABC):
     """
 
     def __init__(
-            self, *,
-            pretrained_model_name=None,
-            factory=None,
-            placement=None,
-            **kwargs
+        self, *, pretrained_model_name=None, factory=None, placement=None, **kwargs,
     ):
         self._pretrained_model_name = pretrained_model_name
         self._local_parameters = self.update_local_params()
@@ -64,10 +62,8 @@ class NeuralModule(ABC):
             factory = default_factory
 
         # Set module properties from factory else use defaults
-        self._placement = factory.placement if factory is not None\
-            else DeviceType.GPU
-        self._opt_level = factory.optim_level if factory is not None\
-            else Optimization.mxprO0
+        self._placement = factory.placement if factory is not None else DeviceType.GPU
+        self._opt_level = factory.optim_level if factory is not None else Optimization.mxprO0
 
         # Update module properties using overrides if overrides exist
         if placement is not None:
@@ -89,7 +85,8 @@ class NeuralModule(ABC):
         """ Deprecated method, to be remoted in the next release."""
         raise Exception(
             'Deprecated method. Please implement ``inputs`` and ``outputs`` \
-                 properties to define module ports instead')
+                 properties to define module ports instead'
+        )
 
     @property
     @abstractmethod
@@ -143,9 +140,7 @@ class NeuralModule(ABC):
         input_nmtensors_are_of_same_type = True
         for port_name, tgv in kwargs.items():
             if port_name not in input_port_defs.keys():
-                raise NeuralPortNameMismatchError(
-                    "Wrong input port name: {0}".format(port_name)
-                )
+                raise NeuralPortNameMismatchError("Wrong input port name: {0}".format(port_name))
 
             type_comatibility = input_port_defs[port_name].compare(tgv)
 
@@ -155,23 +150,19 @@ class NeuralModule(ABC):
                 if first_input_nmtensor_type._axis2type is None:
                     input_nmtensors_are_of_same_type = True
                 else:
-                    input_nmtensors_are_of_same_type = \
-                        first_input_nmtensor_type.compare(tgv) \
-                        == NeuralTypeComparisonResult.SAME and \
-                        len(first_input_nmtensor_type._axis2type)
-            if not (type_comatibility == NeuralTypeComparisonResult.SAME or
-                    type_comatibility == NeuralTypeComparisonResult.GREATER):
+                    input_nmtensors_are_of_same_type = first_input_nmtensor_type.compare(
+                        tgv
+                    ) == NeuralTypeComparisonResult.SAME and len(first_input_nmtensor_type._axis2type)
+            if not (
+                type_comatibility == NeuralTypeComparisonResult.SAME
+                or type_comatibility == NeuralTypeComparisonResult.GREATER
+            ):
                 raise NeuralPortNmTensorMismatchError(
                     "\n\nIn {0}. \n"
                     "Port: {1} and a NmTensor it was fed are \n"
                     "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
-                    "\n\nType comparison result: {4}"
-                    .format(
-                        self.__class__.__name__,
-                        port_name,
-                        input_port_defs[port_name],
-                        tgv,
-                        type_comatibility
+                    "\n\nType comparison result: {4}".format(
+                        self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility,
                     )
                 )
             if type_comatibility == NeuralTypeComparisonResult.LESS:
@@ -185,14 +176,9 @@ class NeuralModule(ABC):
                     out_type = first_input_nmtensor_type
                 else:
                     raise CanNotInferResultNeuralType(
-                        "Can't infer output neural type."
-                        "Likely your inputs are of "
-                        "different type."
+                        "Can't infer output neural type." "Likely your inputs are of " "different type."
                     )
-            return NmTensor(
-                producer=self, producer_args=kwargs, name=out_name,
-                ntype=out_type
-            )
+            return NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
         else:
             result = []
             for out_port, n_type in output_port_defs.items():
@@ -202,26 +188,14 @@ class NeuralModule(ABC):
                         out_type = first_input_nmtensor_type
                     else:
                         raise CanNotInferResultNeuralType(
-                            "Can't infer output neural type."
-                            "Likely your inputs are of "
-                            "different type."
+                            "Can't infer output neural type." "Likely your inputs are of " "different type."
                         )
-                result.append(
-                    NmTensor(
-                        producer=self,
-                        producer_args=kwargs,
-                        name=out_port,
-                        ntype=out_type,
-                    )
-                )
+                result.append(NmTensor(producer=self, producer_args=kwargs, name=out_port, ntype=out_type,))
 
             # Creating ad-hoc class for returning from module's forward pass.
             output_class_name = f'{self.__class__.__name__}Output'
             field_names = list(output_port_defs)
-            result_type = collections.namedtuple(
-                typename=output_class_name,
-                field_names=field_names,
-            )
+            result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
 
             # Tie tuple of output tensors with corresponding names.
             result = result_type(*result)
@@ -241,10 +215,9 @@ class NeuralModule(ABC):
 
     @abstractmethod
     def set_weights(
-            self,
-            name2weight: Dict[(str, Tuple[str, bool])],
-            name2name_and_transform: Dict[
-                (str, Tuple[str, WeightShareTransform])] = None,
+        self,
+        name2weight: Dict[(str, Tuple[str, bool])],
+        name2name_and_transform: Dict[(str, Tuple[str, WeightShareTransform])] = None,
     ):
         """Sets weight from given values. For every named weight in
         name2weight,
@@ -288,11 +261,10 @@ class NeuralModule(ABC):
 
     @abstractmethod
     def tie_weights_with(
-            self,
-            module,
-            weight_names=List[str],
-            name2name_and_transform: Dict[
-                (str, Tuple[str, WeightShareTransform])] = None,
+        self,
+        module,
+        weight_names=List[str],
+        name2name_and_transform: Dict[(str, Tuple[str, WeightShareTransform])] = None,
     ):
         """Ties weights between self and module. For every weight name in
         weight_names, if weight with the same name is found in self, it will
@@ -438,11 +410,9 @@ class NeuralModule(ABC):
         for frame in stack()[1:]:
             posname, kwname, localvars = getargvalues(frame[0])[-3:]
             # Check if caller is a Neural Module
-            if ("self" in localvars and
-                    isinstance(localvars["self"], NeuralModule)):
+            if "self" in localvars and isinstance(localvars["self"], NeuralModule):
                 if posname is not None:
-                    raise ValueError("NeuralModules cannot accept `*` "
-                                     "positional arguments.")
+                    raise ValueError("NeuralModules cannot accept `*` " "positional arguments.")
                 # Get func arg dict
                 localvars.update(localvars.pop(kwname, []))
                 del localvars["self"]

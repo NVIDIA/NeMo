@@ -15,19 +15,17 @@
 # limitations under the License.
 # =============================================================================
 
-import os
+import glob
 import json
+import os
+import re
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
-import re
-import glob
 
 
-def create_vocab(lines,
-                 vocab_file,
-                 min_frequency=3,
-                 special_symbols=["[PAD]", "[SEP]", "[CLS]",
-                                  "[MASK]", "[UNK]"]):
+def create_vocab(
+    lines, vocab_file, min_frequency=3, special_symbols=["[PAD]", "[SEP]", "[CLS]", "[MASK]", "[UNK]"],
+):
     """Create vocabulary from lines"""
     # Count word occurency
     vocab = {}
@@ -78,7 +76,7 @@ def read_files(data_dir, regex, max_files=-1):
     executor = ProcessPoolExecutor(max_workers=4)
 
     tasks = []
-    files = glob.glob(data_dir+'/*/wiki*')
+    files = glob.glob(data_dir + '/*/wiki*')
     for f in files[:max_files]:
         tasks.append(executor.submit(partial(read, f, regex)))
     print(f'Preprocessing wiki texts in {data_dir}, please wait...')
@@ -116,10 +114,10 @@ def save(output_dir, lines, train_ratio=0.95):
 def process(data_dir, output_dir=None, min_frequency=3, max_files=-1):
     # Define filter rule
     regex = []
-    regex += ['[a-zA-Z0-9]']        # English and numerics
-    regex += [r'[\u4e00-\u9fff]']   # CJK char
-    regex += [r'[\u3400-\u4DBF]']   # CJK char extend
-    regex += [r'[\uf900-\ufaff]']   # CJK compatable
+    regex += ['[a-zA-Z0-9]']  # English and numerics
+    regex += [r'[\u4e00-\u9fff]']  # CJK char
+    regex += [r'[\u3400-\u4DBF]']  # CJK char extend
+    regex += [r'[\uf900-\ufaff]']  # CJK compatable
     regex += ['[\n]']
     regex = "|".join(regex)
 
@@ -136,17 +134,17 @@ def process(data_dir, output_dir=None, min_frequency=3, max_files=-1):
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(
-        description='Process wiki_zh dataset for BERT pretraining')
+
+    parser = argparse.ArgumentParser(description='Process wiki_zh dataset for BERT pretraining')
     # Read data directory from command line argument
     parser.add_argument("--data_dir", default="/raid/data/wiki_zh", type=str)
     parser.add_argument("--output_dir", default="./", type=str)
-    parser.add_argument("--min_frequency", default=0, type=int,
-                        help="Characters occuring less frequently "
-                             "will be filtered out")
-    parser.add_argument("--max_files", default=-1, type=int,
-                        help="Max number of dirs to process")
+    parser.add_argument(
+        "--min_frequency", default=0, type=int, help="Characters occuring less frequently " "will be filtered out",
+    )
+    parser.add_argument(
+        "--max_files", default=-1, type=int, help="Max number of dirs to process",
+    )
     args = parser.parse_args()
 
-    process(args.data_dir, args.output_dir, args.min_frequency,
-            args.max_files)
+    process(args.data_dir, args.output_dir, args.min_frequency, args.max_files)

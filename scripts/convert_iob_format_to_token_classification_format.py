@@ -16,9 +16,7 @@ import argparse
 import os
 
 
-def __convert_data(in_file,
-                   out_text,
-                   out_labels):
+def __convert_data(in_file, out_text, out_labels):
     """
     in_file should be in the IOB format, see example here:
     https://www.clips.uantwerpen.be/conll2003/ner/.
@@ -46,20 +44,24 @@ def __convert_data(in_file,
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Convert data from IOB ' +
-                                     'format to the format compatible with ' +
-                                     'nlp/examples/token_classification.py')
+    parser = argparse.ArgumentParser(
+        description='Convert data from IOB '
+        + 'format to the format compatible with '
+        + 'nlp/examples/token_classification.py'
+    )
     parser.add_argument("--data_dir", required=True, type=str)
     args = parser.parse_args()
 
     for dataset in ['dev.txt', 'train.txt']:
         file_path = os.path.join(args.data_dir, dataset)
         if not os.path.exists(file_path):
-            raise FileNotFoundError("{file_path} not found in {args.data_dir}"
-                                    "For NER, CoNLL-2003 dataset"
-                                    "can be obtained at"
-                                    "https://github.com/kyzhouhzau/BERT"
-                                    "-NER/tree/master/data.")
+            raise FileNotFoundError(
+                "{file_path} not found in {args.data_dir}"
+                "For NER, CoNLL-2003 dataset"
+                "can be obtained at"
+                "https://github.com/kyzhouhzau/BERT"
+                "-NER/tree/master/data."
+            )
 
         print(f'Processing {dataset}')
         out_text = os.path.join(args.data_dir, 'text_' + dataset)

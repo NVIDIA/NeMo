@@ -43,20 +43,10 @@ class AdamW(Optimizer):
     """
 
     def __init__(
-            self,
-            params,
-            lr=1e-3,
-            betas=(0.9, 0.999),
-            eps=1e-8,
-            weight_decay=0,
-            amsgrad=False,
+        self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0, amsgrad=False,
     ):
         _check_valid_opt_params(lr, eps, betas)
-        defaults = dict(lr=lr,
-                        betas=betas,
-                        eps=eps,
-                        weight_decay=weight_decay,
-                        amsgrad=amsgrad)
+        defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, amsgrad=amsgrad,)
         super(AdamW, self).__init__(params, defaults)
 
     def __setstate__(self, state):
@@ -81,10 +71,7 @@ class AdamW(Optimizer):
                     continue
                 grad = p.grad.data
                 if grad.is_sparse:
-                    raise RuntimeError(
-                        "Adam does not support sparse gradients, please "
-                        "consider SparseAdam instead"
-                    )
+                    raise RuntimeError("Adam does not support sparse gradients, please " "consider SparseAdam instead")
                 amsgrad = group["amsgrad"]
                 state = self.state[p]
 
@@ -122,15 +109,11 @@ class AdamW(Optimizer):
 
                 bias_correction1 = 1 - beta1 ** state["step"]
                 bias_correction2 = 1 - beta2 ** state["step"]
-                step_size = group["lr"] * math.sqrt(
-                    bias_correction2) / bias_correction1
+                step_size = group["lr"] * math.sqrt(bias_correction2) / bias_correction1
 
                 # p.data.addcdiv_(-step_size, exp_avg, denom)
                 p.data.add_(
-                    -step_size,
-                    torch.mul(p.data, group["weight_decay"]).addcdiv_(
-                        1, exp_avg, denom
-                    ),
+                    -step_size, torch.mul(p.data, group["weight_decay"]).addcdiv_(1, exp_avg, denom),
                 )
 
         return loss
@@ -156,25 +139,22 @@ class Novograd(Optimizer):
     """
 
     def __init__(
-            self,
-            params,
-            lr=1e-3,
-            betas=(0.95, 0.98),
-            eps=1e-8,
-            weight_decay=0,
-            grad_averaging=False,
-            amsgrad=False,
-            luc=False,
-            luc_trust=1e-3,
-            luc_eps=1e-8,
+        self,
+        params,
+        lr=1e-3,
+        betas=(0.95, 0.98),
+        eps=1e-8,
+        weight_decay=0,
+        grad_averaging=False,
+        amsgrad=False,
+        luc=False,
+        luc_trust=1e-3,
+        luc_eps=1e-8,
     ):
         _check_valid_opt_params(lr, eps, betas)
-        defaults = dict(lr=lr,
-                        betas=betas,
-                        eps=eps,
-                        weight_decay=weight_decay,
-                        grad_averaging=grad_averaging,
-                        amsgrad=amsgrad)
+        defaults = dict(
+            lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, grad_averaging=grad_averaging, amsgrad=amsgrad,
+        )
         self.luc = luc
         self.luc_trust = luc_trust
         self.luc_eps = luc_eps
@@ -212,13 +192,10 @@ class Novograd(Optimizer):
                     # Exponential moving average of gradient values
                     state["exp_avg"] = torch.zeros_like(p.data)
                     # Exponential moving average of squared gradient values
-                    state["exp_avg_sq"] = torch.zeros([]).to(
-                        state["exp_avg"].device)
+                    state["exp_avg_sq"] = torch.zeros([]).to(state["exp_avg"].device)
                     if amsgrad:
                         # Maintains max of all exp moving avg of squared grad
-                        state["max_exp_avg_sq"] = torch.zeros([]).to(
-                            state["exp_avg"].device
-                        )
+                        state["max_exp_avg_sq"] = torch.zeros([]).to(state["exp_avg"].device)
 
                 exp_avg, exp_avg_sq = state["exp_avg"], state["exp_avg_sq"]
                 if amsgrad:
@@ -253,8 +230,7 @@ class Novograd(Optimizer):
                     # Clip update so that updates are less than eta*weights
                     data_norm = torch.norm(p.data)
                     grad_norm = torch.norm(exp_avg.data)
-                    luc_factor = self.luc_trust * data_norm / (
-                        grad_norm + self.luc_eps)
+                    luc_factor = self.luc_trust * data_norm / (grad_norm + self.luc_eps)
                     luc_factor = min(luc_factor, group["lr"])
                     p.data.add_(-luc_factor, exp_avg)
                 else:

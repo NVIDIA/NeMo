@@ -3,8 +3,9 @@ import pickle
 import re
 import string
 
-import nemo
 import numpy as np
+
+import nemo
 
 
 def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
@@ -33,8 +34,7 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
         for sentence in data:
             sent_ids = tokenizer.text_to_ids(sentence.decode("utf-8"))
             if add_bos_eos:
-                sent_ids = [tokenizer.bos_id()] + sent_ids + \
-                           [tokenizer.eos_id()]
+                sent_ids = [tokenizer.bos_id()] + sent_ids + [tokenizer.eos_id()]
             ids.append(sent_ids)
         if cache_ids:
             nemo.logging.info("Caching tokenized dataset ...")
@@ -42,12 +42,9 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
     return ids
 
 
-def clean_src_and_target(src_ids,
-                         tgt_ids,
-                         max_tokens=128,
-                         min_tokens=3,
-                         max_tokens_diff=25,
-                         max_tokens_ratio=2.5):
+def clean_src_and_target(
+    src_ids, tgt_ids, max_tokens=128, min_tokens=3, max_tokens_diff=25, max_tokens_ratio=2.5,
+):
     """
     Cleans source and target sentences to get rid of noisy data.
     Specifically, a pair of sentences is removed if
@@ -63,10 +60,14 @@ def clean_src_and_target(src_ids,
     src_ids_, tgt_ids_ = [], []
     for i in range(len(src_ids)):
         src_len, tgt_len = len(src_ids[i]), len(tgt_ids[i])
-        if src_len > max_tokens or tgt_len > max_tokens or \
-                src_len < min_tokens or tgt_len < min_tokens or \
-                (src_ids[i] == tgt_ids[i]) or \
-                np.abs(src_len - tgt_len) > max_tokens_diff:
+        if (
+            src_len > max_tokens
+            or tgt_len > max_tokens
+            or src_len < min_tokens
+            or tgt_len < min_tokens
+            or (src_ids[i] == tgt_ids[i])
+            or np.abs(src_len - tgt_len) > max_tokens_diff
+        ):
             continue
         ratio = max(src_len - 2, 1) / max(tgt_len - 2, 1)
         if ratio > max_tokens_ratio or ratio < (1 / max_tokens_ratio):
@@ -116,8 +117,7 @@ def check_is_max_context(doc_spans, cur_span_index, position):
             continue
         num_left_context = position - doc_span.start
         num_right_context = end - position
-        score = min(num_left_context,
-                    num_right_context) + 0.01 * doc_span.length
+        score = min(num_left_context, num_right_context) + 0.01 * doc_span.length
         if best_score is None or score > best_score:
             best_score = score
             best_span_index = span_index

@@ -1,3 +1,1 @@
-from . import nlp_utils
-from . import callbacks
-from . import metrics
+from . import callbacks, metrics, nlp_utils

@@ -3,14 +3,12 @@ __all__ = ['DecoderRNN']
 import random
 
 import torch
-# noinspection PyPep8Naming
-import torch.nn.functional as F
+import torch.nn.functional as pt_f
 from torch import nn
 
 from nemo.backends.pytorch.common.parts import Attention
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import NeuralType, AxisType, BatchTag, TimeTag, \
-    ChannelTag
+from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 from nemo.utils.misc import pad_to
 
 
@@ -67,15 +65,10 @@ class DecoderRNN(TrainableNM):
             2: AxisType(ChannelTag)
         """
         return {
-            'targets': NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-            'encoder_outputs': NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            }, optional=True)
+            'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            'encoder_outputs': NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
+            ),
         }
 
     @property
@@ -97,33 +90,29 @@ class DecoderRNN(TrainableNM):
             2: AxisType(TimeTag)
         """
         return {
-            'log_probs': NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            }),
-            'attention_weights': NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(TimeTag)
-            }, optional=True)
+            'log_probs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            'attention_weights': NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}, optional=True,
+            ),
         }
 
-    def __init__(self,
-                 voc_size,
-                 bos_id,
-                 hidden_size,
-                 attention_method='general',
-                 attention_type='post',
-                 in_dropout=0.2,
-                 gru_dropout=0.2,
-                 attn_dropout=0.0,
-                 teacher_forcing=1.0,
-                 curriculum_learning=0.5,
-                 rnn_type='gru',
-                 n_layers=2,
-                 tie_emb_out_weights=True,
-                 **kwargs):
+    def __init__(
+        self,
+        voc_size,
+        bos_id,
+        hidden_size,
+        attention_method='general',
+        attention_type='post',
+        in_dropout=0.2,
+        gru_dropout=0.2,
+        attn_dropout=0.0,
+        teacher_forcing=1.0,
+        curriculum_learning=0.5,
+        rnn_type='gru',
+        n_layers=2,
+        tie_emb_out_weights=True,
+        **kwargs
+    ):
         super().__init__(**kwargs)
 
         self.bos_id = bos_id
@@ -137,37 +126,30 @@ class DecoderRNN(TrainableNM):
         # noinspection PyTypeChecker
         self.in_dropout = nn.Dropout(in_dropout)
         rnn_class = getattr(nn, rnn_type.upper())
-        self.rnn = rnn_class(hidden_size, hidden_size, n_layers,
-                             dropout=(0 if n_layers == 1 else gru_dropout),
-                             batch_first=True)
+        self.rnn = rnn_class(
+            hidden_size, hidden_size, n_layers, dropout=(0 if n_layers == 1 else gru_dropout), batch_first=True,
+        )
         self.out = nn.Linear(hidden_size, voc_size)
         if tie_emb_out_weights:
             self.out.weight = self.embedding.weight  # Weight tying
-        self.attention = Attention(hidden_size, attention_method,
-                                   dropout=attn_dropout)
+        self.attention = Attention(hidden_size, attention_method, dropout=attn_dropout)
 
         # self.apply(init_weights)
         # self.gru.apply(init_weights)
         self.to(self._device)
 
     def forward(self, targets, encoder_outputs=None):
-        if (not self.training) \
-                or (random.random() <= self.teacher_forcing):  # Fast option
+        if (not self.training) or (random.random() <= self.teacher_forcing):  # Fast option
             # Removing last char (dont need to calculate loss) and add bos
             # noinspection PyTypeChecker
-            decoder_inputs = F.pad(
-                targets[:, :-1], (1, 0), value=self.bos_id
-            )  # BT
-            log_probs, _, attention_weights = \
-                self.forward_step(decoder_inputs, encoder_outputs)
+            decoder_inputs = pt_f.pad(targets[:, :-1], (1, 0), value=self.bos_id)  # BT
+            log_probs, _, attention_weights = self.forward_step(decoder_inputs, encoder_outputs)
         else:
-            log_probs, attention_weights = \
-                self.forward_cl(targets, encoder_outputs)
+            log_probs, attention_weights = self.forward_cl(targets, encoder_outputs)
 
         return log_probs, attention_weights
 
-    def forward_step(self, decoder_inputs,
-                     encoder_outputs=None, decoder_hidden=None):
+    def forward_step(self, decoder_inputs, encoder_outputs=None, decoder_hidden=None):
         """(BT, BTC@?, hBC@?) -> (BTC, hBC, BTT@?)"""
 
         # Inputs
@@ -178,32 +160,25 @@ class DecoderRNN(TrainableNM):
         # RNN
         if self.rnn_type == 'gru' and decoder_hidden is not None:
             decoder_hidden = decoder_hidden[0]
-        decoder_outputs, decoder_hidden = self.rnn(
-            decoder_inputs, decoder_hidden
-        )
+        decoder_outputs, decoder_hidden = self.rnn(decoder_inputs, decoder_hidden)
         if self.rnn_type == 'gru':
             decoder_hidden = (decoder_hidden,)
 
         # Outputs
         attention_weights = None
         if self.attention_type == 'post':
-            decoder_outputs, attention_weights = self.attention(
-                decoder_outputs, encoder_outputs
-            )
+            decoder_outputs, attention_weights = self.attention(decoder_outputs, encoder_outputs)
         decoder_outputs = self.out(decoder_outputs)
 
         # Log probs
-        log_probs = F.log_softmax(decoder_outputs, dim=-1)
+        log_probs = pt_f.log_softmax(decoder_outputs, dim=-1)
 
         return log_probs, decoder_hidden, attention_weights
 
     def forward_cl(self, targets, encoder_outputs=None):
         """(BT, BTC@?) -> (BTC, BTT@?)"""
 
-        decoder_input = torch.empty(
-            targets.size(0), 1,
-            dtype=torch.long, device=self._device
-        ).fill_(self.bos_id)
+        decoder_input = torch.empty(targets.size(0), 1, dtype=torch.long, device=self._device).fill_(self.bos_id)
         decoder_hidden = None
         log_probs = []
         attention_weights = []
@@ -211,10 +186,9 @@ class DecoderRNN(TrainableNM):
         max_len = targets.size(1)
         rands = torch.rand(max_len)  # Precalculate randomness
         for i in range(max_len):
-            step_log_prob, decoder_hidden, step_attention_weights = \
-                self.forward_step(
-                    decoder_input, encoder_outputs, decoder_hidden
-                )
+            (step_log_prob, decoder_hidden, step_attention_weights,) = self.forward_step(
+                decoder_input, encoder_outputs, decoder_hidden
+            )
             log_probs.append(step_log_prob)
             attention_weights.append(step_attention_weights)
 

@@ -6,32 +6,34 @@ Neural Modules' input and output ports are also of Neural Type.
 An exception will be raised when a NmTensor and input port where it goes are
 of incompatible types.
 """
-__all__ = ['BaseTag',
-           'BatchTag',
-           'TimeTag',
-           'ProcessedTimeTag',
-           'ChannelTag',
-           'EmbeddedTextTag',
-           'SpectrogramSignalTag',
-           'MelSpectrogramSignalTag',
-           'MFCCSignalTag',
-           'EncodedRepresentationTag',
-           'ClassTag',
-           'WidthTag',
-           'HeightTag',
-           'CategoricalTag',
-           'RegressionTag',
-           'NeuralTypeComparisonResult',
-           'AxisType',
-           'NeuralType',
-           'NmTensor',
-           'NeuralTypeError',
-           'NeuralPortNameMismatchError',
-           'NeuralPortNmTensorMismatchError',
-           'CanNotInferResultNeuralType']
+__all__ = [
+    'BaseTag',
+    'BatchTag',
+    'TimeTag',
+    'ProcessedTimeTag',
+    'ChannelTag',
+    'EmbeddedTextTag',
+    'SpectrogramSignalTag',
+    'MelSpectrogramSignalTag',
+    'MFCCSignalTag',
+    'EncodedRepresentationTag',
+    'ClassTag',
+    'WidthTag',
+    'HeightTag',
+    'CategoricalTag',
+    'RegressionTag',
+    'NeuralTypeComparisonResult',
+    'AxisType',
+    'NeuralType',
+    'NmTensor',
+    'NeuralTypeError',
+    'NeuralPortNameMismatchError',
+    'NeuralPortNmTensorMismatchError',
+    'CanNotInferResultNeuralType',
+]
 
-from enum import Enum
 import uuid
+from enum import Enum
 
 
 class BaseTag(object):
@@ -155,9 +157,7 @@ class NeuralTypeComparisonResult(Enum):
     GREATER = 2  # B is A
     DIM_INCOMPATIBLE = 3  # Resize connector might fix incompatibility
     TRANSPOSE_SAME = 4  # A transpose will make them same
-    INCOMPATIBLE = (
-        5
-    )  # A and B are incompatible. Can't fix incompatibility automatically
+    INCOMPATIBLE = 5  # A and B are incompatible. Can't fix incompatibility automatically
 
 
 class AxisType(object):
@@ -165,18 +165,13 @@ class AxisType(object):
     It's semantics is a Neural Tag (inherited from BaseTag)
     dimension (dim) is (optional) int and descriptor is (optional) string"""
 
-    def __init__(self, semantics, dim: int = None,
-                 descriptor: str = None):
+    def __init__(self, semantics, dim: int = None, descriptor: str = None):
         self._semantics = semantics
         self._dim = dim
         self._descriptor = descriptor
 
     def __eq__(self, other):
-        return (
-            self.semantics == other.semantics
-            and self.dim == other.dim
-            and self.descriptor == other.descriptor
-        )
+        return self.semantics == other.semantics and self.dim == other.dim and self.descriptor == other.descriptor
 
     def __str__(self):
         return "{0}:{1}:{2}".format(self.semantics, self.dim, self.descriptor)
@@ -194,9 +189,7 @@ class AxisType(object):
         Returns:
           Results of a comparison (NeuralTypeComparisonResult)
         """
-        if (
-                self.dim is None or self.dim == other.dim
-        ) and self.descriptor == other.descriptor:
+        if (self.dim is None or self.dim == other.dim) and self.descriptor == other.descriptor:
             if self.semantics == other.semantics:
                 return NeuralTypeComparisonResult.SAME
             elif issubclass(self.semantics, other.semantics):
@@ -205,8 +198,7 @@ class AxisType(object):
                 return NeuralTypeComparisonResult.GREATER
             else:
                 return NeuralTypeComparisonResult.INCOMPATIBLE
-        elif self.descriptor == other.descriptor and self.semantics == \
-                other.semantics:
+        elif self.descriptor == other.descriptor and self.semantics == other.semantics:
             return NeuralTypeComparisonResult.DIM_INCOMPATIBLE
         else:
             return NeuralTypeComparisonResult.INCOMPATIBLE
@@ -275,16 +267,13 @@ class NeuralType(object):
 
     def __str__(self):
         if self._axis2type is None:
-            return "(Optional) " if self._optional else "" + "non-tensor " \
-                                                             "object"
+            return "(Optional) " if self._optional else "" + "non-tensor " "object"
         elif len(self._axis2type) == 0:
             return "(Optional) " if self._optional else "" + "Root NeuralType"
         return (
             "(Optional)"
             if self._optional
-            else ""
-                 + "\n".join(["{0}->{1}".format(axis, tag) for axis, tag in
-                              self._axis2type.items()])
+            else "" + "\n".join(["{0}->{1}".format(axis, tag) for axis, tag in self._axis2type.items()])
         )
 
     def compare(self, n_type2) -> NeuralTypeComparisonResult:
@@ -312,10 +301,9 @@ class NeuralType(object):
         elif self._axis2type == n_type2._axis2type:
             return NeuralTypeComparisonResult.SAME
         # same set of keys and set of values => TRANSPOSE_SAME
-        elif set(self._axis2type.keys()) == set(
-                n_type2._axis2type.keys()) and set(
-            self._axis2type.values()
-        ) == set(n_type2._axis2type.values()):
+        elif set(self._axis2type.keys()) == set(n_type2._axis2type.keys()) and set(self._axis2type.values()) == set(
+            n_type2._axis2type.values()
+        ):
             return NeuralTypeComparisonResult.TRANSPOSE_SAME
 
         elif set(self._axis2type.keys()) == set(n_type2._axis2type.keys()):
@@ -323,9 +311,7 @@ class NeuralType(object):
             comparison_result = 0
             for key in self._axis2type.keys():
                 comparison_result = max(
-                    self._axis2type[key].compare_to(
-                        n_type2._axis2type[key]).value,
-                    comparison_result,
+                    self._axis2type[key].compare_to(n_type2._axis2type[key]).value, comparison_result,
                 )
             return NeuralTypeComparisonResult(comparison_result)
         else:

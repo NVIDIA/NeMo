@@ -1,4 +1,5 @@
 import youtokentome as yttm
+
 from .tokenizer_spec import TokenizerSpec
 
 
@@ -6,8 +7,7 @@ class YouTokenToMeTokenizer(TokenizerSpec):
     def __init__(self, model_path):
         self.tokenizer = yttm.BPE(model=model_path)
         self.vocab_size = len(self.tokenizer.vocab())
-        self.special_tokens = self.tokens_to_ids(
-            ["<PAD>", "<UNK>", "<BOS>", "<EOS>"])
+        self.special_tokens = self.tokens_to_ids(["<PAD>", "<UNK>", "<BOS>", "<EOS>"])
 
     def text_to_tokens(self, text):
         return self.tokenizer.encode(text, output_type=yttm.OutputType.SUBWORD)

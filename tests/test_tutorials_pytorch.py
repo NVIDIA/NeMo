@@ -17,13 +17,13 @@
 # =============================================================================
 
 import unittest
+
 from nemo.backends.pytorch.tutorials.chatbot.data import loadPrepareData
 
 from .common_setup import NeMoUnitTest
 
 
 class TestPytorchChatBotTutorial(NeMoUnitTest):
-
     def test_simple_train(self):
         datafile = "tests/data/dialog_sample.txt"
         print(datafile)

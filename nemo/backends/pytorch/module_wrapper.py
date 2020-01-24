@@ -2,7 +2,7 @@
 import torch as t
 import torch.nn as nn
 
-from ...core import NeuralModule, DeviceType
+from ...core import DeviceType, NeuralModule
 from ...utils.helpers import rgetattr, rsetattr
 
 
@@ -10,16 +10,12 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
     """This class wraps an instance of Pytorch's nn.Module and
     returns NeuralModule's instance."""
 
-    def __init__(self, pt_nn_module, input_ports_dict, output_ports_dict,
-                 **kwargs):
+    def __init__(self, pt_nn_module, input_ports_dict, output_ports_dict, **kwargs):
         NeuralModule.__init__(self, **kwargs)
         nn.Module.__init__(self)
         self._input_ports = input_ports_dict
         self._output_ports = output_ports_dict
-        self._device = t.device(
-            "cuda" if self.placement in [DeviceType.GPU, DeviceType.AllGpu]
-            else "cpu"
-        )
+        self._device = t.device("cuda" if self.placement in [DeviceType.GPU, DeviceType.AllGpu] else "cpu")
         self._pt_module = pt_nn_module
         self._pt_module.to(self._device)
 
@@ -86,9 +82,7 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
         return result
 
     def set_weights(self, name2weight, name2name_and_transform=None):
-        self._pt_module.load_state_dict(
-            {key: name2weight[key][0] for key in name2weight.keys()}
-        )
+        self._pt_module.load_state_dict({key: name2weight[key][0] for key in name2weight.keys()})
 
     def tie_weights_with(self, module, weight_names):
         for name in weight_names:
@@ -96,5 +90,4 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
 
     @property
     def num_weights(self):
-        return sum(
-            p.numel() for p in self._pt_module.parameters() if p.requires_grad)
+        return sum(p.numel() for p in self._pt_module.parameters() if p.requires_grad)

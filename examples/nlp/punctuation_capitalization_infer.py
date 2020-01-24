@@ -14,48 +14,60 @@ parser = argparse.ArgumentParser(description='NER with pretrained BERT')
 parser.add_argument("--max_seq_length", default=128, type=int)
 parser.add_argument("--fc_dropout", default=0, type=float)
 parser.add_argument("--punct_num_fc_layers", default=3, type=int)
-parser.add_argument("--pretrained_bert_model",
-                    default="bert-base-uncased", type=str)
+parser.add_argument("--pretrained_bert_model", default="bert-base-uncased", type=str)
 parser.add_argument("--none_label", default='O', type=str)
-parser.add_argument("--queries", action='append',
-                    default=['we bought four shirts from the ' +
-                             'nvidia gear store in santa clara',
-                             'nvidia is a company',
-                             'can i help you',
-                             'how are you',
-                             'how\'s the weather today',
-                             'okay',
-                             'we bought four shirts one mug and ten ' +
-                             'thousand titan rtx graphics cards the more ' +
-                             'you buy the more you save'],
-                    help="Example: --queries 'san francisco' --queries 'la'")
-parser.add_argument("--add_brackets", action='store_false',
-                    help="Whether to take predicted label in brackets or \
-                    just append to word in the output")
-parser.add_argument("--checkpoints_dir", default='output/checkpoints',
-                    type=str)
-parser.add_argument("--punct_labels_dict", default='punct_label_ids.csv',
-                    type=str, help='This file is generated during training \
-                    when the datalayer is created')
-parser.add_argument("--capit_labels_dict", default='capit_label_ids.csv',
-                    type=str, help='This file is generated during training \
-                    when the datalayer is created')
-parser.add_argument("--amp_opt_level", default="O0",
-                    type=str, choices=["O0", "O1", "O2"])
+parser.add_argument(
+    "--queries",
+    action='append',
+    default=[
+        'we bought four shirts from the ' + 'nvidia gear store in santa clara',
+        'nvidia is a company',
+        'can i help you',
+        'how are you',
+        'how\'s the weather today',
+        'okay',
+        'we bought four shirts one mug and ten '
+        + 'thousand titan rtx graphics cards the more '
+        + 'you buy the more you save',
+    ],
+    help="Example: --queries 'san francisco' --queries 'la'",
+)
+parser.add_argument(
+    "--add_brackets",
+    action='store_false',
+    help="Whether to take predicted label in brackets or \
+                    just append to word in the output",
+)
+parser.add_argument("--checkpoints_dir", default='output/checkpoints', type=str)
+parser.add_argument(
+    "--punct_labels_dict",
+    default='punct_label_ids.csv',
+    type=str,
+    help='This file is generated during training \
+                    when the datalayer is created',
+)
+parser.add_argument(
+    "--capit_labels_dict",
+    default='capit_label_ids.csv',
+    type=str,
+    help='This file is generated during training \
+                    when the datalayer is created',
+)
+parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 
 args = parser.parse_args()
 
 if not os.path.exists(args.checkpoints_dir):
     raise ValueError(f'Checkpoints folder not found at {args.checkpoints_dir}')
-if not (os.path.exists(args.punct_labels_dict) and
-        os.path.exists(args.capit_labels_dict)):
+if not (os.path.exists(args.punct_labels_dict) and os.path.exists(args.capit_labels_dict)):
     raise ValueError(
         f'Dictionary with ids to labels not found at {args.punct_labels_dict} \
-         or {args.punct_labels_dict}')
+         or {args.punct_labels_dict}'
+    )
 
-nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
-                                   optimization_level=args.amp_opt_level,
-                                   log_dir=None)
+nf = nemo.core.NeuralModuleFactory(
+    backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None,
+)
 
 punct_labels_dict = get_vocab(args.punct_labels_dict)
 
@@ -65,34 +77,29 @@ capit_labels_dict = get_vocab(args.capit_labels_dict)
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.huggingface.BERT(
-    pretrained_model_name=args.pretrained_bert_model)
+pretrained_bert_model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
 
 data_layer = nemo_nlp.BertTokenClassificationInferDataLayer(
-    queries=args.queries,
-    tokenizer=tokenizer,
-    max_seq_length=args.max_seq_length,
-    batch_size=1)
+    queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1,
+)
 
-punct_classifier = \
-    nemo_nlp.TokenClassifier(hidden_size=hidden_size,
-                             num_classes=len(punct_labels_dict),
-                             dropout=args.fc_dropout,
-                             num_layers=args.punct_num_fc_layers,
-                             name='Punctuation')
+punct_classifier = nemo_nlp.TokenClassifier(
+    hidden_size=hidden_size,
+    num_classes=len(punct_labels_dict),
+    dropout=args.fc_dropout,
+    num_layers=args.punct_num_fc_layers,
+    name='Punctuation',
+)
 
-capit_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
-                                            num_classes=len(capit_labels_dict),
-                                            dropout=args.fc_dropout,
-                                            name='Capitalization')
+capit_classifier = nemo_nlp.TokenClassifier(
+    hidden_size=hidden_size, num_classes=len(capit_labels_dict), dropout=args.fc_dropout, name='Capitalization',
+)
 
 input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
 
-hidden_states = pretrained_bert_model(input_ids=input_ids,
-                                      token_type_ids=input_type_ids,
-                                      attention_mask=input_mask)
+hidden_states = pretrained_bert_model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
 
 punct_logits = punct_classifier(hidden_states=hidden_states)
 capit_logits = capit_classifier(hidden_states=hidden_states)
@@ -101,8 +108,7 @@ capit_logits = capit_classifier(hidden_states=hidden_states)
 
 # Instantiate an optimizer to perform `infer` action
 evaluated_tensors = nf.infer(
-    tensors=[punct_logits, capit_logits, subtokens_mask],
-    checkpoint_dir=args.checkpoints_dir,
+    tensors=[punct_logits, capit_logits, subtokens_mask], checkpoint_dir=args.checkpoints_dir,
 )
 
 
@@ -114,8 +120,7 @@ def get_preds(logits):
     return np.argmax(logits, 1)
 
 
-punct_logits, capit_logits, subtokens_mask = \
-    [concatenate(tensors) for tensors in evaluated_tensors]
+punct_logits, capit_logits, subtokens_mask = [concatenate(tensors) for tensors in evaluated_tensors]
 
 punct_preds = np.argmax(punct_logits, axis=2)
 capit_preds = np.argmax(capit_logits, axis=2)

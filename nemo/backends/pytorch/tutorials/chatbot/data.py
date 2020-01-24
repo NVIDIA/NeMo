@@ -19,8 +19,11 @@ class Voc:
         self.trimmed = False
         self.word2index = {}
         self.word2count = {}
-        self.index2word = {PAD_token: "PAD", SOS_token: "SOS",
-                           EOS_token: "EOS"}
+        self.index2word = {
+            PAD_token: "PAD",
+            SOS_token: "SOS",
+            EOS_token: "EOS",
+        }
         self.num_words = 3  # Count SOS, EOS, PAD
 
     def addSentence(self, sentence):
@@ -50,17 +53,18 @@ class Voc:
 
         print(
             "keep_words {} / {} = {:.4f}".format(
-                len(keep_words),
-                len(self.word2index),
-                len(keep_words) / len(self.word2index),
+                len(keep_words), len(self.word2index), len(keep_words) / len(self.word2index),
             )
         )
 
         # Reinitialize dictionaries
         self.word2index = {}
         self.word2count = {}
-        self.index2word = {PAD_token: "PAD", SOS_token: "SOS",
-                           EOS_token: "EOS"}
+        self.index2word = {
+            PAD_token: "PAD",
+            SOS_token: "SOS",
+            EOS_token: "EOS",
+        }
         self.num_words = 3  # Count default tokens
 
         for word in keep_words:
@@ -75,10 +79,7 @@ MAX_LENGTH = 10  # Maximum sentence length to consider
 
 
 def unicodeToAscii(s):
-    return "".join(
-        c for c in unicodedata.normalize("NFD", s) if
-        unicodedata.category(c) != "Mn"
-    )
+    return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
 
 
 # Lowercase, trim, and remove non-letter characters
@@ -111,8 +112,7 @@ def readVocs(datafile, corpus_name):
 
 def filterPair(p):
     # Input sequences need to preserve the last word for EOS token
-    return len(p[0].split(" ")) < MAX_LENGTH and len(
-        p[1].split(" ")) < MAX_LENGTH
+    return len(p[0].split(" ")) < MAX_LENGTH and len(p[1].split(" ")) < MAX_LENGTH
 
 
 # Filter pairs using filterPair condition

@@ -20,6 +20,7 @@
 import os
 import sys
 from unittest.mock import MagicMock
+
 import nemo
 
 sys.path.insert(0, os.path.abspath("."))
@@ -49,13 +50,20 @@ class Mock(MagicMock):
 
 # ---- Mocking up the python modules. -----
 
-MOCK_MODULES = ['torch', 'torch.nn', 'torch.utils', 'torch.optim',
-                'torch.utils.data', 'torch.utils.data.sampler',
-                'torchvision', 'torchvision.models',
-                'torchtext',
-                'h5py', 'kaldi_io',
-                'transformers'
-                ]
+MOCK_MODULES = [
+    'torch',
+    'torch.nn',
+    'torch.utils',
+    'torch.optim',
+    'torch.utils.data',
+    'torch.utils.data.sampler',
+    'torchvision',
+    'torchvision.models',
+    'torchtext',
+    'h5py',
+    'kaldi_io',
+    'transformers',
+]
 
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
@@ -163,12 +171,7 @@ html_static_path = []
 #
 # This is required for the alabaster theme
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
-html_sidebars = {
-    "**": [
-        "relations.html",  # needs 'show_related': True theme option to display
-        "searchbox.html",
-    ]
-}
+html_sidebars = {"**": ["relations.html", "searchbox.html",]}  # needs 'show_related': True theme option to display
 
 html_theme_options = {
     "canonical_url": "",
@@ -207,10 +210,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
-latex_documents = [
-    (master_doc, "nemo.tex", "nemo Documentation", "AI App Design team",
-     "manual")
-]
+latex_documents = [(master_doc, "nemo.tex", "nemo Documentation", "AI App Design team", "manual",)]
 
 # -- Options for manual page output ---------------------------------------
 
@@ -224,13 +224,5 @@ man_pages = [(master_doc, "nemo", "nemo Documentation", [author], 1)]
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (
-        master_doc,
-        "nemo",
-        "nemo Documentation",
-        author,
-        "nemo",
-        "One line description of project.",
-        "Miscellaneous",
-    )
+    (master_doc, "nemo", "nemo Documentation", author, "nemo", "One line description of project.", "Miscellaneous",)
 ]

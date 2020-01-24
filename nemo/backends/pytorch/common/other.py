@@ -1,14 +1,16 @@
 # Copyright (c) 2019 NVIDIA Corporation
 """Core PyTorch-base Neural Modules"""
-__all__ = ['SimpleCombiner',
-           'ArgMaxSimple',
-           'TableLookUp',
-           'TableLookUp2',
-           'SequenceEmbedding',
-           'SequenceProjection',
-           'ZerosLikeNM']
+__all__ = [
+    'SimpleCombiner',
+    'ArgMaxSimple',
+    'TableLookUp',
+    'TableLookUp2',
+    'SequenceEmbedding',
+    'SequenceProjection',
+    'ZerosLikeNM',
+]
 
-from typing import Iterable, Optional, Mapping, Set, Dict
+from typing import Dict, Iterable, Mapping, Optional, Set
 
 import torch
 import torch.nn as nn
@@ -38,10 +40,7 @@ class SimpleCombiner(TrainableNM):
         x2:
             Empty?!?
         """
-        return {
-            "x1": NeuralType({}),
-            "x2": NeuralType({})
-        }
+        return {"x1": NeuralType({}), "x2": NeuralType({})}
 
     @property
     def output_ports(self):
@@ -50,9 +49,7 @@ class SimpleCombiner(TrainableNM):
         combined:
             None
         """
-        return {
-            "combined": None
-        }
+        return {"combined": None}
 
     def __init__(self, mode="add", **kwargs):
         TrainableNM.__init__(self, **kwargs)
@@ -64,9 +61,7 @@ class SimpleCombiner(TrainableNM):
         elif self._mode == "max":
             return torch.max(x1, x2, out=None)
         else:
-            raise NotImplementedError(
-                "SimpleCombiner does not have {0} mode".format(self._mode)
-            )
+            raise NotImplementedError("SimpleCombiner does not have {0} mode".format(self._mode))
 
 
 class ArgMaxSimple(TrainableNM):  # Notice TWO base classes
@@ -82,12 +77,7 @@ class ArgMaxSimple(TrainableNM):  # Notice TWO base classes
 
             1: AxisType(ChannelTag)
         """
-        return {
-            "x": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(ChannelTag)
-            })
-        }
+        return {"x": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
 
     @property
     def output_ports(self):
@@ -133,10 +123,7 @@ class TableLookUp(NeuralModule):
 
             1: AxisType(BatchTag)
         """
-        return {
-            "indices": NeuralType(
-                {0: AxisType(TimeTag), 1: AxisType(BatchTag)})
-        }
+        return {"indices": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)})}
 
     @property
     def output_ports(self):
@@ -146,13 +133,9 @@ class TableLookUp(NeuralModule):
                 0: AxisType(BatchTag)
                 1: AxisType(TimeTag)
         """
-        return {
-            "indices": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag)})
-        }
+        return {"indices": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
 
-    def set_weights(self, name2weight: Dict[(str, bool)],
-                    name2name_and_transform):
+    def set_weights(self, name2weight: Dict[(str, bool)], name2name_and_transform):
         pass
 
     def tie_weights_with(self, module, weight_names):
@@ -188,8 +171,7 @@ class TableLookUp(NeuralModule):
                         sublst.append(tid)
                     else:
                         break
-                result.append(
-                    list(map(lambda x: self._ids2classes[x], sublst)))
+                result.append(list(map(lambda x: self._ids2classes[x], sublst)))
             return [result]
         else:
             return NeuralModule.__call__(self, **kwargs)
@@ -204,8 +186,7 @@ class TableLookUp(NeuralModule):
 class TableLookUp2(NeuralModule):
     """Performs a table lookup. For example, convert class ids to names"""
 
-    def set_weights(self, name2weight: Dict[(str, bool)],
-                    name2name_and_transform):
+    def set_weights(self, name2weight: Dict[(str, bool)], name2name_and_transform):
         pass
 
     def tie_weights_with(self, module, weight_names):
@@ -228,8 +209,7 @@ class TableLookUp2(NeuralModule):
         """Returns definitions of module input ports.
 
         """
-        return {
-        }
+        return {}
 
     @property
     def output_ports(self):
@@ -238,9 +218,7 @@ class TableLookUp2(NeuralModule):
         classes:
             None
         """
-        return {
-            "classes": None
-        }
+        return {"classes": None}
 
     def __init__(self, detokenizer=None, **kwargs):
         NeuralModule.__init__(self, **kwargs)
@@ -274,7 +252,6 @@ class TableLookUp2(NeuralModule):
 
 
 class SequenceEmbedding(TrainableNM):
-
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -284,12 +261,7 @@ class SequenceEmbedding(TrainableNM):
 
             1: AxisType(BatchTag)
         """
-        return {
-            "input_seq": NeuralType({
-                0: AxisType(TimeTag),
-                1: AxisType(BatchTag)
-            })
-        }
+        return {"input_seq": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)})}
 
     @property
     def output_ports(self):
@@ -302,13 +274,7 @@ class SequenceEmbedding(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {
-            "outputs": NeuralType({
-                0: AxisType(TimeTag),
-                1: AxisType(BatchTag),
-                2: AxisType(ChannelTag)
-            })
-        }
+        return {"outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),})}
 
     def __init__(self, *, voc_size, hidden_size, dropout=0.0, **kwargs):
         TrainableNM.__init__(self, **kwargs)
@@ -328,7 +294,6 @@ class SequenceEmbedding(TrainableNM):
 
 
 class SequenceProjection(TrainableNM):
-
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -336,9 +301,7 @@ class SequenceProjection(TrainableNM):
         input_seq:
             Empty Type?!?
         """
-        return {
-            "input_seq": NeuralType({})
-        }
+        return {"input_seq": NeuralType({})}
 
     @property
     def output_ports(self):
@@ -347,9 +310,7 @@ class SequenceProjection(TrainableNM):
         outputs:
             None
         """
-        return {
-            "outputs": None
-        }
+        return {"outputs": None}
 
     def __init__(self, *, from_dim, to_dim, dropout=0.0, **kwargs):
         TrainableNM.__init__(self, **kwargs)
@@ -369,7 +330,6 @@ class SequenceProjection(TrainableNM):
 
 
 class ZerosLikeNM(TrainableNM):
-
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -379,12 +339,7 @@ class ZerosLikeNM(TrainableNM):
 
             1: AxisType(TimeTag)
         """
-        return {
-            "input_type_ids": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-            })
-        }
+        return {"input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag),})}
 
     @property
     def output_ports(self):
@@ -395,13 +350,7 @@ class ZerosLikeNM(TrainableNM):
 
             1: AxisType(TimeTag)
         """
-        return {
-            "input_type_ids":
-            NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-            })
-        }
+        return {"input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag),})}
 
     def __init__(self, **kwargs):
         TrainableNM.__init__(self, **kwargs)

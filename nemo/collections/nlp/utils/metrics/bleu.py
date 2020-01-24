@@ -49,15 +49,12 @@ def _get_ngrams(segment, max_order):
     ngram_counts = collections.Counter()
     for order in range(1, max_order + 1):
         for i in range(0, len(segment) - order + 1):
-            ngram = tuple(segment[i:i + order])
+            ngram = tuple(segment[i : i + order])
             ngram_counts[ngram] += 1
     return ngram_counts
 
 
-def compute_bleu(reference_corpus,
-                 translation_corpus,
-                 max_order=4,
-                 smooth=False):
+def compute_bleu(reference_corpus, translation_corpus, max_order=4, smooth=False):
     """Computes BLEU for translated segments against one or more references.
 
     Args:
@@ -96,17 +93,15 @@ def compute_bleu(reference_corpus,
     precisions = [0] * max_order
     for i in range(0, max_order):
         if smooth:
-            precisions[i] = ((matches_by_order[i] + 1.) /
-                             (possible_matches_by_order[i] + 1.))
+            precisions[i] = (matches_by_order[i] + 1.0) / (possible_matches_by_order[i] + 1.0)
         else:
             if possible_matches_by_order[i] > 0:
-                precisions[i] = (float(matches_by_order[i]) /
-                                 possible_matches_by_order[i])
+                precisions[i] = float(matches_by_order[i]) / possible_matches_by_order[i]
             else:
                 precisions[i] = 0.0
 
     if min(precisions) > 0:
-        p_log_sum = sum((1. / max_order) * math.log(p) for p in precisions)
+        p_log_sum = sum((1.0 / max_order) * math.log(p) for p in precisions)
         geo_mean = math.exp(p_log_sum)
     else:
         geo_mean = 0
@@ -114,13 +109,19 @@ def compute_bleu(reference_corpus,
     ratio = float(translation_length) / reference_length
 
     if ratio > 1.0:
-        bp = 1.
+        bp = 1.0
     else:
-        bp = math.exp(1 - 1. / (ratio + 1e-6))
+        bp = math.exp(1 - 1.0 / (ratio + 1e-6))
 
     bleu = geo_mean * bp
 
     precisions = [p * 100 for p in precisions]
 
-    return (bleu * 100, precisions, bp, ratio, translation_length,
-            reference_length)
+    return (
+        bleu * 100,
+        precisions,
+        bp,
+        ratio,
+        translation_length,
+        reference_length,
+    )

@@ -2,19 +2,13 @@
 import torch
 from torch.utils.data import Dataset
 
-from nemo.collections.asr.parts import collections
-from nemo.collections.asr.parts import parsers
+from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
 
 
 class AudioOnlyDataset(Dataset):
     def __init__(
-        self,
-        manifest_filepath,
-        n_segments=0,
-        max_duration=None,
-        min_duration=None,
-        trim=False,
+        self, manifest_filepath, n_segments=0, max_duration=None, min_duration=None, trim=False,
     ):
         """See AudioDataLayer"""
         self.collection = collections.ASRAudioText(
@@ -43,9 +37,7 @@ class AudioOnlyDataset(Dataset):
             else:
                 max_audio_len = find_max_len(batch, 0)
 
-            audio_signal = torch.zeros(
-                batch_size, max_audio_len, dtype=torch.float
-            )
+            audio_signal = torch.zeros(batch_size, max_audio_len, dtype=torch.float)
             audio_lengths = []
             for i, s in enumerate(batch):
                 audio_signal[i].narrow(0, 0, s[0].size(0)).copy_(s[0])
@@ -56,9 +48,7 @@ class AudioOnlyDataset(Dataset):
 
     def __getitem__(self, index):
         example = self.collection[index]
-        features = AudioSegment.segment_from_file(
-            example.audio_file, n_segments=self.n_segments, trim=self.trim,
-        )
+        features = AudioSegment.segment_from_file(example.audio_file, n_segments=self.n_segments, trim=self.trim,)
         features = torch.tensor(features.samples, dtype=torch.float)
         f, fl = features, torch.tensor(features.shape[0]).long()
 
