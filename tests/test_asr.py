@@ -797,5 +797,5 @@ class TestASRPytorch(NeMoUnitTest):
         neural_factory.eval(callbacks=[eval_callback])
 
 
-if __name__ == '__main__':
-    unittest.main()
+# if __name__ == '__main__':
+#    unittest.main()

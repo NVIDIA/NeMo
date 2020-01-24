@@ -39,7 +39,7 @@ class TestPytorchTrainers(NeMoUnitTest):
             tensors_to_optimize=[loss_tensor],
             optimizer="sgd",
             optimization_params={"lr": 0.0003, "num_epochs": 1}
-            )
+        )
 
     def test_simple_train_named_output(self):
         print('Simplest train test with using named output.')
@@ -86,7 +86,3 @@ class TestPytorchTrainers(NeMoUnitTest):
             optimizer="sgd",
             optimization_params={"lr": 0.0003, "num_epochs": 1}
         )
-
-
-if __name__ == '__main__':
-    unittest.main()
