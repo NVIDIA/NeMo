@@ -98,7 +98,7 @@ class DeprecatedTestCase(NeMoUnitTest):
         # Check error output.
         self.assertEqual(std_err.getvalue().strip(),
                          "Function ``say_whoopie`` is deprecated. It is going "
-                         f"to be removed in version 0.1.")
+                         f"to be removed in the 0.1 version.")
 
     def test_say_kowabunga_deprecated_explanation(self):
         """ Tests whether both std and err streams return the right values

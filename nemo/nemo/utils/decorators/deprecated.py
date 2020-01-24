@@ -60,9 +60,8 @@ class deprecated(object):
 
                 # Optionally, add version and alternative.
                 if self.version is not None:
-                    msg = msg + \
-                        " It is going to be removed in version {}.".format(
-                            self.version)
+                    msg = msg + " It is going to be removed in "
+                    msg = msg + "the {} version.".format(self.version)
 
                 if self.explanation is not None:
                     msg = msg + " " + self.explanation
