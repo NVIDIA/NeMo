@@ -32,7 +32,6 @@ from nemo.constants import NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR
 from nemo.utils.formatters import StdOutFormatter
 
 from nemo.utils.formatters import StdFileFormatter
-from nemo.utils.formatters import MLPerfFileFormatter
 
 from nemo.utils.metaclasses import SingletonMetaClass
 
@@ -85,7 +84,7 @@ class Logger(metaclass=SingletonMetaClass):
 
         self.old_warnings_showwarning = None
 
-        if get_envint(os.environ["RANK"]) == 0:
+        if get_envint("RANK", 0) == 0:
             self._define_logger()
 
     def _define_logger(self):

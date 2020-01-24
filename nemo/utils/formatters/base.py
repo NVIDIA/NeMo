@@ -3,10 +3,10 @@
 
 import logging
 
-from dllogger.formatters.utils import check_color_support
-from dllogger.formatters.utils import to_unicode
+from nemo.utils.formatters.utils import check_color_support
+from nemo.utils.formatters.utils import to_unicode
 
-from dllogger.formatters.colors import Fore as ForegroundColors
+from nemo.utils.formatters.colors import Fore as ForegroundColors
 
 __all__ = ["BaseFormatter"]
 

@@ -1,16 +1,17 @@
 import os
 import sys
 
-from dllogger.constants import DLLOGGER_ENV_VARNAME_ENABLE_COLORING
+from nemo.constants import NEMO_ENV_VARNAME_ENABLE_COLORING
 
-from dllogger.utils import get_envbool
+from nemo.utils import get_envbool
 
 __all__ = ["check_color_support", "to_unicode"]
 
 
 def check_color_support():
     # Colors can be forced with an env variable
-    if not sys.platform.lower().startswith('win') and get_envbool(DLLOGGER_ENV_VARNAME_ENABLE_COLORING, False):
+    if not sys.platform.lower().startswith('win') and \
+            get_envbool(NEMO_ENV_VARNAME_ENABLE_COLORING, False):
         return True
 
 
@@ -25,7 +26,9 @@ def to_unicode(value):
             return value
 
         if not isinstance(value, bytes):
-            raise TypeError("Expected bytes, unicode, or None; got %r" % type(value))
+            raise TypeError(
+                "Expected bytes, unicode, or None; got %r" % type(value)
+            )
 
         return value.decode("utf-8")
 
