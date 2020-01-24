@@ -10,6 +10,16 @@ from nemo.core.neural_types import *
 from .parts.tacotron2 import Encoder, Decoder, Postnet
 from .parts.layers import get_mask_from_lengths
 
+__all__ = [
+    "MakeGate",
+    "Tacotron2Loss",
+    "Tacotron2Postnet",
+    "Tacotron2Decoder",
+    "Tacotron2DecoderInfer",
+    "Tacotron2Encoder",
+    "TextEmbedding"
+]
+
 
 class TextEmbedding(TrainableNM):
     """
