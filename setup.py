@@ -32,17 +32,12 @@ def is_build_action():
     if len(sys.argv) <= 1:
         return False
 
-    if sys.argv[1].startswith('build'):
-        return True
+    BUILD_TOKENS = ["egg_info", "dist", "bdist", "sdist", "install", "build"]
 
-    if sys.argv[1].startswith('bdist'):
+    if any([sys.argv[1].startswith(x) for x in BUILD_TOKENS]):
         return True
-
-    if sys.argv[1].startswith('sdist'):
-        return True
-
-    if sys.argv[1].startswith('install'):
-        return True
+    else:
+        return False
 
 
 if is_build_action():
@@ -58,7 +53,6 @@ from nemo.package_info import __license__
 from nemo.package_info import __package_name__
 from nemo.package_info import __repository_url__
 from nemo.package_info import __version__
-
 # pep8: enable=E402
 
 
@@ -175,6 +169,7 @@ setuptools.setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
 
         # Additional Setting
         'Environment :: Console',
