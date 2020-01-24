@@ -6,7 +6,7 @@ from sklearn.metrics import classification_report
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo_nlp import NemoBertTokenizer
+import nemo.collections.nlp import NemoBertTokenizer
 from nemo.collections.nlp.utils.nlp_utils import get_vocab
 
 # Parsing arguments
