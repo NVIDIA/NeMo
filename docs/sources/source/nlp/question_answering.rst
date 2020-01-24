@@ -60,7 +60,7 @@ This will tokenize text following the mapping of the original BERT model.
 
     .. code-block:: python
 
-        import nemo.collections.nlp import NemoBertTokenizer
+        from nemo.collections.nlp import NemoBertTokenizer
         hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
         tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
 

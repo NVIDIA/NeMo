@@ -23,14 +23,10 @@ from nemo.collections.tts.waveglow_modules import __all__ as waveglow__all__
 
 from nemo.collections.tts.data_layers import AudioDataLayer
 
-from nemo.collections.tts.parts.helpers import (waveglow_log_to_tb_func,
-                            waveglow_process_eval_batch,
-                            waveglow_eval_log_to_tb_func,
-                            tacotron2_log_to_tb_func,
-                            tacotron2_process_eval_batch,
-                            tacotron2_process_final_eval,
-                            tacotron2_eval_log_to_tb_func)
+from nemo.collections.tts.parts.helpers import *
+from nemo.collections.tts.parts.helpers import __all__ as helpers__all__
+
 
 backend = Backend.PyTorch
 
-__all__ = waveglow__all__ + ["AudioDataLayer"]
+__all__ = waveglow__all__ + ["AudioDataLayer"] + helpers__all__

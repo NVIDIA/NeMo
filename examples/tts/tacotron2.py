@@ -8,12 +8,14 @@ import os
 from ruamel.yaml import YAML
 
 import nemo
+
 from nemo.utils.lr_policies import CosineAnnealing
 import nemo.utils.argparse as nm_argparse
+
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
 
-import nemo.collections.tts import (tacotron2_log_to_tb_func,
+from nemo.collections.tts import (tacotron2_log_to_tb_func,
                       tacotron2_process_eval_batch,
                       tacotron2_process_final_eval,
                       tacotron2_eval_log_to_tb_func)
