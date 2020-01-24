@@ -1,5 +1,5 @@
-__all__ = ['DSTGenerator',
-           'DSTMaskedCrossEntropy']
+__all__ = ['TRADEGenerator',
+           'TRADEMaskedCrossEntropy']
 
 import random
 
@@ -16,7 +16,7 @@ from nemo.core.neural_types import (NeuralType,
                                     ChannelTag)
 
 
-class DSTGenerator(TrainableNM):
+class TRADEGenerator(TrainableNM):
     @staticmethod
     def create_ports():
         input_ports = {
@@ -207,7 +207,7 @@ class DSTGenerator(TrainableNM):
         return scores
 
 
-class DSTMaskedCrossEntropy(LossNM):
+class TRADEMaskedCrossEntropy(LossNM):
     """
     Neural module which implements Masked Language Modeling (MLM) loss.
 
