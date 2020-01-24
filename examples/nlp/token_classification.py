@@ -8,7 +8,7 @@ import sys
 import nemo
 from nemo.utils.lr_policies import get_lr_policy
 
-import nemo_nlp
+import nemo.collections.nlp as nemo_nlp
 from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer, \
     TokenClassifier, TokenClassificationLoss
 from nemo.collections.nlp.data.datasets import utils

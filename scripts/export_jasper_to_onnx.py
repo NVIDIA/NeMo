@@ -2,7 +2,7 @@
 import argparse
 
 import nemo
-import nemo_asr
+import nemo.collections.asr as nemo_asr
 import torch
 from ruamel.yaml import YAML
 

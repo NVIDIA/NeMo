@@ -3,7 +3,7 @@ import math
 
 import nemo
 from nemo.utils.lr_policies import CosineAnnealing
-import nemo_nlp
+import nemo.collections.nlp as nemo_nlp
 
 from nemo.collections.nlp.data.datasets.utils import LanguageModelDataDesc
 from nemo.collections.nlp.utils.callbacks.language_modeling import eval_iter_callback, \

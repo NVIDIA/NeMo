@@ -4,7 +4,7 @@ import numpy as np
 from transformers import BertTokenizer
 
 import nemo
-import nemo_nlp
+import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.data.datasets.utils import JointIntentSlotDataDesc
 from nemo.collections.nlp.utils.nlp_utils import read_intent_slot_outputs
 
