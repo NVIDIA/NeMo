@@ -26,11 +26,11 @@ def tokenize_en(line):
     line = re.sub(r'\s+', ' ', line)
     line = re.sub(r'[\x00-\x1F]', '', line)
     # fix whitespaces
-    line = re.sub('\ +', ' ', line)
+    line = re.sub(r'\ +', ' ', line)
     line = re.sub('^ ', '', line)
     line = re.sub(' $', '', line)
     # separate other special characters
-    line = re.sub(r'([^\s\.\'\`\,\-\w]|[_'+NUMERICS+'])', r' \g<1> ', line)
+    line = re.sub(r'([^\s\.\'\`\,\-\w]|[_' + NUMERICS + '])', r' \g<1> ', line)
     line = re.sub(r'(\w)\-(?=\w)', r'\g<1> @-@ ', line)
 
     # multidots stay together
@@ -47,12 +47,12 @@ def tokenize_en(line):
     line = re.sub(r'(\d)[,]$', r'\g<1> ,', line)
 
     # split contractions right
-    line = re.sub(r'([\W\d])[\']([\W\d])', '\g<1> \' \g<2>', line)
-    line = re.sub(r'(\W)[\']([\w\D])', '\g<1> \' \g<2>', line)
-    line = re.sub(r'([\w\D])[\']([\W\d])', '\g<1> \' \g<2>', line)
-    line = re.sub(r'([\w\D])[\']([\w\D])', '\g<1> \'\g<2>', line)
+    line = re.sub(r'([\W\d])[\']([\W\d])', r'\g<1> \' \g<2>', line)
+    line = re.sub(r'(\W)[\']([\w\D])', r'\g<1> \' \g<2>', line)
+    line = re.sub(r'([\w\D])[\']([\W\d])', r'\g<1> \' \g<2>', line)
+    line = re.sub(r'([\w\D])[\']([\w\D])', r'\g<1> \'\g<2>', line)
     # special case for "1990's"
-    line = re.sub(r'([\W\d])[\']([s])', '\g<1> \'\g<2>', line)
+    line = re.sub(r'([\W\d])[\']([s])', r'\g<1> \'\g<2>', line)
 
     # apply nonbreaking prefixes
     words = line.split()
@@ -62,12 +62,12 @@ def tokenize_en(line):
         match = re.search(r'^(\S+)\.$', word)
         if match:
             pre = match.group(1)
-            if i == len(words)-1:
+            if i == len(words) - 1:
                 """split last words independently as they are unlikely
                 to be non-breaking prefixes"""
-                word = pre+' .'
+                word = pre + ' .'
             else:
-                word = pre+' .'
+                word = pre + ' .'
 
         word += ' '
         line += word

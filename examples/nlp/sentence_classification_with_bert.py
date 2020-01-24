@@ -87,7 +87,7 @@ classifier = nemo_nlp.SequenceClassifier(hidden_size=hidden_size,
 if args.class_balancing == 'weighted_loss':
     # You may need to increase the number of epochs for convergence.
     loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss(
-      weight=data_desc.class_weights)
+        weight=data_desc.class_weights)
 else:
     loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 

@@ -82,7 +82,8 @@ SMOOTH_VALUE_DEFAULT = 0.0
 # Beneath each test set, we define the location to download the test data.
 # The other keys are each language pair contained in the tarball, and the respective locations of the source and reference data within each.
 # Many of these are *.sgm files, which are processed to produced plain text that can be used by this script.
-# The canonical location of unpacked, processed data is $SACREBLEU_DIR/$TEST/$SOURCE-$TARGET.{$SOURCE,$TARGET}
+# The canonical location of unpacked, processed data is
+# $SACREBLEU_DIR/$TEST/$SOURCE-$TARGET.{$SOURCE,$TARGET}
 DATASETS = {
     'mtnt2019': {
         'data': ['http://www.cs.cmu.edu/~pmichel1/hosting/MTNT2019.tar.gz'],
@@ -1405,7 +1406,8 @@ def tokenize_zh(sentence):
             return True
         elif uchar >= u'\u2f800' and uchar <= u'\u2fa1d':  # CJK Compatibility Supplement, release 3.1
             return True
-        # Full width ASCII, full width of English punctuation, half width Katakana, half wide half width kana, Korean alphabet
+        # Full width ASCII, full width of English punctuation, half width
+        # Katakana, half wide half width kana, Korean alphabet
         elif uchar >= u'\uff00' and uchar <= u'\uffef':
             return True
         elif uchar >= u'\u2e80' and uchar <= u'\u2eff':  # CJK Radicals Supplement
@@ -1735,8 +1737,8 @@ def download_test_set(test_set, langpair=None):
                         md5.update(line)
                 if md5.hexdigest() != expected_md5:
                     logging.error(
-                        'Fatal: MD5 sum of downloaded file was incorrect (got {}, expected {}).'
-                        .format(md5.hexdigest(), expected_md5))
+                        'Fatal: MD5 sum of downloaded file was incorrect (got {}, expected {}).' .format(
+                            md5.hexdigest(), expected_md5))
                     logging.error(
                         'Please manually delete "{}" and rerun the command.'.
                         format(tarball))
@@ -1816,7 +1818,7 @@ def compute_bleu(correct: List[int],
                  use_effective_order=False) -> BLEU:
     """Computes BLEU score from its sufficient statistics. Adds smoothing.
 
-    Smoothing methods (citing "A Systematic Comparison of Smoothing Techniques for Sentence-Level BLEU", 
+    Smoothing methods (citing "A Systematic Comparison of Smoothing Techniques for Sentence-Level BLEU",
     Boxing Chen and Colin Cherry, WMT 2014: http://aclweb.org/anthology/W14-3346)
 
     - exp: NIST smoothing method (Method 3)
@@ -2315,8 +2317,7 @@ def main():
     if args.test_set is not None and args.tokenize == 'none':
         logging.warning(
             "You are turning off sacrebleu's internal tokenization ('--tokenize none'), presumably to supply\n"
-            "your own reference tokenization. Published numbers will not be comparable with other papers.\n"
-        )
+            "your own reference tokenization. Published numbers will not be comparable with other papers.\n")
 
     # Internal tokenizer settings. Set to 'zh' for Chinese  DEFAULT_TOKENIZER (
     if args.tokenize is None:
@@ -2375,7 +2376,8 @@ def main():
                 '    rm -r %s/%s\n'
                 '\n'
                 'They will be downloaded automatically again the next time you run sacreBLEU.',
-                SACREBLEU_DIR, args.test_set)
+                SACREBLEU_DIR,
+                args.test_set)
         sys.exit(1)
 
     width = args.width
