@@ -47,7 +47,7 @@ def create_vocab(lines,
     with open(vocab_file, 'w') as f:
         for w in vocab:
             f.write(w + '\n')
-    print(f"Created vocabulary file: {vocab_file}, with size {len(vocab)}")
+    logging.info(f"Created vocabulary file: {vocab_file}, with size {len(vocab)}")
 
     return len(vocab)
 
@@ -81,7 +81,7 @@ def read_files(data_dir, regex, max_files=-1):
     files = glob.glob(data_dir+'/*/wiki*')
     for f in files[:max_files]:
         tasks.append(executor.submit(partial(read, f, regex)))
-    print(f'Preprocessing wiki texts in {data_dir}, please wait...')
+    logging.info(f'Preprocessing wiki texts in {data_dir}, please wait...')
 
     # Collect text
     lines = []
@@ -109,8 +109,8 @@ def save(output_dir, lines, train_ratio=0.95):
         for l in lines[num_train_lines:]:
             f.write(l + '\n')
 
-    print("Finished processing.")
-    print(f"Processed text saved to {train_file} and {val_file}.")
+    logging.info("Finished processing.")
+    logging.info(f"Processed text saved to {train_file} and {val_file}.")
 
 
 def process(data_dir, output_dir=None, min_frequency=3, max_files=-1):

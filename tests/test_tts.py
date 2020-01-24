@@ -35,14 +35,14 @@ class TestTTSPytorch(NeMoUnitTest):
     def setUp(self) -> None:
         super().setUp()
         data_folder = "tests/data/"
-        print("Looking up for test speech data")
+        logging.info("Looking up for test speech data")
         if not os.path.exists(data_folder + "asr"):
-            print("Extracting speech data to: {0}".format(data_folder + "asr"))
+            logging.info("Extracting speech data to: {0}".format(data_folder + "asr"))
             tar = tarfile.open("tests/data/asr.tar.gz", "r:gz")
             tar.extractall(path=data_folder)
             tar.close()
         else:
-            print("speech data found in: {0}".format(data_folder + "asr"))
+            logging.info("speech data found in: {0}".format(data_folder + "asr"))
 
     def test_tacotron2_training(self):
         data_layer = nemo_asr.AudioToTextDataLayer(
@@ -116,7 +116,7 @@ class TestTTSPytorch(NeMoUnitTest):
 
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss_t],
-            print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
+            print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'))
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, local_rank=None,
@@ -167,7 +167,7 @@ class TestTTSPytorch(NeMoUnitTest):
 
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss_t],
-            print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
+            print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'))
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, local_rank=None,

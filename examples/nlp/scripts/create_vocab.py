@@ -38,14 +38,14 @@ def main():
     args = parser.parse_args()
 
     if args.dataset_dir is not None and args.train_path is not None:
-        print("Only one of 'dataset_dir' and 'train_path' can be specified")
+        logging.info("Only one of 'dataset_dir' and 'train_path' can be specified")
         return
     elif args.dataset_dir is not None:
         # If the dataset is distributed across multiple files, merge into one
         # file before proceeding
         # filepaths = glob.glob(os.path.join(args.dataset_dir, "**", "*.txt"))
         filepaths = glob.glob(os.path.join(args.dataset_dir, "*.txt"))
-        print("Found {} files, concatenenating dataset into one file..."
+        logging.info("Found {} files, concatenenating dataset into one file..."
               .format(len(filepaths)))
 
         with open(MERGED_FILE, "w") as f:
@@ -56,7 +56,7 @@ def main():
     elif args.train_path is not None:
         train_path = args.train_path
     else:
-        print("One of 'dataset_dir' and 'train_path' must be specified")
+        logging.info("One of 'dataset_dir' and 'train_path' must be specified")
         return
 
     SPT.Train("--input={} ".format(train_path) +

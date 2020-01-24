@@ -18,10 +18,10 @@ if __name__ == '__main__':
 
     lmplz_tmp = 'decoders/kenlm/build/bin/lmplz --text {} --arpa {} --o {}'
     command = lmplz_tmp.format(corpus_name, arpa_name, args.n)
-    print(command)
+    logging.info(command)
     os.system(command)
 
     tmp = 'decoders/kenlm/build/bin/build_binary trie -q 8 -b 7 -a 256 {} {}'
     command = tmp.format(arpa_name, lm_name)
-    print(command)
+    logging.info(command)
     os.system(command)

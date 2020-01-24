@@ -25,7 +25,7 @@ from .common_setup import NeMoUnitTest
 class TestPytorchTrainers(NeMoUnitTest):
 
     def test_simple_train(self):
-        print("Simplest train test")
+        logging.info("Simplest train test")
         data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(
             n=10000, batch_size=128)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
@@ -42,7 +42,7 @@ class TestPytorchTrainers(NeMoUnitTest):
         )
 
     def test_simple_train_named_output(self):
-        print('Simplest train test with using named output.')
+        logging.info('Simplest train test with using named output.')
         data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(
             n=10000,
             batch_size=128,
@@ -67,7 +67,7 @@ class TestPytorchTrainers(NeMoUnitTest):
         )
 
     def test_simple_chained_train(self):
-        print("Chained train test")
+        logging.info("Chained train test")
         data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(
             n=10000, batch_size=32)
         trainable_module1 = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)

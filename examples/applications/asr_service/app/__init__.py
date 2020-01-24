@@ -54,7 +54,7 @@ if ENABLE_NGRAM and os.path.isfile(LM_PATH):
         lm_path=LM_PATH,
         num_cpus=max(os.cpu_count(), 1))
 else:
-    print("Beam search is not enabled")
+    logging.info("Beam search is not enabled")
 
 from app import routes  # noqa
 if __name__ == '__main__':

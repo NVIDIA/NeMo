@@ -139,7 +139,7 @@ def create_pipeline(num_samples=-1,
         subtokens_mask, intents, slots = data_layer()
     data_size = len(data_layer)
 
-    print(f'The length of data layer is {data_size}')
+    logging.info(f'The length of data layer is {data_size}')
 
     if data_size < batch_size:
         nemo.logging.warning("Batch_size is larger than the dataset size")

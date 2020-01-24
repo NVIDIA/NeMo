@@ -29,12 +29,12 @@ def __maybe_download_file(destination: str, source: str):
     """
     source = URL[source]
     if not os.path.exists(destination):
-        print("{0} does not exist. Downloading ...".format(destination))
+        logging.info("{0} does not exist. Downloading ...".format(destination))
         urllib.request.urlretrieve(source, filename=destination + '.tmp')
         os.rename(destination + '.tmp', destination)
-        print("Downloaded {0}.".format(destination))
+        logging.info("Downloaded {0}.".format(destination))
     else:
-        print("Destination {0} exists. Skipping.".format(destination))
+        logging.info("Destination {0} exists. Skipping.".format(destination))
     return destination
 
 
@@ -46,7 +46,7 @@ def __extract_all_files(filepath: str, data_root: str, data_dir: str):
             for ftar in filelist:
                 extract_file(os.path.join(subfolder, ftar), subfolder)
     else:
-        print('Skipping extracting. Data already there %s' % data_dir)
+        logging.info('Skipping extracting. Data already there %s' % data_dir)
 
 
 def extract_file(filepath: str, data_dir: str):
@@ -55,7 +55,7 @@ def extract_file(filepath: str, data_dir: str):
         tar.extractall(data_dir)
         tar.close()
     except Exception:
-        print('Not extracting. Maybe already there?')
+        logging.info('Not extracting. Maybe already there?')
 
 
 def __process_data(data_folder: str, dst_folder: str):
@@ -124,16 +124,16 @@ def __process_data(data_folder: str, dst_folder: str):
 def main():
     data_root = args.data_root
     data_set = 'data_aishell'
-    print("\n\nWorking on: {0}".format(data_set))
+    logging.info("\n\nWorking on: {0}".format(data_set))
     file_path = os.path.join(data_root, data_set + ".tgz")
-    print("Getting {0}".format(data_set))
+    logging.info("Getting {0}".format(data_set))
     __maybe_download_file(file_path, data_set)
-    print("Extracting {0}".format(data_set))
+    logging.info("Extracting {0}".format(data_set))
     data_folder = os.path.join(data_root, data_set)
     __extract_all_files(file_path, data_root, data_folder)
-    print("Processing {0}".format(data_set))
+    logging.info("Processing {0}".format(data_set))
     __process_data(data_folder, data_folder)
-    print('Done!')
+    logging.info('Done!')
 
 
 if __name__ == "__main__":

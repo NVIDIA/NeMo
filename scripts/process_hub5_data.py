@@ -257,13 +257,13 @@ def main():
     # Get each audio transcript from transcript file
     info_list, chars = process_transcripts(data_root)
 
-    print("Writing out vocab file", file=sys.stderr)
+    logging.info("Writing out vocab file", file=sys.stderr)
     with open(os.path.join(dest_root, "vocab.txt"), 'w') as fh:
         for x in sorted(list(chars)):
             fh.write(x + "\n")
 
     # Segment the audio data
-    print("Segmenting audio and writing manifest")
+    logging.info("Segmenting audio and writing manifest")
     segment_audio(info_list, dest_root, min_slice_duration)
 
 

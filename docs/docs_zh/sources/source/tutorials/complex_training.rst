@@ -42,7 +42,7 @@ NeMo 进一步扩充了用例，这些用例会用到多个损失函数和多个
     # 更新打印函数加入两个损失函数的张量
     callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[l1_loss_tensor, mse_loss_tensor],
-        print_func=lambda x: print(
+        print_func=lambda x: logging.info(
             f'Train Loss: {str(x[0].item() + x[1].item())}')
     )
 
@@ -80,7 +80,7 @@ NeMo 进一步扩充了用例，这些用例会用到多个损失函数和多个
     # SimpleLossLoggerCallback 把损失函数值打印到控制台
     callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[l1_loss_tensor, mse_loss_tensor],
-        print_func=lambda x: print(
+        print_func=lambda x: logging.info(
             f'L1 Loss: {str(x[0].item())}'
             f'MSE Loss: {str(x[1].item())}')
     )

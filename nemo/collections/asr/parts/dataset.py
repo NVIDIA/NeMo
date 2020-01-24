@@ -290,7 +290,7 @@ class KaldiFeatureDataset(Dataset):
                     duration += dur
 
                     if max_utts > 0 and len(data) >= max_utts:
-                        print(f"Stop parsing due to max_utts ({max_utts})")
+                        logging.info(f"Stop parsing due to max_utts ({max_utts})")
                         break
 
         if id2dur:

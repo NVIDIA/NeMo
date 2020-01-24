@@ -41,9 +41,9 @@ gelu_plg_creator = plg_registry.get_plugin_creator("CustomGeluPluginDynamic",
 emln_plg_creator = plg_registry.get_plugin_creator(
     "CustomEmbLayerNormPluginDynamic", "1", "")
 
-print("creators:", plg_registry, qkv2_plg_creator, skln_plg_creator,
+logging.info("creators:", plg_registry, qkv2_plg_creator, skln_plg_creator,
       gelu_plg_creator, emln_plg_creator)
-print("\n".join([x.name for x in plg_registry.plugin_creator_list]))
+logging.info("\n".join([x.name for x in plg_registry.plugin_creator_list]))
 
 """
 Attentions Keys
@@ -282,13 +282,13 @@ def squad_output(prefix, init_dict, network, input_tensor):
 
 def sequence_class_output(prefix, init_dict, network, input_tensor,
                           softmax=True):
-    print(input_tensor.shape)
+    logging.info(input_tensor.shape)
     seq_len = input_tensor.shape[1]
     hidden_size = input_tensor.shape[2]
 
     shuf = network.add_shuffle(input_tensor)
     shuf.first_transpose = (0, 3, 4, 1, 2)
-    print("seq class in: ", shuf.get_output(0).shape)
+    logging.info("seq class in: ", shuf.get_output(0).shape)
 
     in_shape_tensor = network.add_shape(shuf.get_output(0)).get_output(0)
     out_shape_tensor = network.add_gather(
@@ -328,7 +328,7 @@ def sequence_class_output(prefix, init_dict, network, input_tensor,
     classifier.reshape_dims = trt.Dims([0, -1])
 
     set_layer_name(classifier, prefix, "classifier")
-    print("seq class: ", classifier.get_output(0).shape)
+    logging.info("seq class: ", classifier.get_output(0).shape)
     return classifier
 
 
@@ -352,7 +352,7 @@ def token_class_output(prefix, init_dict, network, input_tensor, softmax=True):
     classifier = network.add_shuffle(classifier.get_output(0))
     classifier.reshape_dims = trt.Dims([0, 0, 0])
 
-    print("tok class: ", classifier.get_output(0).shape)
+    logging.info("tok class: ", classifier.get_output(0).shape)
     return classifier
 
 
@@ -585,8 +585,8 @@ if __name__ == "__main__":
 
     outputbase = opt.output
     config_path = opt.config
-    print("token class:", opt.token_classifier)
-    print("seq class:  ", opt.seq_classifier)
+    logging.info("token class:", opt.token_classifier)
+    logging.info("seq class:  ", opt.seq_classifier)
     main(opt.bert_weight, opt.class_weight, opt.batch_size, opt.seq_length,
          config_path,
          outputbase, min_batch=opt.min_batch_size,

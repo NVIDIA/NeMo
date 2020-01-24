@@ -68,8 +68,8 @@ def outputs2words(tensors, vocab):
     source = ' '.join([s for s in source if s != 'EOS' and s != 'PAD'])
     response = ' '.join([s for s in response if s != 'EOS' and s != 'PAD'])
     target = ' '.join([s for s in target if s != 'EOS' and s != 'PAD'])
-    print(f"Train Loss:{str(tensors[0].item())}")
-    print(f"SOURCE: {source} <---> PREDICTED RESPONSE: {response} "
+    logging.info(f"Train Loss:{str(tensors[0].item())}")
+    logging.info(f"SOURCE: {source} <---> PREDICTED RESPONSE: {response} "
           f"<---> TARGET: {target}")
 
 

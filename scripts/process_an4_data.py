@@ -58,7 +58,7 @@ def main():
     data_root = os.path.abspath(args.data_root)
 
     # Convert from .sph to .wav
-    print("Converting audio files to .wav...")
+    logging.info("Converting audio files to .wav...")
     sph_list = glob.glob(
             os.path.join(data_root, 'an4/**/*.sph'),
             recursive=True)
@@ -66,10 +66,10 @@ def main():
         wav_path = sph_path[:-4] + '.wav'
         cmd = ['sox', sph_path, wav_path]
         subprocess.run(cmd)
-    print("Finished conversion.")
+    logging.info("Finished conversion.")
 
     # Build manifests
-    print("Building training manifest...")
+    logging.info("Building training manifest...")
     train_transcripts = os.path.join(
             data_root, 'an4/etc/an4_train.transcription')
     train_manifest = os.path.join(
@@ -77,9 +77,9 @@ def main():
     train_wavs = os.path.join(
             data_root, 'an4/wav/an4_clstk')
     build_manifest(data_root, train_transcripts, train_manifest, train_wavs)
-    print("Training manifests created.")
+    logging.info("Training manifests created.")
 
-    print("Building test manifest...")
+    logging.info("Building test manifest...")
     test_transcripts = os.path.join(
             data_root, 'an4/etc/an4_test.transcription')
     test_manifest = os.path.join(
@@ -87,9 +87,9 @@ def main():
     test_wavs = os.path.join(
             data_root, 'an4/wav/an4test_clstk')
     build_manifest(data_root, test_transcripts, test_manifest, test_wavs)
-    print("Test manifest created.")
+    logging.info("Test manifest created.")
 
-    print("Done with AN4 processing!")
+    logging.info("Done with AN4 processing!")
 
 
 if __name__ == '__main__':

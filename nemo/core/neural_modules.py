@@ -175,7 +175,7 @@ class NeuralModule(ABC):
                     )
                 )
             if type_comatibility == NeuralTypeComparisonResult.LESS:
-                print('Types were raised')
+                logging.info('Types were raised')
 
         if len(output_port_defs) == 1:
             out_name = list(output_port_defs)[0]

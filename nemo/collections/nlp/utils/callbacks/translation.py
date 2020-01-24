@@ -68,14 +68,14 @@ def eval_epochs_done_callback(global_vars, validation_dataset=None):
 
     for i in range(3):
         sent_id = np.random.randint(len(all_sys))
-        print("Ground truth: {0}\n".format(all_ref[0][sent_id]))
-        print("Translation:  {0}\n".format(all_sys[sent_id]))
+        logging.info("Ground truth: {0}\n".format(all_ref[0][sent_id]))
+        logging.info("Translation:  {0}\n".format(all_sys[sent_id]))
 
-    print("------------------------------------------------------------")
-    print("Validation loss: {0}".format(np.round(eval_loss, 3)))
-    print("TokenBLEU: {0}".format(np.round(token_bleu, 2)))
-    print("SacreBLEU: {0}".format(np.round(sacre_bleu, 2)))
-    print("------------------------------------------------------------")
+    logging.info("------------------------------------------------------------")
+    logging.info("Validation loss: {0}".format(np.round(eval_loss, 3)))
+    logging.info("TokenBLEU: {0}".format(np.round(token_bleu, 2)))
+    logging.info("SacreBLEU: {0}".format(np.round(sacre_bleu, 2)))
+    logging.info("------------------------------------------------------------")
 
     for key in GLOBAL_KEYS:
         global_vars[key] = []
@@ -101,11 +101,11 @@ def eval_epochs_done_callback_wer(global_vars):
     eval_wer = word_error_rate(ref, sys)
     for i in range(3):
         sent_id = np.random.randint(len(sys))
-        print("Ground truth: {0}\n".format(ref[sent_id]))
-        print("Translation:  {0}\n".format(sys[sent_id]))
+        logging.info("Ground truth: {0}\n".format(ref[sent_id]))
+        logging.info("Translation:  {0}\n".format(sys[sent_id]))
 
-    print("Validation loss: {0}".format(np.round(eval_loss, 3)))
-    print("Validation WER: {0}".format(eval_wer))
+    logging.info("Validation loss: {0}".format(np.round(eval_loss, 3)))
+    logging.info("Validation WER: {0}".format(eval_wer))
     global_vars["eval_loss"] = []
     global_vars["ref"] = []
     global_vars["sys"] = []

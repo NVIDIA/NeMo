@@ -302,7 +302,7 @@ if args.task_name == 'mnli':
 nemo.logging.info(f"steps_per_epoch = {steps_per_epoch}")
 callback_train = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
-    print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+    print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     step_freq=args.loss_step_freq,
     tb_writer=nf.tb_writer)

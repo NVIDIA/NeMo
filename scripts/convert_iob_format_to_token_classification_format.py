@@ -61,9 +61,9 @@ if __name__ == "__main__":
                                     "https://github.com/kyzhouhzau/BERT"
                                     "-NER/tree/master/data.")
 
-        print(f'Processing {dataset}')
+        logging.info(f'Processing {dataset}')
         out_text = os.path.join(args.data_dir, 'text_' + dataset)
         out_labels = os.path.join(args.data_dir, 'labels_' + dataset)
 
         __convert_data(file_path, out_text, out_labels)
-        print(f'Processing of the {dataset} is complete')
+        logging.info(f'Processing of the {dataset} is complete')

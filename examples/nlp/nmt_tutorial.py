@@ -282,8 +282,8 @@ if args.interactive:
     encoder.eval()
     decoder.eval()
     log_softmax.eval()
-    print("========== Interactive translation mode ==========")
+    logging.info("========== Interactive translation mode ==========")
     input_text = 'anything'
     while input_text.strip():
         input_text = input(f'Text in {args.src_lang} to be translated: ')
-        print('Translated:', translate_sentence(input_text.strip()))
+        logging.info('Translated:', translate_sentence(input_text.strip()))

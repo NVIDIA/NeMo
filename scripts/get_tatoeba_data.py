@@ -34,8 +34,8 @@ def __maybe_download_file(destination: str, source: str):
     """
     source = URL[source]
     if not os.path.exists(destination):
-        print(f'Downloading {source}')
-        print(f'Downloading could take a long time ' +
+        logging.info(f'Downloading {source}')
+        logging.info(f'Downloading could take a long time ' +
               'To get the data faster consider running in a terminal:\n' +
               'wget https://downloads.tatoeba.org/exports/sentences.csv\n' +
               'grep -P "\teng\t" sentences.csv > eng_sentences.csv\n' +
@@ -207,11 +207,11 @@ if __name__ == "__main__":
     if args.dataset != 'tatoeba':
         raise ValueError("Unsupported dataset.")
 
-    print(f'Downloading tatoeba dataset')
+    logging.info(f'Downloading tatoeba dataset')
     tatoeba_dataset = os.path.join(args.data_dir, 'sentences.csv')
     __maybe_download_file(tatoeba_dataset, args.dataset)
 
-    print(f'Processing English sentences...')
+    logging.info(f'Processing English sentences...')
     clean_eng_sentences = os.path.join(args.data_dir,
                                        'clean_eng_sentences.txt')
     __process_english_sentences(tatoeba_dataset,
@@ -223,21 +223,21 @@ if __name__ == "__main__":
     train_file = os.path.join(args.data_dir, 'train.txt')
     dev_file = os.path.join(args.data_dir, 'dev.txt')
 
-    print(f'Splitting the {args.dataset} dataset into train and dev sets' +
+    logging.info(f'Splitting the {args.dataset} dataset into train and dev sets' +
           ' and creating labels and text files')
     __split_into_train_dev(clean_eng_sentences,
                            train_file,
                            dev_file,
                            args.percent_dev)
 
-    print(f'Creating text and label files for training')
+    logging.info(f'Creating text and label files for training')
     __create_text_and_labels(args.data_dir, 'train.txt')
     __create_text_and_labels(args.data_dir, 'dev.txt')
 
     if args.clean_dir:
-        print(f'Cleaning up {args.data_dir}')
+        logging.info(f'Cleaning up {args.data_dir}')
         __delete_file(clean_eng_sentences)
         __delete_file(tatoeba_dataset)
         __delete_file(train_file)
         __delete_file(dev_file)
-    print(f'Processing of the {args.dataset} is complete')
+    logging.info(f'Processing of the {args.dataset} is complete')

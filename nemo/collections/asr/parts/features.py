@@ -160,7 +160,7 @@ class FilterbankFeatures(nn.Module):
                                   self.win_length, window)
 
         else:
-            print("STFT using torch")
+            logging.info("STFT using torch")
             torch_windows = {
                 'hann': torch.hann_window,
                 'hamming': torch.hamming_window,

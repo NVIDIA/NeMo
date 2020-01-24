@@ -83,7 +83,7 @@ def griffin_lim(magnitudes, n_iters=50, n_fft=1024):
     complex_spec = magnitudes * phase
     signal = librosa.istft(complex_spec)
     if not np.isfinite(signal).all():
-        print("WARNING: audio was not finite, skipping audio saving")
+        logging.warning(audio was not finite, skipping audio saving")
         return np.array([0])
 
     for _ in range(n_iters):
@@ -154,7 +154,7 @@ def main():
 
     use_cache = True
     if args.local_rank is not None:
-        print("Doing ALL GPU")
+        logging.info("Doing ALL GPU")
         use_cache = False
 
     # Create text to spectrogram model
@@ -170,7 +170,7 @@ def main():
             infer_dataset=args.eval_dataset,
             infer_batch_size=args.batch_size)
 
-    print("Running Tacotron 2")
+    logging.info("Running Tacotron 2")
     # Run tacotron 2
     evaluated_tensors = neural_factory.infer(
         tensors=infer_tensors,
@@ -179,7 +179,7 @@ def main():
         offload_to_cpu=False
     )
     mel_len = evaluated_tensors[-1]
-    print("Done Running Tacotron 2")
+    logging.info("Done Running Tacotron 2")
     filterbank = librosa.filters.mel(
         sr=tacotron2_params["sample_rate"],
         n_fft=tacotron2_params["n_fft"],
@@ -187,7 +187,7 @@ def main():
         fmax=tacotron2_params["fmax"])
 
     if args.vocoder == "griffin-lim":
-        print("Running Griffin-Lim")
+        logging.info("Running Griffin-Lim")
         mel_spec = evaluated_tensors[0]
         for i, batch in enumerate(mel_spec):
             log_mel = batch.cpu().numpy().transpose(0, 2, 1)
@@ -220,7 +220,7 @@ def main():
         # waveglow.restore_from(args.vocoder_model_load_dir)
 
         # Run waveglow
-        print("Running Waveglow")
+        logging.info("Running Waveglow")
         evaluated_tensors = neural_factory.infer(
             tensors=[audio_pred],
             checkpoint_dir=args.vocoder_model_load_dir,
@@ -228,13 +228,13 @@ def main():
             modules_to_restore=[waveglow],
             use_cache=use_cache
         )
-        print("Done Running Waveglow")
+        logging.info("Done Running Waveglow")
 
         if args.waveglow_denoiser_strength > 0:
-            print("Setup denoiser")
+            logging.info("Setup denoiser")
             waveglow.setup_denoiser()
 
-        print("Saving results to disk")
+        logging.info("Saving results to disk")
         for i, batch in enumerate(evaluated_tensors[0]):
             audio = batch.cpu().numpy()
             for j, sample in enumerate(audio):

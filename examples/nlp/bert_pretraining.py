@@ -170,7 +170,7 @@ if not args.preprocessed_data:
                          "or use sentence-piece or nemo-bert.")
     args.vocab_size = tokenizer.vocab_size
 
-print(vars(args))
+logging.info(vars(args))
 bert_model = nemo_nlp.huggingface.BERT(
     vocab_size=args.vocab_size,
     num_hidden_layers=args.num_hidden_layers,
@@ -281,7 +281,7 @@ else:
                                       batch_size=args.batch_size,
                                       batches_per_step=args.batches_per_step)
 
-print("steps per epoch", steps_per_epoch)
+logging.info("steps per epoch", steps_per_epoch)
 # callback which prints training loss and perplexity once in a while
 if not args.only_mlm_loss:
     log_tensors = [train_loss, mlm_loss, nsp_loss]

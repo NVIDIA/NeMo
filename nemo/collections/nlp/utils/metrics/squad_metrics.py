@@ -156,7 +156,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
     start_position = tok_text.find(pred_text)
     if start_position == -1:
         if verbose_logging:
-            print("Unable to find text: '%s' in '%s'" % (pred_text, orig_text))
+            logging.info("Unable to find text: '%s' in '%s'" % (pred_text, orig_text))
         return orig_text
     end_position = start_position + len(pred_text) - 1
 
@@ -165,7 +165,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
 
     if len(orig_ns_text) != len(tok_ns_text):
         if verbose_logging:
-            print("Length not equal after stripping spaces: '%s' vs '%s'",
+            logging.info("Length not equal after stripping spaces: '%s' vs '%s'",
                   orig_ns_text, tok_ns_text)
         return orig_text
 
@@ -183,7 +183,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
 
     if orig_start_position is None:
         if verbose_logging:
-            print("Couldn't map start position")
+            logging.info("Couldn't map start position")
         return orig_text
 
     orig_end_position = None
@@ -194,7 +194,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
 
     if orig_end_position is None:
         if verbose_logging:
-            print("Couldn't map end position")
+            logging.info("Couldn't map end position")
         return orig_text
 
     output_text = orig_text[orig_start_position:(orig_end_position + 1)]

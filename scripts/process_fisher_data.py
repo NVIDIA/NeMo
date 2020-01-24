@@ -177,14 +177,14 @@ def __process_utterance(file_id, trans_path, line,
 
     t_start, t_end = float(line[0]), float(line[1])
     if (t_start < 0) or (t_end < t_start):
-        print(f"Invalid time: {t_start} to {t_end} in {trans_path}")
+        logging.info(f"Invalid time: {t_start} to {t_end} in {trans_path}")
         return None, None, None, None
 
     channel = line[2]
     idx = 0 if line[2] == 'A:' else 1
 
     if channel not in ('A:', 'B:'):
-        print(f"Could not read channel info ({channel}) in {trans_path}")
+        logging.info(f"Could not read channel info ({channel}) in {trans_path}")
         return None, None, None, None
 
     # Replacements as necessary
@@ -310,7 +310,7 @@ def __process_data(audio_root, transcript_root, dst_root, min_slice_duration,
     """
     transcript_list = glob.glob(os.path.join(
         transcript_root, "fe_03_p*_tran*", "data", "trans", "*", "*.txt"))
-    print("Found {} transcripts.".format(len(transcript_list)))
+    logging.info("Found {} transcripts.".format(len(transcript_list)))
 
     count = file_count
 
@@ -342,11 +342,11 @@ def main():
     rem_noises = args.remove_noises
     emojify = args.noises_to_emoji
 
-    print(f"Expected number of files to segment: {NUM_FILES}")
-    print("With a 80/10/10 split:")
-    print(f"Number of training files: {TRAIN_END_IDX}")
-    print(f"Number of validation files: {VAL_END_IDX - TRAIN_END_IDX}")
-    print(f"Number of test files: {NUM_FILES - VAL_END_IDX}")
+    logging.info(f"Expected number of files to segment: {NUM_FILES}")
+    logging.info("With a 80/10/10 split:")
+    logging.info(f"Number of training files: {TRAIN_END_IDX}")
+    logging.info(f"Number of validation files: {VAL_END_IDX - TRAIN_END_IDX}")
+    logging.info(f"Number of test files: {NUM_FILES - VAL_END_IDX}")
 
     if not os.path.exists(os.path.join(dest_root, 'train/')):
         os.makedirs(os.path.join(dest_root, 'train/'))
@@ -361,7 +361,7 @@ def main():
     file_count = 0
 
     for data_set in ['LDC2004S13-Part1', 'LDC2005S13-Part2']:
-        print(f"\n\nWorking on dataset: {data_set}")
+        logging.info(f"\n\nWorking on dataset: {data_set}")
         file_count = __process_data(
                 os.path.join(audio_root, data_set),
                 os.path.join(transcript_root, data_set),
@@ -372,7 +372,7 @@ def main():
                 rem_noises,
                 emojify)
 
-        print(f"Total file count so far: {file_count}")
+        logging.info(f"Total file count so far: {file_count}")
 
 
 if __name__ == "__main__":

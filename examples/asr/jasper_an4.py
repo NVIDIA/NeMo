@@ -36,7 +36,7 @@ def create_dags(jasper_params, args, nf):
     steps_per_epoch = math.ceil(
         num_samples / (args.batch_size * args.iter_per_step * nf.world_size))
     total_steps = steps_per_epoch * args.num_epochs
-    print("Train samples=", num_samples, "num_steps=", total_steps)
+    logging.info("Train samples=", num_samples, "num_steps=", total_steps)
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         **jasper_params["AudioToMelSpectrogramPreprocessor"]

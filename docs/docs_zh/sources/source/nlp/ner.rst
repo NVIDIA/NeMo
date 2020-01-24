@@ -149,7 +149,7 @@ text.txt 每一行包含文本序列，其中词以空格来进行分隔。label
 
         callback_train = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss],
-            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())))
+            print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())))
 
         train_data_size = len(train_data_layer)
 

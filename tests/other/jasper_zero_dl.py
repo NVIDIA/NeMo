@@ -56,7 +56,7 @@ tb_writer = SummaryWriter(name)
 
 if args.local_rank is not None:
     device = nemo.core.DeviceType.AllGpu
-    print('Doing ALL GPU')
+    logging.info('Doing ALL GPU')
 else:
     device = nemo.core.DeviceType.GPU
 
@@ -99,9 +99,9 @@ dl = nemo.backends.pytorch.ZerosDataLayer(size=N, dtype=torch.FloatTensor,
                                               "transcript_length": NeuralType(
                                                   {0: AxisType(BatchTag)})
                                           })
-print('-----------------')
-print('Have {0} examples to train on.'.format(N))
-print('-----------------')
+logging.info('-----------------')
+logging.info('Have {0} examples to train on.'.format(N))
+logging.info('-----------------')
 step_per_epoch = int(N / (batch_size * num_gpus))
 
 jasper_encoder = neural_factory.get_module(name="JasperEncoder",
@@ -136,10 +136,10 @@ loss_t = ctc_loss(log_probs=log_probs_t,
                   input_length=encoded_len_t,
                   target_length=transcript_len_t)
 
-print('\n\n\n================================')
-print("Total number of parameters: {0}".format(
+logging.info('\n\n\n================================')
+logging.info("Total number of parameters: {0}".format(
     jasper_decoder.num_weights + jasper_encoder.num_weights))
-print('================================')
+logging.info('================================')
 
 # Callbacks needed to print info to console and Tensorboard
 train_callback = nemo.core.SimpleLossLoggerCallback(

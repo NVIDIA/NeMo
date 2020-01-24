@@ -57,7 +57,7 @@ def eval_epochs_done_callback(global_vars, eval_data_layer, do_lower_case,
         null_score_diff_threshold=null_score_diff_threshold,
         do_lower_case=do_lower_case)
 
-    print(f"Exact_match = {exact_match}, f1 = {f1}")
+    logging.info(f"Exact_match = {exact_match}, f1 = {f1}")
 
     global_vars["eval_unique_ids"] = []
     global_vars["eval_start_logits"] = []

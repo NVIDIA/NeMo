@@ -94,10 +94,10 @@ def __get_vocab(data_folder: str, des_dir: str):
 def main():
     source_data = args.audio_folder
     des_dir = args.dest_folder
-    print("begin to process data...")
+    logging.info("begin to process data...")
     __process_data(source_data, des_dir)
     __get_vocab(source_data, des_dir)
-    print("finish all!")
+    logging.info("finish all!")
 
 
 if __name__ == "__main__":

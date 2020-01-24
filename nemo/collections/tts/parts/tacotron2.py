@@ -486,7 +486,7 @@ class Decoder(nn.Module):
             alignments += [alignment]
 
             if len(mel_outputs) == self.max_decoder_steps:
-                print("Warning! Reached max decoder steps")
+                logging.info("Warning! Reached max decoder steps")
                 break
 
             decoder_input = mel_output

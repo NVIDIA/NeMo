@@ -70,7 +70,7 @@ def main():
     data_root = args.data_root
     dest_root = args.dest_root
 
-    print("\n\nConverting audio for Part 1")
+    logging.info("\n\nConverting audio for Part 1")
     __process_set(
             os.path.join(
                 data_root, "LDC2004S13-Part1", "fisher_eng_tr_sp_d*",
@@ -79,7 +79,7 @@ def main():
                 dest_root, "LDC2004S13-Part1", "audio_wav")
             )
 
-    print("\n\nConverting audio for Part 2")
+    logging.info("\n\nConverting audio for Part 2")
     __process_set(
             os.path.join(
                 data_root, "LDC2005S13-Part2", "fe_03_p2_sph*",

@@ -47,12 +47,12 @@ def __maybe_download_file(destination, source):
     """
     source = URLS[source]
     if not os.path.exists(destination):
-        print("{0} does not exist. Downloading ...".format(destination))
+        logging.info("{0} does not exist. Downloading ...".format(destination))
         urllib.request.urlretrieve(source, filename=destination + ".tmp")
         os.rename(destination + ".tmp", destination)
-        print("Downloaded {0}.".format(destination))
+        logging.info("Downloaded {0}.".format(destination))
     else:
-        print("Destination {0} exists. Skipping.".format(destination))
+        logging.info("Destination {0} exists. Skipping.".format(destination))
     return destination
 
 
@@ -70,17 +70,17 @@ def __extract_rar(rar_path, dest_dir):
         if os.system("which unrar > /dev/null") != 0:
             message = "Please install unrar and run the script again.\n" \
                     "On Ubuntu/Debian, run: sudo apt-get install unrar -y"
-            print(message)
+            logging.info(message)
             exit(1)
         os.makedirs(dest_dir)
-        print("Extracting... This might take a few minutes.", flush=True)
+        logging.info("Extracting... This might take a few minutes.", flush=True)
         status = os.system(
             "unrar x {0} {1} > /dev/null".format(rar_path, dest_dir))
         if status != 0:
-            print("Extraction failed.")
+            logging.info("Extraction failed.")
             exit(1)
     else:
-        print("Skipping extracting. Data already there {0}.".format(data_dir))
+        logging.info("Skipping extracting. Data already there {0}.".format(data_dir))
 
 
 def __convert_waves(wavedir, converted_wavedir, wavename, sr):
@@ -146,14 +146,14 @@ def __prepare_databaker_csmsc(data_root, train_size, sr=22050):
         "download link is provided by Databaker (Beijing) Technology Co.," \
         "Ltd. Supports Non-Commercial use only. \nFor more info about this" \
         " dataset, visit: https://www.data-baker.com/open_source.html"
-    print(copyright_statement)
+    logging.info(copyright_statement)
     rar_path = os.path.join(data_root, dataset_name+'.rar')
     dataset_dir = os.path.join(data_root, dataset_name)
     __maybe_download_file(rar_path, dataset_name)
     __extract_rar(rar_path, dataset_dir)
     wavedir = os.path.join(dataset_dir, "Wave")
     wavepaths = glob.glob(os.path.join(wavedir, "*.wav"))
-    print("Found {} wav files, converting them to {} HZ sample rate...".format(
+    logging.info("Found {} wav files, converting them to {} HZ sample rate...".format(
         len(wavepaths), sr), flush=True)
     converted_wavedir = os.path.join(dataset_dir, str(sr))
     if not os.path.exists(converted_wavedir):
@@ -170,7 +170,7 @@ def __prepare_databaker_csmsc(data_root, train_size, sr=22050):
         wavename, dur = duration.result()
         duration_dict[wavename] = dur
     del durations
-    print("Phoneticizing transcripts...", flush=True)
+    logging.info("Phoneticizing transcripts...", flush=True)
     transcriptfile = os.path.join(
         dataset_dir, "ProsodyLabeling", "000001-010000.txt")
     with open(transcriptfile, "r", encoding="utf-8") as f:
@@ -193,7 +193,7 @@ def __prepare_databaker_csmsc(data_root, train_size, sr=22050):
     eval_wavenames = wavenames[train_num:]
     train_lines = []
     eval_lines = []
-    print("Generating Manifest...", flush=True)
+    logging.info("Generating Manifest...", flush=True)
     for wavename in tqdm(train_wavenames):
         tmp_dict = {}
         tmp_dict["audio_filepath"] = os.path.join(converted_wavedir, wavename)
@@ -220,7 +220,7 @@ def __prepare_databaker_csmsc(data_root, train_size, sr=22050):
                 as f:
             for line in eval_lines:
                 f.write("%s\n" % line)
-    print("Complete.")
+    logging.info("Complete.")
 
 
 def main():
@@ -232,7 +232,7 @@ def main():
     args = parser.parse_args()
 
     if args.train_size > 1 or args.train_size <= 0:
-        print("train_size should > 0 and <= 1")
+        logging.info("train_size should > 0 and <= 1")
 
     if not os.path.exists(args.data_root):
         os.makedirs(args.data_root)
@@ -240,7 +240,7 @@ def main():
     if args.dataset_name == 'databaker_csmsc':
         __prepare_databaker_csmsc(args.data_root, args.train_size)
     else:
-        print("Unsupported dataset.")
+        logging.info("Unsupported dataset.")
 
 
 if __name__ == "__main__":

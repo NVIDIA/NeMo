@@ -29,7 +29,7 @@ either get_tb_values() or log_to_tb_func().
 
 print_func() should be used to log values to screen. We recommend using
 nemo.logging.info() in place
-of print(). For example, it can be used to print the loss value:
+of logging.info(). For example, it can be used to print the loss value:
 
 .. code-block:: python
 

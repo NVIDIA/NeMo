@@ -39,17 +39,17 @@ class TestZeroDL(NeMoUnitTest):
     def setUp(self) -> None:
         super().setUp()
         data_folder = "tests/data/"
-        print("Looking up for test ASR data")
+        logging.info("Looking up for test ASR data")
         if not os.path.exists(data_folder + "nemo_asr"):
-            print(f"Extracting ASR data to: {data_folder + 'nemo_asr'}")
+            logging.info(f"Extracting ASR data to: {data_folder + 'nemo_asr'}")
             tar = tarfile.open("tests/data/asr.tar.gz", "r:gz")
             tar.extractall(path=data_folder)
             tar.close()
         else:
-            print("ASR data found in: {0}".format(data_folder + "asr"))
+            logging.info("ASR data found in: {0}".format(data_folder + "asr"))
 
     def test_simple_train(self):
-        print("Simplest train test with ZeroDL")
+        logging.info("Simplest train test with ZeroDL")
         neural_factory = nemo.core.neural_factory.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, create_tb_writer=False)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
@@ -71,14 +71,14 @@ class TestZeroDL(NeMoUnitTest):
 
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss_tensor],
-            print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
+            print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'))
         neural_factory.train(
             [loss_tensor], callbacks=[callback],
             optimization_params={"num_epochs": 3, "lr": 0.0003},
             optimizer="sgd")
 
     def test_asr_with_zero_ds(self):
-        print("Testing ASR NMs with ZeroDS and without pre-processing")
+        logging.info("Testing ASR NMs with ZeroDS and without pre-processing")
         with open("tests/data/jasper_smaller.yaml") as file:
             jasper_model_definition = self.yaml.load(file)
 
@@ -111,7 +111,7 @@ class TestZeroDL(NeMoUnitTest):
         processed_signal, p_length, transcript, transcript_len = dl()
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal,
                                               length=p_length)
-        # print(jasper_encoder)
+        # logging.info(jasper_encoder)
         log_probs = jasper_decoder(encoder_output=encoded)
         loss = ctc_loss(log_probs=log_probs,
                         targets=transcript,
@@ -120,7 +120,7 @@ class TestZeroDL(NeMoUnitTest):
 
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss],
-            print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
+            print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'))
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, local_rank=None,

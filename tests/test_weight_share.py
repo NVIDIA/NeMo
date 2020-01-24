@@ -161,7 +161,7 @@ class TestWeightSharing(NeMoUnitTest):
 
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal,
                                               length=p_length)
-        # print(jasper_encoder)
+        # logging.info(jasper_encoder)
         log_probs = jasper_decoder(encoder_output=encoded)
         loss = ctc_loss(log_probs=log_probs,
                         targets=transcript,
@@ -170,7 +170,7 @@ class TestWeightSharing(NeMoUnitTest):
 
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss],
-            print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
+            print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'))
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, local_rank=None,
@@ -221,7 +221,7 @@ class TestWeightSharing(NeMoUnitTest):
 
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[train_loss],
-            print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'))
+            print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'))
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, local_rank=None,

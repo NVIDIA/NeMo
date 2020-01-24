@@ -1703,24 +1703,24 @@ def process_to_text(rawfile, txtfile, field: int = None):
             with smart_open(rawfile) as fin, smart_open(txtfile, 'wt') as fout:
                 for line in fin:
                     if line.startswith('<seg '):
-                        print(_clean(
+                        logging.info(_clean(
                             re.sub(r'<seg.*?>(.*)</seg>.*?', '\\1', line)),
                             file=fout)
         elif rawfile.endswith('.xml'):  # IWSLT
             with smart_open(rawfile) as fin, smart_open(txtfile, 'wt') as fout:
                 for line in fin:
                     if line.startswith('<seg '):
-                        print(_clean(
+                        logging.info(_clean(
                             re.sub(r'<seg.*?>(.*)</seg>.*?', '\\1', line)),
                             file=fout)
         elif rawfile.endswith('.txt'):  # wmt17/ms
             with smart_open(rawfile) as fin, smart_open(txtfile, 'wt') as fout:
                 for line in fin:
-                    print(line.rstrip(), file=fout)
+                    logging.info(line.rstrip(), file=fout)
         elif rawfile.endswith('.tsv'):  # MTNT
             with smart_open(rawfile) as fin, smart_open(txtfile, 'wt') as fout:
                 for line in fin:
-                    print(line.rstrip().split('\t')[field], file=fout)
+                    logging.info(line.rstrip().split('\t')[field], file=fout)
 
 
 def print_test_set(test_set, langpair, side):
@@ -1738,7 +1738,7 @@ def print_test_set(test_set, langpair, side):
 
     streams = [smart_open(file) for file in files]
     for lines in zip(*streams):
-        print('\t'.join(map(lambda x: x.rstrip(), lines)))
+        logging.info('\t'.join(map(lambda x: x.rstrip(), lines)))
 
 
 def download_test_set(test_set, langpair=None):
@@ -2328,7 +2328,7 @@ def main():
             logging.error('No citation found for %s', args.test_set)
             sys.exit(1)
 
-        print(DATASETS[args.test_set]['citation'])
+        logging.info(DATASETS[args.test_set]['citation'])
         sys.exit(0)
 
     if args.test_set is not None and args.test_set not in DATASETS:
@@ -2396,7 +2396,7 @@ def main():
     if args.test_set:
         _, *refs = download_test_set(args.test_set, args.langpair)
         if len(refs) == 0:
-            print('No references found for test set {}/{}.'.format(
+            logging.info('No references found for test set {}/{}.'.format(
                 args.test_set, args.langpair))
             sys.exit(1)
     else:
@@ -2448,18 +2448,18 @@ def main():
     for metric in args.metrics:
         if metric == 'bleu':
             if args.score_only:
-                print('{0:.{1}f}'.format(bleu.score, width))
+                logging.info('{0:.{1}f}'.format(bleu.score, width))
             else:
                 version_str = bleu_signature(args, len(refs))
-                print(
+                logging.info(
                     bleu.format(width).replace('BLEU', 'BLEU+' + version_str))
 
         elif metric == 'chrf':
             if args.score_only:
-                print('{0:.{1}f}'.format(chrf, width))
+                logging.info('{0:.{1}f}'.format(chrf, width))
             else:
                 version_str = chrf_signature(args, len(refs))
-                print('chrF{0:d}+{1} = {2:.{3}f}'.format(
+                logging.info('chrF{0:d}+{1} = {2:.{3}f}'.format(
                     args.chrf_beta, version_str, chrf, width))
 
 

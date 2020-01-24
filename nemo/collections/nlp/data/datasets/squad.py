@@ -420,7 +420,7 @@ class SquadDataset(Dataset):
                 gold_answers = [""]
 
             if qas_id not in preds:
-                print("Missing prediction for %s" % qas_id)
+                logging.info("Missing prediction for %s" % qas_id)
                 continue
 
             prediction = preds[qas_id]

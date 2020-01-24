@@ -45,7 +45,7 @@ class TestSquad(NeMoUnitTest):
         data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__),
                                                    'data/nlp'))
         if not os.path.exists(data_folder):
-            print(f"mkdir {data_folder}")
+            logging.info(f"mkdir {data_folder}")
             os.mkdir(data_folder)
 
         squad_folder = data_folder + '/squad'
@@ -54,7 +54,7 @@ class TestSquad(NeMoUnitTest):
                 os.path.join(os.path.dirname(__file__),
                              '../examples/nlp/scripts'))
             sys.path.insert(0, download_script_path)
-            print("Extracting Squad data to: {0}".format(squad_folder))
+            logging.info("Extracting Squad data to: {0}".format(squad_folder))
             squad_dl = SquadDownloader(data_folder)
             squad_dl.download()
 
@@ -176,7 +176,7 @@ class TestSquad(NeMoUnitTest):
 
         callback_train = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss],
-            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+            print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
             get_tb_values=lambda x: [["loss", x[0]]],
             step_freq=10,
             tb_writer=neural_factory.tb_writer)
@@ -287,7 +287,7 @@ class TestSquad(NeMoUnitTest):
 
         callback_train = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss],
-            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+            print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
             get_tb_values=lambda x: [["loss", x[0]]],
             step_freq=10,
             tb_writer=neural_factory.tb_writer)

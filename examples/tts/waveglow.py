@@ -121,7 +121,7 @@ def create_train_dag(neural_factory,
     # Callbacks needed to print info to console and Tensorboard
     train_callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[loss_t, z, spec_target, spec_target_len],
-        print_func=lambda x: print(f"Loss: {x[0].data}"),
+        print_func=lambda x: logging.info(f"Loss: {x[0].data}"),
         log_to_tb_func=partial(
             waveglow_log_to_tb_func,
             log_images=False),

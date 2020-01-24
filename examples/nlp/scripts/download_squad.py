@@ -53,9 +53,9 @@ class SquadDownloader:
             url = item
             file = self.download_urls[item]
 
-            print('Downloading:', url)
+            logging.info('Downloading:', url)
             if os.path.isfile(self.save_path + '/' + file):
-                print('** Download file already exists, skipping download')
+                logging.info('** Download file already exists, skipping download')
             else:
                 response = urllib.request.urlopen(url)
                 with open(self.save_path + '/' + file, "wb") as handle:

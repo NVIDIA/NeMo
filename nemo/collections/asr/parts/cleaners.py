@@ -86,7 +86,7 @@ def clean_text(string, table, punctuation_to_replace):
 
 def warn_common_chars(string):
     if re.search(r'[£€]', string):
-        print("WARNING: Your transcript contains one of '£' or '€' which we do"
+        logging.warning(Your transcript contains one of '£' or '€' which we do"
               "not currently handle")
 
 

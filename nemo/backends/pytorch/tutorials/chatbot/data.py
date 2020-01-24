@@ -48,7 +48,7 @@ class Voc:
             if v >= min_count:
                 keep_words.append(k)
 
-        print(
+        logging.info(
             "keep_words {} / {} = {:.4f}".format(
                 len(keep_words),
                 len(self.word2index),
@@ -96,7 +96,7 @@ def normalizeString(s):
 
 
 def readVocs(datafile, corpus_name):
-    print("Reading lines...")
+    logging.info("Reading lines...")
     # Read the file and split into lines
     lines = open(datafile, encoding="utf-8").read().strip().split("\n")
     # Split every line into pairs and normalize
@@ -127,16 +127,16 @@ def filterPairs(pairs):
 
 
 def loadPrepareData(corpus_name, datafile):
-    print("Start preparing training data ...")
+    logging.info("Start preparing training data ...")
     voc, pairs = readVocs(datafile, corpus_name)
-    print("Read {!s} sentence pairs".format(len(pairs)))
+    logging.info("Read {!s} sentence pairs".format(len(pairs)))
     pairs = filterPairs(pairs)
-    print("Trimmed to {!s} sentence pairs".format(len(pairs)))
-    print("Counting words...")
+    logging.info("Trimmed to {!s} sentence pairs".format(len(pairs)))
+    logging.info("Counting words...")
     for pair in pairs:
         voc.addSentence(pair[0])
         voc.addSentence(pair[1])
-    print("Counted words:", voc.num_words)
+    logging.info("Counted words:", voc.num_words)
     return voc, pairs
 
 
@@ -169,7 +169,7 @@ def trimRareWords(voc, pairs, MIN_COUNT):
         if keep_input and keep_output:
             keep_pairs.append(pair)
 
-    # print("Trimmed from {} pairs to {}, {:.4f} of total".format(len(
+    # logging.info("Trimmed from {} pairs to {}, {:.4f} of total".format(len(
     # pairs), len(keep_pairs), len(keep_pairs) / len(pairs)))
     return keep_pairs
 

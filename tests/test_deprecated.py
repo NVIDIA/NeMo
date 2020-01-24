@@ -29,7 +29,7 @@ class DeprecatedTestCase(NeMoUnitTest):
 
         @deprecated()
         def say_whee():
-            print("Whee!")
+            logging.info("Whee!")
 
         # Mock up both std and stderr streams.
         with patch('sys.stdout', new=StringIO()) as std_out:
@@ -50,7 +50,7 @@ class DeprecatedTestCase(NeMoUnitTest):
 
         @deprecated()
         def say_wow():
-            print("Woooow!")
+            logging.info("Woooow!")
 
         # Mock up both std and stderr streams - first call
         with patch('sys.stdout', new=StringIO()) as std_out:
@@ -84,7 +84,7 @@ class DeprecatedTestCase(NeMoUnitTest):
 
         @deprecated(version=0.1)
         def say_whoopie():
-            print("Whoopie!")
+            logging.info("Whoopie!")
 
         # Mock up both std and stderr streams.
         with patch('sys.stdout', new=StringIO()) as std_out:
@@ -106,7 +106,7 @@ to be removed in version 0.1.')
 
         @deprecated(explanation="Please use ``print_ihaa`` instead.")
         def say_kowabunga():
-            print("Kowabunga!")
+            logging.info("Kowabunga!")
 
         # Mock up both std and stderr streams.
         with patch('sys.stdout', new=StringIO()) as std_out:

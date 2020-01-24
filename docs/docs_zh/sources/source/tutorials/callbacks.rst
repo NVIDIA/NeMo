@@ -25,7 +25,7 @@ get_tb_values() 和 log_to_tb_func() 函数的输入。两个推荐重写的参�
 get_tb_values() 或者 log_to_tb_func() 任选其一。
 
 print_func() 应该用来记录打印到屏幕上的值。我们推荐使用 nemo.logging.info()
-来取代 print() 函数。比如，可以这么打印 loss 值：
+来取代 logging.info() 函数。比如，可以这么打印 loss 值：
 
 .. code-block:: python
 

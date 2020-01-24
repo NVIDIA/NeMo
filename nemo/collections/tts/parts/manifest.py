@@ -32,7 +32,7 @@ class AudioManifest(object):
                     duration += data['duration']
 
                     if max_utts > 0 and len(ids) >= max_utts:
-                        print(
+                        logging.info(
                             'Stopping parsing %s as max_utts=%d' % (
                                 manifest_path, max_utts))
                         break

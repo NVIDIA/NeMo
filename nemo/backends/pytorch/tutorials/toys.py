@@ -117,9 +117,9 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
     def forward(self, x, o=None):
         lst = []
         if o is None:
-            print("O is None")
+            logging.info("O is None")
         else:
-            print("O is not None")
+            logging.info("O is not None")
         for pw in range(self._dim):
             lst.append(x ** pw)
         nx = t.cat(lst, dim=-1)

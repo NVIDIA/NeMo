@@ -244,7 +244,7 @@ class WaveGlowInferNM(WaveGlowNM):
 
     def forward(self, mel_spectrogram):
         if not self._removed_weight_norm:
-            print("remove WN")
+            logging.info("remove WN")
             self.waveglow = self.waveglow.remove_weightnorm(self.waveglow)
             self._removed_weight_norm = True
         if self.training:

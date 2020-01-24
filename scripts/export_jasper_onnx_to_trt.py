@@ -25,7 +25,7 @@ def build_engine(onnx_path, seq_len=192, max_seq_len=256, batch_size=8,
 
     if trt_fp16:
         builder.fp16_mode = True
-        print("Optimizing for FP16")
+        logging.info("Optimizing for FP16")
         config_flags = 1 << int(
             trt.BuilderFlag.FP16)  # | 1 << int(trt.BuilderFlag.STRICT_TYPES)
     else:
@@ -54,7 +54,7 @@ def build_engine(onnx_path, seq_len=192, max_seq_len=256, batch_size=8,
 
     with trt.OnnxParser(network, TRT_LOGGER) as parser:
         parsed = parser.parse(model)
-        print("Parsing returned ", parsed)
+        logging.info("Parsing returned ", parsed)
         return builder.build_engine(network, config=config)
 
 
@@ -102,7 +102,7 @@ if __name__ == '__main__':
     if engine is not None:
         with open(args.trt_encoder, 'wb') as f:
             f.write(engine.serialize())
-            print("TRT engine saved at " + args.trt_encoder + " ...")
+            logging.info("TRT engine saved at " + args.trt_encoder + " ...")
 
     engine = build_engine(args.onnx_decoder, seq_len=args.seq_len // 2,
                           max_seq_len=args.max_seq_len // 2,
@@ -112,4 +112,4 @@ if __name__ == '__main__':
     if engine is not None:
         with open(args.trt_decoder, 'wb') as f:
             f.write(engine.serialize())
-            print("TRT engine saved at " + args.trt_decoder + " ...")
+            logging.info("TRT engine saved at " + args.trt_decoder + " ...")
