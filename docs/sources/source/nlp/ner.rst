@@ -32,8 +32,10 @@ The labels.txt files should be formatted like this:
 
 Each line of the text.txt file contains text sequences, where words are separated with spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are separated with spaces. Each line of the files should follow the format: [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).
 
+You can use `this`_ to convert CoNLL-2003 dataset to the format required for training.
 
-.. _script: https://github.com/NVIDIA/NeMo/tree/master/scripts/get_conll_data.py
+
+.. _this: https://github.com/NVIDIA/NeMo/blob/master/scripts/convert_ibo_format_to_token_classification_format.py
 
 
 Training
@@ -48,10 +50,11 @@ First, we need to create our neural factory with the supported backend. How you 
 
     .. code-block:: python
 
+        WORK_DIR = "output_ner"
         nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                            local_rank=None,
                                            optimization_level="O0",
-                                           log_dir="output_ner",
+                                           log_dir=WORK_DIR,
                                            create_tb_writer=True)
 
 Next, we'll need to define our tokenizer and our BERT model. There are a couple of different ways you can do this. Keep in mind that NER benefits from casing ("New York City" is easier to identify than "new york city"), so we recommend you use cased models.
@@ -148,10 +151,11 @@ Now, we will set up our callbacks. We will use 3 callbacks:
             user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, label_ids),
             eval_step=steps_per_epoch)
 
+        # Callback to store checkpoints
+        # Checkpoints will be stored in checkpoints folder inside WORK_DIR
         ckpt_callback = nemo.core.CheckpointCallback(
             folder=nf.checkpoint_dir,
-            epoch_freq=1,
-            step_freq=-1)
+            epoch_freq=1)
 
 Finally, we will define our learning rate policy and our optimizer, and start training.
 
