@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+
 from nemo.core import Backend
 
-from nemo.collections.tts.tacotron2_modules import (MakeGate, Tacotron2Loss, Tacotron2Postnet,
-                                Tacotron2Decoder, Tacotron2DecoderInfer,
-                                Tacotron2Encoder, TextEmbedding)
+from nemo.collections.tts.tacotron2_modules import *
+from nemo.collections.tts.tacotron2_modules import __all__ as tacotron2__all__
 
 from nemo.collections.tts.waveglow_modules import *
 from nemo.collections.tts.waveglow_modules import __all__ as waveglow__all__
@@ -29,4 +29,7 @@ from nemo.collections.tts.parts.helpers import __all__ as helpers__all__
 
 backend = Backend.PyTorch
 
-__all__ = waveglow__all__ + ["AudioDataLayer"] + helpers__all__
+__all__ = ["AudioDataLayer"] + \
+          helpers__all__ + \
+          tacotron2__all__ + \
+          waveglow__all__
