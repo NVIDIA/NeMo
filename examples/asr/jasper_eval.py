@@ -10,9 +10,9 @@ from ruamel.yaml import YAML
 import numpy as np
 
 import nemo
-import nemo_asr
-from nemo_asr.helpers import word_error_rate, post_process_predictions, \
-                             post_process_transcripts
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.helpers import word_error_rate, post_process_predictions, \
+    post_process_transcripts
 
 
 def main():
@@ -143,18 +143,18 @@ def main():
     references = post_process_transcripts(
         evaluated_tensors[2], evaluated_tensors[3], vocab)
     wer = word_error_rate(hypotheses=greedy_hypotheses, references=references)
-    nemo.logging.info("Greedy WER {:.2f}%".format(wer*100))
+    nemo.logging.info("Greedy WER {:.2f}%".format(wer * 100))
 
     if args.lm_path:
         if args.alpha_max is None:
             args.alpha_max = args.alpha
         # include alpha_max in tuning range
-        args.alpha_max += args.alpha_step/10.0
+        args.alpha_max += args.alpha_step / 10.0
 
         if args.beta_max is None:
             args.beta_max = args.beta
         # include beta_max in tuning range
-        args.beta_max += args.beta_step/10.0
+        args.beta_max += args.beta_step / 10.0
 
         beam_wers = []
 
@@ -188,8 +188,8 @@ def main():
 
                 wer = word_error_rate(
                     hypotheses=beam_hypotheses, references=references)
-                nemo.logging.info("Beam WER {:.2f}%".format(wer*100))
-                beam_wers.append(((alpha, beta), wer*100))
+                nemo.logging.info("Beam WER {:.2f}%".format(wer * 100))
+                beam_wers.append(((alpha, beta), wer * 100))
 
         nemo.logging.info('Beam WER for (alpha, beta)')
         nemo.logging.info('================================')

@@ -78,7 +78,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
     # NeMo's "core" package
     import nemo
     # NeMo's ASR collection
-    import nemo_asr
+    import nemo.collections.asr as nemo_asr
 
     # 创建 Neural Factory
     # 它会为我们创建日志文件和 tensorboard 记录器
@@ -152,7 +152,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
     # 这些帮助函数对于打印和计算不同的指标很重要
     # 比如计算错词率和把它们记录到 tensorboard
     # 这些函数是领域特殊性的，由 NeMo 的不同 collections 提供（nemo_asr，nemo_nlp）
-    from nemo_asr.helpers import monitor_asr_train_progress, \
+    from nemo.collections.asr.helpers import monitor_asr_train_progress, \
         process_evaluation_batch, process_evaluation_epoch
 
     from functools import partial

@@ -9,8 +9,8 @@ from ruamel.yaml import YAML
 import nemo
 from nemo.utils.lr_policies import SquareAnnealing
 import nemo.utils.argparse as nm_argparse
-import nemo_asr
-from nemo_asr.helpers import monitor_asr_train_progress, \
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.helpers import monitor_asr_train_progress, \
     process_evaluation_batch, process_evaluation_epoch
 
 

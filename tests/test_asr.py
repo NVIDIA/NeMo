@@ -4,14 +4,34 @@ import shutil
 import tarfile
 import unittest
 
+import nemo
 from nemo.core import DeviceType
-from nemo_asr.parts import AudioDataset, WaveformFeaturizer
-from nemo_asr.parts import collections
-from nemo_asr.parts import parsers
+# ! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+# Copyright 2019 NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer
+from nemo.collections.asr.parts import collections
+from nemo.collections.asr.parts import parsers
+
 from ruamel.yaml import YAML
 
 from .common_setup import NeMoUnitTest
-from .context import nemo, nemo_asr
 
 freq = 16000
 
@@ -756,7 +776,7 @@ class TestASRPytorch(NeMoUnitTest):
         )
         predictions = greedy_decoder(log_probs=log_probs)
 
-        from nemo_asr.helpers import (
+        from nemo.collections.asr.helpers import (
             process_evaluation_batch,
             process_evaluation_epoch,
         )

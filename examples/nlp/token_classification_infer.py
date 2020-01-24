@@ -5,9 +5,9 @@ import numpy as np
 from sklearn.metrics import classification_report
 
 import nemo
-import nemo_nlp
-from nemo_nlp import NemoBertTokenizer
-from nemo_nlp.utils.nlp_utils import get_vocab
+import nemo.collections.nlp as nemo_nlp
+from nemo.collections.nlp import NemoBertTokenizer
+from nemo.collections.nlp.utils.nlp_utils import get_vocab
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='NER with pretrained BERT')

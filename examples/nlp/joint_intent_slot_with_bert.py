@@ -8,9 +8,9 @@ from transformers import BertTokenizer
 import nemo
 from nemo.utils.lr_policies import get_lr_policy
 
-import nemo_nlp
-from nemo_nlp.data.datasets.utils import JointIntentSlotDataDesc
-from nemo_nlp.utils.callbacks.joint_intent_slot import \
+import nemo.collections.nlp as nemo_nlp
+from nemo.collections.nlp.data.datasets.utils import JointIntentSlotDataDesc
+from nemo.collections.nlp.utils.callbacks.joint_intent_slot import \
     eval_iter_callback, eval_epochs_done_callback
 
 

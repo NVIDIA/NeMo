@@ -4,7 +4,7 @@ from flask import Flask
 from ruamel.yaml import YAML
 
 import nemo
-import nemo_asr
+import nemo.collections.asr as nemo_asr
 
 app = Flask(__name__)
 # make sure WORK_DIR exists before calling your service

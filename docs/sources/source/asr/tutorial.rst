@@ -86,7 +86,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
     # NeMo's "core" package
     import nemo
     # NeMo's ASR collection
-    import nemo_asr
+    import nemo.collections.asr as nemo_asr
 
     # Create a Neural Factory
     # It creates log files and tensorboard writers for us among other functions
@@ -161,7 +161,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
     # These helper functions are needed to print and compute various metrics
     # such as word error rate and log them into tensorboard
     # they are domain-specific and are provided by NeMo's collections
-    from nemo_asr.helpers import monitor_asr_train_progress, \
+    from nemo.collections.asr.helpers import monitor_asr_train_progress, \
         process_evaluation_batch, process_evaluation_epoch
 
     from functools import partial
