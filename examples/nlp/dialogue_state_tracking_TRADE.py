@@ -15,6 +15,8 @@ from nemo.utils.lr_policies import get_lr_policy
 import nemo_nlp
 from nemo_nlp.utils.callbacks.state_tracking_trade import \
     eval_iter_callback, eval_epochs_done_callback
+from nemo_nlp.data.datasets.utils import MultiWOZDataDesc
+
 
 parser = argparse.ArgumentParser(
     description='TRADE for MultiWOZ dialog state tracking')
@@ -51,12 +53,14 @@ parser.add_argument("--grad_norm_clip", type=float, default=10,
 parser.add_argument("--teacher_forcing", default=0.5, type=float)
 args = parser.parse_args()
 
-DOMAINS = {"attraction": 0, "restaurant": 1, "taxi": 2, "train": 3, "hotel": 4}
+domains = {"attraction": 0, "restaurant": 1, "taxi": 2, "train": 3, "hotel": 4}
 
 if not os.path.exists(args.data_dir):
     raise ValueError(f'Data not found at {args.data_dir}')
 
 work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
+
+data_desc = MultiWOZDataDesc(args.data_dir, domains)
 
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    local_rank=args.local_rank,
@@ -64,38 +68,23 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    log_dir=work_dir,
                                    create_tb_writer=True,
                                    files_to_copy=[__file__],
-                                   add_time_to_log_dir=True
-                                   )
-
-total_cpus = os.cpu_count()
-num_workers = 0
+                                   add_time_to_log_dir=True)
 
 data_layer_train = nemo_nlp.WOZDSTDataLayer(args.data_dir,
-                                            DOMAINS,
+                                            data_desc.domains,
+                                            all_domains=data_desc.all_domains,
+                                            vocab=data_desc.vocab,
+                                            slots=data_desc.slots,
+                                            gating_dict=data_desc.gating_dict,
                                             num_samples=args.num_train_samples,
                                             shuffle=args.shuffle_data,
-                                            num_workers=num_workers,
+                                            num_workers=0,
                                             local_rank=args.local_rank,
                                             batch_size=args.batch_size,
                                             mode='train',
                                             is_training=True,
                                             input_dropout=args.input_dropout)
-src_ids_train, src_lens_train, tgt_ids_train, \
-    tgt_lens_train, gate_labels_train, turn_domain_train = data_layer_train()
-vocab_size = len(data_layer_train.vocab)
-
-train_data_size = len(data_layer_train)
-print(f'The length of train data layer is {train_data_size}')
-
-batch_size = args.batch_size
-if train_data_size < batch_size:
-    nf.logger.warning("Batch_size is larger than the train dataset size")
-    nf.logger.warning("Reducing batch_size to dataset size")
-    batch_size = train_data_size
-
-steps_per_epoch = math.ceil(train_data_size / (batch_size * args.num_gpus))
-nf.logger.info(f"Steps_per_epoch Train= {steps_per_epoch}")
-
+vocab_size = len(data_desc.vocab)
 
 encoder = EncoderRNN(vocab_size,
                      args.emb_dim,
@@ -103,8 +92,6 @@ encoder = EncoderRNN(vocab_size,
                      args.dropout,
                      args.n_layers)
 
-outputs_train, hidden_train = encoder(inputs=src_ids_train,
-                                      input_lens=src_lens_train)
 
 decoder = nemo_nlp.DSTGenerator(data_layer_train.vocab,
                                 encoder.embedding,
@@ -114,61 +101,103 @@ decoder = nemo_nlp.DSTGenerator(data_layer_train.vocab,
                                 len(data_layer_train.gating_dict),
                                 teacher_forcing=args.teacher_forcing)
 
-point_outputs_train, gate_outputs_train = decoder(encoder_hidden=hidden_train,
-                                                  encoder_outputs=outputs_train,
-                                                  input_lens=src_lens_train,
-                                                  src_ids=src_ids_train,
-                                                  targets=tgt_ids_train)
-
 gate_loss_fn = \
     nemo_nlp.CrossEntropyLoss3D(num_classes=len(data_layer_train.gating_dict))
 ptr_loss_fn = nemo_nlp.DSTMaskedCrossEntropy()
 
-total_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
+total_loss_fn = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
-gate_loss_train = gate_loss_fn(logits=gate_outputs_train,
-                               labels=gate_labels_train)
-ptr_loss_train = ptr_loss_fn(logits=point_outputs_train,
-                             targets=tgt_ids_train,
-                             mask=tgt_lens_train)
 
-loss_train = total_loss(loss_1=gate_loss_train, loss_2=ptr_loss_train)
+def create_pipeline(num_samples=-1,
+                    batch_size=32,
+                    num_gpus=1,
+                    local_rank=0,
+                    input_dropout=0.0,
+                    mode='train'):
+    nf.logger.info(f"Loading {mode} data...")
+    shuffle = args.shuffle_data if mode == 'train' else False
 
-data_layer_eval = nemo_nlp.WOZDSTDataLayer(args.data_dir,
-                                           DOMAINS,
-                                           num_samples=args.num_eval_samples,
-                                           shuffle=False,
-                                           num_workers=num_workers,
-                                           local_rank=args.local_rank,
-                                           batch_size=args.batch_size,
-                                           mode=args.eval_file_prefix,
-                                           is_training=False,
-                                           input_dropout=args.input_dropout)
+    data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
+                                          data_desc.domains,
+                                          all_domains=data_desc.all_domains,
+                                          vocab=data_desc.vocab,
+                                          slots=data_desc.slots,
+                                          gating_dict=data_desc.gating_dict,
+                                          num_samples=num_samples,
+                                          shuffle=shuffle,
+                                          num_workers=0,
+                                          local_rank=local_rank,
+                                          batch_size=batch_size,
+                                          mode=mode,
+                                          is_training=(mode == "train"),
+                                          input_dropout=input_dropout)
 
-(src_ids_eval, src_lens_eval, tgt_ids_eval,
- tgt_lens_eval, gate_labels_eval, turn_domain_eval) = data_layer_eval()
-outputs, hidden = encoder(inputs=src_ids_eval, input_lens=src_lens_eval)
-point_outputs_eval, gate_outputs_eval = decoder(encoder_hidden=hidden,
-                                                encoder_outputs=outputs,
-                                                input_lens=src_lens_eval,
-                                                src_ids=src_ids_eval,
-                                                targets=tgt_ids_eval)
+    src_ids, src_lens, tgt_ids, tgt_lens,\
+        gate_labels, turn_domain = data_layer()
 
-gate_loss_eval = gate_loss_fn(logits=gate_outputs_eval,
-                              labels=gate_labels_eval)
+    data_size = len(data_layer)
+    print(f'The length of data layer is {data_size}')
 
-ptr_loss_eval = ptr_loss_fn(logits=point_outputs_eval,
-                            targets=tgt_ids_eval,
-                            mask=tgt_lens_eval)
+    if data_size < batch_size:
+        nf.logger.warning("Batch_size is larger than the dataset size")
+        nf.logger.warning("Reducing batch_size to dataset size")
+        batch_size = data_size
 
-loss_eval = total_loss(loss_1=gate_loss_eval, loss_2=ptr_loss_eval)
+    steps_per_epoch = math.ceil(data_size / (batch_size * num_gpus))
+    nf.logger.info(f"Steps_per_epoch = {steps_per_epoch}")
 
-eval_tensors = [loss_eval, point_outputs_eval, gate_outputs_eval,
-                gate_labels_eval, turn_domain_eval, tgt_ids_eval, tgt_lens_eval]
+    outputs, hidden = encoder(inputs=src_ids, input_lens=src_lens)
+
+    point_outputs, gate_outputs = decoder(encoder_hidden=hidden,
+                                          encoder_outputs=outputs,
+                                          input_lens=src_lens,
+                                          src_ids=src_ids,
+                                          targets=tgt_ids)
+
+    gate_loss = gate_loss_fn(logits=gate_outputs,
+                             labels=gate_labels)
+    ptr_loss = ptr_loss_fn(logits=point_outputs,
+                           targets=tgt_ids,
+                           mask=tgt_lens)
+
+    total_loss = total_loss_fn(loss_1=gate_loss, loss_2=ptr_loss)
+
+    if mode == 'train':
+        tensors_to_evaluate = [total_loss, gate_loss, ptr_loss]
+    else:
+        tensors_to_evaluate = [total_loss, point_outputs, gate_outputs,
+                               gate_labels, turn_domain, tgt_ids,
+                               tgt_lens]
+
+    return tensors_to_evaluate, total_loss, ptr_loss, \
+           gate_loss, steps_per_epoch, data_layer
+
+
+tensors_train, \
+    total_loss_train, ptr_loss_train, gate_loss_train, \
+    steps_per_epoch_train, data_layer_train = create_pipeline(
+        args.num_train_samples,
+        batch_size=args.batch_size,
+        num_gpus=args.num_gpus,
+        local_rank=args.local_rank,
+        input_dropout=args.input_dropout,
+        mode=args.train_file_prefix)
+
+tensors_eval, \
+    total_loss_eval, ptr_loss_eval, gate_loss_eval, \
+    steps_per_epoch_eval, data_layer_eval = create_pipeline(
+        args.num_eval_samples,
+        batch_size=args.eval_batch_size,
+        num_gpus=args.num_gpus,
+        local_rank=args.local_rank,
+        input_dropout=0.0,
+        mode=args.eval_file_prefix)
+
+
 
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=[loss_train, gate_loss_train, ptr_loss_train],
+    tensors=[total_loss_train, gate_loss_train, ptr_loss_train],
     print_func=lambda x: print(f'Loss:{str(np.round(x[0].item(), 3))}, '
                                f'Gate Loss:{str(np.round(x[1].item(), 3))}, '
                                f'Pointer Loss:{str(np.round(x[2].item(), 3))}'),
@@ -176,16 +205,16 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     get_tb_values=lambda x: [["loss", x[0]],
                              ["gate_loss", x[1]],
                              ["pointer_loss", x[2]]],
-    step_freq=steps_per_epoch)
+    step_freq=steps_per_epoch_train)
 
 eval_callback = nemo.core.EvaluatorCallback(
-    eval_tensors=eval_tensors,
+    eval_tensors=tensors_eval,
     user_iter_callback=lambda x, y: eval_iter_callback(
         x, y, data_layer_eval),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x, data_layer_eval),
     tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch)
+    eval_step=steps_per_epoch_eval)
 
 ckpt_callback = nemo.core.CheckpointCallback(
     folder=nf.checkpoint_dir,
@@ -194,7 +223,8 @@ ckpt_callback = nemo.core.CheckpointCallback(
 
 if args.lr_policy is not None:
     lr_policy_fn = get_lr_policy(args.lr_policy,
-                                 total_steps=args.num_epochs * steps_per_epoch,
+                                 total_steps=args.num_epochs *
+                                             steps_per_epoch_train,
                                  warmup_ratio=args.lr_warmup_proportion,
                                  min_lr=args.min_lr)
 else:
@@ -202,7 +232,7 @@ else:
 
 grad_norm_clip = args.grad_norm_clip if args.grad_norm_clip > 0 else None
 
-nf.train(tensors_to_optimize=[loss_train],
+nf.train(tensors_to_optimize=[total_loss_train],
          callbacks=[eval_callback, train_callback, ckpt_callback],
          lr_policy=lr_policy_fn,
          optimizer=args.optimizer_kind,
