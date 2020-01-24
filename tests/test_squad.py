@@ -21,9 +21,6 @@ import os
 import shutil
 import sys
 
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '../examples/nlp/scripts')))
-
 import nemo
 from nemo.utils.lr_policies import get_lr_policy
 
@@ -31,10 +28,14 @@ import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.utils.callbacks.squad import \
     eval_iter_callback, eval_epochs_done_callback
 
-from download_squad import SquadDownloader
-
 from .common_setup import NeMoUnitTest
 
+# pep8: disable=E402
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '../examples/nlp/scripts')))
+
+from download_squad import SquadDownloader
+# pep8: enable=E402
 
 class TestSquad(NeMoUnitTest):
 
