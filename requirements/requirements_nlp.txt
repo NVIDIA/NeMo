@@ -1,0 +1,9 @@
+boto3
+h5py
+matplotlib
+python-dateutil<2.8.1,>=2.1
+sentencepiece
+torchtext
+transformers
+unidecode
+youtokentome

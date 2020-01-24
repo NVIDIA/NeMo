@@ -10,8 +10,8 @@ from ruamel.yaml import YAML
 from scipy.io.wavfile import write
 
 import nemo
-import nemo_asr
-import nemo_tts
+import nemo.collections.asr as nemo_asr
+import nemo.collections.tts as nemo_tts
 from tacotron2 import create_NMs
 
 
