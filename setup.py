@@ -178,6 +178,7 @@ setuptools.setup(
     ],
     packages=setuptools.find_packages(),
     install_requires=install_requires,
+    setup_requires=['pytest-runner'],
     tests_require=tests_requirements,
 
     # List additional groups of dependencies here (e.g. development
