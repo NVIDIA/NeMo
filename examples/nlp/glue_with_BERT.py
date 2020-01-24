@@ -69,8 +69,8 @@ from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
 from nemo.utils.lr_policies import get_lr_policy
 import json
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp import GlueDataLayerClassification, GlueDataLayerRegression
-import nemo.collections.nlp import NemoBertTokenizer, SentencePieceTokenizer
+from nemo.collections.nlp import GlueDataLayerClassification, GlueDataLayerRegression
+from nemo.collections.nlp import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.utils.callbacks.glue import \
     eval_iter_callback, eval_epochs_done_callback
 
