@@ -22,6 +22,12 @@ import codecs
 import os
 import sys
 
+import setuptools
+
+from itertools import chain
+
+
+# pep8: disable=E402
 def is_build_action():
     if len(sys.argv) <= 1:
         return False
@@ -38,11 +44,9 @@ def is_build_action():
     if sys.argv[1].startswith('install'):
         return True
 
+
 if is_build_action():
     os.environ['NEMO_PACKAGE_BUILDING'] = 'True'
-
-
-import setuptools
 
 from nemo.package_info import __contact_emails__
 from nemo.package_info import __contact_names__
@@ -55,17 +59,15 @@ from nemo.package_info import __package_name__
 from nemo.package_info import __repository_url__
 from nemo.package_info import __version__
 
+# pep8: enable=E402
+
 
 if os.path.exists('README.rst'):
     # codec is used for consistent encoding
     long_description = codecs.open(
-        os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'), 'r', 'utf-8'
+        os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'),
+        'r', 'utf-8'
     ).read()
-
-    # long_description = long_description.replace(
-    #     "docs/images/",
-    #     "https://pspringer.gitlab-master-pages.nvidia.com/cuTensor/doc/images/"
-    # )
     long_description_content_type = "text/x-rst"
 
 elif os.path.exists('README.md'):
@@ -77,10 +79,9 @@ else:
     long_description = 'See ' + __homepage__
 
 
-###########################################################################
-#                           Dependency Loading                            #
-#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+################################################################################
+#                              Dependency Loading                              #
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
 
 def req_file(filename, folder="requirements"):
     with open(os.path.join(folder, filename)) as f:
@@ -104,12 +105,17 @@ extras_require = {
     'tts': req_file("requirements_tts.txt"),
 }
 
-from itertools import chain
 extras_require['all'] = list(chain(extras_require.values()))
+
+# TTS depends on ASR
+extras_require['tts'] = list(chain([
+    extras_require['tts'],
+    extras_require['asr']
+]))
 
 tests_requirements = extras_require["test"]
 
-###########################################################################
+################################################################################
 
 
 setuptools.setup(
