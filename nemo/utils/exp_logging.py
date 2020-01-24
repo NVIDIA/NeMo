@@ -9,11 +9,6 @@ import warnings
 
 import nemo
 
-logging = logging.getLogger(__name__)
-
-def info():
-
-
 
 def get_logger(unused):
     warnings.warn("This function will be deprecated in the future. You "
