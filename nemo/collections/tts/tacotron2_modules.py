@@ -5,11 +5,10 @@ import torch
 from torch import nn
 from torch.nn.functional import pad
 
-from nemo.backends.pytorch.nm import LossNM, NonTrainableNM, TrainableNM
-from nemo.core.neural_types import *
-
 from .parts.layers import get_mask_from_lengths
 from .parts.tacotron2 import Decoder, Encoder, Postnet
+from nemo.backends.pytorch.nm import LossNM, NonTrainableNM, TrainableNM
+from nemo.core.neural_types import *
 
 __all__ = [
     "MakeGate",

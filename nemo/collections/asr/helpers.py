@@ -3,7 +3,6 @@
 import torch
 
 import nemo
-
 from .metrics import word_error_rate
 
 

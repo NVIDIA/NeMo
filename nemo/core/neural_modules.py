@@ -11,9 +11,6 @@ from enum import Enum
 from inspect import getargvalues, stack
 from typing import Dict, List, Optional, Set, Tuple
 
-from nemo.core import NeuralModuleFactory
-from nemo.utils.decorators.deprecated import deprecated
-
 from .neural_factory import DeviceType, Optimization
 from .neural_types import (
     CanNotInferResultNeuralType,
@@ -23,6 +20,8 @@ from .neural_types import (
     NeuralTypeComparisonResult,
     NmTensor,
 )
+from nemo.core import NeuralModuleFactory
+from nemo.utils.decorators.deprecated import deprecated
 
 
 class WeightShareTransform(Enum):

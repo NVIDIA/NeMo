@@ -30,12 +30,11 @@ from abc import abstractmethod
 
 import torch
 
+from .parts.features import FilterbankFeatures
+from .parts.spectr_augment import SpecAugment, SpecCutout
 from nemo.backends.pytorch import NonTrainableNM
 from nemo.core import Optimization
 from nemo.core.neural_types import *
-
-from .parts.features import FilterbankFeatures
-from .parts.spectr_augment import SpecAugment, SpecCutout
 
 try:
     import torchaudio

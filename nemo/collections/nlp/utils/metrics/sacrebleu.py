@@ -36,9 +36,8 @@ from collections import Counter, namedtuple
 from itertools import zip_longest
 from typing import Iterable, List, Tuple, Union
 
-from nemo import logging
-
 from .fairseq_tokenizer import tokenize_en
+from nemo import logging
 
 VERSION = '1.3.5'
 

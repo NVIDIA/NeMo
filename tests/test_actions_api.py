@@ -19,7 +19,6 @@
 import os
 
 import nemo
-
 from .common_setup import NeMoUnitTest
 
 

@@ -3,10 +3,9 @@ import librosa
 import numpy as np
 import torch
 
+from .parts.waveglow import WaveGlow
 from nemo.backends.pytorch.nm import LossNM, TrainableNM
 from nemo.core.neural_types import *
-
-from .parts.waveglow import WaveGlow
 
 __all__ = ["WaveGlowNM", "WaveGlowInferNM", "WaveGlowLoss"]
 

@@ -22,9 +22,8 @@ import unittest
 from ruamel.yaml import YAML
 
 import nemo.collections.asr as nemo_asr
-from nemo.core import *
-
 from .common_setup import NeMoUnitTest
+from nemo.core import *
 
 
 class TestNeuralTypes(NeMoUnitTest):

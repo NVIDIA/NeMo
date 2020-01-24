@@ -117,7 +117,7 @@ tests_requirements = extras_require["test"]
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
 
 LINE_WIDTH = 119
-# Options should be compatible with black.
+# Options should be compatible with black. Take a look at setup.cfg for more options.
 ISORT_BASE = (
     'isort',
     '--multi-line=3',

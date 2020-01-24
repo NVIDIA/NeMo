@@ -22,7 +22,6 @@ import tarfile
 import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
-
 from .common_setup import NeMoUnitTest
 
 

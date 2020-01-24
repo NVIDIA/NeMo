@@ -63,6 +63,7 @@ import math
 import os
 
 import torch
+from pytorch_transformers import BertConfig
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
@@ -70,7 +71,6 @@ from nemo.collections.nlp.data.datasets.utils import BERTPretrainingDataDesc
 from nemo.collections.nlp.transformer.utils import gelu
 from nemo.collections.nlp.utils.callbacks.bert_pretraining import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
-from pytorch_transformers import BertConfig
 
 parser = argparse.ArgumentParser(description='BERT pretraining')
 parser.add_argument("--local_rank", default=None, type=int)

@@ -6,13 +6,12 @@ from functools import partial
 import torch
 
 import nemo
+from .parts.dataset import AudioDataset, KaldiFeatureDataset, TranscriptDataset, seq_collate_fn
+from .parts.features import WaveformFeaturizer
 from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
 from nemo.utils.misc import pad_to
-
-from .parts.dataset import AudioDataset, KaldiFeatureDataset, TranscriptDataset, seq_collate_fn
-from .parts.features import WaveformFeaturizer
 
 __all__ = [
     'AudioToTextDataLayer',

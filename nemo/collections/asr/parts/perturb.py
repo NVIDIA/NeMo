@@ -5,9 +5,8 @@ import random
 import librosa
 from scipy import signal
 
-from nemo.collections.asr.parts import collections, parsers
-
 from .segment import AudioSegment
+from nemo.collections.asr.parts import collections, parsers
 
 
 class Perturbation(object):
