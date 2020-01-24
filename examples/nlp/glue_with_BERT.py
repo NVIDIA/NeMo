@@ -185,7 +185,7 @@ else:
     """
     if args.tokenizer == "sentencepiece":
         tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
-        tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
+        tokenizer.add_special_tokens(["[CLS]", "[SEP]"])
     elif args.tokenizer == "nemobert":
         tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
     else:
