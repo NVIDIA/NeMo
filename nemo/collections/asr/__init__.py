@@ -42,6 +42,4 @@ __all__ = ['Backend',
            'CTCLossNM']
 
 
-name = "nemo_asr"
 backend = Backend.PyTorch
-__version__ = "0.9.0"

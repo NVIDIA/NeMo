@@ -27,6 +27,4 @@ from .parts.helpers import (waveglow_log_to_tb_func,
                             tacotron2_process_final_eval,
                             tacotron2_eval_log_to_tb_func)
 
-name = "nemo_tts"
 backend = Backend.PyTorch
-__version__ = "0.9.0"
