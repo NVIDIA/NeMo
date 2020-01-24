@@ -9,7 +9,7 @@ from tensorboardX import SummaryWriter
 import nemo
 from nemo.backends.pytorch.torchvision.helpers import eval_iter_callback, \
     eval_epochs_done_callback, compute_accuracy
-import nemo_simple_gan
+import nemo.collections.simple_gan as nemo_simple_gan
 
 
 parser = argparse.ArgumentParser(description='MNIST')

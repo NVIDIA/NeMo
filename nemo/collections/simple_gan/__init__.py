@@ -16,6 +16,4 @@ from .gan import *
 
 from nemo.core import Backend
 
-name = "nemo_simple_gan"
 backend = Backend.PyTorch
-__version__ = "0.9.0"

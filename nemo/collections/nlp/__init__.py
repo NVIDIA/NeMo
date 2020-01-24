@@ -22,6 +22,4 @@ from .transformer import *
 import nemo
 
 
-name = "nemo_nlp"
 backend = nemo.core.Backend.PyTorch
-__version__ = "0.9.0"
