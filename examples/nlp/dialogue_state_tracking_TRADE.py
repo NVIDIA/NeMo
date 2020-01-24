@@ -19,7 +19,7 @@ from nemo_nlp.data.datasets.utils import MultiWOZDataDesc
 
 
 parser = argparse.ArgumentParser(
-    description='TRADE for MultiWOZ dialog state tracking')
+    description='Dialog state tracking with TRADE model on MultiWOZ dataset')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=16, type=int)
 parser.add_argument("--eval_batch_size", default=16, type=int)
@@ -35,7 +35,8 @@ parser.add_argument("--hid_dim", default=400, type=int)
 parser.add_argument("--n_layers", default=1, type=int)
 parser.add_argument("--dropout", default=0.2, type=float)
 parser.add_argument("--input_dropout", default=0.2, type=float)
-parser.add_argument("--data_dir", default='data/statetracking/multiwoz2.1', type=str)
+parser.add_argument("--data_dir", default='data/statetracking/multiwoz2.1',
+                    type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
@@ -52,6 +53,7 @@ parser.add_argument("--grad_norm_clip", type=float, default=10,
 parser.add_argument("--teacher_forcing", default=0.5, type=float)
 args = parser.parse_args()
 
+# List of the domains to be considered
 domains = {"attraction": 0, "restaurant": 1, "taxi": 2, "train": 3, "hotel": 4}
 
 if not os.path.exists(args.data_dir):
@@ -84,13 +86,11 @@ data_layer_train = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                             is_training=True,
                                             input_dropout=args.input_dropout)
 vocab_size = len(data_desc.vocab)
-
 encoder = EncoderRNN(vocab_size,
                      args.emb_dim,
                      args.hid_dim,
                      args.dropout,
                      args.n_layers)
-
 
 decoder = nemo_nlp.TRADEGenerator(data_layer_train.vocab,
                                   encoder.embedding,
@@ -158,7 +158,6 @@ def create_pipeline(num_samples=-1,
     ptr_loss = ptr_loss_fn(logits=point_outputs,
                            targets=tgt_ids,
                            mask=tgt_lens)
-
     total_loss = total_loss_fn(loss_1=gate_loss, loss_2=ptr_loss)
 
     if mode == 'train':
@@ -192,8 +191,6 @@ tensors_eval, \
         input_dropout=0.0,
         mode=args.eval_file_prefix)
 
-
-
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[total_loss_train, gate_loss_train, ptr_loss_train],
@@ -221,16 +218,15 @@ ckpt_callback = nemo.core.CheckpointCallback(
     step_freq=args.save_step_freq)
 
 if args.lr_policy is not None:
+    total_steps = args.num_epochs * steps_per_epoch_train
     lr_policy_fn = get_lr_policy(args.lr_policy,
-                                 total_steps=args.num_epochs *
-                                             steps_per_epoch_train,
+                                 total_steps=total_steps,
                                  warmup_ratio=args.lr_warmup_proportion,
                                  min_lr=args.min_lr)
 else:
     lr_policy_fn = None
 
 grad_norm_clip = args.grad_norm_clip if args.grad_norm_clip > 0 else None
-
 nf.train(tensors_to_optimize=[total_loss_train],
          callbacks=[eval_callback, train_callback, ckpt_callback],
          lr_policy=lr_policy_fn,
