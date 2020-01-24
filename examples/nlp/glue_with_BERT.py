@@ -71,10 +71,10 @@ import json
 import nemo_nlp
 from nemo_nlp import GlueDataLayerClassification, GlueDataLayerRegression
 from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer
-from nemo_nlp.utils.callbacks.glue import \
+from nemo.collections.nlp.utils.callbacks.glue import \
     eval_iter_callback, eval_epochs_done_callback
 
-from nemo_nlp.data.datasets.utils import processors, output_modes
+from nemo.collections.nlp.data.datasets.utils import processors, output_modes
 
 parser = argparse.ArgumentParser(description="GLUE_with_pretrained_BERT")
 

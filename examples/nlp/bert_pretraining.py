@@ -66,9 +66,9 @@ import nemo
 from nemo.utils.lr_policies import get_lr_policy
 from pytorch_transformers import BertConfig
 import nemo_nlp
-from nemo_nlp.data.datasets.utils import BERTPretrainingDataDesc
-from nemo_nlp.transformer.utils import gelu
-from nemo_nlp.utils.callbacks.bert_pretraining import \
+from nemo.collections.nlp.data.datasets.utils import BERTPretrainingDataDesc
+from nemo.collections.nlp.transformer.utils import gelu
+from nemo.collections.nlp.utils.callbacks.bert_pretraining import \
     eval_iter_callback, eval_epochs_done_callback
 
 

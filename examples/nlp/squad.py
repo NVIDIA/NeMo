@@ -65,7 +65,7 @@ import os
 import nemo
 import nemo_nlp
 from nemo.utils.lr_policies import get_lr_policy
-from nemo_nlp.utils.callbacks.squad import (
+from nemo.collections.nlp.utils.callbacks.squad import (
     eval_iter_callback,
     eval_epochs_done_callback)
 
