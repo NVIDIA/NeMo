@@ -7,7 +7,7 @@ import pickle
 from ruamel.yaml import YAML
 
 import nemo
-import nemo_asr
+import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.helpers import word_error_rate, post_process_predictions, \
     post_process_transcripts
 

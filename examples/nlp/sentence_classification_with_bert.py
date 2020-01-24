@@ -9,7 +9,7 @@ import torch
 import nemo
 from nemo.utils.lr_policies import get_lr_policy
 
-import nemo_nlp
+import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.data.datasets.utils import SentenceClassificationDataDesc
 from nemo.collections.nlp.utils.callbacks.sentence_classification import \
     eval_iter_callback, eval_epochs_done_callback

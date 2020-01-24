@@ -8,7 +8,7 @@ import torch
 import nemo
 from nemo.utils.lr_policies import get_lr_policy
 
-import nemo_nlp
+import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.utils.callbacks.translation import \
     eval_iter_callback, eval_epochs_done_callback
 

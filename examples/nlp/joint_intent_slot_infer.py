@@ -6,7 +6,7 @@ from transformers import BertTokenizer
 from sklearn.metrics import confusion_matrix, classification_report
 
 import nemo
-import nemo_nlp
+import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.data.datasets.utils import JointIntentSlotDataDesc
 
 

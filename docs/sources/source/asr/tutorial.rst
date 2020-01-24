@@ -86,7 +86,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
     # NeMo's "core" package
     import nemo
     # NeMo's ASR collection
-    import nemo_asr
+    import nemo.collections.asr as nemo_asr
 
     # Create a Neural Factory
     # It creates log files and tensorboard writers for us among other functions

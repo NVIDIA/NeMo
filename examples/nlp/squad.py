@@ -63,7 +63,7 @@ import json
 import os
 
 import nemo
-import nemo_nlp
+import nemo.collections.nlp as nemo_nlp
 from nemo.utils.lr_policies import get_lr_policy
 from nemo.collections.nlp.utils.callbacks.squad import (
     eval_iter_callback,

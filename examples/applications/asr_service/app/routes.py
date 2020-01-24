@@ -14,7 +14,7 @@ except ImportError:
     print("Not using Beam Search Decoder with LM")
     ENABLE_NGRAM = False
 import nemo
-import nemo_asr
+import nemo.collections.asr as nemo_asr
 
 
 def wav_to_text(manifest, greedy=True):
