@@ -1419,41 +1419,41 @@ def tokenize_zh(sentence):
         :return: whether the input char is a Chinese character.
         """
         # CJK Unified Ideographs Extension A, release 3.0
-        if uchar >= u'\u3400' and uchar <= u'\u4db5':
+        if u'\u3400' <= uchar <= u'\u4db5':
             return True
         # CJK Unified Ideographs, release 1.1
-        elif uchar >= u'\u4e00' and uchar <= u'\u9fa5':
+        elif u'\u4e00' <= uchar <= u'\u9fa5':
             return True
         # CJK Unified Ideographs, release 4.1
-        elif uchar >= u'\u9fa6' and uchar <= u'\u9fbb':
+        elif u'\u9fa6' <= uchar <= u'\u9fbb':
             return True
         # CJK Compatibility Ideographs, release 1.1
-        elif uchar >= u'\uf900' and uchar <= u'\ufa2d':
+        elif u'\uf900' <= uchar <= u'\ufa2d':
             return True
         # CJK Compatibility Ideographs, release 3.2
-        elif uchar >= u'\ufa30' and uchar <= u'\ufa6a':
+        elif u'\ufa30' <= uchar <= u'\ufa6a':
             return True
         # CJK Compatibility Ideographs, release 4.1
-        elif uchar >= u'\ufa70' and uchar <= u'\ufad9':
+        elif u'\ufa70' <= uchar <= u'\ufad9':
             return True
         # CJK Unified Ideographs Extension B, release 3.1
-        elif uchar >= u'\u20000' and uchar <= u'\u2a6d6':
+        elif u'\u20000' <= uchar <= u'\u2a6d6':
             return True
         # CJK Compatibility Supplement, release 3.1
-        elif uchar >= u'\u2f800' and uchar <= u'\u2fa1d':
+        elif u'\u2f800' <= uchar <= u'\u2fa1d':
             return True
         # Full width ASCII, full width of English punctuation, half width
         # Katakana, half wide half width kana, Korean alphabet
-        elif uchar >= u'\uff00' and uchar <= u'\uffef':
+        elif u'\uff00' <= uchar <= u'\uffef':
             return True
         # CJK Radicals Supplement
-        elif uchar >= u'\u2e80' and uchar <= u'\u2eff':
+        elif u'\u2e80' <= uchar <= u'\u2eff':
             return True
         # CJK punctuation mark
-        elif uchar >= u'\u3000' and uchar <= u'\u303f':
+        elif u'\u3000' <= uchar <= u'\u303f':
             return True
         # CJK stroke
-        elif uchar >= u'\u31c0' and uchar <= u'\u31ef':
+        elif u'\u31c0' <= uchar <= u'\u31ef':
             return True
         # Kangxi Radicals
         elif u'\u2f00' <= uchar <= u'\u2fdf':
