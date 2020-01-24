@@ -13,9 +13,12 @@ import shutil
 
 from nemo_nlp.data.datasets.utils import if_exist
 
-parser = argparse.ArgumentParser(description='Process MULTIWOZ2.1')
+parser = argparse.ArgumentParser(description='Process MultiWOZ dataset')
 parser.add_argument("--data_dir",
-                    default='../../data/dialog/MULTIWOZ2.1',
+                    default='../../data/statetracking/MULTIWOZ2.1',
+                    type=str)
+parser.add_argument("--out_dir",
+                    default='../../data/statetracking/multiwoz',
                     type=str)
 args = parser.parse_args()
 
@@ -360,9 +363,8 @@ def partition_data(data, infold, outfold):
 
 
 def process_woz():
-    outfold = '../../data/dialog/multiwoz'
     delex_data = create_data(args.data_dir)
-    partition_data(delex_data, args.data_dir, outfold)
+    partition_data(delex_data, args.data_dir, args.out_dir)
 
 
 process_woz()
