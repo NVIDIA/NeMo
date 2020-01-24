@@ -16,10 +16,9 @@ pipeline {
     }
     stage('PEP8 Checks') {
       steps {
-        sh 'pycodestyle .
-        --exclude=
-            ./tests/other/jasper.py,./tests/other/jasper_zero_dl.py,
-            ./nemo/collections/nlp/utils/metrics/sacrebleu.py,
+        sh 'pycodestyle . --exclude=\\
+            ./tests/other/jasper.py,./tests/other/jasper_zero_dl.py,\\
+            ./nemo/collections/nlp/utils/metrics/sacrebleu.py,\\
             ./docs/sources/source/conf.py,./collections/nemo_nlp/build'
       }
     } 
