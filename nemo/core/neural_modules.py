@@ -12,7 +12,9 @@ from typing import Optional, Dict, Set, Tuple, List
 import uuid
 import collections
 
+
 from nemo.core import NeuralModuleFactory
+from nemo.utils.decorators.deprecated import deprecated
 
 from .neural_factory import Optimization, DeviceType
 from .neural_types import (CanNotInferResultNeuralType,
@@ -81,12 +83,13 @@ class NeuralModule(ABC):
         #        "arguments:".format(self.__class__.__name__))
         #    nemo.logging.warning("{}".format(kwargs.keys()))
 
+    @deprecated()
     @staticmethod
     def create_ports(**kwargs):
         """ Deprecated method, to be remoted in the next release."""
         raise Exception(
-            'Deprecated method. Please implement inputs and outputs \
-                 properties to define module ports')
+            'Deprecated method. Please implement ``inputs`` and ``outputs`` \
+                 properties to define module ports instead')
 
     @property
     @abstractmethod

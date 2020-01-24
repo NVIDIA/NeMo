@@ -30,7 +30,3 @@ class TestPytorchChatBotTutorial(NeMoUnitTest):
         voc, pairs = loadPrepareData("cornell", datafile=datafile)
         self.assertEqual(voc.name, 'cornell')
         self.assertEqual(voc.num_words, 675)
-
-
-if __name__ == '__main__':
-    unittest.main()
