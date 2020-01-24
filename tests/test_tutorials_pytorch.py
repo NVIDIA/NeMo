@@ -18,9 +18,8 @@
 
 import unittest
 
-from nemo.backends.pytorch.tutorials.chatbot.data import loadPrepareData
-
 from .common_setup import NeMoUnitTest
+from nemo.backends.pytorch.tutorials.chatbot.data import loadPrepareData
 
 
 class TestPytorchChatBotTutorial(NeMoUnitTest):

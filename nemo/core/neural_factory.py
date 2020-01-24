@@ -18,7 +18,6 @@ from typing import List, Optional
 import numpy as np
 
 import nemo
-
 from ..utils import ExpManager
 from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *

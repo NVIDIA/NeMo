@@ -3,8 +3,6 @@ import json
 import os
 import time
 
-import nemo
-import nemo.collections.asr as nemo_asr
 from app import (
     ENABLE_NGRAM,
     MODEL_YAML,
@@ -18,6 +16,9 @@ from app import (
 )
 from flask import request
 from werkzeug.utils import secure_filename
+
+import nemo
+import nemo.collections.asr as nemo_asr
 
 try:
     from app import beam_search_with_lm

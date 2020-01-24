@@ -8,11 +8,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from ruamel.yaml import YAML
 from scipy.io.wavfile import write
+from tacotron2 import create_NMs
 
 import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
-from tacotron2 import create_NMs
 
 
 def parse_args():

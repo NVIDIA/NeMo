@@ -21,13 +21,13 @@ import os
 import shutil
 import sys
 
+from download_squad import SquadDownloader
+
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from download_squad import SquadDownloader
+from .common_setup import NeMoUnitTest
 from nemo.collections.nlp.utils.callbacks.squad import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
-
-from .common_setup import NeMoUnitTest
 
 # pep8: disable=E402
 sys.path.insert(

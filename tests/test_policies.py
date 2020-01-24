@@ -16,9 +16,8 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.utils.lr_policies import CosineAnnealing, SquareAnnealing, WarmupAnnealing
-
 from .common_setup import NeMoUnitTest
+from nemo.utils.lr_policies import CosineAnnealing, SquareAnnealing, WarmupAnnealing
 
 
 class TestPolicies(NeMoUnitTest):

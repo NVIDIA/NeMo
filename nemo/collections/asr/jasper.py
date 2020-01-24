@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .parts.jasper import JasperBlock, init_weights, jasper_activations
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import (
     AxisType,
@@ -16,8 +17,6 @@ from nemo.core.neural_types import (
     SpectrogramSignalTag,
     TimeTag,
 )
-
-from .parts.jasper import JasperBlock, init_weights, jasper_activations
 
 
 class JasperEncoder(TrainableNM):

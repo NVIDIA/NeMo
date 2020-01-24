@@ -16,9 +16,8 @@
 from io import StringIO
 from unittest.mock import patch
 
-from nemo.utils.decorators.deprecated import deprecated
-
 from .common_setup import NeMoUnitTest
+from nemo.utils.decorators.deprecated import deprecated
 
 
 class DeprecatedTestCase(NeMoUnitTest):

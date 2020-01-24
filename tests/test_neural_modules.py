@@ -19,9 +19,8 @@
 import unittest
 
 import nemo
-from nemo.backends.pytorch.nm import TrainableNM
-
 from .common_setup import NeMoUnitTest
+from nemo.backends.pytorch.nm import TrainableNM
 
 
 class TestNM1(TrainableNM):

@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-from nemo.core import Backend
-
 from .audio_preprocessing import *
 from .beam_search_decoder import BeamSearchDecoderWithLM
 from .data_layer import AudioToTextDataLayer, KaldiFeatureDataLayer, TranscriptDataLayer
@@ -21,6 +19,7 @@ from .greedy_ctc_decoder import GreedyCTCDecoder
 from .jasper import JasperDecoderForCTC, JasperEncoder
 from .las.misc import JasperRNNConnector
 from .losses import CTCLossNM
+from nemo.core import Backend
 
 __all__ = [
     'Backend',

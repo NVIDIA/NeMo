@@ -24,9 +24,8 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from nemo.core.neural_types import *
-
 from .common_setup import NeMoUnitTest
+from nemo.core.neural_types import *
 
 
 class TestZeroDL(NeMoUnitTest):

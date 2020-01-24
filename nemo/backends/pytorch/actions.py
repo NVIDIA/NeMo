@@ -13,8 +13,6 @@ import torch.nn as nn
 import torch.optim as optim
 
 import nemo
-from nemo.backends.pytorch.nm import TrainableNM
-
 from ...core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
 from ...core.callbacks import ActionCallback, EvaluatorCallback, SimpleLossLoggerCallback
 from ...core.neural_factory import Actions, ModelMode, Optimization
@@ -23,6 +21,7 @@ from ...utils.helpers import get_checkpoint_from_dir
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM
 from .optimizers import AdamW, Novograd, master_params
+from nemo.backends.pytorch.nm import TrainableNM
 
 # these imports will happen on as-needed basis
 amp = None

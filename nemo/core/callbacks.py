@@ -8,7 +8,6 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 
 import nemo
-
 from ..utils import get_checkpoint_from_dir
 
 

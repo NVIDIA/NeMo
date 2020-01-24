@@ -19,9 +19,8 @@ import json
 import re
 
 import numpy as np
-import torch
-
 import tensorrt as trt
+import torch
 
 nvinfer = ctypes.CDLL("libnvinfer_plugin.so", mode=ctypes.RTLD_GLOBAL)
 cm = ctypes.CDLL("libcommon.so", mode=ctypes.RTLD_GLOBAL)

@@ -8,10 +8,9 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
+from .common_setup import NeMoUnitTest
 from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer, collections, parsers
 from nemo.core import DeviceType
-
-from .common_setup import NeMoUnitTest
 
 # ! /usr/bin/python
 # -*- coding: utf-8 -*-
