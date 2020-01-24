@@ -70,6 +70,6 @@ class deprecated(object):
                 nemo.logging.warning(msg)
 
             # Call the function.
-            func(*args, **kwargs)
+            return func(*args, **kwargs)
 
         return wrapper

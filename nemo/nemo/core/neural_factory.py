@@ -742,8 +742,8 @@ class NeuralModuleFactory(object):
     @deprecated(version="future",
                 explanation="Please use "
                 f".train(...), .eval(...), .infer(...) and "
-                f".create_optimizer(...) methods directly from "
-                f"NeuralModuleFactory instance.")
+                f".create_optimizer(...) of "
+                f"the NeuralModuleFactory instance directly.")
     def get_trainer(self, tb_writer=None):
         if self._trainer:
             nemo.logging.warning(
