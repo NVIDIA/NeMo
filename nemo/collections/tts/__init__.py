@@ -14,12 +14,16 @@
 # =============================================================================
 from nemo.core import Backend
 
-from .tacotron2_modules import (MakeGate, Tacotron2Loss, Tacotron2Postnet,
+from nemo.collections.tts.tacotron2_modules import (MakeGate, Tacotron2Loss, Tacotron2Postnet,
                                 Tacotron2Decoder, Tacotron2DecoderInfer,
                                 Tacotron2Encoder, TextEmbedding)
-from .waveglow_modules import WaveGlowNM, WaveGlowInferNM, WaveGlowLoss
-from .data_layers import AudioDataLayer
-from .parts.helpers import (waveglow_log_to_tb_func,
+
+from nemo.collections.tts.waveglow_modules import *
+from nemo.collections.tts.waveglow_modules import __all__ as waveglow__all__
+
+from nemo.collections.tts.data_layers import AudioDataLayer
+
+from nemo.collections.tts.parts.helpers import (waveglow_log_to_tb_func,
                             waveglow_process_eval_batch,
                             waveglow_eval_log_to_tb_func,
                             tacotron2_log_to_tb_func,
@@ -28,3 +32,5 @@ from .parts.helpers import (waveglow_log_to_tb_func,
                             tacotron2_eval_log_to_tb_func)
 
 backend = Backend.PyTorch
+
+__all__ = waveglow__all__ + ["AudioDataLayer"]

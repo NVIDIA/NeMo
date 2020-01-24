@@ -7,6 +7,12 @@ from nemo.backends.pytorch.nm import TrainableNM, LossNM
 from nemo.core.neural_types import *
 from .parts.waveglow import WaveGlow
 
+__all__ = [
+    "WaveGlowNM",
+    "WaveGlowInferNM",
+    "WaveGlowLoss"
+]
+
 
 class WaveGlowNM(TrainableNM):
     """
