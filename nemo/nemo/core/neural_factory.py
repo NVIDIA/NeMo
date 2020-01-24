@@ -10,12 +10,13 @@ __all__ = ['Backend',
 from abc import ABC, abstractmethod
 import random
 from typing import List, Optional
-import warnings
 
 from enum import Enum
 import numpy as np
 
 import nemo
+from nemo.utils.decorators import deprecated
+
 from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *
 from ..utils import ExpManager
@@ -434,6 +435,7 @@ class NeuralModuleFactory(object):
             mod = getattr(mod, comp)
         return mod
 
+    @deprecated(version=0.11)
     def __get_pytorch_module(self, name, params, collection, pretrained):
         params["factory"] = self
         if collection == "toys" or collection == "tutorials" or collection \
@@ -537,6 +539,7 @@ class NeuralModuleFactory(object):
         instance = constructor(**params)
         return instance
 
+    @deprecated(version=0.11)
     def get_module(self, name, params, collection, pretrained=False):
         """
         Creates NeuralModule instance
@@ -736,13 +739,12 @@ class NeuralModuleFactory(object):
         else:
             raise ValueError("Only PyTorch backend is currently supported.")
 
+    @deprecated(version="future",
+                explanation="Please use "
+                f".train(...), .eval(...), .infer(...) and "
+                f".create_optimizer(...) methods directly from "
+                f"NeuralModuleFactory instance.")
     def get_trainer(self, tb_writer=None):
-        nemo.logging.warning(
-            f"This function is deprecated and will be removed"
-            f"in future versions of NeMo."
-            f"Please use .train(...), .eval(...), .infer(...) and "
-            f".create_optimizer(...) directly methods from "
-            f"NeuralModuleFactory instance.")
         if self._trainer:
             nemo.logging.warning(
                 "The trainer instance was created during initialization of "
@@ -798,10 +800,10 @@ class NeuralModuleFactory(object):
     def optim_level(self):
         return self._optim_level
 
+    @deprecated(version=0.11,
+                explanation="Please use ``nemo.logging instead``")
     @property
     def logger(self):
-        warnings.warn("This will be deprecated in future releases. Please use "
-                      "nemo.logging instead")
         return nemo.logging
 
     @property
