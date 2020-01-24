@@ -1,28 +1,22 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import os
 import argparse
 import copy
-
+import os
 from functools import partial
 
 from ruamel.yaml import YAML
 
 import nemo
-import nemo.utils.argparse as nm_argparse
-
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
-
-from nemo.collections.tts import waveglow_log_to_tb_func
-from nemo.collections.tts import waveglow_process_eval_batch
-from nemo.collections.tts import waveglow_eval_log_to_tb_func
+import nemo.utils.argparse as nm_argparse
+from nemo.collections.tts import waveglow_eval_log_to_tb_func, waveglow_log_to_tb_func, waveglow_process_eval_batch
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        parents=[nm_argparse.NemoArgParser()],
-        description='Waveglow',
-        conflict_handler='resolve')
+        parents=[nm_argparse.NemoArgParser()], description='Waveglow', conflict_handler='resolve',
+    )
     parser.set_defaults(
         checkpoint_dir=None,
         optimizer="adam",
@@ -32,16 +26,19 @@ def parse_args():
         amp_opt_level="O1",
         create_tb_writer=True,
         lr_policy=None,
-        weight_decay=1e-6
+        weight_decay=1e-6,
     )
 
     # Overwrite default args
-    parser.add_argument("--max_steps", type=int, default=None, required=False,
-                        help="max number of steps to train")
-    parser.add_argument("--num_epochs", type=int, default=None, required=False,
-                        help="number of epochs to train")
-    parser.add_argument("--model_config", type=str, required=True,
-                        help="model configuration file: model.yaml")
+    parser.add_argument(
+        "--max_steps", type=int, default=None, required=False, help="max number of steps to train",
+    )
+    parser.add_argument(
+        "--num_epochs", type=int, default=None, required=False, help="number of epochs to train",
+    )
+    parser.add_argument(
+        "--model_config", type=str, required=True, help="model configuration file: model.yaml",
+    )
 
     # Create new args
     parser.add_argument("--exp_name", default="Waveglow", type=str)
@@ -55,10 +52,11 @@ def parse_args():
     if args.eval_freq % 25 != 0:
         raise ValueError("eval_freq should be a multiple of 25.")
 
-    exp_directory = [f"{args.exp_name}-lr_{args.lr}-bs_{args.batch_size}",
-                     "",
-                     (f"-wd_{args.weight_decay}-opt_{args.optimizer}"
-                      f"-ips_{args.iter_per_step}")]
+    exp_directory = [
+        f"{args.exp_name}-lr_{args.lr}-bs_{args.batch_size}",
+        "",
+        (f"-wd_{args.weight_decay}-opt_{args.optimizer}" f"-ips_{args.iter_per_step}"),
+    ]
     if args.max_steps:
         exp_directory[1] = f"-s_{args.max_steps}"
     elif args.num_epochs:
@@ -70,7 +68,8 @@ def parse_args():
 
 def create_NMs(waveglow_params):
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
-        **waveglow_params["AudioToMelSpectrogramPreprocessor"])
+        **waveglow_params["AudioToMelSpectrogramPreprocessor"]
+    )
     waveglow = nemo_tts.WaveGlowNM(**waveglow_params["WaveGlowNM"])
     waveglow_loss = nemo_tts.WaveGlowLoss()
 
@@ -80,13 +79,9 @@ def create_NMs(waveglow_params):
     return (data_preprocessor, waveglow, waveglow_loss)
 
 
-def create_train_dag(neural_factory,
-                     neural_modules,
-                     waveglow_params,
-                     train_dataset,
-                     batch_size,
-                     checkpoint_save_freq,
-                     cpu_per_dl=1):
+def create_train_dag(
+    neural_factory, neural_modules, waveglow_params, train_dataset, batch_size, checkpoint_save_freq, cpu_per_dl=1,
+):
     data_preprocessor, waveglow, waveglow_loss = neural_modules
 
     train_dl_params = copy.deepcopy(waveglow_params["AudioDataLayer"])
@@ -95,10 +90,7 @@ def create_train_dag(neural_factory,
     del train_dl_params["eval"]
 
     data_layer = nemo_tts.AudioDataLayer(
-        manifest_filepath=train_dataset,
-        batch_size=batch_size,
-        num_workers=cpu_per_dl,
-        **train_dl_params,
+        manifest_filepath=train_dataset, batch_size=batch_size, num_workers=cpu_per_dl, **train_dl_params,
     )
 
     N = len(data_layer)
@@ -107,42 +99,28 @@ def create_train_dag(neural_factory,
 
     # Train DAG
     audio, audio_len, = data_layer()
-    spec_target, spec_target_len = data_preprocessor(
-        input_signal=audio,
-        length=audio_len)
+    spec_target, spec_target_len = data_preprocessor(input_signal=audio, length=audio_len)
 
-    z, log_s_list, log_det_W_list = waveglow(
-        mel_spectrogram=spec_target, audio=audio)
-    loss_t = waveglow_loss(
-        z=z,
-        log_s_list=log_s_list,
-        log_det_W_list=log_det_W_list)
+    z, log_s_list, log_det_W_list = waveglow(mel_spectrogram=spec_target, audio=audio)
+    loss_t = waveglow_loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list)
 
     # Callbacks needed to print info to console and Tensorboard
     train_callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[loss_t, z, spec_target, spec_target_len],
         print_func=lambda x: print(f"Loss: {x[0].data}"),
-        log_to_tb_func=partial(
-            waveglow_log_to_tb_func,
-            log_images=False),
+        log_to_tb_func=partial(waveglow_log_to_tb_func, log_images=False),
         tb_writer=neural_factory.tb_writer,
     )
 
-    chpt_callback = nemo.core.CheckpointCallback(
-        folder=neural_factory.checkpoint_dir,
-        step_freq=checkpoint_save_freq)
+    chpt_callback = nemo.core.CheckpointCallback(folder=neural_factory.checkpoint_dir, step_freq=checkpoint_save_freq)
 
     callbacks = [train_callback, chpt_callback]
     return loss_t, callbacks, steps_per_epoch
 
 
-def create_eval_dags(neural_factory,
-                     neural_modules,
-                     waveglow_params,
-                     eval_datasets,
-                     eval_batch_size,
-                     eval_freq,
-                     cpu_per_dl=1):
+def create_eval_dags(
+    neural_factory, neural_modules, waveglow_params, eval_datasets, eval_batch_size, eval_freq, cpu_per_dl=1,
+):
     data_preprocessor, waveglow, _ = neural_modules
 
     eval_dl_params = copy.deepcopy(waveglow_params["AudioDataLayer"])
@@ -154,19 +132,13 @@ def create_eval_dags(neural_factory,
     # assemble eval DAGs
     for eval_dataset in eval_datasets:
         data_layer_eval = nemo_tts.AudioDataLayer(
-            manifest_filepath=eval_dataset,
-            batch_size=eval_batch_size,
-            num_workers=cpu_per_dl,
-            **eval_dl_params,
+            manifest_filepath=eval_dataset, batch_size=eval_batch_size, num_workers=cpu_per_dl, **eval_dl_params,
         )
 
         audio, audio_len, = data_layer_eval()
-        spec_target, spec_target_len = data_preprocessor(
-            input_signal=audio,
-            length=audio_len)
+        spec_target, spec_target_len = data_preprocessor(input_signal=audio, length=audio_len)
 
-        audio_pred, log_s_list, log_det_W_list = waveglow(
-            mel_spectrogram=spec_target, audio=audio)
+        audio_pred, log_s_list, log_det_W_list = waveglow(mel_spectrogram=spec_target, audio=audio)
 
         # create corresponding eval callback
         tagname = os.path.basename(eval_dataset).split(".")[0]
@@ -174,26 +146,26 @@ def create_eval_dags(neural_factory,
             eval_tensors=[audio_pred, spec_target, spec_target_len],
             user_iter_callback=waveglow_process_eval_batch,
             user_epochs_done_callback=lambda x: x,
-            tb_writer_func=partial(
-                waveglow_eval_log_to_tb_func,
-                tag=tagname,
-                mel_fb=data_preprocessor.filter_banks),
+            tb_writer_func=partial(waveglow_eval_log_to_tb_func, tag=tagname, mel_fb=data_preprocessor.filter_banks,),
             eval_step=eval_freq,
-            tb_writer=neural_factory.tb_writer)
+            tb_writer=neural_factory.tb_writer,
+        )
 
         callbacks.append(eval_callback)
     return callbacks
 
 
-def create_all_dags(neural_factory,
-                    neural_modules,
-                    waveglow_params,
-                    train_dataset,
-                    batch_size,
-                    checkpoint_save_freq,
-                    eval_datasets=None,
-                    eval_batch_size=None,
-                    eval_freq=None):
+def create_all_dags(
+    neural_factory,
+    neural_modules,
+    waveglow_params,
+    train_dataset,
+    batch_size,
+    checkpoint_save_freq,
+    eval_datasets=None,
+    eval_batch_size=None,
+    eval_freq=None,
+):
     # Calculate num_workers for dataloader
     cpu_per_dl = max(int(os.cpu_count() / neural_factory.world_size), 1)
 
@@ -204,7 +176,8 @@ def create_all_dags(neural_factory,
         train_dataset=train_dataset,
         batch_size=batch_size,
         checkpoint_save_freq=checkpoint_save_freq,
-        cpu_per_dl=cpu_per_dl)
+        cpu_per_dl=cpu_per_dl,
+    )
 
     eval_callbacks = []
     if eval_datasets:
@@ -215,7 +188,8 @@ def create_all_dags(neural_factory,
             eval_datasets=eval_datasets,
             eval_batch_size=eval_batch_size,
             eval_freq=eval_freq,
-            cpu_per_dl=cpu_per_dl)
+            cpu_per_dl=cpu_per_dl,
+        )
     else:
         nemo.logging.info("There were no val datasets passed")
 
@@ -240,7 +214,8 @@ def main():
         create_tb_writer=args.create_tb_writer,
         files_to_copy=[args.model_config, __file__],
         cudnn_benchmark=args.cudnn_benchmark,
-        tensorboard_dir=args.tensorboard_dir)
+        tensorboard_dir=args.tensorboard_dir,
+    )
 
     if args.local_rank is not None:
         nemo.logging.info('Doing ALL GPU')
@@ -261,7 +236,8 @@ def main():
         checkpoint_save_freq=args.checkpoint_save_freq,
         eval_datasets=args.eval_datasets,
         eval_batch_size=args.eval_batch_size,
-        eval_freq=args.eval_freq)
+        eval_freq=args.eval_freq,
+    )
 
     # train model
     neural_factory.train(
@@ -273,8 +249,10 @@ def main():
             "max_steps": args.max_steps,
             "lr": args.lr,
             "weight_decay": args.weight_decay,
-            "grad_norm_clip": None},
-        batches_per_step=args.iter_per_step)
+            "grad_norm_clip": None,
+        },
+        batches_per_step=args.iter_per_step,
+    )
 
 
 if __name__ == '__main__':

@@ -25,8 +25,7 @@ from transformers.tokenization_bert import BasicTokenizer
 
 def _get_best_indexes(logits, n_best_size):
     """Get the n-best logits from a list."""
-    index_and_score = sorted(enumerate(logits),
-                             key=lambda x: x[1], reverse=True)
+    index_and_score = sorted(enumerate(logits), key=lambda x: x[1], reverse=True)
 
     best_indexes = []
     for i in range(len(index_and_score)):
@@ -68,8 +67,7 @@ def get_tokens(s):
 def f1_score(prediction, ground_truth):
     prediction_tokens = get_tokens(prediction)
     ground_truth_tokens = get_tokens(ground_truth)
-    common = collections.Counter(prediction_tokens) & \
-        collections.Counter(ground_truth_tokens)
+    common = collections.Counter(prediction_tokens) & collections.Counter(ground_truth_tokens)
     num_same = sum(common.values())
     if len(ground_truth_tokens) == 0 or len(prediction_tokens) == 0:
         # If either is no-answer, then F1 is 1 if they agree, 0 otherwise
@@ -165,8 +163,9 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
 
     if len(orig_ns_text) != len(tok_ns_text):
         if verbose_logging:
-            print("Length not equal after stripping spaces: '%s' vs '%s'",
-                  orig_ns_text, tok_ns_text)
+            print(
+                "Length not equal after stripping spaces: '%s' vs '%s'", orig_ns_text, tok_ns_text,
+            )
         return orig_text
 
     # We then project the characters in `pred_text` back to `orig_text` using
@@ -197,7 +196,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
             print("Couldn't map end position")
         return orig_text
 
-    output_text = orig_text[orig_start_position:(orig_end_position + 1)]
+    output_text = orig_text[orig_start_position : (orig_end_position + 1)]
     return output_text
 
 
@@ -226,8 +225,7 @@ def make_eval_dict(exact_scores, f1_scores, qid_list=None):
         total = len(qid_list)
         return collections.OrderedDict(
             [
-                ("exact", 100.0 *
-                    sum(exact_scores[k] for k in qid_list) / total),
+                ("exact", 100.0 * sum(exact_scores[k] for k in qid_list) / total,),
                 ("f1", 100.0 * sum(f1_scores[k] for k in qid_list) / total),
                 ("total", total),
             ]
@@ -239,12 +237,9 @@ def merge_eval(main_eval, new_eval, prefix):
         main_eval["%s_%s" % (prefix, k)] = new_eval[k]
 
 
-def find_all_best_thresh(main_eval, preds, exact_raw,
-                         f1_raw, na_probs, qid_to_has_ans):
-    best_exact, exact_thresh = \
-        find_best_thresh(preds, exact_raw, na_probs, qid_to_has_ans)
-    best_f1, f1_thresh = \
-        find_best_thresh(preds, f1_raw, na_probs, qid_to_has_ans)
+def find_all_best_thresh(main_eval, preds, exact_raw, f1_raw, na_probs, qid_to_has_ans):
+    best_exact, exact_thresh = find_best_thresh(preds, exact_raw, na_probs, qid_to_has_ans)
+    best_f1, f1_thresh = find_best_thresh(preds, f1_raw, na_probs, qid_to_has_ans)
 
     main_eval["best_exact"] = best_exact
     main_eval["best_exact_thresh"] = exact_thresh

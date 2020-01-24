@@ -14,14 +14,14 @@
 import argparse
 import glob
 import json
-import librosa
 import os
 import subprocess
 import tarfile
+
+import librosa
 import wget
 
-parser = argparse.ArgumentParser(
-        description="AN4 dataset download and processing")
+parser = argparse.ArgumentParser(description="AN4 dataset download and processing")
 parser.add_argument("--data_root", required=True, default=None, type=str)
 args = parser.parse_args()
 
@@ -32,15 +32,14 @@ def build_manifest(data_root, transcripts_path, manifest_path, wav_path):
             for line in fin:
                 # Lines look like this:
                 # <s> transcript </s> (fileID)
-                transcript = line[: line.find('(')-1].lower()
+                transcript = line[: line.find('(') - 1].lower()
                 transcript = transcript.replace('<s>', '').replace('</s>', '')
                 transcript = transcript.strip()
 
-                file_id = line[line.find('(')+1: -2]  # e.g. "cen4-fash-b"
+                file_id = line[line.find('(') + 1 : -2]  # e.g. "cen4-fash-b"
                 audio_path = os.path.join(
-                    data_root, wav_path,
-                    file_id[file_id.find('-')+1: file_id.rfind('-')],
-                    file_id + '.wav')
+                    data_root, wav_path, file_id[file_id.find('-') + 1 : file_id.rfind('-')], file_id + '.wav',
+                )
 
                 duration = librosa.core.get_duration(filename=audio_path)
 
@@ -48,7 +47,7 @@ def build_manifest(data_root, transcripts_path, manifest_path, wav_path):
                 metadata = {
                     "audio_filepath": audio_path,
                     "duration": duration,
-                    "text": transcript
+                    "text": transcript,
                 }
                 json.dump(metadata, fout)
                 fout.write('\n')
@@ -59,9 +58,7 @@ def main():
 
     # Convert from .sph to .wav
     print("Converting audio files to .wav...")
-    sph_list = glob.glob(
-            os.path.join(data_root, 'an4/**/*.sph'),
-            recursive=True)
+    sph_list = glob.glob(os.path.join(data_root, 'an4/**/*.sph'), recursive=True)
     for sph_path in sph_list:
         wav_path = sph_path[:-4] + '.wav'
         cmd = ['sox', sph_path, wav_path]
@@ -70,22 +67,16 @@ def main():
 
     # Build manifests
     print("Building training manifest...")
-    train_transcripts = os.path.join(
-            data_root, 'an4/etc/an4_train.transcription')
-    train_manifest = os.path.join(
-            data_root, 'an4/train_manifest.json')
-    train_wavs = os.path.join(
-            data_root, 'an4/wav/an4_clstk')
+    train_transcripts = os.path.join(data_root, 'an4/etc/an4_train.transcription')
+    train_manifest = os.path.join(data_root, 'an4/train_manifest.json')
+    train_wavs = os.path.join(data_root, 'an4/wav/an4_clstk')
     build_manifest(data_root, train_transcripts, train_manifest, train_wavs)
     print("Training manifests created.")
 
     print("Building test manifest...")
-    test_transcripts = os.path.join(
-            data_root, 'an4/etc/an4_test.transcription')
-    test_manifest = os.path.join(
-            data_root, 'an4/test_manifest.json')
-    test_wavs = os.path.join(
-            data_root, 'an4/wav/an4test_clstk')
+    test_transcripts = os.path.join(data_root, 'an4/etc/an4_test.transcription')
+    test_manifest = os.path.join(data_root, 'an4/test_manifest.json')
+    test_wavs = os.path.join(data_root, 'an4/wav/an4test_clstk')
     build_manifest(data_root, test_transcripts, test_manifest, test_wavs)
     print("Test manifest created.")
 

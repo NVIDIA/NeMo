@@ -17,17 +17,16 @@
 # =============================================================================
 
 import unittest
+
 import nemo
 
 from .common_setup import NeMoUnitTest
 
 
 class TestPytorchTrainers(NeMoUnitTest):
-
     def test_simple_train(self):
         print("Simplest train test")
-        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(
-            n=10000, batch_size=128)
+        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         loss = nemo.backends.pytorch.tutorials.MSELoss()
         x, y = data_source()
@@ -36,17 +35,12 @@ class TestPytorchTrainers(NeMoUnitTest):
 
         optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
-            tensors_to_optimize=[loss_tensor],
-            optimizer="sgd",
-            optimization_params={"lr": 0.0003, "num_epochs": 1}
+            tensors_to_optimize=[loss_tensor], optimizer="sgd", optimization_params={"lr": 0.0003, "num_epochs": 1},
         )
 
     def test_simple_train_named_output(self):
         print('Simplest train test with using named output.')
-        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(
-            n=10000,
-            batch_size=128,
-        )
+        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=128,)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         loss = nemo.backends.pytorch.tutorials.MSELoss()
 
@@ -61,15 +55,12 @@ class TestPytorchTrainers(NeMoUnitTest):
 
         optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
-            tensors_to_optimize=[loss_tensor],
-            optimizer="sgd",
-            optimization_params={"lr": 0.0003, "num_epochs": 1}
+            tensors_to_optimize=[loss_tensor], optimizer="sgd", optimization_params={"lr": 0.0003, "num_epochs": 1},
         )
 
     def test_simple_chained_train(self):
         print("Chained train test")
-        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(
-            n=10000, batch_size=32)
+        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=32)
         trainable_module1 = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         trainable_module2 = nemo.backends.pytorch.tutorials.TaylorNet(dim=2)
         trainable_module3 = nemo.backends.pytorch.tutorials.TaylorNet(dim=2)
@@ -82,7 +73,5 @@ class TestPytorchTrainers(NeMoUnitTest):
 
         optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
-            tensors_to_optimize=[loss_tensor],
-            optimizer="sgd",
-            optimization_params={"lr": 0.0003, "num_epochs": 1}
+            tensors_to_optimize=[loss_tensor], optimizer="sgd", optimization_params={"lr": 0.0003, "num_epochs": 1},
         )

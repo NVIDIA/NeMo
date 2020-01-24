@@ -6,8 +6,7 @@ import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core import DeviceType
-from nemo.core.neural_types import (NeuralType, AxisType, BatchTag, TimeTag,
-                                    ChannelTag)
+from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
 
 class BeamSearchDecoderWithLM(NonTrainableNM):
@@ -53,10 +52,8 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
             0: AxisType(BatchTag)
         """
         return {
-            "log_probs": NeuralType({0: AxisType(BatchTag),
-                                     1: AxisType(TimeTag),
-                                     2: AxisType(ChannelTag)}),
-            "log_probs_length": NeuralType({0: AxisType(BatchTag)})
+            "log_probs": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            "log_probs_length": NeuralType({0: AxisType(BatchTag)}),
         }
 
     @property
@@ -66,45 +63,32 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
         predictions:
             NeuralType(None)
         """
-        return {
-            "predictions": NeuralType(None)
-        }
+        return {"predictions": NeuralType(None)}
 
     def __init__(
-            self, *,
-            vocab,
-            beam_width,
-            alpha,
-            beta,
-            lm_path,
-            num_cpus,
-            cutoff_prob=1.0,
-            cutoff_top_n=40,
-            **kwargs):
+        self, *, vocab, beam_width, alpha, beta, lm_path, num_cpus, cutoff_prob=1.0, cutoff_top_n=40, **kwargs
+    ):
 
         try:
             from ctc_decoders import Scorer
             from ctc_decoders import ctc_beam_search_decoder_batch
         except ModuleNotFoundError:
-            raise ModuleNotFoundError("BeamSearchDecoderWithLM requires the "
-                                      "installation of ctc_decoders "
-                                      "from nemo/scripts/install_decoders.py")
+            raise ModuleNotFoundError(
+                "BeamSearchDecoderWithLM requires the "
+                "installation of ctc_decoders "
+                "from nemo/scripts/install_decoders.py"
+            )
 
         super().__init__(
             # Override default placement from neural factory
             placement=DeviceType.CPU,
-            **kwargs)
+            **kwargs
+        )
 
         if self._factory.world_size > 1:
-            raise ValueError(
-                "BeamSearchDecoderWithLM does not run in distributed mode")
+            raise ValueError("BeamSearchDecoderWithLM does not run in distributed mode")
 
-        self.scorer = Scorer(
-            alpha,
-            beta,
-            model_path=lm_path,
-            vocabulary=vocab
-        )
+        self.scorer = Scorer(alpha, beta, model_path=lm_path, vocabulary=vocab)
         self.beam_search_func = ctc_beam_search_decoder_batch
         self.vocab = vocab
         self.beam_width = beam_width
@@ -116,7 +100,7 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
         probs = torch.exp(log_probs)
         probs_list = []
         for i, prob in enumerate(probs):
-            probs_list.append(prob[:log_probs_length[i], :])
+            probs_list.append(prob[: log_probs_length[i], :])
         res = self.beam_search_func(
             probs_list,
             self.vocab,
@@ -124,6 +108,6 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
             num_processes=self.num_cpus,
             ext_scoring_func=self.scorer,
             cutoff_prob=self.cutoff_prob,
-            cutoff_top_n=self.cutoff_top_n
+            cutoff_top_n=self.cutoff_top_n,
         )
         return [res]

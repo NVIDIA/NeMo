@@ -1,13 +1,17 @@
 # Copyright (c) 2019 NVIDIA Corporation
-__all__ = ['WarmupPolicy', 'SquareAnnealing', 'CosineAnnealing',
-           'WarmupAnnealing', 'InverseSquareRootAnnealing',
-           'SquareRootAnnealing']
-
-import math
-from abc import ABC, abstractmethod
+__all__ = [
+    'WarmupPolicy',
+    'SquareAnnealing',
+    'CosineAnnealing',
+    'WarmupAnnealing',
+    'InverseSquareRootAnnealing',
+    'SquareRootAnnealing',
+]
 
 import inspect
+import math
 import sys
+from abc import ABC, abstractmethod
 
 
 class _LRPolicy(ABC):
@@ -43,15 +47,11 @@ class WarmupPolicy(_LRPolicy):
 
     """
 
-    def __init__(self,
-                 *,
-                 warmup_steps=None,
-                 warmup_ratio=None,
-                 total_steps=None):
-        assert not (warmup_steps is not None and warmup_ratio is not None), \
-            "Either use particular number of step or ratio"
-        assert warmup_ratio is None or total_steps is not None, \
-            "If there is a ratio, there should be a total steps"
+    def __init__(self, *, warmup_steps=None, warmup_ratio=None, total_steps=None):
+        assert not (
+            warmup_steps is not None and warmup_ratio is not None
+        ), "Either use particular number of step or ratio"
+        assert warmup_ratio is None or total_steps is not None, "If there is a ratio, there should be a total steps"
 
         super().__init__()
 
@@ -105,7 +105,7 @@ class SquareAnnealing(WarmupPolicy):
             initial_lr=initial_lr,
             step=step - self.warmup_steps,
             total_steps=self.total_steps - self.warmup_steps,
-            min_lr=self.min_lr
+            min_lr=self.min_lr,
         )
 
 
@@ -116,10 +116,7 @@ class SquareRootAnnealing(WarmupPolicy):
 
     def _get_lr(self, initial_lr, step, epoch):
         return _squareroot_annealing(
-            initial_lr=initial_lr,
-            step=step,
-            total_steps=self.total_steps,
-            min_lr=self.min_lr
+            initial_lr=initial_lr, step=step, total_steps=self.total_steps, min_lr=self.min_lr,
         )
 
 
@@ -130,13 +127,14 @@ class CosineAnnealing(WarmupPolicy):
 
     def _get_lr(self, initial_lr, step, epoch):
         if initial_lr < self.min_lr:
-            raise ValueError(f"{self} received an initial learning rate that "
-                             f"was lower than the minimum learning rate.")
+            raise ValueError(
+                f"{self} received an initial learning rate that " f"was lower than the minimum learning rate."
+            )
         return _cosine_annealing(
             initial_lr=initial_lr,
             step=step - self.warmup_steps,
             total_steps=self.total_steps - self.warmup_steps,
-            min_lr=self.min_lr
+            min_lr=self.min_lr,
         )
 
 
@@ -148,7 +146,7 @@ class WarmupAnnealing(WarmupPolicy):
         progress = float(step / self.total_steps)
         warmup_ratio = float(self.warmup_steps / self.total_steps)
 
-        mult = max((progress - 1.) / (warmup_ratio - 1.), 0.)
+        mult = max((progress - 1.0) / (warmup_ratio - 1.0), 0.0)
         out_lr = initial_lr * mult
 
         return out_lr
@@ -177,6 +175,7 @@ def get_all_lr_classes():
 def get_lr_policy(lr_policy, **kwargs):
     lr_classes = get_all_lr_classes()
     if lr_policy not in lr_classes:
-        raise ValueError(f'{lr_policy} is not a supported lr policy. '
-                         f'Supported lr policies are {lr_classes.keys()}.')
+        raise ValueError(
+            f'{lr_policy} is not a supported lr policy. ' f'Supported lr policies are {lr_classes.keys()}.'
+        )
     return lr_classes[lr_policy](**kwargs)

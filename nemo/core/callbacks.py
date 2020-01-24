@@ -1,11 +1,11 @@
 # Copyright (c) 2019 NVIDIA Corporation
-from abc import ABC, abstractmethod
-from collections import namedtuple
 import glob
 import os
 import sys
 import time
 import warnings
+from abc import ABC, abstractmethod
+from collections import namedtuple
 
 import nemo
 
@@ -50,8 +50,7 @@ class ActionCallback(ABC):
 
     @property
     def logger(self):
-        warnings.warn("This will be deprecated in future releases. Please use "
-                      "nemo.logging instead")
+        warnings.warn("This will be deprecated in future releases. Please use " "nemo.logging instead")
         return nemo.logging
 
     def on_action_start(self):
@@ -79,11 +78,9 @@ class ModuleSaverCallback(ActionCallback):
     https://nvidia.github.io/NeMo/tutorials/callbacks.html
     """
 
-    def __init__(self,
-                 save_modules_list,
-                 step_freq=1000,
-                 folder=None,
-                 checkpoints_to_keep=4):
+    def __init__(
+        self, save_modules_list, step_freq=1000, folder=None, checkpoints_to_keep=4,
+    ):
         super().__init__()
         self._save_modules_list = save_modules_list
         self._folder = folder
@@ -94,11 +91,10 @@ class ModuleSaverCallback(ActionCallback):
     def on_iteration_end(self):
         step = self.step
         if (
-                self._step_freq > 0
-                and
-                step % self._step_freq == 0
-                and step > 0
-                and (self.global_rank is None or self.global_rank == 0)
+            self._step_freq > 0
+            and step % self._step_freq == 0
+            and step > 0
+            and (self.global_rank is None or self.global_rank == 0)
         ):
             for m in self._save_modules_list:
                 class_name = m.__class__.__name__
@@ -113,10 +109,10 @@ class ModuleSaverCallback(ActionCallback):
                 nemo.logging.info("Saved.")
             self._saved_ckpts.append(f'-{self.step}.pt')
             if len(self._saved_ckpts) > self._ckpt2keep:
-                for end in self._saved_ckpts[:-self._ckpt2keep]:
+                for end in self._saved_ckpts[: -self._ckpt2keep]:
                     for file in glob.glob(f'{self._folder}/*{end}'):
                         os.remove(file)
-                self._saved_ckpts = self._saved_ckpts[-self._ckpt2keep:]
+                self._saved_ckpts = self._saved_ckpts[-self._ckpt2keep :]
 
     def on_action_end(self):
         step = self.step
@@ -140,13 +136,9 @@ class SimpleLossLoggerCallback(ActionCallback):
     https://nvidia.github.io/NeMo/tutorials/callbacks.html
     """
 
-    def __init__(self,
-                 tensors,
-                 print_func=None,
-                 get_tb_values=None,
-                 log_to_tb_func=None,
-                 step_freq=25,
-                 tb_writer=None):
+    def __init__(
+        self, tensors, print_func=None, get_tb_values=None, log_to_tb_func=None, step_freq=25, tb_writer=None,
+    ):
 
         super().__init__()
         if not isinstance(tensors, list):
@@ -200,10 +192,7 @@ class SimpleLossLoggerCallback(ActionCallback):
         if self.global_rank is None or self.global_rank == 0:
             step = self.step
             if step % self._step_freq == 0:
-                tensor_values = [
-                    self.registered_tensors[t.unique_name]
-                    for t in self.tensors
-                ]
+                tensor_values = [self.registered_tensors[t.unique_name] for t in self.tensors]
 
                 nemo.logging.info(f"Step: {step}")
                 if self._print_func:
@@ -216,8 +205,7 @@ class SimpleLossLoggerCallback(ActionCallback):
                             value = value.item()
                             self._swriter.add_scalar(name, value, step)
                     if self._log_to_tb_func:
-                        self._log_to_tb_func(
-                            self._swriter, tensor_values, step)
+                        self._log_to_tb_func(self._swriter, tensor_values, step)
                     run_time = time.time() - self._last_iter_start
                     self._swriter.add_scalar('misc/step_time', run_time, step)
                 run_time = time.time() - self._last_iter_start
@@ -230,27 +218,21 @@ class CheckpointCallback(ActionCallback):
     https://nvidia.github.io/NeMo/tutorials/callbacks.html
     """
 
-    def __init__(self, folder, load_from_folder=None, step_freq=-1,
-                 epoch_freq=-1, checkpoints_to_keep=4, force_load=False):
+    def __init__(
+        self, folder, load_from_folder=None, step_freq=-1, epoch_freq=-1, checkpoints_to_keep=4, force_load=False,
+    ):
         super().__init__()
         if step_freq == -1 and epoch_freq == -1:
-            nemo.logging.warning(
-                "No checkpoints will be saved because step_freq and "
-                "epoch_freq are both -1."
-            )
+            nemo.logging.warning("No checkpoints will be saved because step_freq and " "epoch_freq are both -1.")
 
         if step_freq > -1 and epoch_freq > -1:
-            nemo.logging.warning(
-                "You config the model to save by both steps and epochs. "
-                "Save by step_freq only"
-            )
+            nemo.logging.warning("You config the model to save by both steps and epochs. " "Save by step_freq only")
             epoch_freq = -1
 
         self._step_freq = step_freq
         self._epoch_freq = epoch_freq
         self._folder = folder
-        self._load_from_folder = load_from_folder if load_from_folder \
-            else folder
+        self._load_from_folder = load_from_folder if load_from_folder else folder
         self._ckpt2keep = checkpoints_to_keep
         self._saved_ckpts = []
         # If True, run will fail if we cannot load module weights
@@ -268,7 +250,8 @@ class CheckpointCallback(ActionCallback):
                 if str(module) in unique_mod_names:
                     raise NotImplementedError(
                         "There were two instances of the same module. Please "
-                        "overwrite __str__() of one of the modules.")
+                        "overwrite __str__() of one of the modules."
+                    )
                 unique_mod_names.add(str(module))
                 if self._step_freq > -1:
                     filename = f"{module}-STEP-{self.step}.pt"
@@ -286,17 +269,18 @@ class CheckpointCallback(ActionCallback):
             self._saved_ckpts.append(f'-{self.epoch_num}.pt')
 
         if len(self._saved_ckpts) > self._ckpt2keep:
-            for end in self._saved_ckpts[:-self._ckpt2keep]:
+            for end in self._saved_ckpts[: -self._ckpt2keep]:
                 for file in glob.glob(f'{path}/*{end}'):
                     os.remove(file)
-            self._saved_ckpts = self._saved_ckpts[-self._ckpt2keep:]
+            self._saved_ckpts = self._saved_ckpts[-self._ckpt2keep :]
         nemo.logging.info(f'Saved checkpoint: {path}/{filename}')
 
     def __restore_from(self, path):
         if not os.path.isdir(path):
             if self._force_load:
-                raise ValueError("force_load was set to True for checkpoint "
-                                 "callback but a checkpoint was not found.")
+                raise ValueError(
+                    "force_load was set to True for checkpoint " "callback but a checkpoint was not found."
+                )
             nemo.logging.warning(f"Checkpoint folder {path} not found!")
         else:
             nemo.logging.info(f"Restoring checkpoint from folder {path} ...")
@@ -307,26 +291,21 @@ class CheckpointCallback(ActionCallback):
                     modules_to_restore.append(module)
                     modules_to_restore_name.append(str(module))
             try:
-                module_checkpoints = get_checkpoint_from_dir(
-                    modules_to_restore_name, path
-                )
+                module_checkpoints = get_checkpoint_from_dir(modules_to_restore_name, path)
 
-                for mod, checkpoint in zip(modules_to_restore,
-                                           module_checkpoints):
+                for mod, checkpoint in zip(modules_to_restore, module_checkpoints):
                     mod.restore_from(checkpoint, self.local_rank)
             except (BaseException, ValueError) as e:
                 if self._force_load:
                     raise ValueError(
-                        "force_load was set to True for checkpoint callback"
-                        "but a checkpoint was not found.")
+                        "force_load was set to True for checkpoint callback" "but a checkpoint was not found."
+                    )
                 nemo.logging.warning(e)
-                nemo.logging.warning(
-                    f"Checkpoint folder {path} present but did not restore")
+                nemo.logging.warning(f"Checkpoint folder {path} present but did not restore")
                 return
 
             try:
-                trainer_checkpoints = get_checkpoint_from_dir(
-                    ["trainer"], path)
+                trainer_checkpoints = get_checkpoint_from_dir(["trainer"], path)
                 for tr, checkpoint in zip([self.action], trainer_checkpoints):
                     tr.restore_state_from(checkpoint)
             except (BaseException, ValueError) as e:
@@ -342,11 +321,11 @@ class CheckpointCallback(ActionCallback):
                 if str(module) in unique_mod_names:
                     raise NotImplementedError(
                         "There were two instances of the same module. Please "
-                        "overwrite __str__() of one of the modules.")
+                        "overwrite __str__() of one of the modules."
+                    )
                 unique_mod_names.add(str(module))
                 num_parameters += module.num_weights
-        nemo.logging.info(f"Found {len(unique_mod_names)} modules with "
-                          f"weights:")
+        nemo.logging.info(f"Found {len(unique_mod_names)} modules with " f"weights:")
         for name in unique_mod_names:
             nemo.logging.info(f"{name}")
         nemo.logging.info(f"Total model parameters: {num_parameters}")
@@ -368,8 +347,7 @@ class CheckpointCallback(ActionCallback):
         if self._epoch_freq > 0:
             if self.global_rank is None or self.global_rank == 0:
                 run_time = time.time() - self._last_epoch_start
-                nemo.logging.info(
-                    f'Finished epoch {self.epoch_num} in {run_time}')
+                nemo.logging.info(f'Finished epoch {self.epoch_num} in {run_time}')
                 if (self.epoch_num + 1) % self._epoch_freq == 0:
                     self.__save_to(path=self._folder)
 
@@ -381,26 +359,20 @@ class EvaluatorCallback(ActionCallback):
     """
 
     def __init__(
-            self,
-            eval_tensors,
-            user_iter_callback,
-            user_epochs_done_callback,
-            tb_writer=None,
-            tb_writer_func=None,
-            eval_step=1,
-            eval_epoch=None,
+        self,
+        eval_tensors,
+        user_iter_callback,
+        user_epochs_done_callback,
+        tb_writer=None,
+        tb_writer_func=None,
+        eval_step=1,
+        eval_epoch=None,
     ):
         # TODO: Eval_epoch currently does nothing
         if eval_step is None and eval_epoch is None:
-            raise ValueError("Either eval_step or eval_epoch must be set. "
-                             f"But got: {eval_step} and {eval_epoch}")
-        if (eval_step is not None and eval_step <= 0) or (
-                eval_epoch is not None and eval_epoch <= 0
-        ):
-            raise ValueError(
-                f"Eval_step and eval_epoch must be > 0."
-                f"But got: {eval_step} and {eval_epoch}"
-            )
+            raise ValueError("Either eval_step or eval_epoch must be set. " f"But got: {eval_step} and {eval_epoch}")
+        if (eval_step is not None and eval_step <= 0) or (eval_epoch is not None and eval_epoch <= 0):
+            raise ValueError(f"Eval_step and eval_epoch must be > 0." f"But got: {eval_step} and {eval_epoch}")
         super().__init__()
         self._eval_tensors = eval_tensors
         self._swriter = tb_writer
@@ -489,13 +461,13 @@ class _Method(ABC):
     """ Classes inherited from _Method are used for
     ValueSetterCallback below
     """
+
     @abstractmethod
     def __call__(self, step, total_steps):
         pass
 
 
 class _Const(_Method):
-
     def __init__(self, value):
         super().__init__()
 
@@ -506,7 +478,6 @@ class _Const(_Method):
 
 
 class _Linear(_Method):
-
     def __init__(self, a, b):
         super().__init__()
         self.a, self.b = a, b
@@ -523,14 +494,12 @@ class ValueSetterCallback(ActionCallback):
     Policy = _Policy
     Method = _Method
 
-    def __init__(self, module, arg_name,
-                 policies=None, total_steps=None, tb_writer=None):
+    def __init__(self, module, arg_name, policies=None, total_steps=None, tb_writer=None):
         super().__init__()
 
         if policies is None:
             initial_value = getattr(module, arg_name)
-            policies = [_Policy(method=Const(initial_value),
-                                start=0.0, end=1.0)]
+            policies = [_Policy(method=Const(initial_value), start=0.0, end=1.0)]
 
         new_policies = []
         for p in policies:
@@ -570,7 +539,6 @@ class ValueSetterCallback(ActionCallback):
 
 
 class UnfreezeCallback(ActionCallback):
-
     def __init__(self, modules, start_epoch=0):
         super().__init__()
 

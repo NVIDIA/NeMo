@@ -45,6 +45,7 @@ class deprecated(object):
         Method prints the adequate warning (only once per function) when
         required and calls the function func, passing the original arguments.
         """
+
         def wrapper(*args, **kwargs):
             """
             Function prints the adequate warning and calls the function func,
@@ -60,9 +61,7 @@ class deprecated(object):
 
                 # Optionally, add version and alternative.
                 if self.version is not None:
-                    msg = msg + \
-                        " It is going to be removed in version {}.".format(
-                            self.version)
+                    msg = msg + " It is going to be removed in version {}.".format(self.version)
 
                 if self.explanation is not None:
                     msg = msg + " " + self.explanation

@@ -11,8 +11,7 @@ class CharTokenizer(TokenizerSpec):
                 self.vocab[special_token] = len(self.vocab)
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
         self.vocab_size = len(self.vocab)
-        self.special_tokens = self.tokens_to_ids(
-            ["<PAD>", "<UNK>", "<BOS>", "<EOS>"])
+        self.special_tokens = self.tokens_to_ids(["<PAD>", "<UNK>", "<BOS>", "<EOS>"])
 
     def text_to_tokens(self, text):
         token_candidates = [char for char in text]

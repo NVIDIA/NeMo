@@ -19,12 +19,27 @@
 """Setup for pip package."""
 
 import codecs
+import distutils.cmd
+import distutils.log
 import os
+import subprocess
 import sys
+from itertools import chain
 
 import setuptools
 
-from itertools import chain
+from nemo.package_info import (
+    __contact_emails__,
+    __contact_names__,
+    __description__,
+    __download_url__,
+    __homepage__,
+    __keywords__,
+    __license__,
+    __package_name__,
+    __repository_url__,
+    __version__,
+)
 
 
 # pep8: disable=E402
@@ -45,24 +60,13 @@ def is_build_action():
 if is_build_action():
     os.environ['NEMO_PACKAGE_BUILDING'] = 'True'
 
-from nemo.package_info import __contact_emails__
-from nemo.package_info import __contact_names__
-from nemo.package_info import __description__
-from nemo.package_info import __download_url__
-from nemo.package_info import __homepage__
-from nemo.package_info import __keywords__
-from nemo.package_info import __license__
-from nemo.package_info import __package_name__
-from nemo.package_info import __repository_url__
-from nemo.package_info import __version__
 # pep8: enable=E402
 
 
 if os.path.exists('README.rst'):
     # codec is used for consistent encoding
     long_description = codecs.open(
-        os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'),
-        'r', 'utf-8'
+        os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'), 'r', 'utf-8',
     ).read()
     long_description_content_type = "text/x-rst"
 
@@ -75,9 +79,10 @@ else:
     long_description = 'See ' + __homepage__
 
 
-################################################################################
-#                              Dependency Loading                              #
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
+###############################################################################
+#                             Dependency Loading                              #
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
+
 
 def req_file(filename, folder="requirements"):
     with open(os.path.join(folder, filename)) as f:
@@ -93,7 +98,6 @@ extras_require = {
     # User packages
     'docker': req_file("requirements_docker.txt"),
     'test': req_file("requirements_test.txt"),
-
     # Collections Packages
     'asr': req_file("requirements_asr.txt"),
     'nlp': req_file("requirements_nlp.txt"),
@@ -104,38 +108,112 @@ extras_require = {
 extras_require['all'] = list(chain(extras_require.values()))
 
 # TTS depends on ASR
-extras_require['tts'] = list(chain([
-    extras_require['tts'],
-    extras_require['asr']
-]))
+extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']]))
 
 tests_requirements = extras_require["test"]
 
-################################################################################
+###############################################################################
+#                            Code style checkers                              #
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
+
+LINE_WIDTH = 119
+# Options should be compatible with black.
+ISORT_BASE = (
+    'isort',
+    '--multi-line=3',
+    '--trailing-comma',
+    '--force-grid-wrap=0',
+    '--use-parentheses',
+    f'--line-width={LINE_WIDTH}',
+    '-rc',
+    '.',
+)
+BLACK_BASE = (
+    'black',
+    '--skip-string-normalization',
+    f'--line-length={LINE_WIDTH}',
+    '.',
+)
+
+
+class Checker(distutils.cmd.Command):
+    def _call_checker(self, base_command, check=True):
+        command = list(base_command)
+
+        if check:
+            command.extend(['--check', '--diff'])
+
+        self.announce(
+            msg='Running command: %s' % str(' '.join(command)), level=distutils.log.INFO,
+        )
+
+        return_code = subprocess.call(command)
+
+        return return_code
+
+    def _pass(self):
+        self.announce(msg='\033[32mPASS\x1b[0m', level=distutils.log.INFO)
+
+    def _fail(self):
+        self.announce(msg='\033[31mFAIL\x1b[0m', level=distutils.log.INFO)
+
+
+class CheckStyleCommand(Checker):
+    description = 'checks overall project code style'
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def run(self):
+        isort_return = self._call_checker(ISORT_BASE)
+        black_return = self._call_checker(BLACK_BASE)
+
+        if isort_return == 0 and black_return == 0:
+            self._pass()
+        else:
+            self._fail()
+            exit(isort_return if isort_return != 0 else black_return)
+
+    def finalize_options(self):
+        pass
+
+
+class FixStyleCommand(Checker):
+    description = 'fix overall project code style in-place'
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def run(self):
+        self._call_checker(ISORT_BASE, check=False)
+        self._call_checker(BLACK_BASE, check=False)
+
+    def finalize_options(self):
+        pass
+
+
+###############################################################################
 
 
 setuptools.setup(
     name=__package_name__,
-
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
     version=__version__,
     description=__description__,
     long_description=long_description,
-
     # The project's main homepage.
     url=__repository_url__,
     download_url=__download_url__,
-
     # Author details
     author=__contact_names__,
     author_email=__contact_emails__,
-
     # maintainer Details
     maintainer=__contact_names__,
     maintainer_email=__contact_emails__,
-
     # The licence under which the project is released
     license=__license__,
     classifiers=[
@@ -148,12 +226,10 @@ setuptools.setup(
         #  6 - Mature
         #  7 - Inactive
         'Development Status :: 4 - Beta',
-
         # Indicate who your project is intended for
         'Intended Audience :: Developers',
         'Intended Audience :: Science/Research',
         'Intended Audience :: Information Technology',
-
         # Indicate what your project relates to
         'Topic :: Scientific/Engineering',
         'Topic :: Scientific/Engineering :: Mathematics',
@@ -162,17 +238,14 @@ setuptools.setup(
         'Topic :: Software Development :: Libraries',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Utilities',
-
         # Pick your license as you wish (should match "license" above)
         'License :: OSI Approved :: Apache Software License',
-
         # Supported python versions
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
-
         # Additional Setting
         'Environment :: Console',
         'Natural Language :: English',
@@ -182,17 +255,16 @@ setuptools.setup(
     install_requires=install_requires,
     setup_requires=['pytest-runner'],
     tests_require=tests_requirements,
-
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
     # $ pip install -e ".[all]"
     # $ pip install nemo_toolkit[all]
     extras_require=extras_require,
-
     # Add in any packaged data.
     include_package_data=True,
     zip_safe=False,
-
     # PyPI package information.
     keywords=__keywords__,
+    # Custom commands.
+    cmdclass={'check_style': CheckStyleCommand, 'fix_style': FixStyleCommand},
 )

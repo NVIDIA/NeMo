@@ -13,20 +13,22 @@ __all__ = [
     "tacotron2_log_to_tb_func",
     "tacotron2_process_eval_batch",
     "tacotron2_process_final_eval",
-    "tacotron2_eval_log_to_tb_func"
+    "tacotron2_eval_log_to_tb_func",
 ]
 
 
-def waveglow_log_to_tb_func(swriter,
-                            tensors,
-                            step,
-                            tag="train",
-                            log_images=False,
-                            log_images_freq=1,
-                            n_fft=1024,
-                            hop_length=256,
-                            window="hann",
-                            mel_fb=None):
+def waveglow_log_to_tb_func(
+    swriter,
+    tensors,
+    step,
+    tag="train",
+    log_images=False,
+    log_images_freq=1,
+    n_fft=1024,
+    hop_length=256,
+    window="hann",
+    mel_fb=None,
+):
     loss, audio_pred, spec_target, mel_length = tensors
     if loss:
         swriter.add_scalar("loss", loss, step)
@@ -34,19 +36,25 @@ def waveglow_log_to_tb_func(swriter,
         mel_length = mel_length[0]
         spec_target = spec_target[0].data.cpu().numpy()[:, :mel_length]
         swriter.add_image(
-            f"{tag}_mel_target",
-            plot_spectrogram_to_numpy(spec_target),
-            step, dataformats="HWC")
+            f"{tag}_mel_target", plot_spectrogram_to_numpy(spec_target), step, dataformats="HWC",
+        )
         if mel_fb is not None:
-            mag, _ = librosa.core.magphase(librosa.core.stft(
-                np.nan_to_num(audio_pred[0].cpu().detach().numpy()),
-                n_fft=n_fft, hop_length=hop_length, window=window))
+            mag, _ = librosa.core.magphase(
+                librosa.core.stft(
+                    np.nan_to_num(audio_pred[0].cpu().detach().numpy()),
+                    n_fft=n_fft,
+                    hop_length=hop_length,
+                    window=window,
+                )
+            )
             mel_pred = np.matmul(mel_fb.cpu().numpy(), mag).squeeze()
             log_mel_pred = np.log(np.clip(mel_pred, a_min=1e-5, a_max=None))
             swriter.add_image(
                 f"{tag}_mel_predicted",
                 plot_spectrogram_to_numpy(log_mel_pred[:, :mel_length]),
-                step, dataformats="HWC")
+                step,
+                dataformats="HWC",
+            )
 
 
 def waveglow_process_eval_batch(tensors: dict, global_vars: dict):
@@ -62,14 +70,8 @@ def waveglow_process_eval_batch(tensors: dict, global_vars: dict):
 
 
 def waveglow_eval_log_to_tb_func(
-        swriter,
-        global_vars,
-        step,
-        tag=None,
-        n_fft=1024,
-        hop_length=256,
-        window="hann",
-        mel_fb=None):
+    swriter, global_vars, step, tag=None, n_fft=1024, hop_length=256, window="hann", mel_fb=None,
+):
     spec_target = global_vars['tensorboard']["mel_target"]
     audio_pred = global_vars['tensorboard']["audio_pred"]
     mel_length = global_vars['tensorboard']['mel_length']
@@ -82,33 +84,33 @@ def waveglow_eval_log_to_tb_func(
         n_fft=n_fft,
         hop_length=hop_length,
         window=window,
-        mel_fb=mel_fb)
+        mel_fb=mel_fb,
+    )
 
 
-def tacotron2_log_to_tb_func(swriter, tensors, step, tag="train",
-                             log_images=False, log_images_freq=1):
+def tacotron2_log_to_tb_func(swriter, tensors, step, tag="train", log_images=False, log_images_freq=1):
     loss, spec_target, mel_postnet, gate, gate_target, alignments = tensors
     if loss:
         swriter.add_scalar("loss", loss, step)
     if log_images and step % log_images_freq == 0:
         swriter.add_image(
-            f"{tag}_alignment",
-            plot_alignment_to_numpy(alignments[0].data.cpu().numpy().T),
-            step, dataformats="HWC")
+            f"{tag}_alignment", plot_alignment_to_numpy(alignments[0].data.cpu().numpy().T), step, dataformats="HWC",
+        )
         swriter.add_image(
-            f"{tag}_mel_target",
-            plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
-            step, dataformats="HWC")
+            f"{tag}_mel_target", plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()), step, dataformats="HWC",
+        )
         swriter.add_image(
             f"{tag}_mel_predicted",
             plot_spectrogram_to_numpy(mel_postnet[0].data.cpu().numpy()),
-            step, dataformats="HWC")
+            step,
+            dataformats="HWC",
+        )
         swriter.add_image(
             f"{tag}_gate",
-            plot_gate_outputs_to_numpy(
-                gate_target[0].data.cpu().numpy(),
-                torch.sigmoid(gate[0]).data.cpu().numpy()),
-            step, dataformats="HWC")
+            plot_gate_outputs_to_numpy(gate_target[0].data.cpu().numpy(), torch.sigmoid(gate[0]).data.cpu().numpy(),),
+            step,
+            dataformats="HWC",
+        )
 
 
 def tacotron2_process_eval_batch(tensors: dict, global_vars: dict):
@@ -149,11 +151,8 @@ def tacotron2_eval_log_to_tb_func(swriter, global_vars, step, tag=None):
     alignments = global_vars['tensorboard']["alignments"]
     swriter.add_scalar(f"{tag}.loss", global_vars['EvalLoss'], step)
     tacotron2_log_to_tb_func(
-        swriter,
-        [None, spec_target, mel_postnet, gate, gate_target, alignments],
-        step,
-        tag=tag,
-        log_images=True)
+        swriter, [None, spec_target, mel_postnet, gate, gate_target, alignments], step, tag=tag, log_images=True,
+    )
 
 
 def save_figure_to_numpy(fig):
@@ -165,8 +164,7 @@ def save_figure_to_numpy(fig):
 
 def plot_alignment_to_numpy(alignment, info=None):
     fig, ax = plt.subplots(figsize=(6, 4))
-    im = ax.imshow(alignment, aspect='auto', origin='lower',
-                   interpolation='none')
+    im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none')
     fig.colorbar(im, ax=ax)
     xlabel = 'Decoder timestep'
     if info is not None:
@@ -183,8 +181,7 @@ def plot_alignment_to_numpy(alignment, info=None):
 
 def plot_spectrogram_to_numpy(spectrogram):
     fig, ax = plt.subplots(figsize=(12, 3))
-    im = ax.imshow(spectrogram, aspect="auto", origin="lower",
-                   interpolation='none')
+    im = ax.imshow(spectrogram, aspect="auto", origin="lower", interpolation='none')
     plt.colorbar(im, ax=ax)
     plt.xlabel("Frames")
     plt.ylabel("Channels")
@@ -198,10 +195,12 @@ def plot_spectrogram_to_numpy(spectrogram):
 
 def plot_gate_outputs_to_numpy(gate_targets, gate_outputs):
     fig, ax = plt.subplots(figsize=(12, 3))
-    ax.scatter(range(len(gate_targets)), gate_targets, alpha=0.5,
-               color='green', marker='+', s=1, label='target')
-    ax.scatter(range(len(gate_outputs)), gate_outputs, alpha=0.5,
-               color='red', marker='.', s=1, label='predicted')
+    ax.scatter(
+        range(len(gate_targets)), gate_targets, alpha=0.5, color='green', marker='+', s=1, label='target',
+    )
+    ax.scatter(
+        range(len(gate_outputs)), gate_outputs, alpha=0.5, color='red', marker='.', s=1, label='predicted',
+    )
 
     plt.xlabel("Frames (Green target, Red predicted)")
     plt.ylabel("Gate State")

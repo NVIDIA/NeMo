@@ -1,4 +1,5 @@
 import sentencepiece as spm
+
 from .tokenizer_spec import TokenizerSpec
 
 

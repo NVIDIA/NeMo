@@ -1,8 +1,9 @@
 # Copyright (c) 2019 NVIDIA Corporation
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
-import nemo
 import numpy as np
+
+import nemo
 
 
 def eval_iter_callback(tensors, global_vars):
@@ -23,16 +24,14 @@ def eval_iter_callback(tensors, global_vars):
 def eval_epochs_done_callback(global_vars):
     if 'dev_mlm_loss' in global_vars:
         mlm_loss = np.mean(global_vars["dev_mlm_loss"])
-        nemo.logging.info(
-            "Dev MLM perplexity: {0}".format(np.round(np.exp(mlm_loss), 3)))
+        nemo.logging.info("Dev MLM perplexity: {0}".format(np.round(np.exp(mlm_loss), 3)))
         global_vars["dev_mlm_loss"] = []
     else:
         mlm_loss = -123.0
 
     if 'dev_nsp_loss' in global_vars:
         nsp_loss = np.mean(global_vars["dev_nsp_loss"])
-        nemo.logging.info(
-            "Dev NSP perplexity: {0}".format(np.round(np.exp(nsp_loss), 3)))
+        nemo.logging.info("Dev NSP perplexity: {0}".format(np.round(np.exp(nsp_loss), 3)))
         global_vars["dev_nsp_loss"] = []
     else:
         nsp_loss = -123.0

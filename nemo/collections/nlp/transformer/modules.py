@@ -22,26 +22,28 @@ Some parts of this code were adapted from the Annotated Transformer at
 http://nlp.seas.harvard.edu/2018/04/03/attention.html
 Copyright by the HuggingFace and Annotated Transformer authors.
 """
-__all__ = ['FixedPositionalEncoding',
-           'TransformerEmbedding',
-           'MultiHeadAttention',
-           'LightweightConv1d',
-           'TwoStreamSelfAttention',
-           'PositionWiseFF']
+__all__ = [
+    'FixedPositionalEncoding',
+    'TransformerEmbedding',
+    'MultiHeadAttention',
+    'LightweightConv1d',
+    'TwoStreamSelfAttention',
+    'PositionWiseFF',
+]
 
 import math
-try:
-    from apex.normalization import FusedLayerNorm
-except (AttributeError, ModuleNotFoundError):
-    # this is lie - it isn't fused in this case
-    print("Unable to import APEX. Mixed precision, distributed training and "
-          "FusedLayerNorm are not available.")
-    from torch.nn import LayerNorm as FusedLayerNorm
 
 import torch
 from torch import nn
 
 from .utils import gelu
+
+try:
+    from apex.normalization import FusedLayerNorm
+except (AttributeError, ModuleNotFoundError):
+    # this is lie - it isn't fused in this case
+    print("Unable to import APEX. Mixed precision, distributed training and " "FusedLayerNorm are not available.")
+    from torch.nn import LayerNorm as FusedLayerNorm
 
 
 class FixedPositionalEncoding(nn.Module):
@@ -84,20 +86,23 @@ class TransformerEmbedding(nn.Module):
         embedding_dropout: probability of dropout applied to embeddings
     """
 
-    def __init__(self, vocab_size, hidden_size, max_sequence_length=512,
-                 num_token_types=2, embedding_dropout=0.0,
-                 learn_positional_encodings=False):
+    def __init__(
+        self,
+        vocab_size,
+        hidden_size,
+        max_sequence_length=512,
+        num_token_types=2,
+        embedding_dropout=0.0,
+        learn_positional_encodings=False,
+    ):
         super().__init__()
 
         self.max_sequence_length = max_sequence_length
-        self.token_embedding = nn.Embedding(
-            vocab_size, hidden_size, padding_idx=0)
+        self.token_embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=0)
         if learn_positional_encodings:
-            self.position_embedding = nn.Embedding(
-                max_sequence_length, hidden_size)
+            self.position_embedding = nn.Embedding(max_sequence_length, hidden_size)
         else:
-            self.position_embedding = FixedPositionalEncoding(
-                hidden_size, max_sequence_length)
+            self.position_embedding = FixedPositionalEncoding(hidden_size, max_sequence_length)
         self.token_type_embedding = nn.Embedding(num_token_types, hidden_size)
         self.layer_norm = FusedLayerNorm(hidden_size, eps=1e-5)
         self.dropout = nn.Dropout(embedding_dropout)
@@ -105,11 +110,12 @@ class TransformerEmbedding(nn.Module):
     def forward(self, input_ids, token_type_ids=None, start_pos=0):
         seq_length = input_ids.size(1)
         if seq_length > self.max_sequence_length:
-            raise ValueError("Input sequence is longer than maximum allowed"
-                             " sequence length for positional encoding")
+            raise ValueError(
+                "Input sequence is longer than maximum allowed" " sequence length for positional encoding"
+            )
         position_ids = torch.arange(
-            start=start_pos, end=start_pos+seq_length,
-            dtype=torch.long, device=input_ids.device)
+            start=start_pos, end=start_pos + seq_length, dtype=torch.long, device=input_ids.device,
+        )
         position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
 
         token_embeddings = self.token_embedding(input_ids)
@@ -138,13 +144,15 @@ class MultiHeadAttention(nn.Module):
             whole layer, but before layer normalization
     """
 
-    def __init__(self, hidden_size, num_attention_heads,
-                 attn_score_dropout=0.0, attn_layer_dropout=0.0):
+    def __init__(
+        self, hidden_size, num_attention_heads, attn_score_dropout=0.0, attn_layer_dropout=0.0,
+    ):
         super().__init__()
         if hidden_size % num_attention_heads != 0:
             raise ValueError(
                 "The hidden size (%d) is not a multiple of the number "
-                "of attention heads (%d)" % (hidden_size, num_attention_heads))
+                "of attention heads (%d)" % (hidden_size, num_attention_heads)
+            )
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
         self.attn_head_size = int(hidden_size / num_attention_heads)
@@ -160,8 +168,7 @@ class MultiHeadAttention(nn.Module):
         self.layer_norm = FusedLayerNorm(hidden_size, eps=1e-5)
 
     def transpose_for_scores(self, x):
-        new_x_shape = x.size()[:-1] + \
-            (self.num_attention_heads, self.attn_head_size)
+        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attn_head_size,)
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
@@ -187,7 +194,7 @@ class MultiHeadAttention(nn.Module):
 
         context = torch.matmul(attention_probs, value)
         context = context.permute(0, 2, 1, 3).contiguous()
-        new_context_shape = context.size()[:-2] + (self.hidden_size, )
+        new_context_shape = context.size()[:-2] + (self.hidden_size,)
         context = context.view(*new_context_shape)
 
         # output projection
@@ -212,13 +219,13 @@ class LightweightConv1d(nn.Module):
             whole layer, but before layer normalization
     """
 
-    def __init__(self, hidden_size, num_attention_heads, kernel_size,
-                 conv_weight_dropout=0.0, conv_layer_dropout=0.0):
+    def __init__(
+        self, hidden_size, num_attention_heads, kernel_size, conv_weight_dropout=0.0, conv_layer_dropout=0.0,
+    ):
         super().__init__()
         self.num_heads = num_attention_heads
         self.kernel_size = kernel_size
-        self.weight = nn.Parameter(
-            torch.Tensor(num_attention_heads, 1, kernel_size))
+        self.weight = nn.Parameter(torch.Tensor(num_attention_heads, 1, kernel_size))
         self.in_projection = nn.Linear(hidden_size, hidden_size)
         self.out_projection = nn.Linear(hidden_size, hidden_size)
 
@@ -238,12 +245,8 @@ class LightweightConv1d(nn.Module):
             pivot = self.kernel_size // 2 + 1
             weight[:, :, pivot:] = 0
 
-        output_states = output_states.contiguous().view(
-            -1, self.num_heads, seq_len)
-        output_states = torch.conv1d(output_states,
-                                     weight,
-                                     padding=self.kernel_size // 2,
-                                     groups=self.num_heads)
+        output_states = output_states.contiguous().view(-1, self.num_heads, seq_len)
+        output_states = torch.conv1d(output_states, weight, padding=self.kernel_size // 2, groups=self.num_heads,)
         output_states = output_states.view(batch_size, hidden_size, seq_len)
         output_states = output_states.permute(0, 2, 1)
 
@@ -267,23 +270,24 @@ class TwoStreamSelfAttention(nn.Module):
             whole layer, but before layer normalization
     """
 
-    def __init__(self, hidden_size, num_attention_heads,
-                 attn_score_dropout=0.0, attn_layer_dropout=0.0):
+    def __init__(
+        self, hidden_size, num_attention_heads, attn_score_dropout=0.0, attn_layer_dropout=0.0,
+    ):
         super().__init__()
         self.query_stream = MultiHeadAttention(
-            hidden_size, num_attention_heads,
-            attn_score_dropout, attn_layer_dropout)
+            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout,
+        )
         self.content_stream = MultiHeadAttention(
-            hidden_size, num_attention_heads,
-            attn_score_dropout, attn_layer_dropout)
+            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout,
+        )
 
-    def forward(self, query_states, content_states,
-                query_attention_mask, content_attention_mask):
-        output_query_states = self.query_stream(
-            query_states, content_states, content_states, query_attention_mask)
+    def forward(
+        self, query_states, content_states, query_attention_mask, content_attention_mask,
+    ):
+        output_query_states = self.query_stream(query_states, content_states, content_states, query_attention_mask)
         output_content_states = self.content_stream(
-            query_states, content_states,
-            content_states, content_attention_mask)
+            query_states, content_states, content_states, content_attention_mask,
+        )
         return output_query_states, output_content_states
 
 
@@ -299,8 +303,7 @@ class PositionWiseFF(nn.Module):
         hidden_act: activation function used between two linear layers
     """
 
-    def __init__(self, hidden_size, inner_size,
-                 ffn_dropout=0.0, hidden_act="relu"):
+    def __init__(self, hidden_size, inner_size, ffn_dropout=0.0, hidden_act="relu"):
         super().__init__()
         self.dense_in = nn.Linear(hidden_size, inner_size)
         self.dense_out = nn.Linear(inner_size, hidden_size)

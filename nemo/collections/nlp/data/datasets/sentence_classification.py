@@ -22,9 +22,10 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 
 import random
 
-import nemo
 import numpy as np
 from torch.utils.data import Dataset
+
+import nemo
 
 from . import utils
 
@@ -44,12 +45,9 @@ class BertSentenceClassificationDataset(Dataset):
         shuffle (bool): whether to shuffle your data.
     """
 
-    def __init__(self,
-                 input_file,
-                 max_seq_length,
-                 tokenizer,
-                 num_samples=-1,
-                 shuffle=True):
+    def __init__(
+        self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=True,
+    ):
         with open(input_file, "r") as f:
             sent_labels, all_sent_subtokens = [], []
             sent_lengths = []
@@ -87,17 +85,16 @@ class BertSentenceClassificationDataset(Dataset):
 
         for i in range(len(all_sent_subtokens)):
             if len(all_sent_subtokens[i]) > self.max_seq_length:
-                shorten_sent = all_sent_subtokens[i][-self.max_seq_length+1:]
+                shorten_sent = all_sent_subtokens[i][-self.max_seq_length + 1 :]
                 all_sent_subtokens[i] = ['[CLS]'] + shorten_sent
                 too_long_count += 1
 
-        nemo.logging.info(f'{too_long_count} out of {len(sent_lengths)} \
-                       sentencess with more than {max_seq_length} subtokens.')
+        nemo.logging.info(
+            f'{too_long_count} out of {len(sent_lengths)} \
+                       sentencess with more than {max_seq_length} subtokens.'
+        )
 
-        self.convert_sequences_to_features(all_sent_subtokens,
-                                           sent_labels,
-                                           tokenizer,
-                                           self.max_seq_length)
+        self.convert_sequences_to_features(all_sent_subtokens, sent_labels, tokenizer, self.max_seq_length)
 
         self.tokenizer = tokenizer
         self.vocab_size = self.tokenizer.vocab_size
@@ -109,16 +106,14 @@ class BertSentenceClassificationDataset(Dataset):
 
         feature = self.features[idx]
 
-        return (np.array(feature.input_ids),
-                np.array(feature.segment_ids),
-                np.array(feature.input_mask, dtype=np.long),
-                feature.sent_label)
+        return (
+            np.array(feature.input_ids),
+            np.array(feature.segment_ids),
+            np.array(feature.input_mask, dtype=np.long),
+            feature.sent_label,
+        )
 
-    def convert_sequences_to_features(self,
-                                      all_sent_subtokens,
-                                      sent_labels,
-                                      tokenizer,
-                                      max_seq_length):
+    def convert_sequences_to_features(self, all_sent_subtokens, sent_labels, tokenizer, max_seq_length):
         """Loads a data file into a list of `InputBatch`s.
         """
 
@@ -128,8 +123,7 @@ class BertSentenceClassificationDataset(Dataset):
             sent_label = sent_labels[sent_id]
             word_count = 0
             # input_ids = tokenizer.tokens_to_ids(sent_subtokens)
-            input_ids = [tokenizer._convert_token_to_id(
-                t) for t in sent_subtokens]
+            input_ids = [tokenizer._convert_token_to_id(t) for t in sent_subtokens]
 
             # The mask has 1 for real tokens and 0 for padding tokens.
             # Only real tokens are attended to.
@@ -150,26 +144,23 @@ class BertSentenceClassificationDataset(Dataset):
                 nemo.logging.info("subtokens: %s" % " ".join(sent_subtokens))
                 nemo.logging.info("sent_label: %s" % sent_label)
                 nemo.logging.info("input_ids: %s" % utils.list2str(input_ids))
-                nemo.logging.info(
-                    "input_mask: %s" % utils.list2str(input_mask))
+                nemo.logging.info("input_mask: %s" % utils.list2str(input_mask))
 
-            self.features.append(InputFeatures(
-                sent_id=sent_id,
-                sent_label=sent_label,
-                input_ids=input_ids,
-                input_mask=input_mask,
-                segment_ids=segment_ids))
+            self.features.append(
+                InputFeatures(
+                    sent_id=sent_id,
+                    sent_label=sent_label,
+                    input_ids=input_ids,
+                    input_mask=input_mask,
+                    segment_ids=segment_ids,
+                )
+            )
 
 
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self,
-                 sent_id,
-                 sent_label,
-                 input_ids,
-                 input_mask,
-                 segment_ids):
+    def __init__(self, sent_id, sent_label, input_ids, input_mask, segment_ids):
         self.sent_id = sent_id
         self.sent_label = sent_label
         self.input_ids = input_ids

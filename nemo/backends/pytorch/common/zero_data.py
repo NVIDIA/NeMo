@@ -1,13 +1,11 @@
 import torch
 from torch.utils.data import Dataset
 
-from ...pytorch.nm import DataLayerNM
 from ....core.neural_types import *
+from ...pytorch.nm import DataLayerNM
 
 
-def neuralType2TensorShape(
-        neural_type: NeuralType, default_dim=32, skip_batch_axis=True
-) -> torch.Size:
+def neuralType2TensorShape(neural_type: NeuralType, default_dim=32, skip_batch_axis=True) -> torch.Size:
     """
     Converts Neural Type to torch tensor shape.
     Args:
@@ -69,8 +67,7 @@ class ZerosDataLayer(DataLayerNM):
             Defaults to None.
     """
 
-    def __init__(self, *, size, output_ports, dtype, batch_size, shapes=None,
-                 **kwargs):
+    def __init__(self, *, size, output_ports, dtype, batch_size, shapes=None, **kwargs):
         DataLayerNM.__init__(self, **kwargs)
         self._size = size
         self._output_ports = output_ports
@@ -78,18 +75,13 @@ class ZerosDataLayer(DataLayerNM):
         self._batch_size = batch_size
         self._shapes = shapes
         if self._shapes is None:
-            self._shapes = [
-                neuralType2TensorShape(pval)
-                for pname, pval in self._output_ports.items()
-            ]
+            self._shapes = [neuralType2TensorShape(pval) for pname, pval in self._output_ports.items()]
 
-        self._dataset = _ZeroDS(size=self._size, shapes=self._shapes,
-                                dtype=self._type)
+        self._dataset = _ZeroDS(size=self._size, shapes=self._shapes, dtype=self._type)
 
     @property
     def input_ports(self):
-        return {
-        }
+        return {}
 
     @property
     def output_ports(self):

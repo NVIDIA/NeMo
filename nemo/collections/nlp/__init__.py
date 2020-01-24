@@ -13,13 +13,11 @@
 # limitations under the License.
 # =============================================================================
 
+import nemo
+
 from .data import *
 from .huggingface import *
 from .modules import *
 from .transformer import *
-
-
-import nemo
-
 
 backend = nemo.core.Backend.PyTorch
