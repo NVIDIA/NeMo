@@ -26,9 +26,8 @@ from contextlib import contextmanager
 import threading
 import logging as _logging
 
-from nemo.constants import DLLOGGER_ENV_VARNAME_SAVE_LOGS_TO_DIR
-from nemo.constants import DLLOGGER_ENV_VARNAME_MLPERF_COMPLIANT
-from nemo.constants import DLLOGGER_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR
+from nemo.constants import NEMO_ENV_VARNAME_SAVE_LOGS_TO_DIR
+from nemo.constants import NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR
 
 from nemo.utils.formatters import StdOutFormatter
 from nemo.utils.formatters import MLPerfFormatter
@@ -84,7 +83,7 @@ class Logger(metaclass=SingletonMetaClass):
 
         self._handlers = dict()
 
-        self._log_dir = get_env(DLLOGGER_ENV_VARNAME_SAVE_LOGS_TO_DIR, "")
+        self._log_dir = get_env(NEMO_ENV_VARNAME_SAVE_LOGS_TO_DIR, "")
 
         self.old_warnings_showwarning = None
 
@@ -129,7 +128,7 @@ class Logger(metaclass=SingletonMetaClass):
         # ================= Streaming Handler =================
 
         # Add the output handler.
-        if get_envbool(DLLOGGER_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR, False):
+        if get_envbool(NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR, False):
             self._handlers["stream_stdout"] = _logging.StreamHandler(sys.stderr)
 
         else:
@@ -143,7 +142,7 @@ class Logger(metaclass=SingletonMetaClass):
                 lambda record: record.levelno > _logging.INFO
             )
 
-        if get_envbool(DLLOGGER_ENV_VARNAME_MLPERF_COMPLIANT, False):
+        if get_envbool(NEMO_ENV_VARNAME_MLPERF_COMPLIANT, False):
             Formatter = MLPerfFormatter
         else:
             Formatter = StdOutFormatter
