@@ -1,6 +1,6 @@
 from .bert_pretraining import (BertPretrainingDataset,
                                BertPretrainingPreprocessedDataset)
-from .dialogue_state_tracking import WOZDSTDataset
+from .dialogue_state_tracking import MultiWOZDataset
 from .glue import GLUEDataset
 from .joint_intent_slot import (BertJointIntentSlotDataset,
                                 BertJointIntentSlotInferDataset)

@@ -857,10 +857,14 @@ class WOZDSTDataLayer(TextDataLayer):
     def __init__(self,
                  data_dir,
                  domains,
+                 all_domains,
+                 vocab,
+                 slots,
+                 gating_dict,
                  num_samples=-1,
                  batch_size=16,
                  mode='train',
-                 dataset_type=WOZDSTDataset,
+                 dataset_type=MultiWOZDataset,
                  shuffle=False,
                  num_workers=0,
                  input_dropout=0,
@@ -872,7 +876,11 @@ class WOZDSTDataLayer(TextDataLayer):
                           'domains': domains,
                           'num_samples': num_samples,
                           'mode': mode,
-                          'shuffle': shuffle}
+                          'shuffle': shuffle,
+                          'all_domains': all_domains,
+                          'vocab': vocab,
+                          'slots': slots,
+                          'gating_dict': gating_dict}
         super().__init__(dataset_type, dataset_params, **kwargs)
 
         if self._placement == nemo.core.DeviceType.AllGpu:
