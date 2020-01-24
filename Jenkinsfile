@@ -11,7 +11,7 @@ pipeline {
 
     stage('PyTorch version') {
       steps {
-        sh 'python -c "import torch; logging.info(torch.__version__)"'
+        sh 'python -c "import torch; print(torch.__version__)"'
       }
     }
     stage('PEP8 Checks') {
