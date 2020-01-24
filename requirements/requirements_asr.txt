@@ -1,0 +1,11 @@
+frozendict
+inflect
+kaldi-io
+librosa
+marshmallow
+num2words
+ruamel.yaml
+soundfile
+sox
+torch-stft
+unidecode

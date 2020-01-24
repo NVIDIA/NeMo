@@ -5,8 +5,8 @@ import nemo
 from nemo.utils.lr_policies import CosineAnnealing
 import nemo_nlp
 
-from nemo_nlp.data.datasets.utils import LanguageModelDataDesc
-from nemo_nlp.utils.callbacks.language_modeling import eval_iter_callback, \
+from nemo.collections.nlp.data.datasets.utils import LanguageModelDataDesc
+from nemo.collections.nlp.utils.callbacks.language_modeling import eval_iter_callback, \
     eval_epochs_done_callback
 
 

@@ -7,7 +7,7 @@ from sklearn.metrics import confusion_matrix, classification_report
 
 import nemo
 import nemo_nlp
-from nemo_nlp.data.datasets.utils import JointIntentSlotDataDesc
+from nemo.collections.nlp.data.datasets.utils import JointIntentSlotDataDesc
 
 
 # Parsing arguments

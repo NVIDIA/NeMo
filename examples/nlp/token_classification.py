@@ -11,8 +11,8 @@ from nemo.utils.lr_policies import get_lr_policy
 import nemo_nlp
 from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer, \
     TokenClassifier, TokenClassificationLoss
-from nemo_nlp.data.datasets import utils
-from nemo_nlp.utils.callbacks.token_classification import \
+from nemo.collections.nlp.data.datasets import utils
+from nemo.collections.nlp.utils.callbacks.token_classification import \
     eval_iter_callback, eval_epochs_done_callback
 
 # Parsing arguments

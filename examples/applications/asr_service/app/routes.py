@@ -51,7 +51,7 @@ def wav_to_text(manifest, greedy=True):
 
     tensors = neural_factory.infer(tensors=eval_tensors)
     if greedy:
-        from nemo_asr.helpers import post_process_predictions
+        from nemo.collections.asr.helpers import post_process_predictions
         prediction = post_process_predictions(tensors[0], labels)
     else:
         prediction = tensors[0][0][0][0][1]

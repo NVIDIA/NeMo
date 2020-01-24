@@ -9,7 +9,7 @@ import nemo
 from nemo.utils.lr_policies import get_lr_policy
 
 import nemo_nlp
-from nemo_nlp.utils.callbacks.translation import \
+from nemo.collections.nlp.utils.callbacks.translation import \
     eval_iter_callback, eval_epochs_done_callback
 
 parser = nemo.utils.NemoArgParser(

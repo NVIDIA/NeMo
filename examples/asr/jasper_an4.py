@@ -11,7 +11,7 @@ import nemo
 import nemo.utils.argparse as nm_argparse
 from nemo.utils.lr_policies import CosineAnnealing
 import nemo_asr
-from nemo_asr.helpers import monitor_asr_train_progress, \
+from nemo.collections.asr.helpers import monitor_asr_train_progress, \
     process_evaluation_batch, process_evaluation_epoch, word_error_rate, \
     post_process_predictions, post_process_transcripts
 

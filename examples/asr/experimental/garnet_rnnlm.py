@@ -18,7 +18,7 @@ from nemo.utils.lr_policies import SquareAnnealing
 import nemo.utils.argparse as nm_argparse
 from nemo.utils.misc import Config
 import nemo_asr
-from nemo_asr.las.helpers import process_evaluation_batch, \
+from nemo.collections.asr.las.helpers import process_evaluation_batch, \
     process_evaluation_epoch
 
 # Special symbols for seq2seq with cross-entropy criterion and aux CTC loss
