@@ -33,8 +33,8 @@ from .package_info import __keywords__
 
 if "NEMO_PACKAGE_BUILDING" not in os.environ:
 
-    import logging
-    logging = logging.getLogger(__name__)
+    from nemo.utils.nemo_logging import Logger as _Logger
+    logging = _Logger()
 
     from nemo import backends
     from nemo import core
