@@ -40,7 +40,6 @@ from typing import List, Iterable, Tuple, Union
 from nemo import logging
 from .fairseq_tokenizer import tokenize_en
 
-
 VERSION = '1.3.5'
 
 try:
@@ -49,6 +48,7 @@ try:
 
     # If SIGPIPE is available, change behaviour to default instead of ignore.
     from signal import signal, SIG_DFL
+
     signal(SIGPIPE, SIG_DFL)
 
 except ImportError:
@@ -57,7 +57,7 @@ except ImportError:
     )
 
 # Where to store downloaded test sets.
-# Define the environment variable $SACREBLEU, or use the default of ~/.sacrebleu.
+# Define the environment variable $SACREBLEU, or use the default of ~/.sacrebleu
 #
 # Querying for a HOME environment variable can result in None (e.g., on Windows)
 # in which case the os.path.join() throws a TypeError. Using expanduser() is
@@ -77,13 +77,15 @@ CHRF_BETA = 2
 # The default floor value to use with `--smooth floor`
 SMOOTH_VALUE_DEFAULT = 0.0
 
-# This defines data locations.
-# At the top level are test sets.
-# Beneath each test set, we define the location to download the test data.
-# The other keys are each language pair contained in the tarball, and the respective locations of the source and reference data within each.
-# Many of these are *.sgm files, which are processed to produced plain text that can be used by this script.
-# The canonical location of unpacked, processed data is
+# This defines data locations. At the top level are test sets. Beneath each
+# test set, we define the location to download the test data. The other keys
+# are each language pair contained in the tarball, and the respective
+# locations of the source and reference data within each. Many of these are
+# *.sgm files, which are processed to produced plain text that can be used by
+# this script. The canonical location of unpacked, processed data is
 # $SACREBLEU_DIR/$TEST/$SOURCE-$TARGET.{$SOURCE,$TARGET}
+
+# pep8: disable=E501
 DATASETS = {
     'mtnt2019': {
         'data': ['http://www.cs.cmu.edu/~pmichel1/hosting/MTNT2019.tar.gz'],
@@ -99,9 +101,9 @@ DATASETS = {
             'https://github.com/pmichel31415/mtnt/releases/download/v1.1/MTNT.1.1.tar.gz'
         ],
         'description':
-        'Test data for the Machine Translation of Noisy Text task: http://www.cs.cmu.edu/~pmichel1/mtnt/',
+            'Test data for the Machine Translation of Noisy Text task: http://www.cs.cmu.edu/~pmichel1/mtnt/',
         'citation':
-        '@InProceedings{michel2018a:mtnt,\n    author = "Michel, Paul and Neubig, Graham",\n    title = "MTNT: A Testbed for Machine Translation of Noisy Text",\n    booktitle = "Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing",\n    year = "2018",\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
+            '@InProceedings{michel2018a:mtnt,\n    author = "Michel, Paul and Neubig, Graham",\n    title = "MTNT: A Testbed for Machine Translation of Noisy Text",\n    booktitle = "Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing",\n    year = "2018",\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
         'md5': ['8ce1831ac584979ba8cdcd9d4be43e1d'],
         'en-fr': ['1:MTNT/test/test.en-fr.tsv', '2:MTNT/test/test.en-fr.tsv'],
         'fr-en': ['1:MTNT/test/test.fr-en.tsv', '2:MTNT/test/test.fr-en.tsv'],
@@ -113,36 +115,36 @@ DATASETS = {
             'https://github.com/pmichel31415/mtnt/releases/download/v1.1/MTNT.1.1.tar.gz'
         ],
         'description':
-        'Validation data for the Machine Translation of Noisy Text task: http://www.cs.cmu.edu/~pmichel1/mtnt/',
+            'Validation data for the Machine Translation of Noisy Text task: http://www.cs.cmu.edu/~pmichel1/mtnt/',
         'citation':
-        '@InProceedings{michel2018a:mtnt,\n    author = "Michel, Paul and Neubig, Graham",\n    title = "MTNT: A Testbed for Machine Translation of Noisy Text",\n    booktitle = "Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing",\n    year = "2018",\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
+            '@InProceedings{michel2018a:mtnt,\n    author = "Michel, Paul and Neubig, Graham",\n    title = "MTNT: A Testbed for Machine Translation of Noisy Text",\n    booktitle = "Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing",\n    year = "2018",\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
         'md5': ['8ce1831ac584979ba8cdcd9d4be43e1d'],
         'en-fr':
-        ['1:MTNT/valid/valid.en-fr.tsv', '2:MTNT/valid/valid.en-fr.tsv'],
+            ['1:MTNT/valid/valid.en-fr.tsv', '2:MTNT/valid/valid.en-fr.tsv'],
         'fr-en':
-        ['1:MTNT/valid/valid.fr-en.tsv', '2:MTNT/valid/valid.fr-en.tsv'],
+            ['1:MTNT/valid/valid.fr-en.tsv', '2:MTNT/valid/valid.fr-en.tsv'],
         'en-ja':
-        ['1:MTNT/valid/valid.en-ja.tsv', '2:MTNT/valid/valid.en-ja.tsv'],
+            ['1:MTNT/valid/valid.en-ja.tsv', '2:MTNT/valid/valid.en-ja.tsv'],
         'ja-en':
-        ['1:MTNT/valid/valid.ja-en.tsv', '2:MTNT/valid/valid.ja-en.tsv'],
+            ['1:MTNT/valid/valid.ja-en.tsv', '2:MTNT/valid/valid.ja-en.tsv'],
     },
     'mtnt1.1/train': {
         'data': [
             'https://github.com/pmichel31415/mtnt/releases/download/v1.1/MTNT.1.1.tar.gz'
         ],
         'description':
-        'Training data for the Machine Translation of Noisy Text task: http://www.cs.cmu.edu/~pmichel1/mtnt/',
+            'Training data for the Machine Translation of Noisy Text task: http://www.cs.cmu.edu/~pmichel1/mtnt/',
         'citation':
-        '@InProceedings{michel2018a:mtnt,\n    author = "Michel, Paul and Neubig, Graham",\n    title = "MTNT: A Testbed for Machine Translation of Noisy Text",\n    booktitle = "Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing",\n    year = "2018",\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
+            '@InProceedings{michel2018a:mtnt,\n    author = "Michel, Paul and Neubig, Graham",\n    title = "MTNT: A Testbed for Machine Translation of Noisy Text",\n    booktitle = "Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing",\n    year = "2018",\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
         'md5': ['8ce1831ac584979ba8cdcd9d4be43e1d'],
         'en-fr':
-        ['1:MTNT/train/train.en-fr.tsv', '2:MTNT/train/train.en-fr.tsv'],
+            ['1:MTNT/train/train.en-fr.tsv', '2:MTNT/train/train.en-fr.tsv'],
         'fr-en':
-        ['1:MTNT/train/train.fr-en.tsv', '2:MTNT/train/train.fr-en.tsv'],
+            ['1:MTNT/train/train.fr-en.tsv', '2:MTNT/train/train.fr-en.tsv'],
         'en-ja':
-        ['1:MTNT/train/train.en-ja.tsv', '2:MTNT/train/train.en-ja.tsv'],
+            ['1:MTNT/train/train.en-ja.tsv', '2:MTNT/train/train.en-ja.tsv'],
         'ja-en':
-        ['1:MTNT/train/train.ja-en.tsv', '2:MTNT/train/train.ja-en.tsv'],
+            ['1:MTNT/train/train.ja-en.tsv', '2:MTNT/train/train.ja-en.tsv'],
     },
     'wmt19': {
         'data': ['http://data.statmt.org/wmt19/translation-task/test.tgz'],
@@ -227,28 +229,34 @@ DATASETS = {
     'wmt19/dev': {
         'data': ['http://data.statmt.org/wmt19/translation-task/dev.tgz'],
         'description':
-        'Development data for tasks new to 2019.',
+            'Development data for tasks new to 2019.',
         'md5': ['f2ec7af5947c19e0cacb3882eb208002'],
         'lt-en':
-        ['dev/newsdev2019-lten-src.lt.sgm', 'dev/newsdev2019-lten-ref.en.sgm'],
+            ['dev/newsdev2019-lten-src.lt.sgm',
+             'dev/newsdev2019-lten-ref.en.sgm'],
         'en-lt':
-        ['dev/newsdev2019-enlt-src.en.sgm', 'dev/newsdev2019-enlt-ref.lt.sgm'],
+            ['dev/newsdev2019-enlt-src.en.sgm',
+             'dev/newsdev2019-enlt-ref.lt.sgm'],
         'gu-en':
-        ['dev/newsdev2019-guen-src.gu.sgm', 'dev/newsdev2019-guen-ref.en.sgm'],
+            ['dev/newsdev2019-guen-src.gu.sgm',
+             'dev/newsdev2019-guen-ref.en.sgm'],
         'en-gu':
-        ['dev/newsdev2019-engu-src.en.sgm', 'dev/newsdev2019-engu-ref.gu.sgm'],
+            ['dev/newsdev2019-engu-src.en.sgm',
+             'dev/newsdev2019-engu-ref.gu.sgm'],
         'kk-en':
-        ['dev/newsdev2019-kken-src.kk.sgm', 'dev/newsdev2019-kken-ref.en.sgm'],
+            ['dev/newsdev2019-kken-src.kk.sgm',
+             'dev/newsdev2019-kken-ref.en.sgm'],
         'en-kk':
-        ['dev/newsdev2019-enkk-src.en.sgm', 'dev/newsdev2019-enkk-ref.kk.sgm'],
+            ['dev/newsdev2019-enkk-src.en.sgm',
+             'dev/newsdev2019-enkk-ref.kk.sgm'],
     },
     'wmt18': {
         'data': ['http://data.statmt.org/wmt18/translation-task/test.tgz'],
         'md5': ['f996c245ecffea23d0006fa4c34e9064'],
         'description':
-        'Official evaluation data.',
+            'Official evaluation data.',
         'citation':
-        '@inproceedings{bojar-etal-2018-findings,\n    title = "Findings of the 2018 Conference on Machine Translation ({WMT}18)",\n    author = "Bojar, Ond{\v{r}}ej  and\n      Federmann, Christian  and\n      Fishel, Mark  and\n      Graham, Yvette  and\n      Haddow, Barry  and\n      Koehn, Philipp  and\n      Monz, Christof",\n    booktitle = "Proceedings of the Third Conference on Machine Translation: Shared Task Papers",\n    month = oct,\n    year = "2018",\n    address = "Belgium, Brussels",\n    publisher = "Association for Computational Linguistics",\n    url = "https://www.aclweb.org/anthology/W18-6401",\n    pages = "272--303",\n}',
+            '@inproceedings{bojar-etal-2018-findings,\n    title = "Findings of the 2018 Conference on Machine Translation ({WMT}18)",\n    author = "Bojar, Ond{\v{r}}ej  and\n      Federmann, Christian  and\n      Fishel, Mark  and\n      Graham, Yvette  and\n      Haddow, Barry  and\n      Koehn, Philipp  and\n      Monz, Christof",\n    booktitle = "Proceedings of the Third Conference on Machine Translation: Shared Task Papers",\n    month = oct,\n    year = "2018",\n    address = "Belgium, Brussels",\n    publisher = "Association for Computational Linguistics",\n    url = "https://www.aclweb.org/anthology/W18-6401",\n    pages = "272--303",\n}',
         'cs-en': [
             'test/newstest2018-csen-src.cs.sgm',
             'test/newstest2018-csen-ref.en.sgm'
@@ -310,7 +318,7 @@ DATASETS = {
         'data': ['http://data.statmt.org/wmt18/translation-task/test-ts.tgz'],
         'md5': ['5c621a34d512cc2dd74162ae7d00b320'],
         'description':
-        'Official evaluation sources with extra test sets interleaved.',
+            'Official evaluation sources with extra test sets interleaved.',
         'cs-en': ['test/newstest2018-csen-src-ts.cs.sgm'],
         'de-en': ['test/newstest2018-deen-src-ts.de.sgm'],
         'en-cs': ['test/newstest2018-encs-src-ts.en.sgm'],
@@ -330,19 +338,21 @@ DATASETS = {
         'data': ['http://data.statmt.org/wmt18/translation-task/dev.tgz'],
         'md5': ['486f391da54a7a3247f02ebd25996f24'],
         'description':
-        'Development data (Estonian<>English).',
+            'Development data (Estonian<>English).',
         'et-en':
-        ['dev/newsdev2018-eten-src.et.sgm', 'dev/newsdev2018-eten-ref.en.sgm'],
+            ['dev/newsdev2018-eten-src.et.sgm',
+             'dev/newsdev2018-eten-ref.en.sgm'],
         'en-et':
-        ['dev/newsdev2018-enet-src.en.sgm', 'dev/newsdev2018-enet-ref.et.sgm'],
+            ['dev/newsdev2018-enet-src.en.sgm',
+             'dev/newsdev2018-enet-ref.et.sgm'],
     },
     'wmt17': {
         'data': ['http://data.statmt.org/wmt17/translation-task/test.tgz'],
         'md5': ['86a1724c276004aa25455ae2a04cef26'],
         'description':
-        'Official evaluation data.',
+            'Official evaluation data.',
         'citation':
-        '@InProceedings{bojar-EtAl:2017:WMT1,\n  author    = {Bojar, Ond\\v{r}ej  and  Chatterjee, Rajen  and  Federmann, Christian  and  Graham, Yvette  and  Haddow, Barry  and  Huang, Shujian  and  Huck, Matthias  and  Koehn, Philipp  and  Liu, Qun  and  Logacheva, Varvara  and  Monz, Christof  and  Negri, Matteo  and  Post, Matt  and  Rubino, Raphael  and  Specia, Lucia  and  Turchi, Marco},\n  title     = {Findings of the 2017 Conference on Machine Translation (WMT17)},\n  booktitle = {Proceedings of the Second Conference on Machine Translation, Volume 2: Shared Task Papers},\n  month     = {September},\n  year      = {2017},\n  address   = {Copenhagen, Denmark},\n  publisher = {Association for Computational Linguistics},\n  pages     = {169--214},\n  url       = {http://www.aclweb.org/anthology/W17-4717}\n}',
+            '@InProceedings{bojar-EtAl:2017:WMT1,\n  author    = {Bojar, Ond\\v{r}ej  and  Chatterjee, Rajen  and  Federmann, Christian  and  Graham, Yvette  and  Haddow, Barry  and  Huang, Shujian  and  Huck, Matthias  and  Koehn, Philipp  and  Liu, Qun  and  Logacheva, Varvara  and  Monz, Christof  and  Negri, Matteo  and  Post, Matt  and  Rubino, Raphael  and  Specia, Lucia  and  Turchi, Marco},\n  title     = {Findings of the 2017 Conference on Machine Translation (WMT17)},\n  booktitle = {Proceedings of the Second Conference on Machine Translation, Volume 2: Shared Task Papers},\n  month     = {September},\n  year      = {2017},\n  address   = {Copenhagen, Denmark},\n  publisher = {Association for Computational Linguistics},\n  pages     = {169--214},\n  url       = {http://www.aclweb.org/anthology/W17-4717}\n}',
         'cs-en': [
             'test/newstest2017-csen-src.cs.sgm',
             'test/newstest2017-csen-ref.en.sgm'
@@ -404,7 +414,7 @@ DATASETS = {
         'data': ['http://data.statmt.org/wmt17/translation-task/test.tgz'],
         'md5': ['86a1724c276004aa25455ae2a04cef26'],
         'description':
-        'Additional reference for EN-FI and FI-EN.',
+            'Additional reference for EN-FI and FI-EN.',
         'en-fi': [
             'test/newstestB2017-enfi-src.en.sgm',
             'test/newstestB2017-enfi-ref.fi.sgm'
@@ -414,7 +424,7 @@ DATASETS = {
         'data': ['http://data.statmt.org/wmt17/translation-task/test.tgz'],
         'md5': ['86a1724c276004aa25455ae2a04cef26'],
         'description':
-        'Systems with two references.',
+            'Systems with two references.',
         'en-fi': [
             'test/newstest2017-enfi-src.en.sgm',
             'test/newstest2017-enfi-ref.fi.sgm',
@@ -423,27 +433,31 @@ DATASETS = {
     },
     'wmt17/improved': {
         'data':
-        ['http://data.statmt.org/wmt17/translation-task/test-update-1.tgz'],
+            ['http://data.statmt.org/wmt17/translation-task/test-update-1.tgz'],
         'md5': ['91dbfd5af99bc6891a637a68e04dfd41'],
         'description': 'Improved zh-en and en-zh translations.',
         'en-zh':
-        ['newstest2017-enzh-src.en.sgm', 'newstest2017-enzh-ref.zh.sgm'],
+            ['newstest2017-enzh-src.en.sgm', 'newstest2017-enzh-ref.zh.sgm'],
         'zh-en':
-        ['newstest2017-zhen-src.zh.sgm', 'newstest2017-zhen-ref.en.sgm'],
+            ['newstest2017-zhen-src.zh.sgm', 'newstest2017-zhen-ref.en.sgm'],
     },
     'wmt17/dev': {
         'data': ['http://data.statmt.org/wmt17/translation-task/dev.tgz'],
         'md5': ['9b1aa63c1cf49dccdd20b962fe313989'],
         'description':
-        'Development sets released for new languages in 2017.',
+            'Development sets released for new languages in 2017.',
         'en-lv':
-        ['dev/newsdev2017-enlv-src.en.sgm', 'dev/newsdev2017-enlv-ref.lv.sgm'],
+            ['dev/newsdev2017-enlv-src.en.sgm',
+             'dev/newsdev2017-enlv-ref.lv.sgm'],
         'en-zh':
-        ['dev/newsdev2017-enzh-src.en.sgm', 'dev/newsdev2017-enzh-ref.zh.sgm'],
+            ['dev/newsdev2017-enzh-src.en.sgm',
+             'dev/newsdev2017-enzh-ref.zh.sgm'],
         'lv-en':
-        ['dev/newsdev2017-lven-src.lv.sgm', 'dev/newsdev2017-lven-ref.en.sgm'],
+            ['dev/newsdev2017-lven-src.lv.sgm',
+             'dev/newsdev2017-lven-ref.en.sgm'],
         'zh-en':
-        ['dev/newsdev2017-zhen-src.zh.sgm', 'dev/newsdev2017-zhen-ref.en.sgm'],
+            ['dev/newsdev2017-zhen-src.zh.sgm',
+             'dev/newsdev2017-zhen-ref.en.sgm'],
     },
     'wmt17/ms': {
         'data': [
@@ -455,9 +469,9 @@ DATASETS = {
             '91dbfd5af99bc6891a637a68e04dfd41'
         ],
         'description':
-        'Additional Chinese-English references from Microsoft Research.',
+            'Additional Chinese-English references from Microsoft Research.',
         'citation':
-        '@inproceedings{achieving-human-parity-on-automatic-chinese-to-english-news-translation,\n  author = {Hassan Awadalla, Hany and Aue, Anthony and Chen, Chang and Chowdhary, Vishal and Clark, Jonathan and Federmann, Christian and Huang, Xuedong and Junczys-Dowmunt, Marcin and Lewis, Will and Li, Mu and Liu, Shujie and Liu, Tie-Yan and Luo, Renqian and Menezes, Arul and Qin, Tao and Seide, Frank and Tan, Xu and Tian, Fei and Wu, Lijun and Wu, Shuangzhi and Xia, Yingce and Zhang, Dongdong and Zhang, Zhirui and Zhou, Ming},\n  title = {Achieving Human Parity on Automatic Chinese to English News Translation},\n  booktitle = {},\n  year = {2018},\n  month = {March},\n  abstract = {Machine translation has made rapid advances in recent years. Millions of people are using it today in online translation systems and mobile applications in order to communicate across language barriers. The question naturally arises whether such systems can approach or achieve parity with human translations. In this paper, we first address the problem of how to define and accurately measure human parity in translation. We then describe Microsoft’s machine translation system and measure the quality of its translations on the widely used WMT 2017 news translation task from Chinese to English. We find that our latest neural machine translation system has reached a new state-of-the-art, and that the translation quality is at human parity when compared to professional human translations. We also find that it significantly exceeds the quality of crowd-sourced non-professional translations.},\n  publisher = {},\n  url = {https://www.microsoft.com/en-us/research/publication/achieving-human-parity-on-automatic-chinese-to-english-news-translation/},\n  address = {},\n  pages = {},\n  journal = {},\n  volume = {},\n  chapter = {},\n  isbn = {},\n}',
+            '@inproceedings{achieving-human-parity-on-automatic-chinese-to-english-news-translation,\n  author = {Hassan Awadalla, Hany and Aue, Anthony and Chen, Chang and Chowdhary, Vishal and Clark, Jonathan and Federmann, Christian and Huang, Xuedong and Junczys-Dowmunt, Marcin and Lewis, Will and Li, Mu and Liu, Shujie and Liu, Tie-Yan and Luo, Renqian and Menezes, Arul and Qin, Tao and Seide, Frank and Tan, Xu and Tian, Fei and Wu, Lijun and Wu, Shuangzhi and Xia, Yingce and Zhang, Dongdong and Zhang, Zhirui and Zhou, Ming},\n  title = {Achieving Human Parity on Automatic Chinese to English News Translation},\n  booktitle = {},\n  year = {2018},\n  month = {March},\n  abstract = {Machine translation has made rapid advances in recent years. Millions of people are using it today in online translation systems and mobile applications in order to communicate across language barriers. The question naturally arises whether such systems can approach or achieve parity with human translations. In this paper, we first address the problem of how to define and accurately measure human parity in translation. We then describe Microsoft’s machine translation system and measure the quality of its translations on the widely used WMT 2017 news translation task from Chinese to English. We find that our latest neural machine translation system has reached a new state-of-the-art, and that the translation quality is at human parity when compared to professional human translations. We also find that it significantly exceeds the quality of crowd-sourced non-professional translations.},\n  publisher = {},\n  url = {https://www.microsoft.com/en-us/research/publication/achieving-human-parity-on-automatic-chinese-to-english-news-translation/},\n  address = {},\n  pages = {},\n  journal = {},\n  volume = {},\n  chapter = {},\n  isbn = {},\n}',
         'zh-en': [
             'newstest2017-zhen-src.zh.sgm', 'newstest2017-zhen-ref.en.sgm',
             'Translator-HumanParityData-master/Translator-HumanParityData/References/Translator-HumanParityData-Reference-HT.txt',
@@ -468,9 +482,9 @@ DATASETS = {
         'data': ['http://data.statmt.org/wmt16/translation-task/test.tgz'],
         'md5': ['3d809cd0c2c86adb2c67034d15c4e446'],
         'description':
-        'Official evaluation data.',
+            'Official evaluation data.',
         'citation':
-        '@InProceedings{bojar-EtAl:2016:WMT1,\n  author    = {Bojar, Ond\\v{r}ej  and  Chatterjee, Rajen  and  Federmann, Christian  and  Graham, Yvette  and  Haddow, Barry  and  Huck, Matthias  and  Jimeno Yepes, Antonio  and  Koehn, Philipp  and  Logacheva, Varvara  and  Monz, Christof  and  Negri, Matteo  and  Neveol, Aurelie  and  Neves, Mariana  and  Popel, Martin  and  Post, Matt  and  Rubino, Raphael  and  Scarton, Carolina  and  Specia, Lucia  and  Turchi, Marco  and  Verspoor, Karin  and  Zampieri, Marcos},\n  title     = {Findings of the 2016 Conference on Machine Translation},\n  booktitle = {Proceedings of the First Conference on Machine Translation},\n  month     = {August},\n  year      = {2016},\n  address   = {Berlin, Germany},\n  publisher = {Association for Computational Linguistics},\n  pages     = {131--198},\n  url       = {http://www.aclweb.org/anthology/W/W16/W16-2301}\n}',
+            '@InProceedings{bojar-EtAl:2016:WMT1,\n  author    = {Bojar, Ond\\v{r}ej  and  Chatterjee, Rajen  and  Federmann, Christian  and  Graham, Yvette  and  Haddow, Barry  and  Huck, Matthias  and  Jimeno Yepes, Antonio  and  Koehn, Philipp  and  Logacheva, Varvara  and  Monz, Christof  and  Negri, Matteo  and  Neveol, Aurelie  and  Neves, Mariana  and  Popel, Martin  and  Post, Matt  and  Rubino, Raphael  and  Scarton, Carolina  and  Specia, Lucia  and  Turchi, Marco  and  Verspoor, Karin  and  Zampieri, Marcos},\n  title     = {Findings of the 2016 Conference on Machine Translation},\n  booktitle = {Proceedings of the First Conference on Machine Translation},\n  month     = {August},\n  year      = {2016},\n  address   = {Berlin, Germany},\n  publisher = {Association for Computational Linguistics},\n  pages     = {131--198},\n  url       = {http://www.aclweb.org/anthology/W/W16/W16-2301}\n}',
         'cs-en': [
             'test/newstest2016-csen-src.cs.sgm',
             'test/newstest2016-csen-ref.en.sgm'
@@ -524,7 +538,7 @@ DATASETS = {
         'data': ['http://data.statmt.org/wmt16/translation-task/test.tgz'],
         'md5': ['3d809cd0c2c86adb2c67034d15c4e446'],
         'description':
-        'Additional reference for EN-FI.',
+            'Additional reference for EN-FI.',
         'en-fi': [
             'test/newstest2016-enfi-src.en.sgm',
             'test/newstestB2016-enfi-ref.fi.sgm'
@@ -534,7 +548,7 @@ DATASETS = {
         'data': ['http://data.statmt.org/wmt16/translation-task/test.tgz'],
         'md5': ['3d809cd0c2c86adb2c67034d15c4e446'],
         'description':
-        'EN-FI with two references.',
+            'EN-FI with two references.',
         'en-fi': [
             'test/newstest2016-enfi-src.en.sgm',
             'test/newstest2016-enfi-ref.fi.sgm',
@@ -545,23 +559,27 @@ DATASETS = {
         'data': ['http://data.statmt.org/wmt16/translation-task/dev.tgz'],
         'md5': ['4a3dc2760bb077f4308cce96b06e6af6'],
         'description':
-        'Development sets released for new languages in 2016.',
+            'Development sets released for new languages in 2016.',
         'en-ro':
-        ['dev/newsdev2016-enro-src.en.sgm', 'dev/newsdev2016-enro-ref.ro.sgm'],
+            ['dev/newsdev2016-enro-src.en.sgm',
+             'dev/newsdev2016-enro-ref.ro.sgm'],
         'en-tr':
-        ['dev/newsdev2016-entr-src.en.sgm', 'dev/newsdev2016-entr-ref.tr.sgm'],
+            ['dev/newsdev2016-entr-src.en.sgm',
+             'dev/newsdev2016-entr-ref.tr.sgm'],
         'ro-en':
-        ['dev/newsdev2016-roen-src.ro.sgm', 'dev/newsdev2016-roen-ref.en.sgm'],
+            ['dev/newsdev2016-roen-src.ro.sgm',
+             'dev/newsdev2016-roen-ref.en.sgm'],
         'tr-en':
-        ['dev/newsdev2016-tren-src.tr.sgm', 'dev/newsdev2016-tren-ref.en.sgm']
+            ['dev/newsdev2016-tren-src.tr.sgm',
+             'dev/newsdev2016-tren-ref.en.sgm']
     },
     'wmt15': {
         'data': ['http://statmt.org/wmt15/test.tgz'],
         'md5': ['67e3beca15e69fe3d36de149da0a96df'],
         'description':
-        'Official evaluation data.',
+            'Official evaluation data.',
         'citation':
-        '@InProceedings{bojar-EtAl:2015:WMT,\n  author    = {Bojar, Ond\\v{r}ej  and  Chatterjee, Rajen  and  Federmann, Christian  and  Haddow, Barry  and  Huck, Matthias  and  Hokamp, Chris  and  Koehn, Philipp  and  Logacheva, Varvara  and  Monz, Christof  and  Negri, Matteo  and  Post, Matt  and  Scarton, Carolina  and  Specia, Lucia  and  Turchi, Marco},\n  title     = {Findings of the 2015 Workshop on Statistical Machine Translation},\n  booktitle = {Proceedings of the Tenth Workshop on Statistical Machine Translation},\n  month     = {September},\n  year      = {2015},\n  address   = {Lisbon, Portugal},\n  publisher = {Association for Computational Linguistics},\n  pages     = {1--46},\n  url       = {http://aclweb.org/anthology/W15-3001}\n}',
+            '@InProceedings{bojar-EtAl:2015:WMT,\n  author    = {Bojar, Ond\\v{r}ej  and  Chatterjee, Rajen  and  Federmann, Christian  and  Haddow, Barry  and  Huck, Matthias  and  Hokamp, Chris  and  Koehn, Philipp  and  Logacheva, Varvara  and  Monz, Christof  and  Negri, Matteo  and  Post, Matt  and  Scarton, Carolina  and  Specia, Lucia  and  Turchi, Marco},\n  title     = {Findings of the 2015 Workshop on Statistical Machine Translation},\n  booktitle = {Proceedings of the Tenth Workshop on Statistical Machine Translation},\n  month     = {September},\n  year      = {2015},\n  address   = {Lisbon, Portugal},\n  publisher = {Association for Computational Linguistics},\n  pages     = {1--46},\n  url       = {http://aclweb.org/anthology/W15-3001}\n}',
         'en-fr': [
             'test/newsdiscusstest2015-enfr-src.en.sgm',
             'test/newsdiscusstest2015-enfr-ref.fr.sgm'
@@ -607,9 +625,9 @@ DATASETS = {
         'data': ['http://statmt.org/wmt14/test-filtered.tgz'],
         'md5': ['84c597844c1542e29c2aff23aaee4310'],
         'description':
-        'Official evaluation data.',
+            'Official evaluation data.',
         'citation':
-        '@InProceedings{bojar-EtAl:2014:W14-33,\n  author    = {Bojar, Ondrej  and  Buck, Christian  and  Federmann, Christian  and  Haddow, Barry  and  Koehn, Philipp  and  Leveling, Johannes  and  Monz, Christof  and  Pecina, Pavel  and  Post, Matt  and  Saint-Amand, Herve  and  Soricut, Radu  and  Specia, Lucia  and  Tamchyna, Ale\\v{s}},\n  title     = {Findings of the 2014 Workshop on Statistical Machine Translation},\n  booktitle = {Proceedings of the Ninth Workshop on Statistical Machine Translation},\n  month     = {June},\n  year      = {2014},\n  address   = {Baltimore, Maryland, USA},\n  publisher = {Association for Computational Linguistics},\n  pages     = {12--58},\n  url       = {http://www.aclweb.org/anthology/W/W14/W14-3302}\n}',
+            '@InProceedings{bojar-EtAl:2014:W14-33,\n  author    = {Bojar, Ondrej  and  Buck, Christian  and  Federmann, Christian  and  Haddow, Barry  and  Koehn, Philipp  and  Leveling, Johannes  and  Monz, Christof  and  Pecina, Pavel  and  Post, Matt  and  Saint-Amand, Herve  and  Soricut, Radu  and  Specia, Lucia  and  Tamchyna, Ale\\v{s}},\n  title     = {Findings of the 2014 Workshop on Statistical Machine Translation},\n  booktitle = {Proceedings of the Ninth Workshop on Statistical Machine Translation},\n  month     = {June},\n  year      = {2014},\n  address   = {Baltimore, Maryland, USA},\n  publisher = {Association for Computational Linguistics},\n  pages     = {12--58},\n  url       = {http://www.aclweb.org/anthology/W/W14/W14-3302}\n}',
         'cs-en': [
             'test/newstest2014-csen-src.cs.sgm',
             'test/newstest2014-csen-ref.en.sgm'
@@ -655,7 +673,7 @@ DATASETS = {
         'data': ['http://statmt.org/wmt14/test-full.tgz'],
         'md5': ['a8cd784e006feb32ac6f3d9ec7eb389a'],
         'description':
-        'Evaluation data released after official evaluation for further research.',
+            'Evaluation data released after official evaluation for further research.',
         'cs-en': [
             'test-full/newstest2014-csen-src.cs.sgm',
             'test-full/newstest2014-csen-ref.en.sgm'
@@ -702,57 +720,57 @@ DATASETS = {
         'md5': ['48eca5d02f637af44e85186847141f67'],
         'description': 'Official evaluation data.',
         'citation':
-        '@InProceedings{bojar-EtAl:2013:WMT,\n  author    = {Bojar, Ond\\v{r}ej  and  Buck, Christian  and  Callison-Burch, Chris  and  Federmann, Christian  and  Haddow, Barry  and  Koehn, Philipp  and  Monz, Christof  and  Post, Matt  and  Soricut, Radu  and  Specia, Lucia},\n  title     = {Findings of the 2013 {Workshop on Statistical Machine Translation}},\n  booktitle = {Proceedings of the Eighth Workshop on Statistical Machine Translation},\n  month     = {August},\n  year      = {2013},\n  address   = {Sofia, Bulgaria},\n  publisher = {Association for Computational Linguistics},\n  pages     = {1--44},\n  url       = {http://www.aclweb.org/anthology/W13-2201}\n}',
+            '@InProceedings{bojar-EtAl:2013:WMT,\n  author    = {Bojar, Ond\\v{r}ej  and  Buck, Christian  and  Callison-Burch, Chris  and  Federmann, Christian  and  Haddow, Barry  and  Koehn, Philipp  and  Monz, Christof  and  Post, Matt  and  Soricut, Radu  and  Specia, Lucia},\n  title     = {Findings of the 2013 {Workshop on Statistical Machine Translation}},\n  booktitle = {Proceedings of the Eighth Workshop on Statistical Machine Translation},\n  month     = {August},\n  year      = {2013},\n  address   = {Sofia, Bulgaria},\n  publisher = {Association for Computational Linguistics},\n  pages     = {1--44},\n  url       = {http://www.aclweb.org/anthology/W13-2201}\n}',
         'cs-en':
-        ['test/newstest2013-src.cs.sgm', 'test/newstest2013-src.en.sgm'],
+            ['test/newstest2013-src.cs.sgm', 'test/newstest2013-src.en.sgm'],
         'en-cs':
-        ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.cs.sgm'],
+            ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.cs.sgm'],
         'de-en':
-        ['test/newstest2013-src.de.sgm', 'test/newstest2013-src.en.sgm'],
+            ['test/newstest2013-src.de.sgm', 'test/newstest2013-src.en.sgm'],
         'en-de':
-        ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.de.sgm'],
+            ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.de.sgm'],
         'es-en':
-        ['test/newstest2013-src.es.sgm', 'test/newstest2013-src.en.sgm'],
+            ['test/newstest2013-src.es.sgm', 'test/newstest2013-src.en.sgm'],
         'en-es':
-        ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.es.sgm'],
+            ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.es.sgm'],
         'fr-en':
-        ['test/newstest2013-src.fr.sgm', 'test/newstest2013-src.en.sgm'],
+            ['test/newstest2013-src.fr.sgm', 'test/newstest2013-src.en.sgm'],
         'en-fr':
-        ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.fr.sgm'],
+            ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.fr.sgm'],
         'ru-en':
-        ['test/newstest2013-src.ru.sgm', 'test/newstest2013-src.en.sgm'],
+            ['test/newstest2013-src.ru.sgm', 'test/newstest2013-src.en.sgm'],
         'en-ru':
-        ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.ru.sgm']
+            ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.ru.sgm']
     },
     'wmt12': {
         'data': ['http://statmt.org/wmt12/test.tgz'],
         'md5': ['608232d34ebc4ba2ff70fead45674e47'],
         'description': 'Official evaluation data.',
         'citation':
-        '@InProceedings{callisonburch-EtAl:2012:WMT,\n  author    = {Callison-Burch, Chris  and  Koehn, Philipp  and  Monz, Christof  and  Post, Matt  and  Soricut, Radu  and  Specia, Lucia},\n  title     = {Findings of the 2012 Workshop on Statistical Machine Translation},\n  booktitle = {Proceedings of the Seventh Workshop on Statistical Machine Translation},\n  month     = {June},\n  year      = {2012},\n  address   = {Montr{\'e}al, Canada},\n  publisher = {Association for Computational Linguistics},\n  pages     = {10--51},\n  url       = {http://www.aclweb.org/anthology/W12-3102}\n}',
+            '@InProceedings{callisonburch-EtAl:2012:WMT,\n  author    = {Callison-Burch, Chris  and  Koehn, Philipp  and  Monz, Christof  and  Post, Matt  and  Soricut, Radu  and  Specia, Lucia},\n  title     = {Findings of the 2012 Workshop on Statistical Machine Translation},\n  booktitle = {Proceedings of the Seventh Workshop on Statistical Machine Translation},\n  month     = {June},\n  year      = {2012},\n  address   = {Montr{\'e}al, Canada},\n  publisher = {Association for Computational Linguistics},\n  pages     = {10--51},\n  url       = {http://www.aclweb.org/anthology/W12-3102}\n}',
         'cs-en':
-        ['test/newstest2012-src.cs.sgm', 'test/newstest2012-src.en.sgm'],
+            ['test/newstest2012-src.cs.sgm', 'test/newstest2012-src.en.sgm'],
         'en-cs':
-        ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.cs.sgm'],
+            ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.cs.sgm'],
         'de-en':
-        ['test/newstest2012-src.de.sgm', 'test/newstest2012-src.en.sgm'],
+            ['test/newstest2012-src.de.sgm', 'test/newstest2012-src.en.sgm'],
         'en-de':
-        ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.de.sgm'],
+            ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.de.sgm'],
         'es-en':
-        ['test/newstest2012-src.es.sgm', 'test/newstest2012-src.en.sgm'],
+            ['test/newstest2012-src.es.sgm', 'test/newstest2012-src.en.sgm'],
         'en-es':
-        ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.es.sgm'],
+            ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.es.sgm'],
         'fr-en':
-        ['test/newstest2012-src.fr.sgm', 'test/newstest2012-src.en.sgm'],
+            ['test/newstest2012-src.fr.sgm', 'test/newstest2012-src.en.sgm'],
         'en-fr':
-        ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.fr.sgm']
+            ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.fr.sgm']
     },
     'wmt11': {
         'data': ['http://statmt.org/wmt11/test.tgz'],
         'md5': ['b0c9680adf32d394aefc2b24e3a5937e'],
         'description': 'Official evaluation data.',
         'citation':
-        '@InProceedings{callisonburch-EtAl:2011:WMT,\n  author    = {Callison-Burch, Chris  and  Koehn, Philipp  and  Monz, Christof  and  Zaidan, Omar},\n  title     = {Findings of the 2011 Workshop on Statistical Machine Translation},\n  booktitle = {Proceedings of the Sixth Workshop on Statistical Machine Translation},\n  month     = {July},\n  year      = {2011},\n  address   = {Edinburgh, Scotland},\n  publisher = {Association for Computational Linguistics},\n  pages     = {22--64},\n  url       = {http://www.aclweb.org/anthology/W11-2103}\n}',
+            '@InProceedings{callisonburch-EtAl:2011:WMT,\n  author    = {Callison-Burch, Chris  and  Koehn, Philipp  and  Monz, Christof  and  Zaidan, Omar},\n  title     = {Findings of the 2011 Workshop on Statistical Machine Translation},\n  booktitle = {Proceedings of the Sixth Workshop on Statistical Machine Translation},\n  month     = {July},\n  year      = {2011},\n  address   = {Edinburgh, Scotland},\n  publisher = {Association for Computational Linguistics},\n  pages     = {22--64},\n  url       = {http://www.aclweb.org/anthology/W11-2103}\n}',
         'cs-en': ['newstest2011-src.cs.sgm', 'newstest2011-src.en.sgm'],
         'en-cs': ['newstest2011-src.en.sgm', 'newstest2011-src.cs.sgm'],
         'de-en': ['newstest2011-src.de.sgm', 'newstest2011-src.en.sgm'],
@@ -767,52 +785,52 @@ DATASETS = {
         'md5': ['491cb885a355da5a23ea66e7b3024d5c'],
         'description': 'Official evaluation data.',
         'citation':
-        '@InProceedings{callisonburch-EtAl:2010:WMT,\n  author    = {Callison-Burch, Chris  and  Koehn, Philipp  and  Monz, Christof  and  Peterson, Kay  and  Przybocki, Mark  and  Zaidan, Omar},\n  title     = {Findings of the 2010 Joint Workshop on Statistical Machine Translation and Metrics for Machine Translation},\n  booktitle = {Proceedings of the Joint Fifth Workshop on Statistical Machine Translation and MetricsMATR},\n  month     = {July},\n  year      = {2010},\n  address   = {Uppsala, Sweden},\n  publisher = {Association for Computational Linguistics},\n  pages     = {17--53},\n  note      = {Revised August 2010},\n  url       = {http://www.aclweb.org/anthology/W10-1703}\n}',
+            '@InProceedings{callisonburch-EtAl:2010:WMT,\n  author    = {Callison-Burch, Chris  and  Koehn, Philipp  and  Monz, Christof  and  Peterson, Kay  and  Przybocki, Mark  and  Zaidan, Omar},\n  title     = {Findings of the 2010 Joint Workshop on Statistical Machine Translation and Metrics for Machine Translation},\n  booktitle = {Proceedings of the Joint Fifth Workshop on Statistical Machine Translation and MetricsMATR},\n  month     = {July},\n  year      = {2010},\n  address   = {Uppsala, Sweden},\n  publisher = {Association for Computational Linguistics},\n  pages     = {17--53},\n  note      = {Revised August 2010},\n  url       = {http://www.aclweb.org/anthology/W10-1703}\n}',
         'cs-en':
-        ['test/newstest2010-src.cz.sgm', 'test/newstest2010-src.en.sgm'],
+            ['test/newstest2010-src.cz.sgm', 'test/newstest2010-src.en.sgm'],
         'en-cs':
-        ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.cz.sgm'],
+            ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.cz.sgm'],
         'de-en':
-        ['test/newstest2010-src.de.sgm', 'test/newstest2010-src.en.sgm'],
+            ['test/newstest2010-src.de.sgm', 'test/newstest2010-src.en.sgm'],
         'en-de':
-        ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.de.sgm'],
+            ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.de.sgm'],
         'es-en':
-        ['test/newstest2010-src.es.sgm', 'test/newstest2010-src.en.sgm'],
+            ['test/newstest2010-src.es.sgm', 'test/newstest2010-src.en.sgm'],
         'en-es':
-        ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.es.sgm'],
+            ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.es.sgm'],
         'fr-en':
-        ['test/newstest2010-src.fr.sgm', 'test/newstest2010-src.en.sgm'],
+            ['test/newstest2010-src.fr.sgm', 'test/newstest2010-src.en.sgm'],
         'en-fr':
-        ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.fr.sgm']
+            ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.fr.sgm']
     },
     'wmt09': {
         'data': ['http://statmt.org/wmt09/test.tgz'],
         'md5': ['da227abfbd7b666ec175b742a0d27b37'],
         'description': 'Official evaluation data.',
         'citation':
-        '@InProceedings{callisonburch-EtAl:2009:WMT-09,\n  author    = {Callison-Burch, Chris  and  Koehn, Philipp  and  Monz, Christof  and  Schroeder, Josh},\n  title     = {Findings of the 2009 {W}orkshop on {S}tatistical {M}achine {T}ranslation},\n  booktitle = {Proceedings of the Fourth Workshop on Statistical Machine Translation},\n  month     = {March},\n  year      = {2009},\n  address   = {Athens, Greece},\n  publisher = {Association for Computational Linguistics},\n  pages     = {1--28},\n  url       = {http://www.aclweb.org/anthology/W/W09/W09-0401}\n}',
+            '@InProceedings{callisonburch-EtAl:2009:WMT-09,\n  author    = {Callison-Burch, Chris  and  Koehn, Philipp  and  Monz, Christof  and  Schroeder, Josh},\n  title     = {Findings of the 2009 {W}orkshop on {S}tatistical {M}achine {T}ranslation},\n  booktitle = {Proceedings of the Fourth Workshop on Statistical Machine Translation},\n  month     = {March},\n  year      = {2009},\n  address   = {Athens, Greece},\n  publisher = {Association for Computational Linguistics},\n  pages     = {1--28},\n  url       = {http://www.aclweb.org/anthology/W/W09/W09-0401}\n}',
         'cs-en':
-        ['test/newstest2009-src.cz.sgm', 'test/newstest2009-src.en.sgm'],
+            ['test/newstest2009-src.cz.sgm', 'test/newstest2009-src.en.sgm'],
         'en-cs':
-        ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.cz.sgm'],
+            ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.cz.sgm'],
         'de-en':
-        ['test/newstest2009-src.de.sgm', 'test/newstest2009-src.en.sgm'],
+            ['test/newstest2009-src.de.sgm', 'test/newstest2009-src.en.sgm'],
         'en-de':
-        ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.de.sgm'],
+            ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.de.sgm'],
         'es-en':
-        ['test/newstest2009-src.es.sgm', 'test/newstest2009-src.en.sgm'],
+            ['test/newstest2009-src.es.sgm', 'test/newstest2009-src.en.sgm'],
         'en-es':
-        ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.es.sgm'],
+            ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.es.sgm'],
         'fr-en':
-        ['test/newstest2009-src.fr.sgm', 'test/newstest2009-src.en.sgm'],
+            ['test/newstest2009-src.fr.sgm', 'test/newstest2009-src.en.sgm'],
         'en-fr':
-        ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.fr.sgm'],
+            ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.fr.sgm'],
         'hu-en':
-        ['test/newstest2009-src.hu.sgm', 'test/newstest2009-src.en.sgm'],
+            ['test/newstest2009-src.hu.sgm', 'test/newstest2009-src.en.sgm'],
         'en-hu':
-        ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.hu.sgm'],
+            ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.hu.sgm'],
         'it-en':
-        ['test/newstest2009-src.it.sgm', 'test/newstest2009-src.en.sgm'],
+            ['test/newstest2009-src.it.sgm', 'test/newstest2009-src.en.sgm'],
         'en-it': [
             'test/newstest2009-src.en.sgm', 'test/newstest2009-src.it.sgm'
         ]
@@ -822,36 +840,36 @@ DATASETS = {
         'md5': ['0582e4e894a3342044059c894e1aea3d'],
         'description': 'Official evaluation data.',
         'citation':
-        '@InProceedings{callisonburch-EtAl:2008:WMT,\n  author    = {Callison-Burch, Chris  and  Fordyce, Cameron  and  Koehn, Philipp  and  Monz, Christof  and  Schroeder, Josh},\n  title     = {Further Meta-Evaluation of Machine Translation},\n  booktitle = {Proceedings of the Third Workshop on Statistical Machine Translation},\n  month     = {June},\n  year      = {2008},\n  address   = {Columbus, Ohio},\n  publisher = {Association for Computational Linguistics},\n  pages     = {70--106},\n  url       = {http://www.aclweb.org/anthology/W/W08/W08-0309}\n}',
+            '@InProceedings{callisonburch-EtAl:2008:WMT,\n  author    = {Callison-Burch, Chris  and  Fordyce, Cameron  and  Koehn, Philipp  and  Monz, Christof  and  Schroeder, Josh},\n  title     = {Further Meta-Evaluation of Machine Translation},\n  booktitle = {Proceedings of the Third Workshop on Statistical Machine Translation},\n  month     = {June},\n  year      = {2008},\n  address   = {Columbus, Ohio},\n  publisher = {Association for Computational Linguistics},\n  pages     = {70--106},\n  url       = {http://www.aclweb.org/anthology/W/W08/W08-0309}\n}',
         'cs-en':
-        ['test/newstest2008-src.cz.sgm', 'test/newstest2008-src.en.sgm'],
+            ['test/newstest2008-src.cz.sgm', 'test/newstest2008-src.en.sgm'],
         'en-cs':
-        ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.cz.sgm'],
+            ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.cz.sgm'],
         'de-en':
-        ['test/newstest2008-src.de.sgm', 'test/newstest2008-src.en.sgm'],
+            ['test/newstest2008-src.de.sgm', 'test/newstest2008-src.en.sgm'],
         'en-de':
-        ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.de.sgm'],
+            ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.de.sgm'],
         'es-en':
-        ['test/newstest2008-src.es.sgm', 'test/newstest2008-src.en.sgm'],
+            ['test/newstest2008-src.es.sgm', 'test/newstest2008-src.en.sgm'],
         'en-es':
-        ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.es.sgm'],
+            ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.es.sgm'],
         'fr-en':
-        ['test/newstest2008-src.fr.sgm', 'test/newstest2008-src.en.sgm'],
+            ['test/newstest2008-src.fr.sgm', 'test/newstest2008-src.en.sgm'],
         'en-fr':
-        ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.fr.sgm'],
+            ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.fr.sgm'],
         'hu-en':
-        ['test/newstest2008-src.hu.sgm', 'test/newstest2008-src.en.sgm'],
+            ['test/newstest2008-src.hu.sgm', 'test/newstest2008-src.en.sgm'],
         'en-hu':
-        ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.hu.sgm']
+            ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.hu.sgm']
     },
     'wmt08/nc': {
         'data': ['http://statmt.org/wmt08/test.tgz'],
         'md5': ['0582e4e894a3342044059c894e1aea3d'],
         'description': 'Official evaluation data (news commentary).',
         'cs-en':
-        ['test/nc-test2008-src.cz.sgm', 'test/nc-test2008-src.en.sgm'],
+            ['test/nc-test2008-src.cz.sgm', 'test/nc-test2008-src.en.sgm'],
         'en-cs':
-        ['test/nc-test2008-src.en.sgm', 'test/nc-test2008-src.cz.sgm']
+            ['test/nc-test2008-src.en.sgm', 'test/nc-test2008-src.cz.sgm']
     },
     'wmt08/europarl': {
         'data': ['http://statmt.org/wmt08/test.tgz'],
@@ -894,9 +912,9 @@ DATASETS = {
             "cc51d9b7fe1ff2af858c6a0dd80b8815"
         ],
         'description':
-        'Official evaluation data for IWSLT.',
+            'Official evaluation data for IWSLT.',
         'citation':
-        '@InProceedings{iwslt2017,\n  author    = {Cettolo, Mauro and Federico, Marcello and Bentivogli, Luisa and Niehues, Jan and Stüker, Sebastian and Sudoh, Katsuitho and Yoshino, Koichiro and Federmann, Christian},\n  title     = {Overview of the IWSLT 2017 Evaluation Campaign},\n  booktitle = {14th International Workshop on Spoken Language Translation},\n  month     = {December},\n  year      = {2017},\n  address   = {Tokyo, Japan},\n  pages     = {2--14},\n  url       = {http://workshop2017.iwslt.org/downloads/iwslt2017_proceeding_v2.pdf}\n}',
+            '@InProceedings{iwslt2017,\n  author    = {Cettolo, Mauro and Federico, Marcello and Bentivogli, Luisa and Niehues, Jan and Stüker, Sebastian and Sudoh, Katsuitho and Yoshino, Koichiro and Federmann, Christian},\n  title     = {Overview of the IWSLT 2017 Evaluation Campaign},\n  booktitle = {14th International Workshop on Spoken Language Translation},\n  month     = {December},\n  year      = {2017},\n  address   = {Tokyo, Japan},\n  pages     = {2--14},\n  url       = {http://workshop2017.iwslt.org/downloads/iwslt2017_proceeding_v2.pdf}\n}',
         'en-fr': [
             'en-fr/IWSLT17.TED.tst2017.en-fr.en.xml',
             'fr-en/IWSLT17.TED.tst2017.fr-en.fr.xml'
@@ -940,7 +958,7 @@ DATASETS = {
             "cc51d9b7fe1ff2af858c6a0dd80b8815"
         ],
         'description':
-        'Development data for IWSLT 2017.',
+            'Development data for IWSLT 2017.',
         'en-fr': [
             'en-fr/IWSLT17.TED.tst2016.en-fr.en.xml',
             'fr-en/IWSLT17.TED.tst2016.fr-en.fr.xml'
@@ -984,7 +1002,7 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116"
         ],
         'description':
-        'Development data for IWSLT 2017.',
+            'Development data for IWSLT 2017.',
         'en-fr': [
             'en-fr/IWSLT17.TED.tst2015.en-fr.en.xml',
             'fr-en/IWSLT17.TED.tst2015.fr-en.fr.xml'
@@ -1028,7 +1046,7 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116"
         ],
         'description':
-        'Development data for IWSLT 2017.',
+            'Development data for IWSLT 2017.',
         'en-fr': [
             'en-fr/IWSLT17.TED.tst2014.en-fr.en.xml',
             'fr-en/IWSLT17.TED.tst2014.fr-en.fr.xml'
@@ -1072,7 +1090,7 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116"
         ],
         'description':
-        'Development data for IWSLT 2017.',
+            'Development data for IWSLT 2017.',
         'en-fr': [
             'en-fr/IWSLT17.TED.tst2013.en-fr.en.xml',
             'fr-en/IWSLT17.TED.tst2013.fr-en.fr.xml'
@@ -1116,7 +1134,7 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116"
         ],
         'description':
-        'Development data for IWSLT 2017.',
+            'Development data for IWSLT 2017.',
         'en-fr': [
             'en-fr/IWSLT17.TED.tst2012.en-fr.en.xml',
             'fr-en/IWSLT17.TED.tst2012.fr-en.fr.xml'
@@ -1160,7 +1178,7 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116"
         ],
         'description':
-        'Development data for IWSLT 2017.',
+            'Development data for IWSLT 2017.',
         'en-fr': [
             'en-fr/IWSLT17.TED.tst2011.en-fr.en.xml',
             'fr-en/IWSLT17.TED.tst2011.fr-en.fr.xml'
@@ -1204,7 +1222,7 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116"
         ],
         'description':
-        'Development data for IWSLT 2017.',
+            'Development data for IWSLT 2017.',
         'en-fr': [
             'en-fr/IWSLT17.TED.tst2010.en-fr.en.xml',
             'fr-en/IWSLT17.TED.tst2010.fr-en.fr.xml'
@@ -1248,7 +1266,7 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116"
         ],
         'description':
-        'Development data for IWSLT 2017.',
+            'Development data for IWSLT 2017.',
         'en-fr': [
             'en-fr/IWSLT17.TED.dev2010.en-fr.en.xml',
             'fr-en/IWSLT17.TED.dev2010.fr-en.fr.xml'
@@ -1277,9 +1295,13 @@ DATASETS = {
 }
 
 
+# pep8: enable=E501
+
+
 def tokenize_13a(line):
     """
-    Tokenizes an input line using a relatively minimal tokenization that is however equivalent to mteval-v13a, used by WMT.
+    Tokenizes an input line using a relatively minimal tokenization that is
+    however equivalent to mteval-v13a, used by WMT.
 
     :param line: a segment to tokenize
     :return: the tokenized line
@@ -1329,26 +1351,30 @@ class UnicodeRegex:
 
 
 def tokenize_v14_international(string):
+    # pep8: disable=E501
     r"""Tokenize a string following the official BLEU implementation.
 
-    See https://github.com/moses-smt/mosesdecoder/blob/master/scripts/generic/mteval-v14.pl#L954-L983
-    In our case, the input string is expected to be just one line
-    and no HTML entities de-escaping is needed.
-    So we just tokenize on punctuation and symbols,
-    except when a punctuation is preceded and followed by a digit
-    (e.g. a comma/dot as a thousand/decimal separator).
+    See
+    https://github.com/moses-smt/mosesdecoder/blob/master/scripts/generic/mteval-v14.pl#L954-L983
+    In our case, the input string is expected to be
+    just one line and no HTML entities de-escaping is needed. So we just
+    tokenize on punctuation and symbols, except when a punctuation is
+    preceded and followed by a digit (e.g. a comma/dot as a thousand/decimal
+    separator).
 
-    Note that a number (e.g., a year) followed by a dot at the end of sentence is NOT tokenized,
-    i.e. the dot stays with the number because `s/(\p{P})(\P{N})/ $1 $2/g`
-    does not match this case (unless we add a space after each sentence).
-    However, this error is already in the original mteval-v14.pl
-    and we want to be consistent with it.
-    The error is not present in the non-international version,
-    which uses `$norm_text = " $norm_text "` (or `norm = " {} ".format(norm)` in Python).
+    Note that a number (e.g., a year) followed by a dot at the end of
+    sentence is NOT tokenized, i.e. the dot stays with the number because
+    `s/(\p{P})(\P{N})/ $1 $2/g` does not match this case (unless we add a
+    space after each sentence). However, this error is already in the
+    original mteval-v14.pl and we want to be consistent with it. The error is
+    not present in the non-international version, which uses `$norm_text = "
+    $norm_text "` (or `norm = " {} ".format(norm)` in Python).
 
     :param string: the input string
     :return: a list of tokens
     """
+    # pep8: enable=E501
+
     string = UnicodeRegex.nondigit_punct_re.sub(r'\1 \2 ', string)
     string = UnicodeRegex.punct_nondigit_re.sub(r' \1 \2', string)
     string = UnicodeRegex.symbol_re.sub(r' \1 ', string)
@@ -1359,27 +1385,29 @@ def tokenize_zh(sentence):
     """MIT License
     Copyright (c) 2017 - Shujian Huang <huangsj@nju.edu.cn>
 
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the
+    "Software"), to deal in the Software without restriction, including
+    without limitation the rights to use, copy, modify, merge, publish,
+    distribute, sublicense, and/or sell copies of the Software, and to permit
+    persons to whom the Software is furnished to do so, subject to the
+    following conditions:
 
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
+    The above copyright notice and this permission notice shall be included
+    in all copies or substantial portions of the Software.
 
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    SOFTWARE.
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+    NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+    DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+    OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+    USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-    The tokenization of Chinese text in this script contains two steps: separate each Chinese
-    characters (by utf-8 encoding); tokenize the non Chinese part (following the mteval script).
-    Author: Shujian Huang huangsj@nju.edu.cn
+    The tokenization of Chinese text in this script contains two steps:
+    separate each Chinese characters (by utf-8 encoding); tokenize the non
+    Chinese part (following the mteval script). Author: Shujian Huang
+    huangsj@nju.edu.cn
 
     :param sentence: input sentence
     :return: tokenized sentence
@@ -1390,52 +1418,66 @@ def tokenize_zh(sentence):
         :param uchar: input char in unicode
         :return: whether the input char is a Chinese character.
         """
-        if uchar >= u'\u3400' and uchar <= u'\u4db5':  # CJK Unified Ideographs Extension A, release 3.0
+        # CJK Unified Ideographs Extension A, release 3.0
+        if uchar >= u'\u3400' and uchar <= u'\u4db5':
             return True
-        elif uchar >= u'\u4e00' and uchar <= u'\u9fa5':  # CJK Unified Ideographs, release 1.1
+        # CJK Unified Ideographs, release 1.1
+        elif uchar >= u'\u4e00' and uchar <= u'\u9fa5':
             return True
-        elif uchar >= u'\u9fa6' and uchar <= u'\u9fbb':  # CJK Unified Ideographs, release 4.1
+        # CJK Unified Ideographs, release 4.1
+        elif uchar >= u'\u9fa6' and uchar <= u'\u9fbb':
             return True
-        elif uchar >= u'\uf900' and uchar <= u'\ufa2d':  # CJK Compatibility Ideographs, release 1.1
+        # CJK Compatibility Ideographs, release 1.1
+        elif uchar >= u'\uf900' and uchar <= u'\ufa2d':
             return True
-        elif uchar >= u'\ufa30' and uchar <= u'\ufa6a':  # CJK Compatibility Ideographs, release 3.2
+        # CJK Compatibility Ideographs, release 3.2
+        elif uchar >= u'\ufa30' and uchar <= u'\ufa6a':
             return True
-        elif uchar >= u'\ufa70' and uchar <= u'\ufad9':  # CJK Compatibility Ideographs, release 4.1
+        # CJK Compatibility Ideographs, release 4.1
+        elif uchar >= u'\ufa70' and uchar <= u'\ufad9':
             return True
-        elif uchar >= u'\u20000' and uchar <= u'\u2a6d6':  # CJK Unified Ideographs Extension B, release 3.1
+        # CJK Unified Ideographs Extension B, release 3.1
+        elif uchar >= u'\u20000' and uchar <= u'\u2a6d6':
             return True
-        elif uchar >= u'\u2f800' and uchar <= u'\u2fa1d':  # CJK Compatibility Supplement, release 3.1
+        # CJK Compatibility Supplement, release 3.1
+        elif uchar >= u'\u2f800' and uchar <= u'\u2fa1d':
             return True
         # Full width ASCII, full width of English punctuation, half width
         # Katakana, half wide half width kana, Korean alphabet
         elif uchar >= u'\uff00' and uchar <= u'\uffef':
             return True
-        elif uchar >= u'\u2e80' and uchar <= u'\u2eff':  # CJK Radicals Supplement
+        # CJK Radicals Supplement
+        elif uchar >= u'\u2e80' and uchar <= u'\u2eff':
             return True
-        elif uchar >= u'\u3000' and uchar <= u'\u303f':  # CJK punctuation mark
+        # CJK punctuation mark
+        elif uchar >= u'\u3000' and uchar <= u'\u303f':
             return True
-        elif uchar >= u'\u31c0' and uchar <= u'\u31ef':  # CJK stroke
+        # CJK stroke
+        elif uchar >= u'\u31c0' and uchar <= u'\u31ef':
             return True
-        elif uchar >= u'\u2f00' and uchar <= u'\u2fdf':  # Kangxi Radicals
+        # Kangxi Radicals
+        elif u'\u2f00' <= uchar <= u'\u2fdf':
             return True
-        elif uchar >= u'\u2ff0' and uchar <= u'\u2fff':  # Chinese character structure
+        # Chinese character structure
+        elif u'\u2ff0' <= uchar <= u'\u2fff':
             return True
-        elif uchar >= u'\u3100' and uchar <= u'\u312f':  # Phonetic symbols
+        # Phonetic symbols
+        elif u'\u3100' <= uchar <= u'\u312f':
             return True
         # Phonetic symbols (Taiwanese and Hakka expansion)
-        elif uchar >= u'\u31a0' and uchar <= u'\u31bf':
+        elif u'\u31a0' <= uchar <= u'\u31bf':
             return True
-        elif uchar >= u'\ufe10' and uchar <= u'\ufe1f':
+        elif u'\ufe10' <= uchar <= u'\ufe1f':
             return True
-        elif uchar >= u'\ufe30' and uchar <= u'\ufe4f':
+        elif u'\ufe30' <= uchar <= u'\ufe4f':
             return True
-        elif uchar >= u'\u2600' and uchar <= u'\u26ff':
+        elif u'\u2600' <= uchar <= u'\u26ff':
             return True
-        elif uchar >= u'\u2700' and uchar <= u'\u27bf':
+        elif u'\u2700' <= uchar <= u'\u27bf':
             return True
-        elif uchar >= u'\u3200' and uchar <= u'\u32ff':
+        elif u'\u3200' <= uchar <= u'\u32ff':
             return True
-        elif uchar >= u'\u3300' and uchar <= u'\u33ff':
+        elif u'\u3300' <= uchar <= u'\u33ff':
             return True
 
         return False
@@ -1591,7 +1633,7 @@ def chrf_signature(args, numrefs):
 
 
 def extract_ngrams(line, min_order=1, max_order=NGRAM_ORDER) -> Counter:
-    """Extracts all the ngrams (1 <= n <= NGRAM_ORDER) from a sequence of tokens.
+    """Extracts all the ngrams (1 <= n <= NGRAM_ORDER) from a sequence of tokens
 
     :param line: a segment containing a sequence of words
     :param max_order: collect n-grams from 1<=n<=max
@@ -1639,7 +1681,8 @@ def ref_stats(output, refs):
 
 def _clean(s):
     """
-    Removes trailing and leading spaces and collapses multiple consecutive internal spaces to a single one.
+    Removes trailing and leading spaces and collapses multiple consecutive
+    internal spaces to a single one.
 
     :param s: The string.
     :return: A cleaned-up string.
@@ -1699,10 +1742,10 @@ def print_test_set(test_set, langpair, side):
 
 
 def download_test_set(test_set, langpair=None):
-    """Downloads the specified test to the system location specified by the SACREBLEU environment variable.
-    :param test_set: the test set to download
-    :param langpair: the language pair (needed for some datasets)
-    :return: the set of processed files
+    """Downloads the specified test to the system location specified by the
+    SACREBLEU environment variable. :param test_set: the test set to download
+    :param langpair: the language pair (needed for some datasets) :return:
+    the set of processed files
     """
 
     outdir = os.path.join(SACREBLEU_DIR, test_set)
@@ -1724,8 +1767,10 @@ def download_test_set(test_set, langpair=None):
                     out.write(f.read())
             except ssl.SSLError:
                 logging.warning(
-                    'An SSL error was encountered in downloading the files. If you\'re on a Mac, '
-                    'you may need to run the "Install Certificates.command" file located in the '
+                    'An SSL error was encountered in downloading the files. '
+                    'If you\'re on a Mac, '
+                    'you may need to run the "Install Certificates.command" '
+                    'file located in the '
                     '"Python 3" folder, often found under /Applications')
                 sys.exit(1)
 
@@ -1737,13 +1782,16 @@ def download_test_set(test_set, langpair=None):
                         md5.update(line)
                 if md5.hexdigest() != expected_md5:
                     logging.error(
-                        'Fatal: MD5 sum of downloaded file was incorrect (got {}, expected {}).' .format(
+                        'Fatal: MD5 sum of downloaded file was incorrect (got '
+                        '{}, expected {}).'.format(
                             md5.hexdigest(), expected_md5))
                     logging.error(
                         'Please manually delete "{}" and rerun the command.'.
-                        format(tarball))
+                            format(tarball))
                     logging.error(
-                        'If the problem persists, the tarball may have changed, in which case, please contact the SacreBLEU maintainer.'
+                        'If the problem persists, the tarball may have '
+                        'changed, in which case, please contact the SacreBLEU '
+                        'maintainer. '
                     )
                     sys.exit(1)
                 else:
@@ -1797,13 +1845,15 @@ def download_test_set(test_set, langpair=None):
 
 
 class BLEU(
-        namedtuple('BaseBLEU',
-                   'score, counts, totals, precisions, bp, sys_len, ref_len')):
+    namedtuple('BaseBLEU',
+               'score, counts, totals, precisions, bp, sys_len, ref_len')):
     def format(self, width=2):
         precisions = "/".join(["{:.1f}".format(p) for p in self.precisions])
-        return f'BLEU = {self.score:.{width}f} {precisions} (BP = {self.bp:.3f}' \
-            f' ratio = {(self.sys_len / self.ref_len):.3f} hyp_len = {self.sys_len:d}' \
-            f' ref_len = {self.ref_len:d})'
+        return f'BLEU = {self.score:.{width}f} {precisions}' \
+               f'(BP = {self.bp:.3f}' \
+               f' ratio = {(self.sys_len / self.ref_len):.3f}' \
+               f' hyp_len = {self.sys_len:d}' \
+               f' ref_len = {self.ref_len:d})'
 
     def __str__(self):
         return self.format()
@@ -1818,8 +1868,9 @@ def compute_bleu(correct: List[int],
                  use_effective_order=False) -> BLEU:
     """Computes BLEU score from its sufficient statistics. Adds smoothing.
 
-    Smoothing methods (citing "A Systematic Comparison of Smoothing Techniques for Sentence-Level BLEU",
-    Boxing Chen and Colin Cherry, WMT 2014: http://aclweb.org/anthology/W14-3346)
+    Smoothing methods (citing "A Systematic Comparison of Smoothing
+    Techniques for Sentence-Level BLEU", Boxing Chen and Colin Cherry,
+    WMT 2014: http://aclweb.org/anthology/W14-3346)
 
     - exp: NIST smoothing method (Method 3)
     - floor: Method 1
@@ -1828,12 +1879,11 @@ def compute_bleu(correct: List[int],
 
     :param correct: List of counts of correct ngrams, 1 <= n <= NGRAM_ORDER
     :param total: List of counts of total ngrams, 1 <= n <= NGRAM_ORDER
-    :param sys_len: The cumulative system length
-    :param ref_len: The cumulative reference length
-    :param smooth: The smoothing method to use
-    :param smooth_value: The smoothing value added, if smooth method 'floor' is used
-    :param use_effective_order: Use effective order.
-    :return: A BLEU object with the score (100-based) and other statistics.
+    :param sys_len: The cumulative system length :param ref_len: The
+    cumulative reference length :param smooth: The smoothing method to use
+    :param smooth_value: The smoothing value added, if smooth method 'floor'
+    is used :param use_effective_order: Use effective order. :return: A BLEU
+    object with the score (100-based) and other statistics.
     """
 
     precisions = [0 for x in range(NGRAM_ORDER)]
@@ -1859,10 +1909,12 @@ def compute_bleu(correct: List[int],
         else:
             precisions[n] = 100. * correct[n] / total[n]
 
-    # If the system guesses no i-grams, 1 <= i <= NGRAM_ORDER, the BLEU score is 0 (technically undefined).
-    # This is a problem for sentence-level BLEU or a corpus of short sentences, where systems will get no credit
-    # if sentence lengths fall under the NGRAM_ORDER threshold. This fix scales NGRAM_ORDER to the observed
-    # maximum order. It is only available through the API and off by default
+    # If the system guesses no i-grams, 1 <= i <= NGRAM_ORDER, the BLEU score
+    # is 0 (technically undefined). This is a problem for sentence-level BLEU
+    # or a corpus of short sentences, where systems will get no credit if
+    # sentence lengths fall under the NGRAM_ORDER threshold. This fix scales
+    # NGRAM_ORDER to the observed maximum order. It is only available through
+    # the API and off by default
 
     brevity_penalty = 1.0
     if sys_len < ref_len:
@@ -1887,11 +1939,10 @@ def sentence_bleu(hypothesis: str,
     Disclaimer: computing BLEU on the sentence level is not its intended use,
     BLEU is a corpus-level metric.
 
-    :param hypothesis: Hypothesis string.
-    :param reference: Reference string.
+    :param hypothesis: Hypothesis string. :param reference: Reference string.
     :param smooth_value: For 'floor' smoothing, the floor value to use.
-    :param use_effective_order: Account for references that are shorter than the largest n-gram.
-    :return: Returns a single BLEU score as a float.
+    :param use_effective_order: Account for references that are shorter than
+    the largest n-gram. :return: Returns a single BLEU score as a float.
     """
     bleu = corpus_bleu(hypothesis,
                        reference,
@@ -1909,16 +1960,16 @@ def corpus_bleu(sys_stream: Union[str, Iterable[str]],
                 lowercase=False,
                 tokenize=DEFAULT_TOKENIZER,
                 use_effective_order=False) -> BLEU:
-    """Produces BLEU scores along with its sufficient statistics from a source against one or more references.
+    """Produces BLEU scores along with its sufficient statistics from a
+    source against one or more references.
 
-    :param sys_stream: The system stream (a sequence of segments)
-    :param ref_streams: A list of one or more reference streams (each a sequence of segments)
-    :param smooth: The smoothing method to use
-    :param smooth_value: For 'floor' smoothing, the floor to use
-    :param force: Ignore data that looks already tokenized
-    :param lowercase: Lowercase the data
-    :param tokenize: The tokenizer to use
-    :return: a BLEU object containing everything you'd want
+    :param sys_stream: The system stream (a sequence of segments) :param
+    ref_streams: A list of one or more reference streams (each a sequence of
+    segments) :param smooth: The smoothing method to use :param smooth_value:
+    For 'floor' smoothing, the floor to use :param force: Ignore data that
+    looks already tokenized :param lowercase: Lowercase the data :param
+    tokenize: The tokenizer to use :return: a BLEU object containing
+    everything you'd want
     """
 
     # Add some robustness to the input arguments
@@ -1953,10 +2004,12 @@ def corpus_bleu(sys_stream: Union[str, Iterable[str]],
                 logging.warning(
                     'That\'s 100 lines that end in a tokenized period (\'.\')')
                 logging.warning(
-                    'It looks like you forgot to detokenize your test data, which may hurt your score.'
+                    'It looks like you forgot to detokenize your test data, '
+                    'which may hurt your score. '
                 )
                 logging.warning(
-                    'If you insist your data is detokenized, or don\'t care, you can suppress this message with \'--force\'.'
+                    'If you insist your data is detokenized, or don\'t care, '
+                    'you can suppress this message with \'--force\'. '
                 )
 
         output, *refs = [TOKENIZERS[tokenize](x.rstrip()) for x in lines]
@@ -1983,12 +2036,14 @@ def corpus_bleu(sys_stream: Union[str, Iterable[str]],
 
 def raw_corpus_bleu(sys_stream, ref_streams,
                     smooth_value=SMOOTH_VALUE_DEFAULT) -> BLEU:
-    """Convenience function that wraps corpus_bleu().
-    This is convenient if you're using sacrebleu as a library, say for scoring on dev.
-    It uses no tokenization and 'floor' smoothing, with the floor default to 0 (no smoothing).
+    """Convenience function that wraps corpus_bleu(). This is convenient if
+    you're using sacrebleu as a library, say for scoring on dev. It uses no
+    tokenization and 'floor' smoothing, with the floor default to 0 (no
+    smoothing).
 
-    :param sys_stream: the system stream (a sequence of segments)
-    :param ref_streams: a list of one or more reference streams (each a sequence of segments)
+    :param sys_stream: the system stream (a sequence of segments) :param
+    ref_streams: a list of one or more reference streams (each a sequence of
+    segments)
     """
     return corpus_bleu(sys_stream,
                        ref_streams,
@@ -2065,9 +2120,9 @@ def _avg_precision_and_recall(statistics: List[float],
 def _chrf(avg_precision, avg_recall, beta: int = CHRF_BETA) -> float:
     if avg_precision + avg_recall == 0:
         return 0.0
-    beta_square = beta**2
+    beta_square = beta ** 2
     score = (1 + beta_square) * (avg_precision * avg_recall) / (
-        (beta_square * avg_precision) + avg_recall)
+            (beta_square * avg_precision) + avg_recall)
     return score
 
 
@@ -2079,12 +2134,11 @@ def corpus_chrf(hypotheses: Iterable[str],
     """
     Computes Chrf on a corpus.
 
-    :param hypotheses: Stream of hypotheses.
-    :param references: Stream of references
-    :param order: Maximum n-gram order.
-    :param remove_whitespace: Whether to delete all whitespace from hypothesis and reference strings.
-    :param beta: Defines importance of recall w.r.t precision. If beta=1, same importance.
-    :return: Chrf score.
+    :param hypotheses: Stream of hypotheses. :param references: Stream of
+    references :param order: Maximum n-gram order. :param remove_whitespace:
+    Whether to delete all whitespace from hypothesis and reference strings.
+    :param beta: Defines importance of recall w.r.t precision. If beta=1,
+    same importance. :return: Chrf score.
     """
     corpus_statistics = get_corpus_statistics(
         hypotheses,
@@ -2104,11 +2158,10 @@ def sentence_chrf(hypothesis: str,
     """
     Computes ChrF on a single sentence pair.
 
-    :param hypothesis: Hypothesis string.
-    :param reference: Reference string.
-    :param order: Maximum n-gram order.
-    :param remove_whitespace: Whether to delete whitespaces from hypothesis and reference strings.
-    :param beta: Defines importance of recall w.r.t precision. If beta=1, same importance.
+    :param hypothesis: Hypothesis string. :param reference: Reference string.
+    :param order: Maximum n-gram order. :param remove_whitespace: Whether to
+    delete whitespaces from hypothesis and reference strings. :param beta:
+    Defines importance of recall w.r.t precision. If beta=1, same importance.
     :return: Chrf score.
     """
     statistics = get_sentence_statistics(hypothesis,
@@ -2121,9 +2174,10 @@ def sentence_chrf(hypothesis: str,
 
 def main():
     arg_parser = argparse.ArgumentParser(
-        description='sacreBLEU: Hassle-free computation of shareable BLEU scores.'
-        'Quick usage: score your detokenized output against WMT\'14 EN-DE:'
-        '    cat output.detok.de | ./sacreBLEU -t wmt14 -l en-de')
+        description='sacreBLEU: Hassle-free computation of shareable BLEU '
+                    'scores. Quick usage: score your detokenized output '
+                    'against WMT\'14 EN-DE: '
+                    '    cat output.detok.de | ./sacreBLEU -t wmt14 -l en-de')
     arg_parser.add_argument('--test-set',
                             '-t',
                             type=str,
@@ -2140,14 +2194,16 @@ def main():
         '-s',
         choices=['exp', 'floor', 'add-n', 'none'],
         default='exp',
-        help='smoothing method: exponential decay (default), floor (increment zero counts), add-k (increment num/denom by k for n>1), or none'
+        help='smoothing method: exponential decay (default), floor (increment '
+             'zero counts), add-k (increment num/denom by k for n>1), or none '
     )
     arg_parser.add_argument(
         '--smooth-value',
         '-sv',
         type=float,
         default=SMOOTH_VALUE_DEFAULT,
-        help='The value to pass to the smoothing technique, when relevant. Default: %(default)s.'
+        help='The value to pass to the smoothing technique, when relevant. '
+             'Default: %(default)s. '
     )
     arg_parser.add_argument('--tokenize',
                             '-tok',
@@ -2169,7 +2225,8 @@ def main():
         choices=['src', 'ref', 'both'],
         type=str,
         default=None,
-        help='output the source (src), reference (ref), or both (both, pasted) to STDOUT and quit'
+        help='output the source (src), reference (ref), or both (both, '
+             'pasted) to STDOUT and quit '
     )
     arg_parser.add_argument('--input',
                             '-i',
@@ -2180,7 +2237,8 @@ def main():
         'refs',
         nargs='*',
         default=[],
-        help='optional list of references (for backwards-compatibility with older scripts)'
+        help='optional list of references (for backwards-compatibility with '
+             'older scripts) '
     )
     arg_parser.add_argument('--metrics',
                             '-m',
@@ -2310,14 +2368,17 @@ def main():
         sys.exit(1)
     elif args.test_set is not None and len(args.refs) > 0:
         logging.error(
-            'I need exactly one of (a) a predefined test set (-t) or (b) a list of references'
+            'I need exactly one of (a) a predefined test set (-t) or (b) a '
+            'list of references '
         )
         sys.exit(1)
 
     if args.test_set is not None and args.tokenize == 'none':
         logging.warning(
-            "You are turning off sacrebleu's internal tokenization ('--tokenize none'), presumably to supply\n"
-            "your own reference tokenization. Published numbers will not be comparable with other papers.\n")
+            "You are turning off sacrebleu's internal tokenization ("
+            "'--tokenize none'), presumably to supply\n "
+            "your own reference tokenization. Published numbers will not be "
+            "comparable with other papers.\n")
 
     # Internal tokenizer settings. Set to 'zh' for Chinese  DEFAULT_TOKENIZER (
     if args.tokenize is None:
@@ -2328,7 +2389,7 @@ def main():
             args.tokenize = DEFAULT_TOKENIZER
 
     if args.langpair is not None and args.langpair.split('-')[
-            1] == 'zh' and 'bleu' in args.metrics and args.tokenize != 'zh':
+        1] == 'zh' and 'bleu' in args.metrics and args.tokenize != 'zh':
         logging.warning(
             'You should also pass "--tok zh" when scoring Chinese...')
 
@@ -2344,7 +2405,7 @@ def main():
     inputfh = io.TextIOWrapper(
         sys.stdin.buffer,
         encoding=args.encoding) if args.input == '-' else smart_open(
-            args.input, encoding=args.encoding)
+        args.input, encoding=args.encoding)
     system = inputfh.readlines()
 
     # Read references
@@ -2370,12 +2431,15 @@ def main():
             'The input and reference stream(s) were of different lengths.\n')
         if args.test_set is not None:
             logging.error(
-                'This could be a problem with your system output or with sacreBLEU\'s reference database.\n'
-                'If the latter, you can clean out the references cache by typing:\n'
+                'This could be a problem with your system output or with '
+                'sacreBLEU\'s reference database.\n '
+                'If the latter, you can clean out the references cache by '
+                'typing:\n '
                 '\n'
                 '    rm -r %s/%s\n'
                 '\n'
-                'They will be downloaded automatically again the next time you run sacreBLEU.',
+                'They will be downloaded automatically again the next time '
+                'you run sacreBLEU.',
                 SACREBLEU_DIR,
                 args.test_set)
         sys.exit(1)
