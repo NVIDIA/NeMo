@@ -9,7 +9,7 @@ import nemo
 from nemo.utils.lr_policies import get_lr_policy
 
 import nemo.collections.nlp as nemo_nlp
-from nemo_nlp import NemoBertTokenizer, SentencePieceTokenizer, \
+import nemo.collections.nlp import NemoBertTokenizer, SentencePieceTokenizer, \
     TokenClassifier, TokenClassificationLoss
 from nemo.collections.nlp.data.datasets import utils
 from nemo.collections.nlp.utils.callbacks.token_classification import \

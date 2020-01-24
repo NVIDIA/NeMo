@@ -10,7 +10,7 @@ import nemo
 import nemo.utils.argparse as nm_argparse
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
-from nemo_tts import (waveglow_log_to_tb_func,
+import nemo.collections.tts import (waveglow_log_to_tb_func,
                       waveglow_process_eval_batch,
                       waveglow_eval_log_to_tb_func)
 
