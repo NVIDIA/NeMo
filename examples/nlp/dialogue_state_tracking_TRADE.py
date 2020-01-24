@@ -36,7 +36,6 @@ parser.add_argument("--n_layers", default=1, type=int)
 parser.add_argument("--dropout", default=0.2, type=float)
 parser.add_argument("--input_dropout", default=0.2, type=float)
 parser.add_argument("--data_dir", default='data/statetracking/multiwoz2.1', type=str)
-parser.add_argument("--dataset_name", default='multiwoz', type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
@@ -58,7 +57,7 @@ domains = {"attraction": 0, "restaurant": 1, "taxi": 2, "train": 3, "hotel": 4}
 if not os.path.exists(args.data_dir):
     raise ValueError(f'Data not found at {args.data_dir}')
 
-work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
+work_dir = f'{args.work_dir}/DST_TRADE'
 
 data_desc = MultiWOZDataDesc(args.data_dir, domains)
 
@@ -93,17 +92,17 @@ encoder = EncoderRNN(vocab_size,
                      args.n_layers)
 
 
-decoder = nemo_nlp.DSTGenerator(data_layer_train.vocab,
-                                encoder.embedding,
-                                args.hid_dim,
-                                args.dropout,
-                                data_layer_train.slots,
-                                len(data_layer_train.gating_dict),
-                                teacher_forcing=args.teacher_forcing)
+decoder = nemo_nlp.TRADEGenerator(data_layer_train.vocab,
+                                  encoder.embedding,
+                                  args.hid_dim,
+                                  args.dropout,
+                                  data_layer_train.slots,
+                                  len(data_layer_train.gating_dict),
+                                  teacher_forcing=args.teacher_forcing)
 
 gate_loss_fn = \
     nemo_nlp.CrossEntropyLoss3D(num_classes=len(data_layer_train.gating_dict))
-ptr_loss_fn = nemo_nlp.DSTMaskedCrossEntropy()
+ptr_loss_fn = nemo_nlp.TRADEMaskedCrossEntropy()
 
 total_loss_fn = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
@@ -214,7 +213,7 @@ eval_callback = nemo.core.EvaluatorCallback(
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x, data_layer_eval),
     tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch_eval)
+    eval_step=steps_per_epoch_train)
 
 ckpt_callback = nemo.core.CheckpointCallback(
     folder=nf.checkpoint_dir,
