@@ -35,7 +35,7 @@ Each line of the text.txt file contains text sequences, where words are separate
 You can use `this`_ to convert CoNLL-2003 dataset to the format required for training.
 
 
-.. _this: https://github.com/NVIDIA/NeMo/blob/master/scripts/convert_ibo_format_to_token_classification_format.py
+.. _this: https://github.com/NVIDIA/NeMo/blob/master/scripts/convert_iob_format_to_token_classification_format.py
 
 
 Training

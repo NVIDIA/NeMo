@@ -15,11 +15,14 @@
 import argparse
 import os
 
+
 def __convert_data(in_file,
                    out_text,
                    out_labels):
     """
-    Input file should be in IBO format, for example, .
+    in_file should be in the IOB format, see example here:
+    https://www.clips.uantwerpen.be/conll2003/ner/.
+
     After the convertion, the dataset is splitted into 2 files: text.txt
     and labels.txt.
     Each line of the text.txt file contains text sequences, where words
@@ -43,9 +46,9 @@ def __convert_data(in_file,
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Convert data in IBO format ' +
-                                                  'to format compatible with ' +
-                                                  'token_classification.py')
+    parser = argparse.ArgumentParser(description='Convert data from IOB ' +
+                                     'format to the format compatible with ' +
+                                     'nlp/examples/token_classification.py')
     parser.add_argument("--data_dir", required=True, type=str)
     args = parser.parse_args()
 
