@@ -33,10 +33,10 @@ from .package_info import __keywords__
 
 if "NEMO_PACKAGE_BUILDING" not in os.environ:
 
+    import nemo.utils.exp_logging as logging
+
     from nemo import backends
     from nemo import core
     from nemo import utils
 
     from nemo.backends.pytorch import tutorials
-
-    import nemo.utils.exp_logging as logging
