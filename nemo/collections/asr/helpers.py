@@ -68,7 +68,7 @@ def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER', t
     if tb_logger is not None:
         tb_logger.add_scalar(tag, wer)
     nemo.logging.info(f'Loss: {tensors[0]}')
-    nemo.logging.info(f'{tag}: {wer*100 : 5.2f}%')
+    nemo.logging.info(f'{tag}: {wer * 100 : 5.2f}%')
     nemo.logging.info(f'Prediction: {hypotheses[0]}')
     nemo.logging.info(f'Reference: {references[0]}')
 
@@ -146,11 +146,11 @@ def process_evaluation_epoch(global_vars: dict, eval_metric='WER', tag=None):
 
     if tag is None:
         nemo.logging.info(f"==========>>>>>>Evaluation Loss: {eloss}")
-        nemo.logging.info(f"==========>>>>>>Evaluation {eval_metric}: " f"{wer*100 : 5.2f}%")
+        nemo.logging.info(f"==========>>>>>>Evaluation {eval_metric}: " f"{wer * 100 : 5.2f}%")
         return {"Evaluation_Loss": eloss, f"Evaluation_{eval_metric}": wer}
     else:
         nemo.logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
-        nemo.logging.info(f"==========>>>>>>Evaluation {eval_metric} {tag}: " f"{wer*100 : 5.2f}%")
+        nemo.logging.info(f"==========>>>>>>Evaluation {eval_metric} {tag}: " f"{wer * 100 : 5.2f}%")
         return {
             f"Evaluation_Loss_{tag}": eloss,
             f"Evaluation_{eval_metric}_{tag}": wer,

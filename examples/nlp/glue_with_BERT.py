@@ -255,7 +255,6 @@ def create_pipeline(
     evaluate=False,
     processor=task_processors[0],
 ):
-
     data_layer = 'GlueDataLayerClassification'
     if output_mode == 'regression':
         data_layer = 'GlueDataLayerRegression'

@@ -44,14 +44,12 @@ data_layer = nemo_nlp.BertJointIntentSlotInferDataLayer(
     queries=[query], tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1,
 )
 
-
 # Create sentence classification loss on top
 classifier = nemo_nlp.JointIntentSlotClassifier(
     hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout,
 )
 
 ids, type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
-
 
 hidden_states = pretrained_bert_model(input_ids=ids, token_type_ids=type_ids, attention_mask=input_mask)
 

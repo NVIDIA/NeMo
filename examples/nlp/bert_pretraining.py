@@ -135,7 +135,6 @@ parser.add_argument("--print_step_freq", default=25, type=int)
 parser.add_argument("--config_file", default=None, type=str, help="The BERT model config")
 args = parser.parse_args()
 
-
 nf = nemo.core.NeuralModuleFactory(
     backend=nemo.core.Backend.PyTorch,
     local_rank=args.local_rank,
@@ -213,7 +212,6 @@ mlm_classifier.mlp.last_linear_layer.weight = bert_model.bert.embeddings.word_em
 def create_pipeline(
     data_file, batch_size, preprocessed_data=False, batches_per_step=1, **kwargs,
 ):
-
     if not preprocessed_data:
         max_seq_length, mask_probability, short_seq_prob = (
             kwargs['max_seq_length'],

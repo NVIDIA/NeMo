@@ -112,7 +112,6 @@ callback_eval = nemo.core.EvaluatorCallback(
     tb_writer=tb_writer,
 )
 
-
 optimizer = neural_factory.get_trainer(
     params={
         "optimization_params": {

@@ -60,6 +60,7 @@ loss = L(predictions=outputs, target=tgt, mask=mask)
 # run inference decoder to generate predictions
 outputs_inf, _ = decoderInfer(encoder_outputs=encoder_outputs)
 
+
 # this function is necessary to print intermediate results to console
 
 

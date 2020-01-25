@@ -67,7 +67,6 @@ def eval_iter_callback(tensors, global_vars):
 def eval_epochs_done_callback(
     global_vars, punct_label_ids, capit_label_ids, graph_fold=None, normalize_cm=True,
 ):
-
     '''
     Args:
       graph_fold (str): path to output folder

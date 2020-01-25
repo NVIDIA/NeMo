@@ -21,6 +21,7 @@ __all__ = [
     'TextDataLayer',
     'TranslationDataLayer',
 ]
+
 import os
 import random
 import sys
@@ -404,7 +405,6 @@ class BertTokenClassificationDataLayer(TextDataLayer):
         dataset_type=BertTokenClassificationDataset,
         **kwargs
     ):
-
         kwargs['batch_size'] = batch_size
         dataset_params = {
             'text_file': text_file,
@@ -548,7 +548,6 @@ class BertPunctuationCapitalizationDataLayer(TextDataLayer):
         dataset_type=BertPunctuationCapitalizationDataset,
         **kwargs
     ):
-
         kwargs['batch_size'] = batch_size
         dataset_params = {
             'text_file': text_file,
@@ -1078,7 +1077,6 @@ class GlueDataLayerClassification(TextDataLayer):
         dataset_type=GLUEDataset,
         **kwargs
     ):
-
         kwargs['batch_size'] = batch_size
         dataset_params = {
             'data_dir': data_dir,
@@ -1148,7 +1146,6 @@ class GlueDataLayerRegression(TextDataLayer):
         dataset_type=GLUEDataset,
         **kwargs
     ):
-
         kwargs['batch_size'] = batch_size
         dataset_params = {
             'data_dir': data_dir,

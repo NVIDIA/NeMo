@@ -212,7 +212,6 @@ def create_all_dags(args, neural_factory):
 
 
 def main():
-
     args = parse_args()
     name = construct_name(
         args.exp_name,

@@ -21,7 +21,6 @@ ENABLE_NGRAM = False
 # This is only necessary if ENABLE_NGRAM = True. Otherwise, set to empty string
 LM_PATH = "<PATH_TO_KENLM_BINARY>"
 
-
 # Read model YAML
 yaml = YAML(typ="safe")
 with open(MODEL_YAML) as f:
@@ -48,7 +47,6 @@ if ENABLE_NGRAM and os.path.isfile(LM_PATH):
     )
 else:
     print("Beam search is not enabled")
-
 
 if __name__ == '__main__':
     app.run()

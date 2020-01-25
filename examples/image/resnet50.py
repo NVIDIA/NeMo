@@ -92,7 +92,6 @@ L_eval = neural_factory.get_module(name="CrossEntropyLoss", collection="toys", p
 
 step_per_epoch = int(len(dl_train) / (batch_size * num_gpus))
 
-
 images, labels = dl_train()
 outputs = resnet(x=images)
 train_loss = L_train(predictions=outputs, labels=labels)

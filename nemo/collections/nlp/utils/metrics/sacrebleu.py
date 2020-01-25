@@ -94,8 +94,13 @@ DATASETS = {
     },
     'mtnt1.1/test': {
         'data': ['https://github.com/pmichel31415/mtnt/releases/download/v1.1/MTNT.1.1.tar.gz'],
-        'description': 'Test data for the Machine Translation of Noisy Text task: http://www.cs.cmu.edu/~pmichel1/mtnt/',
-        'citation': '@InProceedings{michel2018a:mtnt,\n    author = "Michel, Paul and Neubig, Graham",\n    title = "MTNT: A Testbed for Machine Translation of Noisy Text",\n    booktitle = "Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing",\n    year = "2018",\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
+        'description': 'Test data for the Machine Translation of Noisy Text task: '
+        'http://www.cs.cmu.edu/~pmichel1/mtnt/',
+        'citation': '@InProceedings{michel2018a:mtnt,\n    author = "Michel, Paul and Neubig, Graham",\n    title = '
+        '"MTNT: A Testbed for Machine Translation of Noisy Text",\n    booktitle = "Proceedings of the '
+        '2018 Conference on Empirical Methods in Natural Language Processing",\n    year = "2018",'
+        '\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",'
+        '\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
         'md5': ['8ce1831ac584979ba8cdcd9d4be43e1d'],
         'en-fr': ['1:MTNT/test/test.en-fr.tsv', '2:MTNT/test/test.en-fr.tsv'],
         'fr-en': ['1:MTNT/test/test.fr-en.tsv', '2:MTNT/test/test.fr-en.tsv'],
@@ -104,8 +109,13 @@ DATASETS = {
     },
     'mtnt1.1/valid': {
         'data': ['https://github.com/pmichel31415/mtnt/releases/download/v1.1/MTNT.1.1.tar.gz'],
-        'description': 'Validation data for the Machine Translation of Noisy Text task: http://www.cs.cmu.edu/~pmichel1/mtnt/',
-        'citation': '@InProceedings{michel2018a:mtnt,\n    author = "Michel, Paul and Neubig, Graham",\n    title = "MTNT: A Testbed for Machine Translation of Noisy Text",\n    booktitle = "Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing",\n    year = "2018",\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
+        'description': 'Validation data for the Machine Translation of Noisy Text task: '
+        'http://www.cs.cmu.edu/~pmichel1/mtnt/',
+        'citation': '@InProceedings{michel2018a:mtnt,\n    author = "Michel, Paul and Neubig, Graham",\n    title = '
+        '"MTNT: A Testbed for Machine Translation of Noisy Text",\n    booktitle = "Proceedings of the '
+        '2018 Conference on Empirical Methods in Natural Language Processing",\n    year = "2018",'
+        '\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",'
+        '\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
         'md5': ['8ce1831ac584979ba8cdcd9d4be43e1d'],
         'en-fr': ['1:MTNT/valid/valid.en-fr.tsv', '2:MTNT/valid/valid.en-fr.tsv',],
         'fr-en': ['1:MTNT/valid/valid.fr-en.tsv', '2:MTNT/valid/valid.fr-en.tsv',],
@@ -114,8 +124,13 @@ DATASETS = {
     },
     'mtnt1.1/train': {
         'data': ['https://github.com/pmichel31415/mtnt/releases/download/v1.1/MTNT.1.1.tar.gz'],
-        'description': 'Training data for the Machine Translation of Noisy Text task: http://www.cs.cmu.edu/~pmichel1/mtnt/',
-        'citation': '@InProceedings{michel2018a:mtnt,\n    author = "Michel, Paul and Neubig, Graham",\n    title = "MTNT: A Testbed for Machine Translation of Noisy Text",\n    booktitle = "Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing",\n    year = "2018",\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
+        'description': 'Training data for the Machine Translation of Noisy Text task: '
+        'http://www.cs.cmu.edu/~pmichel1/mtnt/',
+        'citation': '@InProceedings{michel2018a:mtnt,\n    author = "Michel, Paul and Neubig, Graham",\n    title = '
+        '"MTNT: A Testbed for Machine Translation of Noisy Text",\n    booktitle = "Proceedings of the '
+        '2018 Conference on Empirical Methods in Natural Language Processing",\n    year = "2018",'
+        '\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",'
+        '\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
         'md5': ['8ce1831ac584979ba8cdcd9d4be43e1d'],
         'en-fr': ['1:MTNT/train/train.en-fr.tsv', '2:MTNT/train/train.en-fr.tsv',],
         'fr-en': ['1:MTNT/train/train.fr-en.tsv', '2:MTNT/train/train.fr-en.tsv',],
@@ -160,7 +175,14 @@ DATASETS = {
         'data': ['http://data.statmt.org/wmt18/translation-task/test.tgz'],
         'md5': ['f996c245ecffea23d0006fa4c34e9064'],
         'description': 'Official evaluation data.',
-        'citation': '@inproceedings{bojar-etal-2018-findings,\n    title = "Findings of the 2018 Conference on Machine Translation ({WMT}18)",\n    author = "Bojar, Ond{\v{r}}ej  and\n      Federmann, Christian  and\n      Fishel, Mark  and\n      Graham, Yvette  and\n      Haddow, Barry  and\n      Koehn, Philipp  and\n      Monz, Christof",\n    booktitle = "Proceedings of the Third Conference on Machine Translation: Shared Task Papers",\n    month = oct,\n    year = "2018",\n    address = "Belgium, Brussels",\n    publisher = "Association for Computational Linguistics",\n    url = "https://www.aclweb.org/anthology/W18-6401",\n    pages = "272--303",\n}',
+        'citation': '@inproceedings{bojar-etal-2018-findings,\n    title = "Findings of the 2018 Conference on '
+        'Machine Translation ({WMT}18)",\n    author = "Bojar, Ond{\v{r}}ej  and\n      Federmann, '
+        'Christian  and\n      Fishel, Mark  and\n      Graham, Yvette  and\n      Haddow, Barry  and\n  '
+        '    Koehn, Philipp  and\n      Monz, Christof",\n    booktitle = "Proceedings of the Third '
+        'Conference on Machine Translation: Shared Task Papers",\n    month = oct,\n    year = "2018",'
+        '\n    address = "Belgium, Brussels",\n    publisher = "Association for Computational '
+        'Linguistics",\n    url = "https://www.aclweb.org/anthology/W18-6401",\n    pages = "272--303",'
+        '\n}',
         'cs-en': ['test/newstest2018-csen-src.cs.sgm', 'test/newstest2018-csen-ref.en.sgm',],
         'de-en': ['test/newstest2018-deen-src.de.sgm', 'test/newstest2018-deen-ref.en.sgm',],
         'en-cs': ['test/newstest2018-encs-src.en.sgm', 'test/newstest2018-encs-ref.cs.sgm',],
@@ -206,7 +228,16 @@ DATASETS = {
         'data': ['http://data.statmt.org/wmt17/translation-task/test.tgz'],
         'md5': ['86a1724c276004aa25455ae2a04cef26'],
         'description': 'Official evaluation data.',
-        'citation': '@InProceedings{bojar-EtAl:2017:WMT1,\n  author    = {Bojar, Ond\\v{r}ej  and  Chatterjee, Rajen  and  Federmann, Christian  and  Graham, Yvette  and  Haddow, Barry  and  Huang, Shujian  and  Huck, Matthias  and  Koehn, Philipp  and  Liu, Qun  and  Logacheva, Varvara  and  Monz, Christof  and  Negri, Matteo  and  Post, Matt  and  Rubino, Raphael  and  Specia, Lucia  and  Turchi, Marco},\n  title     = {Findings of the 2017 Conference on Machine Translation (WMT17)},\n  booktitle = {Proceedings of the Second Conference on Machine Translation, Volume 2: Shared Task Papers},\n  month     = {September},\n  year      = {2017},\n  address   = {Copenhagen, Denmark},\n  publisher = {Association for Computational Linguistics},\n  pages     = {169--214},\n  url       = {http://www.aclweb.org/anthology/W17-4717}\n}',
+        'citation': '@InProceedings{bojar-EtAl:2017:WMT1,\n  author    = {Bojar, Ond\\v{r}ej  and  Chatterjee, '
+        'Rajen  and  Federmann, Christian  and  Graham, Yvette  and  Haddow, Barry  and  Huang, '
+        'Shujian  and  Huck, Matthias  and  Koehn, Philipp  and  Liu, Qun  and  Logacheva, Varvara  and  '
+        'Monz, Christof  and  Negri, Matteo  and  Post, Matt  and  Rubino, Raphael  and  Specia, '
+        'Lucia  and  Turchi, Marco},\n  title     = {Findings of the 2017 Conference on Machine '
+        'Translation (WMT17)},\n  booktitle = {Proceedings of the Second Conference on Machine '
+        'Translation, Volume 2: Shared Task Papers},\n  month     = {September},\n  year      = {2017},'
+        '\n  address   = {Copenhagen, Denmark},\n  publisher = {Association for Computational '
+        'Linguistics},\n  pages     = {169--214},\n  url       = {'
+        'http://www.aclweb.org/anthology/W17-4717}\n}',
         'cs-en': ['test/newstest2017-csen-src.cs.sgm', 'test/newstest2017-csen-ref.en.sgm',],
         'de-en': ['test/newstest2017-deen-src.de.sgm', 'test/newstest2017-deen-ref.en.sgm',],
         'en-cs': ['test/newstest2017-encs-src.en.sgm', 'test/newstest2017-encs-ref.cs.sgm',],
@@ -261,19 +292,50 @@ DATASETS = {
         ],
         'md5': ['18fdaa7a3c84cf6ef688da1f6a5fa96f', '91dbfd5af99bc6891a637a68e04dfd41',],
         'description': 'Additional Chinese-English references from Microsoft Research.',
-        'citation': '@inproceedings{achieving-human-parity-on-automatic-chinese-to-english-news-translation,\n  author = {Hassan Awadalla, Hany and Aue, Anthony and Chen, Chang and Chowdhary, Vishal and Clark, Jonathan and Federmann, Christian and Huang, Xuedong and Junczys-Dowmunt, Marcin and Lewis, Will and Li, Mu and Liu, Shujie and Liu, Tie-Yan and Luo, Renqian and Menezes, Arul and Qin, Tao and Seide, Frank and Tan, Xu and Tian, Fei and Wu, Lijun and Wu, Shuangzhi and Xia, Yingce and Zhang, Dongdong and Zhang, Zhirui and Zhou, Ming},\n  title = {Achieving Human Parity on Automatic Chinese to English News Translation},\n  booktitle = {},\n  year = {2018},\n  month = {March},\n  abstract = {Machine translation has made rapid advances in recent years. Millions of people are using it today in online translation systems and mobile applications in order to communicate across language barriers. The question naturally arises whether such systems can approach or achieve parity with human translations. In this paper, we first address the problem of how to define and accurately measure human parity in translation. We then describe Microsoft’s machine translation system and measure the quality of its translations on the widely used WMT 2017 news translation task from Chinese to English. We find that our latest neural machine translation system has reached a new state-of-the-art, and that the translation quality is at human parity when compared to professional human translations. We also find that it significantly exceeds the quality of crowd-sourced non-professional translations.},\n  publisher = {},\n  url = {https://www.microsoft.com/en-us/research/publication/achieving-human-parity-on-automatic-chinese-to-english-news-translation/},\n  address = {},\n  pages = {},\n  journal = {},\n  volume = {},\n  chapter = {},\n  isbn = {},\n}',
+        'citation': '@inproceedings{achieving-human-parity-on-automatic-chinese-to-english-news-translation,'
+        '\n  author = {Hassan Awadalla, Hany and Aue, Anthony and Chen, Chang and Chowdhary, Vishal and '
+        'Clark, Jonathan and Federmann, Christian and Huang, Xuedong and Junczys-Dowmunt, Marcin and '
+        'Lewis, Will and Li, Mu and Liu, Shujie and Liu, Tie-Yan and Luo, Renqian and Menezes, '
+        'Arul and Qin, Tao and Seide, Frank and Tan, Xu and Tian, Fei and Wu, Lijun and Wu, '
+        'Shuangzhi and Xia, Yingce and Zhang, Dongdong and Zhang, Zhirui and Zhou, Ming},\n  title = {'
+        'Achieving Human Parity on Automatic Chinese to English News Translation},\n  booktitle = {},'
+        '\n  year = {2018},\n  month = {March},\n  abstract = {Machine translation has made rapid '
+        'advances in recent years. Millions of people are using it today in online translation systems '
+        'and mobile applications in order to communicate across language barriers. The question '
+        'naturally arises whether such systems can approach or achieve parity with human translations. '
+        'In this paper, we first address the problem of how to define and accurately measure human '
+        'parity in translation. We then describe Microsoft’s machine translation system and measure the '
+        'quality of its translations on the widely used WMT 2017 news translation task from Chinese to '
+        'English. We find that our latest neural machine translation system has reached a new '
+        'state-of-the-art, and that the translation quality is at human parity when compared to '
+        'professional human translations. We also find that it significantly exceeds the quality of '
+        'crowd-sourced non-professional translations.},\n  publisher = {},\n  url = {'
+        'https://www.microsoft.com/en-us/research/publication/achieving-human-parity-on-automatic'
+        '-chinese-to-english-news-translation/},\n  address = {},\n  pages = {},\n  journal = {},'
+        '\n  volume = {},\n  chapter = {},\n  isbn = {},\n}',
         'zh-en': [
             'newstest2017-zhen-src.zh.sgm',
             'newstest2017-zhen-ref.en.sgm',
-            'Translator-HumanParityData-master/Translator-HumanParityData/References/Translator-HumanParityData-Reference-HT.txt',
-            'Translator-HumanParityData-master/Translator-HumanParityData/References/Translator-HumanParityData-Reference-PE.txt',
+            'Translator-HumanParityData-master/Translator-HumanParityData/References/Translator-HumanParityData'
+            '-Reference-HT.txt',
+            'Translator-HumanParityData-master/Translator-HumanParityData/References/Translator-HumanParityData'
+            '-Reference-PE.txt',
         ],
     },
     'wmt16': {
         'data': ['http://data.statmt.org/wmt16/translation-task/test.tgz'],
         'md5': ['3d809cd0c2c86adb2c67034d15c4e446'],
         'description': 'Official evaluation data.',
-        'citation': '@InProceedings{bojar-EtAl:2016:WMT1,\n  author    = {Bojar, Ond\\v{r}ej  and  Chatterjee, Rajen  and  Federmann, Christian  and  Graham, Yvette  and  Haddow, Barry  and  Huck, Matthias  and  Jimeno Yepes, Antonio  and  Koehn, Philipp  and  Logacheva, Varvara  and  Monz, Christof  and  Negri, Matteo  and  Neveol, Aurelie  and  Neves, Mariana  and  Popel, Martin  and  Post, Matt  and  Rubino, Raphael  and  Scarton, Carolina  and  Specia, Lucia  and  Turchi, Marco  and  Verspoor, Karin  and  Zampieri, Marcos},\n  title     = {Findings of the 2016 Conference on Machine Translation},\n  booktitle = {Proceedings of the First Conference on Machine Translation},\n  month     = {August},\n  year      = {2016},\n  address   = {Berlin, Germany},\n  publisher = {Association for Computational Linguistics},\n  pages     = {131--198},\n  url       = {http://www.aclweb.org/anthology/W/W16/W16-2301}\n}',
+        'citation': '@InProceedings{bojar-EtAl:2016:WMT1,\n  author    = {Bojar, Ond\\v{r}ej  and  Chatterjee, '
+        'Rajen  and  Federmann, Christian  and  Graham, Yvette  and  Haddow, Barry  and  Huck, '
+        'Matthias  and  Jimeno Yepes, Antonio  and  Koehn, Philipp  and  Logacheva, Varvara  and  Monz, '
+        'Christof  and  Negri, Matteo  and  Neveol, Aurelie  and  Neves, Mariana  and  Popel, '
+        'Martin  and  Post, Matt  and  Rubino, Raphael  and  Scarton, Carolina  and  Specia, Lucia  and  '
+        'Turchi, Marco  and  Verspoor, Karin  and  Zampieri, Marcos},\n  title     = {Findings of the '
+        '2016 Conference on Machine Translation},\n  booktitle = {Proceedings of the First Conference on '
+        'Machine Translation},\n  month     = {August},\n  year      = {2016},\n  address   = {Berlin, '
+        'Germany},\n  publisher = {Association for Computational Linguistics},\n  pages     = {'
+        '131--198},\n  url       = {http://www.aclweb.org/anthology/W/W16/W16-2301}\n}',
         'cs-en': ['test/newstest2016-csen-src.cs.sgm', 'test/newstest2016-csen-ref.en.sgm',],
         'de-en': ['test/newstest2016-deen-src.de.sgm', 'test/newstest2016-deen-ref.en.sgm',],
         'en-cs': ['test/newstest2016-encs-src.en.sgm', 'test/newstest2016-encs-ref.cs.sgm',],
@@ -316,7 +378,15 @@ DATASETS = {
         'data': ['http://statmt.org/wmt15/test.tgz'],
         'md5': ['67e3beca15e69fe3d36de149da0a96df'],
         'description': 'Official evaluation data.',
-        'citation': '@InProceedings{bojar-EtAl:2015:WMT,\n  author    = {Bojar, Ond\\v{r}ej  and  Chatterjee, Rajen  and  Federmann, Christian  and  Haddow, Barry  and  Huck, Matthias  and  Hokamp, Chris  and  Koehn, Philipp  and  Logacheva, Varvara  and  Monz, Christof  and  Negri, Matteo  and  Post, Matt  and  Scarton, Carolina  and  Specia, Lucia  and  Turchi, Marco},\n  title     = {Findings of the 2015 Workshop on Statistical Machine Translation},\n  booktitle = {Proceedings of the Tenth Workshop on Statistical Machine Translation},\n  month     = {September},\n  year      = {2015},\n  address   = {Lisbon, Portugal},\n  publisher = {Association for Computational Linguistics},\n  pages     = {1--46},\n  url       = {http://aclweb.org/anthology/W15-3001}\n}',
+        'citation': '@InProceedings{bojar-EtAl:2015:WMT,\n  author    = {Bojar, Ond\\v{r}ej  and  Chatterjee, '
+        'Rajen  and  Federmann, Christian  and  Haddow, Barry  and  Huck, Matthias  and  Hokamp, '
+        'Chris  and  Koehn, Philipp  and  Logacheva, Varvara  and  Monz, Christof  and  Negri, '
+        'Matteo  and  Post, Matt  and  Scarton, Carolina  and  Specia, Lucia  and  Turchi, Marco},'
+        '\n  title     = {Findings of the 2015 Workshop on Statistical Machine Translation},'
+        '\n  booktitle = {Proceedings of the Tenth Workshop on Statistical Machine Translation},'
+        '\n  month     = {September},\n  year      = {2015},\n  address   = {Lisbon, Portugal},'
+        '\n  publisher = {Association for Computational Linguistics},\n  pages     = {1--46},\n  url     '
+        '  = {http://aclweb.org/anthology/W15-3001}\n}',
         'en-fr': ['test/newsdiscusstest2015-enfr-src.en.sgm', 'test/newsdiscusstest2015-enfr-ref.fr.sgm',],
         'fr-en': ['test/newsdiscusstest2015-fren-src.fr.sgm', 'test/newsdiscusstest2015-fren-ref.en.sgm',],
         'cs-en': ['test/newstest2015-csen-src.cs.sgm', 'test/newstest2015-csen-ref.en.sgm',],
@@ -332,7 +402,14 @@ DATASETS = {
         'data': ['http://statmt.org/wmt14/test-filtered.tgz'],
         'md5': ['84c597844c1542e29c2aff23aaee4310'],
         'description': 'Official evaluation data.',
-        'citation': '@InProceedings{bojar-EtAl:2014:W14-33,\n  author    = {Bojar, Ondrej  and  Buck, Christian  and  Federmann, Christian  and  Haddow, Barry  and  Koehn, Philipp  and  Leveling, Johannes  and  Monz, Christof  and  Pecina, Pavel  and  Post, Matt  and  Saint-Amand, Herve  and  Soricut, Radu  and  Specia, Lucia  and  Tamchyna, Ale\\v{s}},\n  title     = {Findings of the 2014 Workshop on Statistical Machine Translation},\n  booktitle = {Proceedings of the Ninth Workshop on Statistical Machine Translation},\n  month     = {June},\n  year      = {2014},\n  address   = {Baltimore, Maryland, USA},\n  publisher = {Association for Computational Linguistics},\n  pages     = {12--58},\n  url       = {http://www.aclweb.org/anthology/W/W14/W14-3302}\n}',
+        'citation': '@InProceedings{bojar-EtAl:2014:W14-33,\n  author    = {Bojar, Ondrej  and  Buck, Christian  and '
+        ' Federmann, Christian  and  Haddow, Barry  and  Koehn, Philipp  and  Leveling, Johannes  and  '
+        'Monz, Christof  and  Pecina, Pavel  and  Post, Matt  and  Saint-Amand, Herve  and  Soricut, '
+        'Radu  and  Specia, Lucia  and  Tamchyna, Ale\\v{s}},\n  title     = {Findings of the 2014 '
+        'Workshop on Statistical Machine Translation},\n  booktitle = {Proceedings of the Ninth Workshop '
+        'on Statistical Machine Translation},\n  month     = {June},\n  year      = {2014},\n  address   '
+        '= {Baltimore, Maryland, USA},\n  publisher = {Association for Computational Linguistics},'
+        '\n  pages     = {12--58},\n  url       = {http://www.aclweb.org/anthology/W/W14/W14-3302}\n}',
         'cs-en': ['test/newstest2014-csen-src.cs.sgm', 'test/newstest2014-csen-ref.en.sgm',],
         'en-cs': ['test/newstest2014-csen-src.en.sgm', 'test/newstest2014-csen-ref.cs.sgm',],
         'de-en': ['test/newstest2014-deen-src.de.sgm', 'test/newstest2014-deen-ref.en.sgm',],
@@ -363,7 +440,14 @@ DATASETS = {
         'data': ['http://statmt.org/wmt13/test.tgz'],
         'md5': ['48eca5d02f637af44e85186847141f67'],
         'description': 'Official evaluation data.',
-        'citation': '@InProceedings{bojar-EtAl:2013:WMT,\n  author    = {Bojar, Ond\\v{r}ej  and  Buck, Christian  and  Callison-Burch, Chris  and  Federmann, Christian  and  Haddow, Barry  and  Koehn, Philipp  and  Monz, Christof  and  Post, Matt  and  Soricut, Radu  and  Specia, Lucia},\n  title     = {Findings of the 2013 {Workshop on Statistical Machine Translation}},\n  booktitle = {Proceedings of the Eighth Workshop on Statistical Machine Translation},\n  month     = {August},\n  year      = {2013},\n  address   = {Sofia, Bulgaria},\n  publisher = {Association for Computational Linguistics},\n  pages     = {1--44},\n  url       = {http://www.aclweb.org/anthology/W13-2201}\n}',
+        'citation': '@InProceedings{bojar-EtAl:2013:WMT,\n  author    = {Bojar, Ond\\v{r}ej  and  Buck, Christian  '
+        'and  Callison-Burch, Chris  and  Federmann, Christian  and  Haddow, Barry  and  Koehn, '
+        'Philipp  and  Monz, Christof  and  Post, Matt  and  Soricut, Radu  and  Specia, Lucia},'
+        '\n  title     = {Findings of the 2013 {Workshop on Statistical Machine Translation}},'
+        '\n  booktitle = {Proceedings of the Eighth Workshop on Statistical Machine Translation},'
+        '\n  month     = {August},\n  year      = {2013},\n  address   = {Sofia, Bulgaria},\n  publisher '
+        '= {Association for Computational Linguistics},\n  pages     = {1--44},\n  url       = {'
+        'http://www.aclweb.org/anthology/W13-2201}\n}',
         'cs-en': ['test/newstest2013-src.cs.sgm', 'test/newstest2013-src.en.sgm',],
         'en-cs': ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.cs.sgm',],
         'de-en': ['test/newstest2013-src.de.sgm', 'test/newstest2013-src.en.sgm',],
@@ -379,7 +463,13 @@ DATASETS = {
         'data': ['http://statmt.org/wmt12/test.tgz'],
         'md5': ['608232d34ebc4ba2ff70fead45674e47'],
         'description': 'Official evaluation data.',
-        'citation': '@InProceedings{callisonburch-EtAl:2012:WMT,\n  author    = {Callison-Burch, Chris  and  Koehn, Philipp  and  Monz, Christof  and  Post, Matt  and  Soricut, Radu  and  Specia, Lucia},\n  title     = {Findings of the 2012 Workshop on Statistical Machine Translation},\n  booktitle = {Proceedings of the Seventh Workshop on Statistical Machine Translation},\n  month     = {June},\n  year      = {2012},\n  address   = {Montr{\'e}al, Canada},\n  publisher = {Association for Computational Linguistics},\n  pages     = {10--51},\n  url       = {http://www.aclweb.org/anthology/W12-3102}\n}',
+        'citation': '@InProceedings{callisonburch-EtAl:2012:WMT,\n  author    = {Callison-Burch, Chris  and  Koehn, '
+        'Philipp  and  Monz, Christof  and  Post, Matt  and  Soricut, Radu  and  Specia, Lucia},'
+        '\n  title     = {Findings of the 2012 Workshop on Statistical Machine Translation},'
+        '\n  booktitle = {Proceedings of the Seventh Workshop on Statistical Machine Translation},'
+        '\n  month     = {June},\n  year      = {2012},\n  address   = {Montr{\'e}al, Canada},'
+        '\n  publisher = {Association for Computational Linguistics},\n  pages     = {10--51},'
+        '\n  url       = {http://www.aclweb.org/anthology/W12-3102}\n}',
         'cs-en': ['test/newstest2012-src.cs.sgm', 'test/newstest2012-src.en.sgm',],
         'en-cs': ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.cs.sgm',],
         'de-en': ['test/newstest2012-src.de.sgm', 'test/newstest2012-src.en.sgm',],
@@ -393,7 +483,12 @@ DATASETS = {
         'data': ['http://statmt.org/wmt11/test.tgz'],
         'md5': ['b0c9680adf32d394aefc2b24e3a5937e'],
         'description': 'Official evaluation data.',
-        'citation': '@InProceedings{callisonburch-EtAl:2011:WMT,\n  author    = {Callison-Burch, Chris  and  Koehn, Philipp  and  Monz, Christof  and  Zaidan, Omar},\n  title     = {Findings of the 2011 Workshop on Statistical Machine Translation},\n  booktitle = {Proceedings of the Sixth Workshop on Statistical Machine Translation},\n  month     = {July},\n  year      = {2011},\n  address   = {Edinburgh, Scotland},\n  publisher = {Association for Computational Linguistics},\n  pages     = {22--64},\n  url       = {http://www.aclweb.org/anthology/W11-2103}\n}',
+        'citation': '@InProceedings{callisonburch-EtAl:2011:WMT,\n  author    = {Callison-Burch, Chris  and  Koehn, '
+        'Philipp  and  Monz, Christof  and  Zaidan, Omar},\n  title     = {Findings of the 2011 Workshop '
+        'on Statistical Machine Translation},\n  booktitle = {Proceedings of the Sixth Workshop on '
+        'Statistical Machine Translation},\n  month     = {July},\n  year      = {2011},\n  address   = '
+        '{Edinburgh, Scotland},\n  publisher = {Association for Computational Linguistics},\n  pages     '
+        '= {22--64},\n  url       = {http://www.aclweb.org/anthology/W11-2103}\n}',
         'cs-en': ['newstest2011-src.cs.sgm', 'newstest2011-src.en.sgm'],
         'en-cs': ['newstest2011-src.en.sgm', 'newstest2011-src.cs.sgm'],
         'de-en': ['newstest2011-src.de.sgm', 'newstest2011-src.en.sgm'],
@@ -407,7 +502,14 @@ DATASETS = {
         'data': ['http://statmt.org/wmt10/test.tgz'],
         'md5': ['491cb885a355da5a23ea66e7b3024d5c'],
         'description': 'Official evaluation data.',
-        'citation': '@InProceedings{callisonburch-EtAl:2010:WMT,\n  author    = {Callison-Burch, Chris  and  Koehn, Philipp  and  Monz, Christof  and  Peterson, Kay  and  Przybocki, Mark  and  Zaidan, Omar},\n  title     = {Findings of the 2010 Joint Workshop on Statistical Machine Translation and Metrics for Machine Translation},\n  booktitle = {Proceedings of the Joint Fifth Workshop on Statistical Machine Translation and MetricsMATR},\n  month     = {July},\n  year      = {2010},\n  address   = {Uppsala, Sweden},\n  publisher = {Association for Computational Linguistics},\n  pages     = {17--53},\n  note      = {Revised August 2010},\n  url       = {http://www.aclweb.org/anthology/W10-1703}\n}',
+        'citation': '@InProceedings{callisonburch-EtAl:2010:WMT,\n  author    = {Callison-Burch, Chris  and  Koehn, '
+        'Philipp  and  Monz, Christof  and  Peterson, Kay  and  Przybocki, Mark  and  Zaidan, Omar},'
+        '\n  title     = {Findings of the 2010 Joint Workshop on Statistical Machine Translation and '
+        'Metrics for Machine Translation},\n  booktitle = {Proceedings of the Joint Fifth Workshop on '
+        'Statistical Machine Translation and MetricsMATR},\n  month     = {July},\n  year      = {2010},'
+        '\n  address   = {Uppsala, Sweden},\n  publisher = {Association for Computational Linguistics},'
+        '\n  pages     = {17--53},\n  note      = {Revised August 2010},\n  url       = {'
+        'http://www.aclweb.org/anthology/W10-1703}\n}',
         'cs-en': ['test/newstest2010-src.cz.sgm', 'test/newstest2010-src.en.sgm',],
         'en-cs': ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.cz.sgm',],
         'de-en': ['test/newstest2010-src.de.sgm', 'test/newstest2010-src.en.sgm',],
@@ -421,7 +523,13 @@ DATASETS = {
         'data': ['http://statmt.org/wmt09/test.tgz'],
         'md5': ['da227abfbd7b666ec175b742a0d27b37'],
         'description': 'Official evaluation data.',
-        'citation': '@InProceedings{callisonburch-EtAl:2009:WMT-09,\n  author    = {Callison-Burch, Chris  and  Koehn, Philipp  and  Monz, Christof  and  Schroeder, Josh},\n  title     = {Findings of the 2009 {W}orkshop on {S}tatistical {M}achine {T}ranslation},\n  booktitle = {Proceedings of the Fourth Workshop on Statistical Machine Translation},\n  month     = {March},\n  year      = {2009},\n  address   = {Athens, Greece},\n  publisher = {Association for Computational Linguistics},\n  pages     = {1--28},\n  url       = {http://www.aclweb.org/anthology/W/W09/W09-0401}\n}',
+        'citation': '@InProceedings{callisonburch-EtAl:2009:WMT-09,\n  author    = {Callison-Burch, Chris  and  '
+        'Koehn, Philipp  and  Monz, Christof  and  Schroeder, Josh},\n  title     = {Findings of the '
+        '2009 {W}orkshop on {S}tatistical {M}achine {T}ranslation},\n  booktitle = {Proceedings of the '
+        'Fourth Workshop on Statistical Machine Translation},\n  month     = {March},\n  year      = {'
+        '2009},\n  address   = {Athens, Greece},\n  publisher = {Association for Computational '
+        'Linguistics},\n  pages     = {1--28},\n  url       = {'
+        'http://www.aclweb.org/anthology/W/W09/W09-0401}\n}',
         'cs-en': ['test/newstest2009-src.cz.sgm', 'test/newstest2009-src.en.sgm',],
         'en-cs': ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.cz.sgm',],
         'de-en': ['test/newstest2009-src.de.sgm', 'test/newstest2009-src.en.sgm',],
@@ -439,7 +547,12 @@ DATASETS = {
         'data': ['http://statmt.org/wmt08/test.tgz'],
         'md5': ['0582e4e894a3342044059c894e1aea3d'],
         'description': 'Official evaluation data.',
-        'citation': '@InProceedings{callisonburch-EtAl:2008:WMT,\n  author    = {Callison-Burch, Chris  and  Fordyce, Cameron  and  Koehn, Philipp  and  Monz, Christof  and  Schroeder, Josh},\n  title     = {Further Meta-Evaluation of Machine Translation},\n  booktitle = {Proceedings of the Third Workshop on Statistical Machine Translation},\n  month     = {June},\n  year      = {2008},\n  address   = {Columbus, Ohio},\n  publisher = {Association for Computational Linguistics},\n  pages     = {70--106},\n  url       = {http://www.aclweb.org/anthology/W/W08/W08-0309}\n}',
+        'citation': '@InProceedings{callisonburch-EtAl:2008:WMT,\n  author    = {Callison-Burch, Chris  and  '
+        'Fordyce, Cameron  and  Koehn, Philipp  and  Monz, Christof  and  Schroeder, Josh},\n  title     '
+        '= {Further Meta-Evaluation of Machine Translation},\n  booktitle = {Proceedings of the Third '
+        'Workshop on Statistical Machine Translation},\n  month     = {June},\n  year      = {2008},'
+        '\n  address   = {Columbus, Ohio},\n  publisher = {Association for Computational Linguistics},'
+        '\n  pages     = {70--106},\n  url       = {http://www.aclweb.org/anthology/W/W08/W08-0309}\n}',
         'cs-en': ['test/newstest2008-src.cz.sgm', 'test/newstest2008-src.en.sgm',],
         'en-cs': ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.cz.sgm',],
         'de-en': ['test/newstest2008-src.de.sgm', 'test/newstest2008-src.en.sgm',],
@@ -499,7 +612,12 @@ DATASETS = {
             "cc51d9b7fe1ff2af858c6a0dd80b8815",
         ],
         'description': 'Official evaluation data for IWSLT.',
-        'citation': '@InProceedings{iwslt2017,\n  author    = {Cettolo, Mauro and Federico, Marcello and Bentivogli, Luisa and Niehues, Jan and Stüker, Sebastian and Sudoh, Katsuitho and Yoshino, Koichiro and Federmann, Christian},\n  title     = {Overview of the IWSLT 2017 Evaluation Campaign},\n  booktitle = {14th International Workshop on Spoken Language Translation},\n  month     = {December},\n  year      = {2017},\n  address   = {Tokyo, Japan},\n  pages     = {2--14},\n  url       = {http://workshop2017.iwslt.org/downloads/iwslt2017_proceeding_v2.pdf}\n}',
+        'citation': '@InProceedings{iwslt2017,\n  author    = {Cettolo, Mauro and Federico, Marcello and Bentivogli, '
+        'Luisa and Niehues, Jan and Stüker, Sebastian and Sudoh, Katsuitho and Yoshino, Koichiro and '
+        'Federmann, Christian},\n  title     = {Overview of the IWSLT 2017 Evaluation Campaign},'
+        '\n  booktitle = {14th International Workshop on Spoken Language Translation},\n  month     = {'
+        'December},\n  year      = {2017},\n  address   = {Tokyo, Japan},\n  pages     = {2--14},'
+        '\n  url       = {http://workshop2017.iwslt.org/downloads/iwslt2017_proceeding_v2.pdf}\n}',
         'en-fr': ['en-fr/IWSLT17.TED.tst2017.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2017.fr-en.fr.xml',],
         'fr-en': ['fr-en/IWSLT17.TED.tst2017.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2017.en-fr.en.xml',],
         'en-de': ['en-de/IWSLT17.TED.tst2017.en-de.en.xml', 'de-en/IWSLT17.TED.tst2017.de-en.de.xml',],

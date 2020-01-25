@@ -91,10 +91,8 @@ extensions = [
     "sphinxcontrib.bibtex",
 ]
 
-
 locale_dirs = ['locale/']  # path is example but recommended.
 gettext_compact = False  # optional.
-
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]

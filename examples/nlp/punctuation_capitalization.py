@@ -140,7 +140,6 @@ else:
     model.restore_from(args.bert_checkpoint)
     nemo.logging.info(f"Model restored from {args.bert_checkpoint}")
 
-
 hidden_size = model.local_parameters["hidden_size"]
 
 punct_classifier = "TokenClassifier"
@@ -167,7 +166,6 @@ def create_pipeline(
     dropout=args.fc_dropout,
     punct_num_layers=args.punct_num_fc_layers,
 ):
-
     global punct_classifier, punct_loss, capit_classifier, capit_loss, task_loss
 
     nemo.logging.info(f"Loading {mode} data...")
