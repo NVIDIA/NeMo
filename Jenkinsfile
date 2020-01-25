@@ -14,7 +14,7 @@ pipeline {
         sh 'python -c "import torch; print(torch.__version__)"'
       }
     }
-    stage('Code formatting checks') {
+    stage('Install test requirements') {
       steps {
         sh 'pip install -r requirements/requirements_test.txt'
       }
