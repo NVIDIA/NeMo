@@ -110,7 +110,7 @@ class AudioText(_Collection):
                 duration_filtered += duration
                 continue
 
-            if max_duration is not None and duration < max_duration:
+            if max_duration is not None and duration > max_duration:
                 duration_filtered += duration
                 continue
 
