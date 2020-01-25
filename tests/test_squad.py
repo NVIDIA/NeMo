@@ -22,6 +22,7 @@ import shutil
 import sys
 
 import nemo
+from nemo import logging
 from nemo.utils.lr_policies import get_lr_policy
 
 import nemo.collections.nlp as nemo_nlp

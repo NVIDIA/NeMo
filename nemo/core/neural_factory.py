@@ -18,7 +18,7 @@ import numpy as np
 import nemo
 from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *
-from ..utils import ExpManager
+from nemo.utils.exp_logging import ExpManager
 
 
 class DeploymentFormat(Enum):
@@ -391,6 +391,9 @@ class NeuralModuleFactory(object):
             raise NotImplementedError(
                 "Only Pytorch backend is currently supported.")
 
+        # if set_default:
+        #     NeuralModuleFactory.set_default_factory(self)
+
         # Create ExpManager
         # if log_dir is None, only create logger
         self._exp_manager = ExpManager(
@@ -403,7 +406,9 @@ class NeuralModuleFactory(object):
             files_to_copy=files_to_copy,
             add_time=add_time_to_log_dir,
             exist_ok=True,
-            broadcast_func=broadcast_func)
+            broadcast_func=broadcast_func
+        )
+
         self._tb_writer = self._exp_manager.tb_writer
 
         # Create trainer

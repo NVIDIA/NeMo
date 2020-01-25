@@ -8,6 +8,8 @@ import os
 from ruamel.yaml import YAML
 
 import nemo
+from nemo import logging
+
 import nemo.utils.argparse as nm_argparse
 from nemo.utils.lr_policies import CosineAnnealing
 import nemo.collections.asr as nemo_asr

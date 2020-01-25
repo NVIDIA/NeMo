@@ -27,6 +27,8 @@ from operator import attrgetter
 import scipy.io.wavfile as wavfile
 from tqdm import tqdm
 
+from nemo import logging
+
 parser = argparse.ArgumentParser(
         description="Prepare HUB5 data for training/eval")
 parser.add_argument(

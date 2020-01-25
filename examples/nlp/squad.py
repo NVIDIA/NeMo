@@ -63,11 +63,12 @@ import json
 import os
 
 import nemo
+from nemo import logging
 import nemo.collections.nlp as nemo_nlp
+
 from nemo.utils.lr_policies import get_lr_policy
-from nemo.collections.nlp.utils.callbacks.squad import (
-    eval_iter_callback,
-    eval_epochs_done_callback)
+from nemo.collections.nlp.utils.callbacks.squad import eval_iter_callback
+from nemo.collections.nlp.utils.callbacks.squad import eval_epochs_done_callback
 
 
 def parse_args():

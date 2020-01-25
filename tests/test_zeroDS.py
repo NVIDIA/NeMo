@@ -22,6 +22,7 @@ import torch
 from ruamel.yaml import YAML
 
 import nemo
+from nemo import logging
 from nemo.core.neural_types import *
 
 import nemo.collections.asr as nemo_asr

@@ -3,6 +3,7 @@ import librosa
 import numpy as np
 import torch
 
+from nemo import logging
 from nemo.backends.pytorch.nm import TrainableNM, LossNM
 from nemo.core.neural_types import *
 from .parts.waveglow import WaveGlow

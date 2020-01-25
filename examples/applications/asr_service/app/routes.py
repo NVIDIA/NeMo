@@ -8,13 +8,15 @@ from werkzeug.utils import secure_filename
 
 from app import app, data_preprocessor, jasper_encoder, jasper_decoder, \
     greedy_decoder, neural_factory, MODEL_YAML, WORK_DIR, ENABLE_NGRAM
+
+from nemo import logging
+import nemo.collections.asr as nemo_asr
+
 try:
     from app import beam_search_with_lm
 except ImportError:
     logging.info("Not using Beam Search Decoder with LM")
     ENABLE_NGRAM = False
-import nemo
-import nemo.collections.asr as nemo_asr
 
 
 def wav_to_text(manifest, greedy=True):

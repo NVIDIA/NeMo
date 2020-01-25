@@ -5,6 +5,7 @@ import torch as t
 import torch.nn as nn
 import torch.utils.data as t_utils
 
+from nemo import logging
 from ..nm import TrainableNM, DataLayerNM, LossNM
 from ....core import NeuralModule, DeviceType
 from ....core.neural_types import *

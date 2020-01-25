@@ -27,6 +27,7 @@ import torch
 from torch.utils.data import Dataset
 
 import nemo
+from nemo import logging
 from nemo.collections.nlp.utils.nlp_utils import _is_whitespace
 from .utils import DataProcessor
 from ...utils.metrics.squad_metrics import (

@@ -28,6 +28,7 @@ import librosa
 import json
 import random
 from tqdm import tqdm
+from nemo import logging
 
 
 URLS = {

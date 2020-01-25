@@ -22,14 +22,9 @@ Some parts of this code were adapted from the Annotated Transformer at
 http://nlp.seas.harvard.edu/2018/04/03/attention.html
 Copyright by the HuggingFace and Annotated Transformer authors.
 """
-__all__ = ['FixedPositionalEncoding',
-           'TransformerEmbedding',
-           'MultiHeadAttention',
-           'LightweightConv1d',
-           'TwoStreamSelfAttention',
-           'PositionWiseFF']
 
 import math
+from nemo import logging
 try:
     from apex.normalization import FusedLayerNorm
 except (AttributeError, ModuleNotFoundError):
@@ -42,6 +37,13 @@ import torch
 from torch import nn
 
 from .utils import gelu
+
+__all__ = ['FixedPositionalEncoding',
+           'TransformerEmbedding',
+           'MultiHeadAttention',
+           'LightweightConv1d',
+           'TwoStreamSelfAttention',
+           'PositionWiseFF']
 
 
 class FixedPositionalEncoding(nn.Module):

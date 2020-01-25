@@ -2,6 +2,7 @@ import argparse
 
 import onnx
 import tensorrt as trt
+from nemo import logging
 
 
 def build_engine(onnx_path, seq_len=192, max_seq_len=256, batch_size=8,

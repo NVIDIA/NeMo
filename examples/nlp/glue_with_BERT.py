@@ -67,12 +67,11 @@ import argparse
 import json
 
 import nemo
+from nemo import logging
+import nemo.collections.nlp as nemo_nlp
+
 from nemo.backends.pytorch.common import CrossEntropyLoss
 from nemo.backends.pytorch.common import MSELoss
-
-from nemo.utils.lr_policies import get_lr_policy
-
-import nemo.collections.nlp as nemo_nlp
 
 from nemo.collections.nlp import NemoBertTokenizer
 from nemo.collections.nlp import SentencePieceTokenizer
@@ -82,6 +81,8 @@ from nemo.collections.nlp.utils.callbacks.glue import eval_epochs_done_callback
 
 from nemo.collections.nlp.data.datasets.utils import processors
 from nemo.collections.nlp.data.datasets.utils import output_modes
+
+from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description="GLUE_with_pretrained_BERT")
 

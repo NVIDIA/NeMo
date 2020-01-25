@@ -18,8 +18,7 @@ import random
 import re
 import string
 import urllib.request
-
-from collections import Counter
+from nemo import logging
 
 URL = {'tatoeba': 'https://downloads.tatoeba.org/exports/sentences.csv'}
 

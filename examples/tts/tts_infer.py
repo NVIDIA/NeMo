@@ -1,6 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import argparse
-import copy
 import os
 
 import librosa
@@ -10,6 +9,7 @@ from ruamel.yaml import YAML
 from scipy.io.wavfile import write
 
 import nemo
+from nemo import logging
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
 from tacotron2 import create_NMs
@@ -83,7 +83,7 @@ def griffin_lim(magnitudes, n_iters=50, n_fft=1024):
     complex_spec = magnitudes * phase
     signal = librosa.istft(complex_spec)
     if not np.isfinite(signal).all():
-        logging.warning(audio was not finite, skipping audio saving")
+        logging.warning("audio was not finite, skipping audio saving")
         return np.array([0])
 
     for _ in range(n_iters):

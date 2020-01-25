@@ -1,12 +1,19 @@
-from tensorboardX import SummaryWriter
-import nemo
-from nemo.backends.pytorch.torchvision.helpers import eval_iter_callback, \
-    eval_epochs_done_callback, compute_accuracy
-import argparse
+# Copyright (c) 2019 NVIDIA Corporation
+
 import os
+import sys
+
+import argparse
 import subprocess
 import zipfile
-import sys
+
+import nemo
+from nemo import logging
+from nemo.backends.pytorch.torchvision.helpers import eval_iter_callback, \
+    eval_epochs_done_callback, compute_accuracy
+
+from tensorboardX import SummaryWriter
+
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../..')))
 

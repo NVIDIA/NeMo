@@ -13,6 +13,7 @@ import uuid
 import collections
 
 
+from nemo import logging
 from nemo.core import NeuralModuleFactory
 from nemo.utils.decorators.deprecated import deprecated
 

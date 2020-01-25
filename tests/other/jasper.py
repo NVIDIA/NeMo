@@ -8,6 +8,7 @@ import sys
 
 import toml
 from tensorboardX import SummaryWriter
+from nemo import logging
 
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../..')))

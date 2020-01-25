@@ -21,6 +21,7 @@ import re
 import torch
 import numpy as np
 import tensorrt as trt
+from nemo import logging
 
 nvinfer = ctypes.CDLL("libnvinfer_plugin.so", mode=ctypes.RTLD_GLOBAL)
 cm = ctypes.CDLL("libcommon.so", mode=ctypes.RTLD_GLOBAL)

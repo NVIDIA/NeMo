@@ -1,11 +1,13 @@
 # Copyright (c) 2019 NVIDIA Corporation
-__all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 import numpy as np
 
+from nemo import logging
 from nemo.collections.asr.metrics import word_error_rate
 
 from ..metrics.sacrebleu import corpus_bleu
+
+__all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 
 GLOBAL_KEYS = ["eval_loss", "ref", "sys", "sent_ids", "nonpad_tokens"]

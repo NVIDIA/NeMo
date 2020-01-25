@@ -156,6 +156,9 @@ class Logger(metaclass=SingletonMetaClass):
         if self._logger is not None:
             return self._logger.getEffectiveLevel()
 
+    def setLevel(self, verbosity_level):
+        return self.set_verbosity(verbosity_level)
+
     def set_verbosity(self, verbosity_level):
         """Sets the threshold for what messages will be logged."""
         if self._logger is not None:

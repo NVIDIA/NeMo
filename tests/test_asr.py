@@ -1,11 +1,3 @@
-# Copyright (c) 2019 NVIDIA Corporation
-import os
-import shutil
-import tarfile
-import unittest
-
-import nemo
-from nemo.core import DeviceType
 # ! /usr/bin/python
 # -*- coding: utf-8 -*-
 
@@ -23,6 +15,14 @@ from nemo.core import DeviceType
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+
+import os
+import shutil
+import tarfile
+
+import nemo
+from nemo import logging
+from nemo.core import DeviceType
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer

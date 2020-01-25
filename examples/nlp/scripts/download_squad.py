@@ -15,6 +15,8 @@ import argparse
 import os
 import urllib.request
 
+from nemo import logging
+
 
 class SquadDownloader:
     def __init__(self, save_path):

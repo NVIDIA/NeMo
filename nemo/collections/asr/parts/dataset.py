@@ -8,6 +8,7 @@ import torch
 from torch.utils.data import Dataset
 
 import nemo
+from nemo import logging
 from nemo.collections.asr.parts import collections
 from nemo.collections.asr.parts import parsers
 

@@ -4,14 +4,11 @@
 
 import argparse
 import os
-import urllib.request
-import tarfile
 import fnmatch
 import subprocess
 import json
 from tqdm import tqdm
-from sox import Transformer
-import sys
+from nemo import logging
 
 #
 # This script proposes to create the *json manifest necessary to use the TIMIT

@@ -14,6 +14,7 @@
 
 import argparse
 import os
+from nemo import logging
 
 
 def __convert_data(in_file,

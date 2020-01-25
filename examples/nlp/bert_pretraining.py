@@ -61,15 +61,15 @@ should finish under 5 days and yield an MRPC score of ACC/F1 85.05/89.35.
 import argparse
 import os
 import math
-import torch
+
 import nemo
-from nemo.utils.lr_policies import get_lr_policy
-from pytorch_transformers import BertConfig
+from nemo import logging
+
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.data.datasets.utils import BERTPretrainingDataDesc
-from nemo.collections.nlp.transformer.utils import gelu
-from nemo.collections.nlp.utils.callbacks.bert_pretraining import \
-    eval_iter_callback, eval_epochs_done_callback
+from nemo.utils.lr_policies import get_lr_policy
+
+from transformers import BertConfig
 
 
 parser = argparse.ArgumentParser(description='BERT pretraining')

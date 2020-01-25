@@ -8,6 +8,7 @@ import urllib.request
 import tarfile
 import subprocess
 import json
+from nemo import logging
 
 parser = argparse.ArgumentParser(description='Aishell Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)

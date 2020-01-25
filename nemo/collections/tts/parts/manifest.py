@@ -1,6 +1,8 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import json
 
+from nemo import logging
+
 
 class AudioManifest(object):
     def __init__(self,

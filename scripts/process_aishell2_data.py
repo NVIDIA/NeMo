@@ -5,9 +5,10 @@
 #                   --dest_folder=<where to store the results>
 import argparse
 import os
-import sys
 import json
 import subprocess
+from nemo import logging
+
 parser = argparse.ArgumentParser(description="Processing Aishell2 Data")
 parser.add_argument(
         "--audio_folder", default=None, type=str, required=True,

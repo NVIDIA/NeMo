@@ -22,6 +22,8 @@ import string
 
 from transformers.tokenization_bert import BasicTokenizer
 
+from nemo import logging
+
 
 def _get_best_indexes(logits, n_best_size):
     """Get the n-best logits from a list."""

@@ -22,6 +22,8 @@ from functools import partial
 import re
 import glob
 
+from nemo import logging
+
 
 def create_vocab(lines,
                  vocab_file,

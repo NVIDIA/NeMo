@@ -14,6 +14,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 import nemo
+from nemo import logging
 from nemo.backends.pytorch.nm import TrainableNM
 from .module_wrapper import TrainableNeuralModuleWrapper
 from .nm import DataLayerNM

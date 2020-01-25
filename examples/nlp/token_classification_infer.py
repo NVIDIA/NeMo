@@ -2,9 +2,9 @@ import argparse
 import os
 
 import numpy as np
-from sklearn.metrics import classification_report
 
 import nemo
+from nemo import logging
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp import NemoBertTokenizer
 from nemo.collections.nlp.utils.nlp_utils import get_vocab

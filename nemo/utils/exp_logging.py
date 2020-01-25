@@ -8,34 +8,36 @@ import sys
 import warnings
 
 import nemo
+from nemo import logging
+from nemo.constants import NEMO_ENV_VARNAME_SAVE_LOGS_TO_DIR
+from nemo.utils.decorators.deprecated import deprecated
 
 
+@deprecated
 def get_logger(unused):
-    warnings.warn("This function will be deprecated in the future. You "
-                  "can just use nemo.logging instead")
-    return nemo.logging
+    return logging
 
 
-class ContextFilter(logging.Filter):
-    """
-    This is a filter which injects contextual information into the log.
-    Use it when we want to inject worker number into the log message.
-
-    Usage:
-    logger = get_logger(name)
-    tmp = logging.Formatter(
-        'WORKER %(local_rank)s: %(asctime)s - %(levelname)s - %(message)s')
-    logger.addFilter(ContextFilter(self.local_rank))
-
-    """
-
-    def __init__(self, local_rank):
-        super().__init__()
-        self.local_rank = local_rank
-
-    def filter(self, record):
-        record.local_rank = self.local_rank
-        return True
+# class ContextFilter(logging.Filter):
+#     """
+#     This is a filter which injects contextual information into the log.
+#     Use it when we want to inject worker number into the log message.
+#
+#     Usage:
+#     logger = get_logger(name)
+#     tmp = logging.Formatter(
+#         'WORKER %(local_rank)s: %(asctime)s - %(levelname)s - %(message)s')
+#     logger.addFilter(ContextFilter(self.local_rank))
+#
+#     """
+#
+#     def __init__(self, local_rank):
+#         super().__init__()
+#         self.local_rank = local_rank
+#
+#     def filter(self, record):
+#         record.local_rank = self.local_rank
+#         return True
 
 
 class ExpManager:
@@ -91,7 +93,7 @@ class ExpManager:
             broadcast_func=None):
         self.local_rank = local_rank if local_rank is not None else 0
         self.global_rank = global_rank if global_rank is not None else 0
-        self.logger = None
+        self.logger = logging
         self.log_file = None
         self.tb_writer = None
         self.work_dir = None
@@ -155,26 +157,20 @@ class ExpManager:
             self.make_dir(self.ckpt_dir, exist_ok)
 
     def create_logger(self, level=logging.INFO, log_file=True):
-        logger = nemo.logging
-        tmp = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        # tmp = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
-        if self.global_rank == 0:
-            logger.setLevel(level)
-            ch = logging.StreamHandler()
-            ch.setLevel(level)
-            ch.setFormatter(tmp)
-            logger.addHandler(ch)
+        logging.setLevel(level)
 
         if log_file:
             self.log_file = (
                 f'{self.work_dir}/log_globalrank-{self.global_rank}_'
-                f'localrank-{self.local_rank}.txt')
-            fh = logging.FileHandler(self.log_file)
-            fh.setLevel(level)
-            fh.setFormatter(tmp)
-            logger.addHandler(fh)
-        self.logger = logger
-        return logger
+                f'localrank-{self.local_rank}.txt'
+            )
+
+            os.environ[NEMO_ENV_VARNAME_SAVE_LOGS_TO_DIR] = self.log_file
+            logging.reset_stream_handler()
+
+        return logging
 
     def make_dir(self, dir_, exist_ok):
         # We might want to limit folder creation to only global_rank 0

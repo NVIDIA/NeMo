@@ -9,7 +9,7 @@ import warnings
 
 import nemo
 
-from ..utils import get_checkpoint_from_dir
+from nemo.utils.helpers import get_checkpoint_from_dir
 
 
 class ActionCallback(ABC):

@@ -1,10 +1,11 @@
 # Copyright (c) 2019 NVIDIA Corporation
-from math import sqrt
 
 import torch
 from torch.autograd import Variable
 from torch import nn
 from torch.nn import functional as F
+
+from nemo import logging
 
 from .layers import ConvNorm, LinearNorm, get_mask_from_lengths
 

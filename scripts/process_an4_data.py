@@ -17,8 +17,8 @@ import json
 import librosa
 import os
 import subprocess
-import tarfile
-import wget
+
+from nemo import logging
 
 parser = argparse.ArgumentParser(
         description="AN4 dataset download and processing")

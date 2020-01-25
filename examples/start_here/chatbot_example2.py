@@ -4,6 +4,8 @@ import gzip
 import shutil
 import nemo
 
+from nemo import logging
+
 # Get Data
 data_file = "movie_data.txt"
 if not os.path.isfile(data_file):

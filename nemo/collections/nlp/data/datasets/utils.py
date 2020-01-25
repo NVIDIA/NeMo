@@ -10,6 +10,7 @@ import shutil
 import subprocess
 
 import nemo
+from nemo import logging
 import numpy as np
 from sentencepiece import SentencePieceTrainer as SPT
 from tqdm import tqdm

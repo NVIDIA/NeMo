@@ -8,6 +8,7 @@ from functools import partial
 from ruamel.yaml import YAML
 
 import nemo
+from nemo import logging
 import nemo.utils.argparse as nm_argparse
 
 import nemo.collections.asr as nemo_asr

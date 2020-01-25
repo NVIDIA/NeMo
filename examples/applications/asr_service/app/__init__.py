@@ -1,9 +1,11 @@
 # Copyright (c) 2019 NVIDIA Corporation
+
 import os
 from flask import Flask
 from ruamel.yaml import YAML
 
 import nemo
+from nemo import logging
 import nemo.collections.asr as nemo_asr
 
 app = Flask(__name__)

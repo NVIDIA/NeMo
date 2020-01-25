@@ -15,6 +15,7 @@ import subprocess
 import json
 from tqdm import tqdm
 from sox import Transformer
+from nemo import logging
 
 parser = argparse.ArgumentParser(description='LibriSpeech Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)

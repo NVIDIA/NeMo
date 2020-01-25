@@ -22,6 +22,7 @@ import numpy as np
 import torch
 
 import nemo
+from nemo import logging
 from nemo.core import WeightShareTransform
 from nemo.core.neural_types import *
 

@@ -16,8 +16,8 @@
 # limitations under the License.
 # =============================================================================
 
-import unittest
 import nemo
+from nemo import logging
 
 from .common_setup import NeMoUnitTest
 

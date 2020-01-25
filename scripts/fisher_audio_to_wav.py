@@ -14,6 +14,7 @@ import os
 import subprocess
 
 from tqdm import tqdm
+from nemo import logging
 
 parser = argparse.ArgumentParser(description='Convert Fisher .sph to .wav')
 parser.add_argument(

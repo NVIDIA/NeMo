@@ -20,6 +20,8 @@ import argparse
 import glob
 import os
 
+from nemo import logging
+
 from sentencepiece import SentencePieceTrainer as SPT
 from tqdm import tqdm
 

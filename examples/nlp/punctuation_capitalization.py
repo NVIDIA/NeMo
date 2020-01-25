@@ -6,11 +6,11 @@ import os
 import sys
 
 import nemo
+from nemo import logging
 from nemo.utils.lr_policies import get_lr_policy
 
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp import NemoBertTokenizer, SentencePieceTokenizer, \
-    TokenClassifier, TokenClassificationLoss
+from nemo.collections.nlp import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets import utils
 from nemo.collections.nlp.utils.callbacks.punctuation_capitalization import \
     eval_iter_callback, eval_epochs_done_callback

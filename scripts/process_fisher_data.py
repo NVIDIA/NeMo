@@ -16,7 +16,6 @@
 
 import argparse
 import glob
-import io
 import json
 import os
 import re
@@ -25,6 +24,8 @@ from math import floor, ceil
 import numpy as np
 import scipy.io.wavfile as wavfile
 from tqdm import tqdm
+
+from nemo import logging
 
 parser = argparse.ArgumentParser(description="Fisher Data Processing")
 parser.add_argument(

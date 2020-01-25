@@ -17,9 +17,9 @@
 # =============================================================================
 
 import tarfile
-import unittest
 
 from nemo.core import *
+from nemo import logging
 import nemo.collections.asr as nemo_asr
 
 from ruamel.yaml import YAML

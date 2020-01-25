@@ -18,6 +18,7 @@ from io import StringIO
 from unittest.mock import patch
 
 from .common_setup import NeMoUnitTest
+from nemo import logging
 from nemo.utils.decorators.deprecated import deprecated
 
 
