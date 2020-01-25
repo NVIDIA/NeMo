@@ -43,10 +43,15 @@ def eval_iter_callback(tensors, global_vars):
             global_vars['eval_unique_ids'].extend(unique_ids)
 
 
-def eval_epochs_done_callback(global_vars, eval_data_layer, do_lower_case,
-                              n_best_size, max_answer_length,
-                              version_2_with_negative,
-                              null_score_diff_threshold):
+def eval_epochs_done_callback(
+    global_vars,
+    eval_data_layer,
+    do_lower_case,
+    n_best_size,
+    max_answer_length,
+    version_2_with_negative,
+    null_score_diff_threshold,
+):
     exact_match, f1, _ = eval_data_layer.dataset.evaluate(
         unique_ids=global_vars["eval_unique_ids"],
         start_logits=global_vars["eval_start_logits"],
@@ -55,7 +60,8 @@ def eval_epochs_done_callback(global_vars, eval_data_layer, do_lower_case,
         max_answer_length=max_answer_length,
         version_2_with_negative=version_2_with_negative,
         null_score_diff_threshold=null_score_diff_threshold,
-        do_lower_case=do_lower_case)
+        do_lower_case=do_lower_case,
+    )
 
     print(f"Exact_match = {exact_match}, f1 = {f1}")
 

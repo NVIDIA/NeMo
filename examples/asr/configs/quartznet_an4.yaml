@@ -1,6 +1,6 @@
 model: "QuartzNet-AN4"
 sample_rate: 16000
-dropout: &drop 0.0 
+dropout: &drop 0.0
 repeat:  &rep  1
 
 #optimization:
@@ -43,68 +43,68 @@ AudioToMelSpectrogramPreprocessor:
 JasperEncoder:
     activation: "relu"
     jasper:
-        - filters: 128
-          repeat: 1
-          kernel: [11]
-          stride: [1]
-          dilation: [1]
-          dropout: *drop
-          residual: true
-          separable: true
+        -   filters: 128
+            repeat: 1
+            kernel: [11]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: true
 
-        - filters: 256
-          repeat: *rep
-          kernel: [13]
-          stride: [1]
-          dilation: [1]
-          dropout: *drop
-          residual: true
-          separable: true
+        -   filters: 256
+            repeat: *rep
+            kernel: [13]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: true
 
-        - filters: 256
-          repeat: *rep
-          kernel: [15]
-          stride: [1]
-          dilation: [1]
-          dropout: *drop
-          residual: true
-          separable: true
+        -   filters: 256
+            repeat: *rep
+            kernel: [15]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: true
 
-        - filters: 256
-          repeat: *rep
-          kernel: [17]
-          stride: [1]
-          dilation: [1]
-          dropout: *drop
-          residual: true
-          separable: true
+        -   filters: 256
+            repeat: *rep
+            kernel: [17]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: true
 
-        - filters: 256
-          repeat: *rep
-          kernel: [19]
-          stride: [1]
-          dilation: [1]
-          dropout: *drop
-          residual: true
-          separable: true
+        -   filters: 256
+            repeat: *rep
+            kernel: [19]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: true
 
 
-        - filters: 256
-          repeat: 1
-          kernel: [21]
-          stride: [1]
-          dilation: [1]
-          dropout: 0.0
-          residual: false
-          separable: true
+        -   filters: 256
+            repeat: 1
+            kernel: [21]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: false
+            separable: true
 
-        - filters: 1024
-          repeat: 1
-          kernel: [1]
-          stride: [1]
-          dilation: [1]
-          dropout: 0.0
-          residual: false
+        -   filters: 1024
+            repeat: 1
+            kernel: [1]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: false
 
 labels: [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
          "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]

@@ -8,6 +8,7 @@ import os
 import random
 import tarfile
 import urllib.request
+
 from scipy.io.wavfile import read
 
 URL = "https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2"

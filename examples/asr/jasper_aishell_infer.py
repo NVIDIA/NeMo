@@ -8,8 +8,7 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.helpers import word_error_rate, post_process_predictions, \
-    post_process_transcripts
+from nemo.collections.asr.helpers import post_process_predictions, post_process_transcripts, word_error_rate
 
 
 def load_vocab(vocab_file):
@@ -48,8 +47,8 @@ def main():
     if args.local_rank is not None:
         if args.lm_path:
             raise NotImplementedError(
-                "Beam search decoder with LM does not currently support "
-                "evaluation on multi-gpu.")
+                "Beam search decoder with LM does not currently support " "evaluation on multi-gpu."
+            )
         device = nemo.core.DeviceType.AllGpu
     else:
         device = nemo.core.DeviceType.GPU
@@ -59,7 +58,8 @@ def main():
         backend=nemo.core.Backend.PyTorch,
         local_rank=args.local_rank,
         optimization_level=nemo.core.Optimization.mxprO1,
-        placement=device)
+        placement=device,
+    )
 
     if args.local_rank is not None:
         nemo.logging.info('Doing ALL GPU')
@@ -84,21 +84,21 @@ def main():
         sample_rate=sample_rate,
         labels=vocab,
         batch_size=batch_size,
-        **eval_dl_params)
+        **eval_dl_params,
+    )
 
     n = len(data_layer)
     nemo.logging.info('Evaluating {0} examples'.format(n))
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
-        sample_rate=sample_rate,
-        **jasper_params["AudioToMelSpectrogramPreprocessor"])
+        sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"],
+    )
     jasper_encoder = nemo_asr.JasperEncoder(
-        feat_in=jasper_params[
-            "AudioToMelSpectrogramPreprocessor"]["features"],
-        **jasper_params["JasperEncoder"])
+        feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"], **jasper_params["JasperEncoder"],
+    )
     jasper_decoder = nemo_asr.JasperDecoderForCTC(
-        feat_in=jasper_params["JasperEncoder"]["jasper"][-1]["filters"],
-        num_classes=len(vocab))
+        feat_in=jasper_params["JasperEncoder"]["jasper"][-1]["filters"], num_classes=len(vocab),
+    )
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
     if args.lm_path:
@@ -115,48 +115,40 @@ def main():
             cutoff_prob=cutoff_prob,
             cutoff_top_n=cutoff_top_n,
             lm_path=args.lm_path,
-            num_cpus=max(os.cpu_count(), 1))
+            num_cpus=max(os.cpu_count(), 1),
+        )
 
     nemo.logging.info('================================')
+    nemo.logging.info(f"Number of parameters in encoder: {jasper_encoder.num_weights}")
+    nemo.logging.info(f"Number of parameters in decoder: {jasper_decoder.num_weights}")
     nemo.logging.info(
-        f"Number of parameters in encoder: {jasper_encoder.num_weights}")
-    nemo.logging.info(
-        f"Number of parameters in decoder: {jasper_decoder.num_weights}")
-    nemo.logging.info(
-        f"Total number of parameters in model: "
-        f"{jasper_decoder.num_weights + jasper_encoder.num_weights}")
+        f"Total number of parameters in model: " f"{jasper_decoder.num_weights + jasper_encoder.num_weights}"
+    )
     nemo.logging.info('================================')
 
-    audio_signal_e1, a_sig_length_e1, transcript_e1, transcript_len_e1 = \
-        data_layer()
-    processed_signal_e1, p_length_e1 = data_preprocessor(
-        input_signal=audio_signal_e1,
-        length=a_sig_length_e1)
-    encoded_e1, encoded_len_e1 = jasper_encoder(
-        audio_signal=processed_signal_e1,
-        length=p_length_e1)
+    (audio_signal_e1, a_sig_length_e1, transcript_e1, transcript_len_e1,) = data_layer()
+    processed_signal_e1, p_length_e1 = data_preprocessor(input_signal=audio_signal_e1, length=a_sig_length_e1)
+    encoded_e1, encoded_len_e1 = jasper_encoder(audio_signal=processed_signal_e1, length=p_length_e1)
     log_probs_e1 = jasper_decoder(encoder_output=encoded_e1)
     predictions_e1 = greedy_decoder(log_probs=log_probs_e1)
 
-    eval_tensors = [log_probs_e1, predictions_e1,
-                    transcript_e1, transcript_len_e1, encoded_len_e1]
+    eval_tensors = [
+        log_probs_e1,
+        predictions_e1,
+        transcript_e1,
+        transcript_len_e1,
+        encoded_len_e1,
+    ]
 
     if args.lm_path:
-        beam_predictions_e1 = beam_search_with_lm(
-            log_probs=log_probs_e1, log_probs_length=encoded_len_e1)
+        beam_predictions_e1 = beam_search_with_lm(log_probs=log_probs_e1, log_probs_length=encoded_len_e1)
         eval_tensors.append(beam_predictions_e1)
 
-    evaluated_tensors = neural_factory.infer(
-        tensors=eval_tensors,
-        checkpoint_dir=load_dir,
-    )
+    evaluated_tensors = neural_factory.infer(tensors=eval_tensors, checkpoint_dir=load_dir,)
 
     greedy_hypotheses = post_process_predictions(evaluated_tensors[1], vocab)
-    references = post_process_transcripts(
-        evaluated_tensors[2], evaluated_tensors[3], vocab)
-    cer = word_error_rate(hypotheses=greedy_hypotheses,
-                          references=references,
-                          use_cer=True)
+    references = post_process_transcripts(evaluated_tensors[2], evaluated_tensors[3], vocab)
+    cer = word_error_rate(hypotheses=greedy_hypotheses, references=references, use_cer=True)
     nemo.logging.info("Greedy CER {:.2f}%".format(cer * 100))
 
     if args.lm_path:
@@ -167,8 +159,7 @@ def main():
             for j in i:
                 beam_hypotheses.append(j[0][1])
 
-        cer = word_error_rate(
-            hypotheses=beam_hypotheses, references=references, use_cer=True)
+        cer = word_error_rate(hypotheses=beam_hypotheses, references=references, use_cer=True)
         nemo.logging.info("Beam CER {:.2f}".format(cer * 100))
 
     if args.save_logprob:
@@ -176,8 +167,7 @@ def main():
         logprob = []
         for i, batch in enumerate(evaluated_tensors[0]):
             for j in range(batch.shape[0]):
-                logprob.append(
-                    batch[j][:evaluated_tensors[4][i][j], :].cpu().numpy())
+                logprob.append(batch[j][: evaluated_tensors[4][i][j], :].cpu().numpy())
         with open(args.save_logprob, 'wb') as f:
             pickle.dump(logprob, f, protocol=pickle.HIGHEST_PROTOCOL)
 

@@ -1,18 +1,17 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import logging
 import os
-import time
-from shutil import copyfile
 import subprocess
 import sys
+import time
 import warnings
+from shutil import copyfile
 
 import nemo
 
 
 def get_logger(unused):
-    warnings.warn("This function will be deprecated in the future. You "
-                  "can just use nemo.logging instead")
+    warnings.warn("This function will be deprecated in the future. You " "can just use nemo.logging instead")
     return nemo.logging
 
 
@@ -77,18 +76,20 @@ class ExpManager:
         the datetime suffix such that all ranks are consistent on work_dir
         name.
     """
+
     def __init__(
-            self,
-            work_dir=None,
-            local_rank=None,
-            global_rank=None,
-            use_tb=True,
-            exist_ok=True,
-            ckpt_dir=None,
-            tb_dir=None,
-            files_to_copy=None,
-            add_time=True,
-            broadcast_func=None):
+        self,
+        work_dir=None,
+        local_rank=None,
+        global_rank=None,
+        use_tb=True,
+        exist_ok=True,
+        ckpt_dir=None,
+        tb_dir=None,
+        files_to_copy=None,
+        add_time=True,
+        broadcast_func=None,
+    ):
         self.local_rank = local_rank if local_rank is not None else 0
         self.global_rank = global_rank if global_rank is not None else 0
         self.logger = None
@@ -107,7 +108,8 @@ class ExpManager:
             if broadcast_func is None:
                 raise ValueError(
                     "local rank was not None, but ExpManager was not passed a "
-                    "broadcast function to broadcast the datetime suffix")
+                    "broadcast function to broadcast the datetime suffix"
+                )
             if global_rank == 0:
                 broadcast_func(string=tm_suf)
             else:
@@ -130,15 +132,13 @@ class ExpManager:
                     copyfile(file, os.path.join(self.work_dir, basename))
             if self.global_rank == 0:
                 # Create files for cmd args and git info
-                with open(os.path.join(
-                        self.work_dir, f'cmd-args_{tm_suf}.log'), 'w') as f:
+                with open(os.path.join(self.work_dir, f'cmd-args_{tm_suf}.log'), 'w') as f:
                     f.write(" ".join(sys.argv))
 
                 # Try to get git hash
                 git_repo, git_hash = get_git_hash()
                 if git_repo:
-                    git_log_file = os.path.join(
-                        self.work_dir, f'git-info_{tm_suf}.log')
+                    git_log_file = os.path.join(self.work_dir, f'git-info_{tm_suf}.log')
                     with open(git_log_file, 'w') as f:
                         f.write(f'commit hash: {git_hash}')
                         f.write(get_git_diff())
@@ -146,8 +146,7 @@ class ExpManager:
         # Create loggers
         self.create_logger(log_file=bool(work_dir))
         if use_tb and not work_dir:
-            raise ValueError("ExpManager received use_tb as True but did not "
-                             "receive a work_dir")
+            raise ValueError("ExpManager received use_tb as True but did not " "receive a work_dir")
 
         if ckpt_dir:
             self.ckpt_dir = ckpt_dir
@@ -166,9 +165,7 @@ class ExpManager:
             logger.addHandler(ch)
 
         if log_file:
-            self.log_file = (
-                f'{self.work_dir}/log_globalrank-{self.global_rank}_'
-                f'localrank-{self.local_rank}.txt')
+            self.log_file = f'{self.work_dir}/log_globalrank-{self.global_rank}_' f'localrank-{self.local_rank}.txt'
             fh = logging.FileHandler(self.log_file)
             fh.setLevel(level)
             fh.setFormatter(tmp)
@@ -191,6 +188,7 @@ class ExpManager:
 
             try:
                 from torch.utils.tensorboard import SummaryWriter
+
                 self.tb_writer = SummaryWriter(self.tb_dir)
             except ImportError:
                 self.tb_writer = None
@@ -203,8 +201,7 @@ class ExpManager:
             nemo.logging.info("NEMO MODEL'S PARAMETERS")
             for key in params:
                 nemo.logging.info(f'{key}\t{params[key]}')
-            nemo.logging.info(
-                f'Experiment output is stored in {self.work_dir}')
+            nemo.logging.info(f'Experiment output is stored in {self.work_dir}')
 
     def reset_loggers(self):
         nemo.logging.handlers = []
@@ -212,15 +209,16 @@ class ExpManager:
 
 def get_git_hash():
     try:
-        return True, subprocess.check_output(['git', 'rev-parse', 'HEAD'],
-                                             stderr=subprocess.STDOUT).decode()
+        return (
+            True,
+            subprocess.check_output(['git', 'rev-parse', 'HEAD'], stderr=subprocess.STDOUT).decode(),
+        )
     except subprocess.CalledProcessError as e:
         return False, "{}\n".format(e.output.decode("utf-8"))
 
 
 def get_git_diff():
     try:
-        return subprocess.check_output(['git', 'diff'],
-                                       stderr=subprocess.STDOUT).decode()
+        return subprocess.check_output(['git', 'diff'], stderr=subprocess.STDOUT).decode()
     except subprocess.CalledProcessError as e:
         return "{}\n".format(e.output.decode("utf-8"))

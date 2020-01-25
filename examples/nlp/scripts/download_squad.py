@@ -30,22 +30,14 @@ class SquadDownloader:
             os.makedirs(self.save_path + '/v2.0')
 
         self.download_urls = {
-            'https://rajpurkar.github.io/SQuAD-explorer'
-            '/dataset/train-v1.1.json': 'v1.1/train-v1.1.json',
-            'https://rajpurkar.github.io/SQuAD-explorer'
-            '/dataset/dev-v1.1.json': 'v1.1/dev-v1.1.json',
+            'https://rajpurkar.github.io/SQuAD-explorer' '/dataset/train-v1.1.json': 'v1.1/train-v1.1.json',
+            'https://rajpurkar.github.io/SQuAD-explorer' '/dataset/dev-v1.1.json': 'v1.1/dev-v1.1.json',
             'https://worksheets.codalab.org/rest/bundles'
-            '/0xbcd57bee090b421c982906709c8c27e1/contents/blob/':
-                'v1.1/evaluate-v1.1.py',
-            'https://rajpurkar.github.io/SQuAD-explorer'
-            '/dataset/train-v2.0.json':
-                'v2.0/train-v2.0.json',
-            'https://rajpurkar.github.io/SQuAD-explorer'
-            '/dataset/dev-v2.0.json':
-                'v2.0/dev-v2.0.json',
+            '/0xbcd57bee090b421c982906709c8c27e1/contents/blob/': 'v1.1/evaluate-v1.1.py',
+            'https://rajpurkar.github.io/SQuAD-explorer' '/dataset/train-v2.0.json': 'v2.0/train-v2.0.json',
+            'https://rajpurkar.github.io/SQuAD-explorer' '/dataset/dev-v2.0.json': 'v2.0/dev-v2.0.json',
             'https://worksheets.codalab.org/rest/bundles'
-            '/0x6b567e1cf2e041ec80d7098f031c5c9e/contents/blob/':
-                'v2.0/evaluate-v2.0.py',
+            '/0x6b567e1cf2e041ec80d7098f031c5c9e/contents/blob/': 'v2.0/evaluate-v2.0.py',
         }
 
     def download(self):
@@ -64,10 +56,13 @@ class SquadDownloader:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download Squad')
-    parser.add_argument('--destDir', type=str, required=False,
-                        help='directory to store data',
-                        default=os.path.split(os.path.abspath(__file__))[0]
-                        + '/../data/lm')
+    parser.add_argument(
+        '--destDir',
+        type=str,
+        required=False,
+        help='directory to store data',
+        default=os.path.split(os.path.abspath(__file__))[0] + '/../data/lm',
+    )
     args = parser.parse_args()
     squad_dl = SquadDownloader(args.destDir)
     squad_dl.download()

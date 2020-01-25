@@ -20,6 +20,7 @@ import glob
 import os
 import pickle
 import random
+
 import h5py
 import numpy as np
 from torch.utils.data import Dataset
@@ -27,14 +28,16 @@ from tqdm import tqdm
 
 
 class BertPretrainingDataset(Dataset):
-    def __init__(self,
-                 tokenizer,
-                 dataset,
-                 max_seq_length=128,
-                 mask_probability=0.15,
-                 short_seq_prob=0.1,
-                 seq_a_ratio=0.6,
-                 sentence_idx_file=None):
+    def __init__(
+        self,
+        tokenizer,
+        dataset,
+        max_seq_length=128,
+        mask_probability=0.15,
+        short_seq_prob=0.1,
+        seq_a_ratio=0.6,
+        sentence_idx_file=None,
+    ):
         self.tokenizer = tokenizer
         self.cls_id = tokenizer.token_to_id("[CLS]")
         self.sep_id = tokenizer.token_to_id("[SEP]")
@@ -47,8 +50,8 @@ class BertPretrainingDataset(Dataset):
         # from main memory when needed during training.
 
         if sentence_idx_file is None:
-            data_dir = dataset[:dataset.rfind('/')]
-            mode = dataset[dataset.rfind('/') + 1:dataset.rfind('.')]
+            data_dir = dataset[: dataset.rfind('/')]
+            mode = dataset[dataset.rfind('/') + 1 : dataset.rfind('.')]
             sentence_idx_file = f"{data_dir}/{mode}_sentence_indices.pkl"
 
         if os.path.isfile(sentence_idx_file):
@@ -67,10 +70,12 @@ class BertPretrainingDataset(Dataset):
                     try:
                         # index and split are much faster than Python for loops
                         new_start = contents.index(b"\n", start)
-                        line = contents[start:new_start] \
-                            .replace(b"\xc2\x99", b" ") \
-                            .replace(b"\xc2\xa0", b" ") \
+                        line = (
+                            contents[start:new_start]
+                            .replace(b"\xc2\x99", b" ")
+                            .replace(b"\xc2\xa0", b" ")
                             .decode("utf-8", errors="ignore")
+                        )
 
                         if len(line.split()) > 0:
                             yield start
@@ -157,8 +162,7 @@ class BertPretrainingDataset(Dataset):
 
             return document
 
-        def match_target_seq_length(document, target_seq_length, filename,
-                                    line_idx, sentence_indices):
+        def match_target_seq_length(document, target_seq_length, filename, line_idx, sentence_indices):
             # If document is shorter than target sequence length,
             # append the next line or take a random line as replacement.
             num_lines = len(sentence_indices[filename])
@@ -183,11 +187,10 @@ class BertPretrainingDataset(Dataset):
         a_line_offset = self.sentence_indices[a_filename][a_line_idx]
         a_document = get_document(a_filename, a_line_offset)
         a_document, a_line_idx = match_target_seq_length(
-            a_document, target_seq_length_a, a_filename, a_line_idx,
-            self.sentence_indices)
+            a_document, target_seq_length_a, a_filename, a_line_idx, self.sentence_indices,
+        )
 
-        is_last_line = \
-            a_line_idx >= (len(self.sentence_indices[a_filename]) - 1)
+        is_last_line = a_line_idx >= (len(self.sentence_indices[a_filename]) - 1)
         # About 50% of the time, B is a random sentence from the corpus
         take_random_b = (random.random() < 0.5) or is_last_line
 
@@ -198,8 +201,7 @@ class BertPretrainingDataset(Dataset):
             # we're processing.
             for _ in range(10):
                 b_filename = random.choice(self.filenames)
-                b_line_idx = random.choice(
-                    range(len(self.sentence_indices[b_filename])))
+                b_line_idx = random.choice(range(len(self.sentence_indices[b_filename])))
                 if b_filename != a_filename:
                     break
                 else:
@@ -207,7 +209,7 @@ class BertPretrainingDataset(Dataset):
                     b_line_pos = self.sentence_indices[b_filename][b_line_idx]
                     a_line_pos = self.sentence_indices[a_filename][a_line_idx]
                     # TODO unclear about the following check
-                    if (abs(b_line_pos - a_line_pos) > max_num_tokens):
+                    if abs(b_line_pos - a_line_pos) > max_num_tokens:
                         break
                     else:
                         pass
@@ -219,8 +221,8 @@ class BertPretrainingDataset(Dataset):
         b_line_pos = self.sentence_indices[b_filename][b_line_idx]
         b_document = get_document(b_filename, b_line_pos)
         b_document, b_line_idx = match_target_seq_length(
-            b_document, target_seq_length_b, b_filename, b_line_idx,
-            self.sentence_indices)
+            b_document, target_seq_length_b, b_filename, b_line_idx, self.sentence_indices,
+        )
 
         def truncate_seq_pair(a, b, max_num_tokens):
             # Truncates a pair of sequences to a maximum sequence length
@@ -232,9 +234,11 @@ class BertPretrainingDataset(Dataset):
                     trunc_document = b
 
                 if len(trunc_document) <= 1:
-                    raise ValueError("Input text corpora probably too small. "
-                                     "Failed to truncate sequence pair to "
-                                     "maximum sequence legnth.")
+                    raise ValueError(
+                        "Input text corpora probably too small. "
+                        "Failed to truncate sequence pair to "
+                        "maximum sequence legnth."
+                    )
 
                 # Randomly truncate from the front or the back
                 if random.random() < 0.5:
@@ -244,16 +248,15 @@ class BertPretrainingDataset(Dataset):
 
         truncate_seq_pair(a_document, b_document, max_num_tokens)
 
-        output_ids = [self.cls_id] + a_document + \
-                     [self.sep_id] + b_document + [self.sep_id]
+        output_ids = [self.cls_id] + a_document + [self.sep_id] + b_document + [self.sep_id]
 
         input_ids, output_mask = self.mask_ids(output_ids)
 
         input_mask = np.zeros(self.max_seq_length, dtype=np.long)
-        input_mask[:len(input_ids)] = 1
+        input_mask[: len(input_ids)] = 1
 
         input_type_ids = np.zeros(self.max_seq_length, dtype=np.int)
-        input_type_ids[len(a_document) + 2:len(output_ids) + 1] = 1
+        input_type_ids[len(a_document) + 2 : len(output_ids) + 1] = 1
 
         padding_length = max(0, self.max_seq_length - len(input_ids))
         if padding_length > 0:
@@ -262,9 +265,14 @@ class BertPretrainingDataset(Dataset):
             output_mask.extend([0] * padding_length)
 
         # TODO: wrap the return value with () for consistent style.
-        return np.array(input_ids), input_type_ids,\
-            np.array(input_mask, dtype=np.long), np.array(output_ids),\
-            np.array(output_mask, dtype=np.float32), is_next
+        return (
+            np.array(input_ids),
+            input_type_ids,
+            np.array(input_mask, dtype=np.long),
+            np.array(output_ids),
+            np.array(output_mask, dtype=np.float32),
+            is_next,
+        )
 
     def mask_ids(self, ids):
         """
@@ -296,8 +304,7 @@ class BertPretrainingDataset(Dataset):
         mask_id = self.tokenizer.token_to_id("[MASK]")
 
         for word_ids in cand_indexes:
-            is_special = (word_ids[0] == self.cls_id) or \
-                         (word_ids[0] == self.sep_id)
+            is_special = (word_ids[0] == self.cls_id) or (word_ids[0] == self.sep_id)
             if is_special or (random.random() > self.mask_probability):
                 output_mask.extend([0] * len(word_ids))
                 masked_ids.extend(word_ids)
@@ -323,15 +330,18 @@ class BertPretrainingDataset(Dataset):
 
 
 class BertPretrainingPreprocessedDataset(Dataset):
-
     def __init__(self, input_file, max_pred_length):
         self.input_file = input_file
         self.max_pred_length = max_pred_length
         f = h5py.File(input_file, "r")
-        keys = ['input_ids', 'input_mask',
-                'segment_ids', 'masked_lm_positions',
-                'masked_lm_ids',
-                'next_sentence_labels']
+        keys = [
+            'input_ids',
+            'input_mask',
+            'segment_ids',
+            'masked_lm_positions',
+            'masked_lm_ids',
+            'next_sentence_labels',
+        ]
         self.inputs = [np.asarray(f[key][:]) for key in keys]
         f.close()
 
@@ -340,12 +350,9 @@ class BertPretrainingPreprocessedDataset(Dataset):
         return len(self.inputs[0])
 
     def __getitem__(self, index):
-
-        [input_ids, input_mask, segment_ids,
-         masked_lm_positions, masked_lm_ids,
-         next_sentence_labels] = \
-         [input[index].astype(np.int64)
-          for input in self.inputs]
+        [input_ids, input_mask, segment_ids, masked_lm_positions, masked_lm_ids, next_sentence_labels,] = [
+            input[index].astype(np.int64) for input in self.inputs
+        ]
 
         output_mask = np.zeros_like(input_ids)
         output_ids = input_ids.copy()
@@ -355,10 +362,16 @@ class BertPretrainingPreprocessedDataset(Dataset):
         if len(padded_mask_indices[0]) != 0:
             index = padded_mask_indices[0][0]
 
-        output_mask[masked_lm_positions[:index]] = 1.
+        output_mask[masked_lm_positions[:index]] = 1.0
         output_ids[masked_lm_positions[:index]] = masked_lm_ids[:index]
 
         input_mask = np.asarray(input_mask, dtype=np.float32)
         output_mask = np.asarray(output_mask, dtype=np.float32)
-        return input_ids, segment_ids, input_mask,\
-            output_ids, output_mask, next_sentence_labels
+        return (
+            input_ids,
+            segment_ids,
+            input_mask,
+            output_ids,
+            output_mask,
+            next_sentence_labels,
+        )

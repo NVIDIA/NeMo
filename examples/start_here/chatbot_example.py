@@ -1,6 +1,7 @@
-import os
 import gzip
+import os
 import shutil
+
 import nemo
 
 # Get Data
@@ -47,10 +48,8 @@ decoderInfer.tie_weights_with(decoder, list(decoder.get_weights().keys()))
 
 # express activations flow
 src, src_lengths, tgt, mask, max_tgt_length = dl()
-encoder_outputs, encoder_hidden = encoder(input_seq=src,
-                                          input_lengths=src_lengths)
-outputs, hidden = decoder(targets=tgt, encoder_outputs=encoder_outputs,
-                          max_target_len=max_tgt_length)
+encoder_outputs, encoder_hidden = encoder(input_seq=src, input_lengths=src_lengths)
+outputs, hidden = decoder(targets=tgt, encoder_outputs=encoder_outputs, max_target_len=max_tgt_length)
 loss = L(predictions=outputs, target=tgt, mask=mask)
 
 # run inference decoder to generate predictions
@@ -69,13 +68,11 @@ def outputs2words(tensors, vocab):
     response = ' '.join([s for s in response if s != 'EOS' and s != 'PAD'])
     target = ' '.join([s for s in target if s != 'EOS' and s != 'PAD'])
     print(f"Train Loss:{str(tensors[0].item())}")
-    print(f"SOURCE: {source} <---> PREDICTED RESPONSE: {response} "
-          f"<---> TARGET: {target}")
+    print(f"SOURCE: {source} <---> PREDICTED RESPONSE: {response} " f"<---> TARGET: {target}")
 
 
 callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=[loss, src, outputs_inf, tgt],
-    print_func=lambda x: outputs2words(x, dl.voc.index2word)
+    tensors=[loss, src, outputs_inf, tgt], print_func=lambda x: outputs2words(x, dl.voc.index2word),
 )
 
 # start training
@@ -83,4 +80,5 @@ nf.train(
     tensors_to_optimize=[loss],
     callbacks=[callback],
     optimizer="adam",
-    optimization_params={"num_epochs": config["num_epochs"], "lr": 0.001})
+    optimization_params={"num_epochs": config["num_epochs"], "lr": 0.001},
+)

@@ -1,18 +1,16 @@
+import argparse
+
 import torch
 from transformers import BERT_PRETRAINED_MODEL_ARCHIVE_MAP
 from transformers.file_utils import cached_path
-import argparse
 
 state_dict_mappings = {
     'gamma': 'weight',
     'beta': 'bias',
     'bert.encoder.layer': 'encoder.layers',
-    'bert.embeddings.word_embeddings.weight': 'embedding_layer.word_embedding.'
-    'weight',
-    'bert.embeddings.position_embeddings.weight': 'embedding_layer.'
-    'position_embedding.weight',
-    'bert.embeddings.token_type_embeddings.weight': 'embedding_layer.token_'
-    'type_embedding.weight',
+    'bert.embeddings.word_embeddings.weight': 'embedding_layer.word_embedding.' 'weight',
+    'bert.embeddings.position_embeddings.weight': 'embedding_layer.' 'position_embedding.weight',
+    'bert.embeddings.token_type_embeddings.weight': 'embedding_layer.token_' 'type_embedding.weight',
     'bert.embeddings.LayerNorm.weight': 'embedding_layer.layer_norm.weight',
     'bert.embeddings.LayerNorm.bias': 'embedding_layer.layer_norm.bias',
     'attention.self.query.weight': 'first_sub_layer.query_net.weight',
@@ -30,14 +28,15 @@ state_dict_mappings = {
     'output.dense.weight': 'second_sub_layer.dense_out.weight',
     'output.dense.bias': 'second_sub_layer.dense_out.bias',
     'output.LayerNorm.weight': 'second_sub_layer.layer_norm.weight',
-    'output.LayerNorm.bias': 'second_sub_layer.layer_norm.bias'
+    'output.LayerNorm.bias': 'second_sub_layer.layer_norm.bias',
 }
 
 decoder_keys = [
     'embedding_layer.token_embedding.weight',
     'embedding_layer.position_embedding.weight',
     'embedding_layer.token_type_embedding.weight',
-    'embedding_layer.layer_norm.weight', 'embedding_layer.layer_norm.bias'
+    'embedding_layer.layer_norm.weight',
+    'embedding_layer.layer_norm.bias',
 ]
 
 parser = argparse.ArgumentParser(description="BERT parameters to decoder")
@@ -74,17 +73,12 @@ for i in range(5, len(bert_keys)):
         tmp = key.split(".")
         cur_layer = int(tmp[2])
         if "first" in key:
-            key_first = ".".join(
-                ["decoder", "layers", str(cur_layer)] + tmp[3:])
-            key_second = ".".join(
-                ["decoder", "layers",
-                 str(cur_layer), "second_sub_layer"] + tmp[4:])
+            key_first = ".".join(["decoder", "layers", str(cur_layer)] + tmp[3:])
+            key_second = ".".join(["decoder", "layers", str(cur_layer), "second_sub_layer"] + tmp[4:])
             decoder_from_bert[key_first] = bert_keys[i]
             decoder_from_bert[key_second] = bert_keys[i]
         elif "second" in key:
-            key_third = ".".join(
-                ["decoder", "layers",
-                 str(cur_layer), "third_sub_layer"] + tmp[4:])
+            key_third = ".".join(["decoder", "layers", str(cur_layer), "third_sub_layer"] + tmp[4:])
             decoder_from_bert[key_third] = bert_keys[i]
 
 new_decoder_weights = {}
@@ -93,13 +87,11 @@ for key in decoder_from_bert.keys():
 
 # Add zeros to make vocab_size divisible by 8 for fast training in
 # mixed precision
-vocab_size, d_model = new_decoder_weights[
-    "embedding_layer.token_embedding.weight"].size()
+vocab_size, d_model = new_decoder_weights["embedding_layer.token_embedding.weight"].size()
 tokens_to_add = 8 - vocab_size % 8
 zeros = torch.zeros((tokens_to_add, d_model)).to(device="cpu")
 
-tmp = torch.cat(
-    (new_decoder_weights['embedding_layer.token_embedding.weight'], zeros))
+tmp = torch.cat((new_decoder_weights['embedding_layer.token_embedding.weight'], zeros))
 
 new_decoder_weights['embedding_layer.token_embedding.weight'] = tmp
 torch.save(new_decoder_weights, args.save_to + args.model_name + "_decoder.pt")

@@ -1,8 +1,9 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import string
-from typing import Optional, List
+from typing import List, Optional
 
 import frozendict
+
 from nemo.collections.asr.parts import cleaners
 
 
@@ -45,9 +46,7 @@ class CharParser:
         self._do_lowercase = do_lowercase
 
         self._labels_map = {label: index for index, label in enumerate(labels)}
-        self._special_labels = set(
-            [label for label in labels if len(label) > 1]
-        )
+        self._special_labels = set([label for label in labels if len(label) > 1])
 
     def __call__(self, text: str) -> Optional[List[int]]:
         if self._do_normalize:
@@ -90,9 +89,7 @@ class CharParser:
 class ENCharParser(CharParser):
     """Incorporates english-specific parsing logic."""
 
-    PUNCTUATION_TO_REPLACE = frozendict.frozendict(
-        {'+': 'plus', '&': 'and', '%': 'percent'}
-    )
+    PUNCTUATION_TO_REPLACE = frozendict.frozendict({'+': 'plus', '&': 'and', '%': 'percent'})
 
     def __init__(self, *args, **kwargs):
         """Creates english-specific mapping char parser.
@@ -125,9 +122,7 @@ class ENCharParser(CharParser):
         # noinspection PyBroadException
         try:
             text = cleaners.clean_text(
-                string=text,
-                table=self._table,
-                punctuation_to_replace=self.PUNCTUATION_TO_REPLACE,
+                string=text, table=self._table, punctuation_to_replace=self.PUNCTUATION_TO_REPLACE,
             )
         except Exception:
             return None
@@ -135,14 +130,10 @@ class ENCharParser(CharParser):
         return text
 
 
-NAME_TO_PARSER = frozendict.frozendict(
-    {'base': CharParser, 'en': ENCharParser}
-)
+NAME_TO_PARSER = frozendict.frozendict({'base': CharParser, 'en': ENCharParser})
 
 
-def make_parser(
-    labels: Optional[List[str]] = None, name: str = 'base', **kwargs,
-) -> CharParser:
+def make_parser(labels: Optional[List[str]] = None, name: str = 'base', **kwargs,) -> CharParser:
     """Creates parser from labels, set of arguments and concise parser name.
 
     Args:

@@ -28,13 +28,15 @@ from torch.utils.data import Dataset
 from . import utils
 
 
-def get_features(queries,
-                 max_seq_length,
-                 tokenizer,
-                 pad_label=128,
-                 raw_slots=None,
-                 ignore_extra_tokens=False,
-                 ignore_start_end=False):
+def get_features(
+    queries,
+    max_seq_length,
+    tokenizer,
+    pad_label=128,
+    raw_slots=None,
+    ignore_extra_tokens=False,
+    ignore_start_end=False,
+):
     all_subtokens = []
     all_loss_mask = []
     all_subtokens_mask = []
@@ -61,8 +63,7 @@ def get_features(queries,
             subtokens.extend(word_tokens)
 
             loss_mask.append(1)
-            loss_mask.extend([not ignore_extra_tokens] *
-                             (len(word_tokens) - 1))
+            loss_mask.extend([not ignore_extra_tokens] * (len(word_tokens) - 1))
 
             subtokens_mask.append(1)
             subtokens_mask.extend([0] * (len(word_tokens) - 1))
@@ -89,22 +90,19 @@ def get_features(queries,
 
     for i, subtokens in enumerate(all_subtokens):
         if len(subtokens) > max_seq_length:
-            subtokens = ['[CLS]'] + subtokens[-max_seq_length + 1:]
-            all_input_mask[i] = [1] + all_input_mask[i][-max_seq_length + 1:]
-            all_loss_mask[i] = [1 - ignore_start_end] + \
-                all_loss_mask[i][-max_seq_length + 1:]
-            all_subtokens_mask[i] = [0] + \
-                all_subtokens_mask[i][-max_seq_length + 1:]
+            subtokens = ['[CLS]'] + subtokens[-max_seq_length + 1 :]
+            all_input_mask[i] = [1] + all_input_mask[i][-max_seq_length + 1 :]
+            all_loss_mask[i] = [1 - ignore_start_end] + all_loss_mask[i][-max_seq_length + 1 :]
+            all_subtokens_mask[i] = [0] + all_subtokens_mask[i][-max_seq_length + 1 :]
 
             if with_label:
-                all_slots[i] = [pad_label] + all_slots[i][-max_seq_length + 1:]
+                all_slots[i] = [pad_label] + all_slots[i][-max_seq_length + 1 :]
             too_long_count += 1
 
-        all_input_ids.append([tokenizer._convert_token_to_id(t)
-                              for t in subtokens])
+        all_input_ids.append([tokenizer._convert_token_to_id(t) for t in subtokens])
 
         if len(subtokens) < max_seq_length:
-            extra = (max_seq_length - len(subtokens))
+            extra = max_seq_length - len(subtokens)
             all_input_ids[i] = all_input_ids[i] + [0] * extra
             all_loss_mask[i] = all_loss_mask[i] + [0] * extra
             all_subtokens_mask[i] = all_subtokens_mask[i] + [0] * extra
@@ -117,12 +115,14 @@ def get_features(queries,
 
     nemo.logging.info(f'{too_long_count} are longer than {max_seq_length}')
 
-    return (all_input_ids,
-            all_segment_ids,
-            all_input_mask,
-            all_loss_mask,
-            all_subtokens_mask,
-            all_slots)
+    return (
+        all_input_ids,
+        all_segment_ids,
+        all_input_mask,
+        all_loss_mask,
+        all_subtokens_mask,
+        all_slots,
+    )
 
 
 class BertJointIntentSlotDataset(Dataset):
@@ -152,17 +152,18 @@ class BertJointIntentSlotDataset(Dataset):
 
     """
 
-    def __init__(self,
-                 input_file,
-                 slot_file,
-                 max_seq_length,
-                 tokenizer,
-                 num_samples=-1,
-                 shuffle=True,
-                 pad_label=128,
-                 ignore_extra_tokens=False,
-                 ignore_start_end=False
-                 ):
+    def __init__(
+        self,
+        input_file,
+        slot_file,
+        max_seq_length,
+        tokenizer,
+        num_samples=-1,
+        shuffle=True,
+        pad_label=128,
+        ignore_extra_tokens=False,
+        ignore_start_end=False,
+    ):
         if num_samples == 0:
             raise ValueError("num_samples has to be positive", num_samples)
 
@@ -188,13 +189,15 @@ class BertJointIntentSlotDataset(Dataset):
             raw_intents.append(int(parts[-1]))
             queries.append(' '.join(parts[:-1]))
 
-        features = get_features(queries,
-                                max_seq_length,
-                                tokenizer,
-                                pad_label=pad_label,
-                                raw_slots=raw_slots,
-                                ignore_extra_tokens=ignore_extra_tokens,
-                                ignore_start_end=ignore_start_end)
+        features = get_features(
+            queries,
+            max_seq_length,
+            tokenizer,
+            pad_label=pad_label,
+            raw_slots=raw_slots,
+            ignore_extra_tokens=ignore_extra_tokens,
+            ignore_start_end=ignore_start_end,
+        )
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
         self.all_input_mask = features[2]
@@ -207,13 +210,15 @@ class BertJointIntentSlotDataset(Dataset):
         return len(self.all_input_ids)
 
     def __getitem__(self, idx):
-        return (np.array(self.all_input_ids[idx]),
-                np.array(self.all_segment_ids[idx]),
-                np.array(self.all_input_mask[idx], dtype=np.long),
-                np.array(self.all_loss_mask[idx]),
-                np.array(self.all_subtokens_mask[idx]),
-                self.all_intents[idx],
-                np.array(self.all_slots[idx]))
+        return (
+            np.array(self.all_input_ids[idx]),
+            np.array(self.all_segment_ids[idx]),
+            np.array(self.all_input_mask[idx], dtype=np.long),
+            np.array(self.all_loss_mask[idx]),
+            np.array(self.all_subtokens_mask[idx]),
+            self.all_intents[idx],
+            np.array(self.all_slots[idx]),
+        )
 
 
 class BertJointIntentSlotInferDataset(Dataset):
@@ -237,14 +242,8 @@ class BertJointIntentSlotInferDataset(Dataset):
 
     """
 
-    def __init__(self,
-                 queries,
-                 max_seq_length,
-                 tokenizer):
-
-        features = get_features(queries,
-                                max_seq_length,
-                                tokenizer)
+    def __init__(self, queries, max_seq_length, tokenizer):
+        features = get_features(queries, max_seq_length, tokenizer)
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
@@ -256,8 +255,10 @@ class BertJointIntentSlotInferDataset(Dataset):
         return len(self.all_input_ids)
 
     def __getitem__(self, idx):
-        return (np.array(self.all_input_ids[idx]),
-                np.array(self.all_segment_ids[idx]),
-                np.array(self.all_input_mask[idx], dtype=np.long),
-                np.array(self.all_loss_mask[idx]),
-                np.array(self.all_subtokens_mask[idx]))
+        return (
+            np.array(self.all_input_ids[idx]),
+            np.array(self.all_segment_ids[idx]),
+            np.array(self.all_input_mask[idx], dtype=np.long),
+            np.array(self.all_loss_mask[idx]),
+            np.array(self.all_subtokens_mask[idx]),
+        )

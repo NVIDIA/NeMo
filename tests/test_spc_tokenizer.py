@@ -16,21 +16,18 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp import SentencePieceTokenizer
-
 from .common_setup import NeMoUnitTest
+from nemo.collections.nlp import SentencePieceTokenizer
 
 
 class TestSPCTokenizer(NeMoUnitTest):
-
     def test_add_special_tokens(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
 
         special_tokens = ["[CLS]", "[MASK]", "[SEP]"]
         tokenizer.add_special_tokens(special_tokens)
 
-        self.assertTrue(tokenizer.vocab_size == tokenizer.original_vocab_size
-                        + len(special_tokens))
+        self.assertTrue(tokenizer.vocab_size == tokenizer.original_vocab_size + len(special_tokens))
 
     def test_text_to_tokens(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")

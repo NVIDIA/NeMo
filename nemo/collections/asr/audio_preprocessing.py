@@ -14,21 +14,31 @@
 """
 This file contains neural modules responsible for preprocessing audio data.
 """
-__all__ = ['AudioPreprocessing',
-           'AudioPreprocessor',
-           'AudioToMFCCPreprocessor',
-           'AudioToMelSpectrogramPreprocessor',
-           'AudioToSpectrogramPreprocessor',
-           'MultiplyBatch',
-           'SpectrogramAugmentation']
+__all__ = [
+    'AudioPreprocessing',
+    'AudioPreprocessor',
+    'AudioToMFCCPreprocessor',
+    'AudioToMelSpectrogramPreprocessor',
+    'AudioToSpectrogramPreprocessor',
+    'MultiplyBatch',
+    'SpectrogramAugmentation',
+]
 
-from abc import abstractmethod
 import math
 import warnings
+from abc import abstractmethod
 
 import torch
+
+from .parts.features import FilterbankFeatures
+from .parts.spectr_augment import SpecAugment, SpecCutout
+from nemo.backends.pytorch import NonTrainableNM
+from nemo.core import Optimization
+from nemo.core.neural_types import *
+
 try:
     import torchaudio
+
     HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
     HAVE_TORCHAUDIO = False
@@ -36,15 +46,7 @@ except ModuleNotFoundError:
 try:
     from apex import amp
 except (AttributeError, ModuleNotFoundError) as e:
-    warnings.warn(
-        "Unable to import APEX. Mixed precision and distributed training "
-        "will not work.")
-
-from nemo.backends.pytorch import NonTrainableNM
-from nemo.core import Optimization
-from nemo.core.neural_types import *
-from .parts.features import FilterbankFeatures
-from .parts.spectr_augment import SpecAugment, SpecCutout
+    warnings.warn("Unable to import APEX. Mixed precision and distributed training " "will not work.")
 
 
 class AudioPreprocessor(NonTrainableNM):
@@ -59,7 +61,7 @@ class AudioPreprocessor(NonTrainableNM):
         self.win_length = win_length
         self.hop_length = hop_length
 
-        self.disable_casts = (self._opt_level == Optimization.mxprO1)
+        self.disable_casts = self._opt_level == Optimization.mxprO1
 
         self.torch_windows = {
             'hann': torch.hann_window,
@@ -67,15 +69,14 @@ class AudioPreprocessor(NonTrainableNM):
             'blackman': torch.blackman_window,
             'bartlett': torch.bartlett_window,
             'ones': torch.ones,
-            None: torch.ones
+            None: torch.ones,
         }
 
     @torch.no_grad()
     def forward(self, input_signal, length):
         if self.disable_casts:
             with amp.disable_casts():
-                processed_signal = self.get_features(
-                    input_signal.to(torch.float), length)
+                processed_signal = self.get_features(input_signal.to(torch.float), length)
         else:
             processed_signal = self.get_features(input_signal, length)
 
@@ -130,9 +131,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
 
         """
         return {
-            "input_signal": NeuralType({0: AxisType(BatchTag),
-                                        1: AxisType(TimeTag)}),
-
+            "input_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "length": NeuralType({0: AxisType(BatchTag)}),
         }
 
@@ -154,36 +153,37 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
 
         """
         return {
-            "processed_signal": NeuralType({0: AxisType(BatchTag),
-                                            1: AxisType(SpectrogramSignalTag),
-                                            2: AxisType(ProcessedTimeTag)}),
-
-            "processed_length": NeuralType({0: AxisType(BatchTag)})
+            "processed_signal": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+            ),
+            "processed_length": NeuralType({0: AxisType(BatchTag)}),
         }
 
     def __init__(
-            self, *,
-            sample_rate=16000,
-            window_size=0.02,
-            window_stride=0.01,
-            n_window_size=None,
-            n_window_stride=None,
-            n_fft=None,
-            window="hann",
-            normalized=True,
-            **kwargs
+        self,
+        *,
+        sample_rate=16000,
+        window_size=0.02,
+        window_stride=0.01,
+        n_window_size=None,
+        n_window_stride=None,
+        n_fft=None,
+        window="hann",
+        normalized=True,
+        **kwargs,
     ):
         if not HAVE_TORCHAUDIO:
             raise ModuleNotFoundError(
                 "torchaudio is not installed but is necessary for "
                 "AudioToSpectrogramPreprocessor. We recommend you try "
-                "building it from source for the PyTorch version you have.")
+                "building it from source for the PyTorch version you have."
+            )
         if window_size and n_window_size:
-            raise ValueError(f"{self} received both window_size and "
-                             f"n_window_size. Only one should be specified.")
+            raise ValueError(f"{self} received both window_size and " f"n_window_size. Only one should be specified.")
         if window_stride and n_window_stride:
-            raise ValueError(f"{self} received both window_stride and "
-                             f"n_window_stride. Only one should be specified.")
+            raise ValueError(
+                f"{self} received both window_stride and " f"n_window_stride. Only one should be specified."
+            )
         if window_size:
             n_window_size = int(window_size * sample_rate)
         if window_stride:
@@ -201,7 +201,8 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         if window_fn is None:
             raise ValueError(
                 f"Window argument for AudioProcessor is invalid: {window}."
-                f"For no window function, use 'ones' or None.")
+                f"For no window function, use 'ones' or None."
+            )
 
         # Create featurizer.
         # Calls torch.stft under the hood, and is hard-coded to use center=True
@@ -210,7 +211,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             win_length=self.win_length,
             hop_length=self.hop_length,
             window_fn=window_fn,
-            normalized=normalized
+            normalized=normalized,
         )
         self.featurizer.to(self._device)
 
@@ -295,9 +296,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
 
         """
         return {
-            "input_signal": NeuralType({0: AxisType(BatchTag),
-                                        1: AxisType(TimeTag)}),
-
+            "input_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "length": NeuralType({0: AxisType(BatchTag)}),
         }
 
@@ -320,44 +319,43 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         """
         return {
             "processed_signal": NeuralType(
-                {0: AxisType(BatchTag),
-                 1: AxisType(MelSpectrogramSignalTag),
-                 2: AxisType(ProcessedTimeTag)}),
-
-            "processed_length": NeuralType({0: AxisType(BatchTag)})
+                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+            ),
+            "processed_length": NeuralType({0: AxisType(BatchTag)}),
         }
 
     def __init__(
-            self, *,
-            sample_rate=16000,
-            window_size=0.02,
-            window_stride=0.01,
-            n_window_size=None,
-            n_window_stride=None,
-            window="hann",
-            normalize="per_feature",
-            n_fft=None,
-            preemph=0.97,
-            features=64,
-            lowfreq=0,
-            highfreq=None,
-            log=True,
-            log_zero_guard_type="add",
-            log_zero_guard_value=2**-24,
-            dither=1e-5,
-            pad_to=16,
-            frame_splicing=1,
-            stft_conv=False,
-            pad_value=0,
-            mag_power=2.,
-            **kwargs
+        self,
+        *,
+        sample_rate=16000,
+        window_size=0.02,
+        window_stride=0.01,
+        n_window_size=None,
+        n_window_stride=None,
+        window="hann",
+        normalize="per_feature",
+        n_fft=None,
+        preemph=0.97,
+        features=64,
+        lowfreq=0,
+        highfreq=None,
+        log=True,
+        log_zero_guard_type="add",
+        log_zero_guard_value=2 ** -24,
+        dither=1e-5,
+        pad_to=16,
+        frame_splicing=1,
+        stft_conv=False,
+        pad_value=0,
+        mag_power=2.0,
+        **kwargs,
     ):
         if window_size and n_window_size:
-            raise ValueError(f"{self} received both window_size and "
-                             f"n_window_size. Only one should be specified.")
+            raise ValueError(f"{self} received both window_size and " f"n_window_size. Only one should be specified.")
         if window_stride and n_window_stride:
-            raise ValueError(f"{self} received both window_stride and "
-                             f"n_window_stride. Only one should be specified.")
+            raise ValueError(
+                f"{self} received both window_stride and " f"n_window_stride. Only one should be specified."
+            )
         if window_size:
             n_window_size = int(window_size * sample_rate)
         if window_stride:
@@ -384,7 +382,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             frame_splicing=frame_splicing,
             stft_conv=stft_conv,
             pad_value=pad_value,
-            mag_power=mag_power
+            mag_power=mag_power,
         )
         self.featurizer.to(self._device)
 
@@ -450,9 +448,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
 
         """
         return {
-            "input_signal": NeuralType({0: AxisType(BatchTag),
-                                        1: AxisType(TimeTag)}),
-
+            "input_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "length": NeuralType({0: AxisType(BatchTag)}),
         }
 
@@ -474,41 +470,43 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
 
         """
         return {
-            "processed_signal": NeuralType({0: AxisType(BatchTag),
-                                            1: AxisType(MFCCSignalTag),
-                                            2: AxisType(ProcessedTimeTag)}),
-
-            "processed_length": NeuralType({0: AxisType(BatchTag)})
+            "processed_signal": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(MFCCSignalTag), 2: AxisType(ProcessedTimeTag),}
+            ),
+            "processed_length": NeuralType({0: AxisType(BatchTag)}),
         }
 
     def __init__(
-            self, *,
-            sample_rate=16000,
-            window_size=0.02,
-            window_stride=0.01,
-            n_window_size=None,
-            n_window_stride=None,
-            window='hann',
-            n_fft=None,
-            lowfreq=0.,
-            highfreq=None,
-            n_mels=64,
-            n_mfcc=64,
-            dct_type=2,
-            norm='ortho',
-            log=True,
-            **kwargs):
+        self,
+        *,
+        sample_rate=16000,
+        window_size=0.02,
+        window_stride=0.01,
+        n_window_size=None,
+        n_window_stride=None,
+        window='hann',
+        n_fft=None,
+        lowfreq=0.0,
+        highfreq=None,
+        n_mels=64,
+        n_mfcc=64,
+        dct_type=2,
+        norm='ortho',
+        log=True,
+        **kwargs,
+    ):
         if not HAVE_TORCHAUDIO:
             raise ModuleNotFoundError(
                 "torchaudio is not installed but is necessary for "
                 "AudioToMFCCPreprocessor. We recommend you try "
-                "building it from source for the PyTorch version you have.")
+                "building it from source for the PyTorch version you have."
+            )
         if window_size and n_window_size:
-            raise ValueError(f"{self} received both window_size and "
-                             f"n_window_size. Only one should be specified.")
+            raise ValueError(f"{self} received both window_size and " f"n_window_size. Only one should be specified.")
         if window_stride and n_window_stride:
-            raise ValueError(f"{self} received both window_stride and "
-                             f"n_window_stride. Only one should be specified.")
+            raise ValueError(
+                f"{self} received both window_stride and " f"n_window_stride. Only one should be specified."
+            )
         # Get win_length (n_window_size) and hop_length (n_window_stride)
         if window_size:
             n_window_size = int(window_size * sample_rate)
@@ -533,17 +531,13 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         if window_fn is None:
             raise ValueError(
                 f"Window argument for AudioProcessor is invalid: {window}."
-                f"For no window function, use 'ones' or None.")
+                f"For no window function, use 'ones' or None."
+            )
         mel_kwargs['window_fn'] = window_fn
 
         # Use torchaudio's implementation of MFCCs as featurizer
         self.featurizer = torchaudio.transforms.MFCC(
-            sample_rate=sample_rate,
-            n_mfcc=n_mfcc,
-            dct_type=dct_type,
-            norm=norm,
-            log_mels=log,
-            melkwargs=mel_kwargs
+            sample_rate=sample_rate, n_mfcc=n_mfcc, dct_type=dct_type, norm=norm, log_mels=log, melkwargs=mel_kwargs,
         )
         self.featurizer.to(self._device)
 
@@ -597,9 +591,7 @@ class SpectrogramAugmentation(NonTrainableNM):
 
         """
         return {
-            "input_spec": NeuralType({0: AxisType(BatchTag),
-                                      1: AxisType(SpectrogramSignalTag),
-                                      2: AxisType(TimeTag)})
+            "input_spec": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag),})
         }
 
     @property
@@ -616,43 +608,35 @@ class SpectrogramAugmentation(NonTrainableNM):
 
         """
         return {
-            "augmented_spec": NeuralType({0: AxisType(BatchTag),
-                                          1: AxisType(SpectrogramSignalTag),
-                                          2: AxisType(ProcessedTimeTag)})
+            "augmented_spec": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+            )
         }
 
     def __init__(
-            self, *,
-            freq_masks=0,
-            time_masks=0,
-            freq_width=10,
-            time_width=10,
-            rect_masks=0,
-            rect_time=5,
-            rect_freq=20,
-            rng=None,
-            **kwargs
+        self,
+        *,
+        freq_masks=0,
+        time_masks=0,
+        freq_width=10,
+        time_width=10,
+        rect_masks=0,
+        rect_time=5,
+        rect_freq=20,
+        rng=None,
+        **kwargs,
     ):
         NonTrainableNM.__init__(self, **kwargs)
 
         if rect_masks > 0:
-            self.spec_cutout = SpecCutout(
-                rect_masks=rect_masks,
-                rect_time=rect_time,
-                rect_freq=rect_freq,
-                rng=rng
-            )
+            self.spec_cutout = SpecCutout(rect_masks=rect_masks, rect_time=rect_time, rect_freq=rect_freq, rng=rng,)
             self.spec_cutout.to(self._device)
         else:
             self.spec_cutout = lambda x: x
 
         if freq_masks + time_masks > 0:
             self.spec_augment = SpecAugment(
-                freq_masks=freq_masks,
-                time_masks=time_masks,
-                freq_width=freq_width,
-                time_width=time_width,
-                rng=rng
+                freq_masks=freq_masks, time_masks=time_masks, freq_width=freq_width, time_width=time_width, rng=rng,
             )
             self.spec_augment.to(self._device)
         else:
@@ -697,16 +681,10 @@ class MultiplyBatch(NonTrainableNM):
 
         """
         return {
-            "in_x": NeuralType({0: AxisType(BatchTag),
-                                1: AxisType(SpectrogramSignalTag),
-                                2: AxisType(TimeTag)}),
-
+            "in_x": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag),}),
             "in_x_len": NeuralType({0: AxisType(BatchTag)}),
-
-            "in_y": NeuralType({0: AxisType(BatchTag),
-                                1: AxisType(TimeTag)}),
-
-            "in_y_len": NeuralType({0: AxisType(BatchTag)})
+            "in_y": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "in_y_len": NeuralType({0: AxisType(BatchTag)}),
         }
 
     @property
@@ -733,16 +711,10 @@ class MultiplyBatch(NonTrainableNM):
 
         """
         return {
-            "out_x": NeuralType({0: AxisType(BatchTag),
-                                 1: AxisType(SpectrogramSignalTag),
-                                 2: AxisType(TimeTag)}),
-
+            "out_x": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag),}),
             "out_x_len": NeuralType({0: AxisType(BatchTag)}),
-
-            "out_y": NeuralType({0: AxisType(BatchTag),
-                                 1: AxisType(TimeTag)}),
-
-            "out_y_len": NeuralType({0: AxisType(BatchTag)})
+            "out_y": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "out_y_len": NeuralType({0: AxisType(BatchTag)}),
         }
 
     def __init__(self, *, mult_batch=1, **kwargs):
@@ -765,4 +737,5 @@ def AudioPreprocessing(*args, **kwargs):
         "AudioToMFCCPreprocessor, AudioToMelSpectrogramPreprocessor, and "
         "AudioToSpectrogramPreprocessor. For most ASR purposes "
         "AudioToMelSpectrogramPreprocessor does the same as the old "
-        "AudioPreprocessing.")
+        "AudioPreprocessing."
+    )

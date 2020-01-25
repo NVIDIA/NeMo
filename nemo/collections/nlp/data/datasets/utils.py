@@ -1,4 +1,3 @@
-from collections import Counter
 import csv
 import glob
 import itertools
@@ -8,29 +7,27 @@ import random
 import re
 import shutil
 import subprocess
+from collections import Counter
 
-import nemo
 import numpy as np
 from sentencepiece import SentencePieceTrainer as SPT
 from tqdm import tqdm
 
-from ...utils.nlp_utils import (get_vocab,
-                                write_vocab,
-                                write_vocab_in_order,
-                                label2idx)
-
+import nemo
+from ...utils.nlp_utils import get_vocab, label2idx, write_vocab, write_vocab_in_order
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
-MODE_EXISTS_TMP = \
-    '{} mode of {} dataset has already been processed and stored at {}'
+MODE_EXISTS_TMP = '{} mode of {} dataset has already been processed and stored at {}'
 
 
 def get_stats(lengths):
     lengths = np.asarray(lengths)
-    nemo.logging.info(f'Min: {np.min(lengths)} | \
+    nemo.logging.info(
+        f'Min: {np.min(lengths)} | \
                  Max: {np.max(lengths)} | \
                  Mean: {np.mean(lengths)} | \
-                 Median: {np.median(lengths)}')
+                 Median: {np.median(lengths)}'
+    )
     nemo.logging.info(f'75 percentile: {np.percentile(lengths, 75)}')
     nemo.logging.info(f'99 percentile: {np.percentile(lengths, 99)}')
 
@@ -42,9 +39,9 @@ def get_label_stats(labels, outfile='stats.tsv'):
     i = 0
     label_frequencies = labels.most_common()
     for k, v in label_frequencies:
-        out.write(f'{k}\t{v/total}\n')
+        out.write(f'{k}\t{v / total}\n')
         if i < 3:
-            nemo.logging.info(f'{i} item: {k}, {v} out of {total}, {v/total}.')
+            nemo.logging.info(f'{i} item: {k}, {v} out of {total}, {v / total}.')
         i += 1
     return total, label_frequencies
 
@@ -69,18 +66,15 @@ def if_exist(outfold, files):
 def process_sst_2(data_dir):
     if not os.path.exists(data_dir):
         link = 'https://gluebenchmark.com/tasks'
-        raise ValueError(f'Data not found at {data_dir}. '
-                         f'Please download SST-2 from {link}.')
-    nemo.logging.info(
-        'Keep in mind that SST-2 is only available in lower case.')
+        raise ValueError(f'Data not found at {data_dir}. ' f'Please download SST-2 from {link}.')
+    nemo.logging.info('Keep in mind that SST-2 is only available in lower case.')
     return data_dir
 
 
 def process_imdb(data_dir, uncased, modes=['train', 'test']):
     if not os.path.exists(data_dir):
         link = 'www.kaggle.com/iarunava/imdb-movie-reviews-dataset'
-        raise ValueError(f'Data not found at {data_dir}. '
-                         f'Please download IMDB from {link}.')
+        raise ValueError(f'Data not found at {data_dir}. ' f'Please download IMDB from {link}.')
 
     outfold = f'{data_dir}/nemo-processed'
 
@@ -123,8 +117,7 @@ def process_thucnews(data_dir):
     train_size = 0.8
     if not os.path.exists(data_dir):
         link = 'thuctc.thunlp.org/'
-        raise ValueError(f'Data not found at {data_dir}. '
-                         f'Please download THUCNews from {link}.')
+        raise ValueError(f'Data not found at {data_dir}. ' f'Please download THUCNews from {link}.')
 
     outfold = f'{data_dir}/nemo-processed-thucnews'
 
@@ -138,11 +131,24 @@ def process_thucnews(data_dir):
     outfiles = {}
 
     for mode in modes:
-        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'a+',
-                              encoding='utf-8')
+        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'a+', encoding='utf-8')
         outfiles[mode].write('sentence\tlabel\n')
-    categories = ['体育', '娱乐', '家居', '彩票', '房产', '教育', '时尚',
-                  '时政', '星座', '游戏', '社会', '科技', '股票', '财经']
+    categories = [
+        '体育',
+        '娱乐',
+        '家居',
+        '彩票',
+        '房产',
+        '教育',
+        '时尚',
+        '时政',
+        '星座',
+        '游戏',
+        '社会',
+        '科技',
+        '股票',
+        '财经',
+    ]
     for category in categories:
         label = categories.index(category)
         category_files = glob.glob(f'{data_dir}/{category}/*.txt')
@@ -150,8 +156,7 @@ def process_thucnews(data_dir):
         test_files = category_files[:test_num]
         train_files = category_files[test_num:]
         for mode in modes:
-            nemo.logging.info(
-                f'Processing {mode} data of the category {category}')
+            nemo.logging.info(f'Processing {mode} data of the category {category}')
             if mode == 'test':
                 files = test_files
             else:
@@ -167,10 +172,7 @@ def process_thucnews(data_dir):
     return outfold
 
 
-def process_nlu(filename,
-                uncased,
-                modes=['train', 'test'],
-                dataset_name='nlu-ubuntu'):
+def process_nlu(filename, uncased, modes=['train', 'test'], dataset_name='nlu-ubuntu'):
     """ Dataset has to be of:
     - ubuntu
     - chat
@@ -179,38 +181,40 @@ def process_nlu(filename,
 
     if not os.path.exists(filename):
         link = 'https://github.com/sebischair/NLU-Evaluation-Corpora'
-        raise ValueError(f'Data not found at {filename}. '
-                         'Please download IMDB from {link}.')
+        raise ValueError(f'Data not found at {filename}. ' 'Please download IMDB from {link}.')
 
     if dataset_name == 'nlu-ubuntu':
-        INTENT = {'makeupdate': 1,
-                  'setupprinter': 2,
-                  'shutdowncomputer': 3,
-                  'softwarerecommendation': 4,
-                  'none': 0}
+        INTENT = {
+            'makeupdate': 1,
+            'setupprinter': 2,
+            'shutdowncomputer': 3,
+            'softwarerecommendation': 4,
+            'none': 0,
+        }
     elif dataset_name == 'nlu-chat':
         INTENT = {'departuretime': 0, 'findconnection': 1}
     elif dataset_name == 'nlu-web':
-        INTENT = {'changepassword': 1,
-                  'deleteaccount': 2,
-                  'downloadvideo': 3,
-                  'exportdata': 4,
-                  'filterspam': 5,
-                  'findalternative': 6,
-                  'syncaccounts': 7,
-                  'none': 0}
+        INTENT = {
+            'changepassword': 1,
+            'deleteaccount': 2,
+            'downloadvideo': 3,
+            'exportdata': 4,
+            'filterspam': 5,
+            'findalternative': 6,
+            'syncaccounts': 7,
+            'none': 0,
+        }
     else:
         raise ValueError(f'{dataset_name}: Invalid dataset name')
 
-    infold = filename[:filename.rfind('/')]
+    infold = filename[: filename.rfind('/')]
     outfold = f'{infold}/{dataset_name}-nemo-processed'
 
     if uncased:
         outfold = f'{outfold}_uncased'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        nemo.logging.info(
-            DATABASE_EXISTS_TMP.format(dataset_name.upper(), outfold))
+        nemo.logging.info(DATABASE_EXISTS_TMP.format(dataset_name.upper(), outfold))
         return outfold
     nemo.logging.info(f'Processing data and store at {outfold}')
 
@@ -297,19 +301,17 @@ def process_atis(infold, uncased, modes=['train', 'test'], dev_split=0):
             slot = ' '.join(slots[i].strip().split()[1:-1])
             outfiles[mode + '_slots'].write(slot + '\n')
 
-    shutil.copyfile(f'{infold}/atis.dict.intent.csv',
-                    f'{outfold}/dict.intents.csv')
-    shutil.copyfile(f'{infold}/atis.dict.slots.csv',
-                    f'{outfold}/dict.slots.csv')
+    shutil.copyfile(f'{infold}/atis.dict.intent.csv', f'{outfold}/dict.intents.csv')
+    shutil.copyfile(f'{infold}/atis.dict.slots.csv', f'{outfold}/dict.slots.csv')
     for mode in modes:
         outfiles[mode].close()
 
     return outfold
 
 
-def process_jarvis_datasets(infold, uncased, dataset_name,
-                            modes=['train', 'test', 'eval'],
-                            ignore_prev_intent=False):
+def process_jarvis_datasets(
+    infold, uncased, dataset_name, modes=['train', 'test', 'eval'], ignore_prev_intent=False,
+):
     """ process and convert Jarvis datasets into NeMo's BIO format
     """
     outfold = f'{infold}/{dataset_name}-nemo-processed'
@@ -322,8 +324,7 @@ def process_jarvis_datasets(infold, uncased, dataset_name,
         nemo.logging.info(DATABASE_EXISTS_TMP.format(dataset_name, outfold))
         return outfold
 
-    nemo.logging.info(
-        f'Processing {dataset_name} dataset and store at {outfold}')
+    nemo.logging.info(f'Processing {dataset_name} dataset and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -341,13 +342,11 @@ def process_jarvis_datasets(infold, uncased, dataset_name,
 
     for mode in modes:
         if if_exist(outfold, [f'{mode}.tsv']):
-            nemo.logging.info(
-                MODE_EXISTS_TMP.format(mode, dataset_name, outfold, mode))
+            nemo.logging.info(MODE_EXISTS_TMP.format(mode, dataset_name, outfold, mode))
             continue
 
         if not if_exist(infold, [f'{mode}.tsv']):
-            nemo.logging.info(f'{mode} mode of {dataset_name}'
-                              f' is skipped as it was not found.')
+            nemo.logging.info(f'{mode} mode of {dataset_name}' f' is skipped as it was not found.')
             continue
 
         outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
@@ -373,8 +372,7 @@ def process_jarvis_datasets(infold, uncased, dataset_name,
             else:
                 start_token = 1
             sentence_cld = " ".join(sentence.strip().split()[start_token:-1])
-            outfiles[mode].write(f'{sentence_cld}\t'
-                                 f'{str(intents_list[intent_str])}\n')
+            outfiles[mode].write(f'{sentence_cld}\t' f'{str(intents_list[intent_str])}\n')
 
             slot_tags_list = []
             if slot_tags_str.strip():
@@ -383,9 +381,7 @@ def process_jarvis_datasets(infold, uncased, dataset_name,
                     if not st.strip():
                         continue
                     [start_i, end_i, slot_name] = st.strip().split(":")
-                    slot_tags_list.append([int(start_i),
-                                           int(end_i),
-                                           slot_name])
+                    slot_tags_list.append([int(start_i), int(end_i), slot_name])
                     if slot_name not in slots_list:
                         slots_list[slot_name] = len(slots_list)
                         slots_list_all[f'B-{slot_name}'] = len(slots_list_all)
@@ -398,14 +394,11 @@ def process_jarvis_datasets(infold, uncased, dataset_name,
             processed_index = 0
             for tag_start, tag_end, tag_str in slot_tags_list:
                 if tag_start > processed_index:
-                    words_list = \
-                        sentence[processed_index:tag_start].strip().split()
-                    slots.extend([str(slots_list_all['O'])]*len(words_list))
+                    words_list = sentence[processed_index:tag_start].strip().split()
+                    slots.extend([str(slots_list_all['O'])] * len(words_list))
                 words_list = sentence[tag_start:tag_end].strip().split()
                 slots.append(str(slots_list_all[f'B-{tag_str}']))
-                slots.extend(
-                        [str(slots_list_all[f'I-{tag_str}'])] *
-                        (len(words_list) - 1))
+                slots.extend([str(slots_list_all[f'I-{tag_str}'])] * (len(words_list) - 1))
                 processed_index = tag_end
 
             if processed_index < len(sentence):
@@ -539,8 +532,7 @@ def process_snips(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     if not os.path.exists(data_dir):
         link = 'www.github.com/snipsco/spoken-language'
         '-understanding-research-datasets'
-        raise ValueError(f'Data not found at {data_dir}. '
-                         'Resquest to download the SNIPS dataset from {link}.')
+        raise ValueError(f'Data not found at {data_dir}. ' 'Resquest to download the SNIPS dataset from {link}.')
 
     outfold = f'{data_dir}/nemo-processed'
 
@@ -550,8 +542,7 @@ def process_snips(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     exist = True
     for dataset in ['light', 'speak', 'all']:
         if if_exist(f'{outfold}/{dataset}', [f'{mode}.tsv' for mode in modes]):
-            nemo.logging.info(DATABASE_EXISTS_TMP.format(
-                'SNIPS-' + dataset.upper(), outfold))
+            nemo.logging.info(DATABASE_EXISTS_TMP.format('SNIPS-' + dataset.upper(), outfold))
         else:
             exist = False
     if exist:
@@ -568,18 +559,23 @@ def process_snips(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     speak_files = [f'{data_dir}/{speak_dir}/training_dataset.json']
     speak_files.append(f'{data_dir}/{speak_dir}/test_dataset.json')
 
-    light_train, light_dev, light_slots, light_intents = get_dataset(
-        light_files, dev_split)
-    speak_train, speak_dev, speak_slots, speak_intents = get_dataset(
-        speak_files)
+    light_train, light_dev, light_slots, light_intents = get_dataset(light_files, dev_split)
+    speak_train, speak_dev, speak_slots, speak_intents = get_dataset(speak_files)
 
-    create_dataset(light_train, light_dev, light_slots,
-                   light_intents, uncased, f'{outfold}/light')
-    create_dataset(speak_train, speak_dev, speak_slots,
-                   speak_intents, uncased, f'{outfold}/speak')
-    create_dataset(light_train + speak_train, light_dev + speak_dev,
-                   light_slots | speak_slots, light_intents | speak_intents,
-                   uncased, f'{outfold}/all')
+    create_dataset(
+        light_train, light_dev, light_slots, light_intents, uncased, f'{outfold}/light',
+    )
+    create_dataset(
+        speak_train, speak_dev, speak_slots, speak_intents, uncased, f'{outfold}/speak',
+    )
+    create_dataset(
+        light_train + speak_train,
+        light_dev + speak_dev,
+        light_slots | speak_slots,
+        light_intents | speak_intents,
+        uncased,
+        f'{outfold}/all',
+    )
 
     return outfold
 
@@ -670,7 +666,6 @@ def get_intent_query_files_dialogflow(path):
 
 
 def get_intents_slots_dialogflow(files, slot_labels):
-
     intent_names = []
     intent_queries = []
     slot_tags = []
@@ -687,9 +682,7 @@ def get_intents_slots_dialogflow(files, slot_labels):
                     query_text = ''.join([query_text, segment['text']])
                     if 'alias' in segment:
                         for _ in segment['text'].split():
-                            slots = ' '.join([
-                                slots,
-                                slot_labels.get(segment['alias'])])
+                            slots = ' '.join([slots, slot_labels.get(segment['alias'])])
                     else:
                         for _ in segment['text'].split():
                             slots = ' '.join([slots, slot_labels.get('O')])
@@ -743,16 +736,12 @@ def write_files(data, outfile):
             f.write(item)
 
 
-def process_dialogflow(
-        data_dir,
-        uncased,
-        modes=['train', 'test'],
-        dev_split=0.1):
+def process_dialogflow(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     if not os.path.exists(data_dir):
         link = 'www.dialogflow.com'
-        raise ValueError(f'Data not found at {data_dir}. '
-                         'Export your dialogflow data from'
-                         '{link} and unzip at {data_dir}.')
+        raise ValueError(
+            f'Data not found at {data_dir}. ' 'Export your dialogflow data from' '{link} and unzip at {data_dir}.'
+        )
 
     outfold = f'{data_dir}/dialogflow/nemo-processed'
 
@@ -765,12 +754,9 @@ def process_dialogflow(
 
     slot_labels = get_slots_dialogflow(files)
 
-    intent_queries, intent_names, slot_tags = get_intents_slots_dialogflow(
-        files,
-        slot_labels)
+    intent_queries, intent_names, slot_tags = get_intents_slots_dialogflow(files, slot_labels)
 
-    train_queries, train_slots, test_queries, test_slots = \
-        partition_data(intent_queries, slot_tags, split=dev_split)
+    train_queries, train_slots, test_queries, test_slots = partition_data(intent_queries, slot_tags, split=dev_split)
 
     write_files(train_queries, f'{outfold}/train.tsv')
     write_files(train_slots, f'{outfold}/train_slots.tsv')
@@ -794,7 +780,6 @@ def read_csv(file_path):
 
 
 def get_intents_mturk(utterances, outfold):
-
     intent_names = {}
     intent_count = 0
 
@@ -824,7 +809,6 @@ def get_intents_mturk(utterances, outfold):
 
 
 def get_slot_labels(slot_annotations, task_name):
-
     slot_labels = json.loads(slot_annotations[0])
 
     all_labels = {}
@@ -842,9 +826,7 @@ def get_slot_labels(slot_annotations, task_name):
     return all_labels
 
 
-def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names,
-                              task_name):
-
+def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names, task_name):
     slot_tags = []
     inorder_utterances = []
     all_labels = get_slot_labels(slot_annotations, task_name)
@@ -854,8 +836,7 @@ def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names,
     for annotation in slot_annotations[0:]:
         an = json.loads(annotation)
         utterance = an['source']
-        if len(utterance) > 2 and utterance.startswith('"') \
-                and utterance.endswith('"'):
+        if len(utterance) > 2 and utterance.startswith('"') and utterance.endswith('"'):
             utterance = utterance[1:-1]
 
         if utterance in agreed_all:
@@ -870,10 +851,10 @@ def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names,
             for i in sorted(entities.keys()):
                 annotated_entities = an[task_name]['annotations']['entities']
                 tags = annotated_entities[entities.get(i)]
-                untagged_words = utterance[lastptr:tags['startOffset']]
+                untagged_words = utterance[lastptr : tags['startOffset']]
                 for _ in untagged_words.split():
                     slotlist.append(all_labels.get('O'))
-                anno_words = utterance[tags['startOffset']:tags['endOffset']]
+                anno_words = utterance[tags['startOffset'] : tags['endOffset']]
                 # tagging with the IOB format.
                 for j, _ in enumerate(anno_words.split()):
                     if j == 0:
@@ -884,7 +865,7 @@ def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names,
                         slotlist.append(all_labels.get(i_slot))
                 lastptr = tags['endOffset']
 
-            untagged_words = utterance[lastptr:len(utterance)]
+            untagged_words = utterance[lastptr : len(utterance)]
             for _ in untagged_words.split():
                 slotlist.append(all_labels.get('O'))
 
@@ -903,16 +884,12 @@ def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names,
     return all_labels, inorder_utterances, slot_tags
 
 
-def process_mturk(
-        data_dir,
-        uncased,
-        modes=['train', 'test'],
-        dev_split=0.1):
+def process_mturk(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     if not os.path.exists(data_dir):
         link = 'www.mturk.com'
-        raise ValueError(f'Data not found at {data_dir}. '
-                         'Export your mturk data from'
-                         '{link} and unzip at {data_dir}.')
+        raise ValueError(
+            f'Data not found at {data_dir}. ' 'Export your mturk data from' '{link} and unzip at {data_dir}.'
+        )
 
     outfold = f'{data_dir}/nemo-processed'
 
@@ -920,8 +897,7 @@ def process_mturk(
         nemo.logging.info(DATABASE_EXISTS_TMP.format('mturk', outfold))
         return outfold
 
-    nemo.logging.info(
-        f'Processing dataset from mturk and storing at {outfold}')
+    nemo.logging.info(f'Processing dataset from mturk and storing at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -929,8 +905,7 @@ def process_mturk(
     annotation_data_file = f'{data_dir}/annotation.manifest'
 
     if not os.path.exists(classification_data_file):
-        raise FileNotFoundError(f'File not found '
-                                f'at {classification_data_file}')
+        raise FileNotFoundError(f'File not found ' f'at {classification_data_file}')
 
     if not os.path.exists(annotation_data_file):
         raise FileNotFoundError(f'File not found at {annotation_data_file}')
@@ -952,21 +927,17 @@ def process_mturk(
     # It is assumed that every utterances will have corresponding
     # slot annotation information
     if len(slot_annotations) < len(agreed_all):
-        raise ValueError(f'Every utterance must have corresponding'
-                         f'slot annotation information')
+        raise ValueError(f'Every utterance must have corresponding' f'slot annotation information')
 
     slot_labels, intent_queries, slot_tags = process_intent_slot_mturk(
-            slot_annotations,
-            agreed_all,
-            intent_names,
-            task_name)
+        slot_annotations, agreed_all, intent_names, task_name
+    )
 
     assert len(slot_tags) == len(intent_queries)
 
     dev_split = 0.1
 
-    train_queries, train_slots, test_queries, test_slots = \
-        partition_data(intent_queries, slot_tags, split=dev_split)
+    train_queries, train_slots, test_queries, test_slots = partition_data(intent_queries, slot_tags, split=dev_split)
 
     write_files(train_queries, f'{outfold}/train.tsv')
     write_files(train_slots, f'{outfold}/train_slots.tsv')
@@ -1002,8 +973,7 @@ def calc_class_weights(label_freq):
     """
 
     most_common_label_freq = label_freq[0]
-    weighted_slots = sorted([(index, most_common_label_freq[1]/freq)
-                            for (index, freq) in label_freq])
+    weighted_slots = sorted([(index, most_common_label_freq[1] / freq) for (index, freq) in label_freq])
     return [weight for (_, weight) in weighted_slots]
 
 
@@ -1045,20 +1015,15 @@ class JointIntentSlotDataDesc:
 
     """
 
-    def __init__(self,
-                 data_dir,
-                 do_lower_case=False,
-                 dataset_name='default',
-                 none_slot_label='O',
-                 pad_label=-1):
+    def __init__(
+        self, data_dir, do_lower_case=False, dataset_name='default', none_slot_label='O', pad_label=-1,
+    ):
         if dataset_name == 'atis':
             self.data_dir = process_atis(data_dir, do_lower_case)
         elif dataset_name == 'snips-atis':
             self.data_dir, self.pad_label = merge(
-                data_dir,
-                ['ATIS/nemo-processed-uncased',
-                 'snips/nemo-processed-uncased/all'],
-                dataset_name)
+                data_dir, ['ATIS/nemo-processed-uncased', 'snips/nemo-processed-uncased/all',], dataset_name,
+            )
         elif dataset_name == 'dialogflow':
             self.data_dir = process_dialogflow(data_dir, do_lower_case)
         elif dataset_name == 'mturk-processed':
@@ -1072,19 +1037,16 @@ class JointIntentSlotDataDesc:
             elif dataset_name.endswith('all'):
                 self.data_dir = f'{self.data_dir}/all'
         elif dataset_name.startswith('jarvis'):
-            self.data_dir = process_jarvis_datasets(data_dir,
-                                                    do_lower_case,
-                                                    dataset_name,
-                                                    modes=["train",
-                                                           "test",
-                                                           "eval"],
-                                                    ignore_prev_intent=False)
+            self.data_dir = process_jarvis_datasets(
+                data_dir, do_lower_case, dataset_name, modes=["train", "test", "eval"], ignore_prev_intent=False,
+            )
         else:
             if not if_exist(data_dir, ['dict.intents.csv', 'dict.slots.csv']):
                 raise FileNotFoundError(
                     "Make sure that your data follows the standard format "
                     "supported by JointIntentSlotDataset. Your data must "
-                    "contain dict.intents.csv and dict.slots.csv.")
+                    "contain dict.intents.csv and dict.slots.csv."
+                )
             self.data_dir = data_dir
 
         self.intent_dict_file = self.data_dir + '/dict.intents.csv'
@@ -1096,8 +1058,7 @@ class JointIntentSlotDataDesc:
         for mode in ['train', 'test', 'eval']:
 
             if not if_exist(self.data_dir, [f'{mode}.tsv']):
-                nemo.logging.info(f' Stats calculation for {mode} mode'
-                                  f' is skipped as {mode}.tsv was not found.')
+                nemo.logging.info(f' Stats calculation for {mode} mode' f' is skipped as {mode}.tsv was not found.')
                 continue
 
             slot_file = f'{self.data_dir}/{mode}_slots.tsv'
@@ -1112,7 +1073,8 @@ class JointIntentSlotDataDesc:
                 raise ValueError(
                     "Make sure that the number of slot lines match the "
                     "number of intent lines. There should be a 1-1 "
-                    "correspondence between every slot and intent lines.")
+                    "correspondence between every slot and intent lines."
+                )
 
             dataset = list(zip(slot_lines, input_lines))
 
@@ -1124,25 +1086,21 @@ class JointIntentSlotDataDesc:
                 raw_intents.append(int(parts[-1]))
                 queries.append(' '.join(parts[:-1]))
 
-            infold = input_file[:input_file.rfind('/')]
+            infold = input_file[: input_file.rfind('/')]
 
             nemo.logging.info(f'Three most popular intents during {mode}ing')
-            total_intents, intent_label_freq = get_label_stats(
-                raw_intents, infold + f'/{mode}_intent_stats.tsv')
+            total_intents, intent_label_freq = get_label_stats(raw_intents, infold + f'/{mode}_intent_stats.tsv')
             merged_slots = itertools.chain.from_iterable(raw_slots)
 
             nemo.logging.info(f'Three most popular slots during {mode}ing')
-            slots_total, slots_label_freq = get_label_stats(
-                merged_slots, infold + f'/{mode}_slot_stats.tsv')
+            slots_total, slots_label_freq = get_label_stats(merged_slots, infold + f'/{mode}_slot_stats.tsv')
 
             if mode == 'train':
-
                 self.slot_weights = calc_class_weights(slots_label_freq)
                 nemo.logging.info(f'Slot weights are - {self.slot_weights}')
 
                 self.intent_weights = calc_class_weights(intent_label_freq)
-                nemo.logging.info(
-                    f'Intent weights are - {self.intent_weights}')
+                nemo.logging.info(f'Intent weights are - {self.intent_weights}')
 
             nemo.logging.info(f'Total intents - {total_intents}')
             nemo.logging.info(f'Intent label frequency - {intent_label_freq}')
@@ -1153,8 +1111,7 @@ class JointIntentSlotDataDesc:
             self.pad_label = pad_label
         else:
             if none_slot_label not in slots:
-                raise ValueError(f'none_slot_label {none_slot_label} not '
-                                 f'found in {self.slot_dict_file}.')
+                raise ValueError(f'none_slot_label {none_slot_label} not ' f'found in {self.slot_dict_file}.')
             self.pad_label = slots[none_slot_label]
 
 
@@ -1182,33 +1139,28 @@ class SentenceClassificationDataDesc:
             elif dataset_name.endswith('web'):
                 data_dir = f'{data_dir}/WebApplicationsCorpus.json'
                 self.num_labels = 8
-            self.data_dir = process_nlu(data_dir,
-                                        do_lower_case,
-                                        dataset_name=dataset_name)
+            self.data_dir = process_nlu(data_dir, do_lower_case, dataset_name=dataset_name)
             self.eval_file = self.data_dir + '/test.tsv'
         elif dataset_name.startswith('jarvis'):
-            self.data_dir = process_jarvis_datasets(data_dir,
-                                                    do_lower_case,
-                                                    dataset_name,
-                                                    modes=['train',
-                                                           'test',
-                                                           'eval'],
-                                                    ignore_prev_intent=False)
+            self.data_dir = process_jarvis_datasets(
+                data_dir, do_lower_case, dataset_name, modes=['train', 'test', 'eval'], ignore_prev_intent=False,
+            )
 
             intents = get_intent_labels(f'{self.data_dir}/dict.intents.csv')
             self.num_labels = len(intents)
         else:
-            raise ValueError("Looks like you passed a dataset name that isn't "
-                             "already supported by NeMo. Please make sure "
-                             "that you build the preprocessing method for it.")
+            raise ValueError(
+                "Looks like you passed a dataset name that isn't "
+                "already supported by NeMo. Please make sure "
+                "that you build the preprocessing method for it."
+            )
 
         self.train_file = self.data_dir + '/train.tsv'
 
         for mode in ['train', 'test', 'eval']:
 
             if not if_exist(self.data_dir, [f'{mode}.tsv']):
-                nemo.logging.info(f' Stats calculation for {mode} mode'
-                                  f' is skipped as {mode}.tsv was not found.')
+                nemo.logging.info(f' Stats calculation for {mode} mode' f' is skipped as {mode}.tsv was not found.')
                 continue
 
             input_file = f'{self.data_dir}/{mode}.tsv'
@@ -1221,20 +1173,17 @@ class SentenceClassificationDataDesc:
                 raw_sentences.append(int(parts[-1]))
                 queries.append(' '.join(parts[:-1]))
 
-            infold = input_file[:input_file.rfind('/')]
+            infold = input_file[: input_file.rfind('/')]
 
             nemo.logging.info(f'Three most popular classes during {mode}ing')
-            total_sents, sent_label_freq = get_label_stats(
-                raw_sentences, infold + f'/{mode}_sentence_stats.tsv')
+            total_sents, sent_label_freq = get_label_stats(raw_sentences, infold + f'/{mode}_sentence_stats.tsv')
 
             if mode == 'train':
-
                 self.class_weights = calc_class_weights(sent_label_freq)
                 nemo.logging.info(f'Class weights are - {self.class_weights}')
 
             nemo.logging.info(f'Total Sentences - {total_sents}')
-            nemo.logging.info(
-                f'Sentence class frequencies - {sent_label_freq}')
+            nemo.logging.info(f'Sentence class frequencies - {sent_label_freq}')
 
 
 def create_vocab_lm(data_dir, do_lower_case):
@@ -1271,8 +1220,7 @@ def create_vocab_lm(data_dir, do_lower_case):
 
 def download_wkt2(data_dir):
     os.makedirs('data/lm', exist_ok=True)
-    nemo.logging.warning(f'Data not found at {data_dir}. '
-                         f'Downloading wikitext-2 to data/lm')
+    nemo.logging.warning(f'Data not found at {data_dir}. ' f'Downloading wikitext-2 to data/lm')
     data_dir = 'data/lm/wikitext-2'
     subprocess.call('scripts/get_wkt2.sh')
     return data_dir
@@ -1289,20 +1237,17 @@ class LanguageModelDataDesc:
             nemo.logging.warning(
                 "Looks like you passed a dataset name that isn't "
                 "already supported by NeMo. Please make sure that "
-                "you build the preprocessing method for it.")
+                "you build the preprocessing method for it."
+            )
 
 
-def create_vocab_mlm(data_dir,
-                     vocab_size,
-                     sample_size,
-                     special_tokens=['[PAD]', '[UNK]',
-                                     '[CLS]', '[SEP]', '[MASK]'],
-                     train_file=''):
+def create_vocab_mlm(
+    data_dir, vocab_size, sample_size, special_tokens=['[PAD]', '[UNK]', '[CLS]', '[SEP]', '[MASK]'], train_file='',
+):
     vocab = special_tokens[:]
     bert_dir = f'{data_dir}/bert'
     if if_exist(bert_dir, ['tokenizer.model']):
-        nemo.logging.info(
-            DATABASE_EXISTS_TMP.format('WikiText_BERT', bert_dir))
+        nemo.logging.info(DATABASE_EXISTS_TMP.format('WikiText_BERT', bert_dir))
         return data_dir, f'{bert_dir}/tokenizer.model'
     nemo.logging.info(f'Processing WikiText dataset and store at {bert_dir}')
     os.makedirs(bert_dir, exist_ok=True)
@@ -1320,11 +1265,13 @@ def create_vocab_mlm(data_dir,
     else:
         train_file = f'{data_dir}/{train_file}'
 
-    cmd = (f"--input={train_file} --model_prefix={bert_dir}/tokenizer "
-           f"--vocab_size={vocab_size - len(vocab)} "
-           f"--input_sentence_size={sample_size} "
-           f"--shuffle_input_sentence=true --hard_vocab_limit=false "
-           f"--bos_id=-1 --eos_id=-1")
+    cmd = (
+        f"--input={train_file} --model_prefix={bert_dir}/tokenizer "
+        f"--vocab_size={vocab_size - len(vocab)} "
+        f"--input_sentence_size={sample_size} "
+        f"--shuffle_input_sentence=true --hard_vocab_limit=false "
+        f"--bos_id=-1 --eos_id=-1"
+    )
     SPT.Train(cmd)
 
     # Add BERT control symbols
@@ -1349,27 +1296,21 @@ def create_vocab_mlm(data_dir,
 
 
 class BERTPretrainingDataDesc:
-    def __init__(self,
-                 dataset_name,
-                 data_dir,
-                 vocab_size,
-                 sample_size,
-                 special_tokens,
-                 train_file=''):
+    def __init__(
+        self, dataset_name, data_dir, vocab_size, sample_size, special_tokens, train_file='',
+    ):
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
                 data_dir = download_wkt2(data_dir)
             self.data_dir, self.tokenizer_model = create_vocab_mlm(
-                data_dir,
-                vocab_size,
-                sample_size,
-                special_tokens,
-                train_file)
+                data_dir, vocab_size, sample_size, special_tokens, train_file
+            )
         else:
             nemo.logging.warning(
                 "Looks like you passed a dataset name that isn't "
                 "already supported by NeMo. Please make sure that "
-                "you build the preprocessing method for it.")
+                "you build the preprocessing method for it."
+            )
 
         self.train_file = f'{data_dir}/train.txt'
         self.eval_file = f'{data_dir}/valid.txt'
@@ -1438,13 +1379,11 @@ class MrpcProcessor(DataProcessor):
     def get_train_examples(self, data_dir):
         """See base class."""
         nemo.logging.info(f'LOOKING AT {os.path.join(data_dir, "train.tsv")}')
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
     def get_labels(self):
         """See base class."""
@@ -1460,10 +1399,7 @@ class MrpcProcessor(DataProcessor):
             text_a = line[3]
             text_b = line[4]
             label = line[0]
-            examples.append(InputExample(guid=guid,
-                                         text_a=text_a,
-                                         text_b=text_b,
-                                         label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
 
@@ -1472,14 +1408,11 @@ class MnliProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")),
-            "dev_matched")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")), "dev_matched",)
 
     def get_labels(self):
         """See base class."""
@@ -1495,10 +1428,7 @@ class MnliProcessor(DataProcessor):
             text_a = line[8]
             text_b = line[9]
             label = line[-1]
-            examples.append(InputExample(guid=guid,
-                                         text_a=text_a,
-                                         text_b=text_b,
-                                         label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
 
@@ -1507,9 +1437,7 @@ class MnliMismatchedProcessor(MnliProcessor):
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev_mismatched.tsv")),
-            "dev_matched")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev_mismatched.tsv")), "dev_matched",)
 
 
 class ColaProcessor(DataProcessor):
@@ -1517,13 +1445,11 @@ class ColaProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
     def get_labels(self):
         """See base class."""
@@ -1536,10 +1462,7 @@ class ColaProcessor(DataProcessor):
             guid = "%s-%s" % (set_type, i)
             text_a = line[3]
             label = line[1]
-            examples.append(InputExample(guid=guid,
-                                         text_a=text_a,
-                                         text_b=None,
-                                         label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
 
 
@@ -1548,13 +1471,11 @@ class Sst2Processor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
     def get_labels(self):
         """See base class."""
@@ -1569,10 +1490,7 @@ class Sst2Processor(DataProcessor):
             guid = "%s-%s" % (set_type, i)
             text_a = line[0]
             label = line[1]
-            examples.append(InputExample(guid=guid,
-                                         text_a=text_a,
-                                         text_b=None,
-                                         label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
 
 
@@ -1581,13 +1499,11 @@ class StsbProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
     def get_labels(self):
         """See base class."""
@@ -1603,10 +1519,7 @@ class StsbProcessor(DataProcessor):
             text_a = line[7]
             text_b = line[8]
             label = line[-1]
-            examples.append(InputExample(guid=guid,
-                                         text_a=text_a,
-                                         text_b=text_b,
-                                         label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
 
@@ -1615,13 +1528,11 @@ class QqpProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
     def get_labels(self):
         """See base class."""
@@ -1640,10 +1551,7 @@ class QqpProcessor(DataProcessor):
                 label = line[5]
             except IndexError:
                 continue
-            examples.append(InputExample(guid=guid,
-                                         text_a=text_a,
-                                         text_b=text_b,
-                                         label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
 
@@ -1652,14 +1560,11 @@ class QnliProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")),
-            "dev_matched")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev_matched")
 
     def get_labels(self):
         """See base class."""
@@ -1675,10 +1580,7 @@ class QnliProcessor(DataProcessor):
             text_a = line[1]
             text_b = line[2]
             label = line[-1]
-            examples.append(InputExample(guid=guid,
-                                         text_a=text_a,
-                                         text_b=text_b,
-                                         label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
 
@@ -1687,13 +1589,11 @@ class RteProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
     def get_labels(self):
         """See base class."""
@@ -1709,10 +1609,7 @@ class RteProcessor(DataProcessor):
             text_a = line[1]
             text_b = line[2]
             label = line[-1]
-            examples.append(InputExample(guid=guid,
-                                         text_a=text_a,
-                                         text_b=text_b,
-                                         label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
 
@@ -1721,13 +1618,11 @@ class WnliProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
     def get_labels(self):
         """See base class."""
@@ -1743,10 +1638,7 @@ class WnliProcessor(DataProcessor):
             text_a = line[1]
             text_b = line[2]
             label = line[-1]
-            examples.append(InputExample(guid=guid,
-                                         text_a=text_a,
-                                         text_b=text_b,
-                                         label=label))
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
 
@@ -1760,7 +1652,7 @@ processors = {
     "qqp": QqpProcessor,
     "qnli": QnliProcessor,
     "rte": RteProcessor,
-    "wnli": WnliProcessor
+    "wnli": WnliProcessor,
 }
 
 output_modes = {

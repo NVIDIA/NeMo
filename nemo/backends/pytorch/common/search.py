@@ -3,13 +3,10 @@ __all__ = ['GreedySearch', 'BeamSearch']
 import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.core.neural_types import (NeuralType,
-                                    AxisType, BatchTag,
-                                    TimeTag,
-                                    ChannelTag)
+from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
 INF = float('inf')
-BIG_NUM = 1e+4
+BIG_NUM = 1e4
 
 
 # TODO: Validate, compare to `BeamSearch`
@@ -43,11 +40,9 @@ class GreedySearch(NonTrainableNM):
             2: AxisType(ChannelTag)
         """
         return {
-            'encoder_outputs': NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag),
-            }, optional=True)
+            'encoder_outputs': NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
+            )
         }
 
     @property
@@ -67,19 +62,11 @@ class GreedySearch(NonTrainableNM):
             2: AxisType(TimeTag)
         """
         return {
-            'predictions': NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            }),
-            'attention_weights': NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(TimeTag)
-            })
+            'predictions': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            'attention_weights': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}),
         }
 
-    def __init__(self, decoder, pad_id, bos_id, eos_id, max_len,
-                 batch_size=None, **kwargs):
+    def __init__(self, decoder, pad_id, bos_id, eos_id, max_len, batch_size=None, **kwargs):
         super().__init__(**kwargs)
 
         self.decoder = decoder
@@ -92,24 +79,17 @@ class GreedySearch(NonTrainableNM):
     @torch.no_grad()
     def forward(self, encoder_output):
         batch_size = encoder_output.size(0)
-        predictions = torch.empty(
-            batch_size, 1,
-            dtype=torch.long, device=self._device
-        ).fill_(self.bos_id)
+        predictions = torch.empty(batch_size, 1, dtype=torch.long, device=self._device).fill_(self.bos_id)
         pad_profile = torch.zeros_like(predictions)
 
         last_hidden = None
         for i in range(self.max_len):
-            log_prob, last_hidden = self.decoder.forward_step(
-                predictions[:, -1:], last_hidden, encoder_output
-            )
+            log_prob, last_hidden = self.decoder.forward_step(predictions[:, -1:], last_hidden, encoder_output)
             next_pred = torch.argmax(log_prob.squueze(1), dim=-1, keepdim=True)
             # noinspection PyTypeChecker
-            next_pred = \
-                self.pad_id * pad_profile + next_pred * (1 - pad_profile)
+            next_pred = self.pad_id * pad_profile + next_pred * (1 - pad_profile)
             predictions = torch.cat((predictions, next_pred), dim=-1)
-            pad_profile = torch.max(pad_profile,
-                                    (next_pred == self.eos_id).long())
+            pad_profile = torch.max(pad_profile, (next_pred == self.eos_id).long())
 
             if pad_profile.sum() == batch_size:
                 break
@@ -138,10 +118,8 @@ class BeamSearch(GreedySearch):
 
     """
 
-    def __init__(self, decoder, pad_id, bos_id, eos_id, max_len,
-                 batch_size=None, beam_size=8, **kwargs):
-        super().__init__(decoder, pad_id, bos_id, eos_id, max_len,
-                         batch_size, **kwargs)
+    def __init__(self, decoder, pad_id, bos_id, eos_id, max_len, batch_size=None, beam_size=8, **kwargs):
+        super().__init__(decoder, pad_id, bos_id, eos_id, max_len, batch_size, **kwargs)
 
         self.beam_size = beam_size
 
@@ -154,33 +132,25 @@ class BeamSearch(GreedySearch):
             # [BK]TC
             # encoder_output = encoder_output.repeat_interleave(k, 0)
             encoder_outputs = encoder_outputs.unsqueeze(1).repeat(1, k, 1, 1)
-            encoder_outputs = encoder_outputs.view(
-                -1, *encoder_outputs.shape[2:]
-            )
+            encoder_outputs = encoder_outputs.view(-1, *encoder_outputs.shape[2:])
         else:
             bs = self.batch_size
 
-        predictions = torch.empty(
-            bs * k, 1,
-            dtype=torch.long, device=self._device
-        ).fill_(self.bos_id)  # [BK]1
+        predictions = torch.empty(bs * k, 1, dtype=torch.long, device=self._device).fill_(self.bos_id)  # [BK]1
         scores = torch.zeros_like(predictions, dtype=fdtype)  # [BK]1
         pad_profile = torch.zeros_like(predictions)  # [BK]1
         if encoder_outputs is not None:
             t = encoder_outputs.shape[1]
             # [BK]1T
-            attention_weights = torch.empty(
-                bs * k, 1, t, dtype=fdtype, device=self._device
-            ).fill_(1. / t)
+            attention_weights = torch.empty(bs * k, 1, t, dtype=fdtype, device=self._device).fill_(1.0 / t)
         else:
             attention_weights = None
 
         last_hidden = None
         for i in range(self.max_len):
-            log_probs, last_hidden, attention_weights_i = \
-                self.decoder.forward_step(
-                    predictions[:, -1:], encoder_outputs, last_hidden
-                )  # [BK]1C, h[BK]C, [BK]1T
+            (log_probs, last_hidden, attention_weights_i,) = self.decoder.forward_step(
+                predictions[:, -1:], encoder_outputs, last_hidden
+            )  # [BK]1C, h[BK]C, [BK]1T
 
             log_probs = log_probs.squeeze(1)  # [BK]C
 
@@ -198,9 +168,7 @@ class BeamSearch(GreedySearch):
             scores_i[mask, 0] = 0.0
             scores = scores + scores_i
             scores[mask, 1:] = -INF
-            scores, indices_i = torch.topk(
-                scores.view(-1, k ** 2), k
-            )  # BK, BK
+            scores, indices_i = torch.topk(scores.view(-1, k ** 2), k)  # BK, BK
             scores = scores.view(-1, 1)  # [BK]1
 
             pad_mask = pad_profile.repeat(1, k)  # [BK]K
@@ -209,12 +177,12 @@ class BeamSearch(GreedySearch):
             predicted_i = pad_mask * self.pad_id + (1 - pad_mask) * predicted_i
             predictions = predictions.unsqueeze(1).repeat(1, k, 1)  # [BK]KL
             # [BK]K[L+1]
-            predictions = torch.cat(
-                (predictions, predicted_i.unsqueeze(2)), dim=-1
-            )
-            predictions = predictions.view(bs, k ** 2, -1).gather(
-                1, indices_i.unsqueeze(2).repeat(1, 1, predictions.size(-1))
-            ).view(-1, predictions.size(-1))  # [BK][L+1]
+            predictions = torch.cat((predictions, predicted_i.unsqueeze(2)), dim=-1)
+            predictions = (
+                predictions.view(bs, k ** 2, -1)
+                .gather(1, indices_i.unsqueeze(2).repeat(1, 1, predictions.size(-1)),)
+                .view(-1, predictions.size(-1))
+            )  # [BK][L+1]
 
             new_tensors = []
             for t in last_hidden:
@@ -222,23 +190,18 @@ class BeamSearch(GreedySearch):
             last_hidden = tuple(new_tensors)
 
             if attention_weights_i is not None:
-                attention_weights = torch.cat(
-                    (attention_weights, attention_weights_i), dim=1
-                )
-                attention_weights = self.choose(attention_weights,
-                                                indices_i, 0)
+                attention_weights = torch.cat((attention_weights, attention_weights_i), dim=1)
+                attention_weights = self.choose(attention_weights, indices_i, 0)
 
-            pad_profile = \
-                ((predictions[:, -1:] == self.eos_id)
-                 | (predictions[:, -1:] == self.pad_id)).long()  # [BK]1
+            pad_profile = ((predictions[:, -1:] == self.eos_id) | (predictions[:, -1:] == self.pad_id)).long()  # [BK]1
 
             if pad_profile.sum() == bs * k:
                 break
 
         best_i = torch.argmax(scores.view(bs, k), dim=-1, keepdim=True)  # B1
-        predictions = predictions.view(bs, k, -1).gather(
-            1, best_i.repeat(1, predictions.size(1)).unsqueeze(1)
-        ).squeeze(1)  # BT
+        predictions = (
+            predictions.view(bs, k, -1).gather(1, best_i.repeat(1, predictions.size(1)).unsqueeze(1)).squeeze(1)
+        )  # BT
         attention_weights = attention_weights[:, 1:, :]  # -eos
         shape_suf = attention_weights.shape[1:]
         attention_weights = attention_weights.view(bs, k, *shape_suf)

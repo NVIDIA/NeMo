@@ -1,29 +1,23 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import json
-from typing import Union, Iterator, Dict, Any, List
+from typing import Any, Dict, Iterator, List, Union
 
 
 class ManifestBase:
     def __init__(self, *args, **kwargs):
         raise ValueError(
-            "This class is deprecated, look at "
-            "https://github.com/NVIDIA/NeMo/pull/284 for "
-            "correct behaviour."
+            "This class is deprecated, look at " "https://github.com/NVIDIA/NeMo/pull/284 for " "correct behaviour."
         )
 
 
 class ManifestEN:
     def __init__(self, *args, **kwargs):
         raise ValueError(
-            "This class is deprecated, look at "
-            "https://github.com/NVIDIA/NeMo/pull/284 for "
-            "correct behaviour."
+            "This class is deprecated, look at " "https://github.com/NVIDIA/NeMo/pull/284 for " "correct behaviour."
         )
 
 
-def item_iter(
-    manifests_files: Union[str, List[str]]
-) -> Iterator[Dict[str, Any]]:
+def item_iter(manifests_files: Union[str, List[str]]) -> Iterator[Dict[str, Any]]:
     """Iterate through json lines of provided manifests.
 
     NeMo ASR pipelines often assume certain manifest files structure. In
@@ -65,15 +59,13 @@ def __parse_item(line: str) -> Dict[str, Any]:
         item['audio_file'] = item.pop('audio_filepath')
     else:
         raise ValueError(
-            f"Manifest file {manifest_file} has invalid json line "
-            f"structure: {line} without proper audio file key."
+            f"Manifest file {manifest_file} has invalid json line " f"structure: {line} without proper audio file key."
         )
 
     # Duration.
     if 'duration' not in item:
         raise ValueError(
-            f"Manifest file {manifest_file} has invalid json line "
-            f"structure: {line} without proper duration key."
+            f"Manifest file {manifest_file} has invalid json line " f"structure: {line} without proper duration key."
         )
 
     # Text.
@@ -84,15 +76,11 @@ def __parse_item(line: str) -> Dict[str, Any]:
             item['text'] = f.read().replace('\n', '')
     else:
         raise ValueError(
-            f"Manifest file {manifest_file} has invalid json line "
-            f"structure: {line} without proper text key."
+            f"Manifest file {manifest_file} has invalid json line " f"structure: {line} without proper text key."
         )
 
     item = dict(
-        audio_file=item['audio_file'],
-        duration=item['duration'],
-        text=item['text'],
-        offset=item.get('offset', None),
+        audio_file=item['audio_file'], duration=item['duration'], text=item['text'], offset=item.get('offset', None),
     )
 
     return item

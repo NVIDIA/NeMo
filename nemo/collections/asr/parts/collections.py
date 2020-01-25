@@ -1,13 +1,12 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import collections
 import os
-from typing import Optional, List, Union
+from typing import List, Optional, Union
 
 import pandas as pd
 
 import nemo
-from nemo.collections.asr.parts import manifest
-from nemo.collections.asr.parts import parsers
+from nemo.collections.asr.parts import manifest, parsers
 
 
 class _Collection(collections.UserList):
@@ -77,10 +76,7 @@ class FromFileText(Text):
 class AudioText(_Collection):
     """List of audio-transcript text correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(
-        typename='AudioTextEntity',
-        field_names='audio_file duration text_tokens',
-    )
+    OUTPUT_TYPE = collections.namedtuple(typename='AudioTextEntity', field_names='audio_file duration text_tokens',)
 
     def __init__(
         self,
@@ -133,8 +129,7 @@ class AudioText(_Collection):
             data.sort(key=lambda entity: entity.duration)
 
         nemo.logging.info(
-            "Filtered duration for loading collection is %f.",
-            duration_filtered,
+            "Filtered duration for loading collection is %f.", duration_filtered,
         )
 
         super().__init__(data)
@@ -143,9 +138,7 @@ class AudioText(_Collection):
 class ASRAudioText(AudioText):
     """`AudioText` collector from asr structured json files."""
 
-    def __init__(
-        self, manifests_files: Union[str, List[str]], *args, **kwargs
-    ):
+    def __init__(self, manifests_files: Union[str, List[str]], *args, **kwargs):
         """Parse lists of audio files, durations and transcripts texts.
 
         Args:

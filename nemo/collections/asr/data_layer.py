@@ -6,18 +6,12 @@ from functools import partial
 import torch
 
 import nemo
+from .parts.dataset import AudioDataset, KaldiFeatureDataset, TranscriptDataset, seq_collate_fn
+from .parts.features import WaveformFeaturizer
 from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
 from nemo.utils.misc import pad_to
-
-from .parts.dataset import (
-    AudioDataset,
-    seq_collate_fn,
-    KaldiFeatureDataset,
-    TranscriptDataset,
-)
-from .parts.features import WaveformFeaturizer
 
 __all__ = [
     'AudioToTextDataLayer',
@@ -106,13 +100,9 @@ transcript_n}
 
         """
         return {
-            'audio_signal': NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag)}
-            ),
+            'audio_signal': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             'a_sig_length': NeuralType({0: AxisType(BatchTag)}),
-            'transcripts': NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag)}
-            ),
+            'transcripts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             'transcript_length': NeuralType({0: AxisType(BatchTag)}),
         }
 
@@ -140,9 +130,7 @@ transcript_n}
     ):
         super().__init__(**kwargs)
 
-        self._featurizer = WaveformFeaturizer(
-            sample_rate=sample_rate, int_values=int_values, augmentor=None
-        )
+        self._featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=None)
 
         # Set up dataset
         dataset_params = {
@@ -162,9 +150,7 @@ transcript_n}
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
             nemo.logging.info("Parallelizing Datalayer.")
-            sampler = torch.utils.data.distributed.DistributedSampler(
-                self._dataset
-            )
+            sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
         else:
             sampler = None
 
@@ -250,16 +236,10 @@ class KaldiFeatureDataLayer(DataLayerNM):
         """
         return {
             'processed_signal': NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(SpectrogramSignalTag),
-                    2: AxisType(ProcessedTimeTag),
-                }
+                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
             ),
             'processed_length': NeuralType({0: AxisType(BatchTag)}),
-            'transcripts': NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag)}
-            ),
+            'transcripts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             'transcript_length': NeuralType({0: AxisType(BatchTag)}),
         }
 
@@ -292,9 +272,7 @@ class KaldiFeatureDataLayer(DataLayerNM):
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
             nemo.logging.info("Parallelizing DATALAYER")
-            sampler = torch.utils.data.distributed.DistributedSampler(
-                self._dataset
-            )
+            sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
         else:
             sampler = None
 
@@ -420,9 +398,7 @@ class TranscriptDataLayer(DataLayerNM):
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
-            sampler = torch.utils.data.distributed.DistributedSampler(
-                self._dataset
-            )
+            sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
         else:
             sampler = None
 
@@ -453,10 +429,7 @@ class TranscriptDataLayer(DataLayerNM):
             texts[i].narrow(0, 0, s.size(0)).copy_(s)
 
         if len(texts.shape) != 2:
-            raise ValueError(
-                f"Texts in collate function have shape {texts.shape},"
-                f" should have 2 dimensions."
-            )
+            raise ValueError(f"Texts in collate function have shape {texts.shape}," f" should have 2 dimensions.")
 
         return texts, torch.stack(texts_len)
 

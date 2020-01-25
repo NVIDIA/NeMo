@@ -21,11 +21,7 @@ from .. import utils
 
 
 class LanguageModelingDataset(Dataset):
-    def __init__(self,
-                 tokenizer,
-                 dataset,
-                 max_seq_length=512,
-                 batch_step=None):
+    def __init__(self, tokenizer, dataset, max_seq_length=512, batch_step=None):
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
         self.batch_step = batch_step or self.max_seq_length
@@ -39,6 +35,6 @@ class LanguageModelingDataset(Dataset):
         left = idx * self.batch_step
         right = left + self.max_seq_length
         src_ids = self.ids[left:right]
-        labels = self.ids[left + 1:right + 1]
+        labels = self.ids[left + 1 : right + 1]
         src_mask = (src_ids != self.tokenizer.pad_id()).astype(np.float32)
         return src_ids, src_mask, labels

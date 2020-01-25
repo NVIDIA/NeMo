@@ -2,16 +2,16 @@
 https://pytorch.org/tutorials/beginner/chatbot_tutorial.html
 """
 import random
-from typing import Mapping, Iterable, Optional
+from typing import Iterable, Mapping, Optional
 
 import torch as t
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ..chatbot import data
-from ...nm import TrainableNM, DataLayerNM, LossNM
 from .....core import DeviceType
 from .....core.neural_types import *
+from ...nm import DataLayerNM, LossNM, TrainableNM
+from ..chatbot import data
 
 
 class DialogDataLayer(DataLayerNM):
@@ -50,14 +50,7 @@ class DialogDataLayer(DataLayerNM):
             "max_tgt_lengths": NeuralType(None),
         }
 
-    def __init__(
-            self, *,
-            batch_size,
-            corpus_name,
-            datafile,
-            min_count=3,
-            **kwargs
-    ):
+    def __init__(self, *, batch_size, corpus_name, datafile, min_count=3, **kwargs):
         DataLayerNM.__init__(self, **kwargs)
 
         self._batch_size = batch_size
@@ -68,8 +61,7 @@ class DialogDataLayer(DataLayerNM):
         self.voc = voc
         self.pairs = data.trimRareWords(voc, pairs, self._min_count)
 
-        self._device = t.device(
-            "cuda" if self.placement == DeviceType.GPU else "cpu")
+        self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
         self._dataloader = []
         for i in range(self.__len__()):
             self._dataloader.append(self.__getitem__(i))
@@ -80,10 +72,7 @@ class DialogDataLayer(DataLayerNM):
     def __getitem__(self, idx):
         return [
             x.to(self._device) if isinstance(x, t.Tensor) else x
-            for x in data.batch2TrainData(
-                self.voc,
-                [random.choice(self.pairs) for _ in range(self._batch_size)]
-            )
+            for x in data.batch2TrainData(self.voc, [random.choice(self.pairs) for _ in range(self._batch_size)],)
         ]
 
     def get_weights(self) -> Iterable[Optional[Mapping]]:
@@ -115,8 +104,7 @@ class EncoderRNN(TrainableNM):
             0: AxisType(BatchTag)
         """
         return {
-            "input_seq": NeuralType(
-                {0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
+            "input_seq": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
             "input_lengths": NeuralType({0: AxisType(BatchTag)}),
         }
 
@@ -137,23 +125,11 @@ class EncoderRNN(TrainableNM):
             1: AxisType(ChannelTag)
         """
         return {
-            "outputs": NeuralType(
-                {0: AxisType(TimeTag), 1: AxisType(BatchTag),
-                 2: AxisType(ChannelTag)}
-            ),
-            "hidden": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
+            "hidden": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
-    def __init__(
-            self, *,
-            voc_size,
-            encoder_n_layers,
-            hidden_size,
-            dropout,
-            bidirectional=True,
-            **kwargs
-    ):
+    def __init__(self, *, voc_size, encoder_n_layers, hidden_size, dropout, bidirectional=True, **kwargs):
         TrainableNM.__init__(self, **kwargs)
 
         self.voc_size = voc_size
@@ -176,8 +152,7 @@ class EncoderRNN(TrainableNM):
             dropout=(0 if self.n_layers == 1 else self.dropout),
             bidirectional=self.bidirectional,
         )
-        self._device = t.device(
-            "cuda" if self.placement == DeviceType.GPU else "cpu")
+        self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
         self.to(self._device)
 
     def forward(self, input_seq, input_lengths, hidden=None):
@@ -190,14 +165,12 @@ class EncoderRNN(TrainableNM):
         # Unpack padding
         outputs, _ = t.nn.utils.rnn.pad_packed_sequence(outputs)
         # Sum bidirectional GRU outputs
-        outputs = outputs[:, :, : self.hidden_size] + \
-            outputs[:, :, self.hidden_size:]
+        outputs = outputs[:, :, : self.hidden_size] + outputs[:, :, self.hidden_size :]
         # Return output and final hidden state
         return outputs, hidden
 
 
 class LuongAttnDecoderRNN(TrainableNM):
-
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -218,12 +191,8 @@ class LuongAttnDecoderRNN(TrainableNM):
             None
         """
         return {
-            "targets": NeuralType(
-                {0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
-            "encoder_outputs": NeuralType(
-                {0: AxisType(TimeTag), 1: AxisType(BatchTag),
-                 2: AxisType(ChannelTag)}
-            ),
+            "targets": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
+            "encoder_outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
             "max_target_len": NeuralType(None),
         }
 
@@ -244,23 +213,11 @@ class LuongAttnDecoderRNN(TrainableNM):
             1: AxisType(ChannelTag)
         """
         return {
-            "outputs": NeuralType(
-                {0: AxisType(TimeTag), 1: AxisType(BatchTag),
-                 2: AxisType(ChannelTag)}
-            ),
-            "hidden": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
+            "hidden": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
-    def __init__(
-            self, *,
-            attn_model,
-            hidden_size,
-            voc_size,
-            decoder_n_layers,
-            dropout,
-            **kwargs
-    ):
+    def __init__(self, *, attn_model, hidden_size, voc_size, decoder_n_layers, dropout, **kwargs):
         TrainableNM.__init__(self, **kwargs)
 
         self.attn_model = attn_model
@@ -275,10 +232,7 @@ class LuongAttnDecoderRNN(TrainableNM):
         self.embedding = nn.Embedding(self.voc_size, self.hidden_size)
         self.embedding_dropout = nn.Dropout(self.dropout)
         self.gru = nn.GRU(
-            self.hidden_size,
-            self.hidden_size,
-            self.n_layers,
-            dropout=(0 if self.n_layers == 1 else self.dropout),
+            self.hidden_size, self.hidden_size, self.n_layers, dropout=(0 if self.n_layers == 1 else self.dropout),
         )
         self.concat = nn.Linear(self.hidden_size * 2, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
@@ -289,9 +243,7 @@ class LuongAttnDecoderRNN(TrainableNM):
                 super(Attn, self).__init__()
                 self.method = method
                 if self.method not in ["dot", "general", "concat"]:
-                    raise ValueError(
-                        self.method, "is not an appropriate attention method."
-                    )
+                    raise ValueError(self.method, "is not an appropriate attention method.")
                 self.hidden_size = hidden_size
                 if self.method == "general":
                     self.attn = t.nn.Linear(self.hidden_size, hidden_size)
@@ -307,13 +259,7 @@ class LuongAttnDecoderRNN(TrainableNM):
                 return t.sum(hidden * energy, dim=2)
 
             def concat_score(self, hidden, encoder_output):
-                energy = self.attn(
-                    t.cat(
-                        (hidden.expand(encoder_output.size(0), -1, -1),
-                         encoder_output),
-                        2,
-                    )
-                ).tanh()
+                energy = self.attn(t.cat((hidden.expand(encoder_output.size(0), -1, -1), encoder_output,), 2,)).tanh()
                 return t.sum(self.v * energy, dim=2)
 
             def forward(self, hidden, encoder_outputs):
@@ -335,8 +281,7 @@ class LuongAttnDecoderRNN(TrainableNM):
 
         self.attn = Attn(self.attn_model, self.hidden_size)
 
-        self._device = t.device(
-            "cuda" if self.placement == DeviceType.GPU else "cpu")
+        self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
         self.to(self._device)
 
     def one_step_forward(self, embedded, last_hidden, encoder_outputs):
@@ -362,18 +307,14 @@ class LuongAttnDecoderRNN(TrainableNM):
     def forward(self, targets, encoder_outputs, max_target_len):
         SOS_token = 1  # Start-of-sentence token
 
-        decoder_input = t.LongTensor(
-            [[SOS_token for _ in range(encoder_outputs.shape[1])]]
-        )
+        decoder_input = t.LongTensor([[SOS_token for _ in range(encoder_outputs.shape[1])]])
         decoder_input = decoder_input.to(self._device)
         decoder_hidden = None
         decoder_output = []
         for step_t in range(max_target_len):
             decoder_inpt_embd = self.embedding(decoder_input)
             decoder_step_output, decoder_hidden = self.one_step_forward(
-                embedded=decoder_inpt_embd,
-                last_hidden=decoder_hidden,
-                encoder_outputs=encoder_outputs,
+                embedded=decoder_inpt_embd, last_hidden=decoder_hidden, encoder_outputs=encoder_outputs,
             )
             decoder_output.append(decoder_step_output)
             # Teacher forcing: next input is current target
@@ -383,7 +324,6 @@ class LuongAttnDecoderRNN(TrainableNM):
 
 
 class MaskedXEntropyLoss(LossNM):
-
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -406,12 +346,8 @@ class MaskedXEntropyLoss(LossNM):
             1: AxisType(BatchTag)
         """
         return {
-            "predictions": NeuralType(
-                {0: AxisType(TimeTag), 1: AxisType(BatchTag),
-                 2: AxisType(ChannelTag)}
-            ),
-            "target": NeuralType(
-                {0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
+            "predictions": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
+            "target": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
             "mask": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
         }
 
@@ -422,15 +358,12 @@ class MaskedXEntropyLoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {
-            "loss": NeuralType(None)
-        }
+        return {"loss": NeuralType(None)}
 
     def __init__(self, **kwargs):
         LossNM.__init__(self, **kwargs)
 
-        self._device = t.device(
-            "cuda" if self.placement == DeviceType.GPU else "cpu")
+        self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
 
     def _loss(self, inp, target, mask):
         inp = inp.view(-1, inp.shape[2])
@@ -445,7 +378,6 @@ class MaskedXEntropyLoss(LossNM):
 
 
 class GreedyLuongAttnDecoderRNN(TrainableNM):
-
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -457,12 +389,7 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {
-            "encoder_outputs": NeuralType(
-                {0: AxisType(TimeTag), 1: AxisType(BatchTag),
-                 2: AxisType(ChannelTag)}
-            )
-        }
+        return {"encoder_outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),})}
 
     @property
     def output_ports(self):
@@ -486,20 +413,10 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
                     # 2: AxisType(ChannelTag)
                 }
             ),
-            "hidden": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "hidden": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
-    def __init__(
-            self, *,
-            attn_model,
-            hidden_size,
-            voc_size,
-            decoder_n_layers,
-            dropout,
-            max_dec_steps=10,
-            **kwargs
-    ):
+    def __init__(self, *, attn_model, hidden_size, voc_size, decoder_n_layers, dropout, max_dec_steps=10, **kwargs):
         TrainableNM.__init__(self, **kwargs)
 
         self.attn_model = attn_model
@@ -515,10 +432,7 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
         self.embedding = nn.Embedding(self.voc_size, self.hidden_size)
         self.embedding_dropout = nn.Dropout(self.dropout)
         self.gru = nn.GRU(
-            self.hidden_size,
-            self.hidden_size,
-            self.n_layers,
-            dropout=(0 if self.n_layers == 1 else self.dropout),
+            self.hidden_size, self.hidden_size, self.n_layers, dropout=(0 if self.n_layers == 1 else self.dropout),
         )
         self.concat = nn.Linear(self.hidden_size * 2, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
@@ -529,9 +443,7 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
                 super(Attn, self).__init__()
                 self.method = method
                 if self.method not in ["dot", "general", "concat"]:
-                    raise ValueError(
-                        self.method, "is not an appropriate attention method."
-                    )
+                    raise ValueError(self.method, "is not an appropriate attention method.")
                 self.hidden_size = hidden_size
                 if self.method == "general":
                     self.attn = t.nn.Linear(self.hidden_size, hidden_size)
@@ -547,13 +459,7 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
                 return t.sum(hidden * energy, dim=2)
 
             def concat_score(self, hidden, encoder_output):
-                energy = self.attn(
-                    t.cat(
-                        (hidden.expand(encoder_output.size(0), -1, -1),
-                         encoder_output),
-                        2,
-                    )
-                ).tanh()
+                energy = self.attn(t.cat((hidden.expand(encoder_output.size(0), -1, -1), encoder_output,), 2,)).tanh()
                 return t.sum(self.v * energy, dim=2)
 
             def forward(self, hidden, encoder_outputs):
@@ -575,8 +481,7 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
 
         self.attn = Attn(self.attn_model, self.hidden_size)
 
-        self._device = t.device(
-            "cuda" if self.placement == DeviceType.GPU else "cpu")
+        self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
         self.to(self._device)
 
     def one_step_forward(self, embedded, last_hidden, encoder_outputs):
@@ -603,9 +508,7 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
         SOS_token = 1  # Start-of-sentence token
         encoder_outputs = encoder_outputs.detach()
 
-        decoder_input = t.LongTensor(
-            [[SOS_token for _ in range(encoder_outputs.shape[1])]]
-        )
+        decoder_input = t.LongTensor([[SOS_token for _ in range(encoder_outputs.shape[1])]])
         decoder_input = decoder_input.to(self._device)
         decoder_hidden = None
         decoder_output = []
@@ -613,9 +516,7 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
         for step_t in range(self.max_decoder_steps):
             decoder_inpt_embd = self.embedding(decoder_input)
             decoder_step_output, decoder_hidden = self.one_step_forward(
-                embedded=decoder_inpt_embd,
-                last_hidden=decoder_hidden,
-                encoder_outputs=encoder_outputs,
+                embedded=decoder_inpt_embd, last_hidden=decoder_hidden, encoder_outputs=encoder_outputs,
             )
             decoder_output.append(decoder_step_output)
             # Teacher forcing: next input is current target
@@ -623,8 +524,7 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
             topi = topi.detach()
             # if topi.item() == EOS_token:
             #  break
-            decoder_input = t.LongTensor(
-                [[topi[i][0] for i in range(topi.shape[0])]])
+            decoder_input = t.LongTensor([[topi[i][0] for i in range(topi.shape[0])]])
             decoder_input = decoder_input.to(self._device)
             # decoder_input = targets[step_t].view(1, -1)
         result_logits = t.stack(decoder_output, dim=0)

@@ -5,9 +5,9 @@ import torch as t
 import torch.nn as nn
 import torch.utils.data as t_utils
 
-from ..nm import TrainableNM, DataLayerNM, LossNM
-from ....core import NeuralModule, DeviceType
+from ....core import DeviceType, NeuralModule
 from ....core.neural_types import *
+from ..nm import DataLayerNM, LossNM, TrainableNM
 
 
 class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
@@ -20,9 +20,7 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
         Returns:
           A (dict) of module's input ports names to NeuralTypes mapping
         """
-        return {
-            "x": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})
-        }
+        return {"x": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
 
     @property
     def output_ports(self):
@@ -31,10 +29,7 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
         Returns:
           A (dict) of module's output ports names to NeuralTypes mapping
         """
-        return {
-            "y_pred": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)})
-        }
+        return {"y_pred": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
 
     def __init__(self, *, dim, **kwargs):
         # Part specific for Neural Modules API:
@@ -46,8 +41,7 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
         self._dim = dim
         self.fc1 = nn.Linear(self._dim, 1)
         t.nn.init.xavier_uniform_(self.fc1.weight)
-        self._device = t.device(
-            "cuda" if self.placement == DeviceType.GPU else "cpu")
+        self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
         self.to(self._device)
 
     # IMPORTANT: input arguments to forward must match input input ports' names
@@ -90,13 +84,7 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
 
             1: AxisType(ChannelTag)
         """
-        return {
-            "y_pred": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(ChannelTag)},
-                optional=True
-            )
-        }
+        return {"y_pred": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}, optional=True)}
 
     def __init__(self, *, dim, **kwargs):
         # Part specific for Neural Modules API:
@@ -108,8 +96,7 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
         self._dim = dim
         self.fc1 = nn.Linear(self._dim, 1)
         t.nn.init.xavier_uniform_(self.fc1.weight)
-        self._device = t.device(
-            "cuda" if self.placement == DeviceType.GPU else "cpu")
+        self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
         self.to(self._device)
 
     # IMPORTANT: input arguments to forward must match input input ports' names
@@ -167,18 +154,13 @@ class RealFunctionDataLayer(DataLayerNM):
 
         self._n = n
         self._batch_size = batch_size
-        self._device = t.device(
-            "cuda" if self.placement == DeviceType.GPU else "cpu")
+        self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
 
-        x_data = (
-            t.tensor(np.random.uniform(low=x_lo, high=x_hi, size=self._n))
-            .unsqueeze(-1).to(self._device)
-        )
+        x_data = t.tensor(np.random.uniform(low=x_lo, high=x_hi, size=self._n)).unsqueeze(-1).to(self._device)
         y_data = f(x_data)
 
         self._data_iterator = t_utils.DataLoader(
-            t_utils.TensorDataset(x_data.float(), y_data.float()),
-            batch_size=self._batch_size,
+            t_utils.TensorDataset(x_data.float(), y_data.float()), batch_size=self._batch_size,
         )
 
     @property
@@ -191,7 +173,6 @@ class RealFunctionDataLayer(DataLayerNM):
 
 
 class MSELoss(LossNM):
-
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -207,10 +188,8 @@ class MSELoss(LossNM):
             1: AxisType(ChannelTag)
         """
         return {
-            "predictions": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            "target": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "predictions": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "target": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
     @property
@@ -220,9 +199,7 @@ class MSELoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {
-            "loss": NeuralType(None)
-        }
+        return {"loss": NeuralType(None)}
 
     def __init__(self, **kwargs):
         LossNM.__init__(self, **kwargs)
@@ -233,7 +210,6 @@ class MSELoss(LossNM):
 
 
 class L1Loss(LossNM):
-
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -249,10 +225,8 @@ class L1Loss(LossNM):
             1: AxisType(ChannelTag)
         """
         return {
-            "predictions": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            "target": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "predictions": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "target": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
     @property
@@ -262,9 +236,7 @@ class L1Loss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {
-            "loss": NeuralType(None)
-        }
+        return {"loss": NeuralType(None)}
 
     def __init__(self, **kwargs):
         LossNM.__init__(self, **kwargs)
@@ -275,7 +247,6 @@ class L1Loss(LossNM):
 
 
 class CrossEntropyLoss(LossNM):
-
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -289,8 +260,7 @@ class CrossEntropyLoss(LossNM):
             0: AxisType(BatchTag)
         """
         return {
-            "predictions": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "predictions": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             "labels": NeuralType({0: AxisType(BatchTag)}),
         }
 
@@ -301,9 +271,7 @@ class CrossEntropyLoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {
-            "loss": NeuralType(None)
-        }
+        return {"loss": NeuralType(None)}
 
     def __init__(self, **kwargs):
         # Neural Module API specific
@@ -342,13 +310,9 @@ class DopeDualLoss(LossNM):
             0: AxisType(BatchTag)
         """
         return {
-            "belief_predictions": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}
-            ),
+            "belief_predictions": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             "belief_labels": NeuralType({0: AxisType(BatchTag)}),
-            "affinity_predictions": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(ChannelTag)}
-            ),
+            "affinity_predictions": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             "affinity_labels": NeuralType({0: AxisType(BatchTag)}),
         }
 
@@ -359,9 +323,7 @@ class DopeDualLoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {
-            "loss": NeuralType(None)
-        }
+        return {"loss": NeuralType(None)}
 
     def __init__(self, **kwargs):
         # Neural Module API specific
@@ -374,19 +336,13 @@ class DopeDualLoss(LossNM):
         # Belief maps loss
         # output, each belief map layers.
         for l in kwargs["belief_predictions"]:
-            loss_tmp = (
-                (l - kwargs["belief_labels"]) * (
-                    l - kwargs["belief_labels"])
-            ).mean()
+            loss_tmp = ((l - kwargs["belief_labels"]) * (l - kwargs["belief_labels"])).mean()
             loss += loss_tmp
 
         # Affinities loss
         # output, each belief map layers.
         for l in kwargs["affinity_predictions"]:
-            loss_tmp = (
-                (l - kwargs["affinity_labels"]) * (
-                    l - kwargs["affinity_labels"])
-            ).mean()
+            loss_tmp = ((l - kwargs["affinity_labels"]) * (l - kwargs["affinity_labels"])).mean()
             loss += loss_tmp
 
         return loss

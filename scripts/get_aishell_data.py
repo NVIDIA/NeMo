@@ -3,11 +3,11 @@
 # USAGE: python get_aishell_data.py --data_root=<where to put data>
 
 import argparse
-import os
-import urllib.request
-import tarfile
-import subprocess
 import json
+import os
+import subprocess
+import tarfile
+import urllib.request
 
 parser = argparse.ArgumentParser(description='Aishell Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
@@ -71,9 +71,7 @@ def __process_data(data_folder: str, dst_folder: str):
     if not os.path.exists(dst_folder):
         os.makedirs(dst_folder)
 
-    transcript_file = os.path.join(data_folder,
-                                   'transcript',
-                                   'aishell_transcript_v0.8.txt')
+    transcript_file = os.path.join(data_folder, 'transcript', 'aishell_transcript_v0.8.txt')
     transcript_dict = {}
     with open(transcript_file, 'r', encoding='utf-8') as f:
         for line in f:
@@ -97,17 +95,14 @@ def __process_data(data_folder: str, dst_folder: str):
                 text = transcript_dict[audio_id]
                 for li in text:
                     vocab_count[li] = vocab_count.get(li, 0) + 1
-                duration = subprocess.check_output(
-                    'soxi -D {0}'.format(audio_path), shell=True)
+                duration = subprocess.check_output('soxi -D {0}'.format(audio_path), shell=True)
                 duration = float(duration)
                 json_lines.append(
                     json.dumps(
-                        {
-                            'audio_filepath': os.path.abspath(audio_path),
-                            'duration': duration,
-                            'text': text
-                        },
-                        ensure_ascii=False))
+                        {'audio_filepath': os.path.abspath(audio_path), 'duration': duration, 'text': text,},
+                        ensure_ascii=False,
+                    )
+                )
 
         manifest_path = os.path.join(dst_folder, dt + '.json')
         with open(manifest_path, 'w', encoding='utf-8') as fout:

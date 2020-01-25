@@ -1,10 +1,11 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import torch
+
 import nemo
+from .parts.datasets import AudioOnlyDataset
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
-from .parts.datasets import AudioOnlyDataset
 
 
 class AudioDataLayer(DataLayerNM):
@@ -57,9 +58,7 @@ class AudioDataLayer(DataLayerNM):
             0: AxisType(BatchTag)
         """
         return {
-            "audio_signal": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag)}
-            ),
+            "audio_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "a_sig_length": NeuralType({0: AxisType(BatchTag)}),
         }
 
@@ -90,9 +89,7 @@ class AudioDataLayer(DataLayerNM):
         sampler = None
         if self._placement == DeviceType.AllGpu:
             nemo.logging.info('Parallelizing DATALAYER')
-            sampler = torch.utils.data.distributed.DistributedSampler(
-                self._dataset
-            )
+            sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
 
         self._dataloader = torch.utils.data.DataLoader(
             dataset=self._dataset,
