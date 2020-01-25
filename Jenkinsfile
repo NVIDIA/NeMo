@@ -16,6 +16,11 @@ pipeline {
     }
     stage('Code formatting checks') {
       steps {
+        sh 'pip install -r requirements/requirements_test.txt'
+      }
+    }
+    stage('Code formatting checks') {
+      steps {
         sh 'python setup.py check_style'
       }
     }
