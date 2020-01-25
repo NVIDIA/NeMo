@@ -1,8 +1,8 @@
 # Copyright (c) 2019 NVIDIA Corporation
-from torchvision import transforms, datasets
+from torchvision import datasets, transforms
 
-from ...nm import DataLayerNM
 from .....core import *
+from ...nm import DataLayerNM
 
 
 class ImageFolderDataLayer(DataLayerNM):
@@ -38,8 +38,7 @@ class ImageFolderDataLayer(DataLayerNM):
             "label": NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def __init__(self, *, input_size=32, batch_size, path, shuffle=True,
-                 is_eval=False, **kwargs):
+    def __init__(self, *, input_size=32, batch_size, path, shuffle=True, is_eval=False, **kwargs):
         DataLayerNM.__init__(self, **kwargs)
 
         self._input_size = input_size
@@ -54,8 +53,7 @@ class ImageFolderDataLayer(DataLayerNM):
                     transforms.RandomResizedCrop(self._input_size),
                     transforms.RandomHorizontalFlip(),
                     transforms.ToTensor(),
-                    transforms.Normalize([0.485, 0.456, 0.406],
-                                         [0.229, 0.224, 0.225]),
+                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                 ]
             )
 
@@ -66,8 +64,7 @@ class ImageFolderDataLayer(DataLayerNM):
                     transforms.Resize(256),
                     transforms.CenterCrop(self._input_size),
                     transforms.ToTensor(),
-                    transforms.Normalize([0.485, 0.456, 0.406],
-                                         [0.229, 0.224, 0.225]),
+                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                 ]
             )
 

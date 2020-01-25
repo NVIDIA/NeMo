@@ -8,8 +8,7 @@ import torch
 from torch.utils.data import Dataset
 
 import nemo
-from nemo.collections.asr.parts import collections
-from nemo.collections.asr.parts import parsers
+from nemo.collections.asr.parts import collections, parsers
 
 
 def seq_collate_fn(batch, token_pad_value=0):
@@ -40,9 +39,7 @@ def seq_collate_fn(batch, token_pad_value=0):
         tokens_i_len = tokens_i_len.item()
         if tokens_i_len < max_tokens_len:
             pad = (0, max_tokens_len - tokens_i_len)
-            tokens_i = torch.nn.functional.pad(
-                tokens_i, pad, value=token_pad_value
-            )
+            tokens_i = torch.nn.functional.pad(tokens_i, pad, value=token_pad_value)
         tokens.append(tokens_i)
 
     if has_audio:
@@ -139,10 +136,7 @@ class AudioDataset(Dataset):
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
             parser=parsers.ENCharParser(
-                labels=labels,
-                unk_id=unk_index,
-                blank_id=blank_index,
-                do_normalize=normalize,
+                labels=labels, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
             ),
             min_duration=min_duration,
             max_duration=max_duration,
@@ -158,12 +152,7 @@ class AudioDataset(Dataset):
     def __getitem__(self, index):
         sample = self.collection[index]
         if self.load_audio:
-            features = self.featurizer.process(
-                sample.audio_file,
-                offset=0,
-                duration=sample.duration,
-                trim=self.trim,
-            )
+            features = self.featurizer.process(sample.audio_file, offset=0, duration=sample.duration, trim=self.trim,)
             f, fl = features, torch.tensor(features.shape[0]).long()
         else:
             f, fl = None, None
@@ -225,10 +214,7 @@ class KaldiFeatureDataset(Dataset):
 
         # Read Kaldi features (MFCC, PLP) using feats.scp
         feats_path = os.path.join(kaldi_dir, 'feats.scp')
-        id2feats = {
-            utt_id: torch.from_numpy(feats)
-            for utt_id, feats in kaldi_io.read_mat_scp(feats_path)
-        }
+        id2feats = {utt_id: torch.from_numpy(feats) for utt_id, feats in kaldi_io.read_mat_scp(feats_path)}
 
         # Get durations, if utt2dur exists
         utt2dur_path = os.path.join(kaldi_dir, 'utt2dur')
@@ -245,15 +231,12 @@ class KaldiFeatureDataset(Dataset):
             )
         else:
             nemo.logging.info(
-                f"Did not find utt2dur when loading data from "
-                f"{kaldi_dir}. Skipping dataset duration calculations."
+                f"Did not find utt2dur when loading data from " f"{kaldi_dir}. Skipping dataset duration calculations."
             )
 
         # Match transcripts to features
         text_path = os.path.join(kaldi_dir, 'text')
-        parser = parsers.make_parser(
-            labels, 'en', unk_id=unk_index, blank_id=self.blank_index
-        )
+        parser = parsers.make_parser(labels, 'en', unk_id=unk_index, blank_id=self.blank_index)
         with open(text_path, 'r') as f:
             for line in f:
                 split_idx = line.find(' ')
@@ -296,8 +279,7 @@ class KaldiFeatureDataset(Dataset):
         if id2dur:
             # utt2dur durations are in seconds
             nemo.logging.info(
-                f"Dataset loaded with {duration / 60 : .2f} hours. "
-                f"Filtered {filtered_duration / 60 : .2f} hours."
+                f"Dataset loaded with {duration / 60 : .2f} hours. " f"Filtered {filtered_duration / 60 : .2f} hours."
             )
 
         self.data = data

@@ -1,8 +1,9 @@
 # Copyright (c) 2019 NVIDIA Corporation
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
-import nemo
 import numpy as np
+
+import nemo
 
 GLOBAL_KEYS = ["eval_loss", "sys"]
 

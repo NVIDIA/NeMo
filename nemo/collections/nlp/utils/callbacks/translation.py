@@ -3,16 +3,13 @@ __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 import numpy as np
 
-from nemo.collections.asr.metrics import word_error_rate
-
 from ..metrics.sacrebleu import corpus_bleu
-
+from nemo.collections.asr.metrics import word_error_rate
 
 GLOBAL_KEYS = ["eval_loss", "ref", "sys", "sent_ids", "nonpad_tokens"]
 
 
 def eval_iter_callback(tensors, global_vars, tgt_tokenizer):
-
     for key in GLOBAL_KEYS:
         if key not in global_vars.keys():
             global_vars[key] = []
@@ -47,7 +44,6 @@ def eval_iter_callback(tensors, global_vars, tgt_tokenizer):
 
 
 def eval_epochs_done_callback(global_vars, validation_dataset=None):
-
     losses = np.array(global_vars["eval_loss"])
     counts = np.array(global_vars["nonpad_tokens"])
     eval_loss = np.sum(losses * counts) / np.sum(counts)
@@ -80,10 +76,7 @@ def eval_epochs_done_callback(global_vars, validation_dataset=None):
     for key in GLOBAL_KEYS:
         global_vars[key] = []
 
-    metrics = dict(
-        {"eval_loss": eval_loss,
-         "token_bleu": token_bleu,
-         "sacre_bleu": sacre_bleu})
+    metrics = dict({"eval_loss": eval_loss, "token_bleu": token_bleu, "sacre_bleu": sacre_bleu,})
 
     return metrics
 

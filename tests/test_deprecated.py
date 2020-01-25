@@ -14,7 +14,6 @@
 
 
 from io import StringIO
-
 from unittest.mock import patch
 
 from .common_setup import NeMoUnitTest
@@ -22,7 +21,6 @@ from nemo.utils.decorators.deprecated import deprecated
 
 
 class DeprecatedTestCase(NeMoUnitTest):
-
     def test_say_whee_deprecated(self):
         """ Tests whether both std and err streams return the right values
         when function is deprecated."""
@@ -37,12 +35,10 @@ class DeprecatedTestCase(NeMoUnitTest):
                 say_whee()
 
         # Check std output.
-        self.assertEqual(std_out.getvalue().strip(),
-                         "Whee!")
+        self.assertEqual(std_out.getvalue().strip(), "Whee!")
 
         # Check error output.
-        self.assertEqual(std_err.getvalue().strip(),
-                         'Function ``say_whee`` is deprecated.')
+        self.assertEqual(std_err.getvalue().strip(), 'Function ``say_whee`` is deprecated.')
 
     def test_say_wow_twice_deprecated(self):
         """ Tests whether both std and err streams return the right values
@@ -58,12 +54,10 @@ class DeprecatedTestCase(NeMoUnitTest):
                 say_wow()
 
         # Check std output.
-        self.assertEqual(std_out.getvalue().strip(),
-                         "Woooow!")
+        self.assertEqual(std_out.getvalue().strip(), "Woooow!")
 
         # Check error output.
-        self.assertEqual(std_err.getvalue().strip(),
-                         'Function ``say_wow`` is deprecated.')
+        self.assertEqual(std_err.getvalue().strip(), 'Function ``say_wow`` is deprecated.')
 
         # Second call.
         with patch('sys.stdout', new=StringIO()) as std_out:
@@ -71,12 +65,10 @@ class DeprecatedTestCase(NeMoUnitTest):
                 say_wow()
 
         # Check std output.
-        self.assertEqual(std_out.getvalue().strip(),
-                         "Woooow!")
+        self.assertEqual(std_out.getvalue().strip(), "Woooow!")
 
         # Check error output - should be empty.
-        self.assertEqual(std_err.getvalue().strip(),
-                         '')
+        self.assertEqual(std_err.getvalue().strip(), '')
 
     def test_say_whoopie_deprecated_version(self):
         """ Tests whether both std and err streams return the right values
@@ -92,13 +84,14 @@ class DeprecatedTestCase(NeMoUnitTest):
                 say_whoopie()
 
         # Check std output.
-        self.assertEqual(std_out.getvalue().strip(),
-                         "Whoopie!")
+        self.assertEqual(std_out.getvalue().strip(), "Whoopie!")
 
         # Check error output.
-        self.assertEqual(std_err.getvalue().strip(),
-                         'Function ``say_whoopie`` is deprecated. It is going \
-to be removed in version 0.1.')
+        self.assertEqual(
+            std_err.getvalue().strip(),
+            'Function ``say_whoopie`` is deprecated. It is going \
+to be removed in version 0.1.',
+        )
 
     def test_say_kowabunga_deprecated_explanation(self):
         """ Tests whether both std and err streams return the right values
@@ -114,10 +107,11 @@ to be removed in version 0.1.')
                 say_kowabunga()
 
         # Check std output.
-        self.assertEqual(std_out.getvalue().strip(),
-                         "Kowabunga!")
+        self.assertEqual(std_out.getvalue().strip(), "Kowabunga!")
 
         # Check error output.
-        self.assertEqual(std_err.getvalue().strip(),
-                         'Function ``say_kowabunga`` is deprecated. Please \
-use ``print_ihaa`` instead.')
+        self.assertEqual(
+            std_err.getvalue().strip(),
+            'Function ``say_kowabunga`` is deprecated. Please \
+use ``print_ihaa`` instead.',
+        )

@@ -13,23 +13,15 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.core import Backend
-
-from nemo.collections.tts.tacotron2_modules import *
-from nemo.collections.tts.tacotron2_modules import __all__ as tacotron2__all__
-
-from nemo.collections.tts.waveglow_modules import *
-from nemo.collections.tts.waveglow_modules import __all__ as waveglow__all__
-
 from nemo.collections.tts.data_layers import AudioDataLayer
-
 from nemo.collections.tts.parts.helpers import *
 from nemo.collections.tts.parts.helpers import __all__ as helpers__all__
-
+from nemo.collections.tts.tacotron2_modules import *
+from nemo.collections.tts.tacotron2_modules import __all__ as tacotron2__all__
+from nemo.collections.tts.waveglow_modules import *
+from nemo.collections.tts.waveglow_modules import __all__ as waveglow__all__
+from nemo.core import Backend
 
 backend = Backend.PyTorch
 
-__all__ = ["AudioDataLayer"] + \
-          helpers__all__ + \
-          tacotron2__all__ + \
-          waveglow__all__
+__all__ = ["AudioDataLayer"] + helpers__all__ + tacotron2__all__ + waveglow__all__

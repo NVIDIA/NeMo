@@ -20,59 +20,55 @@ Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 """
 
-import nemo
 import numpy as np
 from torch.utils.data import Dataset
 
+import nemo
+
 
 class GLUEDataset(Dataset):
-    def __init__(self,
-                 data_dir,
-                 tokenizer,
-                 max_seq_length,
-                 processor,
-                 output_mode,
-                 evaluate,
-                 token_params):
+    def __init__(
+        self, data_dir, tokenizer, max_seq_length, processor, output_mode, evaluate, token_params,
+    ):
         self.tokenizer = tokenizer
         self.label_list = processor.get_labels()
-        self.examples = processor.get_dev_examples(data_dir) if evaluate \
-            else processor.get_train_examples(data_dir)
-        self.features = convert_examples_to_features(self.examples,
-                                                     self.label_list,
-                                                     max_seq_length,
-                                                     tokenizer,
-                                                     output_mode,
-                                                     **token_params)
+        self.examples = processor.get_dev_examples(data_dir) if evaluate else processor.get_train_examples(data_dir)
+        self.features = convert_examples_to_features(
+            self.examples, self.label_list, max_seq_length, tokenizer, output_mode, **token_params
+        )
 
     def __len__(self):
         return len(self.features)
 
     def __getitem__(self, idx):
         feature = self.features[idx]
-        return (np.array(feature.input_ids),
-                np.array(feature.segment_ids),
-                np.array(feature.input_mask, dtype=np.long),
-                np.array(feature.label_id))
+        return (
+            np.array(feature.input_ids),
+            np.array(feature.segment_ids),
+            np.array(feature.input_mask, dtype=np.long),
+            np.array(feature.label_id),
+        )
 
 
-def convert_examples_to_features(examples,
-                                 label_list,
-                                 max_seq_length,
-                                 tokenizer,
-                                 output_mode,
-                                 bos_token=None,
-                                 eos_token='[SEP]',
-                                 pad_token='[PAD]',
-                                 cls_token='[CLS]',
-                                 sep_token_extra=None,
-                                 cls_token_at_end=False,
-                                 cls_token_segment_id=0,
-                                 pad_token_segment_id=0,
-                                 pad_on_left=False,
-                                 mask_padding_with_zero=True,
-                                 sequence_a_segment_id=0,
-                                 sequence_b_segment_id=1):
+def convert_examples_to_features(
+    examples,
+    label_list,
+    max_seq_length,
+    tokenizer,
+    output_mode,
+    bos_token=None,
+    eos_token='[SEP]',
+    pad_token='[PAD]',
+    cls_token='[CLS]',
+    sep_token_extra=None,
+    cls_token_at_end=False,
+    cls_token_segment_id=0,
+    pad_token_segment_id=0,
+    pad_on_left=False,
+    mask_padding_with_zero=True,
+    sequence_a_segment_id=0,
+    sequence_b_segment_id=1,
+):
     """ Loads a data file into a list of `InputBatch`s
         `cls_token_at_end` define the location of the CLS token:
             - False (Default, BERT/XLM pattern): [CLS] + A + [SEP] + B + [SEP]
@@ -109,8 +105,7 @@ def convert_examples_to_features(examples,
     features = []
     for ex_index, example in enumerate(examples):
         if ex_index % 10000 == 0:
-            nemo.logging.info(
-                "Writing example %d of %d" % (ex_index, len(examples)))
+            nemo.logging.info("Writing example %d of %d" % (ex_index, len(examples)))
 
         tokens_a = tokenizer.text_to_tokens(example.text_a)
 
@@ -122,14 +117,13 @@ def convert_examples_to_features(examples,
             special_tokens_count += 1 if sep_token_extra else 0
             special_tokens_count += 2 if bos_token else 0
             special_tokens_count += 1 if cls_token else 0
-            _truncate_seq_pair(tokens_a, tokens_b, max_seq_length -
-                               special_tokens_count)
+            _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - special_tokens_count)
         else:
             special_tokens_count = 1 if eos_token else 0
             special_tokens_count += 1 if sep_token_extra else 0
             special_tokens_count += 1 if bos_token else 0
             if len(tokens_a) > max_seq_length - special_tokens_count:
-                tokens_a = tokens_a[:max_seq_length - special_tokens_count]
+                tokens_a = tokens_a[: max_seq_length - special_tokens_count]
         # Add special tokens to sequence_a
         tokens = tokens_a
         if bos_token:
@@ -173,16 +167,12 @@ def convert_examples_to_features(examples,
         pad_token_id = tokenizer.tokens_to_ids([pad_token])[0]
         if pad_on_left:
             input_ids = ([pad_token_id] * padding_length) + input_ids
-            input_mask = ([0 if mask_padding_with_zero else 1] *
-                          padding_length) + input_mask
-            segment_ids = ([pad_token_segment_id] * padding_length) + \
-                segment_ids
+            input_mask = ([0 if mask_padding_with_zero else 1] * padding_length) + input_mask
+            segment_ids = ([pad_token_segment_id] * padding_length) + segment_ids
         else:
             input_ids = input_ids + ([pad_token_id] * padding_length)
-            input_mask = input_mask + \
-                ([0 if mask_padding_with_zero else 1] * padding_length)
-            segment_ids = segment_ids + \
-                ([pad_token_segment_id] * padding_length)
+            input_mask = input_mask + ([0 if mask_padding_with_zero else 1] * padding_length)
+            segment_ids = segment_ids + ([pad_token_segment_id] * padding_length)
         if len(input_ids) != max_seq_length:
             raise ValueError("input_ids must be of length max_seq_length")
         if len(input_mask) != max_seq_length:
@@ -199,22 +189,15 @@ def convert_examples_to_features(examples,
         if ex_index < 5:
             nemo.logging.info("*** Example ***")
             nemo.logging.info("guid: %s" % (example.guid))
-            nemo.logging.info(
-                "tokens: %s" % " ".join(list(map(str, tokens))))
-            nemo.logging.info(
-                "input_ids: %s" % " ".join(list(map(str, input_ids))))
-            nemo.logging.info(
-                "input_mask: %s" % " ".join(list(map(str, input_mask))))
-            nemo.logging.info(
-                "segment_ids: %s" % " ".join(list(map(str, segment_ids))))
-            nemo.logging.info(
-                "label: %s (id = %d)" % (example.label, label_id))
+            nemo.logging.info("tokens: %s" % " ".join(list(map(str, tokens))))
+            nemo.logging.info("input_ids: %s" % " ".join(list(map(str, input_ids))))
+            nemo.logging.info("input_mask: %s" % " ".join(list(map(str, input_mask))))
+            nemo.logging.info("segment_ids: %s" % " ".join(list(map(str, segment_ids))))
+            nemo.logging.info("label: %s (id = %d)" % (example.label, label_id))
 
         features.append(
-                InputFeatures(input_ids=input_ids,
-                              input_mask=input_mask,
-                              segment_ids=segment_ids,
-                              label_id=label_id))
+            InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_id=label_id,)
+        )
     return features
 
 

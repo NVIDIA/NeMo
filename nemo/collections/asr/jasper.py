@@ -1,15 +1,22 @@
 # Copyright (c) 2019 NVIDIA Corporation
+from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional
 
+from .parts.jasper import JasperBlock, init_weights, jasper_activations
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import (NeuralType, AxisType, ChannelTag, BatchTag,
-                                    TimeTag, SpectrogramSignalTag,
-                                    ProcessedTimeTag, EncodedRepresentationTag)
-
-from .parts.jasper import JasperBlock, jasper_activations, init_weights
+from nemo.core.neural_types import (
+    AxisType,
+    BatchTag,
+    ChannelTag,
+    EncodedRepresentationTag,
+    NeuralType,
+    ProcessedTimeTag,
+    SpectrogramSignalTag,
+    TimeTag,
+)
 
 
 class JasperEncoder(TrainableNM):
@@ -69,6 +76,7 @@ class JasperEncoder(TrainableNM):
             'kaiming_uniform','kaiming_normal'].
             Defaults to "xavier_uniform".
     """
+
     length: Optional[torch.Tensor]
 
     @property
@@ -86,10 +94,10 @@ class JasperEncoder(TrainableNM):
             0: AxisType(BatchTag)
         """
         return {
-            "audio_signal": NeuralType({0: AxisType(BatchTag),
-                                        1: AxisType(SpectrogramSignalTag),
-                                        2: AxisType(ProcessedTimeTag)}),
-            "length": NeuralType({0: AxisType(BatchTag)})
+            "audio_signal": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+            ),
+            "length": NeuralType({0: AxisType(BatchTag)}),
         }
 
     @property
@@ -108,27 +116,25 @@ class JasperEncoder(TrainableNM):
 
         """
         return {
-            "outputs": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(EncodedRepresentationTag),
-                2: AxisType(ProcessedTimeTag)
-            }),
-
-            "encoded_lengths": NeuralType({0: AxisType(BatchTag)})
+            "outputs": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(EncodedRepresentationTag), 2: AxisType(ProcessedTimeTag),}
+            ),
+            "encoded_lengths": NeuralType({0: AxisType(BatchTag)}),
         }
 
     def __init__(
-            self, *,
-            jasper,
-            activation,
-            feat_in,
-            normalization_mode="batch",
-            residual_mode="add",
-            norm_groups=-1,
-            conv_mask=True,
-            frame_splicing=1,
-            init_mode='xavier_uniform',
-            **kwargs
+        self,
+        *,
+        jasper,
+        activation,
+        feat_in,
+        normalization_mode="batch",
+        residual_mode="add",
+        norm_groups=-1,
+        conv_mask=True,
+        frame_splicing=1,
+        init_mode='xavier_uniform',
+        **kwargs
     ):
         TrainableNM.__init__(self, **kwargs)
 
@@ -148,23 +154,26 @@ class JasperEncoder(TrainableNM):
             separable = lcfg.get('separable', False)
             heads = lcfg.get('heads', -1)
             encoder_layers.append(
-                JasperBlock(feat_in,
-                            lcfg['filters'],
-                            repeat=lcfg['repeat'],
-                            kernel_size=lcfg['kernel'],
-                            stride=lcfg['stride'],
-                            dilation=lcfg['dilation'],
-                            dropout=lcfg['dropout'],
-                            residual=lcfg['residual'],
-                            groups=groups,
-                            separable=separable,
-                            heads=heads,
-                            residual_mode=residual_mode,
-                            normalization=normalization_mode,
-                            norm_groups=norm_groups,
-                            activation=activation,
-                            residual_panes=dense_res,
-                            conv_mask=conv_mask))
+                JasperBlock(
+                    feat_in,
+                    lcfg['filters'],
+                    repeat=lcfg['repeat'],
+                    kernel_size=lcfg['kernel'],
+                    stride=lcfg['stride'],
+                    dilation=lcfg['dilation'],
+                    dropout=lcfg['dropout'],
+                    residual=lcfg['residual'],
+                    groups=groups,
+                    separable=separable,
+                    heads=heads,
+                    residual_mode=residual_mode,
+                    normalization=normalization_mode,
+                    norm_groups=norm_groups,
+                    activation=activation,
+                    residual_panes=dense_res,
+                    conv_mask=conv_mask,
+                )
+            )
             feat_in = lcfg['filters']
 
         self.encoder = nn.Sequential(*encoder_layers)
@@ -207,11 +216,9 @@ class JasperDecoderForCTC(TrainableNM):
             2: AxisType(ProcessedTimeTag)
         """
         return {
-            "encoder_output": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(EncodedRepresentationTag),
-                2: AxisType(ProcessedTimeTag)
-            })
+            "encoder_output": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(EncodedRepresentationTag), 2: AxisType(ProcessedTimeTag),}
+            )
         }
 
     @property
@@ -225,33 +232,18 @@ class JasperDecoderForCTC(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {
-            "output": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            })
-        }
+        return {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
 
-    def __init__(
-            self, *,
-            feat_in,
-            num_classes,
-            init_mode="xavier_uniform",
-            **kwargs
-    ):
+    def __init__(self, *, feat_in, num_classes, init_mode="xavier_uniform", **kwargs):
         TrainableNM.__init__(self, **kwargs)
 
         self._feat_in = feat_in
         # Add 1 for blank char
         self._num_classes = num_classes + 1
 
-        self.decoder_layers = nn.Sequential(
-            nn.Conv1d(self._feat_in, self._num_classes,
-                      kernel_size=1, bias=True))
+        self.decoder_layers = nn.Sequential(nn.Conv1d(self._feat_in, self._num_classes, kernel_size=1, bias=True))
         self.apply(lambda x: init_weights(x, mode=init_mode))
         self.to(self._device)
 
     def forward(self, encoder_output):
-        return F.log_softmax(self.decoder_layers(encoder_output).
-                             transpose(1, 2), dim=-1)
+        return F.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)

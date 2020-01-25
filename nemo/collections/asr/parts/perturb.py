@@ -5,10 +5,8 @@ import random
 import librosa
 from scipy import signal
 
-from nemo.collections.asr.parts import collections
-from nemo.collections.asr.parts import parsers
-
 from .segment import AudioSegment
+from nemo.collections.asr.parts import collections, parsers
 
 
 class Perturbation(object):
@@ -50,20 +48,14 @@ class GainPerturbation(Perturbation):
 
 class ImpulsePerturbation(Perturbation):
     def __init__(self, manifest_path=None, rng=None):
-        self._manifest = collections.ASRAudioText(
-            manifest_path, parser=parsers.make_parser([])
-        )
+        self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]))
         self._rng = random.Random() if rng is None else rng
 
     def perturb(self, data):
         impulse_record = self._rng.sample(self._manifest.data, 1)[0]
-        impulse = AudioSegment.from_file(
-            impulse_record['audio_filepath'], target_sr=data.sample_rate
-        )
+        impulse = AudioSegment.from_file(impulse_record['audio_filepath'], target_sr=data.sample_rate)
         # print("DEBUG: impulse:", impulse_record['audio_filepath'])
-        data._samples = signal.fftconvolve(
-            data.samples, impulse.samples, "full"
-        )
+        data._samples = signal.fftconvolve(data.samples, impulse.samples, "full")
 
 
 class ShiftPerturbation(Perturbation):
@@ -89,16 +81,9 @@ class ShiftPerturbation(Perturbation):
 
 class NoisePerturbation(Perturbation):
     def __init__(
-        self,
-        manifest_path=None,
-        min_snr_db=40,
-        max_snr_db=50,
-        max_gain_db=300.0,
-        rng=None,
+        self, manifest_path=None, min_snr_db=40, max_snr_db=50, max_gain_db=300.0, rng=None,
     ):
-        self._manifest = collections.ASRAudioText(
-            manifest_path, parser=parsers.make_parser([])
-        )
+        self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]))
         self._rng = random.Random() if rng is None else rng
         self._min_snr_db = min_snr_db
         self._max_snr_db = max_snr_db
@@ -107,20 +92,14 @@ class NoisePerturbation(Perturbation):
     def perturb(self, data):
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
         noise_record = self._rng.sample(self._manifest.data, 1)[0]
-        noise = AudioSegment.from_file(
-            noise_record['audio_filepath'], target_sr=data.sample_rate
-        )
-        noise_gain_db = min(
-            data.rms_db - noise.rms_db - snr_db, self._max_gain_db
-        )
+        noise = AudioSegment.from_file(noise_record['audio_filepath'], target_sr=data.sample_rate)
+        noise_gain_db = min(data.rms_db - noise.rms_db - snr_db, self._max_gain_db)
         # print("DEBUG: noise:", snr_db, noise_gain_db, noise_record[
         # 'audio_filepath'])
 
         # calculate noise segment to use
         start_time = self._rng.uniform(0.0, noise.duration - data.duration)
-        noise.subsegment(
-            start_time=start_time, end_time=start_time + data.duration
-        )
+        noise.subsegment(start_time=start_time, end_time=start_time + data.duration)
 
         # adjust gain for snr purposes and superimpose
         noise.gain_db(noise_gain_db)

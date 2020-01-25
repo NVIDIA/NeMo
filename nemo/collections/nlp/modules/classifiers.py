@@ -1,18 +1,18 @@
-__all__ = ['TokenClassifier',
-           'BertTokenClassifier',
-           'SequenceClassifier',
-           'JointIntentSlotClassifier',
-           'SequenceRegression']
+__all__ = [
+    'TokenClassifier',
+    'BertTokenClassifier',
+    'SequenceClassifier',
+    'JointIntentSlotClassifier',
+    'SequenceRegression',
+]
 
 import torch.nn as nn
 
-from nemo.backends.pytorch.common import MultiLayerPerceptron
-from nemo.backends.pytorch.nm import TrainableNM, LossNM
-from nemo.core.neural_types import *
-from nemo.collections.nlp.transformer.utils import gelu
-
 from ..transformer.utils import transformer_weights_init
-
+from nemo.backends.pytorch.common import MultiLayerPerceptron
+from nemo.backends.pytorch.nm import LossNM, TrainableNM
+from nemo.collections.nlp.transformer.utils import gelu
+from nemo.core.neural_types import *
 
 ACT2FN = {"gelu": gelu, "relu": nn.functional.relu}
 
@@ -43,13 +43,7 @@ class BertTokenClassifier(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {
-            "hidden_states": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            })
-        }
+        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
 
     @property
     def output_ports(self):
@@ -62,37 +56,29 @@ class BertTokenClassifier(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {
-            "logits": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            })
-        }
+        return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
 
-    def __init__(self,
-                 hidden_size,
-                 num_classes,
-                 activation='relu',
-                 log_softmax=True,
-                 dropout=0.0,
-                 use_transformer_pretrained=True):
+    def __init__(
+        self,
+        hidden_size,
+        num_classes,
+        activation='relu',
+        log_softmax=True,
+        dropout=0.0,
+        use_transformer_pretrained=True,
+    ):
         super().__init__()
         if activation not in ACT2FN:
             raise ValueError(f'activation "{activation}" not found')
         self.dense = nn.Linear(hidden_size, hidden_size)
         self.act = ACT2FN[activation]
         self.norm = nn.LayerNorm(hidden_size, eps=1e-12)
-        self.mlp = MultiLayerPerceptron(hidden_size,
-                                        num_classes,
-                                        self._device,
-                                        num_layers=1,
-                                        activation=activation,
-                                        log_softmax=log_softmax)
+        self.mlp = MultiLayerPerceptron(
+            hidden_size, num_classes, self._device, num_layers=1, activation=activation, log_softmax=log_softmax,
+        )
         self.dropout = nn.Dropout(dropout)
         if use_transformer_pretrained:
-            self.apply(
-                lambda module: transformer_weights_init(module, xavier=False))
+            self.apply(lambda module: transformer_weights_init(module, xavier=False))
         self.to(self._device)
 
     def forward(self, hidden_states):
@@ -130,13 +116,7 @@ class TokenClassifier(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {
-            "hidden_states": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            })
-        }
+        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
 
     @property
     def output_ports(self):
@@ -149,36 +129,26 @@ class TokenClassifier(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {
-            "logits": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            })
-        }
+        return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
 
-    def __init__(self,
-                 hidden_size,
-                 num_classes,
-                 name=None,
-                 num_layers=2,
-                 activation='relu',
-                 log_softmax=True,
-                 dropout=0.0,
-                 use_transformer_pretrained=True):
+    def __init__(
+        self,
+        hidden_size,
+        num_classes,
+        name=None,
+        num_layers=2,
+        activation='relu',
+        log_softmax=True,
+        dropout=0.0,
+        use_transformer_pretrained=True,
+    ):
         super().__init__()
 
         self.name = name
-        self.mlp = MultiLayerPerceptron(hidden_size,
-                                        num_classes,
-                                        self._device,
-                                        num_layers,
-                                        activation,
-                                        log_softmax)
+        self.mlp = MultiLayerPerceptron(hidden_size, num_classes, self._device, num_layers, activation, log_softmax,)
         self.dropout = nn.Dropout(dropout)
         if use_transformer_pretrained:
-            self.apply(
-                lambda module: transformer_weights_init(module, xavier=False))
+            self.apply(lambda module: transformer_weights_init(module, xavier=False))
         # self.to(self._device) # sometimes this is necessary
 
     def __str__(self):
@@ -220,13 +190,7 @@ class SequenceClassifier(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {
-            "hidden_states": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            })
-        }
+        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
 
     @property
     def output_ports(self):
@@ -237,32 +201,23 @@ class SequenceClassifier(TrainableNM):
 
             1: AxisType(ChannelTag)
         """
-        return {
-            "logits": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(ChannelTag)
-            })
-        }
+        return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
 
-    def __init__(self,
-                 hidden_size,
-                 num_classes,
-                 num_layers=2,
-                 activation='relu',
-                 log_softmax=True,
-                 dropout=0.0,
-                 use_transformer_pretrained=True):
+    def __init__(
+        self,
+        hidden_size,
+        num_classes,
+        num_layers=2,
+        activation='relu',
+        log_softmax=True,
+        dropout=0.0,
+        use_transformer_pretrained=True,
+    ):
         super().__init__()
-        self.mlp = MultiLayerPerceptron(hidden_size,
-                                        num_classes,
-                                        self._device,
-                                        num_layers,
-                                        activation,
-                                        log_softmax)
+        self.mlp = MultiLayerPerceptron(hidden_size, num_classes, self._device, num_layers, activation, log_softmax,)
         self.dropout = nn.Dropout(dropout)
         if use_transformer_pretrained:
-            self.apply(
-                lambda module: transformer_weights_init(module, xavier=False))
+            self.apply(lambda module: transformer_weights_init(module, xavier=False))
         # self.to(self._device) # sometimes this is necessary
 
     def forward(self, hidden_states, idx_conditioned_on=0):
@@ -295,13 +250,7 @@ class JointIntentSlotClassifier(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {
-            "hidden_states": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            })
-        }
+        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
 
     @property
     def output_ports(self):
@@ -320,41 +269,33 @@ class JointIntentSlotClassifier(TrainableNM):
             2: AxisType(ChannelTag)
         """
         return {
-            "intent_logits": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(ChannelTag)
-            }),
-            "slot_logits": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            })
+            "intent_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "slot_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
         }
 
-    def __init__(self,
-                 hidden_size,
-                 num_intents,
-                 num_slots,
-                 dropout=0.0,
-                 use_transformer_pretrained=True,
-                 **kwargs):
+    def __init__(
+        self, hidden_size, num_intents, num_slots, dropout=0.0, use_transformer_pretrained=True, **kwargs,
+    ):
         super().__init__(**kwargs)
         self.dropout = nn.Dropout(dropout)
-        self.slot_mlp = MultiLayerPerceptron(hidden_size,
-                                             num_classes=num_slots,
-                                             device=self._device,
-                                             num_layers=2,
-                                             activation='relu',
-                                             log_softmax=False)
-        self.intent_mlp = MultiLayerPerceptron(hidden_size,
-                                               num_classes=num_intents,
-                                               device=self._device,
-                                               num_layers=2,
-                                               activation='relu',
-                                               log_softmax=False)
+        self.slot_mlp = MultiLayerPerceptron(
+            hidden_size,
+            num_classes=num_slots,
+            device=self._device,
+            num_layers=2,
+            activation='relu',
+            log_softmax=False,
+        )
+        self.intent_mlp = MultiLayerPerceptron(
+            hidden_size,
+            num_classes=num_intents,
+            device=self._device,
+            num_layers=2,
+            activation='relu',
+            log_softmax=False,
+        )
         if use_transformer_pretrained:
-            self.apply(
-                lambda module: transformer_weights_init(module, xavier=False))
+            self.apply(lambda module: transformer_weights_init(module, xavier=False))
         # self.to(self._device)
 
     def forward(self, hidden_states):
@@ -388,13 +329,7 @@ class SequenceRegression(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {
-            "hidden_states": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            })
-        }
+        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
 
     @property
     def output_ports(self):
@@ -404,28 +339,24 @@ class SequenceRegression(TrainableNM):
             0: AxisType(RegressionTag)
         """
         return {
-            "preds": NeuralType({
-                0: AxisType(RegressionTag)
-            }),
+            "preds": NeuralType({0: AxisType(RegressionTag)}),
         }
 
-    def __init__(self,
-                 hidden_size,
-                 num_layers=2,
-                 activation='relu',
-                 dropout=0.0,
-                 use_transformer_pretrained=True):
+    def __init__(
+        self, hidden_size, num_layers=2, activation='relu', dropout=0.0, use_transformer_pretrained=True,
+    ):
         super().__init__()
-        self.mlp = MultiLayerPerceptron(hidden_size,
-                                        num_classes=1,
-                                        device=self._device,
-                                        num_layers=num_layers,
-                                        activation=activation,
-                                        log_softmax=False)
+        self.mlp = MultiLayerPerceptron(
+            hidden_size,
+            num_classes=1,
+            device=self._device,
+            num_layers=num_layers,
+            activation=activation,
+            log_softmax=False,
+        )
         self.dropout = nn.Dropout(dropout)
         if use_transformer_pretrained:
-            self.apply(
-                lambda module: transformer_weights_init(module, xavier=False))
+            self.apply(lambda module: transformer_weights_init(module, xavier=False))
         # self.to(self._device) # sometimes this is necessary
 
     def forward(self, hidden_states, idx_conditioned_on=0):

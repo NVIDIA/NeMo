@@ -2,12 +2,7 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core.neural_types import (NeuralType,
-                                    AxisType,
-                                    BatchTag,
-                                    TimeTag,
-                                    ChannelTag,
-                                    RegressionTag)
+from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, RegressionTag, TimeTag
 
 __all__ = ['SequenceLoss', 'CrossEntropyLoss', 'MSELoss']
 
@@ -54,15 +49,8 @@ class SequenceLoss(LossNM):
 
         """
         return {
-            'log_probs': NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag),
-                2: AxisType(ChannelTag)
-            }),
-            'targets': NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(TimeTag)
-            })
+            'log_probs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
 
     @property
@@ -73,15 +61,19 @@ class SequenceLoss(LossNM):
             NeuralType(None)
 
         """
-        return {
-            "loss": NeuralType(None)
-        }
+        return {"loss": NeuralType(None)}
 
-    def __init__(self, pad_id=0, smoothing_coef=0.0, sample_wise=False,
-                 aux_ctc=False, ctc_initial_coef=0.1, ctc_blank_id=None,
-                 **kwargs):
-        assert (not aux_ctc) or (ctc_blank_id is not None), \
-            "Should be a blank id if using CTC loss"
+    def __init__(
+        self,
+        pad_id=0,
+        smoothing_coef=0.0,
+        sample_wise=False,
+        aux_ctc=False,
+        ctc_initial_coef=0.1,
+        ctc_blank_id=None,
+        **kwargs
+    ):
+        assert (not aux_ctc) or (ctc_blank_id is not None), "Should be a blank id if using CTC loss"
 
         super().__init__(**kwargs)
 
@@ -92,8 +84,7 @@ class SequenceLoss(LossNM):
         self.ctc_coef = ctc_initial_coef
 
         if aux_ctc:
-            self.ctc = nn.CTCLoss(blank=ctc_blank_id,
-                                  reduction='none', zero_infinity=True)
+            self.ctc = nn.CTCLoss(blank=ctc_blank_id, reduction='none', zero_infinity=True)
             self.ctc = self.ctc.to(self._device)
 
     def _loss_function(self, log_probs, targets):
@@ -112,9 +103,7 @@ class SequenceLoss(LossNM):
 
     def _ce_loss(self, log_probs, targets, pad_mask):
         target_log_probs = log_probs.gather(2, targets.unsqueeze(2)).squeeze(2)
-        loss = \
-            (1.0 - self.smoothing_coef) * target_log_probs \
-            + self.smoothing_coef * log_probs.mean(-1)
+        loss = (1.0 - self.smoothing_coef) * target_log_probs + self.smoothing_coef * log_probs.mean(-1)
         pad_mask = pad_mask.float()
         loss = -torch.sum(loss * pad_mask)
         if self.sample_wise:
@@ -150,13 +139,8 @@ class CrossEntropyLoss(LossNM):
 
         """
         return {
-            "logits": NeuralType({
-                0: AxisType(BatchTag),
-                1: AxisType(ChannelTag)
-            }),
-            "labels": NeuralType({
-                0: AxisType(BatchTag),
-            })
+            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "labels": NeuralType({0: AxisType(BatchTag),}),
         }
 
     @property
@@ -166,9 +150,7 @@ class CrossEntropyLoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {
-            "loss": NeuralType(None)
-        }
+        return {"loss": NeuralType(None)}
 
     def __init__(self, weight=None, **kwargs):
         LossNM.__init__(self, **kwargs)
@@ -176,15 +158,12 @@ class CrossEntropyLoss(LossNM):
             weight = torch.FloatTensor(weight).to(self._device)
         self._criterion = nn.CrossEntropyLoss(weight=weight)
 
-    def _loss_function(self,
-                       logits,
-                       labels):
+    def _loss_function(self, logits, labels):
         loss = self._criterion(logits, labels)
         return loss
 
 
 class MSELoss(LossNM):
-
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -196,12 +175,8 @@ class MSELoss(LossNM):
             0: AxisType(RegressionTag)
         """
         return {
-            "preds": NeuralType({
-                0: AxisType(RegressionTag)
-            }),
-            "labels": NeuralType({
-                0: AxisType(RegressionTag)
-            })
+            "preds": NeuralType({0: AxisType(RegressionTag)}),
+            "labels": NeuralType({0: AxisType(RegressionTag)}),
         }
 
     @property
@@ -211,9 +186,7 @@ class MSELoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {
-            "loss": NeuralType(None)
-        }
+        return {"loss": NeuralType(None)}
 
     def __init__(self, **kwargs):
         LossNM.__init__(self, **kwargs)

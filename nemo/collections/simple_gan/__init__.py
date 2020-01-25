@@ -13,7 +13,6 @@
 # limitations under the License.
 # =============================================================================
 from .gan import *
-
 from nemo.core import Backend
 
 backend = Backend.PyTorch

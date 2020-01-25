@@ -2,16 +2,15 @@ from itertools import chain
 from pprint import pformat
 
 import torch
+
 import nemo
 from nemo.backends.pytorch.common.metrics import char_lm_metrics
-
 from nemo.collections.asr.metrics import word_error_rate
 
 ENG_MWN = 5.3
 
 
-def process_evaluation_batch(tensors, global_vars, labels, specials,
-                             tb_writer=None, write_attn=True):
+def process_evaluation_batch(tensors, global_vars, labels, specials, tb_writer=None, write_attn=True):
     loss, log_probs = ([],) * 2
     transcripts, transcript_texts = ([],) * 2
     predictions, prediction_texts = ([],) * 2
@@ -32,8 +31,7 @@ def process_evaluation_batch(tensors, global_vars, labels, specials,
 
     global_vars.setdefault('loss', [])
     global_vars['loss'].extend(loss)
-    bpc, ppl = char_lm_metrics(log_probs, transcripts,
-                               transcript_texts, specials['pad_id'])
+    bpc, ppl = char_lm_metrics(log_probs, transcripts, transcript_texts, specials['pad_id'])
     global_vars.setdefault('bpc', [])
     global_vars['bpc'].extend(bpc)
     global_vars.setdefault('ppl', [])
@@ -49,14 +47,13 @@ def process_evaluation_batch(tensors, global_vars, labels, specials,
         if sample_len > 0:
             attention_weights = attention_weights[0][0, :sample_len, :]
             tb_writer.add_image(
-                'image/eval_attention_weights', attention_weights,
-                dataformats='HW'
+                'image/eval_attention_weights', attention_weights, dataformats='HW',
             )
 
 
-def process_evaluation_epoch(global_vars,
-                             metrics=('loss', 'bpc', 'ppl'), calc_wer=False,
-                             mode='eval', tag='none'):
+def process_evaluation_epoch(
+    global_vars, metrics=('loss', 'bpc', 'ppl'), calc_wer=False, mode='eval', tag='none',
+):
     tag = '_'.join(tag.lower().strip().split())
     return_dict = {}
     for metric in metrics:
@@ -75,8 +72,7 @@ def process_evaluation_epoch(global_vars,
         nemo.logging.info(transcript_texts[:10])
         nemo.logging.info(prediction_texts[:10])
 
-        wer = word_error_rate(hypotheses=prediction_texts,
-                              references=transcript_texts)
+        wer = word_error_rate(hypotheses=prediction_texts, references=transcript_texts)
         return_dict[f'metric/{mode}_wer_{tag}'] = wer
 
     nemo.logging.info(pformat(return_dict))
@@ -85,16 +81,13 @@ def process_evaluation_epoch(global_vars,
 
 
 def __decode(tensors_list, labels, specials):
-    labels_map = dict([(i, labels[i]) for i in range(len(labels))
-                       if i not in set(specials.values())])
+    labels_map = dict([(i, labels[i]) for i in range(len(labels)) if i not in set(specials.values())])
     results = []
     for tensor in tensors_list:
         tensor = tensor.long().cpu()
         hypotheses = []
         for i in range(tensor.shape[0]):
-            hypothesis = ''.join([labels_map[c]
-                                  for c in tensor[i].numpy().tolist()
-                                  if c in labels_map])
+            hypothesis = ''.join([labels_map[c] for c in tensor[i].numpy().tolist() if c in labels_map])
             hypotheses.append(hypothesis)
 
         results.append(hypotheses)

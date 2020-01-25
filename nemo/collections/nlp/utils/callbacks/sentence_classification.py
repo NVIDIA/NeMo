@@ -5,18 +5,16 @@ import os
 import random
 import time
 
-from matplotlib import pyplot as plt  # nopep8
 import numpy as np  # nopep8
-from sklearn.metrics import confusion_matrix, classification_report  # nopep8
+from matplotlib import pyplot as plt  # nopep8
+from sklearn.metrics import classification_report, confusion_matrix  # nopep8
 
 import nemo
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 
-def eval_iter_callback(tensors,
-                       global_vars,
-                       eval_data_layer):
+def eval_iter_callback(tensors, global_vars, eval_data_layer):
     if "all_preds" not in global_vars.keys():
         global_vars["all_preds"] = []
     if "all_labels" not in global_vars.keys():
@@ -53,8 +51,8 @@ def eval_epochs_done_callback(global_vars, graph_fold):
     i = 0
     if preds.shape[0] > 21:
         i = random.randint(0, preds.shape[0] - 21)
-    nemo.logging.info("Sampled preds: [%s]" % list2str(preds[i:i+20]))
-    nemo.logging.info("Sampled labels: [%s]" % list2str(labels[i:i+20]))
+    nemo.logging.info("Sampled preds: [%s]" % list2str(preds[i : i + 20]))
+    nemo.logging.info("Sampled labels: [%s]" % list2str(labels[i : i + 20]))
     cm = confusion_matrix(labels, preds)
     fig = plt.figure()
     ax = fig.add_subplot(111)

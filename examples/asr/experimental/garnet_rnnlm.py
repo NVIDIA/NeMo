@@ -13,28 +13,28 @@ from ruamel.yaml import YAML
 from tensorboardX import SummaryWriter
 
 import nemo
+import nemo.collections.asr as nemo_asr
+import nemo.utils.argparse as nm_argparse
+from nemo.collections.asr.las.helpers import process_evaluation_batch, process_evaluation_epoch
 from nemo.core.callbacks import ValueSetterCallback
 from nemo.utils.lr_policies import SquareAnnealing
-import nemo.utils.argparse as nm_argparse
 from nemo.utils.misc import Config
-import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.las.helpers import process_evaluation_batch, \
-    process_evaluation_epoch
 
 # Special symbols for seq2seq with cross-entropy criterion and aux CTC loss
 SS = namedtuple('SS', 'id char name')
 _ = 0
 sss = [
-    SS(_ + 0, '#', 'pad'), SS(_ + 1, '<', 'bos'), SS(_ + 2, '>', 'eos'),  # CE
+    SS(_ + 0, '#', 'pad'),
+    SS(_ + 1, '<', 'bos'),
+    SS(_ + 2, '>', 'eos'),  # CE
     # SS(_ + 3, '@', 'ctc_blank')  # CTC
 ]
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        parents=[nm_argparse.NemoArgParser()],
-        description='GarNet RnnLM',
-        conflict_handler='resolve')
+        parents=[nm_argparse.NemoArgParser()], description='GarNet RnnLM', conflict_handler='resolve',
+    )
     parser.set_defaults(
         checkpoint_dir=None,
         optimizer="novograd",
@@ -44,17 +44,23 @@ def parse_args():
         weight_decay=1e-5,
         lr=0.02,
         amp_opt_level="O1",
-        create_tb_writer=True
+        create_tb_writer=True,
     )
 
     # Overwrite default args
-    parser.add_argument("--num_epochs", type=int, default=None, required=True,
-                        help="number of epochs to train. You should specify"
-                             "either num_epochs or max_steps")
-    parser.add_argument("--model_config", type=str, required=True,
-                        help="model configuration file: model.yaml")
-    parser.add_argument("--eval_datasets", type=str, required=True,
-                        help="validation dataset path")
+    parser.add_argument(
+        "--num_epochs",
+        type=int,
+        default=None,
+        required=True,
+        help="number of epochs to train. You should specify" "either num_epochs or max_steps",
+    )
+    parser.add_argument(
+        "--model_config", type=str, required=True, help="model configuration file: model.yaml",
+    )
+    parser.add_argument(
+        "--eval_datasets", type=str, required=True, help="validation dataset path",
+    )
 
     # Create new args
     parser.add_argument("--exp_name", default="GarNet", type=str)
@@ -104,12 +110,10 @@ def create_dag(args, cfg, num_gpus):
         labels=cfg['target']['labels'],
         eos_id=cfg['target']['eos_id'],
         batch_size=cfg['inference']['batch_size'],
-        load_audio=False
+        load_audio=False,
     )
     decoder = nemo.backends.pytorch.DecoderRNN(
-        voc_size=len(cfg['target']['labels']),
-        bos_id=cfg['target']['bos_id'],
-        **cfg['DecoderRNN']
+        voc_size=len(cfg['target']['labels']), bos_id=cfg['target']['bos_id'], **cfg['DecoderRNN'],
     )
     num_data = len(data)
     batch_size = cfg['optimization']['batch_size']
@@ -118,42 +122,27 @@ def create_dag(args, cfg, num_gpus):
     total_steps = num_epochs * steps_per_epoch
     vsc = ValueSetterCallback
     tf_callback = ValueSetterCallback(
-        decoder, 'teacher_forcing',
-        policies=[
-            vsc.Policy(vsc.Method.Const(1.0), start=0.0, end=1.0),
-        ],
-        total_steps=total_steps
+        decoder,
+        'teacher_forcing',
+        policies=[vsc.Policy(vsc.Method.Const(1.0), start=0.0, end=1.0),],
+        total_steps=total_steps,
     )
     seq_loss = nemo.backends.pytorch.SequenceLoss(
-        pad_id=cfg['target']['pad_id'],
-        smoothing_coef=cfg['optimization']['smoothing_coef']
+        pad_id=cfg['target']['pad_id'], smoothing_coef=cfg['optimization']['smoothing_coef'],
     )
     saver_callback = nemo.core.ModuleSaverCallback(
-        save_modules_list=[decoder],
-        folder=args.checkpoint_dir,
-        step_freq=args.checkpoint_save_freq
+        save_modules_list=[decoder], folder=args.checkpoint_dir, step_freq=args.checkpoint_save_freq,
     )
 
     # Creating DAG
     texts, _ = data()
-    log_probs, _ = decoder(
-        targets=texts
-    )
-    train_loss = seq_loss(
-        log_probs=log_probs,
-        targets=texts
-    )
+    log_probs, _ = decoder(targets=texts)
+    train_loss = seq_loss(log_probs=log_probs, targets=texts)
     evals = []
     _, _, texts, _ = data_eval()
-    log_probs, _ = decoder(
-        targets=texts
-    )
-    eval_loss = seq_loss(
-        log_probs=log_probs,
-        targets=texts
-    )
-    evals.append((args.eval_datasets,
-                  (eval_loss, log_probs, texts)))
+    log_probs, _ = decoder(targets=texts)
+    eval_loss = seq_loss(log_probs=log_probs, targets=texts)
+    evals.append((args.eval_datasets, (eval_loss, log_probs, texts)))
 
     # Update config
     cfg['num_params'] = {'decoder': decoder.num_weights}
@@ -193,7 +182,8 @@ def main():
         create_tb_writer=args.create_tb_writer,
         files_to_copy=[args.model_config, __file__],
         cudnn_benchmark=args.cudnn_benchmark,
-        tensorboard_dir=args.tensorboard_dir)
+        tensorboard_dir=args.tensorboard_dir,
+    )
 
     logger = neural_factory.logger
     tb_writer = neural_factory.tb_writer
@@ -210,17 +200,14 @@ def main():
         logger.info(f'Using seed {args.random_seed}')
 
     # Defining computational graph
-    (train_loss, evals), cfg, dag_callbacks = create_dag(
-        args, cfg, neural_factory.world_size)
+    (train_loss, evals), cfg, dag_callbacks = create_dag(args, cfg, neural_factory.world_size)
     logger.info('Config:')
     logger.info(pformat(cfg))
 
     num_data = cfg['input']['train']['num_data']
     steps_per_epoch = cfg['optimization']['steps_per_epoch']
     total_steps = cfg['optimization']['total_steps']
-    logger.info(f'Num data: {num_data}\n'
-                f'Steps per epoch: {steps_per_epoch}\n'
-                f'Total steps: {total_steps}')
+    logger.info(f'Num data: {num_data}\n' f'Steps per epoch: {steps_per_epoch}\n' f'Total steps: {total_steps}')
 
     dag_callbacks[0].tb_writer = tb_writer
 
@@ -229,7 +216,7 @@ def main():
         tensors=[train_loss],
         print_func=lambda x: logger.info(f"Loss: {x[0].item()}"),
         get_tb_values=lambda x: [("loss", x[0])],
-        tb_writer=tb_writer
+        tb_writer=tb_writer,
     )
     log_callbacks = [train_callback]
     target = cfg['target']
@@ -239,19 +226,10 @@ def main():
         eval_callback = nemo.core.EvaluatorCallback(
             # TODO: Should be fixed soon, so we don't need to pass exactly list
             eval_tensors=list(tensors),
-            user_iter_callback=partial(
-                process_evaluation_batch,
-                labels=labels,
-                specials=specials,
-                write_attn=False
-            ),
-            user_epochs_done_callback=partial(
-                process_evaluation_epoch,
-                tag=os.path.basename(name),
-                logger=logger
-            ),
+            user_iter_callback=partial(process_evaluation_batch, labels=labels, specials=specials, write_attn=False,),
+            user_epochs_done_callback=partial(process_evaluation_epoch, tag=os.path.basename(name), logger=logger,),
             eval_step=args.eval_freq,
-            tb_writer=tb_writer
+            tb_writer=tb_writer,
         )
         log_callbacks.append(eval_callback)
     # noinspection PyTypeChecker
@@ -264,14 +242,11 @@ def main():
         lr_policy=SquareAnnealing(
             cfg['optimization']['total_steps'],
             min_lr=cfg['optimization']['min_lr'],
-            warmup_steps=(
-                    cfg['optimization']['warmup_epochs']
-                    * cfg['optimization']['steps_per_epoch']
-            )
+            warmup_steps=(cfg['optimization']['warmup_epochs'] * cfg['optimization']['steps_per_epoch']),
         ),
         optimizer=cfg['optimization']['optimizer'],
         optimization_params=cfg['optimization']['params'],
-        batches_per_step=args.iter_per_step
+        batches_per_step=args.iter_per_step,
     )
 
 

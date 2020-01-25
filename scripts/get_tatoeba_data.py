@@ -18,7 +18,6 @@ import random
 import re
 import string
 import urllib.request
-
 from collections import Counter
 
 URL = {'tatoeba': 'https://downloads.tatoeba.org/exports/sentences.csv'}
@@ -35,20 +34,18 @@ def __maybe_download_file(destination: str, source: str):
     source = URL[source]
     if not os.path.exists(destination):
         print(f'Downloading {source}')
-        print(f'Downloading could take a long time ' +
-              'To get the data faster consider running in a terminal:\n' +
-              'wget https://downloads.tatoeba.org/exports/sentences.csv\n' +
-              'grep -P "\teng\t" sentences.csv > eng_sentences.csv\n' +
-              'mv eng_sentences.csv sentences.csv\n' +
-              'And then rerun this script to preprocess the data.')
+        print(
+            f'Downloading could take a long time '
+            + 'To get the data faster consider running in a terminal:\n'
+            + 'wget https://downloads.tatoeba.org/exports/sentences.csv\n'
+            + 'grep -P "\teng\t" sentences.csv > eng_sentences.csv\n'
+            + 'mv eng_sentences.csv sentences.csv\n'
+            + 'And then rerun this script to preprocess the data.'
+        )
         urllib.request.urlretrieve(source, filename=destination)
 
 
-def __process_english_sentences(in_file,
-                                out_file,
-                                percent_to_cut=0,
-                                num_to_combine=1,
-                                num_samples=-1):
+def __process_english_sentences(in_file, out_file, percent_to_cut=0, num_to_combine=1, num_samples=-1):
     """
     Extract English sentences from the Tatoeba dataset.
     Expected in_file format
@@ -86,7 +83,7 @@ def __process_english_sentences(in_file,
                 if percent_to_cut > 0:
                     line = line.split()
                     if random.random() < percent_to_cut:
-                        line = line[:len(line)//2]
+                        line = line[: len(line) // 2]
                     line = ' '.join(line)
 
                 # combine multiple sentences into a single example
@@ -99,15 +96,11 @@ def __process_english_sentences(in_file,
                     samples_count += 1
                 lines_to_combine.append(line)
 
-    if len(lines_to_combine) > 0 and \
-            (samples_count < num_samples or num_samples < 0):
+    if len(lines_to_combine) > 0 and (samples_count < num_samples or num_samples < 0):
         out_file.write(' '.join(lines_to_combine) + '\n')
 
 
-def __split_into_train_dev(in_file,
-                           train_file,
-                           dev_file,
-                           percent_dev):
+def __split_into_train_dev(in_file, train_file, dev_file, percent_dev):
     """
     Create train and dev split of the dataset.
     Args:
@@ -134,12 +127,10 @@ def remove_punctuation(word):
     that is often a part of word: don't, it's, and so on
     """
     all_punct_marks = string.punctuation.replace("'", '')
-    return re.sub('['+all_punct_marks+']', '', word)
+    return re.sub('[' + all_punct_marks + ']', '', word)
 
 
-def __create_text_and_labels(data_dir,
-                             file,
-                             punct_marks=',.?'):
+def __create_text_and_labels(data_dir, file, punct_marks=',.?'):
     '''
     Create datasets for training and evaluation.
     The data will be splitted into 2 files: text.txt and labels.txt. \
@@ -190,14 +181,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Prepare tatoeba dataset')
     parser.add_argument("--data_dir", required=True, type=str)
     parser.add_argument("--dataset", default='tatoeba', type=str)
-    parser.add_argument("--num_samples", default=-1, type=int,
-                        help='-1 to use the whole dataset')
-    parser.add_argument("--percent_to_cut", default=0, type=float,
-                        help='Percent of sentences to cut in the middle')
-    parser.add_argument("--num_lines_to_combine", default=1, type=int,
-                        help='Number of lines to combine into single example')
-    parser.add_argument("--percent_dev", default=0.2, type=float,
-                        help='Size of the dev set, float')
+    parser.add_argument(
+        "--num_samples", default=-1, type=int, help='-1 to use the whole dataset',
+    )
+    parser.add_argument(
+        "--percent_to_cut", default=0, type=float, help='Percent of sentences to cut in the middle',
+    )
+    parser.add_argument(
+        "--num_lines_to_combine", default=1, type=int, help='Number of lines to combine into single example',
+    )
+    parser.add_argument(
+        "--percent_dev", default=0.2, type=float, help='Size of the dev set, float',
+    )
     parser.add_argument("--clean_dir", action='store_true')
     args = parser.parse_args()
 
@@ -212,23 +207,16 @@ if __name__ == "__main__":
     __maybe_download_file(tatoeba_dataset, args.dataset)
 
     print(f'Processing English sentences...')
-    clean_eng_sentences = os.path.join(args.data_dir,
-                                       'clean_eng_sentences.txt')
-    __process_english_sentences(tatoeba_dataset,
-                                clean_eng_sentences,
-                                args.percent_to_cut,
-                                args.num_lines_to_combine,
-                                args.num_samples)
+    clean_eng_sentences = os.path.join(args.data_dir, 'clean_eng_sentences.txt')
+    __process_english_sentences(
+        tatoeba_dataset, clean_eng_sentences, args.percent_to_cut, args.num_lines_to_combine, args.num_samples,
+    )
 
     train_file = os.path.join(args.data_dir, 'train.txt')
     dev_file = os.path.join(args.data_dir, 'dev.txt')
 
-    print(f'Splitting the {args.dataset} dataset into train and dev sets' +
-          ' and creating labels and text files')
-    __split_into_train_dev(clean_eng_sentences,
-                           train_file,
-                           dev_file,
-                           args.percent_dev)
+    print(f'Splitting the {args.dataset} dataset into train and dev sets' + ' and creating labels and text files')
+    __split_into_train_dev(clean_eng_sentences, train_file, dev_file, args.percent_dev)
 
     print(f'Creating text and label files for training')
     __create_text_and_labels(args.data_dir, 'train.txt')

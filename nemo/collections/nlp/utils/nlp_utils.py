@@ -1,10 +1,11 @@
 import os
 import time
 
-from matplotlib import pyplot as plt
-import nemo
 import numpy as np
+from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix
+
+import nemo
 
 
 def _is_whitespace(c):
@@ -14,18 +15,13 @@ def _is_whitespace(c):
 
 
 def mask_padded_tokens(tokens, pad_id):
-    mask = (tokens != pad_id)
+    mask = tokens != pad_id
     return mask
 
 
-def read_intent_slot_outputs(queries,
-                             intent_file,
-                             slot_file,
-                             intent_logits,
-                             slot_logits,
-                             slot_masks,
-                             intents=None,
-                             slots=None):
+def read_intent_slot_outputs(
+    queries, intent_file, slot_file, intent_logits, slot_logits, slot_masks, intents=None, slots=None,
+):
     intent_dict = get_vocab(intent_file)
     slot_dict = get_vocab(slot_file)
     pred_intents = np.argmax(intent_logits, 1)
@@ -36,8 +32,7 @@ def read_intent_slot_outputs(queries,
         pred = pred_intents[i]
         nemo.logging.info(f'Predicted intent:\t{pred}\t{intent_dict[pred]}')
         if intents is not None:
-            nemo.logging.info(
-                f'True intent:\t{intents[i]}\t{intent_dict[intents[i]]}')
+            nemo.logging.info(f'True intent:\t{intents[i]}\t{intent_dict[intents[i]]}')
 
         pred_slot = pred_slots[i][slot_masks[i]]
         tokens = query.strip().split()
@@ -83,12 +78,7 @@ def write_vocab_in_order(vocab, outfile):
             f.write(f'{vocab[key]}\n')
 
 
-def plot_confusion_matrix(label_ids,
-                          labels,
-                          preds,
-                          graph_fold,
-                          normalize=False,
-                          prefix=''):
+def plot_confusion_matrix(label_ids, labels, preds, graph_fold, normalize=False, prefix=''):
     '''
     Plot confusion matrix.
     Args:
@@ -102,8 +92,7 @@ def plot_confusion_matrix(label_ids,
     '''
     # remove labels from label_ids that don't appear in the dev set
     used_labels = set(labels) | set(preds)
-    label_ids = \
-        {k: label_ids[k] for k, v in label_ids.items() if v in used_labels}
+    label_ids = {k: label_ids[k] for k, v in label_ids.items() if v in used_labels}
 
     ids_to_labels = {label_ids[k]: k for k in label_ids}
     classes = [ids_to_labels[id] for id in sorted(label_ids.values())]
@@ -131,5 +120,4 @@ def plot_confusion_matrix(label_ids,
     fig.colorbar(cax)
 
     title = (prefix + ' ' + title).strip()
-    plt.savefig(os.path.join(graph_fold,
-                             title + '_' + time.strftime('%Y%m%d-%H%M%S')))
+    plt.savefig(os.path.join(graph_fold, title + '_' + time.strftime('%Y%m%d-%H%M%S')))
