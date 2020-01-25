@@ -7,8 +7,7 @@ __all__ = [
 ]
 
 import torch.nn as nn
-
-from ..transformer.utils import transformer_weights_init
+from nemo.collections.nlp.modules.trainables.specific.transformer.utils import transformer_weights_init
 from nemo.backends.pytorch.common import MultiLayerPerceptron
 from nemo.backends.pytorch.nm import LossNM, TrainableNM
 from nemo.collections.nlp.transformer.utils import gelu
