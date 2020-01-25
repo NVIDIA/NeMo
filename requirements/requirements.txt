@@ -1,5 +1,6 @@
 onnx
 pandas
+python-dateutil<2.8.1,>=2.1
 tensorboardX
 torch
 torchvision

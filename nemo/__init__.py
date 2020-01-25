@@ -16,28 +16,11 @@
 # limitations under the License.
 # =============================================================================
 
-import os
+from nemo.utils.nemo_logging import Logger as _Logger
+logging = _Logger()
 
-from .package_info import __shortversion__
-from .package_info import __version__
+from nemo import backends
+from nemo import core
+from nemo import utils
 
-from .package_info import __package_name__
-from .package_info import __contact_names__
-from .package_info import __contact_emails__
-from .package_info import __homepage__
-from .package_info import __repository_url__
-from .package_info import __download_url__
-from .package_info import __description__
-from .package_info import __license__
-from .package_info import __keywords__
-
-if "NEMO_PACKAGE_BUILDING" not in os.environ:
-
-    from nemo.utils.nemo_logging import Logger as _Logger
-    logging = _Logger()
-
-    from nemo import backends
-    from nemo import core
-    from nemo import utils
-
-    from nemo.backends.pytorch import tutorials
+from nemo.backends.pytorch import tutorials

@@ -20,43 +20,27 @@
 
 import codecs
 import os
-import sys
 
 import setuptools
 
+from importlib.machinery import SourceFileLoader
 from itertools import chain
 
+nemo_pkg_info = SourceFileLoader(
+    "package_info", "nemo/package_info.py"
+).load_module()
 
-# pep8: disable=E402
-def is_build_action():
-    if len(sys.argv) <= 1:
-        return False
-
-    BUILD_TOKENS = [
-        "egg_info", "dist", "bdist", "sdist", "install", "build", "develop"
-    ]
-
-    if any([sys.argv[1].startswith(x) for x in BUILD_TOKENS]):
-        return True
-    else:
-        return False
-
-
-if is_build_action():
-    os.environ['NEMO_PACKAGE_BUILDING'] = 'True'
-
-from nemo.package_info import __contact_emails__
-from nemo.package_info import __contact_names__
-from nemo.package_info import __description__
-from nemo.package_info import __download_url__
-from nemo.package_info import __homepage__
-from nemo.package_info import __keywords__
-from nemo.package_info import __license__
-from nemo.package_info import __package_name__
-from nemo.package_info import __repository_url__
-from nemo.package_info import __version__
+__contact_emails__ = nemo_pkg_info.__contact_emails__
+__contact_names__ = nemo_pkg_info.__contact_names__
+__description__ = nemo_pkg_info.__description__
+__download_url__ = nemo_pkg_info.__download_url__
+__homepage__ = nemo_pkg_info.__homepage__
+__keywords__ = nemo_pkg_info.__keywords__
+__license__ = nemo_pkg_info.__license__
+__package_name__ = nemo_pkg_info.__package_name__
+__repository_url__ = nemo_pkg_info.__repository_url__
+__version__ = nemo_pkg_info.__version__
 # pep8: enable=E402
-
 
 if os.path.exists('README.rst'):
     # codec is used for consistent encoding
@@ -178,16 +162,23 @@ setuptools.setup(
         'Natural Language :: English',
         'Operating System :: OS Independent',
     ],
-    packages=setuptools.find_packages(),
+    packages=setuptools.find_packages(exclude=[
+        'docs',
+        'examples',
+        'scripts',
+        'tests',
+    ]),
+
+    # Project Dependencies
     install_requires=install_requires,
     setup_requires=['pytest-runner'],
-    tests_require=tests_requirements,
+    tests_require=extras_require['all'],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
     # $ pip install -e ".[all]"
     # $ pip install nemo_toolkit[all]
-    extras_require=extras_require,
+    # extras_require=extras_require,
 
     # Add in any packaged data.
     include_package_data=True,
