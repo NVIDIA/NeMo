@@ -213,7 +213,7 @@ def main():
             nemo.logging.info("Greedy WER: {:.2f}%".format(wer * 100))
             if wer > wer_thr:
                 nf.sync_all_processes(False)
-                raise ValueError(f"Final eval greedy WER {wer*100:.2f}% > :" f"than {wer_thr*100:.2f}%")
+                raise ValueError(f"Final eval greedy WER {wer * 100:.2f}% > :" f"than {wer_thr * 100:.2f}%")
         nf.sync_all_processes()
 
         if nf.world_size == 1:
@@ -270,7 +270,7 @@ def main():
             if wer_new > wer * 1.1:
                 nf.sync_all_processes(False)
                 raise ValueError(
-                    f"Fine tuning: new WER {wer_new* 100:.2f}% > than the " f"previous WER {wer * 100:.2f}%"
+                    f"Fine tuning: new WER {wer_new * 100:.2f}% > than the " f"previous WER {wer * 100:.2f}%"
                 )
         nf.sync_all_processes()
 

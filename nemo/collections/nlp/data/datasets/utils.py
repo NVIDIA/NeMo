@@ -39,9 +39,9 @@ def get_label_stats(labels, outfile='stats.tsv'):
     i = 0
     label_frequencies = labels.most_common()
     for k, v in label_frequencies:
-        out.write(f'{k}\t{v/total}\n')
+        out.write(f'{k}\t{v / total}\n')
         if i < 3:
-            nemo.logging.info(f'{i} item: {k}, {v} out of {total}, {v/total}.')
+            nemo.logging.info(f'{i} item: {k}, {v} out of {total}, {v / total}.')
         i += 1
     return total, label_frequencies
 
@@ -666,7 +666,6 @@ def get_intent_query_files_dialogflow(path):
 
 
 def get_intents_slots_dialogflow(files, slot_labels):
-
     intent_names = []
     intent_queries = []
     slot_tags = []
@@ -781,7 +780,6 @@ def read_csv(file_path):
 
 
 def get_intents_mturk(utterances, outfold):
-
     intent_names = {}
     intent_count = 0
 
@@ -811,7 +809,6 @@ def get_intents_mturk(utterances, outfold):
 
 
 def get_slot_labels(slot_annotations, task_name):
-
     slot_labels = json.loads(slot_annotations[0])
 
     all_labels = {}
@@ -830,7 +827,6 @@ def get_slot_labels(slot_annotations, task_name):
 
 
 def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names, task_name):
-
     slot_tags = []
     inorder_utterances = []
     all_labels = get_slot_labels(slot_annotations, task_name)
@@ -1100,7 +1096,6 @@ class JointIntentSlotDataDesc:
             slots_total, slots_label_freq = get_label_stats(merged_slots, infold + f'/{mode}_slot_stats.tsv')
 
             if mode == 'train':
-
                 self.slot_weights = calc_class_weights(slots_label_freq)
                 nemo.logging.info(f'Slot weights are - {self.slot_weights}')
 
@@ -1184,7 +1179,6 @@ class SentenceClassificationDataDesc:
             total_sents, sent_label_freq = get_label_stats(raw_sentences, infold + f'/{mode}_sentence_stats.tsv')
 
             if mode == 'train':
-
                 self.class_weights = calc_class_weights(sent_label_freq)
                 nemo.logging.info(f'Class weights are - {self.class_weights}')
 

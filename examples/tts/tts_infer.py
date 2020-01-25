@@ -205,7 +205,7 @@ def main():
             for j, sample in enumerate(magnitudes):
                 sample = sample[: mel_len[i][j], :]
                 audio = griffin_lim(sample.T ** args.griffin_lim_power)
-                save_file = f"sample_{i*32+j}.wav"
+                save_file = f"sample_{i * 32 + j}.wav"
                 if args.save_dir:
                     save_file = os.path.join(args.save_dir, save_file)
                 write(save_file, tacotron2_params["sample_rate"], audio)
@@ -247,7 +247,7 @@ def main():
             for j, sample in enumerate(audio):
                 sample_len = mel_len[i][j] * tacotron2_params["n_stride"]
                 sample = sample[:sample_len]
-                save_file = f"sample_{i*32+j}.wav"
+                save_file = f"sample_{i * 32 + j}.wav"
                 if args.save_dir:
                     save_file = os.path.join(args.save_dir, save_file)
                 if args.waveglow_denoiser_strength > 0:

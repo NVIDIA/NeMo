@@ -10,7 +10,6 @@ GLOBAL_KEYS = ["eval_loss", "ref", "sys", "sent_ids", "nonpad_tokens"]
 
 
 def eval_iter_callback(tensors, global_vars, tgt_tokenizer):
-
     for key in GLOBAL_KEYS:
         if key not in global_vars.keys():
             global_vars[key] = []
@@ -45,7 +44,6 @@ def eval_iter_callback(tensors, global_vars, tgt_tokenizer):
 
 
 def eval_epochs_done_callback(global_vars, validation_dataset=None):
-
     losses = np.array(global_vars["eval_loss"])
     counts = np.array(global_vars["nonpad_tokens"])
     eval_loss = np.sum(losses * counts) / np.sum(counts)

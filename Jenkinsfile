@@ -24,11 +24,6 @@ pipeline {
         sh 'python setup.py check_style'
       }
     }
-    stage('PEP8 Checks') {
-      steps {
-        sh 'pycodestyle . --max-line-length=119 --exclude=./tests/other/jasper.py,./tests/other/jasper_zero_dl.py,setup.py,./nemo/collections/nlp/utils/metrics/sacrebleu.py,./docs/sources/source/conf.py,./collections/nemo_nlp/build,./tests/test_squad.py,./nemo/package_info.py,./examples/asr/jasper_aishell_infer.py,./examples/asr/jasper_eval.py,./examples/nlp/asr_postprocessor.py,./examples/nlp/sentence_classification_with_bert.py,./examples/nlp/transformer_lm.py'
-      }
-    } 
 
     stage('Unittests') {
       steps {

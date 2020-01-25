@@ -355,7 +355,6 @@ class BertTokenClassificationInferDataset(Dataset):
     """
 
     def __init__(self, queries, max_seq_length, tokenizer):
-
         features = get_features(queries, max_seq_length, tokenizer)
 
         self.all_input_ids = features[0]

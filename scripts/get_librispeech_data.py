@@ -112,7 +112,6 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
 
 
 def main():
-
     data_root = args.data_root
     data_sets = args.data_sets
 

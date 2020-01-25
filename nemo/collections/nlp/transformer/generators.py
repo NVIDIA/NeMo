@@ -181,7 +181,6 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
         decoder_mems_list=None,
         pos=0,
     ):
-
         log_probs, decoder_mems_list = super()._forward(
             decoder_input_ids, encoder_hidden_states, encoder_input_mask, decoder_mems_list, pos,
         )

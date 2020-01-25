@@ -237,7 +237,6 @@ def __process_data(data_folder: str, dst_folder: str):
 
                 phn_transcript = ""
                 for line in fin:
-
                     # MAPPING TO THE 39 PHN SET
                     phn = line.split(" ")[2].split("\n")[0]
                     mapped = PHN_DICT[phn]
@@ -257,7 +256,6 @@ def __process_data(data_folder: str, dst_folder: str):
 
 
 def main():
-
     data_root = args.data_root
     data_new_root = args.data_new_root
 

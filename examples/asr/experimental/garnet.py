@@ -99,7 +99,6 @@ def parse_cfg(args):
 
 
 def create_dag(args, cfg, logger, num_gpus):
-
     # Defining nodes
     data = nemo_asr.AudioToTextDataLayer(
         manifest_filepath=args.train_dataset,

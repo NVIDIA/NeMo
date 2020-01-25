@@ -350,7 +350,6 @@ class BertPretrainingPreprocessedDataset(Dataset):
         return len(self.inputs[0])
 
     def __getitem__(self, index):
-
         [input_ids, input_mask, segment_ids, masked_lm_positions, masked_lm_ids, next_sentence_labels,] = [
             input[index].astype(np.int64) for input in self.inputs
         ]

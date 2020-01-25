@@ -192,7 +192,6 @@ def create_all_dags(args, neural_factory):
 
     # assemble eval DAGs
     for i, eval_dl in enumerate(data_layers_eval):
-
         (audio_signal_e, a_sig_length_e, transcript_e, transcript_len_e,) = eval_dl()
         processed_signal_e, p_length_e = data_preprocessor(input_signal=audio_signal_e, length=a_sig_length_e)
         encoded_e, encoded_len_e = encoder(audio_signal=processed_signal_e, length=p_length_e)
@@ -219,7 +218,6 @@ def create_all_dags(args, neural_factory):
 
 
 def main():
-
     args = parse_args()
 
     name = construct_name(args.exp_name, args.lr, args.batch_size, args.num_epochs, args.weight_decay, args.optimizer,)

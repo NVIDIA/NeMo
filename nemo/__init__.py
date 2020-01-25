@@ -33,7 +33,6 @@ from .package_info import (
 )
 
 if "NEMO_PACKAGE_BUILDING" not in os.environ:
-
     import logging
 
     logging = logging.getLogger(__name__)

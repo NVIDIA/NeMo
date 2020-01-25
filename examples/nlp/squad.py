@@ -232,7 +232,6 @@ def create_pipeline(
     batches_per_step=1,
     mode="train",
 ):
-
     data_layer = nemo_nlp.BertQuestionAnsweringDataLayer(
         mode=mode,
         version_2_with_negative=version_2_with_negative,

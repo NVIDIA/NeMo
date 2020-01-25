@@ -41,5 +41,4 @@ __all__ = [
     'CTCLossNM',
 ]
 
-
 backend = Backend.PyTorch

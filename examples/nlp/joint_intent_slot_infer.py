@@ -39,7 +39,6 @@ pretrained_bert_model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pre
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
-
 data_desc = JointIntentSlotDataDesc(args.data_dir, args.do_lower_case, args.dataset_name)
 
 # Evaluation pipeline
@@ -86,7 +85,6 @@ intent_logits, slot_logits, loss_mask, subtokens_mask, intents, slot_labels = [
     concatenate(tensors) for tensors in evaluated_tensors
 ]
 
-
 pred_intents = np.argmax(intent_logits, 1)
 nemo.logging.info('Intent prediction results')
 
@@ -95,7 +93,6 @@ pred_intents = np.asarray(pred_intents)
 intent_accuracy = sum(intents == pred_intents) / len(pred_intents)
 nemo.logging.info(f'Intent accuracy: {intent_accuracy}')
 nemo.logging.info(classification_report(intents, pred_intents))
-
 
 slot_preds = np.argmax(slot_logits, axis=2)
 slot_preds_list, slot_labels_list = [], []

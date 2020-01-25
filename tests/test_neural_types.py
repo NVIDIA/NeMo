@@ -209,7 +209,7 @@ class TestNeuralTypes(NeMoUnitTest):
         )
         jasper_encoder = nemo_asr.JasperEncoder(
             feat_in=jasper_model_definition['AudioToMelSpectrogramPreprocessor']['features'],
-            **jasper_model_definition['JasperEncoder']
+            **jasper_model_definition['JasperEncoder'],
         )
         jasper_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=len(labels))
         ctc_loss = nemo_asr.CTCLossNM(num_classes=len(labels))
@@ -242,7 +242,7 @@ class TestNeuralTypes(NeMoUnitTest):
             )
             jasper_encoder = nemo_asr.JasperEncoder(
                 feat_in=jasper_config['AudioToMelSpectrogramPreprocessor']['features'],
-                **jasper_config['JasperEncoder']
+                **jasper_config['JasperEncoder'],
             )
             jasper_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=len(labels))
             # DAG definition

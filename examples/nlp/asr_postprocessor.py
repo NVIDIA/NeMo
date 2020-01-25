@@ -51,7 +51,6 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-
 nf = nemo.core.NeuralModuleFactory(
     backend=nemo.core.Backend.PyTorch,
     local_rank=args.local_rank,
