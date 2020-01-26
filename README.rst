@@ -73,7 +73,7 @@ If you are using the NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catal
     pip install nemo_toolkit[nlp] # Installs Core and NLP Collection
     pip install nemo_toolkit[tts] # Installs Core and TTS Collection
 
-You can install everything (Core with all collections along with their dependences) by calling:
+You can also install everything (NeMo Core with all collections along with their dependences) by calling:
 
 .. code-block:: bash
 
