@@ -6,3 +6,4 @@ Models
 
    tacotron2
    waveglow
+   fastspeech

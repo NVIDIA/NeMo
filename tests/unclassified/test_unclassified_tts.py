@@ -17,10 +17,13 @@
 # =============================================================================
 
 import os
+import pathlib
 import tarfile
 from unittest import TestCase
 
 import pytest
+
+import numpy as np
 
 import nemo
 import nemo.collections.asr as nemo_asr
@@ -186,6 +189,98 @@ class TestTTSPytorch(TestCase):
         )
         # Instantiate an optimizer to perform `train` action
         optimizer = nemo.backends.pytorch.actions.PtActions()
+        optimizer.train(
+            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
+        )
+
+    def test_fastspeech(self):
+        neural_factory = nemo.core.NeuralModuleFactory(
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
+        )
+
+        data_layer = nemo_asr.AudioToTextDataLayer(
+            manifest_filepath=self.manifest_filepath,
+            labels=self.labels,
+            batch_size=1,
+            shuffle=False,
+            sample_rate=16000,
+        )
+
+        data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+            window_size=None,
+            window_stride=None,
+            n_window_size=512,
+            n_window_stride=128,
+            normalize=None,
+            preemph=None,
+            dither=0,
+            mag_power=1.0,
+            pad_value=-11.52,
+            pad_to=0,
+        )
+
+        data = data_layer()
+        spec, spec_length = data_preprocessor(input_signal=data.audio_signal, length=data.a_sig_length)
+
+        # Creates and saves durations as numpy arrays.
+        durs_dir = pathlib.Path('tests/data/asr/durs')
+        durs_dir.mkdir(exist_ok=True)
+        result = neural_factory.infer([data.transcripts, data.transcript_length, spec_length, spec])
+        k = -1
+        for text, text_len, mel_len, mel in zip(result[0], result[1], result[2], result[3]):
+            text = text.cpu().numpy()[0][: text_len.cpu().numpy()[0]]
+            dur = np.zeros(text.shape[0], dtype=np.long)
+            dur_sum = mel_len.cpu().numpy()[0] + 1  # TODO: delete `+1`
+            dur[0] = dur_sum - 4
+            dur[1] = 4
+            k += 1
+            np.save(durs_dir / f'{k}.npy', dur, allow_pickle=False)
+
+        data_layer = nemo_tts.FastSpeechDataLayer(
+            manifest_filepath=self.manifest_filepath,
+            durs_dir=durs_dir,
+            labels=self.labels,
+            batch_size=4,
+            sample_rate=16000,
+        )
+
+        fastspeech = nemo_tts.FastSpeech(
+            decoder_output_size=384,
+            n_mels=64,
+            max_seq_len=2048,
+            word_vec_dim=384,
+            encoder_n_layer=6,
+            encoder_head=2,
+            encoder_conv1d_filter_size=1536,
+            decoder_n_layer=6,
+            decoder_head=2,
+            decoder_conv1d_filter_size=1536,
+            fft_conv1d_kernel=3,
+            fft_conv1d_padding=1,
+            encoder_output_size=384,
+            duration_predictor_filter_size=256,
+            duration_predictor_kernel_size=3,
+            dropout=0.1,
+            alpha=1.0,
+            n_src_vocab=len(self.labels),
+            pad_id=0,
+        )
+
+        loss = nemo_tts.FastSpeechLoss()
+
+        data = data_layer()
+        mel_true, _ = data_preprocessor(input_signal=data.audio, length=data.audio_len)
+        mel_pred, dur_pred = fastspeech(
+            text=data.text, text_pos=data.text_pos, mel_true=mel_true, dur_true=data.dur_true,
+        )
+        loss_t = loss(
+            mel_true=mel_true, mel_pred=mel_pred, dur_true=data.dur_true, dur_pred=dur_pred, text_pos=data.text_pos,
+        )
+
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensors=[loss_t], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
+        )
+        optimizer = neural_factory.get_trainer()
         optimizer.train(
             [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )

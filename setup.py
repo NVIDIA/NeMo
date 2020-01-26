@@ -128,6 +128,12 @@ class StyleCommand(distutils_cmd.Command):
         ('fix', None, 'True if tries to fix issues in-place.'),
     ]
 
+    def __init__(self, dist):
+        super().__init__(dist)
+
+        # Nasty trick to look to formatters programs in python bin folder.
+        os.environ['PATH'] += os.pathsep + os.path.dirname(sys.executable)
+
     def __call_checker(self, base_command, scope, check):
         command = list(base_command)
 
