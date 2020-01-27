@@ -1,760 +1,423 @@
 # Copyright (c) 2019 NVIDIA Corporation
-__all__ = [
-    'Backend',
-    'ModelMode',
-    'Optimization',
-    'DeviceType',
-    'Actions',
-    'NeuralModuleFactory',
-    'DeploymentFormat',
-]
+"""This file contains NeuralModule and NmTensor classes."""
+__all__ = ['WeightShareTransform', 'NeuralModule']
 
-import random
-import warnings
+import collections
+import uuid
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from enum import Enum
-from typing import List, Optional
+from inspect import getargvalues, stack
+from typing import Dict, List, Optional, Set, Tuple
 
-import numpy as np
-
-import nemo
-from ..utils import ExpManager
-from .callbacks import ActionCallback, EvaluatorCallback
-from .neural_types import *
-
-
-class DeploymentFormat(Enum):
-    """Which format to use when exporting a Neural Module for deployment"""
-
-    AUTO = 0
-    PYTORCH = 1
-    TORCHSCRIPT = 2
-    ONNX = 3
+from .neural_factory import DeviceType, Optimization
+from .neural_types import (
+    CanNotInferResultNeuralType,
+    NeuralPortNameMismatchError,
+    NeuralPortNmTensorMismatchError,
+    NeuralType,
+    NeuralTypeComparisonResult,
+    NmTensor,
+)
+from nemo.core import NeuralModuleFactory
+from nemo.utils.decorators.deprecated import deprecated
 
 
-class Backend(Enum):
-    """Supported backends. For now, it is only PyTorch."""
+class WeightShareTransform(Enum):
+    """When sharing parameters, what kind of transform to apply."""
 
-    PyTorch = 1
-    NotSupported = 2
-
-
-class ModelMode(Enum):
-    """Training Mode or Evaluation/Inference"""
-
-    train = 0
-    eval = 1
+    SAME = 0
+    TRANSPOSE = 1
 
 
-class Optimization(Enum):
-    """Various levels of Apex/amp Optimization.
-    WARNING: This might have effect on model accuracy."""
-
-    mxprO0 = 0
-    mxprO1 = 1
-    mxprO2 = 2
-    mxprO3 = 3
+PretrainedModelInfo = namedtuple(
+    "PretrainedModleInfo", ("pretrained_model_name", "description", "parameters", "location"),
+)
 
 
-class DeviceType(Enum):
-    """Device types where Neural Modules can be placed."""
-
-    GPU = 1
-    CPU = 2
-    AllGpu = 3
-
-
-class Actions(ABC):
-    """Basic actions allowed on graphs of Neural Modules"""
-
-    def __init__(self, local_rank, global_rank, optimization_level=Optimization.mxprO0):
-        self._local_rank = local_rank
-        self._global_rank = global_rank
-        self._optim_level = optimization_level
-        self.step = None
-        self.epoch_num = None
-
-    @property
-    def local_rank(self):
-        """Local rank during distributed execution. None if single GPU/CPU
-
-        Returns:
-            (int) rank or worker or None if not in distributed model
-        """
-        return self._local_rank
-
-    @property
-    def global_rank(self):
-        """Global rank during distributed execution. None if single GPU/CPU
-
-        Returns:
-            (int) rank or worker or None if not in distributed model
-        """
-        return self._global_rank
-
-    @abstractmethod
-    def train(
-        self,
-        tensors_to_optimize: List[NmTensor],
-        callbacks: Optional[List[ActionCallback]],
-        lr_policy=None,
-        batches_per_step=None,
-        stop_on_nan_loss=False,
-    ):
-        """This action executes training and (optionally) evaluation.
-
-        Args:
-            tensors_to_optimize: which tensors to optimize. Typically this is
-                single loss tesnor.
-            callbacks: list of callback objects
-            lr_policy: function which should take (initial_lr, step, epoch) and
-                return learning rate
-            batches_per_step: number of mini-batches to process before one
-                optimizer step. (default: None, same as 1). Use this
-                to simulate larger batch sizes on hardware which could not fit
-                larger batch in memory otherwise. Effectively, this will make
-                "algorithmic" batch size per GPU/worker = batches_per_step*
-                batch_size
-            stop_on_nan_loss: (default: False) If set to True, the training
-                will stop if loss=nan. If set to False, the training will
-                continue, but the gradients will be zeroed before next
-                mini-batch.
-
-        Returns:
-            None
-        """
-        pass
-
-    @abstractmethod
-    def infer(self, tensors: List[NmTensor]):
-        """This action executes inference. Nothing is optimized.
-        Args:
-          tensors: which tensors to evaluate.
-
-        Returns:
-          None
-        """
-        pass
-
-    @abstractmethod
-    def save_state_to(self, path: str):
-        """
-        Saves current state such as step, epoch and optimizer parameters
-        Args:
-          path:
-
-        Returns:
-
-        """
-        pass
-
-    @abstractmethod
-    def restore_state_from(self, path: str):
-        """
-        Restores state such as step, epoch and optimizer parameters
-        Args:
-          path:
-
-        Returns:
-
-        """
-        pass
-
-    @abstractmethod
-    def create_optimizer(self, optimizer, things_to_optimize, optimizer_params):
-        """
-        Creates an optimizer object to be use in the train() method.
-
-        Args:
-            optimizer: Specifies which optimizer to use.
-            things_to_optimize: A list of neural modules or tensors to be
-                optimized.
-            optimizer_params: Specifies the parameters of the optimizer
-
-        Returns:
-            Optimizer
-        """
-        pass
-
-    def _perform_on_iteration_start(self, callbacks):
-        # TODO: Most of these checks can be relaxed since we enforce callbacks
-        # to be a list of ActionCallback objects
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_iteration_start()
-
-    def _perform_on_iteration_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_iteration_end()
-
-    def _perform_on_action_start(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_action_start()
-
-    def _perform_on_action_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_action_end()
-
-    def _perform_on_epoch_start(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_epoch_start()
-
-    def _perform_on_epoch_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_epoch_end()
-
-    def _init_callbacks(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.action = self
-
-    def _update_callbacks(
-        self, callbacks=None, registered_tensors=None,
-    ):
-        # if self.local_rank is None or self.local_rank == 0:
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback._registered_tensors = registered_tensors
-
-
-def _str_to_opt_level(opt_str: str) -> Optimization:
-    number = int(opt_str[1:])
-    if number not in Optimization._value2member_map_:
-        raise ValueError(f"Unknown optimization value {opt_str}")
-    return Optimization(number)
-
-
-class NeuralModuleFactory(object):
-    _DEFAULT = None
-
-    """
-    Neural Module Factory instance is used to create neural modules and
-    trainers
+class NeuralModule(ABC):
+    """Abstract class that every Neural Module must inherit from.
 
     Args:
-        backend (Backend): Currently only Backend.PyTorch is supported
-        local_rank (int): Process rank. Should be set by distributed runner
-        optimization_level (Optimization): Level of optimization to use. Will
-            be passed to neural modules and actions created by this factory.
-        placement (DeviceType: where to place NeuralModule instances by default
-        cudnn_benchmark (bool): (default False) If set to True it will use
-            cudnnFind method to find the best kernels instead of using
-            heuristics. If the shapes of your inputs are constant this
-            should help, for various shapes it can slow things down. Give it
-            few iterations to warmup if set to True. Currently only supported
-            by PyTorch backend.
-        random_seed (int): (default None) Sets random seed to control for
-            randomness. This should be used for debugging purposes as it might
-            have negative impact on performance. Can't be used when
-            `cudnn_benchmark=True`.
-        master_process (bool): (default True) Flag for master process
-            indication
-        set_default (bool): (default True) True if should set this instance as
-            default factory for modules instantiating.
+        pretrained_model_name (str): name of pretrained model to use in order
+            to initialize this neural module
+        factory (NeuralModuleFactory): :class:`NeuralModuleFactory` which
+            created or which should mange this instance. Required for
+            multi-gpu training.
+        placement (DeviceType): (default:None) where this module should
+            be placed. If provided, this parameter takes precedence over
+            whatever is specified in factory.
     """
 
     def __init__(
-        self,
-        backend=Backend.PyTorch,
-        local_rank=None,
-        optimization_level=Optimization.mxprO0,
-        placement=None,
-        cudnn_benchmark=False,
-        random_seed=None,
-        set_default=True,
-        log_dir=None,
-        checkpoint_dir=None,
-        tensorboard_dir=None,
-        create_tb_writer=False,
-        files_to_copy=None,
-        add_time_to_log_dir=False,
+        self, *, pretrained_model_name=None, factory=None, placement=None, **kwargs,
     ):
-        self._local_rank = local_rank
-        self._global_rank = None
+        self._pretrained_model_name = pretrained_model_name
+        self._local_parameters = self.update_local_params()
 
-        if isinstance(optimization_level, str):
-            optimization_level = _str_to_opt_level(optimization_level)
-        self._optim_level = optimization_level
+        default_factory = NeuralModuleFactory.get_default_factory()
+        if (factory is None) and (default_factory is not None):
+            factory = default_factory
 
-        if placement is None:
-            if local_rank is not None:
-                device = DeviceType.AllGpu
-            else:
-                device = DeviceType.GPU
+        # Set module properties from factory else use defaults
+        self._placement = factory.placement if factory is not None else DeviceType.GPU
+        self._opt_level = factory.optim_level if factory is not None else Optimization.mxprO0
 
-            self._placement = device
-        else:
+        # Update module properties using overrides if overrides exist
+        if placement is not None:
             self._placement = placement
 
-        self._backend = backend
-        self._world_size = 1
-        broadcast_func = None
-        if backend == Backend.PyTorch:
-            # TODO: Move all framework specific code from this file
-            import torch
+        self._factory = factory
+        self._uuid = str(uuid.uuid4())
 
-            if self._placement != DeviceType.CPU:
-                if not torch.cuda.is_available():
-                    raise ValueError(
-                        "You requested to use GPUs but CUDA is "
-                        "not installed. You can try running using"
-                        " CPU-only. To do this, instantiate your"
-                        " factory with placement=DeviceType.CPU"
-                        "\n"
-                        "Note that this is slow and is not "
-                        "well supported."
-                    )
+        # if kwargs:
+        #    nemo.logging.warning(
+        #        "When constructing {}. The base "
+        #        "NeuralModule class received the following unused "
+        #        "arguments:".format(self.__class__.__name__))
+        #    nemo.logging.warning("{}".format(kwargs.keys()))
 
-            torch.backends.cudnn.benchmark = cudnn_benchmark
-            if random_seed is not None and cudnn_benchmark:
-                raise ValueError("cudnn_benchmark can not be set to True" "when random_seed is not None.")
-            if random_seed is not None:
-                torch.backends.cudnn.deterministic = True
-                torch.backends.cudnn.benchmark = False
-                torch.manual_seed(random_seed)
-                np.random.seed(random_seed)
-                random.seed(random_seed)
-
-            if self._local_rank is not None:
-                torch.distributed.init_process_group(backend="nccl", init_method="env://")
-
-                cuda_set = True
-                # Try to set cuda device. This should fail if self._local_rank
-                # is greater than the number of available GPUs
-                try:
-                    torch.cuda.set_device(self._local_rank)
-                except RuntimeError:
-                    # Note in this case, all tensors are now sent to GPU 0
-                    # who could crash because of OOM. Thus init_process_group()
-                    # must be done before any cuda tensors are allocated
-                    cuda_set = False
-                cuda_set_t = torch.cuda.IntTensor([cuda_set])
-
-                # Do an all_reduce to ensure all workers obtained a GPU
-                # For the strangest reason, BAND doesn't work so I am resorting
-                # to MIN.
-                torch.distributed.all_reduce(cuda_set_t, op=torch.distributed.ReduceOp.MIN)
-                if cuda_set_t.item() == 0:
-                    raise RuntimeError(
-                        "There was an error initializing distributed training."
-                        " Perhaps you specified more gpus than you have "
-                        "available"
-                    )
-
-                del cuda_set_t
-                torch.cuda.empty_cache()
-                # Remove test tensor from memory
-
-                self._world_size = torch.distributed.get_world_size()
-                self._global_rank = torch.distributed.get_rank()
-
-                def torch_broadcast_wrapper(str_len=None, string=None, src=0):
-                    """Wrapper function to broadcast string values across all
-                    workers
-                    """
-                    # Create byte cuda torch tensor
-                    if string is not None:
-                        string_tensor = torch.tensor(list(string.encode()), dtype=torch.uint8).cuda()
-                    else:
-                        string_tensor = torch.tensor([0] * str_len, dtype=torch.uint8).cuda()
-                    # Run broadcast
-                    torch.distributed.broadcast(string_tensor, src)
-                    # turn byte tensor back to string
-                    return_string = string_tensor.cpu().numpy()
-                    return_string = b''.join(return_string).decode()
-                    return return_string
-
-                broadcast_func = torch_broadcast_wrapper
-        else:
-            raise NotImplementedError("Only Pytorch backend is currently supported.")
-
-        # Create ExpManager
-        # if log_dir is None, only create logger
-        self._exp_manager = ExpManager(
-            work_dir=log_dir,
-            ckpt_dir=checkpoint_dir,
-            use_tb=create_tb_writer,
-            tb_dir=tensorboard_dir,
-            local_rank=local_rank,
-            global_rank=self._global_rank,
-            files_to_copy=files_to_copy,
-            add_time=add_time_to_log_dir,
-            exist_ok=True,
-            broadcast_func=broadcast_func,
+    @deprecated()
+    @staticmethod
+    def create_ports(**kwargs):
+        """ Deprecated method, to be remoted in the next release."""
+        raise Exception(
+            'Deprecated method. Please implement ``inputs`` and ``outputs`` \
+                 properties to define module ports instead'
         )
-        self._tb_writer = self._exp_manager.tb_writer
 
-        # Create trainer
-        self._trainer = self._get_trainer(tb_writer=self._tb_writer)
+    @property
+    @abstractmethod
+    def input_ports(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module input ports
 
-        if set_default:
-            NeuralModuleFactory.set_default_factory(self)
+        Returns:
+          A (dict) of module's input ports names to NeuralTypes mapping
+        """
 
-    @classmethod
-    def get_default_factory(cls):
-        return cls._DEFAULT
+    @property
+    @abstractmethod
+    def output_ports(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports
 
-    @classmethod
-    def set_default_factory(cls, factory):
-        cls._DEFAULT = factory
-
-    @classmethod
-    def reset_default_factory(cls):
-        if cls._DEFAULT:
-            cls._DEFAULT._exp_manager.reset_loggers()
-        cls._DEFAULT = None
+        Returns:
+          A (dict) of module's output ports names to NeuralTypes mapping
+        """
 
     @staticmethod
-    def __name_import(name):
-        components = name.split(".")
-        mod = __import__(components[0])
-        for comp in components[1:]:
-            mod = getattr(mod, comp)
-        return mod
+    def pretrained_storage():
+        return ''
 
-    def __get_pytorch_module(self, name, params, collection, pretrained):
-        params["factory"] = self
-        if collection == "toys" or collection == "tutorials" or collection == "other":
-            constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.tutorials." + name)
-        elif collection == "nemo_nlp":
-            constructor = NeuralModuleFactory.__name_import("nemo_nlp." + name)
-            if name == "BERT" and pretrained is True:
-                params["pretrained"] = True
-        elif collection == "nemo_asr":
-            constructor = NeuralModuleFactory.__name_import("nemo_asr." + name)
-        elif collection == "nemo_lpr":
-            constructor = NeuralModuleFactory.__name_import("nemo_lpr." + name)
-        elif collection == 'common':
-            constructor = NeuralModuleFactory.__name_import('nemo.backends.pytorch.common.' + name)
-        elif collection == "torchvision":
-            import torchvision.models as tv_models
-            import nemo.backends.pytorch.module_wrapper as mw
-            import torch.nn as nn
-
-            if name == "ImageFolderDataLayer":
-                constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.torchvision.data." + name)
-                instance = constructor(**params)
-                return instance
-            else:
-                _nm_name = name.lower()
-                if _nm_name == "resnet18":
-                    input_ports = {
-                        "x": NeuralType(
-                            {
-                                0: AxisType(BatchTag),
-                                1: AxisType(ChannelTag),
-                                2: AxisType(HeightTag, 224),
-                                3: AxisType(WidthTag, 224),
-                            }
-                        )
-                    }
-                    output_ports = {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
-
-                    pt_model = tv_models.resnet18(pretrained=pretrained)
-                    num_classes = params.get("num_classes", None)
-                    if num_classes is not None:
-                        pt_model.fc = nn.Linear(512, params["num_classes"])
-                    return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports, **params,
-                    )
-                elif _nm_name == "resnet50":
-                    input_ports = {
-                        "x": NeuralType(
-                            {
-                                0: AxisType(BatchTag),
-                                1: AxisType(ChannelTag),
-                                2: AxisType(HeightTag, 224),
-                                3: AxisType(WidthTag, 224),
-                            }
-                        )
-                    }
-                    output_ports = {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
-
-                    pt_model = tv_models.resnet50(pretrained=pretrained)
-                    num_classes = params.get("num_classes", None)
-                    if num_classes is not None:
-                        pt_model.fc = nn.Linear(2048, params["num_classes"])
-                    return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports, **params,
-                    )
-        else:
-            collection_path = "nemo.collections." + collection + "." + name
-            constructor = NeuralModuleFactory.__name_import(collection_path)
-            if name == "BERT" and pretrained is True:
-                params["pretrained"] = True
-
-        if "placement" not in params:
-            params["placement"] = self._placement
-        instance = constructor(**params)
-        return instance
-
-    def get_module(self, name, params, collection, pretrained=False):
-        """
-        Creates NeuralModule instance
+    def __call__(self, **kwargs):
+        """This method allows objects to be called with their port names
 
         Args:
-          name (str): name of NeuralModule which instance should be returned.
-          params (dict): local parameters which should be passed to
-          NeuralModule's constructor.
-          collection (str): in which collection to look for
-          `neural_module_name`
-          pretrained (bool): return pre-trained instance or randomly
-          initialized (default)
+          kwargs: Input ports and their values. For example:
+          ...
+          mymodule1 = Subclass1_of_NeuralModule(...)
+          mymodule2 = Subclass2_of_NeuralModule(...)
+          ...
+          out_port1, out_port2 = mymodule1(input_port1=value1,
+          input_port2=value2,
+          input_port3=value3)
+          out_port11 = mymodule2(input_port1=out_port2)
+          ...
 
         Returns:
-          NeuralModule instance
+          NmTensor object or tuple of NmTensor objects
         """
-        if params is not None and "optimization_level" in params:
-            if params["optimization_level"] != self._optim_level:
-                nemo.logging.warning(
-                    "Module's {0} requested optimization level {1} is"
-                    "different from the one specified by factory - {2}."
-                    "Using: {3} for this module".format(
-                        name, params["optimization_level"], self._optim_level, params["optimization_level"],
+        # if self._assigned_top_order is not None:
+        #    raise ValueError("We currently do not support calling same NM"
+        #                     "more than once")
+
+        # Get input and output ports definitions.
+        input_port_defs = self.input_ports
+        output_port_defs = self.output_ports
+
+        first_input_nmtensor_type = None
+        input_nmtensors_are_of_same_type = True
+        for port_name, tgv in kwargs.items():
+            if port_name not in input_port_defs.keys():
+                raise NeuralPortNameMismatchError("Wrong input port name: {0}".format(port_name))
+
+            type_comatibility = input_port_defs[port_name].compare(tgv)
+
+            if first_input_nmtensor_type is None:
+                first_input_nmtensor_type = NeuralType(tgv._axis2type)
+            else:
+                if first_input_nmtensor_type._axis2type is None:
+                    input_nmtensors_are_of_same_type = True
+                else:
+                    input_nmtensors_are_of_same_type = first_input_nmtensor_type.compare(
+                        tgv
+                    ) == NeuralTypeComparisonResult.SAME and len(first_input_nmtensor_type._axis2type)
+            if not (
+                type_comatibility == NeuralTypeComparisonResult.SAME
+                or type_comatibility == NeuralTypeComparisonResult.GREATER
+            ):
+                raise NeuralPortNmTensorMismatchError(
+                    "\n\nIn {0}. \n"
+                    "Port: {1} and a NmTensor it was fed are \n"
+                    "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
+                    "\n\nType comparison result: {4}".format(
+                        self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility,
                     )
                 )
+            if type_comatibility == NeuralTypeComparisonResult.LESS:
+                print('Types were raised')
+
+        if len(output_port_defs) == 1:
+            out_name = list(output_port_defs)[0]
+            out_type = output_port_defs[out_name]
+            if out_type is None:
+                if input_nmtensors_are_of_same_type:
+                    out_type = first_input_nmtensor_type
+                else:
+                    raise CanNotInferResultNeuralType(
+                        "Can't infer output neural type." "Likely your inputs are of " "different type."
+                    )
+            return NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
         else:
-            if params is None:
-                params = {}
-            params["optimization_level"] = self._optim_level
+            result = []
+            for out_port, n_type in output_port_defs.items():
+                out_type = n_type
+                if out_type is None:
+                    if input_nmtensors_are_of_same_type:
+                        out_type = first_input_nmtensor_type
+                    else:
+                        raise CanNotInferResultNeuralType(
+                            "Can't infer output neural type." "Likely your inputs are of " "different type."
+                        )
+                result.append(NmTensor(producer=self, producer_args=kwargs, name=out_port, ntype=out_type,))
 
-        if self._backend == Backend.PyTorch:
-            return self.__get_pytorch_module(name=name, params=params, collection=collection, pretrained=pretrained,)
-        else:
-            return None
+            # Creating ad-hoc class for returning from module's forward pass.
+            output_class_name = f'{self.__class__.__name__}Output'
+            field_names = list(output_port_defs)
+            result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
 
-    def create_optimizer(self, optimizer, things_to_optimize, optimizer_params):
-        return self._trainer.create_optimizer(
-            optimizer=optimizer, things_to_optimize=things_to_optimize, optimizer_params=optimizer_params,
-        )
+            # Tie tuple of output tensors with corresponding names.
+            result = result_type(*result)
 
-    def train(
-        self,
-        tensors_to_optimize,
-        optimizer=None,
-        optimization_params=None,
-        callbacks: Optional[List[ActionCallback]] = None,
-        lr_policy=None,
-        batches_per_step=None,
-        stop_on_nan_loss=False,
-        synced_batchnorm=False,
-        synced_batchnorm_groupsize=0,
-        gradient_predivide=False,
-        amp_max_loss_scale=2.0 ** 24,
-        reset=False,
-    ):
-        if reset:
-            self.reset_trainer()
-        return self._trainer.train(
-            tensors_to_optimize=tensors_to_optimize,
-            optimizer=optimizer,
-            optimization_params=optimization_params,
-            callbacks=callbacks,
-            lr_policy=lr_policy,
-            batches_per_step=batches_per_step,
-            stop_on_nan_loss=stop_on_nan_loss,
-            synced_batchnorm=synced_batchnorm,
-            synced_batchnorm_groupsize=synced_batchnorm_groupsize,
-            gradient_predivide=gradient_predivide,
-            amp_max_loss_scale=amp_max_loss_scale,
-        )
+            return result
 
-    def eval(self, callbacks: List[EvaluatorCallback]):
-        if callbacks is None or len(callbacks) == 0:
-            raise ValueError(f"You need to provide at lease one evaluation" f"callback to eval")
-        for callback in callbacks:
-            if not isinstance(callback, EvaluatorCallback):
-                raise TypeError(f"All callbacks passed to the eval action must" f"be inherited from EvaluatorCallback")
-        self.train(
-            tensors_to_optimize=None, optimizer='sgd', callbacks=callbacks, optimization_params={'num_epochs': 1},
-        )
+    def __str__(self):
+        return self.__class__.__name__
 
-    def deployment_export(
-        self, module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None,
-    ):
-        """Exports Neural Module instance for deployment.
-
-        Args:
-            module: neural module to export
-            output (str): where export results should be saved
-            d_format (DeploymentFormat): which deployment format to use
-            input_example: sometimes tracing will require input examples
-            output_example: Should match inference on input_example
-        """
-        # Custom hacks: These will be put into a proper place soon
-        # We are checking type like this to avoid taking dependency on nemo_asr
-        if type(module).__name__ == "JasperEncoder":
-            # nemo.logging.warning(f"Module is JasperEncoder. We are removing"
-            #                     f"input and output length ports since they "
-            #                     f"are not needed for deployment")
-            # del module._input_ports['length']
-            # del module._output_ports['encoded_lengths']
-
-            # disable masked convolutions
-            m_count = 0
-            for m in module.modules():
-                if type(m).__name__ == "MaskedConv1d":
-                    m.use_mask = False
-                    m_count += 1
-            nemo.logging.warning(f"Turned off {m_count} masked convolutions")
-
-        return self._trainer.deployment_export(
-            module=module,
-            output=output,
-            d_format=d_format,
-            input_example=input_example,
-            output_example=output_example,
-        )
-
-    def infer(
-        self,
-        tensors: List[NmTensor],
-        checkpoint_dir=None,
-        ckpt_pattern='',
-        verbose=True,
-        cache=False,
-        use_cache=False,
-        offload_to_cpu=True,
-        modules_to_restore=None,
-    ):
-        """Runs inference to obtain values for tensors
-
-        Args:
-            tensors (list[NmTensor]): List of NeMo tensors that we want to get
-                values of.
-            checkpoint_dir (str): Path to checkpoint directory. Default is None
-                which does not load checkpoints.
-            ckpt_pattern (str): Pattern used to check for checkpoints inside
-                checkpoint_dir. Default is '' which matches any checkpoints
-                inside checkpoint_dir.
-            verbose (bool): Controls printing. Defaults to True.
-            cache (bool): If True, cache all `tensors` and intermediate tensors
-                so that future calls that have use_cache set will avoid
-                computation. Defaults to False.
-            use_cache (bool): Values from `tensors` will be always re-computed.
-                It will re-use intermediate tensors from the DAG leading to
-                `tensors`. If you want something to be re-computed, put it into
-                `tensors` list. Defaults to False.
-            offload_to_cpu (bool): If True, all evaluated tensors are moved to
-                cpu memory after each inference batch. Defaults to True.
-            modules_to_restore (list): Defaults to None, in which case all
-                NMs inside callchain with weights will be restored. If
-                specified only the modules inside this list will be restored.
+    @abstractmethod
+    def get_weights(self) -> Optional[Dict[(str, bool)]]:
+        """Returns NeuralModule's weights copy.
 
         Returns:
-            List of evaluated tensors. Each element in the list is also a list
-            where each element is now a batch of tensor values.
-        """
-        return self._trainer.infer(
-            tensors=tensors,
-            checkpoint_dir=checkpoint_dir,
-            ckpt_pattern=ckpt_pattern,
-            verbose=verbose,
-            cache=cache,
-            use_cache=use_cache,
-            offload_to_cpu=offload_to_cpu,
-            modules_to_restore=modules_to_restore,
-        )
+          Dictionary of name -> (weights, trainable)"""
+        pass
 
-    def clear_cache(self):
-        """Helper function to clean inference cache."""
-        self._trainer.clear_cache()
+    @abstractmethod
+    def set_weights(
+        self,
+        name2weight: Dict[(str, Tuple[str, bool])],
+        name2name_and_transform: Dict[(str, Tuple[str, WeightShareTransform])] = None,
+    ):
+        """Sets weight from given values. For every named weight in
+        name2weight,
+        if weight with the same name is found in the model, it will be set to
+        found value.
 
-    def _get_trainer(self, tb_writer=None):
-        if self._backend == Backend.PyTorch:
-            constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.PtActions")
-            instance = constructor(
-                local_rank=self._local_rank,
-                global_rank=self._global_rank,
-                tb_writer=tb_writer,
-                optimization_level=self._optim_level,
-            )
-            return instance
-        else:
-            raise ValueError("Only PyTorch backend is currently supported.")
+        WARNING: This will NOT tie weights. It will copy values.
 
-    def get_trainer(self, tb_writer=None):
-        nemo.logging.warning(
-            f"This function is deprecated and will be removed"
-            f"in future versions of NeMo."
-            f"Please use .train(...), .eval(...), .infer(...) and "
-            f".create_optimizer(...) directly methods from "
-            f"NeuralModuleFactory instance."
-        )
-        if self._trainer:
-            nemo.logging.warning(
-                "The trainer instance was created during initialization of "
-                "Neural factory, using the already created instance."
-            )
-            return self._trainer
-        return self._get_trainer(tb_writer)
-
-    def reset_trainer(self):
-        del self._trainer
-        self._trainer = self._get_trainer(tb_writer=self._tb_writer)
-
-    def sync_all_processes(self, status=True):
-        """ Helper function for testing that allows proccess 0 to inform all
-        other processes of failures. Does nothing if not using distributed
-        training. Usage example can be seen in examples/asr/jasper_an4.py
+        If ``name2name_and_transform`` is provided then if will set weights
+        using
+        name mapping and transform. For example, suppose ``objec1.X = 3x5
+        weight``.
+        Then, if ``name2name_and_transform['X']=('Y',
+        WeightShareTransform.TRANSPOSE)``
+        and ``Y`` is 5x3 weight and ``name2weight['Y']=Y. Then:
+        ``object1.set_weights(name2weight, name2name_and_transform)`` will
+        set object1.X=transpose(Y).
 
         Args:
-            status (bool): Defaults to True. If any proccess passes False, it
-                will trigger a graceful exit on all other processes. It is
-                assumed that the process that passed False will print an error
-                message on its own and exit
+          name2weight (dict): dictionary of name to (weight, trainable).
+          Typically this is output of get_weights method.
+          name2name_and_transform: mapping from name -> (name, transform)
         """
-        if self._world_size == 1:
-            nemo.logging.info("sync_all_processes does nothing if there is " "one process")
-            return
-        if self._backend == Backend.PyTorch:
-            import torch
+        pass
 
-            status_tensor = torch.cuda.IntTensor([status])
-            torch.distributed.all_reduce(status_tensor, op=torch.distributed.ReduceOp.MIN)
-            if status_tensor.item() == 0:
-                nemo.logging.error("At least one process had a failure")
-                if status:
-                    raise ValueError(
-                        f"Process with global rank {self._global_rank} entered"
-                        " sync_all_processes with a passing status, but "
-                        "another process indicated a failure"
-                    )
+    @staticmethod
+    def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:
+        """List all available pre-trained models (e.g. weights) for this NM.
 
-    @property
-    def world_size(self):
-        return self._world_size
+        Returns:
+            A list of PretrainedModelInfo tuples.
+            The pretrained_model_name field of the tuple can be used to
+            retrieve pre-trained model's weights (pass it as
+            pretrained_model_name argument to the module's constructor)
+        """
+        return None
 
-    @property
-    def tb_writer(self):
-        return self._tb_writer
+    def get_config_dict_and_checkpoint(self, pretrained_model_name):
+        """WARNING: This part is work in progress"""
+        return None
+
+    @abstractmethod
+    def tie_weights_with(
+        self,
+        module,
+        weight_names=List[str],
+        name2name_and_transform: Dict[(str, Tuple[str, WeightShareTransform])] = None,
+    ):
+        """Ties weights between self and module. For every weight name in
+        weight_names, if weight with the same name is found in self, it will
+        be tied
+        with a same weight from ``module``.
+
+        WARNING: Once weights are tied, updates to one weights's weights
+        will affect
+        other module's weights.
+
+
+        If ``name2name_and_transform`` is provided then if will set weights
+        using
+        name mapping and transform. For example, suppose ``objec1.X = 3x5
+        weights``
+        and ``object2.Y = 5x3 weights``. Then these weights can be tied like
+        this:
+
+        .. code-block:: python
+
+          object1.tie_weights_with(object2, weight_names=['X'],
+          name2name_and_transform =
+          { 'X': ('Y', WeightShareTransform.TRANSPOSE)})
+
+
+        Args:
+            module: with which module to tie weights
+            weight_names (List[str]): list of self weights' names
+            name2name_and_transform: mapping from name -> (name, transform)
+        """
+        pass
+
+    def is_trainable(self) -> bool:
+        """
+        Checks if NeuralModule is trainable.
+        A NeuralModule is trainable IFF it contains at least one trainable
+        weight
+
+        Returns:
+          True if module has trainable weights, False otherwise
+        """
+        weights = self.get_weights()
+        if weights is None:
+            return False
+        for name, w in weights.items():
+            if w[1]:
+                return True
+        return False
+
+    @abstractmethod
+    def save_to(self, path: str):
+        """Save module state to file.
+
+        Args:
+          path (string): path to while where to save.
+        """
+        pass
+
+    @abstractmethod
+    def restore_from(self, path: str):
+        """Restore module's state from file.
+
+        Args:
+          path (string): path to where to restore from.
+        """
+        pass
+
+    @abstractmethod
+    def freeze(self, weights: Set[str] = None):
+        """Freeze weights
+
+        Args:
+          weights (set): set of weight names to freeze
+          If None, all weights are freezed.
+        """
+        pass
+
+    @abstractmethod
+    def unfreeze(self, weights: Set[str] = None):
+        """Unfreeze weights
+
+        Args:
+          weights (set): set of weight names to unfreeze
+          If None, all weights are unfreezed.
+        """
+        pass
 
     @property
     def placement(self):
+        """Module's placement. Currently CPU or GPU.
+        DataParallel and ModelParallel will come later.
+
+        Returns:
+          (DeviceType) Device where NM's weights are located
+        """
         return self._placement
 
     @property
-    def optim_level(self):
-        return self._optim_level
+    def local_parameters(self) -> Optional[Dict]:
+        """Get module's parameters
+
+        Returns:
+          module's parameters
+        """
+        return self._local_parameters
 
     @property
-    def logger(self):
-        warnings.warn("This will be deprecated in future releases. Please use " "nemo.logging instead")
-        return nemo.logging
+    def unique_instance_id(self):
+        """A unique instance id for this object
+
+        Returns:
+          A uniq uuid which can be used to identify this object
+        """
+        return self._uuid
 
     @property
-    def checkpoint_dir(self):
-        return self._exp_manager.ckpt_dir
+    def factory(self):
+        """ Neural module factory which created this module
+        Returns: NeuralModuleFactory instance or None
+        """
+        return self._factory
 
     @property
-    def work_dir(self):
-        return self._exp_manager.work_dir
+    @abstractmethod
+    def num_weights(self):
+        """Number of module's weights
+        """
+        pass
 
-    @property
-    def global_rank(self):
-        return self._global_rank
+    @staticmethod
+    def update_local_params():
+        """
+        Loops through the call chain of class initializations and stops at the
+        first class that is not an instance of Neural Module. At each step of
+        the loop, the class contructor arguments are added to a dictionary
+        containing the local parameters used to construct the Neural Module
+
+        Returns:
+            A dictionary containing all parameters passed to the module's init
+            chain.
+        """
+        local_parameters = {}
+        for frame in stack()[1:]:
+            posname, kwname, localvars = getargvalues(frame[0])[-3:]
+            # Check if caller is a Neural Module
+            if "self" in localvars and isinstance(localvars["self"], NeuralModule):
+                if posname is not None:
+                    raise ValueError("NeuralModules cannot accept `*` " "positional arguments.")
+                # Get func arg dict
+                localvars.update(localvars.pop(kwname, []))
+                del localvars["self"]
+                local_parameters.update(localvars)
+            # Else we have rearched the end of the init callchain and we are
+            # done
+            else:
+                break
+
+        return local_parameters
