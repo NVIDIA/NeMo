@@ -78,7 +78,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
     # NeMo's "core" package
     import nemo
     # NeMo's ASR collection
-    import nemo_asr
+    import nemo.collections.asr as nemo_asr
 
     # 创建 Neural Factory
     # 它会为我们创建日志文件和 tensorboard 记录器
@@ -86,7 +86,6 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
         log_dir='jasper12x1SEP',
         create_tb_writer=True)
     tb_writer = nf.tb_writer
-    logger = nf.logger
 
     # 到训练列表文件的路径
     train_dataset = "<path_to_where_you_put_data>/train_clean_100.json"
@@ -153,7 +152,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
     # 这些帮助函数对于打印和计算不同的指标很重要
     # 比如计算错词率和把它们记录到 tensorboard
     # 这些函数是领域特殊性的，由 NeMo 的不同 collections 提供（nemo_asr，nemo_nlp）
-    from nemo_asr.helpers import monitor_asr_train_progress, \
+    from nemo.collections.asr.helpers import monitor_asr_train_progress, \
         process_evaluation_batch, process_evaluation_epoch
 
     from functools import partial
@@ -167,8 +166,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
         # 为了能把日志打印到屏幕，定义一个 print_func 函数
         print_func=partial(
             monitor_asr_train_progress,
-            labels=labels,
-            logger=logger
+            labels=labels
         ))
 
     saver_callback = nemo.core.CheckpointCallback(
@@ -188,7 +186,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
             ),
         # 如何把每个 batch 的验证集统计指标（比如WER）合并起来
         user_epochs_done_callback=partial(
-            process_evaluation_epoch, tag="DEV-CLEAN", logger=logger
+            process_evaluation_epoch, tag="DEV-CLEAN"
             ),
         eval_step=500,
         tb_writer=tb_writer)

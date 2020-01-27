@@ -1,7 +1,7 @@
 pipeline {
   agent any
   environment {
-      PATH="/home/mrjenkins/anaconda3/envs/py36p1.3.1c10/bin:$PATH"
+      PATH="/home/mrjenkins/anaconda3/envs/py37p1.4.0/bin:$PATH"
   }
   options {
     timeout(time: 1, unit: 'HOURS')
@@ -14,11 +14,16 @@ pipeline {
         sh 'python -c "import torch; print(torch.__version__)"'
       }
     }
-    stage('PEP8 Checks') {
+    stage('Install test requirements') {
       steps {
-        sh 'pycodestyle . --exclude=./tests/other/jasper.py,./tests/other/jasper_zero_dl.py,./collections/nemo_nlp/nemo_nlp/utils/metrics/sacrebleu.py,./collections/nemo_nlp/nemo_nlp/utils/metrics/fairseq_tokenizer.py,./docs/sources/source/conf.py,./collections/nemo_nlp/build'
+        sh 'pip install -r requirements/requirements_test.txt'
       }
-    } 
+    }
+    stage('Code formatting checks') {
+      steps {
+        sh 'python setup.py check_style'
+      }
+    }
 
     stage('Unittests') {
       steps {

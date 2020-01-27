@@ -1,7 +1,8 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import os
 import gzip
+import os
 import shutil
+
 import nemo
 
 # Get Data
@@ -29,56 +30,36 @@ config = {
 }
 
 # instantiate Neural Factory with supported backend
-neural_factory = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch,
-    local_rank=None)
+neural_factory = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, local_rank=None)
 
 # instantiate necessary neural modules
-dl = neural_factory.get_module(
-    name="DialogDataLayer", collection="tutorials",
-    params=config)
+dl = neural_factory.get_module(name="DialogDataLayer", collection="tutorials", params=config)
 
 # Instance one on EncoderRNN
-encoder1 = neural_factory.get_module(
-    name="EncoderRNN", collection="tutorials",
-    params=config)
+encoder1 = neural_factory.get_module(name="EncoderRNN", collection="tutorials", params=config)
 # Instance two on EncoderRNN. It will have different weights from instance one
-encoder2 = neural_factory.get_module(
-    name="EncoderRNN", collection="tutorials",
-    params=config)
-mixer = neural_factory.get_module(
-    name="SimpleCombiner", collection="common",
-    params={}
-)
+encoder2 = neural_factory.get_module(name="EncoderRNN", collection="tutorials", params=config)
+mixer = neural_factory.get_module(name="SimpleCombiner", collection="common", params={})
 
-decoder = neural_factory.get_module(
-    name="LuongAttnDecoderRNN", collection="tutorials",
-    params=config)
+decoder = neural_factory.get_module(name="LuongAttnDecoderRNN", collection="tutorials", params=config)
 
-L = neural_factory.get_module(
-    name="MaskedXEntropyLoss", collection="tutorials",
-    params={})
+L = neural_factory.get_module(name="MaskedXEntropyLoss", collection="tutorials", params={})
 
-decoderInfer = neural_factory.get_module(
-    name="GreedyLuongAttnDecoderRNN", collection="tutorials",
-    params=config)
+decoderInfer = neural_factory.get_module(name="GreedyLuongAttnDecoderRNN", collection="tutorials", params=config)
 # notice trainng and inference decoder share parameters
 decoderInfer.tie_weights_with(decoder, list(decoder.get_weights().keys()))
 
 # express activations flow
 src, src_lengths, tgt, mask, max_tgt_length = dl()
-encoder_outputs1, encoder_hidden1 = encoder1(input_seq=src,
-                                             input_lengths=src_lengths)
-encoder_outputs2, encoder_hidden2 = encoder2(input_seq=src,
-                                             input_lengths=src_lengths)
+encoder_outputs1, encoder_hidden1 = encoder1(input_seq=src, input_lengths=src_lengths)
+encoder_outputs2, encoder_hidden2 = encoder2(input_seq=src, input_lengths=src_lengths)
 encoder_outputs = mixer(x1=encoder_outputs1, x2=encoder_outputs2)
-outputs, hidden = decoder(targets=tgt,
-                          encoder_outputs=encoder_outputs,
-                          max_target_len=max_tgt_length)
+outputs, hidden = decoder(targets=tgt, encoder_outputs=encoder_outputs, max_target_len=max_tgt_length)
 loss = L(predictions=outputs, target=tgt, mask=mask)
 
 # run inference decoder to generate predictions
 outputs_inf, _ = decoderInfer(encoder_outputs=encoder_outputs)
+
 
 # this function is necessary to print intermediate results to console
 
@@ -100,8 +81,8 @@ def outputs2words(tensors, vocab):
 
 # Create trainer and execute training action
 callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=[loss, src, outputs_inf, tgt],
-    print_func=lambda x: outputs2words(x, dl.voc.index2word))
+    tensors=[loss, src, outputs_inf, tgt], print_func=lambda x: outputs2words(x, dl.voc.index2word),
+)
 # Instantiate an optimizer to perform `train` action
 optimizer = neural_factory.get_trainer()
 
@@ -109,6 +90,5 @@ optimizer.train(
     tensors_to_optimize=[loss],
     callbacks=[callback],
     optimizer="adam",
-    optimization_params={"num_epochs": config["num_epochs"],
-                         "lr": 0.001}
+    optimization_params={"num_epochs": config["num_epochs"], "lr": 0.001},
 )

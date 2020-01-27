@@ -1,8 +1,26 @@
-# Copyright (c) 2019 NVIDIA Corporation
+# ! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+# Copyright 2019 NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
 import unittest
-from nemo.backends.pytorch.nm import TrainableNM
-from .context import nemo
+
+import nemo
 from .common_setup import NeMoUnitTest
+from nemo.backends.pytorch.nm import TrainableNM
 
 
 class TestNM1(TrainableNM):
@@ -84,15 +102,16 @@ class TestNeuralModulesPT(NeMoUnitTest):
 
     def test_call_TaylorNet(self):
         x_tg = nemo.core.neural_modules.NmTensor(
-            producer=None, producer_args=None,
+            producer=None,
+            producer_args=None,
             name=None,
             ntype=nemo.core.neural_types.NeuralType(
                 {
-                    0: nemo.core.neural_types.AxisType(
-                        nemo.core.neural_types.BatchTag),
-                    1: nemo.core.neural_types.AxisType(
-                        nemo.core.neural_types.ChannelTag)
-                }))
+                    0: nemo.core.neural_types.AxisType(nemo.core.neural_types.BatchTag),
+                    1: nemo.core.neural_types.AxisType(nemo.core.neural_types.ChannelTag),
+                }
+            ),
+        )
 
         tn = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         # note that real port's name: x was used
@@ -101,8 +120,7 @@ class TestNeuralModulesPT(NeMoUnitTest):
         self.assertEqual(y_pred.producer_args.get("x"), x_tg)
 
     def test_simple_chain(self):
-        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(
-            n=10000, batch_size=1)
+        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=1)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         loss = nemo.backends.pytorch.tutorials.MSELoss()
         x, y = data_source()
@@ -111,15 +129,10 @@ class TestNeuralModulesPT(NeMoUnitTest):
 
         # check producers' bookkeeping
         self.assertEqual(loss_tensor.producer, loss)
-        self.assertEqual(loss_tensor.producer_args,
-                         {"predictions": y_pred, "target": y})
+        self.assertEqual(loss_tensor.producer_args, {"predictions": y_pred, "target": y})
         self.assertEqual(y_pred.producer, trainable_module)
         self.assertEqual(y_pred.producer_args, {"x": x})
         self.assertEqual(y.producer, data_source)
         self.assertEqual(y.producer_args, {})
         self.assertEqual(x.producer, data_source)
         self.assertEqual(x.producer_args, {})
-
-
-if __name__ == '__main__':
-    unittest.main()

@@ -1,0 +1,4 @@
+parameterized
+pytest
+black
+isort[requirements]

@@ -1,21 +1,33 @@
-# Copyright (c) 2019 NVIDIA Corporation
-import unittest
-from .context import nemo
-from .common_setup import NeMoUnitTest
+# ! /usr/bin/python
+# -*- coding: utf-8 -*-
 
-from nemo_nlp import SentencePieceTokenizer
+# Copyright 2019 NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
+from .common_setup import NeMoUnitTest
+from nemo.collections.nlp import SentencePieceTokenizer
 
 
 class TestSPCTokenizer(NeMoUnitTest):
-
     def test_add_special_tokens(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
 
         special_tokens = ["[CLS]", "[MASK]", "[SEP]"]
         tokenizer.add_special_tokens(special_tokens)
 
-        self.assertTrue(tokenizer.vocab_size == tokenizer.original_vocab_size
-                        + len(special_tokens))
+        self.assertTrue(tokenizer.vocab_size == tokenizer.original_vocab_size + len(special_tokens))
 
     def test_text_to_tokens(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
