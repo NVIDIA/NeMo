@@ -22,7 +22,8 @@ import shutil
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.utils.callbacks.squad import eval_epochs_done_callback, eval_iter_callback
+from tests.common_setup import NeMoUnitTest
+from nemo.collections.nlp.callbacks.squad import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.utils.download_squad import SquadDownloader
 from nemo.utils.lr_policies import get_lr_policy
 from tests.common_setup import NeMoUnitTest

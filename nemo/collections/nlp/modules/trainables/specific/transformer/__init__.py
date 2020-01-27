@@ -3,3 +3,4 @@ from .decoders import *
 from .encoders import *
 from .generators import *
 from .modules import *
+from .transformer_nm import *
