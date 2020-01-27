@@ -21,10 +21,9 @@ pipeline {
     }
     stage('Code formatting checks') {
       steps {
-        sh 'python setup.py check_style'
+        sh 'python setup.py style'
       }
     }
-
     stage('Unittests') {
       steps {
         sh './reinstall.sh && python -m unittest tests/*.py'
