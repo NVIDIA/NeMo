@@ -22,6 +22,10 @@
   :target: https://lgtm.com/projects/g/NVIDIA/NeMo/alerts/
   :alt: Total alerts
 
+.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+  :target: https://github.com/psf/black
+  :alt: Code style: black
+
 
 
 NVIDIA Neural Modules: NeMo
