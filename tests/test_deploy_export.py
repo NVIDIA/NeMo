@@ -8,6 +8,12 @@ from ruamel.yaml import YAML
 from .common_setup import NeMoUnitTest
 from .context import nemo, nemo_asr, nemo_nlp
 
+# git clone git@github.com:microsoft/onnxruntime.git
+# cd onnxruntime
+# ./build.sh --update --build --config RelWithDebInfo --build_shared_lib --parallel --use_cuda \
+#            --cudnn_home /usr/lib/x86_64-linux-gnu --cuda_home /usr/local/cuda --enable_pybind --build_wheel
+# pip install --upgrade ./build/Linux/RelWithDebInfo/dist/onnxruntime_gpu-1.1.0-cp37-cp37m-linux_x86_64.whl
+import onnxruntime as ort
 
 class TestDeployExport(NeMoUnitTest):
     def setUp(self) -> None:
@@ -27,6 +33,14 @@ class TestDeployExport(NeMoUnitTest):
             d_format=mode)
 
         self.assertTrue(out.exists())
+        outputs_fwd = module.forward(input_example[0])
+        sess_options = ort.SessionOptions()
+        sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
+        ort_session = ort.InferenceSession(out_name, sess_options)
+        outputs_ort = ort_session.run(None, {'audio_signal': input_example[0].cpu().numpy(),
+                                             'encoded_lengths': input_example[1].cpu().numpy()})
+        outputs_ort = torch.from_numpy(outputs_ort[0]).cuda()
+        self.assertLess((outputs_ort - outputs_fwd).norm(p=2), 5.e-4)
         if out.exists():
             os.remove(out)
 
