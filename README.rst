@@ -106,8 +106,8 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 .. code-block:: bash
 
     python setup.py style
-    python setup.py style  --fix  # Tries to fix error in-place.
-    python setup.py style  --scope=tests  # Operates within certain scope (dir of file).
+    python setup.py style --fix  # Tries to fix error in-place.
+    python setup.py style --scope=tests  # Operates within certain scope (dir of file).
 
 **Unittests**
 
