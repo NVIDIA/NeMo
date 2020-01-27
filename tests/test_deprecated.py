@@ -17,7 +17,7 @@ from io import StringIO
 from unittest.mock import patch
 
 from .common_setup import NeMoUnitTest
-from nemo.utils.decorators.deprecated import deprecated
+from nemo.utils.decorators import deprecated
 
 
 class DeprecatedTestCase(NeMoUnitTest):
@@ -89,8 +89,7 @@ class DeprecatedTestCase(NeMoUnitTest):
         # Check error output.
         self.assertEqual(
             std_err.getvalue().strip(),
-            'Function ``say_whoopie`` is deprecated. It is going \
-to be removed in version 0.1.',
+            "Function ``say_whoopie`` is deprecated. It is going to be removed in the 0.1 version.",
         )
 
     def test_say_kowabunga_deprecated_explanation(self):
@@ -111,7 +110,5 @@ to be removed in version 0.1.',
 
         # Check error output.
         self.assertEqual(
-            std_err.getvalue().strip(),
-            'Function ``say_kowabunga`` is deprecated. Please \
-use ``print_ihaa`` instead.',
+            std_err.getvalue().strip(), 'Function ``say_kowabunga`` is deprecated. Please use ``print_ihaa`` instead.'
         )
