@@ -5,8 +5,8 @@ import copy
 import torch
 import torch.nn as nn
 
-from .modules import MultiHeadAttention, PositionWiseFF
-from .utils import form_attention_mask
+from nemo.collections.nlp.modules.trainables.specific.transformer.modules import MultiHeadAttention, PositionWiseFF
+from nemo.collections.nlp.modules.trainables.specific.transformer.utils import form_attention_mask
 
 
 class TransformerDecoderBlock(nn.Module):

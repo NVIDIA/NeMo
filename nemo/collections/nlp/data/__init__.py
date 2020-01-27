@@ -1,2 +1,2 @@
-from .datasets import *
-from .tokenizers import *
+from nemo.collections.nlp.data.datasets import *
+from nemo.collections.nlp.data.tokenizers import *

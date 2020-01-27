@@ -25,8 +25,6 @@ import random
 import numpy as np
 from torch.utils.data import Dataset
 
-from . import utils
-
 
 def get_features(
     queries,

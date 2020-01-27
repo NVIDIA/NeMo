@@ -1,4 +1,4 @@
-from .tokenizer_spec import TokenizerSpec
+from nemo.collections.nlp.data.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 class WordTokenizer(TokenizerSpec):

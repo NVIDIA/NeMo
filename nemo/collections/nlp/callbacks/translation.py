@@ -3,8 +3,8 @@ __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 import numpy as np
 
-from ..metrics.sacrebleu import corpus_bleu
 from nemo.collections.asr.metrics import word_error_rate
+from nemo.collections.nlp.metrics.sacrebleu import corpus_bleu
 
 GLOBAL_KEYS = ["eval_loss", "ref", "sys", "sent_ids", "nonpad_tokens"]
 

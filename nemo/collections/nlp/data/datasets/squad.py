@@ -27,7 +27,8 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 import nemo
-from ...metrics.squad_metrics import (
+from nemo.collections.nlp.data.datasets.utils import DataProcessor
+from nemo.collections.nlp.metrics.squad_metrics import (
     _compute_softmax,
     _get_best_indexes,
     apply_no_ans_threshold,
@@ -39,7 +40,6 @@ from ...metrics.squad_metrics import (
     merge_eval,
     normalize_answer,
 )
-from .utils import DataProcessor
 from nemo.collections.nlp.utils.nlp_utils import _is_whitespace
 
 
