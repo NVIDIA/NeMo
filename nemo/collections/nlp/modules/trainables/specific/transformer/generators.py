@@ -7,7 +7,7 @@ __all__ = [
 import torch
 import torch.nn as nn
 
-from ..utils.nlp_utils import mask_padded_tokens
+from nemo.collections.nlp.utils.nlp_utils import mask_padded_tokens
 from .utils import NEG_INF
 
 
