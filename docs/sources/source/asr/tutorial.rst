@@ -86,7 +86,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
     # NeMo's "core" package
     import nemo
     # NeMo's ASR collection
-    import nemo_asr
+    import nemo.collections.asr as nemo_asr
 
     # Create a Neural Factory
     # It creates log files and tensorboard writers for us among other functions
@@ -94,7 +94,6 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
         log_dir='jasper12x1SEP',
         create_tb_writer=True)
     tb_writer = nf.tb_writer
-    logger = nf.logger
 
     # Path to our training manifest
     train_dataset = "<path_to_where_you_put_data>/train_clean_100.json"
@@ -162,7 +161,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
     # These helper functions are needed to print and compute various metrics
     # such as word error rate and log them into tensorboard
     # they are domain-specific and are provided by NeMo's collections
-    from nemo_asr.helpers import monitor_asr_train_progress, \
+    from nemo.collections.asr.helpers import monitor_asr_train_progress, \
         process_evaluation_batch, process_evaluation_epoch
 
     from functools import partial
@@ -177,8 +176,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
         # To print logs to screen, define a print_func
         print_func=partial(
             monitor_asr_train_progress,
-            labels=labels,
-            logger=logger
+            labels=labels
         ))
 
     saver_callback = nemo.core.CheckpointCallback(
@@ -199,7 +197,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
             ),
         # how to aggregate statistics (e.g. WER) for the evaluation epoch
         user_epochs_done_callback=partial(
-            process_evaluation_epoch, tag="DEV-CLEAN", logger=logger
+            process_evaluation_epoch, tag="DEV-CLEAN"
             ),
         eval_step=500,
         tb_writer=tb_writer)

@@ -1,14 +1,27 @@
 .. image:: http://www.repostatus.org/badges/latest/active.svg
-	:target: http://www.repostatus.org/#active
-	:alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
+  :target: http://www.repostatus.org/#active
+  :alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
 
 .. image:: https://img.shields.io/badge/documentation-github.io-blue.svg
-	:target: https://nvidia.github.io/NeMo/
-	:alt: NeMo documentation on GitHub pages
-   
+  :target: https://nvidia.github.io/NeMo/
+  :alt: NeMo documentation on GitHub pages
+
 .. image:: https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg
-	:target: https://github.com/NVIDIA/NeMo/blob/master/LICENSE
-	:alt: NeMo core license and license for collections in this repo
+  :target: https://github.com/NVIDIA/NeMo/blob/master/LICENSE
+  :alt: NeMo core license and license for collections in this repo
+
+.. image:: https://coveralls.io/repos/github/NVIDIA/NeMo/badge.svg?branch=master
+  :target: https://coveralls.io/github/NVIDIA/NeMo?branch=master
+  :alt: NeMo code test coverage
+
+.. image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
+  :target: https://lgtm.com/projects/g/NVIDIA/NeMo/context:python
+  :alt: Language grade: Python
+
+.. image:: https://img.shields.io/lgtm/alerts/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
+  :target: https://lgtm.com/projects/g/NVIDIA/NeMo/alerts/
+  :alt: Total alerts
+
 
 
 NVIDIA Neural Modules: NeMo
@@ -82,29 +95,11 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 *Note*: For step 2 and 3, if you want to use NeMo in development mode, use: ``pip install -e .`` instead of ``pip install .``
 
 1) Clone the repository ``git clone https://github.com/NVIDIA/NeMo.git``
-2) Go to NeMo folder and install the toolkit:
-
-.. code-block:: bash
-
-	cd NeMo/nemo
-	pip install .
-
-3) Install the collection(s) you want.
+2) Go to NeMo folder and re-install the toolkit with collections:
 
 .. code-block:: bash
 	
-    # Install the ASR collection from collections/nemo_asr 
-    apt-get install libsndfile1
-    cd NeMo/collections/nemo_asr
-    pip install .
-        
-    # Install the NLP collection from collections/nemo_nlp
-    cd NeMo/collections/nemo_nlp
-    pip install .
-
-    # Install the TTS collection from collections/nemo_tts
-    cd NeMo/collections/nemo_tts
-    pip install .
+    ./reinstall.sh
 
 
 **Unittests**

@@ -141,7 +141,7 @@ Next, we define necessary callbacks:
 
     .. code-block:: python
 
-        from nemo_nlp.callbacks.translation import eval_iter_callback, eval_epochs_done_callback
+        from nemo.collections.nlp.callbacks.translation import eval_iter_callback, eval_epochs_done_callback
 
         train_callback = nemo.core.SimpleLossLoggerCallback(...)
         eval_callback = nemo.core.EvaluatorCallback(...)

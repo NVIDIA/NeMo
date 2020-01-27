@@ -34,76 +34,76 @@ JasperEncoder:
     conv_mask: true
 
     jasper:
-      - filters: 256
-        repeat: 1
-        kernel: [33]
-        stride: [2]
-        dilation: [1]
-        dropout: *drop
-        residual: false
-        separable: true
+        -   filters: 256
+            repeat: 1
+            kernel: [33]
+            stride: [2]
+            dilation: [1]
+            dropout: *drop
+            residual: false
+            separable: true
 
-      - filters: 512
-        repeat: 3
-        kernel: [63]
-        stride: [1]
-        dilation: [1]
-        dropout: *drop
-        residual: true
-        separable: true
+        -   filters: 512
+            repeat: 3
+            kernel: [63]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: true
 
-      - filters: 512
-        repeat: 3
-        kernel: [63]
-        stride: [1]
-        dilation: [1]
-        dropout: *drop
-        residual: true
-        separable: true
+        -   filters: 512
+            repeat: 3
+            kernel: [63]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: true
 
-      - filters: 512
-        repeat: 3
-        kernel: [75]
-        stride: [1]
-        dilation: [1]
-        dropout: *drop
-        residual: true
-        separable: true
+        -   filters: 512
+            repeat: 3
+            kernel: [75]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: true
 
-      - filters: 512
-        repeat: 3
-        kernel: [75]
-        stride: [1]
-        dilation: [1]
-        dropout: *drop
-        residual: true
-        separable: true
+        -   filters: 512
+            repeat: 3
+            kernel: [75]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: true
 
-      - filters: 512
-        repeat: 3
-        kernel: [75]
-        stride: [1]
-        dilation: [1]
-        dropout: *drop
-        residual: true
-        separable: true
+        -   filters: 512
+            repeat: 3
+            kernel: [75]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: true
 
-      - filters: 512
-        repeat: 1
-        kernel: [87]
-        stride: [1]
-        dilation: [2]
-        dropout: *drop
-        residual: false
-        separable: true
+        -   filters: 512
+            repeat: 1
+            kernel: [87]
+            stride: [1]
+            dilation: [2]
+            dropout: *drop
+            residual: false
+            separable: true
 
-      - filters: 1024
-        repeat: 1
-        kernel: [1]
-        stride: [1]
-        dilation: [1]
-        dropout: *drop
-        residual: false
+        -   filters: 1024
+            repeat: 1
+            kernel: [1]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: false
 
 labels: [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
          "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]

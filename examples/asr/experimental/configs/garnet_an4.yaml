@@ -54,29 +54,29 @@ encoder:
     freeze: false
 
     jasper:
-        - filters: 256
-          repeat: 1
-          kernel: [11]
-          stride: [2]
-          dilation: [1]
-          dropout: 0.2
-          residual: false
+        -   filters: 256
+            repeat: 1
+            kernel: [11]
+            stride: [2]
+            dilation: [1]
+            dropout: 0.2
+            residual: false
 
-        - filters: 256
-          repeat: 3
-          kernel: [11]
-          stride: [1]
-          dilation: [1]
-          dropout: 0.2
-          residual: true
+        -   filters: 256
+            repeat: 3
+            kernel: [11]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.2
+            residual: true
 
-        - filters: 512
-          repeat: 2
-          kernel: [17]
-          stride: [1]
-          dilation: [1]
-          dropout: 0.2
-          residual: true
+        -   filters: 512
+            repeat: 2
+            kernel: [17]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.2
+            residual: true
 
 #[[encoder.jasper]]
 #filters: 768
