@@ -14,7 +14,7 @@ from sentencepiece import SentencePieceTrainer as SPT
 from tqdm import tqdm
 
 import nemo
-from ...utils.nlp_utils import get_vocab, label2idx, write_vocab, write_vocab_in_order
+from nemo.collections.nlp.utils.nlp_utils import get_vocab, label2idx, write_vocab, write_vocab_in_order
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
 MODE_EXISTS_TMP = '{} mode of {} dataset has already been processed and stored at {}'

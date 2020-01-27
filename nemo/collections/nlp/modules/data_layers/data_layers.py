@@ -32,8 +32,8 @@ import torch
 from torch.utils import data as pt_data
 
 import nemo
-from nemo.collections.nlp.data import *
 from nemo.backends.pytorch.nm import DataLayerNM
+from nemo.collections.nlp.data import *
 from nemo.core.neural_types import *
 
 

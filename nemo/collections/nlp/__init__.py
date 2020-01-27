@@ -14,7 +14,7 @@
 # =============================================================================
 
 import nemo
-from .data import *
-from .modules import *
+from nemo.collections.nlp.data import *
+from nemo.collections.nlp.modules import *
 
 backend = nemo.core.Backend.PyTorch

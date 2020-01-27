@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 
-from nemo.collections.nlp.utils.nlp_utils import mask_padded_tokens
 from nemo.backends.pytorch.nm import LossNM
+from nemo.collections.nlp.utils.nlp_utils import mask_padded_tokens
 from nemo.core.neural_types import *
 
 __all__ = [
@@ -14,6 +14,7 @@ __all__ = [
     'SmoothedCrossEntropyLoss',
     'TokenClassificationLoss',
 ]
+
 
 class SmoothedCrossEntropyLoss(torch.nn.Module):
     """

@@ -1,6 +1,6 @@
 from transformers import GPT2Tokenizer
 
-from .tokenizer_spec import TokenizerSpec
+from nemo.collections.nlp.data.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 class NemoGPT2Tokenizer(TokenizerSpec):

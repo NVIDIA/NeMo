@@ -36,7 +36,7 @@ import math
 import torch
 from torch import nn
 
-from .utils import gelu
+from nemo.collections.nlp.modules.trainables.specific.transformer.utils import gelu
 
 try:
     from apex.normalization import FusedLayerNorm
