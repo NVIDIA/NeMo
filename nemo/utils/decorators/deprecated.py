@@ -17,10 +17,8 @@ import nemo
 
 
 class deprecated(object):
-    """ Decorator class used for indicating that a function is
-    deprecated and going to be removed.
-    Tracks down which functions printed the warning and
-    will print it only once per function.
+    """ Decorator class used for indicating that a function is deprecated and going to be removed.
+    Tracks down which functions printed the warning and will print it only once per function.
     """
 
     # Static variable - list of names of functions that we already printed
@@ -33,8 +31,7 @@ class deprecated(object):
 
         Args:
           version: Version in which the function will be removed (optional)
-          explanation: Additional explanation (optional), e.g. use method
-          ``blabla instead``.
+          explanation: Additional explanation (optional), e.g. use method ``blabla instead``.
 
         """
         self.version = version
@@ -61,7 +58,8 @@ class deprecated(object):
 
                 # Optionally, add version and alternative.
                 if self.version is not None:
-                    msg = msg + " It is going to be removed in version {}.".format(self.version)
+                    msg = msg + " It is going to be removed in "
+                    msg = msg + "the {} version.".format(self.version)
 
                 if self.explanation is not None:
                     msg = msg + " " + self.explanation
@@ -70,6 +68,6 @@ class deprecated(object):
                 nemo.logging.warning(msg)
 
             # Call the function.
-            func(*args, **kwargs)
+            return func(*args, **kwargs)
 
         return wrapper
