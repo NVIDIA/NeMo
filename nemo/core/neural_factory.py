@@ -17,11 +17,10 @@ from typing import List, Optional
 import numpy as np
 
 import nemo
-from nemo.utils.decorators import deprecated
-
 from ..utils import ExpManager
 from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *
+from nemo.utils.decorators import deprecated
 
 
 class DeploymentFormat(Enum):
