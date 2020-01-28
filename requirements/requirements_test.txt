@@ -1,4 +1,5 @@
 parameterized
 pytest
+pytest-runner
 black
 isort[requirements]
