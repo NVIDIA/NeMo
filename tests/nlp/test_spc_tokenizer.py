@@ -16,8 +16,8 @@
 # limitations under the License.
 # =============================================================================
 
-from .common_setup import NeMoUnitTest
 from nemo.collections.nlp import SentencePieceTokenizer
+from tests.common_setup import NeMoUnitTest
 
 
 class TestSPCTokenizer(NeMoUnitTest):

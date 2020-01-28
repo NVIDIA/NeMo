@@ -17,6 +17,7 @@
 # =============================================================================
 
 import os
+import shutil
 import tarfile
 
 import torch
@@ -24,8 +25,8 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from .common_setup import NeMoUnitTest
 from nemo.core.neural_types import *
+from tests.common_setup import NeMoUnitTest
 
 
 class TestZeroDL(NeMoUnitTest):
@@ -59,20 +60,29 @@ class TestZeroDL(NeMoUnitTest):
         "z",
         " ",
     ]
-    manifest_filepath = "tests/data/asr/an4_train.json"
+    manifest_filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/asr/an4_train.json"))
     yaml = YAML(typ="safe")
 
-    def setUp(self) -> None:
-        super().setUp()
-        data_folder = "tests/data/"
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
         print("Looking up for test ASR data")
-        if not os.path.exists(data_folder + "nemo_asr"):
-            print(f"Extracting ASR data to: {data_folder + 'nemo_asr'}")
-            tar = tarfile.open("tests/data/asr.tar.gz", "r:gz")
+        if not os.path.exists(os.path.join(data_folder, "asr")):
+            print("Extracting ASR data to: {0}".format(os.path.join(data_folder, "asr")))
+            tar = tarfile.open(os.path.join(data_folder, "asr.tar.gz"), "r:gz")
             tar.extractall(path=data_folder)
             tar.close()
         else:
-            print("ASR data found in: {0}".format(data_folder + "asr"))
+            print("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        super().tearDownClass()
+        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
+        print("Looking up for test ASR data")
+        if os.path.exists(os.path.join(data_folder, "asr")):
+            shutil.rmtree(os.path.join(data_folder, "asr"))
 
     def test_simple_train(self):
         print("Simplest train test with ZeroDL")
@@ -103,7 +113,8 @@ class TestZeroDL(NeMoUnitTest):
 
     def test_asr_with_zero_ds(self):
         print("Testing ASR NMs with ZeroDS and without pre-processing")
-        with open("tests/data/jasper_smaller.yaml") as file:
+        path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))
+        with open(path) as file:
             jasper_model_definition = self.yaml.load(file)
 
         dl = nemo.backends.pytorch.common.ZerosDataLayer(
