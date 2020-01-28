@@ -34,6 +34,7 @@ from .common_setup import NeMoUnitTest
 # pip install --upgrade ./build/Linux/RelWithDebInfo/dist/onnxruntime_gpu-1.1.0-cp37-cp37m-linux_x86_64.whl
 import onnxruntime as ort
 
+
 class TestDeployExport(NeMoUnitTest):
     def setUp(self) -> None:
         self.nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.GPU)
