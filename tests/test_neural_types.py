@@ -17,13 +17,12 @@
 # =============================================================================
 
 import tarfile
-import unittest
 
 from ruamel.yaml import YAML
 
 import nemo.collections.asr as nemo_asr
-from .common_setup import NeMoUnitTest
 from nemo.core import *
+from tests.common_setup import NeMoUnitTest
 
 
 class TestNeuralTypes(NeMoUnitTest):

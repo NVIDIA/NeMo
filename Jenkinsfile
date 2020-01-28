@@ -24,9 +24,24 @@ pipeline {
         sh 'python setup.py style'
       }
     }
-    stage('Unittests') {
+    stage('Unittests general') {
       steps {
         sh './reinstall.sh && python -m unittest tests/*.py'
+      }
+    }
+    stage('Unittests ASR') {
+      steps {
+        sh 'python -m unittest tests/asr/*.py'
+      }
+    }
+    stage('Unittests NLP') {
+      steps {
+        sh 'python -m unittest tests/nlp/*.py'
+      }
+    }
+    stage('Unittests TTS') {
+      steps {
+        sh 'python -m unittest tests/tts/*.py'
       }
     }
 
