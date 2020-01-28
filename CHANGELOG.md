@@ -70,15 +70,16 @@ To release a new version, please update the changelog as followed:
 ## [Unreleased]
 
 ### Added
-- Named tensors tuple module's output for graph construction. ([PR #268](https://github.com/NVIDIA/NeMo/pull/268
-)) - @stasbel
+- Named tensors tuple module's output for graph construction.
+([PR #268](https://github.com/NVIDIA/NeMo/pull/268)) - @stasbel
 - Convenient commands for code style testing and auto-reformatting with `isort` and `black`. 
 ([PR #284](https://github.com/NVIDIA/NeMo/pull/284)) - @stasbel
 
 ### Changed
-- Additional Collections Repositories merged into core `nemo_toolkit` package (PR #289) - @DEKHTIARJonathan
-- Refactor manifest files parsing and processing for re-using. ([PR #284](https://github.com/NVIDIA/NeMo/pull/284
-)) - @stasbel
+- Additional Collections Repositories merged into core `nemo_toolkit` package.
+([PR #289](https://github.com/NVIDIA/NeMo/pull/289)) - @DEKHTIARJonathan
+- Refactor manifest files parsing and processing for re-using.
+([PR #284](https://github.com/NVIDIA/NeMo/pull/284)) - @stasbel
 
 ### Dependencies Update
 
