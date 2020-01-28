@@ -17,7 +17,7 @@
 # =============================================================================
 
 import nemo
-from .common_setup import NeMoUnitTest
+from tests.common_setup import NeMoUnitTest
 
 
 class TestNeuralFactory(NeMoUnitTest):

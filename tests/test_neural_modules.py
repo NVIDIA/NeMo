@@ -16,11 +16,9 @@
 # limitations under the License.
 # =============================================================================
 
-import unittest
-
 import nemo
-from .common_setup import NeMoUnitTest
 from nemo.backends.pytorch.nm import TrainableNM
+from tests.common_setup import NeMoUnitTest
 
 
 class TestNM1(TrainableNM):
