@@ -45,7 +45,7 @@ def eval_iter_callback(tensors,
     # comp_res = torch.all(comp_res, axis=-1, keepdims=False)
 
     point_outputs_max = np.argmax(point_outputs, axis=-1)
-    mask_paddings = (tgt_ids == data_desc.pad_id)
+    mask_paddings = (tgt_ids == data_desc.vocab.pad_id)
     comp_res = np.logical_or(point_outputs_max == tgt_ids, mask_paddings)
     comp_res = np.all(comp_res, axis=-1, keepdims=False)
 

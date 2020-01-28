@@ -16,7 +16,7 @@ __all__ = ['TextDataLayer',
            'TranslationDataLayer',
            'GlueDataLayerClassification',
            'GlueDataLayerRegression',
-           'WOZDSTDataLayer']
+           'MultiWOZDataLayer']
 
 import sys
 
@@ -824,7 +824,7 @@ class GlueDataLayerRegression(TextDataLayer):
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 
-class WOZDSTDataLayer(TextDataLayer):
+class MultiWOZDataLayer(TextDataLayer):
 
     @staticmethod
     def create_ports():
