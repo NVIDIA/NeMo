@@ -7,7 +7,7 @@ import torch
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.utils.callbacks.translation import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.callbacks.translation import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = nemo.utils.NemoArgParser(description='Transformer for Neural Machine Translation')

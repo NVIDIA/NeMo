@@ -3,8 +3,8 @@ import math
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
+from nemo.collections.nlp.callbacks.language_modeling import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.utils import LanguageModelDataDesc
-from nemo.collections.nlp.utils.callbacks.language_modeling import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import CosineAnnealing
 
 parser = nemo.utils.NemoArgParser(description='LM Transformer')

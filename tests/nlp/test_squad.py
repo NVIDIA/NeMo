@@ -92,7 +92,7 @@ class TestSquad(NeMoUnitTest):
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
         )
-        model = nemo_nlp.huggingface.BERT(pretrained_model_name=pretrained_bert_model)
+        model = nemo_nlp.BERT(pretrained_model_name=pretrained_bert_model)
         hidden_size = model.local_parameters["hidden_size"]
         qa_head = nemo_nlp.TokenClassifier(hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False,)
         squad_loss = nemo_nlp.QuestionAnsweringLoss()
@@ -199,7 +199,7 @@ class TestSquad(NeMoUnitTest):
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
         )
-        model = nemo_nlp.huggingface.BERT(pretrained_model_name=pretrained_bert_model)
+        model = nemo_nlp.BERT(pretrained_model_name=pretrained_bert_model)
         hidden_size = model.local_parameters["hidden_size"]
         qa_head = nemo_nlp.TokenClassifier(hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False,)
         squad_loss = nemo_nlp.QuestionAnsweringLoss()

@@ -17,7 +17,7 @@
 import numpy as np
 from torch.utils.data import Dataset
 
-import nemo.collections.nlp.utils as utils
+import nemo.collections.nlp.data.utils as utils
 
 
 class LanguageModelingDataset(Dataset):
