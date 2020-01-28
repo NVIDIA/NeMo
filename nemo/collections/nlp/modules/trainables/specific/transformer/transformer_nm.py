@@ -12,6 +12,13 @@ __all__ = [
 import math
 
 from nemo.backends.pytorch.nm import LossNM, TrainableNM
+from nemo.collections.nlp.modules.trainables.specific.transformer.decoders import TransformerDecoder
+from nemo.collections.nlp.modules.trainables.specific.transformer.encoders import TransformerEncoder
+from nemo.collections.nlp.modules.trainables.specific.transformer.generators import (
+    BeamSearchSequenceGenerator,
+    GreedySequenceGenerator,
+)
+from nemo.collections.nlp.modules.trainables.specific.transformer.modules import TransformerEmbedding
 from nemo.collections.nlp.modules.trainables.specific.transformer.utils import transformer_weights_init
 from nemo.core.neural_types import *
 

@@ -67,9 +67,9 @@ from pytorch_transformers import BertConfig
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
+from nemo.collections.nlp.callbacks.bert_pretraining import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.utils import BERTPretrainingDataDesc
-from nemo.collections.nlp.transformer.utils import gelu
-from nemo.collections.nlp.utils.callbacks.bert_pretraining import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.modules.trainables.specific.transformer.utils import gelu
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description='BERT pretraining')
@@ -174,7 +174,7 @@ if not args.preprocessed_data:
     args.vocab_size = tokenizer.vocab_size
 
 print(vars(args))
-bert_model = nemo_nlp.huggingface.BERT(
+bert_model = nemo_nlp.BERT(
     vocab_size=args.vocab_size,
     num_hidden_layers=args.num_hidden_layers,
     hidden_size=args.hidden_size,

@@ -73,8 +73,8 @@ from nemo.collections.nlp import (
     NemoBertTokenizer,
     SentencePieceTokenizer,
 )
+from nemo.collections.nlp.callbacks.glue import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.utils import output_modes, processors
-from nemo.collections.nlp.utils.callbacks.glue import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description="GLUE_with_pretrained_BERT")
@@ -216,10 +216,10 @@ nf = nemo.core.NeuralModuleFactory(
 if args.bert_checkpoint is None:
     """ Use this if you're using a standard BERT model.
     To see the list of pretrained models, call:
-    nemo_nlp.huggingface.BERT.list_pretrained_models()
+    nemo_nlp.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+    model = nemo_nlp.BERT(pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     Replace BERT-STEP-150000.pt with the path to your checkpoint.
@@ -234,9 +234,9 @@ else:
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
             config = json.load(json_file)
-        model = nemo_nlp.huggingface.BERT(**config)
+        model = nemo_nlp.BERT(**config)
     else:
-        model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+        model = nemo_nlp.BERT(pretrained_model_name=args.pretrained_bert_model)
 
     model.restore_from(args.bert_checkpoint)
 
