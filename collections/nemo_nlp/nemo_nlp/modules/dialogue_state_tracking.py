@@ -115,8 +115,8 @@ class TRADEGenerator(TrainableNM):
         else:
             use_teacher_forcing = True
 
-        # TODO: set max_res_len to 10 in evaluation mode.
-        #  if targets are not provided, set it to 10
+        # TODO: set max_res_len to 10 in evaluation mode or
+        #  when targets are not provided
         max_res_len = targets.shape[2]
         batch_size = encoder_hidden.shape[0]
 
@@ -142,21 +142,28 @@ class TRADEGenerator(TrainableNM):
         hidden = hidden.view(-1, self.hidden_size).unsqueeze(0)
 
         enc_len = input_lens.repeat(len(self.slots))
+
+        maxlen = encoder_outputs.size(1)
+        padding_mask_bool = ~ (torch.arange(maxlen, device=self._device)[None, :] <= enc_len[:, None])
+        padding_mask = torch.zeros_like(padding_mask_bool, dtype=encoder_outputs.dtype)
+        padding_mask.masked_fill_(mask=padding_mask_bool, value=-np.inf)
+
         for wi in range(max_res_len):
             dec_state, hidden = self.rnn(decoder_input.unsqueeze(1),
                                          hidden)
 
             enc_out = encoder_outputs.repeat(len(self.slots), 1, 1)
-            context_vec, logits, prob = self.attend(enc_out,
-                                                    hidden.squeeze(0),
-                                                    enc_len)
+            context_vec, logits, prob = \
+                TRADEGenerator.attend(enc_out,
+                                      hidden.squeeze(0),
+                                      padding_mask)
 
             if wi == 0:
                 all_gate_outputs = torch.reshape(self.w_gate(context_vec),
                                                  all_gate_outputs.size())
 
-            p_vocab = self.attend_vocab(self.embedding.weight,
-                                        hidden.squeeze(0))
+            p_vocab = TRADEGenerator.attend_vocab(self.embedding.weight,
+                                                  hidden.squeeze(0))
             p_gen_vec = torch.cat(
                 [dec_state.squeeze(1), context_vec, decoder_input], -1)
             vocab_pointer_switches = self.sigmoid(self.w_ratio(p_gen_vec))
@@ -188,20 +195,23 @@ class TRADEGenerator(TrainableNM):
         all_gate_outputs = all_gate_outputs.transpose(0, 1).contiguous()
         return all_point_outputs, all_gate_outputs
 
-    def attend(self, seq, cond, lens):
+    @staticmethod
+    def attend(seq, cond, padding_mask):
         """
         attend over the sequences `seq` using the condition `cond`.
         """
         scores_ = cond.unsqueeze(1).expand_as(seq).mul(seq).sum(2)
-        max_len = max(lens)
-        for i, l in enumerate(lens):
-            if l < max_len:
-                scores_.data[i, l:] = -np.inf
+        # max_len = max(lens)
+        # for i, l in enumerate(lens):
+        #     if l < max_len:
+        #         scores_.data[i, l:] = -np.inf
+        scores_ = scores_ + padding_mask
         scores = F.softmax(scores_, dim=1)
         context = scores.unsqueeze(2).expand_as(seq).mul(seq).sum(1)
         return context, scores_, scores
 
-    def attend_vocab(self, seq, cond):
+    @staticmethod
+    def attend_vocab(seq, cond):
         scores_ = cond.matmul(seq.transpose(1, 0))
         scores = F.softmax(scores_, dim=1)
         return scores
@@ -251,7 +261,8 @@ class TRADEMaskedCrossEntropy(LossNM):
         loss = self.masking(losses, mask)
         return loss
 
-    def masking(self, losses, mask):
+    @staticmethod
+    def masking(losses, mask):
         mask_ = []
         batch_size = mask.size(0)
         max_len = losses.size(2)

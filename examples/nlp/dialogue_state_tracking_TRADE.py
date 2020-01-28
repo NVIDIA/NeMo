@@ -13,7 +13,7 @@ import nemo
 from nemo.backends.pytorch.common import EncoderRNN
 from nemo.utils.lr_policies import get_lr_policy
 import nemo_nlp
-from nemo_nlp.utils.callbacks.state_tracking_trade import \
+from nemo_nlp.utils.callbacks.dialogue_state_tracking_trade import \
     eval_iter_callback, eval_epochs_done_callback
 from nemo_nlp.data.datasets.utils import MultiWOZDataDesc
 
@@ -71,20 +71,6 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                    files_to_copy=[__file__],
                                    add_time_to_log_dir=True)
 
-data_layer_train = nemo_nlp.WOZDSTDataLayer(args.data_dir,
-                                            data_desc.domains,
-                                            all_domains=data_desc.all_domains,
-                                            vocab=data_desc.vocab,
-                                            slots=data_desc.slots,
-                                            gating_dict=data_desc.gating_dict,
-                                            num_samples=args.num_train_samples,
-                                            shuffle=args.shuffle_data,
-                                            num_workers=0,
-                                            local_rank=args.local_rank,
-                                            batch_size=args.batch_size,
-                                            mode='train',
-                                            is_training=True,
-                                            input_dropout=args.input_dropout)
 vocab_size = len(data_desc.vocab)
 encoder = EncoderRNN(vocab_size,
                      args.emb_dim,
@@ -92,29 +78,29 @@ encoder = EncoderRNN(vocab_size,
                      args.dropout,
                      args.n_layers)
 
-decoder = nemo_nlp.TRADEGenerator(data_layer_train.vocab,
+decoder = nemo_nlp.TRADEGenerator(data_desc.vocab,
                                   encoder.embedding,
                                   args.hid_dim,
                                   args.dropout,
-                                  data_layer_train.slots,
-                                  len(data_layer_train.gating_dict),
+                                  data_desc.slots,
+                                  len(data_desc.gating_dict),
                                   teacher_forcing=args.teacher_forcing)
 
 gate_loss_fn = \
-    nemo_nlp.CrossEntropyLoss3D(num_classes=len(data_layer_train.gating_dict))
+    nemo_nlp.CrossEntropyLoss3D(num_classes=len(data_desc.gating_dict))
 ptr_loss_fn = nemo_nlp.TRADEMaskedCrossEntropy()
-
 total_loss_fn = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
 
-def create_pipeline(num_samples=-1,
-                    batch_size=32,
-                    num_gpus=1,
-                    local_rank=0,
-                    input_dropout=0.0,
-                    mode='train'):
-    nf.logger.info(f"Loading {mode} data...")
-    shuffle = args.shuffle_data if mode == 'train' else False
+def create_pipeline(num_samples,
+                    batch_size,
+                    num_gpus,
+                    local_rank,
+                    input_dropout,
+                    data_prefix,
+                    is_training):
+    nf.logger.info(f"Loading {data_prefix} data...")
+    shuffle = args.shuffle_data if is_training else False
 
     data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
                                           data_desc.domains,
@@ -127,8 +113,8 @@ def create_pipeline(num_samples=-1,
                                           num_workers=0,
                                           local_rank=local_rank,
                                           batch_size=batch_size,
-                                          mode=mode,
-                                          is_training=(mode == "train"),
+                                          mode=data_prefix,
+                                          is_training=is_training,
                                           input_dropout=input_dropout)
 
     src_ids, src_lens, tgt_ids, tgt_lens,\
@@ -160,7 +146,7 @@ def create_pipeline(num_samples=-1,
                            mask=tgt_lens)
     total_loss = total_loss_fn(loss_1=gate_loss, loss_2=ptr_loss)
 
-    if mode == 'train':
+    if is_training:
         tensors_to_evaluate = [total_loss, gate_loss, ptr_loss]
     else:
         tensors_to_evaluate = [total_loss, point_outputs, gate_outputs,
@@ -179,7 +165,8 @@ tensors_train, \
         num_gpus=args.num_gpus,
         local_rank=args.local_rank,
         input_dropout=args.input_dropout,
-        mode=args.train_file_prefix)
+        data_prefix=args.train_file_prefix,
+        is_training=True)
 
 tensors_eval, \
     total_loss_eval, ptr_loss_eval, gate_loss_eval, \
@@ -189,7 +176,8 @@ tensors_eval, \
         num_gpus=args.num_gpus,
         local_rank=args.local_rank,
         input_dropout=0.0,
-        mode=args.eval_file_prefix)
+        data_prefix=args.eval_file_prefix,
+        is_training=False)
 
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(
