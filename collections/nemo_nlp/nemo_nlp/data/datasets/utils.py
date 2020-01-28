@@ -1079,13 +1079,13 @@ class MultiWOZDataDesc:
         print(f'Processing MultiWOZ dataset')
 
         self.all_domains = {'attraction': 0,
-                       'restaurant': 1,
-                       'taxi': 2,
-                       'train': 3,
-                       'hotel': 4,
-                       'hospital': 5,
-                       'bus': 6,
-                       'police': 7}
+                            'restaurant': 1,
+                            'taxi': 2,
+                            'train': 3,
+                            'hotel': 4,
+                            'hospital': 5,
+                            'bus': 6,
+                            'police': 7}
         self.gating_dict = {'ptr': 0, 'dontcare': 1, 'none': 2}
 
         self.data_dir = data_dir
@@ -1097,6 +1097,9 @@ class MultiWOZDataDesc:
 
         self.get_slots()
         self.get_vocab()
+
+        self.vocab_file = None
+        self.slots = None
 
     def get_vocab(self):
         self.vocab_file = f'{self.data_dir}/vocab.pkl'
@@ -1269,6 +1272,7 @@ def fix_general_label_error_multiwoz(labels, slots):
                 label_dict[slot] = "none"
 
     return label_dict
+
 
 class JointIntentSlotDataDesc:
     """ Convert the raw data to the standard format supported by

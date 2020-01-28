@@ -102,20 +102,20 @@ def create_pipeline(num_samples,
     nf.logger.info(f"Loading {data_prefix} data...")
     shuffle = args.shuffle_data if is_training else False
 
-    data_layer = nemo_nlp.WOZDSTDataLayer(args.data_dir,
-                                          data_desc.domains,
-                                          all_domains=data_desc.all_domains,
-                                          vocab=data_desc.vocab,
-                                          slots=data_desc.slots,
-                                          gating_dict=data_desc.gating_dict,
-                                          num_samples=num_samples,
-                                          shuffle=shuffle,
-                                          num_workers=0,
-                                          local_rank=local_rank,
-                                          batch_size=batch_size,
-                                          mode=data_prefix,
-                                          is_training=is_training,
-                                          input_dropout=input_dropout)
+    data_layer = nemo_nlp.MultiWOZDataLayer(args.data_dir,
+                                            data_desc.domains,
+                                            all_domains=data_desc.all_domains,
+                                            vocab=data_desc.vocab,
+                                            slots=data_desc.slots,
+                                            gating_dict=data_desc.gating_dict,
+                                            num_samples=num_samples,
+                                            shuffle=shuffle,
+                                            num_workers=0,
+                                            local_rank=local_rank,
+                                            batch_size=batch_size,
+                                            mode=data_prefix,
+                                            is_training=is_training,
+                                            input_dropout=input_dropout)
 
     src_ids, src_lens, tgt_ids, tgt_lens,\
         gate_labels, turn_domain = data_layer()
