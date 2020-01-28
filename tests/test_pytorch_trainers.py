@@ -16,10 +16,8 @@
 # limitations under the License.
 # =============================================================================
 
-import unittest
-
 import nemo
-from .common_setup import NeMoUnitTest
+from tests.common_setup import NeMoUnitTest
 
 
 class TestPytorchTrainers(NeMoUnitTest):

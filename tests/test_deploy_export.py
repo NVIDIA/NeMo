@@ -25,7 +25,7 @@ from ruamel.yaml import YAML
 import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
-from .common_setup import NeMoUnitTest
+from tests.common_setup import NeMoUnitTest
 
 
 class TestDeployExport(NeMoUnitTest):

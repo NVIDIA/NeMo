@@ -22,17 +22,17 @@ import shutil
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from .common_setup import NeMoUnitTest
 from nemo.collections.nlp.utils.callbacks.squad import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.utils.download_squad import SquadDownloader
 from nemo.utils.lr_policies import get_lr_policy
+from tests.common_setup import NeMoUnitTest
 
 
 class TestSquad(NeMoUnitTest):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data/nlp'))
+        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '../data/nlp'))
         if not os.path.exists(data_folder):
             print(f"mkdir {data_folder}")
             os.mkdir(data_folder)
@@ -66,7 +66,7 @@ class TestSquad(NeMoUnitTest):
     @classmethod
     def tearDownClass(cls) -> None:
         super().tearDownClass()
-        squad_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data/nlp/squad'))
+        squad_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '../data/nlp/squad'))
         if os.path.exists(squad_folder):
             shutil.rmtree(squad_folder)
 
@@ -74,7 +74,7 @@ class TestSquad(NeMoUnitTest):
         version_2_with_negative = False
         pretrained_bert_model = 'bert-base-uncased'
         batch_size = 3
-        data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data/nlp/squad/v1.1'))
+        data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../data/nlp/squad/v1.1'))
         max_query_length = 64
         max_seq_length = 384
         doc_stride = 128
@@ -181,7 +181,7 @@ class TestSquad(NeMoUnitTest):
         version_2_with_negative = True
         pretrained_bert_model = 'bert-base-uncased'
         batch_size = 3
-        data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data/nlp/squad/v2.0'))
+        data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../data/nlp/squad/v2.0'))
         max_query_length = 64
         max_seq_length = 384
         doc_stride = 128
