@@ -63,7 +63,6 @@ WNLI	Accuracy	                    43.66
 import argparse
 import json
 import os
-import sys
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
