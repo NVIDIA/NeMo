@@ -78,7 +78,7 @@ To release a new version, please update the changelog as followed:
 ([PR #289](https://github.com/NVIDIA/NeMo/pull/289)) - @DEKHTIARJonathan
 - Refactor manifest files parsing and processing for re-using.
 ([PR #284](https://github.com/NVIDIA/NeMo/pull/284)) - @stasbel
-- Project global code style rules enforcing with `isort` and `black` incorporated into CI checks.
+- NeMo is not longer using pep8 code style rules. Code style rules are now enforced with `isort` and `black` incorporated into CI checks.
 ([PR #286](https://github.com/NVIDIA/NeMo/pull/286)) - @stasbel
 
 ### Dependencies Update
