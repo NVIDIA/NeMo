@@ -194,9 +194,9 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=tensors_eval,
     user_iter_callback=lambda x, y: eval_iter_callback(
-        x, y, data_layer_eval),
+        x, y, data_desc),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, data_layer_eval),
+        x, data_desc),
     tb_writer=nf.tb_writer,
     eval_step=steps_per_epoch_train)
 
