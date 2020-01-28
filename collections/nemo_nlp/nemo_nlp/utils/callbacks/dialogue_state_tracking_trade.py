@@ -2,6 +2,7 @@
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 import numpy as np
+import torch
 
 from nemo.utils.exp_logging import get_logger
 
@@ -26,22 +27,28 @@ def eval_iter_callback(tensors,
             loss_numpy = v[0].cpu().numpy()
             global_vars['loss'].append(loss_numpy)
         if kv.startswith('point_outputs'):
-            point_outputs = v[0].cpu().numpy()
+            point_outputs = v[0] #.cpu().numpy()
         if kv.startswith('gate_outputs'):
-            gate_outputs = v[0].cpu().numpy()
+            gate_outputs = v[0] #.cpu().numpy()
         if kv.startswith('gating_labels'):
             gating_labels = v[0].cpu().numpy()
             global_vars['gating_labels'].extend(gating_labels)
         if kv.startswith('tgt_ids'):
-            tgt_ids = v[0].cpu().numpy()
+            tgt_ids = v[0] #.cpu().numpy()
 
-    point_outputs_max = np.argmax(point_outputs, axis=-1)
+    point_outputs_max = torch.argmax(point_outputs, dim=-1)
     mask_paddings = (tgt_ids == eval_data_layer.pad_id)
-    comp_res = np.logical_or(point_outputs_max == tgt_ids, mask_paddings)
-    comp_res = np.all(comp_res, axis=-1, keepdims=False)
-    global_vars['comp_res'].extend(comp_res)
+    comp_res = ((point_outputs_max == tgt_ids) | mask_paddings)
+    comp_res = torch.all(comp_res, axis=-1, keepdims=False)
 
-    global_vars['gating_preds'].extend(np.argmax(gate_outputs, axis=-1))
+    # point_outputs_max = np.argmax(point_outputs, axis=-1)
+    # mask_paddings = (tgt_ids == eval_data_layer.pad_id)
+    # comp_res = np.logical_or(point_outputs_max == tgt_ids, mask_paddings)
+    # comp_res = np.all(comp_res, axis=-1, keepdims=False)
+
+    global_vars['comp_res'].extend(comp_res.cpu().numpy())
+    #global_vars['gating_preds'].extend(np.argmax(gate_outputs, axis=-1))
+    global_vars['gating_preds'].extend(torch.argmax(gate_outputs, axis=-1).cpu().numpy())
 
 
 def eval_epochs_done_callback(global_vars, eval_data_layer):
