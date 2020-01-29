@@ -165,7 +165,7 @@ def get_env(key, *default, **kwargs):
     """
     assert len(default) in (0, 1), "Too many args supplied."
     func = kwargs.get('coerce', lambda x: x)
-    required = (len(default) == 0)
+    required = len(default) == 0
     default = default[0] if not required else None
     return _get_env(key, default=default, coerce=func, required=required)
 

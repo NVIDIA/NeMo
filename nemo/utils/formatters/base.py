@@ -3,10 +3,8 @@
 
 import logging
 
-from nemo.utils.formatters.utils import check_color_support
-from nemo.utils.formatters.utils import to_unicode
-
 from nemo.utils.formatters.colors import Fore as ForegroundColors
+from nemo.utils.formatters.utils import check_color_support, to_unicode
 
 __all__ = ["BaseNeMoFormatter"]
 

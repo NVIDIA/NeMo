@@ -15,26 +15,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging as _logging
+
 # import os
 import sys
+import threading
 
 # import inspect
 import warnings
-
 from contextlib import contextmanager
-
-import threading
-import logging as _logging
 
 # from nemo.constants import NEMO_ENV_VARNAME_SAVE_LOGS_TO_DIR
 from nemo.constants import NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR
-
+from nemo.utils.env_var_parsing import get_env, get_envbool, get_envint
 from nemo.utils.formatters.base import BaseNeMoFormatter
 from nemo.utils.metaclasses import SingletonMetaClass
-
-from nemo.utils.env_var_parsing import get_envbool
-from nemo.utils.env_var_parsing import get_env
-from nemo.utils.env_var_parsing import get_envint
 
 __all__ = [
     "Logger",

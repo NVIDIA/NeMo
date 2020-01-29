@@ -7,7 +7,6 @@ import time
 from shutil import copyfile
 
 import nemo
-
 from nemo.utils.decorators import deprecated
 
 
