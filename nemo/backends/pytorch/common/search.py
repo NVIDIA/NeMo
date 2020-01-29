@@ -3,7 +3,7 @@ __all__ = ['GreedySearch', 'BeamSearch']
 import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
 INF = float('inf')
 BIG_NUM = 1e4

@@ -8,7 +8,7 @@ from torch import nn
 
 from nemo.backends.pytorch.common.parts import Attention
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 from nemo.utils.misc import pad_to
 
 
