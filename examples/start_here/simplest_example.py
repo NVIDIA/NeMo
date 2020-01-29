@@ -2,6 +2,7 @@
 import nemo
 
 nf = nemo.core.NeuralModuleFactory()
+
 # To use CPU-only do:
 # from nemo.core import DeviceType
 # nf = nemo.core.NeuralModuleFactory(placement=DeviceType.CPU)
