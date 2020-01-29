@@ -29,10 +29,7 @@ import logging as _logging
 from nemo.constants import NEMO_ENV_VARNAME_SAVE_LOGS_TO_DIR
 from nemo.constants import NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR
 
-from nemo.utils.formatters import StdOutFormatter
-
-from nemo.utils.formatters import StdFileFormatter
-
+from nemo.utils.formatters import BaseNeMoFormatter
 from nemo.utils.metaclasses import SingletonMetaClass
 
 from nemo.utils import get_envbool
@@ -40,7 +37,7 @@ from nemo.utils import get_env
 from nemo.utils import get_envint
 
 __all__ = [
-    'Logger',
+    "Logger",
 ]
 
 
@@ -65,27 +62,26 @@ class Logger(metaclass=SingletonMetaClass):
     CRITICAL = _logging.CRITICAL
 
     _level_names = {
-        0: 'NOTSET',
-        10: 'DEBUG',
-        20: 'INFO',
-        30: 'WARNING',
-        40: 'ERROR',
-        50: 'CRITICAL',
+        0: "NOTSET",
+        10: "DEBUG",
+        20: "INFO",
+        30: "WARNING",
+        40: "ERROR",
+        50: "CRITICAL",
     }
 
     def __init__(self):
 
         self._logger = None
+
+        # Multi-GPU runs run in separate processes, thread locks shouldn't be needed
         self._logger_lock = threading.Lock()
 
         self._handlers = dict()
 
-        self._log_dir = get_env(NEMO_ENV_VARNAME_SAVE_LOGS_TO_DIR, "")
-
         self.old_warnings_showwarning = None
 
-        if get_envint("RANK", 0) == 0:
-            self._define_logger()
+        self._define_logger()
 
     def _define_logger(self):
 
@@ -94,22 +90,21 @@ class Logger(metaclass=SingletonMetaClass):
             return self._logger
 
         with self._logger_lock:
-
             try:
-                self._logger = _logging.getLogger('nemo_logger')
-                self.reset_stream_handler()
+                self._logger = _logging.getLogger("nemo_logger")
+                # By default, silence all loggers except the logger for rank 0
+                self.remove_stream_handlers()
+                if get_envint("RANK", 0) == 0:
+                    self.add_stream_handlers()
 
             finally:
                 self.set_verbosity(verbosity_level=Logger.INFO)
 
-            self._logger.propagate = False
+        self._logger.propagate = False
 
-    def reset_stream_handler(self):
-
+    def remove_stream_handlers(self):
         if self._logger is None:
-            raise RuntimeError(
-                "Impossible to set handlers if the Logger is not predefined"
-            )
+            raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
         # ======== Remove Handler if already existing ========
 
@@ -123,7 +118,9 @@ class Logger(metaclass=SingletonMetaClass):
         except KeyError:
             pass
 
-        # ================= Streaming Handler =================
+    def add_stream_handlers(self):
+        if self._logger is None:
+            raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
         # Add the output handler.
         if get_envbool(NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR, False):
@@ -131,38 +128,44 @@ class Logger(metaclass=SingletonMetaClass):
 
         else:
             self._handlers["stream_stdout"] = _logging.StreamHandler(sys.stdout)
-            self._handlers["stream_stdout"].addFilter(
-                lambda record: record.levelno <= _logging.INFO
-            )
+            self._handlers["stream_stdout"].addFilter(lambda record: record.levelno <= _logging.INFO)
 
             self._handlers["stream_stderr"] = _logging.StreamHandler(sys.stderr)
-            self._handlers["stream_stderr"].addFilter(
-                lambda record: record.levelno > _logging.INFO
-            )
+            self._handlers["stream_stderr"].addFilter(lambda record: record.levelno > _logging.INFO)
 
-        Formatter = StdOutFormatter
+        formatter = BaseNeMoFormatter
 
-        self._handlers["stream_stdout"].setFormatter(Formatter())
+        self._handlers["stream_stdout"].setFormatter(formatter())
         self._logger.addHandler(self._handlers["stream_stdout"])
 
         try:
-            self._handlers["stream_stderr"].setFormatter(Formatter())
+            self._handlers["stream_stderr"].setFormatter(formatter())
             self._logger.addHandler(self._handlers["stream_stderr"])
         except KeyError:
             pass
 
-    def get_verbosity(self):
+    def reset_stream_handler(self):
+        self.remove_stream_handlers()
+        self.add_stream_handlers()
+
+    def getEffectiveLevel(self):
         """Return how much logging output will be produced."""
         if self._logger is not None:
             return self._logger.getEffectiveLevel()
 
-    def set_verbosity(self, verbosity_level):
+    def get_verbosity(self):
+        return self.getEffectiveLevel()
+
+    def setLevel(self, verbosity_level):
         """Sets the threshold for what messages will be logged."""
         if self._logger is not None:
             self._logger.setLevel(verbosity_level)
 
             for handler in self._logger.handlers:
                 handler.setLevel(verbosity_level)
+
+    def set_verbosity(self, verbosity_level):
+        self.setLevel(verbosity_level)
 
     @contextmanager
     def temp_verbosity(self, verbosity_level):
@@ -247,9 +250,7 @@ class Logger(metaclass=SingletonMetaClass):
 
         logger.warning("Houston, we have a %s", "bit of a problem", exc_info=1)
         """
-        if self._logger is not None and \
-                self._logger.isEnabledFor(Logger.WARNING):
-
+        if self._logger is not None and self._logger.isEnabledFor(Logger.WARNING):
             self._logger._log(Logger.WARNING, msg, args, **kwargs)
 
     def error(self, msg, *args, **kwargs):
@@ -261,8 +262,7 @@ class Logger(metaclass=SingletonMetaClass):
 
         logger.error("Houston, we have a %s", "major problem", exc_info=1)
         """
-        if self._logger is not None and \
-                self._logger.isEnabledFor(Logger.ERROR):
+        if self._logger is not None and self._logger.isEnabledFor(Logger.ERROR):
             self._logger._log(Logger.ERROR, msg, args, **kwargs)
 
     def critical(self, msg, *args, **kwargs):
@@ -274,10 +274,9 @@ class Logger(metaclass=SingletonMetaClass):
 
         logger.critical("Houston, we have a %s", "major disaster", exc_info=1)
         """
-        if self._logger is not None and \
-                self._logger.isEnabledFor(Logger.CRITICAL):
+        if self._logger is not None and self._logger.isEnabledFor(Logger.CRITICAL):
             self._logger._log(Logger.CRITICAL, msg, args, **kwargs)
 
 
-# Necessary to catch the correct caller
-_logging._srcfile = os.path.normcase(inspect.getfile(Logger.__class__))
+# # Necessary to catch the correct caller
+# _logging._srcfile = os.path.normcase(inspect.getfile(Logger.__class__))

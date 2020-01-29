@@ -8,7 +8,7 @@ from nemo.utils.formatters.utils import to_unicode
 
 from nemo.utils.formatters.colors import Fore as ForegroundColors
 
-__all__ = ["BaseFormatter"]
+__all__ = ["BaseNeMoFormatter"]
 
 
 class BaseFormatter(logging.Formatter):
@@ -18,9 +18,10 @@ class BaseFormatter(logging.Formatter):
     * Timestamps on every log line.
     * Robust against str/bytes encoding problems.
     """
-    DEFAULT_FORMAT = '%(color)s[%(levelname)1.1s %(asctime)s %(module)s:%(lineno)d]%(end_color)s %(message)s'
 
-    DEFAULT_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
+    DEFAULT_FORMAT = "%(color)s[%(levelname)1.1s %(asctime)s %(module)s:%(lineno)d]%(end_color)s %(message)s"
+
+    DEFAULT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
     DEFAULT_COLORS = {
         logging.DEBUG: ForegroundColors.CYAN,
@@ -58,7 +59,7 @@ class BaseFormatter(logging.Formatter):
 
         self._fmt = fmt
         self._colors = {}
-        self._normal = ''
+        self._normal = ""
 
         if color and check_color_support():
             self._colors = colors
@@ -95,7 +96,7 @@ class BaseFormatter(logging.Formatter):
             record.color = self._colors[record.levelno]
             record.end_color = self._normal
         else:
-            record.color = record.end_color = ''
+            record.color = record.end_color = ""
 
         formatted = self._fmt % record.__dict__
 
@@ -108,7 +109,11 @@ class BaseFormatter(logging.Formatter):
             # each line separately so that non-utf8 bytes don't cause
             # all the newlines to turn into '\n'.
             lines = [formatted.rstrip()]
-            lines.extend(to_unicode(ln) for ln in record.exc_text.split('\n'))
+            lines.extend(to_unicode(ln) for ln in record.exc_text.split("\n"))
 
-            formatted = '\n'.join(lines)
+            formatted = "\n".join(lines)
         return formatted.replace("\n", "\n    ")
+
+
+class BaseNeMoFormatter(logging.Formatter):
+    DEFAULT_FORMAT = "%(color)s[NeMo %(levelname)1.1s %(asctime)s %(module)s:%(lineno)d]%(end_color)s %(message)s"

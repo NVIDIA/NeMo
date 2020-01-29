@@ -3,55 +3,53 @@ Source: https://github.com/tartley/colorama/blob/master/colorama/ansi.py
 Copyright: Jonathan Hartley 2013. BSD 3-Clause license.
 """
 
-CSI = '\033['
-OSC = '\033]'
-BEL = '\007'
+CSI = "\033["
+OSC = "\033]"
+BEL = "\007"
 
 
 def code_to_chars(code):
-    return CSI + str(code) + 'm'
+    return CSI + str(code) + "m"
 
 
 def set_title(title):
-    return OSC + '2;' + title + BEL
+    return OSC + "2;" + title + BEL
 
 
 def clear_screen(mode=2):
-    return CSI + str(mode) + 'J'
+    return CSI + str(mode) + "J"
 
 
 def clear_line(mode=2):
-    return CSI + str(mode) + 'K'
+    return CSI + str(mode) + "K"
 
 
 class AnsiCodes(object):
-
     def __init__(self):
         # the subclasses declare class attributes which are numbers.
         # Upon instantiation we define instance attributes, which are the same
         # as the class attributes but wrapped with the ANSI escape sequence
         for name in dir(self):
-            if not name.startswith('_'):
+            if not name.startswith("_"):
                 value = getattr(self, name)
                 setattr(self, name, code_to_chars(value))
 
 
 class AnsiCursor(object):
-
     def UP(self, n=1):
-        return CSI + str(n) + 'A'
+        return CSI + str(n) + "A"
 
     def DOWN(self, n=1):
-        return CSI + str(n) + 'B'
+        return CSI + str(n) + "B"
 
     def FORWARD(self, n=1):
-        return CSI + str(n) + 'C'
+        return CSI + str(n) + "C"
 
     def BACK(self, n=1):
-        return CSI + str(n) + 'D'
+        return CSI + str(n) + "D"
 
     def POS(self, x=1, y=1):
-        return CSI + str(y) + ';' + str(x) + 'H'
+        return CSI + str(y) + ";" + str(x) + "H"
 
 
 class AnsiFore(AnsiCodes):
