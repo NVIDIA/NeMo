@@ -257,7 +257,7 @@ class TRADEMaskedCrossEntropy(LossNM):
         log_probs_flat = torch.log(torch.clamp(logits_flat, min=eps))
         target_flat = targets.view(-1, 1)
         losses_flat = -torch.gather(log_probs_flat, dim=1, index=target_flat)
-        losses = losses_flat.view(*targets.size())  # b * |s| * m
+        losses = losses_flat.view(*targets.size())
         loss = self.masking(losses, mask)
         return loss
 
