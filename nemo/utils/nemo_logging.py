@@ -148,6 +148,16 @@ class Logger(metaclass=SingletonMetaClass):
         self.remove_stream_handlers()
         self.add_stream_handlers()
 
+    def add_file_handler(self, log_file):
+        if self._logger is None:
+            raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
+
+        self._handlers["file"] = _logging.FileHandler(log_file)
+
+        formatter = BaseNeMoFormatter
+        self._handlers["file"].setFormatter(formatter())
+        self._logger.addHandler(self._handlers["file"])
+
     def getEffectiveLevel(self):
         """Return how much logging output will be produced."""
         if self._logger is not None:
