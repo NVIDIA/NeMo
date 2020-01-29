@@ -120,9 +120,10 @@ class RealFunctionDataLayer(DataLayerNM):
     Args:
         n: Total number of samples
         batch_size: Size of each batch per iteration
-        f: A lambda of the function to apply to each x value to get labels.
+        f_name: Name of the function that will be applied to each x value to get labels.
            Must take a torch tensor as input, and output a torch tensor of
            the same shape. Defaults to torch.sin().
+           [Options: sin | cos]
         x_lo: Lower bound of domain to sample
         x_hi: Upper bound of domain to sample
     """
@@ -149,15 +150,21 @@ class RealFunctionDataLayer(DataLayerNM):
             "y": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
-    def __init__(self, *, n, batch_size, f=t.sin, x_lo=-4, x_hi=4, **kwargs):
-        DataLayerNM.__init__(self, **kwargs)
+    def __init__(self, *, n, batch_size, f_name="sin", x_lo=-4, x_hi=4):
+        DataLayerNM.__init__(self)
+
+        # Dicionary with handled functions.
+        handled_funcs = {"sin": t.sin, "cos": t.cos}
+
+        # Get function - raises an exception if function is not handled
+        func = handled_funcs[f_name]
 
         self._n = n
         self._batch_size = batch_size
         self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
 
         x_data = t.tensor(np.random.uniform(low=x_lo, high=x_hi, size=self._n)).unsqueeze(-1).to(self._device)
-        y_data = f(x_data)
+        y_data = func(x_data)
 
         self._data_iterator = t_utils.DataLoader(
             t_utils.TensorDataset(x_data.float(), y_data.float()), batch_size=self._batch_size,

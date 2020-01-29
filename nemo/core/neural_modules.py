@@ -7,9 +7,10 @@ import uuid
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from enum import Enum
-from inspect import getargvalues, stack
+from inspect import getargvalues, getfullargspec, stack
 from typing import Dict, List, Optional, Set, Tuple
 
+import nemo
 from .neural_factory import DeviceType, Optimization
 from .neural_types import (
     CanNotInferResultNeuralType,
@@ -49,26 +50,44 @@ class NeuralModule(ABC):
             whatever is specified in factory.
     """
 
-    def __init__(
-        self, *, pretrained_model_name=None, factory=None, placement=None, **kwargs,
-    ):
-        self._pretrained_model_name = pretrained_model_name
-        self._local_parameters = self.update_local_params()
+    def __init__(self, pretrained_model_name=None, factory=None, placement=None):
+
+        # Set factory.
+        self._factory = factory
 
         default_factory = NeuralModuleFactory.get_default_factory()
         if (factory is None) and (default_factory is not None):
             factory = default_factory
 
+        # TK: So starting from that point - is it even possible that the factory will be None??
+
         # Set module properties from factory else use defaults
+        print("factory.placement = ", factory.placement)
         self._placement = factory.placement if factory is not None else DeviceType.GPU
-        self._opt_level = factory.optim_level if factory is not None else Optimization.mxprO0
 
         # Update module properties using overrides if overrides exist
         if placement is not None:
             self._placement = placement
+        print("self.placement = ", self.placement)
 
-        self._factory = factory
+        # Optimization level.
+        self._opt_level = factory.optim_level if factory is not None else Optimization.mxprO0
+
+        # Get object UUID.
         self._uuid = str(uuid.uuid4())
+
+        # Retrieve dictionary of parameters (keys, values) passed to init.
+        self._init_params = self.extract_init_params()
+
+        # Check the types of the values.
+        for key, value in self._init_params.items():
+            print("{}: {} ({})".format(key, value, type(value)))
+
+        # Validate the parameters.
+        # self.validate_params(self._init_params)
+
+        self._pretrained_model_name = pretrained_model_name
+        # self._local_parameters = self.update_local_params()
 
         # if kwargs:
         #    nemo.logging.warning(
@@ -77,7 +96,99 @@ class NeuralModule(ABC):
         #        "arguments:".format(self.__class__.__name__))
         #    nemo.logging.warning("{}".format(kwargs.keys()))
 
-    @deprecated()
+    def extract_init_params(self):
+        """
+            Retrieves the dictionary of of parameters (keys, values) passed to constructor of a class derived
+            (also indirectly) from the Neural Module class.
+
+            Returns:
+                Dictionar containing parameters passed to init().
+        """
+        # print("Hello from extract_init_params")
+        # print(type(self))
+        # print(getfullargspec(type(self).__init__))
+
+        # Get names of arguments of the original module init method.
+        init_keys = getfullargspec(type(self).__init__).args
+
+        # Remove self.
+        if "self" in init_keys:
+            init_keys.remove("self")
+        print("keys: ", init_keys)
+
+        # Create list of params.
+        init_params = {}.fromkeys(init_keys)
+
+        # Retrieve values of those params from the call list.
+        for frame in stack()[1:]:
+            localvars = getargvalues(frame[0]).locals
+            # print("localvars: ", localvars)
+            for key in init_keys:
+                # Found the variable!
+                if key in localvars.keys():
+                    # Save the value.
+                    init_params[key] = localvars[key]
+
+        # Return parameters.
+        return init_params
+
+    def validate_params(self, params):
+        """
+            Checks whether dictionary contains parameters being primitive types (string, int, float etc.)
+            or (lists of)+ primitive types.
+
+            Args:
+                params: dictionary of parameters.
+
+            Returns:
+                True if all parameters were ok, False otherwise.
+        """
+        ok = True
+
+        # Iterate over parameters and check them one by one.
+        for key, variable in params.items():
+            if not self.is_of_allowed_type(variable):
+                nemo.logging.warning(
+                    "{} contains variable {} is of type {} which is not of a allowed.".format(
+                        key, variable, type(variable)
+                    )
+                )
+                ok = False
+
+        # Return the result.
+        return ok
+
+    def is_of_allowed_type(self, var):
+        """
+            A recursive function that checks if a given variable is allowed (in) 
+
+            Args:
+                pretrained_model_name (str): name of pretrained model to use in order.
+
+            Returns:
+                True if all parameters were ok, False otherwise.
+        """
+        var_type = type(var)
+
+        # If this is list - check its elements.
+        if var_type == list:
+            for list_var in var:
+                if not self.is_of_allowed_type(list_var):
+                    return False
+
+        # If this is list - check its elements.
+        elif var_type == dict:
+            for _, dict_var in var.items():
+                if not self.is_of_allowed_type(dict_var):
+                    return False
+
+        elif var_type not in (str, int, float, bool):
+            return False
+
+        # Well, seems that everything is ok.
+        return True
+
+    @deprecated
     @staticmethod
     def create_ports(**kwargs):
         """ Deprecated method, to be remoted in the next release."""
@@ -393,6 +504,7 @@ class NeuralModule(ABC):
         pass
 
     @staticmethod
+    @deprecated(version=0.11)
     def update_local_params():
         """
         Loops through the call chain of class initializations and stops at the

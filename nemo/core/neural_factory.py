@@ -743,8 +743,8 @@ class NeuralModuleFactory(object):
     def optim_level(self):
         return self._optim_level
 
-    @deprecated(version=0.11, explanation="Please use ``nemo.logging instead``")
     @property
+    @deprecated(version=0.11, explanation="Please use ``nemo.logging instead``")
     def logger(self):
         return nemo.logging
 
