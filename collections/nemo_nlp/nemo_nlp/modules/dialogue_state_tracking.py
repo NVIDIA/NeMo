@@ -284,6 +284,7 @@ class TRADEMaskedCrossEntropy(LossNM):
         # mask_ = mask_.transpose(0, 1)
         # if losses.is_cuda:
         #     mask_ = mask_.cuda()
+
         mask_ = mask_.float()
         losses = losses * mask_
         loss = losses.sum() / mask_.sum()
