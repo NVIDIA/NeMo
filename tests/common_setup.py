@@ -24,3 +24,6 @@ import nemo
 class NeMoUnitTest(unittest.TestCase):
     def setUp(self) -> None:
         nemo.core.neural_factory.NeuralModuleFactory.reset_default_factory()
+        print("---------------------------------------------------------")
+        print(self._testMethodName)
+        print("---------------------------------------------------------")

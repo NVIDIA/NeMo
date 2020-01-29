@@ -22,6 +22,10 @@
   :target: https://lgtm.com/projects/g/NVIDIA/NeMo/alerts/
   :alt: Total alerts
 
+.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+  :target: https://github.com/psf/black
+  :alt: Code style: black
+
 
 
 NVIDIA Neural Modules: NeMo
@@ -101,6 +105,13 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 	
     ./reinstall.sh
 
+**Style tests**
+
+.. code-block:: bash
+
+    python setup.py style  # Checks overall project code style and output issues with diff.
+    python setup.py style --fix  # Tries to fix error in-place.
+    python setup.py style --scope=tests  # Operates within certain scope (dir of file).
 
 **Unittests**
 

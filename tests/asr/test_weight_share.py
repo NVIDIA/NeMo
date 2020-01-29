@@ -16,6 +16,9 @@
 # limitations under the License.
 # =============================================================================
 
+import os
+import shutil
+import tarfile
 from typing import Dict
 
 import numpy as np
@@ -24,9 +27,9 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from .common_setup import NeMoUnitTest
 from nemo.core import WeightShareTransform
 from nemo.core.neural_types import *
+from tests.common_setup import NeMoUnitTest
 
 
 class TestWeightSharing(NeMoUnitTest):
@@ -60,7 +63,7 @@ class TestWeightSharing(NeMoUnitTest):
         "z",
         " ",
     ]
-    manifest_filepath = "tests/data/asr/an4_train.json"
+    manifest_filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/asr/an4_train.json"))
     featurizer_config = {
         'window': 'hann',
         'dither': 1e-05,
@@ -74,6 +77,27 @@ class TestWeightSharing(NeMoUnitTest):
         'window_size': 0.02,
     }
     yaml = YAML(typ="safe")
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
+        print("Looking up for test ASR data")
+        if not os.path.exists(os.path.join(data_folder, "asr")):
+            print("Extracting ASR data to: {0}".format(os.path.join(data_folder, "asr")))
+            tar = tarfile.open(os.path.join(data_folder, "asr.tar.gz"), "r:gz")
+            tar.extractall(path=data_folder)
+            tar.close()
+        else:
+            print("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        super().tearDownClass()
+        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
+        print("Looking up for test ASR data")
+        if os.path.exists(os.path.join(data_folder, "asr")):
+            shutil.rmtree(os.path.join(data_folder, "asr"))
 
     def __check_if_weights_are_equal(self, w1: Dict, w2: Dict):
         all_same = set(w1.keys()) == set(w2.keys())
@@ -142,7 +166,8 @@ class TestWeightSharing(NeMoUnitTest):
         self.assertFalse(np.array_equal(embd.embedding.weight.detach().numpy(), weights.detach().numpy(),))
 
     def test_freeze_unfreeze_TrainableNM(self):
-        with open("tests/data/jasper_smaller.yaml") as file:
+        path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))
+        with open(path) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(
             featurizer_config=self.featurizer_config,
