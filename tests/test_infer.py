@@ -41,6 +41,12 @@ class AddsTen(NonTrainableNM):
 
 
 class SubtractsTen(NonTrainableNM):
+    def setUp(self) -> None:
+        super().setUp()
+
+        # Initialize the default Neural Factory - on CPU.
+        self.nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.CPU, backend=nemo.core.Backend.PyTorch)
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 

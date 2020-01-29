@@ -418,8 +418,10 @@ class NeuralModuleFactory(object):
         return mod
 
     @deprecated(version=0.11)
-    def __get_pytorch_module(self, name, params, collection, pretrained):
-        params["factory"] = self
+    def __get_pytorch_module(self, name, collection, params, pretrained):
+        # TK: "factory" is not passed as parameter anymore.
+        # params["factory"] = self
+
         if collection == "toys" or collection == "tutorials" or collection == "other":
             constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.tutorials." + name)
         elif collection == "nemo_nlp":
@@ -489,13 +491,14 @@ class NeuralModuleFactory(object):
             if name == "BERT" and pretrained is True:
                 params["pretrained"] = True
 
-        if "placement" not in params:
-            params["placement"] = self._placement
+        # TK: "placement" is not passed as parameter anymore.
+        # if "placement" not in params:
+        #    params["placement"] = self._placement
         instance = constructor(**params)
         return instance
 
     @deprecated(version=0.11)
-    def get_module(self, name, params, collection, pretrained=False):
+    def get_module(self, name, collection, params, pretrained=False):
         """
         Creates NeuralModule instance
 
@@ -511,22 +514,24 @@ class NeuralModuleFactory(object):
         Returns:
           NeuralModule instance
         """
-        if params is not None and "optimization_level" in params:
-            if params["optimization_level"] != self._optim_level:
-                nemo.logging.warning(
-                    "Module's {0} requested optimization level {1} is"
-                    "different from the one specified by factory - {2}."
-                    "Using: {3} for this module".format(
-                        name, params["optimization_level"], self._optim_level, params["optimization_level"],
-                    )
-                )
-        else:
-            if params is None:
-                params = {}
-            params["optimization_level"] = self._optim_level
+
+        # TK: "optimization_level" is not passed as parameter anymore.
+        # if params is not None and "optimization_level" in params:
+        #    if params["optimization_level"] != self._optim_level:
+        #        nemo.logging.warning(
+        #            "Module's {0} requested optimization level {1} is"
+        #            "different from the one specified by factory - {2}."
+        #            "Using: {3} for this module".format(
+        #                name, params["optimization_level"], self._optim_level, params["optimization_level"],
+        #            )
+        #        )
+        # else:
+        #    if params is None:
+        #        params = {}
+        #    params["optimization_level"] = self._optim_level
 
         if self._backend == Backend.PyTorch:
-            return self.__get_pytorch_module(name=name, params=params, collection=collection, pretrained=pretrained,)
+            return self.__get_pytorch_module(name=name, collection=collection, params=params, pretrained=pretrained,)
         else:
             return None
 

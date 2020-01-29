@@ -36,8 +36,7 @@ class TestNM2(TestNM1):
 
 class TestNeuralModulesPT(NeMoUnitTest):
     def setUp(self) -> None:
-        # Create the default Neural Factory.
-        self.nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.CPU)
+        super().setUp()
 
         # Mockup abstract methods.
         TestNM1.__abstractmethods__ = set()
@@ -62,12 +61,10 @@ class TestNeuralModulesPT(NeMoUnitTest):
         init_params = simple_nm._init_params
         self.assertEqual(init_params["var2"], "hello")
 
-    @unittest.skip("for now - slow")
     def test_constructor_TaylorNet(self):
         tn = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         self.assertEqual(tn._init_params["dim"], 4)
 
-    @unittest.skip("for now - slow")
     def test_call_TaylorNet(self):
         x_tg = nemo.core.neural_modules.NmTensor(
             producer=None,

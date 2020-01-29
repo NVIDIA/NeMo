@@ -29,9 +29,6 @@ from tests.common_setup import NeMoUnitTest
 
 
 class TestDeployExport(NeMoUnitTest):
-    def setUp(self) -> None:
-        self.nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.GPU)
-
     def __test_export_route(self, module, out_name, mode, input_example=None):
         out = Path(out_name)
         if out.exists():
@@ -46,7 +43,7 @@ class TestDeployExport(NeMoUnitTest):
             os.remove(out)
 
     def test_simple_module_export(self):
-        simplest_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4, factory=self.nf)
+        simplest_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         self.__test_export_route(
             module=simplest_module,
             out_name="simple.pt",
