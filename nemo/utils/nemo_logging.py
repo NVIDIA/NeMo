@@ -16,12 +16,8 @@
 # limitations under the License.
 
 import logging as _logging
-
-# import os
 import sys
 import threading
-
-# import inspect
 import warnings
 from contextlib import contextmanager
 
