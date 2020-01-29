@@ -31,11 +31,11 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
         """
         return {"y_pred": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
 
-    def __init__(self, *, dim, **kwargs):
+    def __init__(self, dim):
         # Part specific for Neural Modules API:
         #   (1) call base constructor
         #   (2) define input and output ports
-        TrainableNM.__init__(self, **kwargs)
+        TrainableNM.__init__(self)
 
         # And of Neural Modules specific part. Rest is Pytorch code
         self._dim = dim
@@ -150,7 +150,17 @@ class RealFunctionDataLayer(DataLayerNM):
             "y": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
-    def __init__(self, *, n, batch_size, f_name="sin", x_lo=-4, x_hi=4):
+    def __init__(self, batch_size, f_name="sin", n=1000, x_lo=-4, x_hi=4):
+        """
+            Creates a datalayer returning (x-y) pairs, with n points from a given range.
+
+            Args:
+                batch_size: size of batch
+                f_name: name of function ["sin" | "cos"]
+                n: number of points
+                x_lo: lower boundary along x axis
+                x_hi: higher boundary along x axis
+        """
         DataLayerNM.__init__(self)
 
         # Dicionary with handled functions.

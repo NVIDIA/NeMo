@@ -42,36 +42,21 @@ class NeuralModule(ABC):
     Args:
         pretrained_model_name (str): name of pretrained model to use in order
             to initialize this neural module
-        factory (NeuralModuleFactory): :class:`NeuralModuleFactory` which
-            created or which should mange this instance. Required for
-            multi-gpu training.
-        placement (DeviceType): (default:None) where this module should
-            be placed. If provided, this parameter takes precedence over
-            whatever is specified in factory.
     """
 
-    def __init__(self, pretrained_model_name=None, factory=None, placement=None):
+    def __init__(self, pretrained_model_name=None):
 
-        # Set factory.
-        self._factory = factory
-
-        default_factory = NeuralModuleFactory.get_default_factory()
-        if (factory is None) and (default_factory is not None):
-            factory = default_factory
+        # Get default factory.
+        self._factory = NeuralModuleFactory.get_default_factory()
 
         # TK: So starting from that point - is it even possible that the factory will be None??
 
         # Set module properties from factory else use defaults
-        print("factory.placement = ", factory.placement)
-        self._placement = factory.placement if factory is not None else DeviceType.GPU
-
-        # Update module properties using overrides if overrides exist
-        if placement is not None:
-            self._placement = placement
-        print("self.placement = ", self.placement)
+        self._placement = self._factory.placement
+        # If one needs to change that should override it manually.
 
         # Optimization level.
-        self._opt_level = factory.optim_level if factory is not None else Optimization.mxprO0
+        self._opt_level = self._factory.optim_level
 
         # Get object UUID.
         self._uuid = str(uuid.uuid4())
@@ -79,22 +64,15 @@ class NeuralModule(ABC):
         # Retrieve dictionary of parameters (keys, values) passed to init.
         self._init_params = self.extract_init_params()
 
-        # Check the types of the values.
-        for key, value in self._init_params.items():
-            print("{}: {} ({})".format(key, value, type(value)))
+        # Pint the types of the values.
+        # for key, value in self._init_params.items():
+        #    print("{}: {} ({})".format(key, value, type(value)))
 
         # Validate the parameters.
         # self.validate_params(self._init_params)
 
+        # Store pretrained model name (to be removed/changed)
         self._pretrained_model_name = pretrained_model_name
-        # self._local_parameters = self.update_local_params()
-
-        # if kwargs:
-        #    nemo.logging.warning(
-        #        "When constructing {}. The base "
-        #        "NeuralModule class received the following unused "
-        #        "arguments:".format(self.__class__.__name__))
-        #    nemo.logging.warning("{}".format(kwargs.keys()))
 
     def extract_init_params(self):
         """
@@ -114,7 +92,6 @@ class NeuralModule(ABC):
         # Remove self.
         if "self" in init_keys:
             init_keys.remove("self")
-        print("keys: ", init_keys)
 
         # Create list of params.
         init_params = {}.fromkeys(init_keys)

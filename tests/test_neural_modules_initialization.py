@@ -36,10 +36,12 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         Class testing methods related to Neural Module import/export.
     """
 
-    def __init__(self, *args, **kwargs):
-        super(NeuralModuleConfigTest, self).__init__(*args, **kwargs)
+    def setUp(self) -> None:
 
-        # Overwrite abc abstract methods.
+        # Create the default Neural Factory.
+        self.nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.CPU)
+
+        # Mockup abstract methods.
         MockupModule.__abstractmethods__ = set()
 
         # Create object.

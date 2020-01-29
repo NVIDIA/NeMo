@@ -28,57 +28,21 @@ class TestNM1(TrainableNM):
     def __init__(self, var1=1, var2=2, var3=3):
         super(TestNM1, self).__init__()
 
-    @property
-    def input_ports(self):
-        """Returns definitions of module input ports."""
-        return {}
-
-    @property
-    def output_ports(self):
-        """Returns definitions of module output ports."""
-        return {}
-
-    def foward(self):
-        pass
-
 
 class TestNM2(TestNM1):
     def __init__(self, var2):
         super(TestNM2, self).__init__(var2=var2)
 
-    @property
-    def input_ports(self):
-        """Returns definitions of module input ports."""
-        return {}
-
-    @property
-    def output_ports(self):
-        """Returns definitions of module output ports."""
-        return {}
-
-    def foward(self):
-        pass
-
-
-class BrokenNM(TrainableNM):
-    def __init__(self, var2, *error):
-        super(BrokenNM, self).__init__()
-
-    @property
-    def input_ports(self):
-        """Returns definitions of module input ports."""
-        return {}
-
-    @property
-    def output_ports(self):
-        """Returns definitions of module output ports."""
-        return {}
-
-    def foward(self):
-        pass
-
 
 class TestNeuralModulesPT(NeMoUnitTest):
+    def setUp(self) -> None:
+        # Create the default Neural Factory.
+        self.nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.CPU)
+
+        # Mockup abstract methods.
+        TestNM1.__abstractmethods__ = set()
+        TestNM2.__abstractmethods__ = set()
+
     def test_default_init_params(self):
         simple_nm = TestNM1(var1=1)
         init_params = simple_nm._init_params
@@ -86,28 +50,17 @@ class TestNeuralModulesPT(NeMoUnitTest):
         self.assertEqual(init_params["var2"], 2)
         self.assertEqual(init_params["var3"], 3)
 
-    # @unittest.skip("for now - slow")
     def test_simple_init_params(self):
         simple_nm = TestNM1(var1=10, var3=30)
         init_params = simple_nm._init_params
-        print(init_params)
         self.assertEqual(init_params["var1"], 10)
         self.assertEqual(init_params["var2"], 2)
         self.assertEqual(init_params["var3"], 30)
 
-    # @unittest.skip("for now - slow")
     def test_nested_init_params(self):
         simple_nm = TestNM2(var2="hello")
         init_params = simple_nm._init_params
         self.assertEqual(init_params["var2"], "hello")
-        # Those are not passed to init() of the leaf (NM2) class - so not important.
-        # self.assertEqual(init_params["var1"], 1)
-        # self.assertEqual(init_params["var3"], 3)
-
-    @unittest.skip("for now - slow")
-    def test_posarg_check(self):
-        with self.assertRaises(ValueError):
-            NM = BrokenNM(8)
 
     @unittest.skip("for now - slow")
     def test_constructor_TaylorNet(self):
@@ -134,7 +87,6 @@ class TestNeuralModulesPT(NeMoUnitTest):
         self.assertEqual(y_pred.producer, tn)
         self.assertEqual(y_pred.producer_args.get("x"), x_tg)
 
-    @unittest.skip("for now - slow")
     def test_simple_chain(self):
         data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=1)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
