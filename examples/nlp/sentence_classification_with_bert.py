@@ -66,10 +66,12 @@ nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
 
 if args.bert_checkpoint and args.bert_config:
-    pretrained_bert_model = nemo_nlp.huggingface.BERT(config_filename=args.bert_config, factory=nf)
+    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(config_filename=args.bert_config, factory=nf)
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 else:
-    pretrained_bert_model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model, factory=nf)
+    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
+        pretrained_model_name=args.pretrained_bert_model, factory=nf
+    )
 
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
@@ -77,7 +79,7 @@ tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 data_desc = SentenceClassificationDataDesc(args.dataset_name, args.data_dir, args.do_lower_case)
 
 # Create sentence classification loss on top
-classifier = nemo_nlp.SequenceClassifier(
+classifier = nemo_nlp.nm.trainables.SequenceClassifier(
     hidden_size=hidden_size, num_classes=data_desc.num_labels, dropout=args.fc_dropout
 )
 
@@ -93,7 +95,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
     shuffle = args.shuffle_data if mode == 'train' else False
 
-    data_layer = nemo_nlp.BertSentenceClassificationDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.BertSentenceClassificationDataLayer(
         input_file=data_file,
         tokenizer=tokenizer,
         max_seq_length=args.max_seq_length,

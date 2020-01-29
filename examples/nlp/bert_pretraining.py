@@ -154,19 +154,19 @@ if not args.preprocessed_data:
     )
     if args.tokenizer == "sentence-piece":
         nemo.logging.info("To use SentencePieceTokenizer.")
-        tokenizer = nemo_nlp.SentencePieceTokenizer(model_path=data_desc.tokenizer_model)
+        tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=data_desc.tokenizer_model)
         tokenizer.add_special_tokens(special_tokens)
     elif args.tokenizer == "nemo-bert":
         nemo.logging.info("To use NemoBertTokenizer.")
         vocab_file = os.path.join(args.data_dir, 'vocab.txt')
         # To train on a Chinese dataset, use NemoBertTokenizer
-        tokenizer = nemo_nlp.NemoBertTokenizer(vocab_file=vocab_file)
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(vocab_file=vocab_file)
     else:
         raise ValueError("Please add your tokenizer " "or use sentence-piece or nemo-bert.")
     args.vocab_size = tokenizer.vocab_size
 
 print(vars(args))
-bert_model = nemo_nlp.BERT(
+bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
     vocab_size=args.vocab_size,
     num_hidden_layers=args.num_hidden_layers,
     hidden_size=args.hidden_size,
@@ -183,17 +183,17 @@ if args.bert_checkpoint is not None:
 data layers, BERT encoder, and MLM and NSP loss functions
 """
 
-mlm_classifier = nemo_nlp.BertTokenClassifier(
+mlm_classifier = nemo_nlp.nm.trainables.BertTokenClassifier(
     args.hidden_size, num_classes=args.vocab_size, activation=args.hidden_act, log_softmax=True
 )
-mlm_loss_fn = nemo_nlp.MaskedLanguageModelingLossNM()
+mlm_loss_fn = nemo_nlp.nm.losses.MaskedLanguageModelingLossNM()
 if not args.only_mlm_loss:
-    nsp_classifier = nemo_nlp.SequenceClassifier(
+    nsp_classifier = nemo_nlp.nm.trainables.SequenceClassifier(
         args.hidden_size, num_classes=2, num_layers=2, activation='tanh', log_softmax=False
     )
     nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 
-    bert_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
+    bert_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 
 # tie weights of MLM softmax layer and embedding layer of the encoder
 if mlm_classifier.mlp.last_linear_layer.weight.shape != bert_model.bert.embeddings.word_embeddings.weight.shape:
@@ -208,12 +208,12 @@ def create_pipeline(data_file, batch_size, preprocessed_data=False, batches_per_
             kwargs['mask_probability'],
             kwargs['short_seq_prob'],
         )
-        data_layer = nemo_nlp.BertPretrainingDataLayer(
+        data_layer = nemo_nlp.nm.data_layers.BertPretrainingDataLayer(
             tokenizer, data_file, max_seq_length, mask_probability, short_seq_prob, batch_size=batch_size
         )
     else:
         training, max_predictions_per_seq = (kwargs['training'], kwargs['max_predictions_per_seq'])
-        data_layer = nemo_nlp.BertPretrainingPreprocessedDataLayer(
+        data_layer = nemo_nlp.nm.data_layers.BertPretrainingPreprocessedDataLayer(
             data_file, max_predictions_per_seq, batch_size=batch_size, training=training
         )
 

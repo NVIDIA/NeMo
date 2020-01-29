@@ -202,10 +202,10 @@ nf = nemo.core.NeuralModuleFactory(
 if args.bert_checkpoint is None:
     """ Use this if you're using a standard BERT model.
     To see the list of pretrained models, call:
-    nemo_nlp.BERT.list_pretrained_models()
+    nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo_nlp.BERT(pretrained_model_name=args.pretrained_bert_model)
+    model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     Replace BERT-STEP-150000.pt with the path to your checkpoint.
@@ -220,9 +220,9 @@ else:
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
             config = json.load(json_file)
-        model = nemo_nlp.BERT(**config)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
     else:
-        model = nemo_nlp.BERT(pretrained_model_name=args.pretrained_bert_model)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
     model.restore_from(args.bert_checkpoint)
 
@@ -230,10 +230,12 @@ hidden_size = model.local_parameters["hidden_size"]
 
 # uses [CLS] token for classification (the first token)
 if args.task_name == 'sts-b':
-    pooler = nemo_nlp.SequenceRegression(hidden_size=hidden_size)
+    pooler = nemo_nlp.nm.trainables.SequenceRegression(hidden_size=hidden_size)
     glue_loss = MSELoss()
 else:
-    pooler = nemo_nlp.SequenceClassifier(hidden_size=hidden_size, num_classes=num_labels, log_softmax=False)
+    pooler = nemo_nlp.nm.trainables.SequenceClassifier(
+        hidden_size=hidden_size, num_classes=num_labels, log_softmax=False
+    )
     glue_loss = CrossEntropyLoss()
 
 

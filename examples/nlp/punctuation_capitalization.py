@@ -110,7 +110,7 @@ if args.bert_checkpoint is None:
     nemo_nlp.huggingface.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo_nlp.BERT(pretrained_model_name=args.pretrained_bert_model)
+    model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     """
@@ -124,9 +124,9 @@ else:
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
             config = json.load(json_file)
-        model = nemo_nlp.BERT(**config)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
     else:
-        model = nemo_nlp.BERT(pretrained_model_name=args.pretrained_bert_model)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
     model.restore_from(args.bert_checkpoint)
     nemo.logging.info(f"Model restored from {args.bert_checkpoint}")
@@ -178,7 +178,7 @@ def create_pipeline(
            [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
         )
 
-    data_layer = nemo_nlp.BertPunctuationCapitalizationDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.BertPunctuationCapitalizationDataLayer(
         tokenizer=tokenizer,
         text_file=text_file,
         label_file=label_file,
@@ -228,7 +228,7 @@ def create_pipeline(
         capit_loss = getattr(sys.modules[__name__], capit_loss)
         capit_loss = capit_loss(num_classes=len(capit_label_ids))
 
-        task_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
+        task_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 

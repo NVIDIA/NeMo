@@ -16,7 +16,6 @@
 import nemo
 import nemo.collections.nlp.callbacks
 import nemo.collections.nlp.data
-import nemo.collections.nlp.metrics
 import nemo.collections.nlp.nm
 import nemo.collections.nlp.utils
 

@@ -76,14 +76,14 @@ if args.src_lang == 'en' and args.tgt_lang == 'de':
     We use YouTokenToMe tokenizer trained on joint
     English & German data for both source and target languages.
     """
-    src_tokenizer = nemo_nlp.YouTokenToMeTokenizer(model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
+    src_tokenizer = nemo_nlp.data.YouTokenToMeTokenizer(model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
     src_vocab_size = src_tokenizer.vocab_size
     if args.src_tokenizer_model == args.tgt_tokenizer_model:
         tgt_tokenizer = src_tokenizer
         # source and target use the same tokenizer, set tie_weight to True
         tie_weight = True
     else:
-        tgt_tokenizer = nemo_nlp.YouTokenToMeTokenizer(model_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
+        tgt_tokenizer = nemo_nlp.data.YouTokenToMeTokenizer(model_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
         # source and target use different tokenizers, set tie_weight to False
         tie_weight = False
     tgt_vocab_size = tgt_tokenizer.vocab_size
@@ -92,9 +92,9 @@ elif args.src_lang == 'en' and args.tgt_lang == 'zh':
     We use YouTokenToMeTokenizer for src since the src contains English words
     and CharTokenizer for tgt since the tgt contains Chinese characters.
     """
-    src_tokenizer = nemo_nlp.YouTokenToMeTokenizer(model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
+    src_tokenizer = nemo_nlp.data.YouTokenToMeTokenizer(model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
     src_vocab_size = src_tokenizer.vocab_size
-    tgt_tokenizer = nemo_nlp.CharTokenizer(vocab_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
+    tgt_tokenizer = nemo_nlp.data.CharTokenizer(vocab_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
     tgt_vocab_size = tgt_tokenizer.vocab_size
     # source and target use different tokenizers, set tie_weight to False
     tie_weight = False
@@ -104,7 +104,7 @@ else:
 # instantiate necessary modules for the whole translation pipeline, namely
 # data layers, encoder, decoder, output log_softmax, beam_search_translator
 # and loss function
-encoder = nemo_nlp.TransformerEncoderNM(
+encoder = nemo_nlp.nm.data_layers.TransformerEncoderNM(
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
@@ -117,7 +117,7 @@ encoder = nemo_nlp.TransformerEncoderNM(
     max_seq_length=args.max_seq_length,
 )
 
-decoder = nemo_nlp.TransformerDecoderNM(
+decoder = nemo_nlp.nm.data_layers.TransformerDecoderNM(
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
@@ -130,11 +130,11 @@ decoder = nemo_nlp.TransformerDecoderNM(
     max_seq_length=args.max_seq_length,
 )
 
-log_softmax = nemo_nlp.TokenClassifier(
+log_softmax = nemo_nlp.nm.data_layers.TokenClassifier(
     args.d_model, num_classes=tgt_tokenizer.vocab_size, num_layers=1, log_softmax=True
 )
 
-beam_search = nemo_nlp.BeamSearchTranslatorNM(
+beam_search = nemo_nlp.nm.data_layers.BeamSearchTranslatorNM(
     decoder=decoder,
     log_softmax=log_softmax,
     max_seq_length=args.max_seq_length,
@@ -144,7 +144,7 @@ beam_search = nemo_nlp.BeamSearchTranslatorNM(
     eos_token=tgt_tokenizer.eos_id(),
 )
 
-loss_fn = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(
+loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(
     pad_id=tgt_tokenizer.pad_id(), label_smoothing=args.label_smoothing
 )
 
@@ -154,7 +154,7 @@ if tie_weight:
 
 
 def create_pipeline(dataset_src, dataset_tgt, tokens_in_batch, clean=False, training=True):
-    data_layer = nemo_nlp.TranslationDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.TranslationDataLayer(
         tokenizer_src=src_tokenizer,
         tokenizer_tgt=tgt_tokenizer,
         dataset_src=dataset_src,

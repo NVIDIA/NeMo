@@ -30,7 +30,9 @@ nf = nemo.core.NeuralModuleFactory(
 See the list of pretrained models, call:
 nemo_nlp.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.BERT(pretrained_model_name=args.pretrained_bert_model, factory=nf)
+pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
+    pretrained_model_name=args.pretrained_bert_model, factory=nf
+)
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 
@@ -40,12 +42,12 @@ query = args.query
 if args.do_lower_case:
     query = query.lower()
 
-data_layer = nemo_nlp.BertJointIntentSlotInferDataLayer(
+data_layer = nemo_nlp.nm.data_layers.BertJointIntentSlotInferDataLayer(
     queries=[query], tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
 )
 
 # Create sentence classification loss on top
-classifier = nemo_nlp.JointIntentSlotClassifier(
+classifier = nemo_nlp.nm.trainables.JointIntentSlotClassifier(
     hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
 )
 

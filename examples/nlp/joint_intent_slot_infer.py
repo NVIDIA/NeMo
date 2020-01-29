@@ -35,7 +35,7 @@ nf = nemo.core.NeuralModuleFactory(
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.BERT(pretrained_model_name=args.pretrained_bert_model)
+pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
@@ -43,7 +43,7 @@ data_desc = JointIntentSlotDataDesc(args.data_dir, args.do_lower_case, args.data
 
 # Evaluation pipeline
 nemo.logging.info("Loading eval data...")
-data_layer = nemo_nlp.BertJointIntentSlotDataLayer(
+data_layer = nemo_nlp.nm.data_layers.BertJointIntentSlotDataLayer(
     input_file=f'{data_desc.data_dir}/{args.eval_file_prefix}.tsv',
     slot_file=f'{data_desc.data_dir}/{args.eval_file_prefix}_slots.tsv',
     pad_label=data_desc.pad_label,
@@ -55,7 +55,7 @@ data_layer = nemo_nlp.BertJointIntentSlotDataLayer(
     local_rank=args.local_rank,
 )
 
-classifier = nemo_nlp.JointIntentSlotClassifier(
+classifier = nemo_nlp.nm.trainables.JointIntentSlotClassifier(
     hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots
 )
 

@@ -55,15 +55,17 @@ labels_dict = get_vocab(args.labels_dict)
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
 
-data_layer = nemo_nlp.BertTokenClassificationInferDataLayer(
+data_layer = nemo_nlp.nm.data_layers.BertTokenClassificationInferDataLayer(
     queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
 )
 
-classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size, num_classes=len(labels_dict), dropout=args.fc_dropout)
+classifier = nemo_nlp.nm.trainables.TokenClassifier(
+    hidden_size=hidden_size, num_classes=len(labels_dict), dropout=args.fc_dropout
+)
 
 input_ids, input_type_ids, input_mask, _, subtokens_mask = data_layer()
 

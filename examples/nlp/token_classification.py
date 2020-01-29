@@ -105,10 +105,10 @@ output_file = f'{nf.work_dir}/output.txt'
 if args.bert_checkpoint is None:
     """ Use this if you're using a standard BERT model.
     To see the list of pretrained models, call:
-    nemo_nlp.huggingface.BERT.list_pretrained_models()
+    nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo_nlp.BERT(pretrained_model_name=args.pretrained_bert_model)
+    model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     """
@@ -122,9 +122,9 @@ else:
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
             config = json.load(json_file)
-        model = nemo_nlp.BERT(**config)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
     else:
-        model = nemo_nlp.BERT(pretrained_model_name=args.pretrained_bert_model)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
     model.restore_from(args.bert_checkpoint)
     nemo.logging.info(f"Model restored from {args.bert_checkpoint}")
@@ -171,7 +171,7 @@ def create_pipeline(
            [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
         )
 
-    data_layer = nemo_nlp.BertTokenClassificationDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.BertTokenClassificationDataLayer(
         tokenizer=tokenizer,
         text_file=text_file,
         label_file=label_file,

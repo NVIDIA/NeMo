@@ -69,10 +69,12 @@ See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
 if args.bert_checkpoint and args.bert_config:
-    pretrained_bert_model = nemo_nlp.BERT(config_filename=args.bert_config, factory=nf)
+    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(config_filename=args.bert_config, factory=nf)
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 else:
-    pretrained_bert_model = nemo_nlp.BERT(pretrained_model_name=args.pretrained_bert_model, factory=nf)
+    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
+        pretrained_model_name=args.pretrained_bert_model, factory=nf
+    )
 
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 
@@ -81,7 +83,7 @@ data_desc = JointIntentSlotDataDesc(
 )
 
 # Create sentence classification loss on top
-classifier = nemo_nlp.JointIntentSlotClassifier(
+classifier = nemo_nlp.nm.trainables.JointIntentSlotClassifier(
     hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
 )
 
@@ -89,14 +91,14 @@ if args.class_balancing == 'weighted_loss':
     # Using weighted loss will enable weighted loss for both intents and slots
     # Use the intent_loss_weight hyperparameter to adjust intent loss to
     # prevent overfitting or underfitting.
-    loss_fn = nemo_nlp.JointIntentSlotLoss(
+    loss_fn = nemo_nlp.nm.losses.JointIntentSlotLoss(
         num_slots=data_desc.num_slots,
         slot_classes_loss_weights=data_desc.slot_weights,
         intent_classes_loss_weights=data_desc.intent_weights,
         intent_loss_weight=args.intent_loss_weight,
     )
 else:
-    loss_fn = nemo_nlp.JointIntentSlotLoss(num_slots=data_desc.num_slots)
+    loss_fn = nemo_nlp.nm.losses.JointIntentSlotLoss(num_slots=data_desc.num_slots)
 
 
 def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mode='train'):
@@ -105,7 +107,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
     slot_file = f'{data_desc.data_dir}/{mode}_slots.tsv'
     shuffle = args.shuffle_data if mode == 'train' else False
 
-    data_layer = nemo_nlp.BertJointIntentSlotDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.BertJointIntentSlotDataLayer(
         input_file=data_file,
         slot_file=slot_file,
         pad_label=data_desc.pad_label,

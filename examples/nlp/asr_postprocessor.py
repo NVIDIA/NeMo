@@ -66,14 +66,16 @@ vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 tokens_to_add = vocab_size - tokenizer.vocab_size
 
 zeros_transform = nemo.backends.pytorch.common.ZerosLikeNM()
-encoder = nemo_nlp.BERT(pretrained_model_name=args.pretrained_model, local_rank=args.local_rank)
+encoder = nemo_nlp.nm.trainables.huggingface.BERT(
+    pretrained_model_name=args.pretrained_model, local_rank=args.local_rank
+)
 device = encoder.bert.embeddings.word_embeddings.weight.get_device()
 zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
 encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
     (encoder.bert.embeddings.word_embeddings.weight.data, zeros)
 )
 
-decoder = nemo_nlp.TransformerDecoderNM(
+decoder = nemo_nlp.nm.trainables.TransformerDecoderNM(
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
@@ -90,11 +92,13 @@ decoder = nemo_nlp.TransformerDecoderNM(
 
 decoder.restore_from(args.restore_from, local_rank=args.local_rank)
 
-t_log_softmax = nemo_nlp.TokenClassifier(args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True)
+t_log_softmax = nemo_nlp.nm.trainables.TokenClassifier(
+    args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
+)
 
-loss_fn = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(pad_id=tokenizer.pad_id(), smoothing=0.1)
+loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(pad_id=tokenizer.pad_id(), smoothing=0.1)
 
-beam_search = nemo_nlp.BeamSearchTranslatorNM(
+beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     decoder=decoder,
     log_softmax=t_log_softmax,
     max_seq_length=args.max_seq_length,
@@ -114,7 +118,7 @@ decoder.embedding_layer.position_embedding.weight = encoder.bert.embeddings.posi
 def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):
     dataset_src = os.path.join(args.data_dir, dataset + "." + args.src_lang)
     dataset_tgt = os.path.join(args.data_dir, dataset + "." + args.tgt_lang)
-    data_layer = nemo_nlp.TranslationDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.TranslationDataLayer(
         tokenizer_src=tokenizer,
         tokenizer_tgt=tokenizer,
         dataset_src=dataset_src,

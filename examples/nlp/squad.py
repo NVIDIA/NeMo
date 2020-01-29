@@ -64,7 +64,7 @@ import os
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.utils.callbacks.squad import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.callbacks.squad import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
 
 
@@ -212,7 +212,7 @@ def create_pipeline(
     batches_per_step=1,
     mode="train",
 ):
-    data_layer = nemo_nlp.BertQuestionAnsweringDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
         mode=mode,
         version_2_with_negative=version_2_with_negative,
         batch_size=batch_size,
@@ -268,7 +268,7 @@ if __name__ == "__main__":
 
     if args.tokenizer == "sentencepiece":
         try:
-            tokenizer = nemo_nlp.SentencePieceTokenizer(model_path=args.tokenizer_model)
+            tokenizer = nemo_nlp.data.utilsSentencePieceTokenizer(model_path=args.tokenizer_model)
         except Exception:
             raise ValueError(
                 "Using --tokenizer=sentencepiece \
@@ -276,25 +276,27 @@ if __name__ == "__main__":
             )
         tokenizer.add_special_tokens(["[CLS]", "[SEP]"])
     elif args.tokenizer == "nemobert":
-        tokenizer = nemo_nlp.NemoBertTokenizer(args.pretrained_bert_model)
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(args.pretrained_bert_model)
     else:
         raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
 
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
             config = json.load(json_file)
-        model = nemo_nlp.huggingface.BERT(**config)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
     else:
         """ Use this if you're using a standard BERT model.
         To see the list of pretrained models, call:
         nemo_nlp.huggingface.BERT.list_pretrained_models()
         """
-        model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
     hidden_size = model.local_parameters["hidden_size"]
 
-    qa_head = nemo_nlp.TokenClassifier(hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False)
-    squad_loss = nemo_nlp.QuestionAnsweringLoss()
+    qa_head = nemo_nlp.nm.trainables.TokenClassifier(
+        hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False
+    )
+    squad_loss = nemo_nlp.nm.losses.QuestionAnsweringLoss()
     if args.bert_checkpoint is not None:
         model.restore_from(args.bert_checkpoint)
 

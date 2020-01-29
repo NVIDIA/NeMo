@@ -77,15 +77,15 @@ capit_labels_dict = get_vocab(args.capit_labels_dict)
 See the list of pretrained models, call:
 nemo_nlp.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.BERT(pretrained_model_name=args.pretrained_bert_model)
+pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
 
-data_layer = nemo_nlp.BertTokenClassificationInferDataLayer(
+data_layer = nemo_nlp.nm.data_layers.BertTokenClassificationInferDataLayer(
     queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
 )
 
-punct_classifier = nemo_nlp.TokenClassifier(
+punct_classifier = nemo_nlp.nm.trainables.TokenClassifier(
     hidden_size=hidden_size,
     num_classes=len(punct_labels_dict),
     dropout=args.fc_dropout,
@@ -93,7 +93,7 @@ punct_classifier = nemo_nlp.TokenClassifier(
     name='Punctuation',
 )
 
-capit_classifier = nemo_nlp.TokenClassifier(
+capit_classifier = nemo_nlp.nm.trainables.TokenClassifier(
     hidden_size=hidden_size, num_classes=len(capit_labels_dict), dropout=args.fc_dropout, name='Capitalization'
 )
 
