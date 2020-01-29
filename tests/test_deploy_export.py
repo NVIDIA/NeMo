@@ -16,16 +16,15 @@
 # limitations under the License.
 # =============================================================================
 
+import os
+from pathlib import Path
+
 # git clone git@github.com:microsoft/onnxruntime.git
 # cd onnxruntime
 # ./build.sh --update --build --config RelWithDebInfo --build_shared_lib --parallel --use_cuda \
 #            --cudnn_home /usr/lib/x86_64-linux-gnu --cuda_home /usr/local/cuda --enable_pybind --build_wheel
 # pip install --upgrade ./build/Linux/RelWithDebInfo/dist/onnxruntime_gpu-1.1.0-cp37-cp37m-linux_x86_64.whl
 import onnxruntime as ort
-
-import os
-from pathlib import Path
-
 import torch
 from ruamel.yaml import YAML
 
