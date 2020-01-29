@@ -2,15 +2,14 @@
 import os
 import shutil
 import tarfile
-import unittest
 
 from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from .common_setup import NeMoUnitTest
 from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer, collections, parsers
 from nemo.core import DeviceType
+from tests.common_setup import NeMoUnitTest
 
 # ! /usr/bin/python
 # -*- coding: utf-8 -*-
@@ -65,7 +64,7 @@ class TestASRPytorch(NeMoUnitTest):
         "z",
         "'",
     ]
-    manifest_filepath = "tests/data/asr/an4_train.json"
+    manifest_filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/asr/an4_train.json"))
     featurizer_config = {
         'window': 'hann',
         'dither': 1e-05,
@@ -83,23 +82,23 @@ class TestASRPytorch(NeMoUnitTest):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        data_folder = "tests/data/"
+        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
         print("Looking up for test ASR data")
-        if not os.path.exists(data_folder + "asr"):
-            print("Extracting ASR data to: {0}".format(data_folder + "asr"))
-            tar = tarfile.open("tests/data/asr.tar.gz", "r:gz")
+        if not os.path.exists(os.path.join(data_folder, "asr")):
+            print("Extracting ASR data to: {0}".format(os.path.join(data_folder, "asr")))
+            tar = tarfile.open(os.path.join(data_folder, "asr.tar.gz"), "r:gz")
             tar.extractall(path=data_folder)
             tar.close()
         else:
-            print("ASR data found in: {0}".format(data_folder + "asr"))
+            print("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
 
     @classmethod
     def tearDownClass(cls) -> None:
         super().tearDownClass()
-        data_folder = "tests/data/"
+        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
         print("Looking up for test ASR data")
-        if os.path.exists(data_folder + "asr"):
-            shutil.rmtree(data_folder + "asr")
+        if os.path.exists(os.path.join(data_folder, "asr")):
+            shutil.rmtree(os.path.join(data_folder, "asr"))
 
     def test_transcript_normalizers(self):
         # Create test json
@@ -154,7 +153,7 @@ class TestASRPytorch(NeMoUnitTest):
             "mister expand me",
             "mr don't expand me",
         ]
-        manifest_paths = "tests/data/asr/manifest_test.json"
+        manifest_paths = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/asr/manifest_test.json"))
 
         def remove_test_json():
             os.remove(manifest_paths)
@@ -231,18 +230,26 @@ class TestASRPytorch(NeMoUnitTest):
     def test_kaldi_dataloader(self):
         batch_size = 4
         dl = nemo_asr.KaldiFeatureDataLayer(
-            kaldi_dir='tests/data/asr/kaldi_an4/', labels=self.labels, batch_size=batch_size,
+            kaldi_dir=os.path.abspath(os.path.join(os.path.dirname(__file__), '../data/asr/kaldi_an4/')),
+            labels=self.labels,
+            batch_size=batch_size,
         )
         for data in dl.data_iterator:
             self.assertTrue(data[0].size(0) == batch_size)
 
         dl_test_min = nemo_asr.KaldiFeatureDataLayer(
-            kaldi_dir='tests/data/asr/kaldi_an4/', labels=self.labels, batch_size=batch_size, min_duration=1.0,
+            kaldi_dir=os.path.abspath(os.path.join(os.path.dirname(__file__), '../data/asr/kaldi_an4/')),
+            labels=self.labels,
+            batch_size=batch_size,
+            min_duration=1.0,
         )
         self.assertTrue(len(dl_test_min) == 18)
 
         dl_test_max = nemo_asr.KaldiFeatureDataLayer(
-            kaldi_dir='tests/data/asr/kaldi_an4/', labels=self.labels, batch_size=batch_size, max_duration=5.0,
+            kaldi_dir=os.path.abspath(os.path.join(os.path.dirname(__file__), '../data/asr/kaldi_an4/')),
+            labels=self.labels,
+            batch_size=batch_size,
+            max_duration=5.0,
         )
         self.assertTrue(len(dl_test_max) == 19)
 
@@ -318,7 +325,7 @@ class TestASRPytorch(NeMoUnitTest):
                 self.assertTrue(mfcc[0].shape[1] == 15)
 
     def test_jasper_training(self):
-        with open("tests/data/jasper_smaller.yaml") as file:
+        with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(
             featurizer_config=self.featurizer_config,
@@ -370,7 +377,7 @@ class TestASRPytorch(NeMoUnitTest):
         )
 
     def test_double_jasper_training(self):
-        with open("tests/data/jasper_smaller.yaml") as file:
+        with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(
             featurizer_config=self.featurizer_config,
@@ -431,7 +438,7 @@ class TestASRPytorch(NeMoUnitTest):
         )
 
     def test_quartznet_training(self):
-        with open("tests/data/quartznet_test.yaml") as f:
+        with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_test.yaml"))) as f:
             quartz_model_definition = self.yaml.load(f)
         dl = nemo_asr.AudioToTextDataLayer(
             featurizer_config=self.featurizer_config,
@@ -483,7 +490,7 @@ class TestASRPytorch(NeMoUnitTest):
         )
 
     def test_stft_conv(self):
-        with open("tests/data/jasper_smaller.yaml") as file:
+        with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(
             featurizer_config=self.featurizer_config,
@@ -590,7 +597,7 @@ class TestASRPytorch(NeMoUnitTest):
         )
 
     def test_jasper_eval(self):
-        with open("tests/data/jasper_smaller.yaml") as file:
+        with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(
             featurizer_config=self.featurizer_config,

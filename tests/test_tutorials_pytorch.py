@@ -16,8 +16,6 @@
 # # limitations under the License.
 # # =============================================================================
 #
-# import unittest
-#
 # from .common_setup import NeMoUnitTest
 # from nemo.backends.pytorch.tutorials.chatbot.data import loadPrepareData
 #

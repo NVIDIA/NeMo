@@ -17,7 +17,7 @@
 # =============================================================================
 
 import nemo.collections.nlp as nemo_nlp
-from .common_setup import NeMoUnitTest
+from tests.common_setup import NeMoUnitTest
 
 
 class TestBert(NeMoUnitTest):
