@@ -20,13 +20,13 @@ import nemo
 from nemo.core import DeviceType
 
 # Run on CPU.
-nf = nemo.core.NeuralModuleFactory(placement=DeviceType.GPU)
+nf = nemo.core.NeuralModuleFactory(placement=DeviceType.CPU)
 
 
 # instantiate necessary neural modules
 # RealFunctionDataLayer defaults to f=torch.sin, sampling from x=[-4, 4]
 # dl = nemo.tutorials.RealFunctionDataLayer(n=10000, f_name="cos", x=[-4, 4], batch_size=128)
-dl = nemo.tutorials.RealFunctionDataLayer(n=10000, f_name="cos", x_lo=-1, x_hi=1, batch_size=128)
+dl = nemo.tutorials.RealFunctionDataLayer(n=100, f_name="cos", x_lo=-1, x_hi=1, batch_size=128)
 
 
 fx = nemo.tutorials.TaylorNet(dim=4)
@@ -39,7 +39,7 @@ lss = loss(predictions=p, target=y)
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=[lss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}')
+    tensors=[lss], print_func=lambda x: nemo.logging.info(f'Train Loss: {str(x[0].item())}')
 )
 
 
