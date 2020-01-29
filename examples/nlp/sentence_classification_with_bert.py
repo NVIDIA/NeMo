@@ -9,7 +9,7 @@ from transformers import BertTokenizer
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.data.datasets.utils import SentenceClassificationDataDesc
-from nemo.collections.nlp.utils.callbacks.sentence_classification import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.callbacks.sentence_classification import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments

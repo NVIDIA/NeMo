@@ -10,7 +10,7 @@ from nemo.collections.nlp.data import NemoBertTokenizer
 from nemo.collections.nlp.utils.nlp_utils import get_vocab
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description='NER with pretrained BERT')
+parser = argparse.ArgumentParser(description='Punctuation and capitalization detection inference')
 parser.add_argument("--max_seq_length", default=128, type=int)
 parser.add_argument("--fc_dropout", default=0, type=float)
 parser.add_argument("--punct_num_fc_layers", default=3, type=int)
@@ -26,8 +26,7 @@ parser.add_argument(
         'how are you',
         'how\'s the weather today',
         'okay',
-        'we bought four shirts one mug and ten '
-        + 'thousand titan rtx graphics cards the more '
+        'we bought four shirts one mug and ten thousand titan rtx graphics cards the more '
         + 'you buy the more you save',
     ],
     help="Example: --queries 'san francisco' --queries 'la'",

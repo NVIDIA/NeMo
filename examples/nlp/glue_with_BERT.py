@@ -70,7 +70,7 @@ from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
 from nemo.collections.nlp.callbacks.glue import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets.utils import output_modes, processors
-from nemo.collections.nlp.nm.trainables import GlueDataLayerClassification, GlueDataLayerRegression
+from nemo.collections.nlp.nm.data_layers import GlueDataLayerClassificationDataLayer, GlueDataLayerRegressionDataLayer
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description="GLUE_with_pretrained_BERT")
@@ -243,9 +243,9 @@ def create_pipeline(
     evaluate=False,
     processor=task_processors[0],
 ):
-    data_layer = GlueDataLayerClassification
+    data_layer = GlueDataLayerClassificationDataLayer
     if output_mode == 'regression':
-        data_layer = GlueDataLayerRegression
+        data_layer = GlueDataLayerRegressionDataLayer
 
     data_layer = data_layer(
         dataset_type=args.dataset_type,

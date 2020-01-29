@@ -5,8 +5,8 @@
 
 
 __all__ = [
-    'GlueDataLayerClassification',
-    'GlueDataLayerRegression',
+    'GlueDataLayerClassificationDataLayer',
+    'GlueDataLayerRegressionDataLayer',
     'BertJointIntentSlotDataLayer',
     'BertJointIntentSlotInferDataLayer',
     'BertPunctuationCapitalizationDataLayer',
@@ -1010,7 +1010,7 @@ class TranslationDataLayer(TextDataLayer):
         return self._dataloader
 
 
-class GlueDataLayerClassification(TextDataLayer):
+class GlueDataLayerClassificationDataLayer(TextDataLayer):
     """
     Creates the data layer to use for the GLUE classification tasks,
     more details here: https://gluebenchmark.com/tasks
@@ -1079,7 +1079,7 @@ class GlueDataLayerClassification(TextDataLayer):
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 
-class GlueDataLayerRegression(TextDataLayer):
+class GlueDataLayerRegressionDataLayer(TextDataLayer):
     """
     Creates the data layer to use for the GLUE STS-B regression task,
     more details here: https://gluebenchmark.com/tasks

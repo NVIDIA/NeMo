@@ -133,8 +133,8 @@ else:
 
 hidden_size = model.local_parameters["hidden_size"]
 
-classifier = "TokenClassifier"
-task_loss = "TokenClassificationLoss"
+classifier = TokenClassifier
+task_loss = TokenClassificationLoss
 
 
 def create_pipeline(
@@ -202,12 +202,10 @@ def create_pipeline(
 
             nemo.logging.info(f"class_weights: {class_weights}")
 
-        classifier = getattr(sys.modules[__name__], classifier)
         classifier = classifier(
             hidden_size=hidden_size, num_classes=len(label_ids), dropout=dropout, num_layers=num_layers
         )
 
-        task_loss = getattr(sys.modules[__name__], task_loss)
         task_loss = task_loss(num_classes=len(label_ids), class_weights=class_weights)
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)

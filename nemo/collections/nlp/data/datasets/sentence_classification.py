@@ -24,6 +24,7 @@ import random
 
 import numpy as np
 from torch.utils.data import Dataset
+import nemo.collections.nlp.data.datasets.utils as utils
 
 import nemo
 

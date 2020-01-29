@@ -135,11 +135,11 @@ else:
 
 hidden_size = model.local_parameters["hidden_size"]
 
-punct_classifier = "TokenClassifier"
-punct_loss = "TokenClassificationLoss"
+punct_classifier = TokenClassifier
+punct_loss = TokenClassificationLoss
 
-capit_classifier = "TokenClassifier"
-capit_loss = "TokenClassificationLoss"
+capit_classifier = TokenClassifier
+capit_loss = TokenClassificationLoss
 task_loss = None
 
 
@@ -210,7 +210,6 @@ def create_pipeline(
             class_weights = utils.calc_class_weights(punct_label_freqs)
 
         # Initialize punctuation loss
-        punct_classifier = getattr(sys.modules[__name__], punct_classifier)
         punct_classifier = punct_classifier(
             hidden_size=hidden_size,
             num_classes=len(punct_label_ids),
@@ -219,15 +218,12 @@ def create_pipeline(
             name='Punctuation',
         )
 
-        punct_loss = getattr(sys.modules[__name__], punct_loss)
         punct_loss = punct_loss(num_classes=len(punct_label_ids), class_weights=class_weights)
 
         # Initialize capitalization loss
-        capit_classifier = getattr(sys.modules[__name__], capit_classifier)
         capit_classifier = capit_classifier(
             hidden_size=hidden_size, num_classes=len(capit_label_ids), dropout=dropout, name='Capitalization'
         )
-        capit_loss = getattr(sys.modules[__name__], capit_loss)
         capit_loss = capit_loss(num_classes=len(capit_label_ids))
 
         task_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
