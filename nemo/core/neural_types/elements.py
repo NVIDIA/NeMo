@@ -15,10 +15,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['ElementType', 'VoidType']
+__all__ = [
+    'ElementType',
+    'VoidType',
+    'ChannelType',
+    'AcousticEncodedRepresentation',
+    'AudioSignal',
+    'SpectrogramType',
+    'MelSpectrogramType',
+    'MFCCSpectrogramType',
+]
 import abc
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional, Dict
+from typing import Dict, Optional, Tuple
+
 from .comparison import NeuralTypeComparisonResult
 
 
@@ -81,3 +91,42 @@ class VoidType(ElementType):
 
     def compare(cls, second: abc.ABCMeta) -> NeuralTypeComparisonResult:
         return NeuralTypeComparisonResult.SAME
+
+
+# TODO: Consider moving these files elsewhere
+class ChannelType(ElementType):
+    def __str__(self):
+        return "convolutional channel value"
+
+
+class AcousticEncodedRepresentation(ChannelType):
+    def __str__(self):
+        return "encoded representation returned by the acoustic encoder model"
+
+
+class AudioSignal(ElementType):
+    def __str__(self):
+        return "encoded representation returned by the acoustic encoder model"
+
+    def __init__(self, freq=16000):
+        self._params = {}
+        self._params['freq'] = freq
+
+    @property
+    def type_parameters(self):
+        return self._params
+
+
+class SpectrogramType(ChannelType):
+    def __str__(self):
+        return "generic spectorgram type"
+
+
+class MelSpectrogramType(SpectrogramType):
+    def __str__(self):
+        return "mel spectorgram type"
+
+
+class MFCCSpectrogramType(SpectrogramType):
+    def __str__(self):
+        return "mfcc spectorgram type"

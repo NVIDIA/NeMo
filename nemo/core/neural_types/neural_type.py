@@ -26,8 +26,9 @@ __all__ = [
 ]
 import uuid
 from typing import Tuple
+
+from .axes import AxisKind, AxisType
 from .comparison import NeuralTypeComparisonResult
-from .axes import AxisType, AxisKind
 from .elements import *
 
 

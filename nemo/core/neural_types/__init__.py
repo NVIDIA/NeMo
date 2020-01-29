@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .elements import *
 from .axes import *
 from .comparison import *
+from .elements import *
 from .neural_type import *

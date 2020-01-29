@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, RegressionTag, TimeTag
+from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, RegressionTag, TimeTag
 
 __all__ = ['SequenceLoss', 'CrossEntropyLoss', 'MSELoss']
 
