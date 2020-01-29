@@ -1095,11 +1095,11 @@ class MultiWOZDataDesc:
         ontology_file = open(f'{self.data_dir}/ontology.json', 'r')
         self.ontology = json.load(ontology_file)
 
-        self.get_slots()
-        self.get_vocab()
-
         self.vocab_file = None
         self.slots = None
+
+        self.get_slots()
+        self.get_vocab()
 
     def get_vocab(self):
         self.vocab_file = f'{self.data_dir}/vocab.pkl'
