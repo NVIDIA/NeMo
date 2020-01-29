@@ -28,8 +28,8 @@ class TrainableNM(NeuralModule, nn.Module):
     input ports.
     """
 
-    def __init__(self, **kwargs):
-        NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
+    def __init__(self):
+        NeuralModule.__init__(self)  # For NeuralModule API
         nn.Module.__init__(self)  # For PyTorch API
         self._device = get_cuda_device(self.placement)
 
@@ -119,8 +119,8 @@ class TrainableNM(NeuralModule, nn.Module):
 
 
 class NonTrainableNM(NeuralModule):
-    def __init__(self, **kwargs):
-        NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
+    def __init__(self):
+        NeuralModule.__init__(self)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
 
     def __call__(self, force_pt=False, *input, **kwargs):
@@ -179,12 +179,12 @@ class DataLayerNM(NeuralModule):
     data_iterator property to return iterator over the dataset.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         # if 'batch_size' not in kwargs:
         #    nemo.logging.warning("No batch_size specified in the data layer. "
         #                    "Setting batch_size to 1.")
         #    kwargs['batch_size'] = 1
-        NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
+        NeuralModule.__init__(self)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
 
     @property
@@ -275,8 +275,8 @@ class LossNM(NeuralModule):
     You must implement _loss_function method.
     """
 
-    def __init__(self, **kwargs):
-        NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
+    def __init__(self):
+        NeuralModule.__init__(self)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
 
     def get_weights(self):
