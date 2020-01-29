@@ -13,11 +13,7 @@ from nemo.core import DeviceType
 from nemo.core.neural_types import *
 from nemo.utils.misc import pad_to
 
-__all__ = [
-    'AudioToTextDataLayer',
-    'KaldiFeatureDataLayer',
-    'TranscriptDataLayer',
-]
+__all__ = ['AudioToTextDataLayer', 'KaldiFeatureDataLayer', 'TranscriptDataLayer']
 
 
 class AudioToTextDataLayer(DataLayerNM):
@@ -236,7 +232,7 @@ class KaldiFeatureDataLayer(DataLayerNM):
         """
         return {
             'processed_signal': NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag)}
             ),
             'processed_length': NeuralType({0: AxisType(BatchTag)}),
             'transcripts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
@@ -387,12 +383,7 @@ class TranscriptDataLayer(DataLayerNM):
         super().__init__(**kwargs)
 
         # Set up dataset
-        dataset_params = {
-            'path': path,
-            'labels': labels,
-            'bos_id': bos_id,
-            'eos_id': eos_id,
-        }
+        dataset_params = {'path': path, 'labels': labels, 'bos_id': bos_id, 'eos_id': eos_id}
 
         self._dataset = TranscriptDataset(**dataset_params)
 

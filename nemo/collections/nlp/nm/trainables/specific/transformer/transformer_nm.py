@@ -2,24 +2,19 @@
 """
 This package contains Transformer for translation Neural Module
 """
-__all__ = [
-    'TransformerEncoderNM',
-    'TransformerDecoderNM',
-    'GreedyLanguageGeneratorNM',
-    'BeamSearchTranslatorNM',
-]
+__all__ = ['TransformerEncoderNM', 'TransformerDecoderNM', 'GreedyLanguageGeneratorNM', 'BeamSearchTranslatorNM']
 
 import math
 
 from nemo.backends.pytorch.nm import LossNM, TrainableNM
-from nemo.collections.nlp.modules.trainables.specific.transformer.decoders import TransformerDecoder
-from nemo.collections.nlp.modules.trainables.specific.transformer.encoders import TransformerEncoder
-from nemo.collections.nlp.modules.trainables.specific.transformer.generators import (
+from nemo.collections.nlp.nm.trainables.specific.transformer.decoders import TransformerDecoder
+from nemo.collections.nlp.nm.trainables.specific.transformer.encoders import TransformerEncoder
+from nemo.collections.nlp.nm.trainables.specific.transformer.generators import (
     BeamSearchSequenceGenerator,
     GreedySequenceGenerator,
 )
-from nemo.collections.nlp.modules.trainables.specific.transformer.modules import TransformerEmbedding
-from nemo.collections.nlp.modules.trainables.specific.transformer.utils import transformer_weights_init
+from nemo.collections.nlp.nm.trainables.specific.transformer.modules import TransformerEmbedding
+from nemo.collections.nlp.nm.trainables.specific.transformer.utils import transformer_weights_init
 from nemo.core.neural_types import *
 
 
@@ -78,7 +73,7 @@ class TransformerEncoderNM(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
+        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
 
     def __init__(
         self,
@@ -179,7 +174,7 @@ class TransformerDecoderNM(TrainableNM):
         """
         return {
             "input_ids_tgt": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "hidden_states_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            "hidden_states_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             "input_mask_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_mask_tgt": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
@@ -195,7 +190,7 @@ class TransformerDecoderNM(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
+        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
 
     def __init__(
         self,
@@ -239,7 +234,7 @@ class TransformerDecoderNM(TrainableNM):
 
     def forward(self, input_ids_tgt, hidden_states_src, input_mask_src, input_mask_tgt):
         hidden_states_tgt = self.embedding_layer(input_ids_tgt)
-        hidden_states = self.decoder(hidden_states_tgt, input_mask_tgt, hidden_states_src, input_mask_src,)
+        hidden_states = self.decoder(hidden_states_tgt, input_mask_tgt, hidden_states_src, input_mask_src)
         return hidden_states
 
 
@@ -339,7 +334,7 @@ class BeamSearchTranslatorNM(TrainableNM):
             1: AxisType(TimeTag)
         """
         return {
-            "hidden_states_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            "hidden_states_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             "input_mask_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
 
@@ -389,5 +384,5 @@ class BeamSearchTranslatorNM(TrainableNM):
         )
 
     def forward(self, hidden_states_src, input_mask_src):
-        output_ids = self.generator(encoder_hidden_states=hidden_states_src, encoder_input_mask=input_mask_src,)
+        output_ids = self.generator(encoder_hidden_states=hidden_states_src, encoder_input_mask=input_mask_src)
         return output_ids

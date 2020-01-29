@@ -209,10 +209,7 @@ class ExpManager:
 
 def get_git_hash():
     try:
-        return (
-            True,
-            subprocess.check_output(['git', 'rev-parse', 'HEAD'], stderr=subprocess.STDOUT).decode(),
-        )
+        return (True, subprocess.check_output(['git', 'rev-parse', 'HEAD'], stderr=subprocess.STDOUT).decode())
     except subprocess.CalledProcessError as e:
         return False, "{}\n".format(e.output.decode("utf-8"))
 

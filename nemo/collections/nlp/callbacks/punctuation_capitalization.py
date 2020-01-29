@@ -64,9 +64,7 @@ def eval_iter_callback(tensors, global_vars):
     global_vars["all_subtokens_mask"].extend(all_subtokens_mask)
 
 
-def eval_epochs_done_callback(
-    global_vars, punct_label_ids, capit_label_ids, graph_fold=None, normalize_cm=True,
-):
+def eval_epochs_done_callback(global_vars, punct_label_ids, capit_label_ids, graph_fold=None, normalize_cm=True):
     '''
     Args:
       graph_fold (str): path to output folder
@@ -78,10 +76,7 @@ def eval_epochs_done_callback(
 
     capit_accuracy = _eval_epochs_done_callback('capit', global_vars, capit_label_ids, graph_fold, normalize_cm)
 
-    return {
-        "Punctuation_task_accuracy": punct_accuracy,
-        "Capitalization_task_accuracy": capit_accuracy,
-    }
+    return {"Punctuation_task_accuracy": punct_accuracy, "Capitalization_task_accuracy": capit_accuracy}
 
 
 def _eval_epochs_done_callback(task_name, global_vars, label_ids, graph_fold=None, normalize_cm=True):
@@ -111,7 +106,5 @@ def _eval_epochs_done_callback(task_name, global_vars, label_ids, graph_fold=Non
 
     # calculate and plot confusion_matrix
     if graph_fold:
-        plot_confusion_matrix(
-            label_ids, labels, preds, graph_fold, normalize=normalize_cm, prefix=task_name,
-        )
+        plot_confusion_matrix(label_ids, labels, preds, graph_fold, normalize=normalize_cm, prefix=task_name)
     return accuracy

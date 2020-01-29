@@ -76,7 +76,7 @@ class FromFileText(Text):
 class AudioText(_Collection):
     """List of audio-transcript text correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='AudioTextEntity', field_names='audio_file duration text_tokens',)
+    OUTPUT_TYPE = collections.namedtuple(typename='AudioTextEntity', field_names='audio_file duration text_tokens')
 
     def __init__(
         self,
@@ -128,9 +128,7 @@ class AudioText(_Collection):
         if do_sort_by_duration:
             data.sort(key=lambda entity: entity.duration)
 
-        nemo.logging.info(
-            "Filtered duration for loading collection is %f.", duration_filtered,
-        )
+        nemo.logging.info("Filtered duration for loading collection is %f.", duration_filtered)
 
         super().__init__(data)
 

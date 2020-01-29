@@ -187,7 +187,7 @@ class BertPretrainingDataset(Dataset):
         a_line_offset = self.sentence_indices[a_filename][a_line_idx]
         a_document = get_document(a_filename, a_line_offset)
         a_document, a_line_idx = match_target_seq_length(
-            a_document, target_seq_length_a, a_filename, a_line_idx, self.sentence_indices,
+            a_document, target_seq_length_a, a_filename, a_line_idx, self.sentence_indices
         )
 
         is_last_line = a_line_idx >= (len(self.sentence_indices[a_filename]) - 1)
@@ -221,7 +221,7 @@ class BertPretrainingDataset(Dataset):
         b_line_pos = self.sentence_indices[b_filename][b_line_idx]
         b_document = get_document(b_filename, b_line_pos)
         b_document, b_line_idx = match_target_seq_length(
-            b_document, target_seq_length_b, b_filename, b_line_idx, self.sentence_indices,
+            b_document, target_seq_length_b, b_filename, b_line_idx, self.sentence_indices
         )
 
         def truncate_seq_pair(a, b, max_num_tokens):
@@ -350,7 +350,7 @@ class BertPretrainingPreprocessedDataset(Dataset):
         return len(self.inputs[0])
 
     def __getitem__(self, index):
-        [input_ids, input_mask, segment_ids, masked_lm_positions, masked_lm_ids, next_sentence_labels,] = [
+        [input_ids, input_mask, segment_ids, masked_lm_positions, masked_lm_ids, next_sentence_labels] = [
             input[index].astype(np.int64) for input in self.inputs
         ]
 
@@ -367,11 +367,4 @@ class BertPretrainingPreprocessedDataset(Dataset):
 
         input_mask = np.asarray(input_mask, dtype=np.float32)
         output_mask = np.asarray(output_mask, dtype=np.float32)
-        return (
-            input_ids,
-            segment_ids,
-            input_mask,
-            output_ids,
-            output_mask,
-            next_sentence_labels,
-        )
+        return (input_ids, segment_ids, input_mask, output_ids, output_mask, next_sentence_labels)

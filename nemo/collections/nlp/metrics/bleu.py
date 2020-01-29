@@ -117,11 +117,4 @@ def compute_bleu(reference_corpus, translation_corpus, max_order=4, smooth=False
 
     precisions = [p * 100 for p in precisions]
 
-    return (
-        bleu * 100,
-        precisions,
-        bp,
-        ratio,
-        translation_length,
-        reference_length,
-    )
+    return (bleu * 100, precisions, bp, ratio, translation_length, reference_length)

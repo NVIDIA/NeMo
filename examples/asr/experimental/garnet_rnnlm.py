@@ -33,7 +33,7 @@ sss = [
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        parents=[nm_argparse.NemoArgParser()], description='GarNet RnnLM', conflict_handler='resolve',
+        parents=[nm_argparse.NemoArgParser()], description='GarNet RnnLM', conflict_handler='resolve'
     )
     parser.set_defaults(
         checkpoint_dir=None,
@@ -55,12 +55,8 @@ def parse_args():
         required=True,
         help="number of epochs to train. You should specify" "either num_epochs or max_steps",
     )
-    parser.add_argument(
-        "--model_config", type=str, required=True, help="model configuration file: model.yaml",
-    )
-    parser.add_argument(
-        "--eval_datasets", type=str, required=True, help="validation dataset path",
-    )
+    parser.add_argument("--model_config", type=str, required=True, help="model configuration file: model.yaml")
+    parser.add_argument("--eval_datasets", type=str, required=True, help="validation dataset path")
 
     # Create new args
     parser.add_argument("--exp_name", default="GarNet", type=str)
@@ -113,7 +109,7 @@ def create_dag(args, cfg, num_gpus):
         load_audio=False,
     )
     decoder = nemo.backends.pytorch.DecoderRNN(
-        voc_size=len(cfg['target']['labels']), bos_id=cfg['target']['bos_id'], **cfg['DecoderRNN'],
+        voc_size=len(cfg['target']['labels']), bos_id=cfg['target']['bos_id'], **cfg['DecoderRNN']
     )
     num_data = len(data)
     batch_size = cfg['optimization']['batch_size']
@@ -124,14 +120,14 @@ def create_dag(args, cfg, num_gpus):
     tf_callback = ValueSetterCallback(
         decoder,
         'teacher_forcing',
-        policies=[vsc.Policy(vsc.Method.Const(1.0), start=0.0, end=1.0),],
+        policies=[vsc.Policy(vsc.Method.Const(1.0), start=0.0, end=1.0)],
         total_steps=total_steps,
     )
     seq_loss = nemo.backends.pytorch.SequenceLoss(
-        pad_id=cfg['target']['pad_id'], smoothing_coef=cfg['optimization']['smoothing_coef'],
+        pad_id=cfg['target']['pad_id'], smoothing_coef=cfg['optimization']['smoothing_coef']
     )
     saver_callback = nemo.core.ModuleSaverCallback(
-        save_modules_list=[decoder], folder=args.checkpoint_dir, step_freq=args.checkpoint_save_freq,
+        save_modules_list=[decoder], folder=args.checkpoint_dir, step_freq=args.checkpoint_save_freq
     )
 
     # Creating DAG
@@ -226,8 +222,8 @@ def main():
         eval_callback = nemo.core.EvaluatorCallback(
             # TODO: Should be fixed soon, so we don't need to pass exactly list
             eval_tensors=list(tensors),
-            user_iter_callback=partial(process_evaluation_batch, labels=labels, specials=specials, write_attn=False,),
-            user_epochs_done_callback=partial(process_evaluation_epoch, tag=os.path.basename(name), logger=logger,),
+            user_iter_callback=partial(process_evaluation_batch, labels=labels, specials=specials, write_attn=False),
+            user_epochs_done_callback=partial(process_evaluation_epoch, tag=os.path.basename(name), logger=logger),
             eval_step=args.eval_freq,
             tb_writer=tb_writer,
         )

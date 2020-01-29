@@ -37,9 +37,7 @@ class TestDeployExport(NeMoUnitTest):
         if out.exists():
             os.remove(out)
 
-        self.nf.deployment_export(
-            module=module, output=out_name, input_example=input_example, d_format=mode,
-        )
+        self.nf.deployment_export(module=module, output=out_name, input_example=input_example, d_format=mode)
 
         self.assertTrue(out.exists())
         if out.exists():
@@ -75,7 +73,7 @@ class TestDeployExport(NeMoUnitTest):
     def test_jasper_decoder_export_ts(self):
         j_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=33)
         self.__test_export_route(
-            module=j_decoder, out_name="j_decoder.ts", mode=nemo.core.DeploymentFormat.TORCHSCRIPT, input_example=None,
+            module=j_decoder, out_name="j_decoder.ts", mode=nemo.core.DeploymentFormat.TORCHSCRIPT, input_example=None
         )
 
     def test_hf_bert_ts(self):
@@ -86,14 +84,12 @@ class TestDeployExport(NeMoUnitTest):
             torch.randint(low=0, high=1, size=(2, 16)).cuda(),
         )
         self.__test_export_route(
-            module=bert, out_name="bert.ts", mode=nemo.core.DeploymentFormat.TORCHSCRIPT, input_example=input_example,
+            module=bert, out_name="bert.ts", mode=nemo.core.DeploymentFormat.TORCHSCRIPT, input_example=input_example
         )
 
     def test_hf_bert_pt(self):
         bert = nemo_nlp.huggingface.BERT(pretrained_model_name="bert-base-uncased")
-        self.__test_export_route(
-            module=bert, out_name="bert.pt", mode=nemo.core.DeploymentFormat.PYTORCH,
-        )
+        self.__test_export_route(module=bert, out_name="bert.pt", mode=nemo.core.DeploymentFormat.PYTORCH)
 
     def test_jasper_encoder_to_onnx(self):
         with open("tests/data/jasper_smaller.yaml") as file:
@@ -110,5 +106,5 @@ class TestDeployExport(NeMoUnitTest):
             module=jasper_encoder,
             out_name="jasper_encoder.onnx",
             mode=nemo.core.DeploymentFormat.ONNX,
-            input_example=(torch.randn(16, 64, 256).cuda(), torch.randn(256).cuda(),),
+            input_example=(torch.randn(16, 64, 256).cuda(), torch.randn(256).cuda()),
         )

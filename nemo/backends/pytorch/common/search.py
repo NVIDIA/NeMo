@@ -41,7 +41,7 @@ class GreedySearch(NonTrainableNM):
         """
         return {
             'encoder_outputs': NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}, optional=True
             )
         }
 
@@ -63,7 +63,7 @@ class GreedySearch(NonTrainableNM):
         """
         return {
             'predictions': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            'attention_weights': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}),
+            'attention_weights': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag)}),
         }
 
     def __init__(self, decoder, pad_id, bos_id, eos_id, max_len, batch_size=None, **kwargs):
@@ -148,7 +148,7 @@ class BeamSearch(GreedySearch):
 
         last_hidden = None
         for i in range(self.max_len):
-            (log_probs, last_hidden, attention_weights_i,) = self.decoder.forward_step(
+            (log_probs, last_hidden, attention_weights_i) = self.decoder.forward_step(
                 predictions[:, -1:], encoder_outputs, last_hidden
             )  # [BK]1C, h[BK]C, [BK]1T
 
@@ -180,7 +180,7 @@ class BeamSearch(GreedySearch):
             predictions = torch.cat((predictions, predicted_i.unsqueeze(2)), dim=-1)
             predictions = (
                 predictions.view(bs, k ** 2, -1)
-                .gather(1, indices_i.unsqueeze(2).repeat(1, 1, predictions.size(-1)),)
+                .gather(1, indices_i.unsqueeze(2).repeat(1, 1, predictions.size(-1)))
                 .view(-1, predictions.size(-1))
             )  # [BK][L+1]
 

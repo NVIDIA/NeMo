@@ -63,7 +63,7 @@ interpolated_decision = discriminator(image=interpolated_image)
 real_decision = discriminator(image=real_data)
 interpolated_loss = disc_loss(decision=interpolated_decision)
 real_loss = neg_disc_loss(decision=real_decision)
-grad_penalty = disc_grad_penalty(interpolated_image=interpolated_image, interpolated_decision=interpolated_decision,)
+grad_penalty = disc_grad_penalty(interpolated_image=interpolated_image, interpolated_decision=interpolated_decision)
 
 # Create Eval DAG
 random_data = nemo_simple_gan.RandomDataLayer(batch_size=batch_size)
@@ -78,10 +78,10 @@ losses_D = [interpolated_loss, real_loss, grad_penalty]
 # For single loss and single optimizer, the following steps can be skipped
 # and an optimizer will be created in trainer.train()
 optimizer_G = neural_factory.create_optimizer(
-    optimizer="adam", things_to_optimize=[generator], optimizer_params={"lr": 1e-4, "betas": (0.5, 0.9),},
+    optimizer="adam", things_to_optimize=[generator], optimizer_params={"lr": 1e-4, "betas": (0.5, 0.9)}
 )
 optimizer_D = neural_factory.create_optimizer(
-    optimizer="adam", things_to_optimize=[discriminator], optimizer_params={"lr": 1e-4, "betas": (0.5, 0.9),},
+    optimizer="adam", things_to_optimize=[discriminator], optimizer_params={"lr": 1e-4, "betas": (0.5, 0.9)}
 )
 
 

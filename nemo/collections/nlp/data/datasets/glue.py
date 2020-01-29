@@ -27,9 +27,7 @@ import nemo
 
 
 class GLUEDataset(Dataset):
-    def __init__(
-        self, data_dir, tokenizer, max_seq_length, processor, output_mode, evaluate, token_params,
-    ):
+    def __init__(self, data_dir, tokenizer, max_seq_length, processor, output_mode, evaluate, token_params):
         self.tokenizer = tokenizer
         self.label_list = processor.get_labels()
         self.examples = processor.get_dev_examples(data_dir) if evaluate else processor.get_train_examples(data_dir)
@@ -196,7 +194,7 @@ def convert_examples_to_features(
             nemo.logging.info("label: %s (id = %d)" % (example.label, label_id))
 
         features.append(
-            InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_id=label_id,)
+            InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_id=label_id)
         )
     return features
 

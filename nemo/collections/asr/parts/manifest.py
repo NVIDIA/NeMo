@@ -80,7 +80,7 @@ def __parse_item(line: str) -> Dict[str, Any]:
         )
 
     item = dict(
-        audio_file=item['audio_file'], duration=item['duration'], text=item['text'], offset=item.get('offset', None),
+        audio_file=item['audio_file'], duration=item['duration'], text=item['text'], offset=item.get('offset', None)
     )
 
     return item

@@ -43,9 +43,7 @@ class BertSentenceClassificationDataset(Dataset):
         shuffle (bool): whether to shuffle your data.
     """
 
-    def __init__(
-        self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=True,
-    ):
+    def __init__(self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=True):
         with open(input_file, "r") as f:
             sent_labels, all_sent_subtokens = [], []
             sent_lengths = []

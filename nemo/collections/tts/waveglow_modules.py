@@ -55,7 +55,7 @@ class WaveGlowNM(TrainableNM):
         """
         return {
             "mel_spectrogram": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag)}
             ),
             "audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
@@ -96,11 +96,7 @@ class WaveGlowNM(TrainableNM):
         **kwargs
     ):
         super().__init__(**kwargs)
-        wavenet_config = {
-            "n_layers": n_wn_layers,
-            "n_channels": n_wn_channels,
-            "kernel_size": wn_kernel_size,
-        }
+        wavenet_config = {"n_layers": n_wn_layers, "n_channels": n_wn_channels, "kernel_size": wn_kernel_size}
         self.waveglow = WaveGlow(
             n_mel_channels=n_mel_channels,
             n_flows=n_flows,
@@ -167,7 +163,7 @@ class WaveGlowInferNM(WaveGlowNM):
         """
         return {
             "mel_spectrogram": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag)}
             )
         }
 

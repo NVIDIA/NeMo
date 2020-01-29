@@ -135,9 +135,7 @@ class AudioDataset(Dataset):
     ):
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
-            parser=parsers.ENCharParser(
-                labels=labels, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
-            ),
+            parser=parsers.ENCharParser(labels=labels, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize),
             min_duration=min_duration,
             max_duration=max_duration,
             max_number=max_utts,
@@ -152,7 +150,7 @@ class AudioDataset(Dataset):
     def __getitem__(self, index):
         sample = self.collection[index]
         if self.load_audio:
-            features = self.featurizer.process(sample.audio_file, offset=0, duration=sample.duration, trim=self.trim,)
+            features = self.featurizer.process(sample.audio_file, offset=0, duration=sample.duration, trim=self.trim)
             f, fl = features, torch.tensor(features.shape[0]).long()
         else:
             f, fl = None, None
@@ -325,7 +323,4 @@ class TranscriptDataset(Dataset):
             tokenized_text = [self.bos_id] + tokenized_text
         if self.eos_id:
             tokenized_text = tokenized_text + [self.eos_id]
-        return (
-            torch.tensor(tokenized_text, dtype=torch.long),
-            torch.tensor(len(tokenized_text), dtype=torch.long),
-        )
+        return (torch.tensor(tokenized_text, dtype=torch.long), torch.tensor(len(tokenized_text), dtype=torch.long))

@@ -65,9 +65,7 @@ class MultiLayerPerceptron(nn.Module):
         log_softmax (bool): whether to add a log_softmax layer before output
     """
 
-    def __init__(
-        self, hidden_size, num_classes, device, num_layers=2, activation='relu', log_softmax=True,
-    ):
+    def __init__(self, hidden_size, num_classes, device, num_layers=2, activation='relu', log_softmax=True):
         super().__init__()
         self.layers = 0
         for _ in range(num_layers - 1):

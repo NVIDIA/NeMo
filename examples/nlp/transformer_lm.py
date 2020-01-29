@@ -97,7 +97,7 @@ log_softmax.mlp.last_linear_layer.weight = encoder.embedding_layer.token_embeddi
 
 
 def create_pipeline(
-    dataset, max_seq_length=args.max_seq_length, batch_step=args.max_seq_length, batch_size=args.batch_size,
+    dataset, max_seq_length=args.max_seq_length, batch_step=args.max_seq_length, batch_size=args.batch_size
 ):
     data_layer = nemo_nlp.LanguageModelingDataLayer(
         dataset, tokenizer, max_seq_length, batch_step, batch_size=batch_size
@@ -141,7 +141,7 @@ eval_callback = nemo.core.EvaluatorCallback(
 
 # callback which saves checkpoints once in a while
 callback_ckpt = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=-1,
+    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=-1
 )
 
 # define learning rate decay policy

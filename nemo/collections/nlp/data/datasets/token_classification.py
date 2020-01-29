@@ -145,19 +145,10 @@ def get_features(
         nemo.logging.debug("subtokens: %s", " ".join(list(map(str, all_subtokens[i]))))
         nemo.logging.debug("loss_mask: %s", " ".join(list(map(str, all_loss_mask[i]))))
         nemo.logging.debug("input_mask: %s", " ".join(list(map(str, all_input_mask[i]))))
-        nemo.logging.debug(
-            "subtokens_mask: %s", " ".join(list(map(str, all_subtokens_mask[i]))),
-        )
+        nemo.logging.debug("subtokens_mask: %s", " ".join(list(map(str, all_subtokens_mask[i]))))
         if with_label:
             nemo.logging.debug("labels: %s", " ".join(list(map(str, all_labels[i]))))
-    return (
-        all_input_ids,
-        all_segment_ids,
-        all_input_mask,
-        all_loss_mask,
-        all_subtokens_mask,
-        all_labels,
-    )
+    return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_labels)
 
 
 class BertTokenClassificationDataset(Dataset):

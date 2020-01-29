@@ -33,7 +33,7 @@ sss = [
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        parents=[nm_argparse.NemoArgParser()], description='GarNet', conflict_handler='resolve',
+        parents=[nm_argparse.NemoArgParser()], description='GarNet', conflict_handler='resolve'
     )
     parser.set_defaults(
         checkpoint_dir=None,
@@ -55,9 +55,7 @@ def parse_args():
         required=True,
         help="number of epochs to train. You should specify" "either num_epochs or max_steps",
     )
-    parser.add_argument(
-        "--model_config", type=str, required=True, help="model configuration file: model.yaml",
-    )
+    parser.add_argument("--model_config", type=str, required=True, help="model configuration file: model.yaml")
 
     # Create new args
     parser.add_argument("--exp_name", default="GarNet", type=str)
@@ -124,7 +122,7 @@ def create_dag(args, cfg, logger, num_gpus):
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(**cfg['AudioToMelSpectrogramPreprocessor'])
     data_augmentation = nemo_asr.SpectrogramAugmentation(**cfg['SpectrogramAugmentation'])
     encoder = nemo_asr.JasperEncoder(
-        feat_in=cfg["AudioToMelSpectrogramPreprocessor"]["features"], **cfg['JasperEncoder'],
+        feat_in=cfg["AudioToMelSpectrogramPreprocessor"]["features"], **cfg['JasperEncoder']
     )
     if args.encoder_checkpoint is not None and os.path.exists(args.encoder_checkpoint):
         if cfg['JasperEncoder']['load']:
@@ -134,10 +132,10 @@ def create_dag(args, cfg, logger, num_gpus):
             encoder.freeze()
             logger.info(f'Freeze encoder weights')
     connector = nemo_asr.JasperRNNConnector(
-        in_channels=cfg['JasperEncoder']['jasper'][-1]['filters'], out_channels=cfg['DecoderRNN']['hidden_size'],
+        in_channels=cfg['JasperEncoder']['jasper'][-1]['filters'], out_channels=cfg['DecoderRNN']['hidden_size']
     )
     decoder = nemo.backends.pytorch.DecoderRNN(
-        voc_size=len(cfg['target']['labels']), bos_id=cfg['target']['bos_id'], **cfg['DecoderRNN'],
+        voc_size=len(cfg['target']['labels']), bos_id=cfg['target']['bos_id'], **cfg['DecoderRNN']
     )
     if args.decoder_checkpoint is not None and os.path.exists(args.decoder_checkpoint):
         if cfg['DecoderRNN']['load']:
@@ -170,7 +168,7 @@ def create_dag(args, cfg, logger, num_gpus):
     se_callback = ValueSetterCallback(
         seq_loss,
         'smoothing_coef',
-        policies=[vsc.Policy(vsc.Method.Const(seq_loss.smoothing_coef), start=0.0, end=1.0),],
+        policies=[vsc.Policy(vsc.Method.Const(seq_loss.smoothing_coef), start=0.0, end=1.0)],
         total_steps=total_steps,
     )
     beam_search = nemo.backends.pytorch.BeamSearch(
@@ -183,7 +181,7 @@ def create_dag(args, cfg, logger, num_gpus):
     )
     uf_callback = UnfreezeCallback([encoder, decoder], start_epoch=cfg['optimization']['start_unfreeze'])
     saver_callback = nemo.core.ModuleSaverCallback(
-        save_modules_list=[encoder, connector, decoder], folder=args.checkpoint_dir, step_freq=args.eval_freq,
+        save_modules_list=[encoder, connector, decoder], folder=args.checkpoint_dir, step_freq=args.eval_freq
     )
 
     # Creating DAG
@@ -203,7 +201,7 @@ def create_dag(args, cfg, logger, num_gpus):
         log_probs, _ = decoder(targets=transcripts, encoder_outputs=encoded)
         loss = seq_loss(log_probs=log_probs, targets=transcripts)
         predictions, aw = beam_search(encoder_outputs=encoded)
-        evals.append((args.eval_datasets[i], (loss, log_probs, transcripts, predictions, aw),))
+        evals.append((args.eval_datasets[i], (loss, log_probs, transcripts, predictions, aw)))
 
     # Update config
     cfg['num_params'] = {
@@ -216,11 +214,7 @@ def create_dag(args, cfg, logger, num_gpus):
     cfg['optimization']['steps_per_epoch'] = steps_per_epoch
     cfg['optimization']['total_steps'] = total_steps
 
-    return (
-        (train_loss, evals),
-        cfg,
-        [tf_callback, se_callback, uf_callback, saver_callback],
-    )
+    return ((train_loss, evals), cfg, [tf_callback, se_callback, uf_callback, saver_callback])
 
 
 def construct_name(args, cfg):
@@ -297,10 +291,10 @@ def main():
             # TODO: Should be fixed soon, so we don't need to pass exactly list
             eval_tensors=list(tensors),
             user_iter_callback=partial(
-                process_evaluation_batch, labels=labels, specials=specials, tb_writer=tb_writer, write_attn=False,
+                process_evaluation_batch, labels=labels, specials=specials, tb_writer=tb_writer, write_attn=False
             ),
             user_epochs_done_callback=partial(
-                process_evaluation_epoch, tag=os.path.basename(name), calc_wer=True, logger=logger,
+                process_evaluation_epoch, tag=os.path.basename(name), calc_wer=True, logger=logger
             ),
             eval_step=args.eval_freq,
             tb_writer=tb_writer,

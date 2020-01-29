@@ -1,12 +1,12 @@
-__all__ = ['TransformerDecoderBlock', 'TransformerDecoder']
+__all__ = []
 
 import copy
 
 import torch
 import torch.nn as nn
 
-from nemo.collections.nlp.modules.trainables.specific.transformer.modules import MultiHeadAttention, PositionWiseFF
-from nemo.collections.nlp.modules.trainables.specific.transformer.utils import form_attention_mask
+from nemo.collections.nlp.nm.trainables.specific.transformer.modules import MultiHeadAttention, PositionWiseFF
+from nemo.collections.nlp.nm.trainables.specific.transformer.utils import form_attention_mask
 
 
 class TransformerDecoderBlock(nn.Module):
@@ -38,16 +38,14 @@ class TransformerDecoderBlock(nn.Module):
         super().__init__()
 
         self.first_sub_layer = MultiHeadAttention(
-            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout,
+            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
         self.second_sub_layer = MultiHeadAttention(
-            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout,
+            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
         self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
 
-    def forward(
-        self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask,
-    ):
+    def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
         self_attn_output = self.first_sub_layer(decoder_query, decoder_keys, decoder_keys, decoder_mask)
         enc_dec_attn_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
         output_states = self.third_sub_layer(enc_dec_attn_output)
@@ -69,7 +67,7 @@ class TransformerDecoder(nn.Module):
         return memory_states
 
     def forward(
-        self, decoder_states, decoder_mask, encoder_states, encoder_mask, decoder_mems_list=None, return_mems=False,
+        self, decoder_states, decoder_mask, encoder_states, encoder_mask, decoder_mems_list=None, return_mems=False
     ):
         """
         Args:
@@ -91,9 +89,7 @@ class TransformerDecoder(nn.Module):
         cached_mems_list = [memory_states]
 
         for i, layer in enumerate(self.layers):
-            decoder_states = layer(
-                decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask,
-            )
+            decoder_states = layer(decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask)
             memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 1)
             cached_mems_list.append(memory_states)
 

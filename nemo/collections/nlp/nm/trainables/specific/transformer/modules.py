@@ -22,21 +22,14 @@ Some parts of this code were adapted from the Annotated Transformer at
 http://nlp.seas.harvard.edu/2018/04/03/attention.html
 Copyright by the HuggingFace and Annotated Transformer authors.
 """
-__all__ = [
-    'FixedPositionalEncoding',
-    'TransformerEmbedding',
-    'MultiHeadAttention',
-    'LightweightConv1d',
-    'TwoStreamSelfAttention',
-    'PositionWiseFF',
-]
+__all__ = []
 
 import math
 
 import torch
 from torch import nn
 
-from nemo.collections.nlp.modules.trainables.specific.transformer.utils import gelu
+from nemo.collections.nlp.nm.trainables.specific.transformer.utils import gelu
 
 try:
     from apex.normalization import FusedLayerNorm
@@ -114,7 +107,7 @@ class TransformerEmbedding(nn.Module):
                 "Input sequence is longer than maximum allowed" " sequence length for positional encoding"
             )
         position_ids = torch.arange(
-            start=start_pos, end=start_pos + seq_length, dtype=torch.long, device=input_ids.device,
+            start=start_pos, end=start_pos + seq_length, dtype=torch.long, device=input_ids.device
         )
         position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
 
@@ -144,9 +137,7 @@ class MultiHeadAttention(nn.Module):
             whole layer, but before layer normalization
     """
 
-    def __init__(
-        self, hidden_size, num_attention_heads, attn_score_dropout=0.0, attn_layer_dropout=0.0,
-    ):
+    def __init__(self, hidden_size, num_attention_heads, attn_score_dropout=0.0, attn_layer_dropout=0.0):
         super().__init__()
         if hidden_size % num_attention_heads != 0:
             raise ValueError(
@@ -168,7 +159,7 @@ class MultiHeadAttention(nn.Module):
         self.layer_norm = FusedLayerNorm(hidden_size, eps=1e-5)
 
     def transpose_for_scores(self, x):
-        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attn_head_size,)
+        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attn_head_size)
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
@@ -219,9 +210,7 @@ class LightweightConv1d(nn.Module):
             whole layer, but before layer normalization
     """
 
-    def __init__(
-        self, hidden_size, num_attention_heads, kernel_size, conv_weight_dropout=0.0, conv_layer_dropout=0.0,
-    ):
+    def __init__(self, hidden_size, num_attention_heads, kernel_size, conv_weight_dropout=0.0, conv_layer_dropout=0.0):
         super().__init__()
         self.num_heads = num_attention_heads
         self.kernel_size = kernel_size
@@ -246,7 +235,7 @@ class LightweightConv1d(nn.Module):
             weight[:, :, pivot:] = 0
 
         output_states = output_states.contiguous().view(-1, self.num_heads, seq_len)
-        output_states = torch.conv1d(output_states, weight, padding=self.kernel_size // 2, groups=self.num_heads,)
+        output_states = torch.conv1d(output_states, weight, padding=self.kernel_size // 2, groups=self.num_heads)
         output_states = output_states.view(batch_size, hidden_size, seq_len)
         output_states = output_states.permute(0, 2, 1)
 
@@ -270,23 +259,19 @@ class TwoStreamSelfAttention(nn.Module):
             whole layer, but before layer normalization
     """
 
-    def __init__(
-        self, hidden_size, num_attention_heads, attn_score_dropout=0.0, attn_layer_dropout=0.0,
-    ):
+    def __init__(self, hidden_size, num_attention_heads, attn_score_dropout=0.0, attn_layer_dropout=0.0):
         super().__init__()
         self.query_stream = MultiHeadAttention(
-            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout,
+            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
         self.content_stream = MultiHeadAttention(
-            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout,
+            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
 
-    def forward(
-        self, query_states, content_states, query_attention_mask, content_attention_mask,
-    ):
+    def forward(self, query_states, content_states, query_attention_mask, content_attention_mask):
         output_query_states = self.query_stream(query_states, content_states, content_states, query_attention_mask)
         output_content_states = self.content_stream(
-            query_states, content_states, content_states, content_attention_mask,
+            query_states, content_states, content_states, content_attention_mask
         )
         return output_query_states, output_content_states
 

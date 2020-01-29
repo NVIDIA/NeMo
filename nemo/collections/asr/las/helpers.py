@@ -46,14 +46,10 @@ def process_evaluation_batch(tensors, global_vars, labels, specials, tb_writer=N
         sample_len = len(prediction_texts[0][0])
         if sample_len > 0:
             attention_weights = attention_weights[0][0, :sample_len, :]
-            tb_writer.add_image(
-                'image/eval_attention_weights', attention_weights, dataformats='HW',
-            )
+            tb_writer.add_image('image/eval_attention_weights', attention_weights, dataformats='HW')
 
 
-def process_evaluation_epoch(
-    global_vars, metrics=('loss', 'bpc', 'ppl'), calc_wer=False, mode='eval', tag='none',
-):
+def process_evaluation_epoch(global_vars, metrics=('loss', 'bpc', 'ppl'), calc_wer=False, mode='eval', tag='none'):
     tag = '_'.join(tag.lower().strip().split())
     return_dict = {}
     for metric in metrics:

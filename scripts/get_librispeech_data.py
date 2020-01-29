@@ -127,8 +127,8 @@ def main():
         __extract_file(filepath, data_root)
         print("Processing {0}".format(data_set))
         __process_data(
-            os.path.join(os.path.join(data_root, "LibriSpeech"), data_set.replace("_", "-"),),
-            os.path.join(os.path.join(data_root, "LibriSpeech"), data_set.replace("_", "-"),) + "-processed",
+            os.path.join(os.path.join(data_root, "LibriSpeech"), data_set.replace("_", "-")),
+            os.path.join(os.path.join(data_root, "LibriSpeech"), data_set.replace("_", "-")) + "-processed",
             os.path.join(data_root, data_set + ".json"),
         )
     print('Done!')

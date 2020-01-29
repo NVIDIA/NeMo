@@ -95,7 +95,7 @@ class JasperEncoder(TrainableNM):
         """
         return {
             "audio_signal": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag)}
             ),
             "length": NeuralType({0: AxisType(BatchTag)}),
         }
@@ -117,7 +117,7 @@ class JasperEncoder(TrainableNM):
         """
         return {
             "outputs": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(EncodedRepresentationTag), 2: AxisType(ProcessedTimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(EncodedRepresentationTag), 2: AxisType(ProcessedTimeTag)}
             ),
             "encoded_lengths": NeuralType({0: AxisType(BatchTag)}),
         }
@@ -217,7 +217,7 @@ class JasperDecoderForCTC(TrainableNM):
         """
         return {
             "encoder_output": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(EncodedRepresentationTag), 2: AxisType(ProcessedTimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(EncodedRepresentationTag), 2: AxisType(ProcessedTimeTag)}
             )
         }
 
@@ -232,7 +232,7 @@ class JasperDecoderForCTC(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
+        return {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
 
     def __init__(self, *, feat_in, num_classes, init_mode="xavier_uniform", **kwargs):
         TrainableNM.__init__(self, **kwargs)

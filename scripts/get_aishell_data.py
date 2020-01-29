@@ -99,7 +99,7 @@ def __process_data(data_folder: str, dst_folder: str):
                 duration = float(duration)
                 json_lines.append(
                     json.dumps(
-                        {'audio_filepath': os.path.abspath(audio_path), 'duration': duration, 'text': text,},
+                        {'audio_filepath': os.path.abspath(audio_path), 'duration': duration, 'text': text},
                         ensure_ascii=False,
                     )
                 )

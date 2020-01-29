@@ -72,7 +72,7 @@ class DialogDataLayer(DataLayerNM):
     def __getitem__(self, idx):
         return [
             x.to(self._device) if isinstance(x, t.Tensor) else x
-            for x in data.batch2TrainData(self.voc, [random.choice(self.pairs) for _ in range(self._batch_size)],)
+            for x in data.batch2TrainData(self.voc, [random.choice(self.pairs) for _ in range(self._batch_size)])
         ]
 
     def get_weights(self) -> Iterable[Optional[Mapping]]:
@@ -125,7 +125,7 @@ class EncoderRNN(TrainableNM):
             1: AxisType(ChannelTag)
         """
         return {
-            "outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
+            "outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag)}),
             "hidden": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
@@ -192,7 +192,7 @@ class LuongAttnDecoderRNN(TrainableNM):
         """
         return {
             "targets": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
-            "encoder_outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
+            "encoder_outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag)}),
             "max_target_len": NeuralType(None),
         }
 
@@ -213,7 +213,7 @@ class LuongAttnDecoderRNN(TrainableNM):
             1: AxisType(ChannelTag)
         """
         return {
-            "outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
+            "outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag)}),
             "hidden": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
@@ -232,7 +232,7 @@ class LuongAttnDecoderRNN(TrainableNM):
         self.embedding = nn.Embedding(self.voc_size, self.hidden_size)
         self.embedding_dropout = nn.Dropout(self.dropout)
         self.gru = nn.GRU(
-            self.hidden_size, self.hidden_size, self.n_layers, dropout=(0 if self.n_layers == 1 else self.dropout),
+            self.hidden_size, self.hidden_size, self.n_layers, dropout=(0 if self.n_layers == 1 else self.dropout)
         )
         self.concat = nn.Linear(self.hidden_size * 2, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
@@ -259,7 +259,7 @@ class LuongAttnDecoderRNN(TrainableNM):
                 return t.sum(hidden * energy, dim=2)
 
             def concat_score(self, hidden, encoder_output):
-                energy = self.attn(t.cat((hidden.expand(encoder_output.size(0), -1, -1), encoder_output,), 2,)).tanh()
+                energy = self.attn(t.cat((hidden.expand(encoder_output.size(0), -1, -1), encoder_output), 2)).tanh()
                 return t.sum(self.v * energy, dim=2)
 
             def forward(self, hidden, encoder_outputs):
@@ -314,7 +314,7 @@ class LuongAttnDecoderRNN(TrainableNM):
         for step_t in range(max_target_len):
             decoder_inpt_embd = self.embedding(decoder_input)
             decoder_step_output, decoder_hidden = self.one_step_forward(
-                embedded=decoder_inpt_embd, last_hidden=decoder_hidden, encoder_outputs=encoder_outputs,
+                embedded=decoder_inpt_embd, last_hidden=decoder_hidden, encoder_outputs=encoder_outputs
             )
             decoder_output.append(decoder_step_output)
             # Teacher forcing: next input is current target
@@ -346,7 +346,7 @@ class MaskedXEntropyLoss(LossNM):
             1: AxisType(BatchTag)
         """
         return {
-            "predictions": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
+            "predictions": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag)}),
             "target": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
             "mask": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
         }
@@ -389,7 +389,7 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {"encoder_outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),})}
+        return {"encoder_outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag)})}
 
     @property
     def output_ports(self):
@@ -432,7 +432,7 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
         self.embedding = nn.Embedding(self.voc_size, self.hidden_size)
         self.embedding_dropout = nn.Dropout(self.dropout)
         self.gru = nn.GRU(
-            self.hidden_size, self.hidden_size, self.n_layers, dropout=(0 if self.n_layers == 1 else self.dropout),
+            self.hidden_size, self.hidden_size, self.n_layers, dropout=(0 if self.n_layers == 1 else self.dropout)
         )
         self.concat = nn.Linear(self.hidden_size * 2, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
@@ -459,7 +459,7 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
                 return t.sum(hidden * energy, dim=2)
 
             def concat_score(self, hidden, encoder_output):
-                energy = self.attn(t.cat((hidden.expand(encoder_output.size(0), -1, -1), encoder_output,), 2,)).tanh()
+                energy = self.attn(t.cat((hidden.expand(encoder_output.size(0), -1, -1), encoder_output), 2)).tanh()
                 return t.sum(self.v * energy, dim=2)
 
             def forward(self, hidden, encoder_outputs):
@@ -516,7 +516,7 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
         for step_t in range(self.max_decoder_steps):
             decoder_inpt_embd = self.embedding(decoder_input)
             decoder_step_output, decoder_hidden = self.one_step_forward(
-                embedded=decoder_inpt_embd, last_hidden=decoder_hidden, encoder_outputs=encoder_outputs,
+                embedded=decoder_inpt_embd, last_hidden=decoder_hidden, encoder_outputs=encoder_outputs
             )
             decoder_output.append(decoder_step_output)
             # Teacher forcing: next input is current target

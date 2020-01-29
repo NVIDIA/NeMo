@@ -47,7 +47,7 @@ parser.add_argument("--tgt_lang", default="real", type=str)
 parser.add_argument("--beam_size", default=4, type=int)
 parser.add_argument("--len_pen", default=0.0, type=float)
 parser.add_argument(
-    "--restore_from", dest="restore_from", type=str, default="../../scripts/bert-base-uncased_decoder.pt",
+    "--restore_from", dest="restore_from", type=str, default="../../scripts/bert-base-uncased_decoder.pt"
 )
 args = parser.parse_args()
 
@@ -126,7 +126,7 @@ def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):
     input_type_ids = zeros_transform(input_type_ids=src)
     src_hiddens = encoder(input_ids=src, token_type_ids=input_type_ids, attention_mask=src_mask)
     tgt_hiddens = decoder(
-        input_ids_tgt=tgt, hidden_states_src=src_hiddens, input_mask_src=src_mask, input_mask_tgt=tgt_mask,
+        input_ids_tgt=tgt, hidden_states_src=src_hiddens, input_mask_src=src_mask, input_mask_tgt=tgt_mask
     )
     log_softmax = t_log_softmax(hidden_states=tgt_hiddens)
     loss = loss_fn(logits=log_softmax, target_ids=labels)
@@ -186,6 +186,6 @@ nf.train(
     callbacks=callbacks,
     optimizer=args.optimizer,
     lr_policy=lr_policy,
-    optimization_params={"num_epochs": 300, "lr": args.lr, "weight_decay": args.weight_decay,},
+    optimization_params={"num_epochs": 300, "lr": args.lr, "weight_decay": args.weight_decay},
     batches_per_step=args.iter_per_step,
 )

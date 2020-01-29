@@ -7,9 +7,7 @@ from nemo.collections.asr.parts.segment import AudioSegment
 
 
 class AudioOnlyDataset(Dataset):
-    def __init__(
-        self, manifest_filepath, n_segments=0, max_duration=None, min_duration=None, trim=False,
-    ):
+    def __init__(self, manifest_filepath, n_segments=0, max_duration=None, min_duration=None, trim=False):
         """See AudioDataLayer"""
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
@@ -48,7 +46,7 @@ class AudioOnlyDataset(Dataset):
 
     def __getitem__(self, index):
         example = self.collection[index]
-        features = AudioSegment.segment_from_file(example.audio_file, n_segments=self.n_segments, trim=self.trim,)
+        features = AudioSegment.segment_from_file(example.audio_file, n_segments=self.n_segments, trim=self.trim)
         features = torch.tensor(features.samples, dtype=torch.float)
         f, fl = features, torch.tensor(features.shape[0]).long()
 

@@ -38,7 +38,7 @@ class CTCLossNM(LossNM):
             0: AxisType(BatchTag)
         """
         return {
-            "log_probs": NeuralType({1: AxisType(TimeTag), 0: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
+            "log_probs": NeuralType({1: AxisType(TimeTag), 0: AxisType(BatchTag), 2: AxisType(ChannelTag)}),
             "targets": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_length": NeuralType({0: AxisType(BatchTag)}),
             "target_length": NeuralType({0: AxisType(BatchTag)}),

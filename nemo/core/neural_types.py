@@ -311,7 +311,7 @@ class NeuralType(object):
             comparison_result = 0
             for key in self._axis2type.keys():
                 comparison_result = max(
-                    self._axis2type[key].compare_to(n_type2._axis2type[key]).value, comparison_result,
+                    self._axis2type[key].compare_to(n_type2._axis2type[key]).value, comparison_result
                 )
             return NeuralTypeComparisonResult(comparison_result)
         else:

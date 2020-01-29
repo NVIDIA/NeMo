@@ -72,7 +72,7 @@ def outputs2words(tensors, vocab):
 
 
 callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=[loss, src, outputs_inf, tgt], print_func=lambda x: outputs2words(x, dl.voc.index2word),
+    tensors=[loss, src, outputs_inf, tgt], print_func=lambda x: outputs2words(x, dl.voc.index2word)
 )
 
 # start training

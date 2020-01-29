@@ -19,11 +19,7 @@ class Voc:
         self.trimmed = False
         self.word2index = {}
         self.word2count = {}
-        self.index2word = {
-            PAD_token: "PAD",
-            SOS_token: "SOS",
-            EOS_token: "EOS",
-        }
+        self.index2word = {PAD_token: "PAD", SOS_token: "SOS", EOS_token: "EOS"}
         self.num_words = 3  # Count SOS, EOS, PAD
 
     def addSentence(self, sentence):
@@ -53,18 +49,14 @@ class Voc:
 
         print(
             "keep_words {} / {} = {:.4f}".format(
-                len(keep_words), len(self.word2index), len(keep_words) / len(self.word2index),
+                len(keep_words), len(self.word2index), len(keep_words) / len(self.word2index)
             )
         )
 
         # Reinitialize dictionaries
         self.word2index = {}
         self.word2count = {}
-        self.index2word = {
-            PAD_token: "PAD",
-            SOS_token: "SOS",
-            EOS_token: "EOS",
-        }
+        self.index2word = {PAD_token: "PAD", SOS_token: "SOS", EOS_token: "EOS"}
         self.num_words = 3  # Count default tokens
 
         for word in keep_words:

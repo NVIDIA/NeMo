@@ -72,7 +72,7 @@ class SquadDataset(Dataset):
     """
 
     def __init__(
-        self, data_dir, tokenizer, doc_stride, max_query_length, max_seq_length, version_2_with_negative, mode,
+        self, data_dir, tokenizer, doc_stride, max_query_length, max_seq_length, version_2_with_negative, mode
     ):
         self.tokenizer = tokenizer
         if not version_2_with_negative:
@@ -90,7 +90,7 @@ class SquadDataset(Dataset):
             cached_train_features_file = (
                 data_dir
                 + '/cache'
-                + '_{0}_{1}_{2}_{3}'.format(mode, str(max_seq_length), str(doc_stride), str(max_query_length),)
+                + '_{0}_{1}_{2}_{3}'.format(mode, str(max_seq_length), str(doc_stride), str(max_query_length))
             )
 
             if os.path.exists(cached_train_features_file):
@@ -107,9 +107,7 @@ class SquadDataset(Dataset):
                 )
                 master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
                 if master_device:
-                    nemo.logging.info(
-                        "  Saving train features into cached file %s", cached_train_features_file,
-                    )
+                    nemo.logging.info("  Saving train features into cached file %s", cached_train_features_file)
                     with open(cached_train_features_file, "wb") as writer:
                         pickle.dump(self.features, writer)
         elif mode == "dev":
@@ -159,7 +157,7 @@ class SquadDataset(Dataset):
             example_index_to_features[feature.example_index].append(feature)
 
         _PrelimPrediction = collections.namedtuple(
-            "PrelimPrediction", ["feature_index", "start_index", "end_index", "start_logit", "end_logit",],
+            "PrelimPrediction", ["feature_index", "start_index", "end_index", "start_logit", "end_logit"]
         )
 
         all_predictions = collections.OrderedDict()
@@ -233,7 +231,7 @@ class SquadDataset(Dataset):
                         end_logit=null_end_logit,
                     )
                 )
-            prelim_predictions = sorted(prelim_predictions, key=lambda x: (x.start_logit + x.end_logit), reverse=True,)
+            prelim_predictions = sorted(prelim_predictions, key=lambda x: (x.start_logit + x.end_logit), reverse=True)
 
             _NbestPrediction = collections.namedtuple("NbestPrediction", ["text", "start_logit", "end_logit"])
 
@@ -268,21 +266,17 @@ class SquadDataset(Dataset):
                     final_text = ""
                     seen_predictions[final_text] = True
 
-                nbest.append(
-                    _NbestPrediction(text=final_text, start_logit=pred.start_logit, end_logit=pred.end_logit,)
-                )
+                nbest.append(_NbestPrediction(text=final_text, start_logit=pred.start_logit, end_logit=pred.end_logit))
             # if we didn't include the empty option in the n-best, include it
             if version_2_with_negative:
                 if "" not in seen_predictions:
-                    nbest.append(_NbestPrediction(text="", start_logit=null_start_logit, end_logit=null_end_logit,))
+                    nbest.append(_NbestPrediction(text="", start_logit=null_start_logit, end_logit=null_end_logit))
 
                 # In very rare edge cases we could only
                 # have single null pred. We just create a nonce prediction
                 # in this case to avoid failure.
                 if len(nbest) == 1:
-                    nbest.insert(
-                        0, _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0),
-                    )
+                    nbest.insert(0, _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0))
 
             # In very rare edge cases we could have no valid predictions. So we
             # just create a nonce prediction in this case to avoid failure.
@@ -327,9 +321,7 @@ class SquadDataset(Dataset):
 
         return all_predictions, all_nbest_json, scores_diff_json
 
-    def evaluate_predictions(
-        self, all_predictions, no_answer_probs=None, no_answer_probability_threshold=1.0,
-    ):
+    def evaluate_predictions(self, all_predictions, no_answer_probs=None, no_answer_probability_threshold=1.0):
         qas_id_to_has_answer = {example.qas_id: bool(example.answers) for example in self.examples}
         has_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer]
         no_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if not has_answer]
@@ -339,10 +331,10 @@ class SquadDataset(Dataset):
         exact, f1 = self.get_raw_scores(all_predictions)
 
         exact_threshold = apply_no_ans_threshold(
-            exact, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold,
+            exact, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold
         )
         f1_threshold = apply_no_ans_threshold(
-            f1, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold,
+            f1, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold
         )
 
         evaluation = make_eval_dict(exact_threshold, f1_threshold)
@@ -356,9 +348,7 @@ class SquadDataset(Dataset):
             merge_eval(evaluation, no_ans_eval, "NoAns")
 
         if no_answer_probs:
-            find_all_best_thresh(
-                evaluation, all_predictions, exact, f1, no_answer_probs, qas_id_to_has_answer,
-            )
+            find_all_best_thresh(evaluation, all_predictions, exact, f1, no_answer_probs, qas_id_to_has_answer)
 
         return evaluation["best_exact"], evaluation["best_f1"]
 
@@ -401,7 +391,7 @@ class SquadDataset(Dataset):
         null_score_diff_threshold,
     ):
 
-        (all_predictions, all_nbest_json, scores_diff_json,) = self.get_predictions(
+        (all_predictions, all_nbest_json, scores_diff_json) = self.get_predictions(
             unique_ids,
             start_logits,
             end_logits,
@@ -417,9 +407,7 @@ class SquadDataset(Dataset):
         return exact_match, f1, all_predictions
 
 
-def convert_examples_to_features(
-    examples, tokenizer, max_seq_length, doc_stride, max_query_length, has_groundtruth,
-):
+def convert_examples_to_features(examples, tokenizer, max_seq_length, doc_stride, max_query_length, has_groundtruth):
     """Loads a data file into a list of `InputBatch`s."""
 
     unique_id = 1000000000
@@ -459,7 +447,7 @@ def convert_examples_to_features(
                 tok_end_position = len(all_doc_tokens) - 1
 
             (tok_start_position, tok_end_position) = _improve_answer_span(
-                all_doc_tokens, tok_start_position, tok_end_position, tokenizer, example.answer_text,
+                all_doc_tokens, tok_start_position, tok_end_position, tokenizer, example.answer_text
             )
 
         # The -3 accounts for [CLS], [SEP] and [SEP]
@@ -651,7 +639,7 @@ class SquadProcessor(DataProcessor):
             )
 
         with open(
-            os.path.join(data_dir, self.train_file if filename is None else filename), "r", encoding="utf-8",
+            os.path.join(data_dir, self.train_file if filename is None else filename), "r", encoding="utf-8"
         ) as reader:
             input_data = json.load(reader)["data"]
         return self._create_examples(input_data, "train")
@@ -676,7 +664,7 @@ class SquadProcessor(DataProcessor):
                              SquadV1Processor or SquadV2Processor"
             )
         with open(
-            os.path.join(data_dir, self.dev_file if filename is None else filename), "r", encoding="utf-8",
+            os.path.join(data_dir, self.dev_file if filename is None else filename), "r", encoding="utf-8"
         ) as reader:
             input_data = json.load(reader)["data"]
         return self._create_examples(input_data, "dev")
@@ -797,7 +785,7 @@ class SquadExample(object):
             # start_position is index of word, end_position inclusive
             self.start_position = char_to_word_offset[start_position_character]
             self.end_position = char_to_word_offset[
-                min(start_position_character + len(answer_text) - 1, len(char_to_word_offset) - 1,)
+                min(start_position_character + len(answer_text) - 1, len(char_to_word_offset) - 1)
             ]
 
 

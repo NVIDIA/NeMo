@@ -93,22 +93,16 @@ parser.add_argument(
     default="CoLA",
     type=str,
     required=True,
-    choices=['cola', 'sst-2', 'mrpc', 'sts-b', 'qqp', 'mnli', 'qnli', 'rte', 'wnli',],
+    choices=['cola', 'sst-2', 'mrpc', 'sts-b', 'qqp', 'mnli', 'qnli', 'rte', 'wnli'],
     help="GLUE task name, MNLI includes both matched and \
                     mismatched tasks",
 )
+parser.add_argument("--dataset_type", default="GLUEDataset", type=str, help='Type of dataset to create datalayers')
 parser.add_argument(
-    "--dataset_type", default="GLUEDataset", type=str, help='Type of dataset to create datalayers',
+    "--pretrained_bert_model", default="bert-base-cased", type=str, help="Name of the pre-trained model"
 )
-parser.add_argument(
-    "--pretrained_bert_model", default="bert-base-cased", type=str, help="Name of the pre-trained model",
-)
-parser.add_argument(
-    "--bert_checkpoint", default=None, type=str, help="Path to model checkpoint",
-)
-parser.add_argument(
-    "--bert_config", default=None, type=str, help="Path to bert config file in json format",
-)
+parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to model checkpoint")
+parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
 parser.add_argument(
     "--tokenizer_model",
     default="tokenizer.model",
@@ -137,22 +131,14 @@ parser.add_argument("--optimizer_kind", default="adam", type=str, help="Optimize
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--lr", default=5e-5, type=float, help="The initial learning rate.")
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
-parser.add_argument(
-    "--weight_decay", default=0.0, type=float, help="Weight deay if we apply some.",
-)
-parser.add_argument(
-    "--num_epochs", default=3, type=int, help="Total number of training epochs to perform.",
-)
-parser.add_argument(
-    "--batch_size", default=8, type=int, help="Batch size per GPU/CPU for training/evaluation.",
-)
+parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight deay if we apply some.")
+parser.add_argument("--num_epochs", default=3, type=int, help="Total number of training epochs to perform.")
+parser.add_argument("--batch_size", default=8, type=int, help="Batch size per GPU/CPU for training/evaluation.")
 parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs")
 parser.add_argument(
-    "--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision",
+    "--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
 )
-parser.add_argument(
-    "--local_rank", type=int, default=None, help="For distributed training: local_rank",
-)
+parser.add_argument("--local_rank", type=int, default=None, help="For distributed training: local_rank")
 parser.add_argument(
     "--work_dir",
     default='output_glue',
@@ -278,7 +264,7 @@ def create_pipeline(
 
     input_ids, input_type_ids, input_mask, labels = data_layer()
 
-    hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
+    hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
     """
     For STS-B (regressiont tast), the pooler_output represents a is single
@@ -296,12 +282,7 @@ def create_pipeline(
     return loss, steps_per_epoch, data_layer, [pooler_output, labels]
 
 
-token_params = {
-    'bos_token': None,
-    'eos_token': '[SEP]',
-    'pad_token': '[PAD]',
-    'cls_token': '[CLS]',
-}
+token_params = {'bos_token': None, 'eos_token': '[SEP]', 'pad_token': '[PAD]', 'cls_token': '[CLS]'}
 
 train_loss, steps_per_epoch, _, _ = create_pipeline()
 _, _, eval_data_layer, eval_tensors = create_pipeline(evaluate=True)
@@ -342,11 +323,11 @@ callback_train = nemo.core.SimpleLossLoggerCallback(
 )
 
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq,
+    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
 
 lr_policy_fn = get_lr_policy(
-    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion,
+    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
 )
 
 nf.train(

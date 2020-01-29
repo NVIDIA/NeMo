@@ -154,7 +154,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         """
         return {
             "processed_signal": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag)}
             ),
             "processed_length": NeuralType({0: AxisType(BatchTag)}),
         }
@@ -319,7 +319,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         """
         return {
             "processed_signal": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(ProcessedTimeTag)}
             ),
             "processed_length": NeuralType({0: AxisType(BatchTag)}),
         }
@@ -471,7 +471,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         """
         return {
             "processed_signal": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MFCCSignalTag), 2: AxisType(ProcessedTimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(MFCCSignalTag), 2: AxisType(ProcessedTimeTag)}
             ),
             "processed_length": NeuralType({0: AxisType(BatchTag)}),
         }
@@ -537,7 +537,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
 
         # Use torchaudio's implementation of MFCCs as featurizer
         self.featurizer = torchaudio.transforms.MFCC(
-            sample_rate=sample_rate, n_mfcc=n_mfcc, dct_type=dct_type, norm=norm, log_mels=log, melkwargs=mel_kwargs,
+            sample_rate=sample_rate, n_mfcc=n_mfcc, dct_type=dct_type, norm=norm, log_mels=log, melkwargs=mel_kwargs
         )
         self.featurizer.to(self._device)
 
@@ -591,7 +591,7 @@ class SpectrogramAugmentation(NonTrainableNM):
 
         """
         return {
-            "input_spec": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag),})
+            "input_spec": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag)})
         }
 
     @property
@@ -609,7 +609,7 @@ class SpectrogramAugmentation(NonTrainableNM):
         """
         return {
             "augmented_spec": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag)}
             )
         }
 
@@ -629,14 +629,14 @@ class SpectrogramAugmentation(NonTrainableNM):
         NonTrainableNM.__init__(self, **kwargs)
 
         if rect_masks > 0:
-            self.spec_cutout = SpecCutout(rect_masks=rect_masks, rect_time=rect_time, rect_freq=rect_freq, rng=rng,)
+            self.spec_cutout = SpecCutout(rect_masks=rect_masks, rect_time=rect_time, rect_freq=rect_freq, rng=rng)
             self.spec_cutout.to(self._device)
         else:
             self.spec_cutout = lambda x: x
 
         if freq_masks + time_masks > 0:
             self.spec_augment = SpecAugment(
-                freq_masks=freq_masks, time_masks=time_masks, freq_width=freq_width, time_width=time_width, rng=rng,
+                freq_masks=freq_masks, time_masks=time_masks, freq_width=freq_width, time_width=time_width, rng=rng
             )
             self.spec_augment.to(self._device)
         else:
@@ -681,7 +681,7 @@ class MultiplyBatch(NonTrainableNM):
 
         """
         return {
-            "in_x": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag),}),
+            "in_x": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag)}),
             "in_x_len": NeuralType({0: AxisType(BatchTag)}),
             "in_y": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "in_y_len": NeuralType({0: AxisType(BatchTag)}),
@@ -711,7 +711,7 @@ class MultiplyBatch(NonTrainableNM):
 
         """
         return {
-            "out_x": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag),}),
+            "out_x": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag)}),
             "out_x_len": NeuralType({0: AxisType(BatchTag)}),
             "out_y": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "out_y_len": NeuralType({0: AxisType(BatchTag)}),

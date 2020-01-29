@@ -19,11 +19,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='TTS')
     parser.add_argument("--local_rank", default=None, type=int)
     parser.add_argument(
-        "--spec_model",
-        type=str,
-        required=True,
-        choices=["tacotron2"],
-        help="Model generated to generate spectrograms",
+        "--spec_model", type=str, required=True, choices=["tacotron2"], help="Model generated to generate spectrograms"
     )
     parser.add_argument(
         "--vocoder",
@@ -33,7 +29,7 @@ def parse_args():
         help="Vocoder used to convert from spectrograms to audio",
     )
     parser.add_argument(
-        "--spec_model_config", type=str, required=True, help="spec model configuration file: model.yaml",
+        "--spec_model_config", type=str, required=True, help="spec model configuration file: model.yaml"
     )
     parser.add_argument(
         "--vocoder_model_config",
@@ -41,7 +37,7 @@ def parse_args():
         help=("vocoder model configuration file: model.yaml. Not required for " "griffin-lim."),
     )
     parser.add_argument(
-        "--spec_model_load_dir", type=str, required=True, help="directory containing checkpoints for spec model",
+        "--spec_model_load_dir", type=str, required=True, help="directory containing checkpoints for spec model"
     )
     parser.add_argument(
         "--vocoder_model_load_dir",
@@ -125,9 +121,7 @@ def plot_and_save_spec(spectrogram, i, save_dir=None):
     plt.close()
 
 
-def create_infer_dags(
-    neural_factory, neural_modules, tacotron2_params, infer_dataset, infer_batch_size, cpu_per_dl=1,
-):
+def create_infer_dags(neural_factory, neural_modules, tacotron2_params, infer_dataset, infer_batch_size, cpu_per_dl=1):
     (_, text_embedding, t2_enc, t2_dec, t2_postnet, _, _) = neural_modules
 
     data_layer = nemo_asr.TranscriptDataLayer(
@@ -144,10 +138,10 @@ def create_infer_dags(
     transcript, transcript_len = data_layer()
 
     transcript_embedded = text_embedding(char_phone=transcript)
-    transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len,)
+    transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len)
     if isinstance(t2_dec, nemo_tts.Tacotron2DecoderInfer):
         mel_decoder, gate, alignments, mel_len = t2_dec(
-            char_phone_encoded=transcript_encoded, encoded_length=transcript_len,
+            char_phone_encoded=transcript_encoded, encoded_length=transcript_len
         )
     else:
         raise ValueError("The Neural Module for tacotron2 decoder was not understood")
@@ -159,7 +153,7 @@ def create_infer_dags(
 def main():
     args = parse_args()
     neural_factory = nemo.core.NeuralModuleFactory(
-        optimization_level=args.amp_opt_level, backend=nemo.core.Backend.PyTorch, local_rank=args.local_rank,
+        optimization_level=args.amp_opt_level, backend=nemo.core.Backend.PyTorch, local_rank=args.local_rank
     )
 
     use_cache = True
@@ -184,7 +178,7 @@ def main():
     print("Running Tacotron 2")
     # Run tacotron 2
     evaluated_tensors = neural_factory.infer(
-        tensors=infer_tensors, checkpoint_dir=args.spec_model_load_dir, cache=use_cache, offload_to_cpu=False,
+        tensors=infer_tensors, checkpoint_dir=args.spec_model_load_dir, cache=use_cache, offload_to_cpu=False
     )
     mel_len = evaluated_tensors[-1]
     print("Done Running Tacotron 2")

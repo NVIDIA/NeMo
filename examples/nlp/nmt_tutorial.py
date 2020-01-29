@@ -131,7 +131,7 @@ decoder = nemo_nlp.TransformerDecoderNM(
 )
 
 log_softmax = nemo_nlp.TokenClassifier(
-    args.d_model, num_classes=tgt_tokenizer.vocab_size, num_layers=1, log_softmax=True,
+    args.d_model, num_classes=tgt_tokenizer.vocab_size, num_layers=1, log_softmax=True
 )
 
 beam_search = nemo_nlp.BeamSearchTranslatorNM(
@@ -165,7 +165,7 @@ def create_pipeline(dataset_src, dataset_tgt, tokens_in_batch, clean=False, trai
     src, src_mask, tgt, tgt_mask, labels, sent_ids = data_layer()
     src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)
     tgt_hiddens = decoder(
-        input_ids_tgt=tgt, hidden_states_src=src_hiddens, input_mask_src=src_mask, input_mask_tgt=tgt_mask,
+        input_ids_tgt=tgt, hidden_states_src=src_hiddens, input_mask_src=src_mask, input_mask_tgt=tgt_mask
     )
     logits = log_softmax(hidden_states=tgt_hiddens)
     loss = loss_fn(logits=logits, target_ids=labels)
@@ -207,7 +207,7 @@ eval_callback = nemo.core.EvaluatorCallback(
 # callback which saves checkpoints once in a while
 ckpt_dir = nf.checkpoint_dir if not args.interactive else args.restore_checkpoint_from
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=ckpt_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=1,
+    folder=ckpt_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=1
 )
 
 # define learning rate decay policy
@@ -228,7 +228,7 @@ if not args.interactive:
         callbacks=[train_callback, eval_callback, ckpt_callback],
         optimizer=args.optimizer,
         lr_policy=lr_policy_fn,
-        optimization_params={**stop_training_condition, "lr": args.lr, "weight_decay": args.weight_decay,},
+        optimization_params={**stop_training_condition, "lr": args.lr, "weight_decay": args.weight_decay},
         batches_per_step=args.iter_per_step,
     )
 else:

@@ -160,7 +160,7 @@ class RealFunctionDataLayer(DataLayerNM):
         y_data = f(x_data)
 
         self._data_iterator = t_utils.DataLoader(
-            t_utils.TensorDataset(x_data.float(), y_data.float()), batch_size=self._batch_size,
+            t_utils.TensorDataset(x_data.float(), y_data.float()), batch_size=self._batch_size
         )
 
     @property

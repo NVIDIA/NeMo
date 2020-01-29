@@ -77,9 +77,7 @@ class ModuleSaverCallback(ActionCallback):
     https://nvidia.github.io/NeMo/tutorials/callbacks.html
     """
 
-    def __init__(
-        self, save_modules_list, step_freq=1000, folder=None, checkpoints_to_keep=4,
-    ):
+    def __init__(self, save_modules_list, step_freq=1000, folder=None, checkpoints_to_keep=4):
         super().__init__()
         self._save_modules_list = save_modules_list
         self._folder = folder
@@ -136,7 +134,7 @@ class SimpleLossLoggerCallback(ActionCallback):
     """
 
     def __init__(
-        self, tensors, print_func=None, get_tb_values=None, log_to_tb_func=None, step_freq=25, tb_writer=None,
+        self, tensors, print_func=None, get_tb_values=None, log_to_tb_func=None, step_freq=25, tb_writer=None
     ):
 
         super().__init__()
@@ -218,7 +216,7 @@ class CheckpointCallback(ActionCallback):
     """
 
     def __init__(
-        self, folder, load_from_folder=None, step_freq=-1, epoch_freq=-1, checkpoints_to_keep=4, force_load=False,
+        self, folder, load_from_folder=None, step_freq=-1, epoch_freq=-1, checkpoints_to_keep=4, force_load=False
     ):
         super().__init__()
         if step_freq == -1 and epoch_freq == -1:

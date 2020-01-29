@@ -31,7 +31,7 @@ def create_dags(jasper_params, args, nf):
     del train_dl_params["eval"]
 
     data_layer = nemo_asr.AudioToTextDataLayer(
-        manifest_filepath=args.train_dataset, labels=vocab, batch_size=args.batch_size, **train_dl_params,
+        manifest_filepath=args.train_dataset, labels=vocab, batch_size=args.batch_size, **train_dl_params
     )
 
     num_samples = len(data_layer)
@@ -53,7 +53,7 @@ def create_dags(jasper_params, args, nf):
     del eval_dl_params["eval"]
 
     data_layer_eval = nemo_asr.AudioToTextDataLayer(
-        manifest_filepath=args.eval_datasets, labels=vocab, batch_size=args.eval_batch_size, **eval_dl_params,
+        manifest_filepath=args.eval_datasets, labels=vocab, batch_size=args.eval_batch_size, **eval_dl_params
     )
 
     num_samples = len(data_layer_eval)
@@ -73,7 +73,7 @@ def create_dags(jasper_params, args, nf):
     encoded, encoded_len = jasper_encoder(audio_signal=processed, length=processed_len)
     log_probs = jasper_decoder(encoder_output=encoded)
     predictions = greedy_decoder(log_probs=log_probs)
-    loss = ctc_loss(log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,)
+    loss = ctc_loss(log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len)
 
     # Evaluation model
     audio_e, audio_len_e, transcript_e, transcript_len_e = data_layer_eval()
@@ -82,7 +82,7 @@ def create_dags(jasper_params, args, nf):
     log_probs_e = jasper_decoder(encoder_output=encoded_e)
     predictions_e = greedy_decoder(log_probs=log_probs_e)
     loss_e = ctc_loss(
-        log_probs=log_probs_e, targets=transcript_e, input_length=encoded_len_e, target_length=transcript_len_e,
+        log_probs=log_probs_e, targets=transcript_e, input_length=encoded_len_e, target_length=transcript_len_e
     )
     nemo.logging.info("Num of params in encoder: {0}".format(jasper_encoder.num_weights))
 
@@ -105,20 +105,12 @@ def create_dags(jasper_params, args, nf):
         tb_writer=nf.tb_writer,
     )
     callbacks = [train_callback, checkpointer_callback, eval_callback]
-    return (
-        loss,
-        eval_tensors,
-        callbacks,
-        total_steps,
-        vocab,
-        log_probs_e,
-        encoded_len_e,
-    )
+    return (loss, eval_tensors, callbacks, total_steps, vocab, log_probs_e, encoded_len_e)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        parents=[nm_argparse.NemoArgParser()], description='AN4 ASR', conflict_handler='resolve',
+        parents=[nm_argparse.NemoArgParser()], description='AN4 ASR', conflict_handler='resolve'
     )
 
     # Overwrite default args
@@ -170,7 +162,7 @@ def main():
     with open(args.model_config) as f:
         jasper_params = yaml.load(f)
 
-    (loss, eval_tensors, callbacks, total_steps, vocab, log_probs_e, encoded_len_e,) = create_dags(
+    (loss, eval_tensors, callbacks, total_steps, vocab, log_probs_e, encoded_len_e) = create_dags(
         jasper_params, args, nf
     )
 
@@ -200,7 +192,7 @@ def main():
             nemo.logging.warning("Skipping beam search WER as it does not " "work if doing distributed training.")
         else:
             beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
-                vocab=vocab, beam_width=64, alpha=2.0, beta=1.5, lm_path=args.lm, num_cpus=max(os.cpu_count(), 1),
+                vocab=vocab, beam_width=64, alpha=2.0, beta=1.5, lm_path=args.lm, num_cpus=max(os.cpu_count(), 1)
             )
             beam_predictions = beam_search_with_lm(log_probs=log_probs_e, log_probs_length=encoded_len_e)
             eval_tensors.append(beam_predictions)
@@ -233,7 +225,7 @@ def main():
 
         # Reload model weights and train for extra 10 epochs
         checkpointer_callback = nemo.core.CheckpointCallback(
-            folder=checkpoint_dir, step_freq=args.checkpoint_save_freq, force_load=True,
+            folder=checkpoint_dir, step_freq=args.checkpoint_save_freq, force_load=True
         )
 
         # Distributed Data Parallel changes the underlying class so we need

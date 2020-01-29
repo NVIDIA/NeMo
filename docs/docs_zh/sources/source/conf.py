@@ -171,7 +171,7 @@ html_static_path = []
 #
 # This is required for the alabaster theme
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
-html_sidebars = {"**": ["relations.html", "searchbox.html",]}  # needs 'show_related': True theme option to display
+html_sidebars = {"**": ["relations.html", "searchbox.html"]}  # needs 'show_related': True theme option to display
 
 html_theme_options = {
     "canonical_url": "",
@@ -210,7 +210,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
-latex_documents = [(master_doc, "nemo.tex", "nemo Documentation", "AI App Design team", "manual",)]
+latex_documents = [(master_doc, "nemo.tex", "nemo Documentation", "AI App Design team", "manual")]
 
 # -- Options for manual page output ---------------------------------------
 
@@ -224,5 +224,5 @@ man_pages = [(master_doc, "nemo", "nemo Documentation", [author], 1)]
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, "nemo", "nemo Documentation", author, "nemo", "One line description of project.", "Miscellaneous",)
+    (master_doc, "nemo", "nemo Documentation", author, "nemo", "One line description of project.", "Miscellaneous")
 ]

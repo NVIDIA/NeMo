@@ -1,13 +1,9 @@
-__all__ = [
-    'GreedySequenceGenerator',
-    'TopKSequenceGenerator',
-    'BeamSearchSequenceGenerator',
-]
+__all__ = []
 
 import torch
 import torch.nn as nn
 
-from nemo.collections.nlp.modules.trainables.specific.transformer.utils import NEG_INF
+from nemo.collections.nlp.nm.trainables.specific.transformer.utils import NEG_INF
 from nemo.collections.nlp.utils.nlp_utils import mask_padded_tokens
 
 
@@ -92,7 +88,7 @@ class GreedySequenceGenerator(nn.Module):
             )
         else:
             decoder_mems_list = self.decoder.forward(
-                decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True,
+                decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
         log_probs = self.log_softmax.forward(decoder_mems_list[-1])
         return log_probs, decoder_mems_list
@@ -124,9 +120,7 @@ class GreedySequenceGenerator(nn.Module):
 
         return tgt, batch_size, max_generation_length
 
-    def forward(
-        self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None,
-    ):
+    def forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
 
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
@@ -138,7 +132,7 @@ class GreedySequenceGenerator(nn.Module):
         for i in range(max_generation_length):
 
             log_probs, decoder_mems_list = self._forward(
-                tgt[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i,
+                tgt[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
             )
 
             next_tokens = torch.argmax(log_probs[:, -1], dim=-1, keepdim=True)
@@ -182,7 +176,7 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
         pos=0,
     ):
         log_probs, decoder_mems_list = super()._forward(
-            decoder_input_ids, encoder_hidden_states, encoder_input_mask, decoder_mems_list, pos,
+            decoder_input_ids, encoder_hidden_states, encoder_input_mask, decoder_mems_list, pos
         )
 
         batch_size, seq_len, vocab_size = log_probs.size()
@@ -220,9 +214,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         self.beam_size = beam_size
         self.len_pen = len_pen
 
-    def forward(
-        self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None,
-    ):
+    def forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
 
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
@@ -261,7 +253,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
 
             # generate and score candidates for prefixes continuation
             log_probs, decoder_mems_list = self._forward(
-                prefixes[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i + 1,
+                prefixes[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i + 1
             )
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], self.beam_size, dim=-1)
 

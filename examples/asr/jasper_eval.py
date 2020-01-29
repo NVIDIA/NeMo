@@ -23,9 +23,7 @@ def main():
     parser.add_argument("--load_dir", type=str, required=True)
     parser.add_argument("--save_logprob", default=None, type=str)
     parser.add_argument("--lm_path", default=None, type=str)
-    parser.add_argument(
-        '--alpha', default=2.0, type=float, help='value of LM weight', required=False,
-    )
+    parser.add_argument('--alpha', default=2.0, type=float, help='value of LM weight', required=False)
     parser.add_argument(
         '--alpha_max',
         type=float,
@@ -33,11 +31,9 @@ def main():
         required=False,
     )
     parser.add_argument(
-        '--alpha_step', type=float, help='step for LM weight\'s tuning in \'eval\' mode', required=False, default=0.1,
+        '--alpha_step', type=float, help='step for LM weight\'s tuning in \'eval\' mode', required=False, default=0.1
     )
-    parser.add_argument(
-        '--beta', default=1.5, type=float, help='value of word count weight', required=False,
-    )
+    parser.add_argument('--beta', default=1.5, type=float, help='value of word count weight', required=False)
     parser.add_argument(
         '--beta_max',
         type=float,
@@ -91,24 +87,20 @@ def main():
     del eval_dl_params["train"]
     del eval_dl_params["eval"]
     data_layer = nemo_asr.AudioToTextDataLayer(
-        manifest_filepath=eval_datasets,
-        sample_rate=sample_rate,
-        labels=vocab,
-        batch_size=batch_size,
-        **eval_dl_params,
+        manifest_filepath=eval_datasets, sample_rate=sample_rate, labels=vocab, batch_size=batch_size, **eval_dl_params
     )
 
     N = len(data_layer)
     nemo.logging.info('Evaluating {0} examples'.format(N))
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
-        sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"],
+        sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"]
     )
     jasper_encoder = nemo_asr.JasperEncoder(
-        feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"], **jasper_params["JasperEncoder"],
+        feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"], **jasper_params["JasperEncoder"]
     )
     jasper_decoder = nemo_asr.JasperDecoderForCTC(
-        feat_in=jasper_params["JasperEncoder"]["jasper"][-1]["filters"], num_classes=len(vocab),
+        feat_in=jasper_params["JasperEncoder"]["jasper"][-1]["filters"], num_classes=len(vocab)
     )
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
@@ -120,19 +112,13 @@ def main():
     )
     nemo.logging.info('================================')
 
-    (audio_signal_e1, a_sig_length_e1, transcript_e1, transcript_len_e1,) = data_layer()
+    (audio_signal_e1, a_sig_length_e1, transcript_e1, transcript_len_e1) = data_layer()
     processed_signal_e1, p_length_e1 = data_preprocessor(input_signal=audio_signal_e1, length=a_sig_length_e1)
     encoded_e1, encoded_len_e1 = jasper_encoder(audio_signal=processed_signal_e1, length=p_length_e1)
     log_probs_e1 = jasper_decoder(encoder_output=encoded_e1)
     predictions_e1 = greedy_decoder(log_probs=log_probs_e1)
 
-    eval_tensors = [
-        log_probs_e1,
-        predictions_e1,
-        transcript_e1,
-        transcript_len_e1,
-        encoded_len_e1,
-    ]
+    eval_tensors = [log_probs_e1, predictions_e1, transcript_e1, transcript_len_e1, encoded_len_e1]
 
     evaluated_tensors = neural_factory.infer(tensors=eval_tensors, checkpoint_dir=load_dir, cache=True)
 
@@ -168,7 +154,7 @@ def main():
                 )
                 beam_predictions_e1 = beam_search_with_lm(log_probs=log_probs_e1, log_probs_length=encoded_len_e1)
 
-                evaluated_tensors = neural_factory.infer(tensors=[beam_predictions_e1], use_cache=True, verbose=False,)
+                evaluated_tensors = neural_factory.infer(tensors=[beam_predictions_e1], use_cache=True, verbose=False)
 
                 beam_hypotheses = []
                 # Over mini-batch

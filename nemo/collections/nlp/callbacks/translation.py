@@ -76,7 +76,7 @@ def eval_epochs_done_callback(global_vars, validation_dataset=None):
     for key in GLOBAL_KEYS:
         global_vars[key] = []
 
-    metrics = dict({"eval_loss": eval_loss, "token_bleu": token_bleu, "sacre_bleu": sacre_bleu,})
+    metrics = dict({"eval_loss": eval_loss, "token_bleu": token_bleu, "sacre_bleu": sacre_bleu})
 
     return metrics
 

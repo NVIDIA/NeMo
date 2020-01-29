@@ -45,7 +45,7 @@ class Attention(nn.Module):
         self.memory_layer = LinearNorm(embedding_dim, attention_dim, bias=False, w_init_gain='tanh')
         self.v = LinearNorm(attention_dim, 1, bias=False)
         self.location_layer = LocationLayer(
-            attention_location_n_filters, attention_location_kernel_size, attention_dim,
+            attention_location_n_filters, attention_location_kernel_size, attention_dim
         )
         self.score_mask_value = -float("inf")
 
@@ -69,9 +69,7 @@ class Attention(nn.Module):
         energies = energies.squeeze(-1)
         return energies
 
-    def forward(
-        self, attention_hidden_state, memory, processed_memory, attention_weights_cat, mask,
-    ):
+    def forward(self, attention_hidden_state, memory, processed_memory, attention_weights_cat, mask):
         """
         PARAMS
         ------
@@ -122,7 +120,7 @@ class Postnet(nn.Module):
     """
 
     def __init__(
-        self, n_mel_channels, postnet_embedding_dim, postnet_kernel_size, postnet_n_convolutions, p_dropout=0.5,
+        self, n_mel_channels, postnet_embedding_dim, postnet_kernel_size, postnet_n_convolutions, p_dropout=0.5
     ):
         super(Postnet, self).__init__()
         self.convolutions = nn.ModuleList()
@@ -188,9 +186,7 @@ class Encoder(nn.Module):
         - Bidirectional LSTM
     """
 
-    def __init__(
-        self, encoder_n_convolutions, encoder_embedding_dim, encoder_kernel_size,
-    ):
+    def __init__(self, encoder_n_convolutions, encoder_embedding_dim, encoder_kernel_size):
         super(Encoder, self).__init__()
 
         convolutions = []
@@ -211,7 +207,7 @@ class Encoder(nn.Module):
         self.convolutions = nn.ModuleList(convolutions)
 
         self.lstm = nn.LSTM(
-            encoder_embedding_dim, int(encoder_embedding_dim / 2), 1, batch_first=True, bidirectional=True,
+            encoder_embedding_dim, int(encoder_embedding_dim / 2), 1, batch_first=True, bidirectional=True
         )
 
     def forward(self, x, input_lengths):
@@ -264,7 +260,7 @@ class Decoder(nn.Module):
         self.p_decoder_dropout = p_decoder_dropout
         self.early_stopping = early_stopping
 
-        self.prenet = Prenet(n_mel_channels * n_frames_per_step, [prenet_dim, prenet_dim], prenet_p_dropout,)
+        self.prenet = Prenet(n_mel_channels * n_frames_per_step, [prenet_dim, prenet_dim], prenet_p_dropout)
 
         self.attention_rnn = nn.LSTMCell(prenet_dim + encoder_embedding_dim, attention_rnn_dim)
 
@@ -279,10 +275,10 @@ class Decoder(nn.Module):
         self.decoder_rnn = nn.LSTMCell(attention_rnn_dim + encoder_embedding_dim, decoder_rnn_dim, 1)
 
         self.linear_projection = LinearNorm(
-            decoder_rnn_dim + encoder_embedding_dim, n_mel_channels * n_frames_per_step,
+            decoder_rnn_dim + encoder_embedding_dim, n_mel_channels * n_frames_per_step
         )
 
-        self.gate_layer = LinearNorm(decoder_rnn_dim + encoder_embedding_dim, 1, bias=True, w_init_gain='sigmoid',)
+        self.gate_layer = LinearNorm(decoder_rnn_dim + encoder_embedding_dim, 1, bias=True, w_init_gain='sigmoid')
 
     def get_go_frame(self, memory):
         """ Gets all zeros frames to use as first decoder input
@@ -335,7 +331,7 @@ class Decoder(nn.Module):
         # (B, n_mel_channels, T_out) -> (B, T_out, n_mel_channels)
         decoder_inputs = decoder_inputs.transpose(1, 2)
         decoder_inputs = decoder_inputs.view(
-            decoder_inputs.size(0), int(decoder_inputs.size(1) / self.n_frames_per_step), -1,
+            decoder_inputs.size(0), int(decoder_inputs.size(1) / self.n_frames_per_step), -1
         )
         # (B, T_out, n_mel_channels) -> (T_out, B, n_mel_channels)
         decoder_inputs = decoder_inputs.transpose(0, 1)
@@ -389,10 +385,10 @@ class Decoder(nn.Module):
         self.attention_hidden = F.dropout(self.attention_hidden, self.p_attention_dropout, self.training)
 
         attention_weights_cat = torch.cat(
-            (self.attention_weights.unsqueeze(1), self.attention_weights_cum.unsqueeze(1),), dim=1,
+            (self.attention_weights.unsqueeze(1), self.attention_weights_cum.unsqueeze(1)), dim=1
         )
         self.attention_context, self.attention_weights = self.attention_layer(
-            self.attention_hidden, self.memory, self.processed_memory, attention_weights_cat, self.mask,
+            self.attention_hidden, self.memory, self.processed_memory, attention_weights_cat, self.mask
         )
 
         self.attention_weights_cum += self.attention_weights

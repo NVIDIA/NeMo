@@ -43,7 +43,7 @@ greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
 if ENABLE_NGRAM and os.path.isfile(LM_PATH):
     beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
-        vocab=labels, beam_width=64, alpha=2.0, beta=1.0, lm_path=LM_PATH, num_cpus=max(os.cpu_count(), 1),
+        vocab=labels, beam_width=64, alpha=2.0, beta=1.0, lm_path=LM_PATH, num_cpus=max(os.cpu_count(), 1)
     )
 else:
     print("Beam search is not enabled")

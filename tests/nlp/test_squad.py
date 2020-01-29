@@ -87,16 +87,18 @@ class TestSquad(NeMoUnitTest):
         max_answer_length = 20
         null_score_diff_threshold = 0.0
 
-        tokenizer = nemo_nlp.NemoBertTokenizer(pretrained_bert_model)
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_bert_model)
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
         )
-        model = nemo_nlp.BERT(pretrained_model_name=pretrained_bert_model)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=pretrained_bert_model)
         hidden_size = model.local_parameters["hidden_size"]
-        qa_head = nemo_nlp.TokenClassifier(hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False,)
-        squad_loss = nemo_nlp.QuestionAnsweringLoss()
+        qa_head = nemo_nlp.nm.trainables.TokenClassifier(
+            hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False
+        )
+        squad_loss = nemo_nlp.nm.losses.QuestionAnsweringLoss()
 
-        data_layer = nemo_nlp.BertQuestionAnsweringDataLayer(
+        data_layer = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
             mode='train',
             version_2_with_negative=version_2_with_negative,
             batch_size=batch_size,
@@ -107,14 +109,14 @@ class TestSquad(NeMoUnitTest):
             doc_stride=doc_stride,
         )
 
-        (input_ids, input_type_ids, input_mask, start_positions, end_positions, _,) = data_layer()
+        (input_ids, input_type_ids, input_mask, start_positions, end_positions, _) = data_layer()
 
-        hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
+        hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
         qa_output = qa_head(hidden_states=hidden_states)
-        loss, _, _ = squad_loss(logits=qa_output, start_positions=start_positions, end_positions=end_positions,)
+        loss, _, _ = squad_loss(logits=qa_output, start_positions=start_positions, end_positions=end_positions)
 
-        data_layer_eval = nemo_nlp.BertQuestionAnsweringDataLayer(
+        data_layer_eval = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
             mode='dev',
             version_2_with_negative=version_2_with_negative,
             batch_size=batch_size,
@@ -134,12 +136,12 @@ class TestSquad(NeMoUnitTest):
         ) = data_layer_eval()
 
         hidden_states_eval = model(
-            input_ids=input_ids_eval, token_type_ids=input_type_ids_eval, attention_mask=input_mask_eval,
+            input_ids=input_ids_eval, token_type_ids=input_type_ids_eval, attention_mask=input_mask_eval
         )
 
         qa_output_eval = qa_head(hidden_states=hidden_states_eval)
         _, start_logits_eval, end_logits_eval = squad_loss(
-            logits=qa_output_eval, start_positions=start_positions_eval, end_positions=end_positions_eval,
+            logits=qa_output_eval, start_positions=start_positions_eval, end_positions=end_positions_eval
         )
         eval_output = [start_logits_eval, end_logits_eval, unique_ids_eval]
 
@@ -167,7 +169,7 @@ class TestSquad(NeMoUnitTest):
             eval_step=eval_step_freq,
         )
 
-        lr_policy_fn = get_lr_policy('WarmupAnnealing', total_steps=max_steps, warmup_ratio=lr_warmup_proportion,)
+        lr_policy_fn = get_lr_policy('WarmupAnnealing', total_steps=max_steps, warmup_ratio=lr_warmup_proportion)
 
         neural_factory.train(
             tensors_to_optimize=[loss],
@@ -194,16 +196,18 @@ class TestSquad(NeMoUnitTest):
         max_answer_length = 20
         null_score_diff_threshold = 0.0
 
-        tokenizer = nemo_nlp.NemoBertTokenizer(pretrained_bert_model)
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_bert_model)
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
         )
-        model = nemo_nlp.BERT(pretrained_model_name=pretrained_bert_model)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=pretrained_bert_model)
         hidden_size = model.local_parameters["hidden_size"]
-        qa_head = nemo_nlp.TokenClassifier(hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False,)
-        squad_loss = nemo_nlp.QuestionAnsweringLoss()
+        qa_head = nemo_nlp.nm.trainables.TokenClassifier(
+            hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False
+        )
+        squad_loss = nemo_nlp.nm.losses.QuestionAnsweringLoss()
 
-        data_layer = nemo_nlp.BertQuestionAnsweringDataLayer(
+        data_layer = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
             mode='train',
             version_2_with_negative=version_2_with_negative,
             batch_size=batch_size,
@@ -214,14 +218,14 @@ class TestSquad(NeMoUnitTest):
             doc_stride=doc_stride,
         )
 
-        (input_ids, input_type_ids, input_mask, start_positions, end_positions, _,) = data_layer()
+        (input_ids, input_type_ids, input_mask, start_positions, end_positions, _) = data_layer()
 
-        hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
+        hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
         qa_output = qa_head(hidden_states=hidden_states)
-        loss, _, _ = squad_loss(logits=qa_output, start_positions=start_positions, end_positions=end_positions,)
+        loss, _, _ = squad_loss(logits=qa_output, start_positions=start_positions, end_positions=end_positions)
 
-        data_layer_eval = nemo_nlp.BertQuestionAnsweringDataLayer(
+        data_layer_eval = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
             mode='dev',
             version_2_with_negative=version_2_with_negative,
             batch_size=batch_size,
@@ -241,12 +245,12 @@ class TestSquad(NeMoUnitTest):
         ) = data_layer_eval()
 
         hidden_states_eval = model(
-            input_ids=input_ids_eval, token_type_ids=input_type_ids_eval, attention_mask=input_mask_eval,
+            input_ids=input_ids_eval, token_type_ids=input_type_ids_eval, attention_mask=input_mask_eval
         )
 
         qa_output_eval = qa_head(hidden_states=hidden_states_eval)
         _, start_logits_eval, end_logits_eval = squad_loss(
-            logits=qa_output_eval, start_positions=start_positions_eval, end_positions=end_positions_eval,
+            logits=qa_output_eval, start_positions=start_positions_eval, end_positions=end_positions_eval
         )
         eval_output = [start_logits_eval, end_logits_eval, unique_ids_eval]
 
@@ -274,7 +278,7 @@ class TestSquad(NeMoUnitTest):
             eval_step=eval_step_freq,
         )
 
-        lr_policy_fn = get_lr_policy('WarmupAnnealing', total_steps=max_steps, warmup_ratio=lr_warmup_proportion,)
+        lr_policy_fn = get_lr_policy('WarmupAnnealing', total_steps=max_steps, warmup_ratio=lr_warmup_proportion)
 
         neural_factory.train(
             tensors_to_optimize=[loss],

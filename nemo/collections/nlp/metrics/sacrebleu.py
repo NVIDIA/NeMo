@@ -117,10 +117,10 @@ DATASETS = {
         '\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",'
         '\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
         'md5': ['8ce1831ac584979ba8cdcd9d4be43e1d'],
-        'en-fr': ['1:MTNT/valid/valid.en-fr.tsv', '2:MTNT/valid/valid.en-fr.tsv',],
-        'fr-en': ['1:MTNT/valid/valid.fr-en.tsv', '2:MTNT/valid/valid.fr-en.tsv',],
-        'en-ja': ['1:MTNT/valid/valid.en-ja.tsv', '2:MTNT/valid/valid.en-ja.tsv',],
-        'ja-en': ['1:MTNT/valid/valid.ja-en.tsv', '2:MTNT/valid/valid.ja-en.tsv',],
+        'en-fr': ['1:MTNT/valid/valid.en-fr.tsv', '2:MTNT/valid/valid.en-fr.tsv'],
+        'fr-en': ['1:MTNT/valid/valid.fr-en.tsv', '2:MTNT/valid/valid.fr-en.tsv'],
+        'en-ja': ['1:MTNT/valid/valid.en-ja.tsv', '2:MTNT/valid/valid.en-ja.tsv'],
+        'ja-en': ['1:MTNT/valid/valid.ja-en.tsv', '2:MTNT/valid/valid.ja-en.tsv'],
     },
     'mtnt1.1/train': {
         'data': ['https://github.com/pmichel31415/mtnt/releases/download/v1.1/MTNT.1.1.tar.gz'],
@@ -132,44 +132,44 @@ DATASETS = {
         '\n    publisher = "Association for Computational Linguistics",\n    pages = "543--553",'
         '\n    location = "Brussels, Belgium",\n    url = "http://aclweb.org/anthology/D18-1050"\n}',
         'md5': ['8ce1831ac584979ba8cdcd9d4be43e1d'],
-        'en-fr': ['1:MTNT/train/train.en-fr.tsv', '2:MTNT/train/train.en-fr.tsv',],
-        'fr-en': ['1:MTNT/train/train.fr-en.tsv', '2:MTNT/train/train.fr-en.tsv',],
-        'en-ja': ['1:MTNT/train/train.en-ja.tsv', '2:MTNT/train/train.en-ja.tsv',],
-        'ja-en': ['1:MTNT/train/train.ja-en.tsv', '2:MTNT/train/train.ja-en.tsv',],
+        'en-fr': ['1:MTNT/train/train.en-fr.tsv', '2:MTNT/train/train.en-fr.tsv'],
+        'fr-en': ['1:MTNT/train/train.fr-en.tsv', '2:MTNT/train/train.fr-en.tsv'],
+        'en-ja': ['1:MTNT/train/train.en-ja.tsv', '2:MTNT/train/train.en-ja.tsv'],
+        'ja-en': ['1:MTNT/train/train.ja-en.tsv', '2:MTNT/train/train.ja-en.tsv'],
     },
     'wmt19': {
         'data': ['http://data.statmt.org/wmt19/translation-task/test.tgz'],
         'md5': ['84de7162d158e28403103b01aeefc39a'],
-        'cs-de': ['sgm/newstest2019-csde-src.cs.sgm', 'sgm/newstest2019-csde-ref.de.sgm',],
-        'de-cs': ['sgm/newstest2019-decs-src.de.sgm', 'sgm/newstest2019-decs-ref.cs.sgm',],
-        'de-en': ['sgm/newstest2019-deen-src.de.sgm', 'sgm/newstest2019-deen-ref.en.sgm',],
-        'de-fr': ['sgm/newstest2019-defr-src.de.sgm', 'sgm/newstest2019-defr-ref.fr.sgm',],
-        'en-cs': ['sgm/newstest2019-encs-src.en.sgm', 'sgm/newstest2019-encs-ref.cs.sgm',],
-        'en-de': ['sgm/newstest2019-ende-src.en.sgm', 'sgm/newstest2019-ende-ref.de.sgm',],
-        'en-fi': ['sgm/newstest2019-enfi-src.en.sgm', 'sgm/newstest2019-enfi-ref.fi.sgm',],
-        'en-gu': ['sgm/newstest2019-engu-src.en.sgm', 'sgm/newstest2019-engu-ref.gu.sgm',],
-        'en-kk': ['sgm/newstest2019-enkk-src.en.sgm', 'sgm/newstest2019-enkk-ref.kk.sgm',],
-        'en-lt': ['sgm/newstest2019-enlt-src.en.sgm', 'sgm/newstest2019-enlt-ref.lt.sgm',],
-        'en-ru': ['sgm/newstest2019-enru-src.en.sgm', 'sgm/newstest2019-enru-ref.ru.sgm',],
-        'en-zh': ['sgm/newstest2019-enzh-src.en.sgm', 'sgm/newstest2019-enzh-ref.zh.sgm',],
-        'fi-en': ['sgm/newstest2019-fien-src.fi.sgm', 'sgm/newstest2019-fien-ref.en.sgm',],
-        'fr-de': ['sgm/newstest2019-frde-src.fr.sgm', 'sgm/newstest2019-frde-ref.de.sgm',],
-        'gu-en': ['sgm/newstest2019-guen-src.gu.sgm', 'sgm/newstest2019-guen-ref.en.sgm',],
-        'kk-en': ['sgm/newstest2019-kken-src.kk.sgm', 'sgm/newstest2019-kken-ref.en.sgm',],
-        'lt-en': ['sgm/newstest2019-lten-src.lt.sgm', 'sgm/newstest2019-lten-ref.en.sgm',],
-        'ru-en': ['sgm/newstest2019-ruen-src.ru.sgm', 'sgm/newstest2019-ruen-ref.en.sgm',],
-        'zh-en': ['sgm/newstest2019-zhen-src.zh.sgm', 'sgm/newstest2019-zhen-ref.en.sgm',],
+        'cs-de': ['sgm/newstest2019-csde-src.cs.sgm', 'sgm/newstest2019-csde-ref.de.sgm'],
+        'de-cs': ['sgm/newstest2019-decs-src.de.sgm', 'sgm/newstest2019-decs-ref.cs.sgm'],
+        'de-en': ['sgm/newstest2019-deen-src.de.sgm', 'sgm/newstest2019-deen-ref.en.sgm'],
+        'de-fr': ['sgm/newstest2019-defr-src.de.sgm', 'sgm/newstest2019-defr-ref.fr.sgm'],
+        'en-cs': ['sgm/newstest2019-encs-src.en.sgm', 'sgm/newstest2019-encs-ref.cs.sgm'],
+        'en-de': ['sgm/newstest2019-ende-src.en.sgm', 'sgm/newstest2019-ende-ref.de.sgm'],
+        'en-fi': ['sgm/newstest2019-enfi-src.en.sgm', 'sgm/newstest2019-enfi-ref.fi.sgm'],
+        'en-gu': ['sgm/newstest2019-engu-src.en.sgm', 'sgm/newstest2019-engu-ref.gu.sgm'],
+        'en-kk': ['sgm/newstest2019-enkk-src.en.sgm', 'sgm/newstest2019-enkk-ref.kk.sgm'],
+        'en-lt': ['sgm/newstest2019-enlt-src.en.sgm', 'sgm/newstest2019-enlt-ref.lt.sgm'],
+        'en-ru': ['sgm/newstest2019-enru-src.en.sgm', 'sgm/newstest2019-enru-ref.ru.sgm'],
+        'en-zh': ['sgm/newstest2019-enzh-src.en.sgm', 'sgm/newstest2019-enzh-ref.zh.sgm'],
+        'fi-en': ['sgm/newstest2019-fien-src.fi.sgm', 'sgm/newstest2019-fien-ref.en.sgm'],
+        'fr-de': ['sgm/newstest2019-frde-src.fr.sgm', 'sgm/newstest2019-frde-ref.de.sgm'],
+        'gu-en': ['sgm/newstest2019-guen-src.gu.sgm', 'sgm/newstest2019-guen-ref.en.sgm'],
+        'kk-en': ['sgm/newstest2019-kken-src.kk.sgm', 'sgm/newstest2019-kken-ref.en.sgm'],
+        'lt-en': ['sgm/newstest2019-lten-src.lt.sgm', 'sgm/newstest2019-lten-ref.en.sgm'],
+        'ru-en': ['sgm/newstest2019-ruen-src.ru.sgm', 'sgm/newstest2019-ruen-ref.en.sgm'],
+        'zh-en': ['sgm/newstest2019-zhen-src.zh.sgm', 'sgm/newstest2019-zhen-ref.en.sgm'],
     },
     'wmt19/dev': {
         'data': ['http://data.statmt.org/wmt19/translation-task/dev.tgz'],
         'description': 'Development data for tasks new to 2019.',
         'md5': ['f2ec7af5947c19e0cacb3882eb208002'],
-        'lt-en': ['dev/newsdev2019-lten-src.lt.sgm', 'dev/newsdev2019-lten-ref.en.sgm',],
-        'en-lt': ['dev/newsdev2019-enlt-src.en.sgm', 'dev/newsdev2019-enlt-ref.lt.sgm',],
-        'gu-en': ['dev/newsdev2019-guen-src.gu.sgm', 'dev/newsdev2019-guen-ref.en.sgm',],
-        'en-gu': ['dev/newsdev2019-engu-src.en.sgm', 'dev/newsdev2019-engu-ref.gu.sgm',],
-        'kk-en': ['dev/newsdev2019-kken-src.kk.sgm', 'dev/newsdev2019-kken-ref.en.sgm',],
-        'en-kk': ['dev/newsdev2019-enkk-src.en.sgm', 'dev/newsdev2019-enkk-ref.kk.sgm',],
+        'lt-en': ['dev/newsdev2019-lten-src.lt.sgm', 'dev/newsdev2019-lten-ref.en.sgm'],
+        'en-lt': ['dev/newsdev2019-enlt-src.en.sgm', 'dev/newsdev2019-enlt-ref.lt.sgm'],
+        'gu-en': ['dev/newsdev2019-guen-src.gu.sgm', 'dev/newsdev2019-guen-ref.en.sgm'],
+        'en-gu': ['dev/newsdev2019-engu-src.en.sgm', 'dev/newsdev2019-engu-ref.gu.sgm'],
+        'kk-en': ['dev/newsdev2019-kken-src.kk.sgm', 'dev/newsdev2019-kken-ref.en.sgm'],
+        'en-kk': ['dev/newsdev2019-enkk-src.en.sgm', 'dev/newsdev2019-enkk-ref.kk.sgm'],
     },
     'wmt18': {
         'data': ['http://data.statmt.org/wmt18/translation-task/test.tgz'],
@@ -183,20 +183,20 @@ DATASETS = {
         '\n    address = "Belgium, Brussels",\n    publisher = "Association for Computational '
         'Linguistics",\n    url = "https://www.aclweb.org/anthology/W18-6401",\n    pages = "272--303",'
         '\n}',
-        'cs-en': ['test/newstest2018-csen-src.cs.sgm', 'test/newstest2018-csen-ref.en.sgm',],
-        'de-en': ['test/newstest2018-deen-src.de.sgm', 'test/newstest2018-deen-ref.en.sgm',],
-        'en-cs': ['test/newstest2018-encs-src.en.sgm', 'test/newstest2018-encs-ref.cs.sgm',],
-        'en-de': ['test/newstest2018-ende-src.en.sgm', 'test/newstest2018-ende-ref.de.sgm',],
-        'en-et': ['test/newstest2018-enet-src.en.sgm', 'test/newstest2018-enet-ref.et.sgm',],
-        'en-fi': ['test/newstest2018-enfi-src.en.sgm', 'test/newstest2018-enfi-ref.fi.sgm',],
-        'en-ru': ['test/newstest2018-enru-src.en.sgm', 'test/newstest2018-enru-ref.ru.sgm',],
-        'et-en': ['test/newstest2018-eten-src.et.sgm', 'test/newstest2018-eten-ref.en.sgm',],
-        'fi-en': ['test/newstest2018-fien-src.fi.sgm', 'test/newstest2018-fien-ref.en.sgm',],
-        'ru-en': ['test/newstest2018-ruen-src.ru.sgm', 'test/newstest2018-ruen-ref.en.sgm',],
-        'en-tr': ['test/newstest2018-entr-src.en.sgm', 'test/newstest2018-entr-ref.tr.sgm',],
-        'tr-en': ['test/newstest2018-tren-src.tr.sgm', 'test/newstest2018-tren-ref.en.sgm',],
-        'en-zh': ['test/newstest2018-enzh-src.en.sgm', 'test/newstest2018-enzh-ref.zh.sgm',],
-        'zh-en': ['test/newstest2018-zhen-src.zh.sgm', 'test/newstest2018-zhen-ref.en.sgm',],
+        'cs-en': ['test/newstest2018-csen-src.cs.sgm', 'test/newstest2018-csen-ref.en.sgm'],
+        'de-en': ['test/newstest2018-deen-src.de.sgm', 'test/newstest2018-deen-ref.en.sgm'],
+        'en-cs': ['test/newstest2018-encs-src.en.sgm', 'test/newstest2018-encs-ref.cs.sgm'],
+        'en-de': ['test/newstest2018-ende-src.en.sgm', 'test/newstest2018-ende-ref.de.sgm'],
+        'en-et': ['test/newstest2018-enet-src.en.sgm', 'test/newstest2018-enet-ref.et.sgm'],
+        'en-fi': ['test/newstest2018-enfi-src.en.sgm', 'test/newstest2018-enfi-ref.fi.sgm'],
+        'en-ru': ['test/newstest2018-enru-src.en.sgm', 'test/newstest2018-enru-ref.ru.sgm'],
+        'et-en': ['test/newstest2018-eten-src.et.sgm', 'test/newstest2018-eten-ref.en.sgm'],
+        'fi-en': ['test/newstest2018-fien-src.fi.sgm', 'test/newstest2018-fien-ref.en.sgm'],
+        'ru-en': ['test/newstest2018-ruen-src.ru.sgm', 'test/newstest2018-ruen-ref.en.sgm'],
+        'en-tr': ['test/newstest2018-entr-src.en.sgm', 'test/newstest2018-entr-ref.tr.sgm'],
+        'tr-en': ['test/newstest2018-tren-src.tr.sgm', 'test/newstest2018-tren-ref.en.sgm'],
+        'en-zh': ['test/newstest2018-enzh-src.en.sgm', 'test/newstest2018-enzh-ref.zh.sgm'],
+        'zh-en': ['test/newstest2018-zhen-src.zh.sgm', 'test/newstest2018-zhen-ref.en.sgm'],
     },
     'wmt18/test-ts': {
         'data': ['http://data.statmt.org/wmt18/translation-task/test-ts.tgz'],
@@ -221,8 +221,8 @@ DATASETS = {
         'data': ['http://data.statmt.org/wmt18/translation-task/dev.tgz'],
         'md5': ['486f391da54a7a3247f02ebd25996f24'],
         'description': 'Development data (Estonian<>English).',
-        'et-en': ['dev/newsdev2018-eten-src.et.sgm', 'dev/newsdev2018-eten-ref.en.sgm',],
-        'en-et': ['dev/newsdev2018-enet-src.en.sgm', 'dev/newsdev2018-enet-ref.et.sgm',],
+        'et-en': ['dev/newsdev2018-eten-src.et.sgm', 'dev/newsdev2018-eten-ref.en.sgm'],
+        'en-et': ['dev/newsdev2018-enet-src.en.sgm', 'dev/newsdev2018-enet-ref.et.sgm'],
     },
     'wmt17': {
         'data': ['http://data.statmt.org/wmt17/translation-task/test.tgz'],
@@ -238,26 +238,26 @@ DATASETS = {
         '\n  address   = {Copenhagen, Denmark},\n  publisher = {Association for Computational '
         'Linguistics},\n  pages     = {169--214},\n  url       = {'
         'http://www.aclweb.org/anthology/W17-4717}\n}',
-        'cs-en': ['test/newstest2017-csen-src.cs.sgm', 'test/newstest2017-csen-ref.en.sgm',],
-        'de-en': ['test/newstest2017-deen-src.de.sgm', 'test/newstest2017-deen-ref.en.sgm',],
-        'en-cs': ['test/newstest2017-encs-src.en.sgm', 'test/newstest2017-encs-ref.cs.sgm',],
-        'en-de': ['test/newstest2017-ende-src.en.sgm', 'test/newstest2017-ende-ref.de.sgm',],
-        'en-fi': ['test/newstest2017-enfi-src.en.sgm', 'test/newstest2017-enfi-ref.fi.sgm',],
-        'en-lv': ['test/newstest2017-enlv-src.en.sgm', 'test/newstest2017-enlv-ref.lv.sgm',],
-        'en-ru': ['test/newstest2017-enru-src.en.sgm', 'test/newstest2017-enru-ref.ru.sgm',],
-        'en-tr': ['test/newstest2017-entr-src.en.sgm', 'test/newstest2017-entr-ref.tr.sgm',],
-        'en-zh': ['test/newstest2017-enzh-src.en.sgm', 'test/newstest2017-enzh-ref.zh.sgm',],
-        'fi-en': ['test/newstest2017-fien-src.fi.sgm', 'test/newstest2017-fien-ref.en.sgm',],
-        'lv-en': ['test/newstest2017-lven-src.lv.sgm', 'test/newstest2017-lven-ref.en.sgm',],
-        'ru-en': ['test/newstest2017-ruen-src.ru.sgm', 'test/newstest2017-ruen-ref.en.sgm',],
-        'tr-en': ['test/newstest2017-tren-src.tr.sgm', 'test/newstest2017-tren-ref.en.sgm',],
-        'zh-en': ['test/newstest2017-zhen-src.zh.sgm', 'test/newstest2017-zhen-ref.en.sgm',],
+        'cs-en': ['test/newstest2017-csen-src.cs.sgm', 'test/newstest2017-csen-ref.en.sgm'],
+        'de-en': ['test/newstest2017-deen-src.de.sgm', 'test/newstest2017-deen-ref.en.sgm'],
+        'en-cs': ['test/newstest2017-encs-src.en.sgm', 'test/newstest2017-encs-ref.cs.sgm'],
+        'en-de': ['test/newstest2017-ende-src.en.sgm', 'test/newstest2017-ende-ref.de.sgm'],
+        'en-fi': ['test/newstest2017-enfi-src.en.sgm', 'test/newstest2017-enfi-ref.fi.sgm'],
+        'en-lv': ['test/newstest2017-enlv-src.en.sgm', 'test/newstest2017-enlv-ref.lv.sgm'],
+        'en-ru': ['test/newstest2017-enru-src.en.sgm', 'test/newstest2017-enru-ref.ru.sgm'],
+        'en-tr': ['test/newstest2017-entr-src.en.sgm', 'test/newstest2017-entr-ref.tr.sgm'],
+        'en-zh': ['test/newstest2017-enzh-src.en.sgm', 'test/newstest2017-enzh-ref.zh.sgm'],
+        'fi-en': ['test/newstest2017-fien-src.fi.sgm', 'test/newstest2017-fien-ref.en.sgm'],
+        'lv-en': ['test/newstest2017-lven-src.lv.sgm', 'test/newstest2017-lven-ref.en.sgm'],
+        'ru-en': ['test/newstest2017-ruen-src.ru.sgm', 'test/newstest2017-ruen-ref.en.sgm'],
+        'tr-en': ['test/newstest2017-tren-src.tr.sgm', 'test/newstest2017-tren-ref.en.sgm'],
+        'zh-en': ['test/newstest2017-zhen-src.zh.sgm', 'test/newstest2017-zhen-ref.en.sgm'],
     },
     'wmt17/B': {
         'data': ['http://data.statmt.org/wmt17/translation-task/test.tgz'],
         'md5': ['86a1724c276004aa25455ae2a04cef26'],
         'description': 'Additional reference for EN-FI and FI-EN.',
-        'en-fi': ['test/newstestB2017-enfi-src.en.sgm', 'test/newstestB2017-enfi-ref.fi.sgm',],
+        'en-fi': ['test/newstestB2017-enfi-src.en.sgm', 'test/newstestB2017-enfi-ref.fi.sgm'],
     },
     'wmt17/tworefs': {
         'data': ['http://data.statmt.org/wmt17/translation-task/test.tgz'],
@@ -273,24 +273,24 @@ DATASETS = {
         'data': ['http://data.statmt.org/wmt17/translation-task/test-update-1.tgz'],
         'md5': ['91dbfd5af99bc6891a637a68e04dfd41'],
         'description': 'Improved zh-en and en-zh translations.',
-        'en-zh': ['newstest2017-enzh-src.en.sgm', 'newstest2017-enzh-ref.zh.sgm',],
-        'zh-en': ['newstest2017-zhen-src.zh.sgm', 'newstest2017-zhen-ref.en.sgm',],
+        'en-zh': ['newstest2017-enzh-src.en.sgm', 'newstest2017-enzh-ref.zh.sgm'],
+        'zh-en': ['newstest2017-zhen-src.zh.sgm', 'newstest2017-zhen-ref.en.sgm'],
     },
     'wmt17/dev': {
         'data': ['http://data.statmt.org/wmt17/translation-task/dev.tgz'],
         'md5': ['9b1aa63c1cf49dccdd20b962fe313989'],
         'description': 'Development sets released for new languages in 2017.',
-        'en-lv': ['dev/newsdev2017-enlv-src.en.sgm', 'dev/newsdev2017-enlv-ref.lv.sgm',],
-        'en-zh': ['dev/newsdev2017-enzh-src.en.sgm', 'dev/newsdev2017-enzh-ref.zh.sgm',],
-        'lv-en': ['dev/newsdev2017-lven-src.lv.sgm', 'dev/newsdev2017-lven-ref.en.sgm',],
-        'zh-en': ['dev/newsdev2017-zhen-src.zh.sgm', 'dev/newsdev2017-zhen-ref.en.sgm',],
+        'en-lv': ['dev/newsdev2017-enlv-src.en.sgm', 'dev/newsdev2017-enlv-ref.lv.sgm'],
+        'en-zh': ['dev/newsdev2017-enzh-src.en.sgm', 'dev/newsdev2017-enzh-ref.zh.sgm'],
+        'lv-en': ['dev/newsdev2017-lven-src.lv.sgm', 'dev/newsdev2017-lven-ref.en.sgm'],
+        'zh-en': ['dev/newsdev2017-zhen-src.zh.sgm', 'dev/newsdev2017-zhen-ref.en.sgm'],
     },
     'wmt17/ms': {
         'data': [
             'https://github.com/MicrosoftTranslator/Translator-HumanParityData/archive/master.zip',
             'http://data.statmt.org/wmt17/translation-task/test-update-1.tgz',
         ],
-        'md5': ['18fdaa7a3c84cf6ef688da1f6a5fa96f', '91dbfd5af99bc6891a637a68e04dfd41',],
+        'md5': ['18fdaa7a3c84cf6ef688da1f6a5fa96f', '91dbfd5af99bc6891a637a68e04dfd41'],
         'description': 'Additional Chinese-English references from Microsoft Research.',
         'citation': '@inproceedings{achieving-human-parity-on-automatic-chinese-to-english-news-translation,'
         '\n  author = {Hassan Awadalla, Hany and Aue, Anthony and Chen, Chang and Chowdhary, Vishal and '
@@ -336,24 +336,24 @@ DATASETS = {
         'Machine Translation},\n  month     = {August},\n  year      = {2016},\n  address   = {Berlin, '
         'Germany},\n  publisher = {Association for Computational Linguistics},\n  pages     = {'
         '131--198},\n  url       = {http://www.aclweb.org/anthology/W/W16/W16-2301}\n}',
-        'cs-en': ['test/newstest2016-csen-src.cs.sgm', 'test/newstest2016-csen-ref.en.sgm',],
-        'de-en': ['test/newstest2016-deen-src.de.sgm', 'test/newstest2016-deen-ref.en.sgm',],
-        'en-cs': ['test/newstest2016-encs-src.en.sgm', 'test/newstest2016-encs-ref.cs.sgm',],
-        'en-de': ['test/newstest2016-ende-src.en.sgm', 'test/newstest2016-ende-ref.de.sgm',],
-        'en-fi': ['test/newstest2016-enfi-src.en.sgm', 'test/newstest2016-enfi-ref.fi.sgm',],
-        'en-ro': ['test/newstest2016-enro-src.en.sgm', 'test/newstest2016-enro-ref.ro.sgm',],
-        'en-ru': ['test/newstest2016-enru-src.en.sgm', 'test/newstest2016-enru-ref.ru.sgm',],
-        'en-tr': ['test/newstest2016-entr-src.en.sgm', 'test/newstest2016-entr-ref.tr.sgm',],
-        'fi-en': ['test/newstest2016-fien-src.fi.sgm', 'test/newstest2016-fien-ref.en.sgm',],
-        'ro-en': ['test/newstest2016-roen-src.ro.sgm', 'test/newstest2016-roen-ref.en.sgm',],
-        'ru-en': ['test/newstest2016-ruen-src.ru.sgm', 'test/newstest2016-ruen-ref.en.sgm',],
-        'tr-en': ['test/newstest2016-tren-src.tr.sgm', 'test/newstest2016-tren-ref.en.sgm',],
+        'cs-en': ['test/newstest2016-csen-src.cs.sgm', 'test/newstest2016-csen-ref.en.sgm'],
+        'de-en': ['test/newstest2016-deen-src.de.sgm', 'test/newstest2016-deen-ref.en.sgm'],
+        'en-cs': ['test/newstest2016-encs-src.en.sgm', 'test/newstest2016-encs-ref.cs.sgm'],
+        'en-de': ['test/newstest2016-ende-src.en.sgm', 'test/newstest2016-ende-ref.de.sgm'],
+        'en-fi': ['test/newstest2016-enfi-src.en.sgm', 'test/newstest2016-enfi-ref.fi.sgm'],
+        'en-ro': ['test/newstest2016-enro-src.en.sgm', 'test/newstest2016-enro-ref.ro.sgm'],
+        'en-ru': ['test/newstest2016-enru-src.en.sgm', 'test/newstest2016-enru-ref.ru.sgm'],
+        'en-tr': ['test/newstest2016-entr-src.en.sgm', 'test/newstest2016-entr-ref.tr.sgm'],
+        'fi-en': ['test/newstest2016-fien-src.fi.sgm', 'test/newstest2016-fien-ref.en.sgm'],
+        'ro-en': ['test/newstest2016-roen-src.ro.sgm', 'test/newstest2016-roen-ref.en.sgm'],
+        'ru-en': ['test/newstest2016-ruen-src.ru.sgm', 'test/newstest2016-ruen-ref.en.sgm'],
+        'tr-en': ['test/newstest2016-tren-src.tr.sgm', 'test/newstest2016-tren-ref.en.sgm'],
     },
     'wmt16/B': {
         'data': ['http://data.statmt.org/wmt16/translation-task/test.tgz'],
         'md5': ['3d809cd0c2c86adb2c67034d15c4e446'],
         'description': 'Additional reference for EN-FI.',
-        'en-fi': ['test/newstest2016-enfi-src.en.sgm', 'test/newstestB2016-enfi-ref.fi.sgm',],
+        'en-fi': ['test/newstest2016-enfi-src.en.sgm', 'test/newstestB2016-enfi-ref.fi.sgm'],
     },
     'wmt16/tworefs': {
         'data': ['http://data.statmt.org/wmt16/translation-task/test.tgz'],
@@ -369,10 +369,10 @@ DATASETS = {
         'data': ['http://data.statmt.org/wmt16/translation-task/dev.tgz'],
         'md5': ['4a3dc2760bb077f4308cce96b06e6af6'],
         'description': 'Development sets released for new languages in 2016.',
-        'en-ro': ['dev/newsdev2016-enro-src.en.sgm', 'dev/newsdev2016-enro-ref.ro.sgm',],
-        'en-tr': ['dev/newsdev2016-entr-src.en.sgm', 'dev/newsdev2016-entr-ref.tr.sgm',],
-        'ro-en': ['dev/newsdev2016-roen-src.ro.sgm', 'dev/newsdev2016-roen-ref.en.sgm',],
-        'tr-en': ['dev/newsdev2016-tren-src.tr.sgm', 'dev/newsdev2016-tren-ref.en.sgm',],
+        'en-ro': ['dev/newsdev2016-enro-src.en.sgm', 'dev/newsdev2016-enro-ref.ro.sgm'],
+        'en-tr': ['dev/newsdev2016-entr-src.en.sgm', 'dev/newsdev2016-entr-ref.tr.sgm'],
+        'ro-en': ['dev/newsdev2016-roen-src.ro.sgm', 'dev/newsdev2016-roen-ref.en.sgm'],
+        'tr-en': ['dev/newsdev2016-tren-src.tr.sgm', 'dev/newsdev2016-tren-ref.en.sgm'],
     },
     'wmt15': {
         'data': ['http://statmt.org/wmt15/test.tgz'],
@@ -387,16 +387,16 @@ DATASETS = {
         '\n  month     = {September},\n  year      = {2015},\n  address   = {Lisbon, Portugal},'
         '\n  publisher = {Association for Computational Linguistics},\n  pages     = {1--46},\n  url     '
         '  = {http://aclweb.org/anthology/W15-3001}\n}',
-        'en-fr': ['test/newsdiscusstest2015-enfr-src.en.sgm', 'test/newsdiscusstest2015-enfr-ref.fr.sgm',],
-        'fr-en': ['test/newsdiscusstest2015-fren-src.fr.sgm', 'test/newsdiscusstest2015-fren-ref.en.sgm',],
-        'cs-en': ['test/newstest2015-csen-src.cs.sgm', 'test/newstest2015-csen-ref.en.sgm',],
-        'de-en': ['test/newstest2015-deen-src.de.sgm', 'test/newstest2015-deen-ref.en.sgm',],
-        'en-cs': ['test/newstest2015-encs-src.en.sgm', 'test/newstest2015-encs-ref.cs.sgm',],
-        'en-de': ['test/newstest2015-ende-src.en.sgm', 'test/newstest2015-ende-ref.de.sgm',],
-        'en-fi': ['test/newstest2015-enfi-src.en.sgm', 'test/newstest2015-enfi-ref.fi.sgm',],
-        'en-ru': ['test/newstest2015-enru-src.en.sgm', 'test/newstest2015-enru-ref.ru.sgm',],
-        'fi-en': ['test/newstest2015-fien-src.fi.sgm', 'test/newstest2015-fien-ref.en.sgm',],
-        'ru-en': ['test/newstest2015-ruen-src.ru.sgm', 'test/newstest2015-ruen-ref.en.sgm',],
+        'en-fr': ['test/newsdiscusstest2015-enfr-src.en.sgm', 'test/newsdiscusstest2015-enfr-ref.fr.sgm'],
+        'fr-en': ['test/newsdiscusstest2015-fren-src.fr.sgm', 'test/newsdiscusstest2015-fren-ref.en.sgm'],
+        'cs-en': ['test/newstest2015-csen-src.cs.sgm', 'test/newstest2015-csen-ref.en.sgm'],
+        'de-en': ['test/newstest2015-deen-src.de.sgm', 'test/newstest2015-deen-ref.en.sgm'],
+        'en-cs': ['test/newstest2015-encs-src.en.sgm', 'test/newstest2015-encs-ref.cs.sgm'],
+        'en-de': ['test/newstest2015-ende-src.en.sgm', 'test/newstest2015-ende-ref.de.sgm'],
+        'en-fi': ['test/newstest2015-enfi-src.en.sgm', 'test/newstest2015-enfi-ref.fi.sgm'],
+        'en-ru': ['test/newstest2015-enru-src.en.sgm', 'test/newstest2015-enru-ref.ru.sgm'],
+        'fi-en': ['test/newstest2015-fien-src.fi.sgm', 'test/newstest2015-fien-ref.en.sgm'],
+        'ru-en': ['test/newstest2015-ruen-src.ru.sgm', 'test/newstest2015-ruen-ref.en.sgm'],
     },
     'wmt14': {
         'data': ['http://statmt.org/wmt14/test-filtered.tgz'],
@@ -410,31 +410,31 @@ DATASETS = {
         'on Statistical Machine Translation},\n  month     = {June},\n  year      = {2014},\n  address   '
         '= {Baltimore, Maryland, USA},\n  publisher = {Association for Computational Linguistics},'
         '\n  pages     = {12--58},\n  url       = {http://www.aclweb.org/anthology/W/W14/W14-3302}\n}',
-        'cs-en': ['test/newstest2014-csen-src.cs.sgm', 'test/newstest2014-csen-ref.en.sgm',],
-        'en-cs': ['test/newstest2014-csen-src.en.sgm', 'test/newstest2014-csen-ref.cs.sgm',],
-        'de-en': ['test/newstest2014-deen-src.de.sgm', 'test/newstest2014-deen-ref.en.sgm',],
-        'en-de': ['test/newstest2014-deen-src.en.sgm', 'test/newstest2014-deen-ref.de.sgm',],
-        'en-fr': ['test/newstest2014-fren-src.en.sgm', 'test/newstest2014-fren-ref.fr.sgm',],
-        'fr-en': ['test/newstest2014-fren-src.fr.sgm', 'test/newstest2014-fren-ref.en.sgm',],
-        'en-hi': ['test/newstest2014-hien-src.en.sgm', 'test/newstest2014-hien-ref.hi.sgm',],
-        'hi-en': ['test/newstest2014-hien-src.hi.sgm', 'test/newstest2014-hien-ref.en.sgm',],
-        'en-ru': ['test/newstest2014-ruen-src.en.sgm', 'test/newstest2014-ruen-ref.ru.sgm',],
-        'ru-en': ['test/newstest2014-ruen-src.ru.sgm', 'test/newstest2014-ruen-ref.en.sgm',],
+        'cs-en': ['test/newstest2014-csen-src.cs.sgm', 'test/newstest2014-csen-ref.en.sgm'],
+        'en-cs': ['test/newstest2014-csen-src.en.sgm', 'test/newstest2014-csen-ref.cs.sgm'],
+        'de-en': ['test/newstest2014-deen-src.de.sgm', 'test/newstest2014-deen-ref.en.sgm'],
+        'en-de': ['test/newstest2014-deen-src.en.sgm', 'test/newstest2014-deen-ref.de.sgm'],
+        'en-fr': ['test/newstest2014-fren-src.en.sgm', 'test/newstest2014-fren-ref.fr.sgm'],
+        'fr-en': ['test/newstest2014-fren-src.fr.sgm', 'test/newstest2014-fren-ref.en.sgm'],
+        'en-hi': ['test/newstest2014-hien-src.en.sgm', 'test/newstest2014-hien-ref.hi.sgm'],
+        'hi-en': ['test/newstest2014-hien-src.hi.sgm', 'test/newstest2014-hien-ref.en.sgm'],
+        'en-ru': ['test/newstest2014-ruen-src.en.sgm', 'test/newstest2014-ruen-ref.ru.sgm'],
+        'ru-en': ['test/newstest2014-ruen-src.ru.sgm', 'test/newstest2014-ruen-ref.en.sgm'],
     },
     'wmt14/full': {
         'data': ['http://statmt.org/wmt14/test-full.tgz'],
         'md5': ['a8cd784e006feb32ac6f3d9ec7eb389a'],
         'description': 'Evaluation data released after official evaluation for further research.',
-        'cs-en': ['test-full/newstest2014-csen-src.cs.sgm', 'test-full/newstest2014-csen-ref.en.sgm',],
-        'en-cs': ['test-full/newstest2014-csen-src.en.sgm', 'test-full/newstest2014-csen-ref.cs.sgm',],
-        'de-en': ['test-full/newstest2014-deen-src.de.sgm', 'test-full/newstest2014-deen-ref.en.sgm',],
-        'en-de': ['test-full/newstest2014-deen-src.en.sgm', 'test-full/newstest2014-deen-ref.de.sgm',],
-        'en-fr': ['test-full/newstest2014-fren-src.en.sgm', 'test-full/newstest2014-fren-ref.fr.sgm',],
-        'fr-en': ['test-full/newstest2014-fren-src.fr.sgm', 'test-full/newstest2014-fren-ref.en.sgm',],
-        'en-hi': ['test-full/newstest2014-hien-src.en.sgm', 'test-full/newstest2014-hien-ref.hi.sgm',],
-        'hi-en': ['test-full/newstest2014-hien-src.hi.sgm', 'test-full/newstest2014-hien-ref.en.sgm',],
-        'en-ru': ['test-full/newstest2014-ruen-src.en.sgm', 'test-full/newstest2014-ruen-ref.ru.sgm',],
-        'ru-en': ['test-full/newstest2014-ruen-src.ru.sgm', 'test-full/newstest2014-ruen-ref.en.sgm',],
+        'cs-en': ['test-full/newstest2014-csen-src.cs.sgm', 'test-full/newstest2014-csen-ref.en.sgm'],
+        'en-cs': ['test-full/newstest2014-csen-src.en.sgm', 'test-full/newstest2014-csen-ref.cs.sgm'],
+        'de-en': ['test-full/newstest2014-deen-src.de.sgm', 'test-full/newstest2014-deen-ref.en.sgm'],
+        'en-de': ['test-full/newstest2014-deen-src.en.sgm', 'test-full/newstest2014-deen-ref.de.sgm'],
+        'en-fr': ['test-full/newstest2014-fren-src.en.sgm', 'test-full/newstest2014-fren-ref.fr.sgm'],
+        'fr-en': ['test-full/newstest2014-fren-src.fr.sgm', 'test-full/newstest2014-fren-ref.en.sgm'],
+        'en-hi': ['test-full/newstest2014-hien-src.en.sgm', 'test-full/newstest2014-hien-ref.hi.sgm'],
+        'hi-en': ['test-full/newstest2014-hien-src.hi.sgm', 'test-full/newstest2014-hien-ref.en.sgm'],
+        'en-ru': ['test-full/newstest2014-ruen-src.en.sgm', 'test-full/newstest2014-ruen-ref.ru.sgm'],
+        'ru-en': ['test-full/newstest2014-ruen-src.ru.sgm', 'test-full/newstest2014-ruen-ref.en.sgm'],
     },
     'wmt13': {
         'data': ['http://statmt.org/wmt13/test.tgz'],
@@ -448,16 +448,16 @@ DATASETS = {
         '\n  month     = {August},\n  year      = {2013},\n  address   = {Sofia, Bulgaria},\n  publisher '
         '= {Association for Computational Linguistics},\n  pages     = {1--44},\n  url       = {'
         'http://www.aclweb.org/anthology/W13-2201}\n}',
-        'cs-en': ['test/newstest2013-src.cs.sgm', 'test/newstest2013-src.en.sgm',],
-        'en-cs': ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.cs.sgm',],
-        'de-en': ['test/newstest2013-src.de.sgm', 'test/newstest2013-src.en.sgm',],
-        'en-de': ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.de.sgm',],
-        'es-en': ['test/newstest2013-src.es.sgm', 'test/newstest2013-src.en.sgm',],
-        'en-es': ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.es.sgm',],
-        'fr-en': ['test/newstest2013-src.fr.sgm', 'test/newstest2013-src.en.sgm',],
-        'en-fr': ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.fr.sgm',],
-        'ru-en': ['test/newstest2013-src.ru.sgm', 'test/newstest2013-src.en.sgm',],
-        'en-ru': ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.ru.sgm',],
+        'cs-en': ['test/newstest2013-src.cs.sgm', 'test/newstest2013-src.en.sgm'],
+        'en-cs': ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.cs.sgm'],
+        'de-en': ['test/newstest2013-src.de.sgm', 'test/newstest2013-src.en.sgm'],
+        'en-de': ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.de.sgm'],
+        'es-en': ['test/newstest2013-src.es.sgm', 'test/newstest2013-src.en.sgm'],
+        'en-es': ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.es.sgm'],
+        'fr-en': ['test/newstest2013-src.fr.sgm', 'test/newstest2013-src.en.sgm'],
+        'en-fr': ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.fr.sgm'],
+        'ru-en': ['test/newstest2013-src.ru.sgm', 'test/newstest2013-src.en.sgm'],
+        'en-ru': ['test/newstest2013-src.en.sgm', 'test/newstest2013-src.ru.sgm'],
     },
     'wmt12': {
         'data': ['http://statmt.org/wmt12/test.tgz'],
@@ -470,14 +470,14 @@ DATASETS = {
         '\n  month     = {June},\n  year      = {2012},\n  address   = {Montr{\'e}al, Canada},'
         '\n  publisher = {Association for Computational Linguistics},\n  pages     = {10--51},'
         '\n  url       = {http://www.aclweb.org/anthology/W12-3102}\n}',
-        'cs-en': ['test/newstest2012-src.cs.sgm', 'test/newstest2012-src.en.sgm',],
-        'en-cs': ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.cs.sgm',],
-        'de-en': ['test/newstest2012-src.de.sgm', 'test/newstest2012-src.en.sgm',],
-        'en-de': ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.de.sgm',],
-        'es-en': ['test/newstest2012-src.es.sgm', 'test/newstest2012-src.en.sgm',],
-        'en-es': ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.es.sgm',],
-        'fr-en': ['test/newstest2012-src.fr.sgm', 'test/newstest2012-src.en.sgm',],
-        'en-fr': ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.fr.sgm',],
+        'cs-en': ['test/newstest2012-src.cs.sgm', 'test/newstest2012-src.en.sgm'],
+        'en-cs': ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.cs.sgm'],
+        'de-en': ['test/newstest2012-src.de.sgm', 'test/newstest2012-src.en.sgm'],
+        'en-de': ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.de.sgm'],
+        'es-en': ['test/newstest2012-src.es.sgm', 'test/newstest2012-src.en.sgm'],
+        'en-es': ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.es.sgm'],
+        'fr-en': ['test/newstest2012-src.fr.sgm', 'test/newstest2012-src.en.sgm'],
+        'en-fr': ['test/newstest2012-src.en.sgm', 'test/newstest2012-src.fr.sgm'],
     },
     'wmt11': {
         'data': ['http://statmt.org/wmt11/test.tgz'],
@@ -510,14 +510,14 @@ DATASETS = {
         '\n  address   = {Uppsala, Sweden},\n  publisher = {Association for Computational Linguistics},'
         '\n  pages     = {17--53},\n  note      = {Revised August 2010},\n  url       = {'
         'http://www.aclweb.org/anthology/W10-1703}\n}',
-        'cs-en': ['test/newstest2010-src.cz.sgm', 'test/newstest2010-src.en.sgm',],
-        'en-cs': ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.cz.sgm',],
-        'de-en': ['test/newstest2010-src.de.sgm', 'test/newstest2010-src.en.sgm',],
-        'en-de': ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.de.sgm',],
-        'es-en': ['test/newstest2010-src.es.sgm', 'test/newstest2010-src.en.sgm',],
-        'en-es': ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.es.sgm',],
-        'fr-en': ['test/newstest2010-src.fr.sgm', 'test/newstest2010-src.en.sgm',],
-        'en-fr': ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.fr.sgm',],
+        'cs-en': ['test/newstest2010-src.cz.sgm', 'test/newstest2010-src.en.sgm'],
+        'en-cs': ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.cz.sgm'],
+        'de-en': ['test/newstest2010-src.de.sgm', 'test/newstest2010-src.en.sgm'],
+        'en-de': ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.de.sgm'],
+        'es-en': ['test/newstest2010-src.es.sgm', 'test/newstest2010-src.en.sgm'],
+        'en-es': ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.es.sgm'],
+        'fr-en': ['test/newstest2010-src.fr.sgm', 'test/newstest2010-src.en.sgm'],
+        'en-fr': ['test/newstest2010-src.en.sgm', 'test/newstest2010-src.fr.sgm'],
     },
     'wmt09': {
         'data': ['http://statmt.org/wmt09/test.tgz'],
@@ -530,18 +530,18 @@ DATASETS = {
         '2009},\n  address   = {Athens, Greece},\n  publisher = {Association for Computational '
         'Linguistics},\n  pages     = {1--28},\n  url       = {'
         'http://www.aclweb.org/anthology/W/W09/W09-0401}\n}',
-        'cs-en': ['test/newstest2009-src.cz.sgm', 'test/newstest2009-src.en.sgm',],
-        'en-cs': ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.cz.sgm',],
-        'de-en': ['test/newstest2009-src.de.sgm', 'test/newstest2009-src.en.sgm',],
-        'en-de': ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.de.sgm',],
-        'es-en': ['test/newstest2009-src.es.sgm', 'test/newstest2009-src.en.sgm',],
-        'en-es': ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.es.sgm',],
-        'fr-en': ['test/newstest2009-src.fr.sgm', 'test/newstest2009-src.en.sgm',],
-        'en-fr': ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.fr.sgm',],
-        'hu-en': ['test/newstest2009-src.hu.sgm', 'test/newstest2009-src.en.sgm',],
-        'en-hu': ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.hu.sgm',],
-        'it-en': ['test/newstest2009-src.it.sgm', 'test/newstest2009-src.en.sgm',],
-        'en-it': ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.it.sgm',],
+        'cs-en': ['test/newstest2009-src.cz.sgm', 'test/newstest2009-src.en.sgm'],
+        'en-cs': ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.cz.sgm'],
+        'de-en': ['test/newstest2009-src.de.sgm', 'test/newstest2009-src.en.sgm'],
+        'en-de': ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.de.sgm'],
+        'es-en': ['test/newstest2009-src.es.sgm', 'test/newstest2009-src.en.sgm'],
+        'en-es': ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.es.sgm'],
+        'fr-en': ['test/newstest2009-src.fr.sgm', 'test/newstest2009-src.en.sgm'],
+        'en-fr': ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.fr.sgm'],
+        'hu-en': ['test/newstest2009-src.hu.sgm', 'test/newstest2009-src.en.sgm'],
+        'en-hu': ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.hu.sgm'],
+        'it-en': ['test/newstest2009-src.it.sgm', 'test/newstest2009-src.en.sgm'],
+        'en-it': ['test/newstest2009-src.en.sgm', 'test/newstest2009-src.it.sgm'],
     },
     'wmt08': {
         'data': ['http://statmt.org/wmt08/test.tgz'],
@@ -553,23 +553,23 @@ DATASETS = {
         'Workshop on Statistical Machine Translation},\n  month     = {June},\n  year      = {2008},'
         '\n  address   = {Columbus, Ohio},\n  publisher = {Association for Computational Linguistics},'
         '\n  pages     = {70--106},\n  url       = {http://www.aclweb.org/anthology/W/W08/W08-0309}\n}',
-        'cs-en': ['test/newstest2008-src.cz.sgm', 'test/newstest2008-src.en.sgm',],
-        'en-cs': ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.cz.sgm',],
-        'de-en': ['test/newstest2008-src.de.sgm', 'test/newstest2008-src.en.sgm',],
-        'en-de': ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.de.sgm',],
-        'es-en': ['test/newstest2008-src.es.sgm', 'test/newstest2008-src.en.sgm',],
-        'en-es': ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.es.sgm',],
-        'fr-en': ['test/newstest2008-src.fr.sgm', 'test/newstest2008-src.en.sgm',],
-        'en-fr': ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.fr.sgm',],
-        'hu-en': ['test/newstest2008-src.hu.sgm', 'test/newstest2008-src.en.sgm',],
-        'en-hu': ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.hu.sgm',],
+        'cs-en': ['test/newstest2008-src.cz.sgm', 'test/newstest2008-src.en.sgm'],
+        'en-cs': ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.cz.sgm'],
+        'de-en': ['test/newstest2008-src.de.sgm', 'test/newstest2008-src.en.sgm'],
+        'en-de': ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.de.sgm'],
+        'es-en': ['test/newstest2008-src.es.sgm', 'test/newstest2008-src.en.sgm'],
+        'en-es': ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.es.sgm'],
+        'fr-en': ['test/newstest2008-src.fr.sgm', 'test/newstest2008-src.en.sgm'],
+        'en-fr': ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.fr.sgm'],
+        'hu-en': ['test/newstest2008-src.hu.sgm', 'test/newstest2008-src.en.sgm'],
+        'en-hu': ['test/newstest2008-src.en.sgm', 'test/newstest2008-src.hu.sgm'],
     },
     'wmt08/nc': {
         'data': ['http://statmt.org/wmt08/test.tgz'],
         'md5': ['0582e4e894a3342044059c894e1aea3d'],
         'description': 'Official evaluation data (news commentary).',
-        'cs-en': ['test/nc-test2008-src.cz.sgm', 'test/nc-test2008-src.en.sgm',],
-        'en-cs': ['test/nc-test2008-src.en.sgm', 'test/nc-test2008-src.cz.sgm',],
+        'cs-en': ['test/nc-test2008-src.cz.sgm', 'test/nc-test2008-src.en.sgm'],
+        'en-cs': ['test/nc-test2008-src.en.sgm', 'test/nc-test2008-src.cz.sgm'],
     },
     'wmt08/europarl': {
         'data': ['http://statmt.org/wmt08/test.tgz'],
@@ -618,12 +618,12 @@ DATASETS = {
         '\n  booktitle = {14th International Workshop on Spoken Language Translation},\n  month     = {'
         'December},\n  year      = {2017},\n  address   = {Tokyo, Japan},\n  pages     = {2--14},'
         '\n  url       = {http://workshop2017.iwslt.org/downloads/iwslt2017_proceeding_v2.pdf}\n}',
-        'en-fr': ['en-fr/IWSLT17.TED.tst2017.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2017.fr-en.fr.xml',],
-        'fr-en': ['fr-en/IWSLT17.TED.tst2017.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2017.en-fr.en.xml',],
-        'en-de': ['en-de/IWSLT17.TED.tst2017.en-de.en.xml', 'de-en/IWSLT17.TED.tst2017.de-en.de.xml',],
-        'de-en': ['de-en/IWSLT17.TED.tst2017.de-en.de.xml', 'en-de/IWSLT17.TED.tst2017.en-de.en.xml',],
-        'en-zh': ['en-zh/IWSLT17.TED.tst2017.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2017.zh-en.zh.xml',],
-        'zh-en': ['zh-en/IWSLT17.TED.tst2017.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2017.en-zh.en.xml',],
+        'en-fr': ['en-fr/IWSLT17.TED.tst2017.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2017.fr-en.fr.xml'],
+        'fr-en': ['fr-en/IWSLT17.TED.tst2017.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2017.en-fr.en.xml'],
+        'en-de': ['en-de/IWSLT17.TED.tst2017.en-de.en.xml', 'de-en/IWSLT17.TED.tst2017.de-en.de.xml'],
+        'de-en': ['de-en/IWSLT17.TED.tst2017.de-en.de.xml', 'en-de/IWSLT17.TED.tst2017.en-de.en.xml'],
+        'en-zh': ['en-zh/IWSLT17.TED.tst2017.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2017.zh-en.zh.xml'],
+        'zh-en': ['zh-en/IWSLT17.TED.tst2017.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2017.en-zh.en.xml'],
     },
     'iwslt17/tst2016': {
         'data': [
@@ -643,12 +643,12 @@ DATASETS = {
             "cc51d9b7fe1ff2af858c6a0dd80b8815",
         ],
         'description': 'Development data for IWSLT 2017.',
-        'en-fr': ['en-fr/IWSLT17.TED.tst2016.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2016.fr-en.fr.xml',],
-        'fr-en': ['fr-en/IWSLT17.TED.tst2016.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2016.en-fr.en.xml',],
-        'en-de': ['en-de/IWSLT17.TED.tst2016.en-de.en.xml', 'de-en/IWSLT17.TED.tst2016.de-en.de.xml',],
-        'de-en': ['de-en/IWSLT17.TED.tst2016.de-en.de.xml', 'en-de/IWSLT17.TED.tst2016.en-de.en.xml',],
-        'en-zh': ['en-zh/IWSLT17.TED.tst2016.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2016.zh-en.zh.xml',],
-        'zh-en': ['zh-en/IWSLT17.TED.tst2016.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2016.en-zh.en.xml',],
+        'en-fr': ['en-fr/IWSLT17.TED.tst2016.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2016.fr-en.fr.xml'],
+        'fr-en': ['fr-en/IWSLT17.TED.tst2016.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2016.en-fr.en.xml'],
+        'en-de': ['en-de/IWSLT17.TED.tst2016.en-de.en.xml', 'de-en/IWSLT17.TED.tst2016.de-en.de.xml'],
+        'de-en': ['de-en/IWSLT17.TED.tst2016.de-en.de.xml', 'en-de/IWSLT17.TED.tst2016.en-de.en.xml'],
+        'en-zh': ['en-zh/IWSLT17.TED.tst2016.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2016.zh-en.zh.xml'],
+        'zh-en': ['zh-en/IWSLT17.TED.tst2016.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2016.en-zh.en.xml'],
     },
     'iwslt17/tst2015': {
         'data': [
@@ -668,12 +668,12 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116",
         ],
         'description': 'Development data for IWSLT 2017.',
-        'en-fr': ['en-fr/IWSLT17.TED.tst2015.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2015.fr-en.fr.xml',],
-        'fr-en': ['fr-en/IWSLT17.TED.tst2015.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2015.en-fr.en.xml',],
-        'en-de': ['en-de/IWSLT17.TED.tst2015.en-de.en.xml', 'de-en/IWSLT17.TED.tst2015.de-en.de.xml',],
-        'de-en': ['de-en/IWSLT17.TED.tst2015.de-en.de.xml', 'en-de/IWSLT17.TED.tst2015.en-de.en.xml',],
-        'en-zh': ['en-zh/IWSLT17.TED.tst2015.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2015.zh-en.zh.xml',],
-        'zh-en': ['zh-en/IWSLT17.TED.tst2015.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2015.en-zh.en.xml',],
+        'en-fr': ['en-fr/IWSLT17.TED.tst2015.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2015.fr-en.fr.xml'],
+        'fr-en': ['fr-en/IWSLT17.TED.tst2015.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2015.en-fr.en.xml'],
+        'en-de': ['en-de/IWSLT17.TED.tst2015.en-de.en.xml', 'de-en/IWSLT17.TED.tst2015.de-en.de.xml'],
+        'de-en': ['de-en/IWSLT17.TED.tst2015.de-en.de.xml', 'en-de/IWSLT17.TED.tst2015.en-de.en.xml'],
+        'en-zh': ['en-zh/IWSLT17.TED.tst2015.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2015.zh-en.zh.xml'],
+        'zh-en': ['zh-en/IWSLT17.TED.tst2015.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2015.en-zh.en.xml'],
     },
     'iwslt17/tst2014': {
         'data': [
@@ -693,12 +693,12 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116",
         ],
         'description': 'Development data for IWSLT 2017.',
-        'en-fr': ['en-fr/IWSLT17.TED.tst2014.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2014.fr-en.fr.xml',],
-        'fr-en': ['fr-en/IWSLT17.TED.tst2014.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2014.en-fr.en.xml',],
-        'en-de': ['en-de/IWSLT17.TED.tst2014.en-de.en.xml', 'de-en/IWSLT17.TED.tst2014.de-en.de.xml',],
-        'de-en': ['de-en/IWSLT17.TED.tst2014.de-en.de.xml', 'en-de/IWSLT17.TED.tst2014.en-de.en.xml',],
-        'en-zh': ['en-zh/IWSLT17.TED.tst2014.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2014.zh-en.zh.xml',],
-        'zh-en': ['zh-en/IWSLT17.TED.tst2014.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2014.en-zh.en.xml',],
+        'en-fr': ['en-fr/IWSLT17.TED.tst2014.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2014.fr-en.fr.xml'],
+        'fr-en': ['fr-en/IWSLT17.TED.tst2014.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2014.en-fr.en.xml'],
+        'en-de': ['en-de/IWSLT17.TED.tst2014.en-de.en.xml', 'de-en/IWSLT17.TED.tst2014.de-en.de.xml'],
+        'de-en': ['de-en/IWSLT17.TED.tst2014.de-en.de.xml', 'en-de/IWSLT17.TED.tst2014.en-de.en.xml'],
+        'en-zh': ['en-zh/IWSLT17.TED.tst2014.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2014.zh-en.zh.xml'],
+        'zh-en': ['zh-en/IWSLT17.TED.tst2014.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2014.en-zh.en.xml'],
     },
     'iwslt17/tst2013': {
         'data': [
@@ -718,12 +718,12 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116",
         ],
         'description': 'Development data for IWSLT 2017.',
-        'en-fr': ['en-fr/IWSLT17.TED.tst2013.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2013.fr-en.fr.xml',],
-        'fr-en': ['fr-en/IWSLT17.TED.tst2013.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2013.en-fr.en.xml',],
-        'en-de': ['en-de/IWSLT17.TED.tst2013.en-de.en.xml', 'de-en/IWSLT17.TED.tst2013.de-en.de.xml',],
-        'de-en': ['de-en/IWSLT17.TED.tst2013.de-en.de.xml', 'en-de/IWSLT17.TED.tst2013.en-de.en.xml',],
-        'en-zh': ['en-zh/IWSLT17.TED.tst2013.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2013.zh-en.zh.xml',],
-        'zh-en': ['zh-en/IWSLT17.TED.tst2013.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2013.en-zh.en.xml',],
+        'en-fr': ['en-fr/IWSLT17.TED.tst2013.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2013.fr-en.fr.xml'],
+        'fr-en': ['fr-en/IWSLT17.TED.tst2013.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2013.en-fr.en.xml'],
+        'en-de': ['en-de/IWSLT17.TED.tst2013.en-de.en.xml', 'de-en/IWSLT17.TED.tst2013.de-en.de.xml'],
+        'de-en': ['de-en/IWSLT17.TED.tst2013.de-en.de.xml', 'en-de/IWSLT17.TED.tst2013.en-de.en.xml'],
+        'en-zh': ['en-zh/IWSLT17.TED.tst2013.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2013.zh-en.zh.xml'],
+        'zh-en': ['zh-en/IWSLT17.TED.tst2013.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2013.en-zh.en.xml'],
     },
     'iwslt17/tst2012': {
         'data': [
@@ -743,12 +743,12 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116",
         ],
         'description': 'Development data for IWSLT 2017.',
-        'en-fr': ['en-fr/IWSLT17.TED.tst2012.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2012.fr-en.fr.xml',],
-        'fr-en': ['fr-en/IWSLT17.TED.tst2012.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2012.en-fr.en.xml',],
-        'en-de': ['en-de/IWSLT17.TED.tst2012.en-de.en.xml', 'de-en/IWSLT17.TED.tst2012.de-en.de.xml',],
-        'de-en': ['de-en/IWSLT17.TED.tst2012.de-en.de.xml', 'en-de/IWSLT17.TED.tst2012.en-de.en.xml',],
-        'en-zh': ['en-zh/IWSLT17.TED.tst2012.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2012.zh-en.zh.xml',],
-        'zh-en': ['zh-en/IWSLT17.TED.tst2012.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2012.en-zh.en.xml',],
+        'en-fr': ['en-fr/IWSLT17.TED.tst2012.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2012.fr-en.fr.xml'],
+        'fr-en': ['fr-en/IWSLT17.TED.tst2012.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2012.en-fr.en.xml'],
+        'en-de': ['en-de/IWSLT17.TED.tst2012.en-de.en.xml', 'de-en/IWSLT17.TED.tst2012.de-en.de.xml'],
+        'de-en': ['de-en/IWSLT17.TED.tst2012.de-en.de.xml', 'en-de/IWSLT17.TED.tst2012.en-de.en.xml'],
+        'en-zh': ['en-zh/IWSLT17.TED.tst2012.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2012.zh-en.zh.xml'],
+        'zh-en': ['zh-en/IWSLT17.TED.tst2012.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2012.en-zh.en.xml'],
     },
     'iwslt17/tst2011': {
         'data': [
@@ -768,12 +768,12 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116",
         ],
         'description': 'Development data for IWSLT 2017.',
-        'en-fr': ['en-fr/IWSLT17.TED.tst2011.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2011.fr-en.fr.xml',],
-        'fr-en': ['fr-en/IWSLT17.TED.tst2011.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2011.en-fr.en.xml',],
-        'en-de': ['en-de/IWSLT17.TED.tst2011.en-de.en.xml', 'de-en/IWSLT17.TED.tst2011.de-en.de.xml',],
-        'de-en': ['de-en/IWSLT17.TED.tst2011.de-en.de.xml', 'en-de/IWSLT17.TED.tst2011.en-de.en.xml',],
-        'en-zh': ['en-zh/IWSLT17.TED.tst2011.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2011.zh-en.zh.xml',],
-        'zh-en': ['zh-en/IWSLT17.TED.tst2011.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2011.en-zh.en.xml',],
+        'en-fr': ['en-fr/IWSLT17.TED.tst2011.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2011.fr-en.fr.xml'],
+        'fr-en': ['fr-en/IWSLT17.TED.tst2011.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2011.en-fr.en.xml'],
+        'en-de': ['en-de/IWSLT17.TED.tst2011.en-de.en.xml', 'de-en/IWSLT17.TED.tst2011.de-en.de.xml'],
+        'de-en': ['de-en/IWSLT17.TED.tst2011.de-en.de.xml', 'en-de/IWSLT17.TED.tst2011.en-de.en.xml'],
+        'en-zh': ['en-zh/IWSLT17.TED.tst2011.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2011.zh-en.zh.xml'],
+        'zh-en': ['zh-en/IWSLT17.TED.tst2011.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2011.en-zh.en.xml'],
     },
     'iwslt17/tst2010': {
         'data': [
@@ -793,12 +793,12 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116",
         ],
         'description': 'Development data for IWSLT 2017.',
-        'en-fr': ['en-fr/IWSLT17.TED.tst2010.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2010.fr-en.fr.xml',],
-        'fr-en': ['fr-en/IWSLT17.TED.tst2010.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2010.en-fr.en.xml',],
-        'en-de': ['en-de/IWSLT17.TED.tst2010.en-de.en.xml', 'de-en/IWSLT17.TED.tst2010.de-en.de.xml',],
-        'de-en': ['de-en/IWSLT17.TED.tst2010.de-en.de.xml', 'en-de/IWSLT17.TED.tst2010.en-de.en.xml',],
-        'en-zh': ['en-zh/IWSLT17.TED.tst2010.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2010.zh-en.zh.xml',],
-        'zh-en': ['zh-en/IWSLT17.TED.tst2010.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2010.en-zh.en.xml',],
+        'en-fr': ['en-fr/IWSLT17.TED.tst2010.en-fr.en.xml', 'fr-en/IWSLT17.TED.tst2010.fr-en.fr.xml'],
+        'fr-en': ['fr-en/IWSLT17.TED.tst2010.fr-en.fr.xml', 'en-fr/IWSLT17.TED.tst2010.en-fr.en.xml'],
+        'en-de': ['en-de/IWSLT17.TED.tst2010.en-de.en.xml', 'de-en/IWSLT17.TED.tst2010.de-en.de.xml'],
+        'de-en': ['de-en/IWSLT17.TED.tst2010.de-en.de.xml', 'en-de/IWSLT17.TED.tst2010.en-de.en.xml'],
+        'en-zh': ['en-zh/IWSLT17.TED.tst2010.en-zh.en.xml', 'zh-en/IWSLT17.TED.tst2010.zh-en.zh.xml'],
+        'zh-en': ['zh-en/IWSLT17.TED.tst2010.zh-en.zh.xml', 'en-zh/IWSLT17.TED.tst2010.en-zh.en.xml'],
     },
     'iwslt17/dev2010': {
         'data': [
@@ -818,12 +818,12 @@ DATASETS = {
             "1c0ae40171d52593df8a6963d3828116",
         ],
         'description': 'Development data for IWSLT 2017.',
-        'en-fr': ['en-fr/IWSLT17.TED.dev2010.en-fr.en.xml', 'fr-en/IWSLT17.TED.dev2010.fr-en.fr.xml',],
-        'fr-en': ['fr-en/IWSLT17.TED.dev2010.fr-en.fr.xml', 'en-fr/IWSLT17.TED.dev2010.en-fr.en.xml',],
-        'en-de': ['en-de/IWSLT17.TED.dev2010.en-de.en.xml', 'de-en/IWSLT17.TED.dev2010.de-en.de.xml',],
-        'de-en': ['de-en/IWSLT17.TED.dev2010.de-en.de.xml', 'en-de/IWSLT17.TED.dev2010.en-de.en.xml',],
-        'en-zh': ['en-zh/IWSLT17.TED.dev2010.en-zh.en.xml', 'zh-en/IWSLT17.TED.dev2010.zh-en.zh.xml',],
-        'zh-en': ['zh-en/IWSLT17.TED.dev2010.zh-en.zh.xml', 'en-zh/IWSLT17.TED.dev2010.en-zh.en.xml',],
+        'en-fr': ['en-fr/IWSLT17.TED.dev2010.en-fr.en.xml', 'fr-en/IWSLT17.TED.dev2010.fr-en.fr.xml'],
+        'fr-en': ['fr-en/IWSLT17.TED.dev2010.fr-en.fr.xml', 'en-fr/IWSLT17.TED.dev2010.en-fr.en.xml'],
+        'en-de': ['en-de/IWSLT17.TED.dev2010.en-de.en.xml', 'de-en/IWSLT17.TED.dev2010.de-en.de.xml'],
+        'de-en': ['de-en/IWSLT17.TED.dev2010.de-en.de.xml', 'en-de/IWSLT17.TED.dev2010.en-de.en.xml'],
+        'en-zh': ['en-zh/IWSLT17.TED.dev2010.en-zh.en.xml', 'zh-en/IWSLT17.TED.dev2010.zh-en.zh.xml'],
+        'zh-en': ['zh-en/IWSLT17.TED.dev2010.zh-en.zh.xml', 'en-zh/IWSLT17.TED.dev2010.en-zh.en.xml'],
     },
 }
 
@@ -1087,15 +1087,7 @@ def bleu_signature(args, numrefs):
     """
 
     # Abbreviations for the signature
-    abbr = {
-        'test': 't',
-        'lang': 'l',
-        'smooth': 's',
-        'case': 'c',
-        'tok': 'tok',
-        'numrefs': '#',
-        'version': 'v',
-    }
+    abbr = {'test': 't', 'lang': 'l', 'smooth': 's', 'case': 'c', 'tok': 'tok', 'numrefs': '#', 'version': 'v'}
 
     signature = {
         'tok': args.tokenize,
@@ -1124,15 +1116,7 @@ def chrf_signature(args, numrefs):
     """
 
     # Abbreviations for the signature
-    abbr = {
-        'test': 't',
-        'lang': 'l',
-        'numchars': 'n',
-        'space': 's',
-        'case': 'c',
-        'numrefs': '#',
-        'version': 'v',
-    }
+    abbr = {'test': 't', 'lang': 'l', 'numchars': 'n', 'space': 's', 'case': 'c', 'numrefs': '#', 'version': 'v'}
 
     signature = {
         'tok': args.tokenize,
@@ -1225,16 +1209,12 @@ def process_to_text(rawfile, txtfile, field: int = None):
             with smart_open(rawfile) as fin, smart_open(txtfile, 'wt') as fout:
                 for line in fin:
                     if line.startswith('<seg '):
-                        print(
-                            _clean(re.sub(r'<seg.*?>(.*)</seg>.*?', '\\1', line)), file=fout,
-                        )
+                        print(_clean(re.sub(r'<seg.*?>(.*)</seg>.*?', '\\1', line)), file=fout)
         elif rawfile.endswith('.xml'):  # IWSLT
             with smart_open(rawfile) as fin, smart_open(txtfile, 'wt') as fout:
                 for line in fin:
                     if line.startswith('<seg '):
-                        print(
-                            _clean(re.sub(r'<seg.*?>(.*)</seg>.*?', '\\1', line)), file=fout,
-                        )
+                        print(_clean(re.sub(r'<seg.*?>(.*)</seg>.*?', '\\1', line)), file=fout)
         elif rawfile.endswith('.txt'):  # wmt17/ms
             with smart_open(rawfile) as fin, smart_open(txtfile, 'wt') as fout:
                 for line in fin:
@@ -1586,7 +1566,7 @@ def delete_whitespace(text: str) -> str:
 
 
 def get_sentence_statistics(
-    hypothesis: str, reference: str, order: int = CHRF_ORDER, remove_whitespace: bool = True,
+    hypothesis: str, reference: str, order: int = CHRF_ORDER, remove_whitespace: bool = True
 ) -> List[float]:
     hypothesis = delete_whitespace(hypothesis) if remove_whitespace else hypothesis
     reference = delete_whitespace(reference) if remove_whitespace else reference
@@ -1603,11 +1583,11 @@ def get_sentence_statistics(
 
 
 def get_corpus_statistics(
-    hypotheses: Iterable[str], references: Iterable[str], order: int = CHRF_ORDER, remove_whitespace: bool = True,
+    hypotheses: Iterable[str], references: Iterable[str], order: int = CHRF_ORDER, remove_whitespace: bool = True
 ) -> List[float]:
     corpus_statistics = [0] * (order * 3)
     for hypothesis, reference in zip(hypotheses, references):
-        statistics = get_sentence_statistics(hypothesis, reference, order=order, remove_whitespace=remove_whitespace,)
+        statistics = get_sentence_statistics(hypothesis, reference, order=order, remove_whitespace=remove_whitespace)
         for i in range(len(statistics)):
             corpus_statistics[i] += statistics[i]
     return corpus_statistics
@@ -1656,15 +1636,13 @@ def corpus_chrf(
     :param beta: Defines importance of recall w.r.t precision. If beta=1,
     same importance. :return: Chrf score.
     """
-    corpus_statistics = get_corpus_statistics(
-        hypotheses, references, order=order, remove_whitespace=remove_whitespace,
-    )
+    corpus_statistics = get_corpus_statistics(hypotheses, references, order=order, remove_whitespace=remove_whitespace)
     avg_precision, avg_recall = _avg_precision_and_recall(corpus_statistics, order)
     return _chrf(avg_precision, avg_recall, beta=beta)
 
 
 def sentence_chrf(
-    hypothesis: str, reference: str, order: int = CHRF_ORDER, beta: float = CHRF_BETA, remove_whitespace: bool = True,
+    hypothesis: str, reference: str, order: int = CHRF_ORDER, beta: float = CHRF_BETA, remove_whitespace: bool = True
 ) -> float:
     """
     Computes ChrF on a single sentence pair.
@@ -1688,10 +1666,10 @@ def main():
         '    cat output.detok.de | ./sacreBLEU -t wmt14 -l en-de'
     )
     arg_parser.add_argument(
-        '--test-set', '-t', type=str, default=None, choices=DATASETS.keys(), help='the test set to use',
+        '--test-set', '-t', type=str, default=None, choices=DATASETS.keys(), help='the test set to use'
     )
     arg_parser.add_argument(
-        '-lc', action='store_true', default=False, help='use case-insensitive BLEU (default: actual case)',
+        '-lc', action='store_true', default=False, help='use case-insensitive BLEU (default: actual case)'
     )
     arg_parser.add_argument(
         '--smooth',
@@ -1709,7 +1687,7 @@ def main():
         help='The value to pass to the smoothing technique, when relevant. ' 'Default: %(default)s. ',
     )
     arg_parser.add_argument(
-        '--tokenize', '-tok', choices=TOKENIZERS.keys(), default=None, help='tokenization method to use',
+        '--tokenize', '-tok', choices=TOKENIZERS.keys(), default=None, help='tokenization method to use'
     )
     arg_parser.add_argument(
         '--language-pair',
@@ -1718,9 +1696,7 @@ def main():
         default=None,
         help='source-target language pair (2-char ISO639-1 codes)',
     )
-    arg_parser.add_argument(
-        '--download', type=str, default=None, help='download a test set and quit',
-    )
+    arg_parser.add_argument('--download', type=str, default=None, help='download a test set and quit')
     arg_parser.add_argument(
         '--echo',
         choices=['src', 'ref', 'both'],
@@ -1728,9 +1704,7 @@ def main():
         default=None,
         help='output the source (src), reference (ref), or both (both, ' 'pasted) to STDOUT and quit ',
     )
-    arg_parser.add_argument(
-        '--input', '-i', type=str, default='-', help='Read input from a file instead of STDIN',
-    )
+    arg_parser.add_argument('--input', '-i', type=str, default='-', help='Read input from a file instead of STDIN')
     arg_parser.add_argument(
         'refs',
         nargs='*',
@@ -1746,10 +1720,10 @@ def main():
         help='metrics to compute (default: bleu)',
     )
     arg_parser.add_argument(
-        '--chrf-order', type=int, default=CHRF_ORDER, help='chrf character order (default: %(default)s)',
+        '--chrf-order', type=int, default=CHRF_ORDER, help='chrf character order (default: %(default)s)'
     )
     arg_parser.add_argument(
-        '--chrf-beta', type=int, default=CHRF_BETA, help='chrf BETA parameter (default: %(default)s)',
+        '--chrf-beta', type=int, default=CHRF_BETA, help='chrf BETA parameter (default: %(default)s)'
     )
     arg_parser.add_argument(
         '--chrf-whitespace',
@@ -1758,17 +1732,15 @@ def main():
         help='include whitespace in chrF calculation (default: %(default)s)',
     )
     arg_parser.add_argument(
-        '--short', default=False, action='store_true', help='produce a shorter (less human readable) signature',
+        '--short', default=False, action='store_true', help='produce a shorter (less human readable) signature'
     )
     arg_parser.add_argument(
-        '--score-only', '-b', default=False, action='store_true', help='output only the BLEU score',
+        '--score-only', '-b', default=False, action='store_true', help='output only the BLEU score'
     )
     arg_parser.add_argument(
-        '--force', default=False, action='store_true', help='insist that your tokenized input is actually detokenized',
+        '--force', default=False, action='store_true', help='insist that your tokenized input is actually detokenized'
     )
-    arg_parser.add_argument(
-        '--quiet', '-q', default=False, action='store_true', help='suppress informative output',
-    )
+    arg_parser.add_argument('--quiet', '-q', default=False, action='store_true', help='suppress informative output')
     arg_parser.add_argument(
         '--encoding',
         '-e',
@@ -1777,18 +1749,14 @@ def main():
         help='open text files with specified encoding (default: %(default)s)',
     )
     arg_parser.add_argument(
-        '--citation', '--cite', default=False, action='store_true', help='dump the bibtex citation and quit.',
+        '--citation', '--cite', default=False, action='store_true', help='dump the bibtex citation and quit.'
     )
-    arg_parser.add_argument(
-        '--width', '-w', type=int, default=1, help='floating point width (default: %(default)s)',
-    )
-    arg_parser.add_argument(
-        '-V', '--version', action='version', version='%(prog)s {}'.format(VERSION),
-    )
+    arg_parser.add_argument('--width', '-w', type=int, default=1, help='floating point width (default: %(default)s)')
+    arg_parser.add_argument('-V', '--version', action='version', version='%(prog)s {}'.format(VERSION))
     args = arg_parser.parse_args()
 
     # Explicitly set the encoding
-    sys.stdin = open(sys.stdin.fileno(), mode='r', encoding='utf-8', buffering=True, newline="\n",)
+    sys.stdin = open(sys.stdin.fileno(), mode='r', encoding='utf-8', buffering=True, newline="\n")
     sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=True)
 
     if not args.quiet:
@@ -1899,11 +1867,7 @@ def main():
             )
         if 'chrf' in args.metrics:
             chrf = corpus_chrf(
-                system,
-                refs[0],
-                beta=args.chrf_beta,
-                order=args.chrf_order,
-                remove_whitespace=not args.chrf_whitespace,
+                system, refs[0], beta=args.chrf_beta, order=args.chrf_order, remove_whitespace=not args.chrf_whitespace
             )
     except EOFError:
         logging.error('The input and reference stream(s) were of different lengths.\n')

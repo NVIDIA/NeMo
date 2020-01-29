@@ -28,7 +28,7 @@ if not os.path.exists(args.data_dir):
     raise ValueError(f'Data not found at {args.data_dir}')
 
 nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch, local_rank=args.local_rank, optimization_level=args.amp_opt_level, log_dir=None,
+    backend=nemo.core.Backend.PyTorch, local_rank=args.local_rank, optimization_level=args.amp_opt_level, log_dir=None
 )
 
 """ Load the pretrained BERT parameters
@@ -56,10 +56,10 @@ data_layer = nemo_nlp.BertJointIntentSlotDataLayer(
 )
 
 classifier = nemo_nlp.JointIntentSlotClassifier(
-    hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots,
+    hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots
 )
 
-(ids, type_ids, input_mask, loss_mask, subtokens_mask, intents, slots,) = data_layer()
+(ids, type_ids, input_mask, loss_mask, subtokens_mask, intents, slots) = data_layer()
 
 hidden_states = pretrained_bert_model(input_ids=ids, token_type_ids=type_ids, attention_mask=input_mask)
 intent_logits, slot_logits = classifier(hidden_states=hidden_states)
@@ -69,7 +69,7 @@ intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
 # Instantiate an optimizer to perform `infer` action
 evaluated_tensors = nf.infer(
-    tensors=[intent_logits, slot_logits, loss_mask, subtokens_mask, intents, slots,], checkpoint_dir=args.work_dir,
+    tensors=[intent_logits, slot_logits, loss_mask, subtokens_mask, intents, slots], checkpoint_dir=args.work_dir
 )
 
 

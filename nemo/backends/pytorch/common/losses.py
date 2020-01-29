@@ -49,7 +49,7 @@ class SequenceLoss(LossNM):
 
         """
         return {
-            'log_probs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            'log_probs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
 
@@ -140,7 +140,7 @@ class CrossEntropyLoss(LossNM):
         """
         return {
             "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            "labels": NeuralType({0: AxisType(BatchTag),}),
+            "labels": NeuralType({0: AxisType(BatchTag)}),
         }
 
     @property
@@ -174,10 +174,7 @@ class MSELoss(LossNM):
         labels:
             0: AxisType(RegressionTag)
         """
-        return {
-            "preds": NeuralType({0: AxisType(RegressionTag)}),
-            "labels": NeuralType({0: AxisType(RegressionTag)}),
-        }
+        return {"preds": NeuralType({0: AxisType(RegressionTag)}), "labels": NeuralType({0: AxisType(RegressionTag)})}
 
     @property
     def output_ports(self):

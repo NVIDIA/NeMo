@@ -1,4 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
+__all__ = ['BERT']
 from typing import List, Optional
 
 from transformers import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAINED_MODEL_ARCHIVE_MAP, BertConfig, BertModel
@@ -64,7 +65,7 @@ class BERT(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
+        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
 
     def __init__(
         self,
@@ -142,4 +143,4 @@ class BERT(TrainableNM):
         return pretrained_models
 
     def forward(self, input_ids, token_type_ids, attention_mask):
-        return self.bert(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask,)[0]
+        return self.bert(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)[0]

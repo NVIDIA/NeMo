@@ -18,11 +18,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-jasper_activations = {
-    "hardtanh": nn.Hardtanh,
-    "relu": nn.ReLU,
-    "selu": nn.SELU,
-}
+jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU}
 
 
 def init_weights(m, mode='xavier_uniform'):
@@ -230,7 +226,7 @@ class JasperBlock(nn.Module):
                 res_list.append(
                     nn.ModuleList(
                         self._get_conv_bn_layer(
-                            ip, planes, kernel_size=1, normalization=normalization, norm_groups=norm_groups,
+                            ip, planes, kernel_size=1, normalization=normalization, norm_groups=norm_groups
                         )
                     )
                 )
@@ -311,14 +307,7 @@ class JasperBlock(nn.Module):
                     heads=heads,
                 ),
                 self._get_conv(
-                    in_channels,
-                    out_channels,
-                    kernel_size=1,
-                    stride=1,
-                    dilation=1,
-                    padding=0,
-                    bias=bias,
-                    groups=groups,
+                    in_channels, out_channels, kernel_size=1, stride=1, dilation=1, padding=0, bias=bias, groups=groups
                 ),
             ]
         else:

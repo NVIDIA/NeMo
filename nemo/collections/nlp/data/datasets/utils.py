@@ -133,22 +133,7 @@ def process_thucnews(data_dir):
     for mode in modes:
         outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'a+', encoding='utf-8')
         outfiles[mode].write('sentence\tlabel\n')
-    categories = [
-        '体育',
-        '娱乐',
-        '家居',
-        '彩票',
-        '房产',
-        '教育',
-        '时尚',
-        '时政',
-        '星座',
-        '游戏',
-        '社会',
-        '科技',
-        '股票',
-        '财经',
-    ]
+    categories = ['体育', '娱乐', '家居', '彩票', '房产', '教育', '时尚', '时政', '星座', '游戏', '社会', '科技', '股票', '财经']
     for category in categories:
         label = categories.index(category)
         category_files = glob.glob(f'{data_dir}/{category}/*.txt')
@@ -184,13 +169,7 @@ def process_nlu(filename, uncased, modes=['train', 'test'], dataset_name='nlu-ub
         raise ValueError(f'Data not found at {filename}. ' 'Please download IMDB from {link}.')
 
     if dataset_name == 'nlu-ubuntu':
-        INTENT = {
-            'makeupdate': 1,
-            'setupprinter': 2,
-            'shutdowncomputer': 3,
-            'softwarerecommendation': 4,
-            'none': 0,
-        }
+        INTENT = {'makeupdate': 1, 'setupprinter': 2, 'shutdowncomputer': 3, 'softwarerecommendation': 4, 'none': 0}
     elif dataset_name == 'nlu-chat':
         INTENT = {'departuretime': 0, 'findconnection': 1}
     elif dataset_name == 'nlu-web':
@@ -309,9 +288,7 @@ def process_atis(infold, uncased, modes=['train', 'test'], dev_split=0):
     return outfold
 
 
-def process_jarvis_datasets(
-    infold, uncased, dataset_name, modes=['train', 'test', 'eval'], ignore_prev_intent=False,
-):
+def process_jarvis_datasets(infold, uncased, dataset_name, modes=['train', 'test', 'eval'], ignore_prev_intent=False):
     """ process and convert Jarvis datasets into NeMo's BIO format
     """
     outfold = f'{infold}/{dataset_name}-nemo-processed'
@@ -562,12 +539,8 @@ def process_snips(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     light_train, light_dev, light_slots, light_intents = get_dataset(light_files, dev_split)
     speak_train, speak_dev, speak_slots, speak_intents = get_dataset(speak_files)
 
-    create_dataset(
-        light_train, light_dev, light_slots, light_intents, uncased, f'{outfold}/light',
-    )
-    create_dataset(
-        speak_train, speak_dev, speak_slots, speak_intents, uncased, f'{outfold}/speak',
-    )
+    create_dataset(light_train, light_dev, light_slots, light_intents, uncased, f'{outfold}/light')
+    create_dataset(speak_train, speak_dev, speak_slots, speak_intents, uncased, f'{outfold}/speak')
     create_dataset(
         light_train + speak_train,
         light_dev + speak_dev,
@@ -1015,14 +988,12 @@ class JointIntentSlotDataDesc:
 
     """
 
-    def __init__(
-        self, data_dir, do_lower_case=False, dataset_name='default', none_slot_label='O', pad_label=-1,
-    ):
+    def __init__(self, data_dir, do_lower_case=False, dataset_name='default', none_slot_label='O', pad_label=-1):
         if dataset_name == 'atis':
             self.data_dir = process_atis(data_dir, do_lower_case)
         elif dataset_name == 'snips-atis':
             self.data_dir, self.pad_label = merge(
-                data_dir, ['ATIS/nemo-processed-uncased', 'snips/nemo-processed-uncased/all',], dataset_name,
+                data_dir, ['ATIS/nemo-processed-uncased', 'snips/nemo-processed-uncased/all'], dataset_name
             )
         elif dataset_name == 'dialogflow':
             self.data_dir = process_dialogflow(data_dir, do_lower_case)
@@ -1038,7 +1009,7 @@ class JointIntentSlotDataDesc:
                 self.data_dir = f'{self.data_dir}/all'
         elif dataset_name.startswith('jarvis'):
             self.data_dir = process_jarvis_datasets(
-                data_dir, do_lower_case, dataset_name, modes=["train", "test", "eval"], ignore_prev_intent=False,
+                data_dir, do_lower_case, dataset_name, modes=["train", "test", "eval"], ignore_prev_intent=False
             )
         else:
             if not if_exist(data_dir, ['dict.intents.csv', 'dict.slots.csv']):
@@ -1143,7 +1114,7 @@ class SentenceClassificationDataDesc:
             self.eval_file = self.data_dir + '/test.tsv'
         elif dataset_name.startswith('jarvis'):
             self.data_dir = process_jarvis_datasets(
-                data_dir, do_lower_case, dataset_name, modes=['train', 'test', 'eval'], ignore_prev_intent=False,
+                data_dir, do_lower_case, dataset_name, modes=['train', 'test', 'eval'], ignore_prev_intent=False
             )
 
             intents = get_intent_labels(f'{self.data_dir}/dict.intents.csv')
@@ -1242,7 +1213,7 @@ class LanguageModelDataDesc:
 
 
 def create_vocab_mlm(
-    data_dir, vocab_size, sample_size, special_tokens=['[PAD]', '[UNK]', '[CLS]', '[SEP]', '[MASK]'], train_file='',
+    data_dir, vocab_size, sample_size, special_tokens=['[PAD]', '[UNK]', '[CLS]', '[SEP]', '[MASK]'], train_file=''
 ):
     vocab = special_tokens[:]
     bert_dir = f'{data_dir}/bert'
@@ -1296,9 +1267,7 @@ def create_vocab_mlm(
 
 
 class BERTPretrainingDataDesc:
-    def __init__(
-        self, dataset_name, data_dir, vocab_size, sample_size, special_tokens, train_file='',
-    ):
+    def __init__(self, dataset_name, data_dir, vocab_size, sample_size, special_tokens, train_file=''):
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
                 data_dir = download_wkt2(data_dir)
@@ -1412,7 +1381,7 @@ class MnliProcessor(DataProcessor):
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")), "dev_matched",)
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")), "dev_matched")
 
     def get_labels(self):
         """See base class."""
@@ -1437,7 +1406,7 @@ class MnliMismatchedProcessor(MnliProcessor):
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev_mismatched.tsv")), "dev_matched",)
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev_mismatched.tsv")), "dev_matched")
 
 
 class ColaProcessor(DataProcessor):

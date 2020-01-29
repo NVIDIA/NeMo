@@ -23,7 +23,7 @@ parser.add_argument("--do_lower_case", action='store_false')
 args = parser.parse_args()
 
 nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None,
+    backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None
 )
 
 """ Load the pretrained BERT parameters
@@ -41,12 +41,12 @@ if args.do_lower_case:
     query = query.lower()
 
 data_layer = nemo_nlp.BertJointIntentSlotInferDataLayer(
-    queries=[query], tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1,
+    queries=[query], tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
 )
 
 # Create sentence classification loss on top
 classifier = nemo_nlp.JointIntentSlotClassifier(
-    hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout,
+    hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
 )
 
 ids, type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
@@ -58,7 +58,7 @@ intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 ###########################################################################
 
 
-evaluated_tensors = nf.infer(tensors=[intent_logits, slot_logits, subtokens_mask], checkpoint_dir=args.work_dir,)
+evaluated_tensors = nf.infer(tensors=[intent_logits, slot_logits, subtokens_mask], checkpoint_dir=args.work_dir)
 
 
 def concatenate(lists):
@@ -68,5 +68,5 @@ def concatenate(lists):
 intent_logits, slot_logits, subtokens_mask = [concatenate(tensors) for tensors in evaluated_tensors]
 
 read_intent_slot_outputs(
-    [query], data_desc.intent_dict_file, data_desc.slot_dict_file, intent_logits, slot_logits, subtokens_mask,
+    [query], data_desc.intent_dict_file, data_desc.slot_dict_file, intent_logits, slot_logits, subtokens_mask
 )

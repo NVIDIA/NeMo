@@ -3,9 +3,7 @@ import json
 
 
 class AudioManifest(object):
-    def __init__(
-        self, manifest_paths, max_duration=None, min_duration=None, sort_by_duration=False, max_utts=0,
-    ):
+    def __init__(self, manifest_paths, max_duration=None, min_duration=None, sort_by_duration=False, max_utts=0):
         ids = []
         duration = 0.0
         filtered_duration = 0.0

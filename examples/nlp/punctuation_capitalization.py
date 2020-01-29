@@ -37,9 +37,7 @@ parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--pretrained_bert_model", default="bert-base-uncased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
-parser.add_argument(
-    "--bert_config", default=None, type=str, help="Path to bert config file in json format",
-)
+parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
 parser.add_argument("--punct_classifier_checkpoint", default=None, type=str)
 parser.add_argument("--capit_classifier_checkpoint", default=None, type=str)
 parser.add_argument(
@@ -64,9 +62,7 @@ parser.add_argument(
     help="The output directory where the model prediction\
                     and checkpoints will be written.",
 )
-parser.add_argument(
-    "--use_cache", action='store_true', help="Whether to cache preprocessed data",
-)
+parser.add_argument("--use_cache", action='store_true', help="Whether to cache preprocessed data")
 parser.add_argument(
     "--save_epoch_freq",
     default=1,
@@ -81,9 +77,7 @@ parser.add_argument(
     help="Frequency of saving checkpoint \
                     '-1' - step checkpoint won't be saved",
 )
-parser.add_argument(
-    "--loss_step_freq", default=250, type=int, help="Frequency of printing loss",
-)
+parser.add_argument("--loss_step_freq", default=250, type=int, help="Frequency of printing loss")
 parser.add_argument(
     "--use_weighted_loss_punct",
     action='store_true',
@@ -201,7 +195,7 @@ def create_pipeline(
         use_cache=use_cache,
     )
 
-    (input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, punct_labels, capit_labels,) = data_layer()
+    (input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, punct_labels, capit_labels) = data_layer()
 
     if mode == 'train':
         punct_label_ids = data_layer.dataset.punct_label_ids
@@ -229,14 +223,14 @@ def create_pipeline(
         # Initialize capitalization loss
         capit_classifier = getattr(sys.modules[__name__], capit_classifier)
         capit_classifier = capit_classifier(
-            hidden_size=hidden_size, num_classes=len(capit_label_ids), dropout=dropout, name='Capitalization',
+            hidden_size=hidden_size, num_classes=len(capit_label_ids), dropout=dropout, name='Capitalization'
         )
         capit_loss = getattr(sys.modules[__name__], capit_loss)
         capit_loss = capit_loss(num_classes=len(capit_label_ids))
 
         task_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
 
-    hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
+    hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
     punct_logits = punct_classifier(hidden_states=hidden_states)
     capit_logits = capit_classifier(hidden_states=hidden_states)
@@ -250,28 +244,16 @@ def create_pipeline(
 
         losses = [task_loss, punct_loss, capit_loss]
         logits = [punct_logits, capit_logits]
-        return (
-            losses,
-            logits,
-            steps_per_epoch,
-            punct_label_ids,
-            capit_label_ids,
-        )
+        return (losses, logits, steps_per_epoch, punct_label_ids, capit_label_ids)
     else:
-        tensors_to_evaluate = [
-            punct_logits,
-            capit_logits,
-            punct_labels,
-            capit_labels,
-            subtokens_mask,
-        ]
+        tensors_to_evaluate = [punct_logits, capit_logits, punct_labels, capit_labels, subtokens_mask]
         return tensors_to_evaluate, data_layer
 
 
-(losses, train_logits, steps_per_epoch, punct_label_ids, capit_label_ids,) = create_pipeline()
+(losses, train_logits, steps_per_epoch, punct_label_ids, capit_label_ids) = create_pipeline()
 
 eval_tensors, data_layer = create_pipeline(
-    mode='dev', punct_label_ids=punct_label_ids, capit_label_ids=capit_label_ids,
+    mode='dev', punct_label_ids=punct_label_ids, capit_label_ids=capit_label_ids
 )
 
 nemo.logging.info(f"steps_per_epoch = {steps_per_epoch}")
@@ -295,11 +277,11 @@ eval_callback = nemo.core.EvaluatorCallback(
 )
 
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq,
+    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
 
 lr_policy_fn = get_lr_policy(
-    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion,
+    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
 )
 
 nf.train(

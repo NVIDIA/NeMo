@@ -31,7 +31,7 @@ class WeightShareTransform(Enum):
 
 
 PretrainedModelInfo = namedtuple(
-    "PretrainedModleInfo", ("pretrained_model_name", "description", "parameters", "location"),
+    "PretrainedModleInfo", ("pretrained_model_name", "description", "parameters", "location")
 )
 
 
@@ -49,9 +49,7 @@ class NeuralModule(ABC):
             whatever is specified in factory.
     """
 
-    def __init__(
-        self, *, pretrained_model_name=None, factory=None, placement=None, **kwargs,
-    ):
+    def __init__(self, *, pretrained_model_name=None, factory=None, placement=None, **kwargs):
         self._pretrained_model_name = pretrained_model_name
         self._local_parameters = self.update_local_params()
 
@@ -160,7 +158,7 @@ class NeuralModule(ABC):
                     "Port: {1} and a NmTensor it was fed are \n"
                     "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
                     "\n\nType comparison result: {4}".format(
-                        self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility,
+                        self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility
                     )
                 )
             if type_comatibility == NeuralTypeComparisonResult.LESS:
@@ -176,7 +174,7 @@ class NeuralModule(ABC):
                     raise CanNotInferResultNeuralType(
                         "Can't infer output neural type." "Likely your inputs are of " "different type."
                     )
-            return NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
+            return NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type)
         else:
             result = []
             for out_port, n_type in output_port_defs.items():
@@ -188,12 +186,12 @@ class NeuralModule(ABC):
                         raise CanNotInferResultNeuralType(
                             "Can't infer output neural type." "Likely your inputs are of " "different type."
                         )
-                result.append(NmTensor(producer=self, producer_args=kwargs, name=out_port, ntype=out_type,))
+                result.append(NmTensor(producer=self, producer_args=kwargs, name=out_port, ntype=out_type))
 
             # Creating ad-hoc class for returning from module's forward pass.
             output_class_name = f'{self.__class__.__name__}Output'
             field_names = list(output_port_defs)
-            result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
+            result_type = collections.namedtuple(typename=output_class_name, field_names=field_names)
 
             # Tie tuple of output tensors with corresponding names.
             result = result_type(*result)

@@ -88,7 +88,7 @@ class WN(torch.nn.Module):
         for i in range(n_layers):
             dilation = 2 ** i
             padding = int((kernel_size * dilation - dilation) / 2)
-            in_layer = torch.nn.Conv1d(n_channels, 2 * n_channels, kernel_size, dilation=dilation, padding=padding,)
+            in_layer = torch.nn.Conv1d(n_channels, 2 * n_channels, kernel_size, dilation=dilation, padding=padding)
             in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
             self.in_layers.append(in_layer)
 
@@ -111,7 +111,7 @@ class WN(torch.nn.Module):
 
         for i in range(self.n_layers):
             acts = fused_add_tanh_sigmoid_multiply(
-                self.in_layers[i](audio), self.cond_layers[i](spect), torch.IntTensor([self.n_channels]),
+                self.in_layers[i](audio), self.cond_layers[i](spect), torch.IntTensor([self.n_channels])
             )
 
             res_skip_acts = self.res_skip_layers[i](acts)
@@ -129,9 +129,7 @@ class WN(torch.nn.Module):
 
 
 class WaveGlow(torch.nn.Module):
-    def __init__(
-        self, n_mel_channels, n_flows, n_group, n_early_every, n_early_size, WN_config,
-    ):
+    def __init__(self, n_mel_channels, n_flows, n_group, n_early_every, n_early_size, WN_config):
         super(WaveGlow, self).__init__()
 
         self.upsample = torch.nn.ConvTranspose1d(n_mel_channels, n_mel_channels, 1024, stride=256)
@@ -211,7 +209,7 @@ class WaveGlow(torch.nn.Module):
         spect = spect.contiguous().view(spect.size(0), spect.size(1), -1)
         spect = spect.permute(0, 2, 1)
 
-        audio = torch.randn(spect.size(0), self.n_remaining_channels, spect.size(2), device=spect.device,).to(
+        audio = torch.randn(spect.size(0), self.n_remaining_channels, spect.size(2), device=spect.device).to(
             spect.dtype
         )
 
@@ -231,7 +229,7 @@ class WaveGlow(torch.nn.Module):
             audio = self.convinv[k](audio, reverse=True)
 
             if k % self.n_early_every == 0 and k > 0:
-                z = torch.randn(spect.size(0), self.n_early_size, spect.size(2), device=spect.device,).to(spect.dtype)
+                z = torch.randn(spect.size(0), self.n_early_size, spect.size(2), device=spect.device).to(spect.dtype)
                 audio = torch.cat((sigma * z, audio), 1)
 
         audio = audio.permute(0, 2, 1).contiguous().view(audio.size(0), -1).data

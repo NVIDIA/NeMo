@@ -20,7 +20,7 @@ def mask_padded_tokens(tokens, pad_id):
 
 
 def read_intent_slot_outputs(
-    queries, intent_file, slot_file, intent_logits, slot_logits, slot_masks, intents=None, slots=None,
+    queries, intent_file, slot_file, intent_logits, slot_logits, slot_masks, intents=None, slots=None
 ):
     intent_dict = get_vocab(intent_file)
     slot_dict = get_vocab(slot_file)

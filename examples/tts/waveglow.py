@@ -15,7 +15,7 @@ from nemo.collections.tts import waveglow_eval_log_to_tb_func, waveglow_log_to_t
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        parents=[nm_argparse.NemoArgParser()], description='Waveglow', conflict_handler='resolve',
+        parents=[nm_argparse.NemoArgParser()], description='Waveglow', conflict_handler='resolve'
     )
     parser.set_defaults(
         checkpoint_dir=None,
@@ -30,15 +30,9 @@ def parse_args():
     )
 
     # Overwrite default args
-    parser.add_argument(
-        "--max_steps", type=int, default=None, required=False, help="max number of steps to train",
-    )
-    parser.add_argument(
-        "--num_epochs", type=int, default=None, required=False, help="number of epochs to train",
-    )
-    parser.add_argument(
-        "--model_config", type=str, required=True, help="model configuration file: model.yaml",
-    )
+    parser.add_argument("--max_steps", type=int, default=None, required=False, help="max number of steps to train")
+    parser.add_argument("--num_epochs", type=int, default=None, required=False, help="number of epochs to train")
+    parser.add_argument("--model_config", type=str, required=True, help="model configuration file: model.yaml")
 
     # Create new args
     parser.add_argument("--exp_name", default="Waveglow", type=str)
@@ -80,7 +74,7 @@ def create_NMs(waveglow_params):
 
 
 def create_train_dag(
-    neural_factory, neural_modules, waveglow_params, train_dataset, batch_size, checkpoint_save_freq, cpu_per_dl=1,
+    neural_factory, neural_modules, waveglow_params, train_dataset, batch_size, checkpoint_save_freq, cpu_per_dl=1
 ):
     data_preprocessor, waveglow, waveglow_loss = neural_modules
 
@@ -90,7 +84,7 @@ def create_train_dag(
     del train_dl_params["eval"]
 
     data_layer = nemo_tts.AudioDataLayer(
-        manifest_filepath=train_dataset, batch_size=batch_size, num_workers=cpu_per_dl, **train_dl_params,
+        manifest_filepath=train_dataset, batch_size=batch_size, num_workers=cpu_per_dl, **train_dl_params
     )
 
     N = len(data_layer)
@@ -119,7 +113,7 @@ def create_train_dag(
 
 
 def create_eval_dags(
-    neural_factory, neural_modules, waveglow_params, eval_datasets, eval_batch_size, eval_freq, cpu_per_dl=1,
+    neural_factory, neural_modules, waveglow_params, eval_datasets, eval_batch_size, eval_freq, cpu_per_dl=1
 ):
     data_preprocessor, waveglow, _ = neural_modules
 
@@ -132,7 +126,7 @@ def create_eval_dags(
     # assemble eval DAGs
     for eval_dataset in eval_datasets:
         data_layer_eval = nemo_tts.AudioDataLayer(
-            manifest_filepath=eval_dataset, batch_size=eval_batch_size, num_workers=cpu_per_dl, **eval_dl_params,
+            manifest_filepath=eval_dataset, batch_size=eval_batch_size, num_workers=cpu_per_dl, **eval_dl_params
         )
 
         audio, audio_len, = data_layer_eval()
@@ -146,7 +140,7 @@ def create_eval_dags(
             eval_tensors=[audio_pred, spec_target, spec_target_len],
             user_iter_callback=waveglow_process_eval_batch,
             user_epochs_done_callback=lambda x: x,
-            tb_writer_func=partial(waveglow_eval_log_to_tb_func, tag=tagname, mel_fb=data_preprocessor.filter_banks,),
+            tb_writer_func=partial(waveglow_eval_log_to_tb_func, tag=tagname, mel_fb=data_preprocessor.filter_banks),
             eval_step=eval_freq,
             tb_writer=neural_factory.tb_writer,
         )

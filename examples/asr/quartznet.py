@@ -15,7 +15,7 @@ from nemo.utils.lr_policies import CosineAnnealing
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        parents=[nm_argparse.NemoArgParser()], description='QuartzNet', conflict_handler='resolve',
+        parents=[nm_argparse.NemoArgParser()], description='QuartzNet', conflict_handler='resolve'
     )
     parser.set_defaults(
         checkpoint_dir=None,
@@ -36,9 +36,7 @@ def parse_args():
         required=True,
         help="number of epochs to train. You should specify" "either num_epochs or max_steps",
     )
-    parser.add_argument(
-        "--model_config", type=str, required=True, help="model configuration file: model.yaml",
-    )
+    parser.add_argument("--model_config", type=str, required=True, help="model configuration file: model.yaml")
 
     # Create new args
     parser.add_argument("--exp_name", default="QuartzNet", type=str)
@@ -125,16 +123,16 @@ def create_all_dags(args, neural_factory):
     # create shared modules
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
-        sample_rate=sample_rate, **quartz_params["AudioToMelSpectrogramPreprocessor"],
+        sample_rate=sample_rate, **quartz_params["AudioToMelSpectrogramPreprocessor"]
     )
 
     # (QuartzNet uses the Jasper baseline encoder and decoder)
     encoder = nemo_asr.JasperEncoder(
-        feat_in=quartz_params["AudioToMelSpectrogramPreprocessor"]["features"], **quartz_params["JasperEncoder"],
+        feat_in=quartz_params["AudioToMelSpectrogramPreprocessor"]["features"], **quartz_params["JasperEncoder"]
     )
 
     decoder = nemo_asr.JasperDecoderForCTC(
-        feat_in=quartz_params["JasperEncoder"]["jasper"][-1]["filters"], num_classes=len(vocab),
+        feat_in=quartz_params["JasperEncoder"]["jasper"][-1]["filters"], num_classes=len(vocab)
     )
 
     ctc_loss = nemo_asr.CTCLossNM(num_classes=len(vocab))
@@ -154,13 +152,13 @@ def create_all_dags(args, neural_factory):
 
     # assemble train DAG
 
-    (audio_signal_t, a_sig_length_t, transcript_t, transcript_len_t,) = data_layer_train()
+    (audio_signal_t, a_sig_length_t, transcript_t, transcript_len_t) = data_layer_train()
 
     processed_signal_t, p_length_t = data_preprocessor(input_signal=audio_signal_t, length=a_sig_length_t)
 
     if multiply_batch_config:
-        (processed_signal_t, p_length_t, transcript_t, transcript_len_t,) = multiply_batch(
-            in_x=processed_signal_t, in_x_len=p_length_t, in_y=transcript_t, in_y_len=transcript_len_t,
+        (processed_signal_t, p_length_t, transcript_t, transcript_len_t) = multiply_batch(
+            in_x=processed_signal_t, in_x_len=p_length_t, in_y=transcript_t, in_y_len=transcript_len_t
         )
 
     if spectr_augment_config:
@@ -170,7 +168,7 @@ def create_all_dags(args, neural_factory):
     log_probs_t = decoder(encoder_output=encoded_t)
     predictions_t = greedy_decoder(log_probs=log_probs_t)
     loss_t = ctc_loss(
-        log_probs=log_probs_t, targets=transcript_t, input_length=encoded_len_t, target_length=transcript_len_t,
+        log_probs=log_probs_t, targets=transcript_t, input_length=encoded_len_t, target_length=transcript_len_t
     )
 
     # create train callbacks
@@ -185,27 +183,27 @@ def create_all_dags(args, neural_factory):
 
     if args.checkpoint_dir or args.load_dir:
         chpt_callback = nemo.core.CheckpointCallback(
-            folder=args.checkpoint_dir, load_from_folder=args.load_dir, step_freq=args.checkpoint_save_freq,
+            folder=args.checkpoint_dir, load_from_folder=args.load_dir, step_freq=args.checkpoint_save_freq
         )
 
         callbacks.append(chpt_callback)
 
     # assemble eval DAGs
     for i, eval_dl in enumerate(data_layers_eval):
-        (audio_signal_e, a_sig_length_e, transcript_e, transcript_len_e,) = eval_dl()
+        (audio_signal_e, a_sig_length_e, transcript_e, transcript_len_e) = eval_dl()
         processed_signal_e, p_length_e = data_preprocessor(input_signal=audio_signal_e, length=a_sig_length_e)
         encoded_e, encoded_len_e = encoder(audio_signal=processed_signal_e, length=p_length_e)
         log_probs_e = decoder(encoder_output=encoded_e)
         predictions_e = greedy_decoder(log_probs=log_probs_e)
         loss_e = ctc_loss(
-            log_probs=log_probs_e, targets=transcript_e, input_length=encoded_len_e, target_length=transcript_len_e,
+            log_probs=log_probs_e, targets=transcript_e, input_length=encoded_len_e, target_length=transcript_len_e
         )
 
         # create corresponding eval callback
         tagname = os.path.basename(args.eval_datasets[i]).split(".")[0]
 
         eval_callback = nemo.core.EvaluatorCallback(
-            eval_tensors=[loss_e, predictions_e, transcript_e, transcript_len_e,],
+            eval_tensors=[loss_e, predictions_e, transcript_e, transcript_len_e],
             user_iter_callback=partial(process_evaluation_batch, labels=vocab),
             user_epochs_done_callback=partial(process_evaluation_epoch, tag=tagname),
             eval_step=args.eval_freq,
@@ -220,7 +218,7 @@ def create_all_dags(args, neural_factory):
 def main():
     args = parse_args()
 
-    name = construct_name(args.exp_name, args.lr, args.batch_size, args.num_epochs, args.weight_decay, args.optimizer,)
+    name = construct_name(args.exp_name, args.lr, args.batch_size, args.num_epochs, args.weight_decay, args.optimizer)
     work_dir = name
     if args.work_dir:
         work_dir = os.path.join(args.work_dir, name)

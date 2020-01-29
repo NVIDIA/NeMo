@@ -64,33 +64,15 @@ def build_engine(
 
 def get_parser():
     parser = argparse.ArgumentParser(description="Convert Jasper ONNX model to TRT Plan")
-    parser.add_argument(
-        "onnx_encoder", default=None, type=str, help="Path to Jasper ONNX encoder",
-    )
-    parser.add_argument(
-        "trt_encoder", default=None, type=str, help="Path to output Jasper TRT encoder",
-    )
-    parser.add_argument(
-        "onnx_decoder", default=None, type=str, help="Path to Jasper ONNX encoder",
-    )
-    parser.add_argument(
-        "trt_decoder", default=None, type=str, help="Path to output Jasper TRT encoder",
-    )
-    parser.add_argument(
-        "--max-seq-len", type=int, default=256, help="Maximum sequence length of input",
-    )
-    parser.add_argument(
-        "--seq-len", type=int, default=192, help="Preferred sequence length of input",
-    )
-    parser.add_argument(
-        "--max-batch-size", type=int, default=64, help="Maximum sequence length of input",
-    )
-    parser.add_argument(
-        "--batch-size", type=int, default=8, help="Preferred batch size of input",
-    )
-    parser.add_argument(
-        "--no-fp16", action="store_true", help="Disable fp16 model building, use fp32 instead",
-    )
+    parser.add_argument("onnx_encoder", default=None, type=str, help="Path to Jasper ONNX encoder")
+    parser.add_argument("trt_encoder", default=None, type=str, help="Path to output Jasper TRT encoder")
+    parser.add_argument("onnx_decoder", default=None, type=str, help="Path to Jasper ONNX encoder")
+    parser.add_argument("trt_decoder", default=None, type=str, help="Path to output Jasper TRT encoder")
+    parser.add_argument("--max-seq-len", type=int, default=256, help="Maximum sequence length of input")
+    parser.add_argument("--seq-len", type=int, default=192, help="Preferred sequence length of input")
+    parser.add_argument("--max-batch-size", type=int, default=64, help="Maximum sequence length of input")
+    parser.add_argument("--batch-size", type=int, default=8, help="Preferred batch size of input")
+    parser.add_argument("--no-fp16", action="store_true", help="Disable fp16 model building, use fp32 instead")
 
     return parser
 

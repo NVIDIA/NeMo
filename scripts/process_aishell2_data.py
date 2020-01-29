@@ -10,12 +10,8 @@ import subprocess
 import sys
 
 parser = argparse.ArgumentParser(description="Processing Aishell2 Data")
-parser.add_argument(
-    "--audio_folder", default=None, type=str, required=True, help="Audio (wav) data directory.",
-)
-parser.add_argument(
-    "--dest_folder", default=None, type=str, required=True, help="Destination directory.",
-)
+parser.add_argument("--audio_folder", default=None, type=str, required=True, help="Audio (wav) data directory.")
+parser.add_argument("--dest_folder", default=None, type=str, required=True, help="Destination directory.")
 args = parser.parse_args()
 
 
@@ -53,7 +49,7 @@ def __process_data(data_folder: str, dst_folder: str):
                 text = trans_text[audio_id]
                 uttrances.append(
                     json.dumps(
-                        {"audio_filepath": audio_filepath, "duration": duration, "text": text,}, ensure_ascii=False,
+                        {"audio_filepath": audio_filepath, "duration": duration, "text": text}, ensure_ascii=False
                     )
                 )
         with open(dst_file, "w") as f:

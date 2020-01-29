@@ -19,10 +19,8 @@ lss = loss(predictions=p, target=y)
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=[lss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'),
+    tensors=[lss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}')
 )
 
 # Invoke "train" action
-nf.train(
-    [lss], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd",
-)
+nf.train([lss], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd")

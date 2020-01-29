@@ -37,9 +37,7 @@ parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument("--shuffle_data", action='store_false')
 parser.add_argument("--pretrained_bert_model", default="bert-base-cased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
-parser.add_argument(
-    "--bert_config", default=None, type=str, help="Path to bert config file in json format",
-)
+parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
 parser.add_argument(
     "--tokenizer_model",
     default="tokenizer.model",
@@ -62,9 +60,7 @@ parser.add_argument(
     help="The output directory where the model prediction\
                     and checkpoints will be written.",
 )
-parser.add_argument(
-    "--use_cache", action='store_true', help="Whether to cache preprocessed data",
-)
+parser.add_argument("--use_cache", action='store_true', help="Whether to cache preprocessed data")
 parser.add_argument(
     "--save_epoch_freq",
     default=1,
@@ -79,12 +75,8 @@ parser.add_argument(
     help="Frequency of saving checkpoint \
                     '-1' - step checkpoint won't be saved",
 )
-parser.add_argument(
-    "--loss_step_freq", default=250, type=int, help="Frequency of printing loss",
-)
-parser.add_argument(
-    "--use_weighted_loss", action='store_true', help="Flag to indicate whether to use weighted loss",
-)
+parser.add_argument("--loss_step_freq", default=250, type=int, help="Frequency of printing loss")
+parser.add_argument("--use_weighted_loss", action='store_true', help="Flag to indicate whether to use weighted loss")
 
 args = parser.parse_args()
 
@@ -195,7 +187,7 @@ def create_pipeline(
         use_cache=use_cache,
     )
 
-    (input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels,) = data_layer()
+    (input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels) = data_layer()
 
     if mode == 'train':
         label_ids = data_layer.dataset.label_ids
@@ -210,13 +202,13 @@ def create_pipeline(
 
         classifier = getattr(sys.modules[__name__], classifier)
         classifier = classifier(
-            hidden_size=hidden_size, num_classes=len(label_ids), dropout=dropout, num_layers=num_layers,
+            hidden_size=hidden_size, num_classes=len(label_ids), dropout=dropout, num_layers=num_layers
         )
 
         task_loss = getattr(sys.modules[__name__], task_loss)
         task_loss = task_loss(num_classes=len(label_ids), class_weights=class_weights)
 
-    hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
+    hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
     logits = classifier(hidden_states=hidden_states)
     loss = task_loss(logits=logits, labels=labels, loss_mask=loss_mask)
@@ -253,11 +245,11 @@ eval_callback = nemo.core.EvaluatorCallback(
 )
 
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq,
+    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
 
 lr_policy_fn = get_lr_policy(
-    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion,
+    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
 )
 
 nf.train(

@@ -89,10 +89,7 @@ class ArgMaxSimple(TrainableNM):  # Notice TWO base classes
         indices:
             0: AxisType(BatchTag)
         """
-        return {
-            "values": NeuralType({0: AxisType(BatchTag)}),
-            "indices": NeuralType({0: AxisType(BatchTag)}),
-        }
+        return {"values": NeuralType({0: AxisType(BatchTag)}), "indices": NeuralType({0: AxisType(BatchTag)})}
 
     def __init__(self, **kwargs):
         TrainableNM.__init__(self, **kwargs)
@@ -274,7 +271,7 @@ class SequenceEmbedding(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {"outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),})}
+        return {"outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag)})}
 
     def __init__(self, *, voc_size, hidden_size, dropout=0.0, **kwargs):
         TrainableNM.__init__(self, **kwargs)
@@ -339,7 +336,7 @@ class ZerosLikeNM(TrainableNM):
 
             1: AxisType(TimeTag)
         """
-        return {"input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag),})}
+        return {"input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
 
     @property
     def output_ports(self):
@@ -350,7 +347,7 @@ class ZerosLikeNM(TrainableNM):
 
             1: AxisType(TimeTag)
         """
-        return {"input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag),})}
+        return {"input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
 
     def __init__(self, **kwargs):
         TrainableNM.__init__(self, **kwargs)

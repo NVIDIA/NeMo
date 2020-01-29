@@ -66,7 +66,7 @@ if not (os.path.exists(args.punct_labels_dict) and os.path.exists(args.capit_lab
     )
 
 nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None,
+    backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None
 )
 
 punct_labels_dict = get_vocab(args.punct_labels_dict)
@@ -82,7 +82,7 @@ hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
 
 data_layer = nemo_nlp.BertTokenClassificationInferDataLayer(
-    queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1,
+    queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
 )
 
 punct_classifier = nemo_nlp.TokenClassifier(
@@ -94,12 +94,12 @@ punct_classifier = nemo_nlp.TokenClassifier(
 )
 
 capit_classifier = nemo_nlp.TokenClassifier(
-    hidden_size=hidden_size, num_classes=len(capit_labels_dict), dropout=args.fc_dropout, name='Capitalization',
+    hidden_size=hidden_size, num_classes=len(capit_labels_dict), dropout=args.fc_dropout, name='Capitalization'
 )
 
 input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
 
-hidden_states = pretrained_bert_model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
+hidden_states = pretrained_bert_model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
 punct_logits = punct_classifier(hidden_states=hidden_states)
 capit_logits = capit_classifier(hidden_states=hidden_states)
@@ -107,9 +107,7 @@ capit_logits = capit_classifier(hidden_states=hidden_states)
 ###########################################################################
 
 # Instantiate an optimizer to perform `infer` action
-evaluated_tensors = nf.infer(
-    tensors=[punct_logits, capit_logits, subtokens_mask], checkpoint_dir=args.checkpoints_dir,
-)
+evaluated_tensors = nf.infer(tensors=[punct_logits, capit_logits, subtokens_mask], checkpoint_dir=args.checkpoints_dir)
 
 
 def concatenate(lists):

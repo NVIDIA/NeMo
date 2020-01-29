@@ -42,13 +42,13 @@ class TestNeuralTypes(NeMoUnitTest):
             print("ASR data found in: {0}".format(data_folder + "asr"))
 
     def test_same(self):
-        btc = NeuralType(axis2type={0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})
-        btc2 = NeuralType(axis2type={0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})
+        btc = NeuralType(axis2type={0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})
+        btc2 = NeuralType(axis2type={0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})
         self.assertEqual(btc2.compare(btc), NeuralTypeComparisonResult.SAME)
 
     def test_transpose_same(self):
-        btc = NeuralType(axis2type={0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})
-        tbc = NeuralType(axis2type={1: AxisType(BatchTag), 0: AxisType(TimeTag), 2: AxisType(ChannelTag),})
+        btc = NeuralType(axis2type={0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})
+        tbc = NeuralType(axis2type={1: AxisType(BatchTag), 0: AxisType(TimeTag), 2: AxisType(ChannelTag)})
 
         self.assertEqual(btc.compare(tbc), NeuralTypeComparisonResult.TRANSPOSE_SAME)
         self.assertEqual(tbc.compare(btc), NeuralTypeComparisonResult.TRANSPOSE_SAME)
@@ -73,9 +73,9 @@ class TestNeuralTypes(NeMoUnitTest):
         self.assertEqual(nchw1.compare(nchw2), NeuralTypeComparisonResult.DIM_INCOMPATIBLE)
 
     def test_rank_incompatible(self):
-        btc = NeuralType(axis2type={0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})
+        btc = NeuralType(axis2type={0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})
         nchw = NeuralType(
-            axis2type={0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(HeightTag), 3: AxisType(WidthTag),}
+            axis2type={0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(HeightTag), 3: AxisType(WidthTag)}
         )
         self.assertEqual(nchw.compare(btc), NeuralTypeComparisonResult.INCOMPATIBLE)
 
@@ -90,10 +90,10 @@ class TestNeuralTypes(NeMoUnitTest):
 
     def test_semantic_incompatible(self):
         nchw = NeuralType(
-            axis2type={0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(HeightTag), 3: AxisType(WidthTag),}
+            axis2type={0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(HeightTag), 3: AxisType(WidthTag)}
         )
         badd = NeuralType(
-            axis2type={0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(ChannelTag), 3: AxisType(WidthTag),}
+            axis2type={0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(ChannelTag), 3: AxisType(WidthTag)}
         )
         self.assertEqual(nchw.compare(badd), NeuralTypeComparisonResult.INCOMPATIBLE)
         self.assertEqual(badd.compare(nchw), NeuralTypeComparisonResult.INCOMPATIBLE)
@@ -101,9 +101,9 @@ class TestNeuralTypes(NeMoUnitTest):
     def test_root(self):
         root = NeuralType({})
         non_tensor = NeuralType(None)
-        btc = NeuralType(axis2type={0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})
+        btc = NeuralType(axis2type={0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})
         nchw = NeuralType(
-            axis2type={0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(HeightTag), 3: AxisType(WidthTag),}
+            axis2type={0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(HeightTag), 3: AxisType(WidthTag)}
         )
         self.assertEqual(root.compare(btc), NeuralTypeComparisonResult.SAME)
         self.assertEqual(root.compare(nchw), NeuralTypeComparisonResult.SAME)
@@ -116,10 +116,10 @@ class TestNeuralTypes(NeMoUnitTest):
     def test_combiner_type_infer(self):
         combiner = nemo.backends.pytorch.common.SimpleCombiner(mode="add")
         x_tg = nemo.core.NmTensor(
-            producer=None, producer_args=None, name=None, ntype=NeuralType({0: AxisType(BatchTag),}),
+            producer=None, producer_args=None, name=None, ntype=NeuralType({0: AxisType(BatchTag)})
         )
         y_tg = nemo.core.NmTensor(
-            producer=None, producer_args=None, name=None, ntype=NeuralType({0: AxisType(BatchTag),}),
+            producer=None, producer_args=None, name=None, ntype=NeuralType({0: AxisType(BatchTag)})
         )
         res = combiner(x1=y_tg, x2=x_tg)
         self.assertEqual(res.compare(x_tg), NeuralTypeComparisonResult.SAME)
@@ -156,7 +156,7 @@ class TestNeuralTypes(NeMoUnitTest):
 
         optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
-            tensors_to_optimize=[loss_tensor], optimizer="sgd", optimization_params={"lr": 0.0003, "num_epochs": 1},
+            tensors_to_optimize=[loss_tensor], optimizer="sgd", optimization_params={"lr": 0.0003, "num_epochs": 1}
         )
 
     def test_optional_input_no_with_input(self):
@@ -168,7 +168,7 @@ class TestNeuralTypes(NeMoUnitTest):
         loss_tensor = loss(predictions=y_pred, target=y)
         optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
-            tensors_to_optimize=[loss_tensor], optimizer="sgd", optimization_params={"lr": 0.0003, "num_epochs": 1},
+            tensors_to_optimize=[loss_tensor], optimizer="sgd", optimization_params={"lr": 0.0003, "num_epochs": 1}
         )
 
     def test_optional_input_no_with_wrong_input(self):
@@ -187,9 +187,7 @@ class TestNeuralTypes(NeMoUnitTest):
             loss_tensor = loss(predictions=y_pred, target=y)
             optimizer = nemo.backends.pytorch.actions.PtActions()
             optimizer.train(
-                tensors_to_optimize=[loss_tensor],
-                optimizer="sgd",
-                optimization_params={"lr": 0.0003, "num_epochs": 1},
+                tensors_to_optimize=[loss_tensor], optimizer="sgd", optimization_params={"lr": 0.0003, "num_epochs": 1}
             )
 
         self.assertRaises(NeuralPortNmTensorMismatchError, wrong_fn)
@@ -201,7 +199,7 @@ class TestNeuralTypes(NeMoUnitTest):
         labels = jasper_model_definition['labels']
 
         data_layer = nemo_asr.AudioToTextDataLayer(
-            manifest_filepath=self.manifest_filepath, labels=labels, batch_size=4,
+            manifest_filepath=self.manifest_filepath, labels=labels, batch_size=4
         )
         data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
             **jasper_model_definition['AudioToMelSpectrogramPreprocessor']
@@ -215,7 +213,7 @@ class TestNeuralTypes(NeMoUnitTest):
         greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
         # DAG definition
-        (audio_signal, audio_signal_len, transcript, transcript_len,) = data_layer()
+        (audio_signal, audio_signal_len, transcript, transcript_len) = data_layer()
         processed_signal, processed_signal_len = data_preprocessor(input_signal=audio_signal, length=audio_signal_len)
 
         spec_augment = nemo_asr.SpectrogramAugmentation(rect_masks=5)
@@ -225,7 +223,7 @@ class TestNeuralTypes(NeMoUnitTest):
         log_probs = jasper_decoder(encoder_output=encoded)
         predictions = greedy_decoder(log_probs=log_probs)
         loss = ctc_loss(
-            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
+            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
         )
 
         def wrong():
@@ -234,7 +232,7 @@ class TestNeuralTypes(NeMoUnitTest):
             labels = jasper_config['labels']
 
             data_layer = nemo_asr.AudioToTextDataLayer(
-                manifest_filepath=self.manifest_filepath, labels=labels, batch_size=4,
+                manifest_filepath=self.manifest_filepath, labels=labels, batch_size=4
             )
             data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
                 **jasper_config['AudioToMelSpectrogramPreprocessor']
@@ -245,7 +243,7 @@ class TestNeuralTypes(NeMoUnitTest):
             )
             jasper_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=len(labels))
             # DAG definition
-            (audio_signal, audio_signal_len, transcript, transcript_len,) = data_layer()
+            (audio_signal, audio_signal_len, transcript, transcript_len) = data_layer()
             processed_signal, processed_signal_len = data_preprocessor(
                 input_signal=audio_signal, length=audio_signal_len
             )

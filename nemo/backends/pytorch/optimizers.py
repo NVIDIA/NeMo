@@ -42,11 +42,9 @@ class AdamW(Optimizer):
             algorithm from the paper "On the Convergence of Adam and Beyond"
     """
 
-    def __init__(
-        self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0, amsgrad=False,
-    ):
+    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0, amsgrad=False):
         _check_valid_opt_params(lr, eps, betas)
-        defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, amsgrad=amsgrad,)
+        defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, amsgrad=amsgrad)
         super(AdamW, self).__init__(params, defaults)
 
     def __setstate__(self, state):
@@ -112,9 +110,7 @@ class AdamW(Optimizer):
                 step_size = group["lr"] * math.sqrt(bias_correction2) / bias_correction1
 
                 # p.data.addcdiv_(-step_size, exp_avg, denom)
-                p.data.add_(
-                    -step_size, torch.mul(p.data, group["weight_decay"]).addcdiv_(1, exp_avg, denom),
-                )
+                p.data.add_(-step_size, torch.mul(p.data, group["weight_decay"]).addcdiv_(1, exp_avg, denom))
 
         return loss
 
@@ -153,7 +149,7 @@ class Novograd(Optimizer):
     ):
         _check_valid_opt_params(lr, eps, betas)
         defaults = dict(
-            lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, grad_averaging=grad_averaging, amsgrad=amsgrad,
+            lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, grad_averaging=grad_averaging, amsgrad=amsgrad
         )
         self.luc = luc
         self.luc_trust = luc_trust

@@ -116,14 +116,7 @@ def get_features(
 
     nemo.logging.info(f'{too_long_count} are longer than {max_seq_length}')
 
-    return (
-        all_input_ids,
-        all_segment_ids,
-        all_input_mask,
-        all_loss_mask,
-        all_subtokens_mask,
-        all_slots,
-    )
+    return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_slots)
 
 
 class BertJointIntentSlotDataset(Dataset):

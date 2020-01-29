@@ -80,24 +80,20 @@ def main():
     del eval_dl_params["train"]
     del eval_dl_params["eval"]
     data_layer = nemo_asr.AudioToTextDataLayer(
-        manifest_filepath=eval_datasets,
-        sample_rate=sample_rate,
-        labels=vocab,
-        batch_size=batch_size,
-        **eval_dl_params,
+        manifest_filepath=eval_datasets, sample_rate=sample_rate, labels=vocab, batch_size=batch_size, **eval_dl_params
     )
 
     n = len(data_layer)
     nemo.logging.info('Evaluating {0} examples'.format(n))
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
-        sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"],
+        sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"]
     )
     jasper_encoder = nemo_asr.JasperEncoder(
-        feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"], **jasper_params["JasperEncoder"],
+        feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"], **jasper_params["JasperEncoder"]
     )
     jasper_decoder = nemo_asr.JasperDecoderForCTC(
-        feat_in=jasper_params["JasperEncoder"]["jasper"][-1]["filters"], num_classes=len(vocab),
+        feat_in=jasper_params["JasperEncoder"]["jasper"][-1]["filters"], num_classes=len(vocab)
     )
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
@@ -126,25 +122,19 @@ def main():
     )
     nemo.logging.info('================================')
 
-    (audio_signal_e1, a_sig_length_e1, transcript_e1, transcript_len_e1,) = data_layer()
+    (audio_signal_e1, a_sig_length_e1, transcript_e1, transcript_len_e1) = data_layer()
     processed_signal_e1, p_length_e1 = data_preprocessor(input_signal=audio_signal_e1, length=a_sig_length_e1)
     encoded_e1, encoded_len_e1 = jasper_encoder(audio_signal=processed_signal_e1, length=p_length_e1)
     log_probs_e1 = jasper_decoder(encoder_output=encoded_e1)
     predictions_e1 = greedy_decoder(log_probs=log_probs_e1)
 
-    eval_tensors = [
-        log_probs_e1,
-        predictions_e1,
-        transcript_e1,
-        transcript_len_e1,
-        encoded_len_e1,
-    ]
+    eval_tensors = [log_probs_e1, predictions_e1, transcript_e1, transcript_len_e1, encoded_len_e1]
 
     if args.lm_path:
         beam_predictions_e1 = beam_search_with_lm(log_probs=log_probs_e1, log_probs_length=encoded_len_e1)
         eval_tensors.append(beam_predictions_e1)
 
-    evaluated_tensors = neural_factory.infer(tensors=eval_tensors, checkpoint_dir=load_dir,)
+    evaluated_tensors = neural_factory.infer(tensors=eval_tensors, checkpoint_dir=load_dir)
 
     greedy_hypotheses = post_process_predictions(evaluated_tensors[1], vocab)
     references = post_process_transcripts(evaluated_tensors[2], evaluated_tensors[3], vocab)

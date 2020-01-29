@@ -17,9 +17,7 @@ class SpecAugment(nn.Module):
     time_width - maximum number of time steps to be cut in one segment
     """
 
-    def __init__(
-        self, freq_masks=0, time_masks=0, freq_width=10, time_width=10, rng=None,
-    ):
+    def __init__(self, freq_masks=0, time_masks=0, freq_width=10, time_width=10, rng=None):
         super(SpecAugment, self).__init__()
 
         self._rng = random.Random() if rng is None else rng

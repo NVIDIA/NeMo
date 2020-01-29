@@ -151,10 +151,7 @@ def process_evaluation_epoch(global_vars: dict, eval_metric='WER', tag=None):
     else:
         nemo.logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
         nemo.logging.info(f"==========>>>>>>Evaluation {eval_metric} {tag}: " f"{wer * 100 : 5.2f}%")
-        return {
-            f"Evaluation_Loss_{tag}": eloss,
-            f"Evaluation_{eval_metric}_{tag}": wer,
-        }
+        return {f"Evaluation_Loss_{tag}": eloss, f"Evaluation_{eval_metric}_{tag}": wer}
 
 
 def post_process_predictions(predictions, labels):

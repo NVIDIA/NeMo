@@ -45,9 +45,7 @@ parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--do_lower_case", action='store_true')
 parser.add_argument("--shuffle_data", action='store_true')
-parser.add_argument(
-    "--class_balancing", default="None", type=str, choices=["None", "weighted_loss"],
-)
+parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
 
 args = parser.parse_args()
 
@@ -80,7 +78,7 @@ data_desc = SentenceClassificationDataDesc(args.dataset_name, args.data_dir, arg
 
 # Create sentence classification loss on top
 classifier = nemo_nlp.SequenceClassifier(
-    hidden_size=hidden_size, num_classes=data_desc.num_labels, dropout=args.fc_dropout,
+    hidden_size=hidden_size, num_classes=data_desc.num_labels, dropout=args.fc_dropout
 )
 
 if args.class_balancing == 'weighted_loss':
@@ -164,11 +162,11 @@ eval_callback = nemo.core.EvaluatorCallback(
 
 # Create callback to save checkpoints
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq,
+    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
 
 lr_policy_fn = get_lr_policy(
-    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion,
+    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
 )
 
 nf.train(
@@ -176,5 +174,5 @@ nf.train(
     callbacks=[train_callback, eval_callback, ckpt_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
-    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay,},
+    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
 )

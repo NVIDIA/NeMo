@@ -10,23 +10,21 @@ import nemo.collections.asr as nemo_asr
 
 def get_parser():
     parser = argparse.ArgumentParser(description="Convert Jasper NeMo checkpoint to ONNX")
+    parser.add_argument("--config", default=None, type=str, required=True, help="Config from nemo")
     parser.add_argument(
-        "--config", default=None, type=str, required=True, help="Config from nemo",
+        "--nn_encoder", default=None, type=str, required=True, help="Path to the nn encoder checkpoint."
     )
     parser.add_argument(
-        "--nn_encoder", default=None, type=str, required=True, help="Path to the nn encoder checkpoint.",
+        "--nn_decoder", default=None, type=str, required=True, help="Path to the nn encoder checkpoint."
     )
     parser.add_argument(
-        "--nn_decoder", default=None, type=str, required=True, help="Path to the nn encoder checkpoint.",
+        "--onnx_encoder", default=None, type=str, required=True, help="Path to the onnx encoder output."
     )
     parser.add_argument(
-        "--onnx_encoder", default=None, type=str, required=True, help="Path to the onnx encoder output.",
+        "--onnx_decoder", default=None, type=str, required=True, help="Path to the onnx decoder output."
     )
     parser.add_argument(
-        "--onnx_decoder", default=None, type=str, required=True, help="Path to the onnx decoder output.",
-    )
-    parser.add_argument(
-        "--pre-v09-model", action="store_true", help="Use if checkpoints were generated from NeMo < v0.9",
+        "--pre-v09-model", action="store_true", help="Use if checkpoints were generated from NeMo < v0.9"
     )
     return parser
 
@@ -63,7 +61,7 @@ def main(
         feat_in=num_encoder_input_features, **jasper_model_definition['JasperEncoder']
     )
     jasper_decoder = nemo_asr.JasperDecoderForCTC(
-        feat_in=num_decoder_input_features, num_classes=len(jasper_model_definition['labels']),
+        feat_in=num_decoder_input_features, num_classes=len(jasper_model_definition['labels'])
     )
 
     # This is necessary if you are using checkpoints trained with NeMo
@@ -89,14 +87,14 @@ def main(
         jasper_encoder,
         nn_onnx_encoder,
         nemo.core.neural_factory.DeploymentFormat.ONNX,
-        torch.zeros(batch_size, num_encoder_input_features, time_steps, dtype=torch.float, device="cuda:0",),
+        torch.zeros(batch_size, num_encoder_input_features, time_steps, dtype=torch.float, device="cuda:0"),
     )
     print("Exporting decoder...")
     nf.deployment_export(
         jasper_decoder,
         nn_onnx_decoder,
         nemo.core.neural_factory.DeploymentFormat.ONNX,
-        (torch.zeros(batch_size, num_decoder_input_features, time_steps // 2, dtype=torch.float, device="cuda:0",)),
+        (torch.zeros(batch_size, num_decoder_input_features, time_steps // 2, dtype=torch.float, device="cuda:0")),
     )
     print("Export completed successfully.")
 

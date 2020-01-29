@@ -21,7 +21,7 @@ class GreedyCTCDecoder(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {"log_probs": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
+        return {"log_probs": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
 
     @property
     def output_ports(self):

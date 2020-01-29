@@ -55,7 +55,7 @@ neural_factory = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch
 
 # NOTICE: pretrain=True argument
 resnet = neural_factory.get_module(
-    name="resnet18", params={"num_classes": 2}, collection="torchvision", pretrained=True,
+    name="resnet18", params={"num_classes": 2}, collection="torchvision", pretrained=True
 )
 
 dl_train = neural_factory.get_module(
@@ -125,5 +125,5 @@ optimizer = neural_factory.get_trainer(
 )
 
 optimizer.train(
-    tensors_to_optimize=[train_loss], tensors_to_evaluate=[outputs, labels], callbacks=[callback, callback_eval],
+    tensors_to_optimize=[train_loss], tensors_to_evaluate=[outputs, labels], callbacks=[callback, callback_eval]
 )

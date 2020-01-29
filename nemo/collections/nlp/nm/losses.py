@@ -88,7 +88,7 @@ class QuestionAnsweringLoss(LossNM):
             0: AxisType(BatchTag)
         """
         return {
-            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             "start_positions": NeuralType({0: AxisType(BatchTag)}),
             "end_positions": NeuralType({0: AxisType(BatchTag)}),
         }
@@ -172,7 +172,7 @@ class MaskedLanguageModelingLossNM(LossNM):
             1: AxisType(TimeTag)
         """
         return {
-            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             "output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "output_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
@@ -271,7 +271,7 @@ class TokenClassificationLoss(LossNM):
             1: AxisType(TimeTag)
         """
         return {
-            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
@@ -355,9 +355,9 @@ class JointIntentSlotLoss(LossNM):
         """
         return {
             "intent_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            "slot_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            "slot_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "intents": NeuralType({0: AxisType(BatchTag),}),
+            "intents": NeuralType({0: AxisType(BatchTag)}),
             "slots": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
 
@@ -441,7 +441,7 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
             1: AxisType(TimeTag)
         """
         return {
-            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             "target_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
 

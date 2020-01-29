@@ -69,9 +69,7 @@ class TrainableNM(NeuralModule, nn.Module):
             for self_w_name in weight_names:
                 if self_w_name in name2name_and_transform:
                     if name2name_and_transform[self_w_name][1] == WeightShareTransform.SAME:
-                        rsetattr(
-                            self, self_w_name, rgetattr(module, name2name_and_transform[self_w_name][0]),
-                        )
+                        rsetattr(self, self_w_name, rgetattr(module, name2name_and_transform[self_w_name][0]))
                     elif name2name_and_transform[self_w_name][1] == WeightShareTransform.TRANSPOSE:
                         raise NotImplementedError("Sorry, currently this is not implemented.")
                 else:

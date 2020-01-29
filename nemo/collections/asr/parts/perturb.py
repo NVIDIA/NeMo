@@ -80,9 +80,7 @@ class ShiftPerturbation(Perturbation):
 
 
 class NoisePerturbation(Perturbation):
-    def __init__(
-        self, manifest_path=None, min_snr_db=40, max_snr_db=50, max_gain_db=300.0, rng=None,
-    ):
+    def __init__(self, manifest_path=None, min_snr_db=40, max_snr_db=50, max_gain_db=300.0, rng=None):
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]))
         self._rng = random.Random() if rng is None else rng
         self._min_snr_db = min_snr_db

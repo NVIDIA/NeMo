@@ -181,18 +181,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Prepare tatoeba dataset')
     parser.add_argument("--data_dir", required=True, type=str)
     parser.add_argument("--dataset", default='tatoeba', type=str)
+    parser.add_argument("--num_samples", default=-1, type=int, help='-1 to use the whole dataset')
+    parser.add_argument("--percent_to_cut", default=0, type=float, help='Percent of sentences to cut in the middle')
     parser.add_argument(
-        "--num_samples", default=-1, type=int, help='-1 to use the whole dataset',
+        "--num_lines_to_combine", default=1, type=int, help='Number of lines to combine into single example'
     )
-    parser.add_argument(
-        "--percent_to_cut", default=0, type=float, help='Percent of sentences to cut in the middle',
-    )
-    parser.add_argument(
-        "--num_lines_to_combine", default=1, type=int, help='Number of lines to combine into single example',
-    )
-    parser.add_argument(
-        "--percent_dev", default=0.2, type=float, help='Size of the dev set, float',
-    )
+    parser.add_argument("--percent_dev", default=0.2, type=float, help='Size of the dev set, float')
     parser.add_argument("--clean_dir", action='store_true')
     args = parser.parse_args()
 
@@ -209,7 +203,7 @@ if __name__ == "__main__":
     print(f'Processing English sentences...')
     clean_eng_sentences = os.path.join(args.data_dir, 'clean_eng_sentences.txt')
     __process_english_sentences(
-        tatoeba_dataset, clean_eng_sentences, args.percent_to_cut, args.num_lines_to_combine, args.num_samples,
+        tatoeba_dataset, clean_eng_sentences, args.percent_to_cut, args.num_lines_to_combine, args.num_samples
     )
 
     train_file = os.path.join(args.data_dir, 'train.txt')

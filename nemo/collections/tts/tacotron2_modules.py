@@ -56,7 +56,7 @@ class TextEmbedding(TrainableNM):
         """
         return {
             "char_phone_embeddings": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(EmbeddedTextTag), 2: AxisType(TimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(EmbeddedTextTag), 2: AxisType(TimeTag)}
             )
         }
 
@@ -100,7 +100,7 @@ class Tacotron2Encoder(TrainableNM):
         """
         return {
             "char_phone_embeddings": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(EmbeddedTextTag), 2: AxisType(TimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(EmbeddedTextTag), 2: AxisType(TimeTag)}
             ),
             "embedding_length": NeuralType({0: AxisType(BatchTag)}),
         }
@@ -118,7 +118,7 @@ class Tacotron2Encoder(TrainableNM):
         """
         return {
             "char_phone_encoded": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(EncodedRepresentationTag),}
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(EncodedRepresentationTag)}
             )
         }
 
@@ -199,11 +199,11 @@ class Tacotron2Decoder(TrainableNM):
         """
         return {
             "char_phone_encoded": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(EncodedRepresentationTag),}
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(EncodedRepresentationTag)}
             ),
             "encoded_length": NeuralType({0: AxisType(BatchTag)}),
             "mel_target": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag)}
             ),
         }
 
@@ -232,10 +232,10 @@ class Tacotron2Decoder(TrainableNM):
         """
         return {
             "mel_output": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag)}
             ),
             "gate_output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "alignments": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}),
+            "alignments": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag)}),
         }
 
     def __init__(
@@ -340,7 +340,7 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
         """
         return {
             "char_phone_encoded": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(EncodedRepresentationTag),}
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(EncodedRepresentationTag)}
             ),
             "encoded_length": NeuralType({0: AxisType(BatchTag)}),
         }
@@ -373,10 +373,10 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
         """
         return {
             "mel_output": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag)}
             ),
             "gate_output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "alignments": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}),
+            "alignments": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag)}),
             "mel_len": NeuralType({0: AxisType(BatchTag)}),
         }
 
@@ -422,7 +422,7 @@ class Tacotron2Postnet(TrainableNM):
         """
         return {
             "mel_input": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag)}
             )
         }
 
@@ -439,8 +439,8 @@ class Tacotron2Postnet(TrainableNM):
         """
         return {
             "mel_output": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
-            ),
+                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag)}
+            )
         }
 
     def __init__(
@@ -523,15 +523,13 @@ class Tacotron2Loss(LossNM):
             0: AxisType(BatchTag)
         """
         return {
-            "mel_out": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
-            ),
+            "mel_out": NeuralType({0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag)}),
             "mel_out_postnet": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag)}
             ),
             "gate_out": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "mel_target": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag)}
             ),
             "gate_target": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "target_len": NeuralType({0: AxisType(BatchTag)}),
@@ -554,9 +552,7 @@ class Tacotron2Loss(LossNM):
     def _loss_function(self, **kwargs):
         return self._loss(*(kwargs.values()))
 
-    def _loss(
-        self, mel_out, mel_out_postnet, gate_out, mel_target, gate_target, target_len, seq_len,
-    ):
+    def _loss(self, mel_out, mel_out_postnet, gate_out, mel_target, gate_target, target_len, seq_len):
         mel_target.requires_grad = False
         gate_target.requires_grad = False
         gate_target = gate_target.view(-1, 1)
@@ -611,7 +607,7 @@ class MakeGate(NonTrainableNM):
         return {
             "target_len": NeuralType({0: AxisType(BatchTag)}),
             "mel_target": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
+                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag)}
             ),
         }
 

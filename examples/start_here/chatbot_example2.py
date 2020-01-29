@@ -81,7 +81,7 @@ def outputs2words(tensors, vocab):
 
 # Create trainer and execute training action
 callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=[loss, src, outputs_inf, tgt], print_func=lambda x: outputs2words(x, dl.voc.index2word),
+    tensors=[loss, src, outputs_inf, tgt], print_func=lambda x: outputs2words(x, dl.voc.index2word)
 )
 # Instantiate an optimizer to perform `train` action
 optimizer = neural_factory.get_trainer()

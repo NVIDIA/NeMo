@@ -16,9 +16,7 @@ class NemoArgParser(argparse.ArgumentParser):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # NeMo arguments
-        self.add_argument(
-            "--local_rank", default=None, type=int, help="node rank for distributed training",
-        )
+        self.add_argument("--local_rank", default=None, type=int, help="node rank for distributed training")
         self.add_argument(
             "--amp_opt_level",
             default="O0",
@@ -46,28 +44,18 @@ class NemoArgParser(argparse.ArgumentParser):
         #                   help="whether to enable determinism")
 
         # Model defintion
-        self.add_argument(
-            "--model_config", type=str, default=None, help="model configuration file: model.yaml",
-        )
-        self.add_argument(
-            "--train_dataset", type=str, default=None, help="training dataset path",
-        )
-        self.add_argument(
-            "--eval_datasets", type=str, nargs="*", help="evaludation datasets paths",
-        )
+        self.add_argument("--model_config", type=str, default=None, help="model configuration file: model.yaml")
+        self.add_argument("--train_dataset", type=str, default=None, help="training dataset path")
+        self.add_argument("--eval_datasets", type=str, nargs="*", help="evaludation datasets paths")
         self.add_argument("--batch_size", type=int, help="train batch size per GPU")
-        self.add_argument(
-            "--eval_batch_size", type=int, help="evaluation  batch size per GPU",
-        )
-        self.add_argument(
-            "--eval_freq", default=1000, type=int, help="evaluation frequency, steps",
-        )
+        self.add_argument("--eval_batch_size", type=int, help="evaluation  batch size per GPU")
+        self.add_argument("--eval_freq", default=1000, type=int, help="evaluation frequency, steps")
 
         # Optimizer Choices
         self.add_argument(
             "--optimizer",
             type=str,
-            choices=["sgd", "adam", "fused_adam", "adam_w", "novograd", "lamb",],
+            choices=["sgd", "adam", "fused_adam", "adam_w", "novograd", "lamb"],
             help="optimizer",
         )
         self.add_argument("--weight_decay", type=float, default=0.0, help="weight decay")
@@ -92,9 +80,7 @@ class NemoArgParser(argparse.ArgumentParser):
             help="max number of steps to train. You should " "specify either num_epochs or max_steps",
         )
         self.add_argument("--lr", type=float, default=1e-3, help="base learning rate")
-        self.add_argument(
-            "--lr_policy", type=str, default='WarmupAnnealing', help="learning rate decay policy",
-        )
+        self.add_argument("--lr_policy", type=str, default='WarmupAnnealing', help="learning rate decay policy")
         # self.add_argument("--warmup_steps", default=0, type=int,
         #                   help="number of learning rate warmup steps")
         self.add_argument(
@@ -105,9 +91,7 @@ class NemoArgParser(argparse.ArgumentParser):
         )
 
         # Logging arguments
-        self.add_argument(
-            "--work_dir", default=None, type=str, help="working directory for experiment",
-        )
+        self.add_argument("--work_dir", default=None, type=str, help="working directory for experiment")
         self.add_argument(
             "--checkpoint_dir",
             default=None,
@@ -116,9 +100,7 @@ class NemoArgParser(argparse.ArgumentParser):
             "None, the default behaviour is to put it under"
             "{work_dir}/checkpoints",
         )
-        self.add_argument(
-            "--create_tb_writer", action="store_true", help="whether to log into Tensorboard",
-        )
+        self.add_argument("--create_tb_writer", action="store_true", help="whether to log into Tensorboard")
         self.add_argument(
             "--tensorboard_dir",
             default=None,
@@ -127,6 +109,4 @@ class NemoArgParser(argparse.ArgumentParser):
             "the tensorboard directory. Defaults to "
             "{work_dir}/checkpoints",
         )
-        self.add_argument(
-            "--checkpoint_save_freq", default=1000, type=int, help="checkpoint frequency, steps",
-        )
+        self.add_argument("--checkpoint_save_freq", default=1000, type=int, help="checkpoint frequency, steps")

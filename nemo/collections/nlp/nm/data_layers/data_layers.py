@@ -103,7 +103,7 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
             "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "labels": NeuralType({0: AxisType(BatchTag),}),
+            "labels": NeuralType({0: AxisType(BatchTag)}),
         }
 
     def __init__(
@@ -190,7 +190,7 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
             "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "intents": NeuralType({0: AxisType(BatchTag),}),
+            "intents": NeuralType({0: AxisType(BatchTag)}),
             "slots": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
 
@@ -285,11 +285,7 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
         self, queries, tokenizer, max_seq_length, batch_size=1, dataset_type=BertJointIntentSlotInferDataset, **kwargs
     ):
         kwargs['batch_size'] = batch_size
-        dataset_params = {
-            'queries': queries,
-            'tokenizer': tokenizer,
-            'max_seq_length': max_seq_length,
-        }
+        dataset_params = {'queries': queries, 'tokenizer': tokenizer, 'max_seq_length': max_seq_length}
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 
@@ -471,11 +467,7 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
         **kwargs
     ):
         kwargs['batch_size'] = batch_size
-        dataset_params = {
-            'queries': queries,
-            'tokenizer': tokenizer,
-            'max_seq_length': max_seq_length,
-        }
+        dataset_params = {'queries': queries, 'tokenizer': tokenizer, 'max_seq_length': max_seq_length}
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 
@@ -615,11 +607,7 @@ class BertPunctuationCapitalizationInferDataLayer(TextDataLayer):
         **kwargs
     ):
         kwargs['batch_size'] = batch_size
-        dataset_params = {
-            'queries': queries,
-            'tokenizer': tokenizer,
-            'max_seq_length': max_seq_length,
-        }
+        dataset_params = {'queries': queries, 'tokenizer': tokenizer, 'max_seq_length': max_seq_length}
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 
@@ -1000,7 +988,7 @@ class TranslationDataLayer(TextDataLayer):
             sampler = None
 
         self._dataloader = pt_data.DataLoader(
-            dataset=self._dataset, batch_size=1, collate_fn=self._collate_fn, shuffle=sampler is None, sampler=sampler,
+            dataset=self._dataset, batch_size=1, collate_fn=self._collate_fn, shuffle=sampler is None, sampler=sampler
         )
 
     def _collate_fn(self, x):
@@ -1060,7 +1048,7 @@ class GlueDataLayerClassification(TextDataLayer):
             "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "labels": NeuralType({0: AxisType(CategoricalTag),}),
+            "labels": NeuralType({0: AxisType(CategoricalTag)}),
         }
 
     def __init__(
@@ -1129,7 +1117,7 @@ class GlueDataLayerRegression(TextDataLayer):
             "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "labels": NeuralType({0: AxisType(RegressionTag),}),
+            "labels": NeuralType({0: AxisType(RegressionTag)}),
         }
 
     def __init__(

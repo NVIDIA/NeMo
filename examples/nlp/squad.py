@@ -79,17 +79,13 @@ def parse_args():
         "(or other data files) for the task.",
     )
     parser.add_argument(
-        "--pretrained_bert_model", default="bert-base-uncased", type=str, help="Name of the pre-trained model",
+        "--pretrained_bert_model", default="bert-base-uncased", type=str, help="Name of the pre-trained model"
     )
+    parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
     parser.add_argument(
-        "--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.",
+        "--bert_checkpoint", default=None, type=str, help="Path to BERT model checkpoint for finetuning."
     )
-    parser.add_argument(
-        "--bert_checkpoint", default=None, type=str, help="Path to BERT model checkpoint for finetuning.",
-    )
-    parser.add_argument(
-        "--bert_config", default=None, type=str, help="Path to bert config file in json format",
-    )
+    parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
     parser.add_argument(
         "--tokenizer_model",
         default="tokenizer.model",
@@ -107,23 +103,15 @@ def parse_args():
     parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
     parser.add_argument("--lr", default=3e-5, type=float, help="The initial learning rate.")
     parser.add_argument("--lr_warmup_proportion", default=0.0, type=float)
-    parser.add_argument(
-        "--weight_decay", default=0.0, type=float, help="Weight deay if we apply some.",
-    )
-    parser.add_argument(
-        "--num_epochs", default=2, type=int, help="Total number of training epochs to perform.",
-    )
-    parser.add_argument(
-        "--batch_size", default=8, type=int, help="Batch size per GPU/CPU for training/evaluation.",
-    )
+    parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight deay if we apply some.")
+    parser.add_argument("--num_epochs", default=2, type=int, help="Total number of training epochs to perform.")
+    parser.add_argument("--batch_size", default=8, type=int, help="Batch size per GPU/CPU for training/evaluation.")
     parser.add_argument(
         "--do_lower_case",
         action='store_true',
         help="Whether to lower case the input text. " "True for uncased models, False for cased models.",
     )
-    parser.add_argument(
-        "--evaluation_only", action='store_true', help="Whether to only do evaluation.",
-    )
+    parser.add_argument("--evaluation_only", action='store_true', help="Whether to only do evaluation.")
     parser.add_argument(
         "--doc_stride",
         default=128,
@@ -149,11 +137,9 @@ def parse_args():
     )
     parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs")
     parser.add_argument(
-        "--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision",
+        "--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
     )
-    parser.add_argument(
-        "--local_rank", type=int, default=None, help="For distributed training: local_rank",
-    )
+    parser.add_argument("--local_rank", type=int, default=None, help="For distributed training: local_rank")
     parser.add_argument(
         "--work_dir",
         default='output_squad',
@@ -172,12 +158,8 @@ def parse_args():
         type=int,
         help="Frequency of saving checkpoint " "'-1' - step checkpoint won't be saved",
     )
-    parser.add_argument(
-        "--loss_step_freq", default=100, type=int, help="Frequency of printing loss",
-    )
-    parser.add_argument(
-        "--eval_step_freq", default=500, type=int, help="Frequency of evaluation on dev data",
-    )
+    parser.add_argument("--loss_step_freq", default=100, type=int, help="Frequency of printing loss")
+    parser.add_argument("--eval_step_freq", default=500, type=int, help="Frequency of evaluation on dev data")
     parser.add_argument(
         "--version_2_with_negative",
         action="store_true",
@@ -195,9 +177,7 @@ def parse_args():
         type=int,
         help="The total number of n-best predictions to " "generate in the nbest_predictions.json output file.",
     )
-    parser.add_argument(
-        "--batches_per_step", default=1, type=int, help="Number of iterations per step.",
-    )
+    parser.add_argument("--batches_per_step", default=1, type=int, help="Number of iterations per step.")
     parser.add_argument(
         "--max_answer_length",
         default=30,
@@ -246,19 +226,19 @@ def create_pipeline(
     input_data = data_layer()
 
     hidden_states = model(
-        input_ids=input_data.input_ids, token_type_ids=input_data.input_type_ids, attention_mask=input_data.input_mask,
+        input_ids=input_data.input_ids, token_type_ids=input_data.input_type_ids, attention_mask=input_data.input_mask
     )
 
     qa_output = head(hidden_states=hidden_states)
     loss_output = loss_fn(
-        logits=qa_output, start_positions=input_data.start_positions, end_positions=input_data.end_positions,
+        logits=qa_output, start_positions=input_data.start_positions, end_positions=input_data.end_positions
     )
 
     steps_per_epoch = len(data_layer) // (batch_size * num_gpus * batches_per_step)
     return (
         loss_output.loss,
         steps_per_epoch,
-        [loss_output.start_logits, loss_output.end_logits, input_data.unique_ids,],
+        [loss_output.start_logits, loss_output.end_logits, input_data.unique_ids],
         data_layer,
     )
 
@@ -359,7 +339,7 @@ if __name__ == "__main__":
         )
 
         ckpt_callback = nemo.core.CheckpointCallback(
-            folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq,
+            folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
         )
         callbacks_eval = nemo.core.EvaluatorCallback(
             eval_tensors=eval_output,
@@ -378,9 +358,7 @@ if __name__ == "__main__":
         )
 
         lr_policy_fn = get_lr_policy(
-            args.lr_policy,
-            total_steps=args.num_epochs * train_steps_per_epoch,
-            warmup_ratio=args.lr_warmup_proportion,
+            args.lr_policy, total_steps=args.num_epochs * train_steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
         )
 
         nf.train(

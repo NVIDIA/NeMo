@@ -150,9 +150,7 @@ def __prepare_databaker_csmsc(data_root, train_size, sr=22050):
     __extract_rar(rar_path, dataset_dir)
     wavedir = os.path.join(dataset_dir, "Wave")
     wavepaths = glob.glob(os.path.join(wavedir, "*.wav"))
-    print(
-        "Found {} wav files, converting them to {} HZ sample rate...".format(len(wavepaths), sr), flush=True,
-    )
+    print("Found {} wav files, converting them to {} HZ sample rate...".format(len(wavepaths), sr), flush=True)
     converted_wavedir = os.path.join(dataset_dir, str(sr))
     if not os.path.exists(converted_wavedir):
         os.mkdir(converted_wavedir)

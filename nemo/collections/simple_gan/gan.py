@@ -28,12 +28,7 @@ class SimpleDiscriminator(TrainableNM):
         """
         return {
             "image": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, 28),
-                    3: AxisType(WidthTag, 28),
-                }
+                {0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(HeightTag, 28), 3: AxisType(WidthTag, 28)}
             )
         }
 
@@ -114,12 +109,7 @@ class SimpleGenerator(TrainableNM):
         """
         return {
             "image": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, 28),
-                    3: AxisType(WidthTag, 28),
-                }
+                {0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(HeightTag, 28), 3: AxisType(WidthTag, 28)}
             )
         }
 
@@ -161,9 +151,7 @@ class DiscriminatorLoss(LossNM):
 
             1: AxisType(ChannelTag, 1)
         """
-        return {
-            "decision": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag, 1)}),
-        }
+        return {"decision": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag, 1)})}
 
     @property
     def output_ports(self):
@@ -214,12 +202,7 @@ class GradientPenalty(LossNM):
         """
         return {
             "interpolated_image": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, 28),
-                    3: AxisType(WidthTag, 28),
-                }
+                {0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(HeightTag, 28), 3: AxisType(WidthTag, 28)}
             ),
             "interpolated_decision": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag, 1)}),
         }
@@ -287,20 +270,10 @@ class InterpolateImage(TrainableNM):
         """
         return {
             "image1": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, 28),
-                    3: AxisType(WidthTag, 28),
-                }
+                {0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(HeightTag, 28), 3: AxisType(WidthTag, 28)}
             ),
             "image2": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, 28),
-                    3: AxisType(WidthTag, 28),
-                }
+                {0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(HeightTag, 28), 3: AxisType(WidthTag, 28)}
             ),
         }
 
@@ -319,12 +292,7 @@ class InterpolateImage(TrainableNM):
         """
         return {
             "interpolated_image": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, 28),
-                    3: AxisType(WidthTag, 28),
-                }
+                {0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(HeightTag, 28), 3: AxisType(WidthTag, 28)}
             )
         }
 
@@ -467,7 +435,7 @@ class MnistGanDataLayer(DataLayerNM):
         self._root = root
         self._transforms = transforms.Compose([transforms.ToTensor()])
 
-        self._dataset = datasets.MNIST(root=self._root, train=self._train, download=True, transform=self._transforms,)
+        self._dataset = datasets.MNIST(root=self._root, train=self._train, download=True, transform=self._transforms)
 
         class DatasetWrapper(Dataset):
             def __init__(self, dataset):

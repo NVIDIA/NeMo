@@ -1,13 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
-__all__ = [
-    'Backend',
-    'ModelMode',
-    'Optimization',
-    'DeviceType',
-    'Actions',
-    'NeuralModuleFactory',
-    'DeploymentFormat',
-]
+__all__ = ['Backend', 'ModelMode', 'Optimization', 'DeviceType', 'Actions', 'NeuralModuleFactory', 'DeploymentFormat']
 
 import random
 from abc import ABC, abstractmethod
@@ -213,9 +205,7 @@ class Actions(ABC):
             for callback in callbacks:
                 callback.action = self
 
-    def _update_callbacks(
-        self, callbacks=None, registered_tensors=None,
-    ):
+    def _update_callbacks(self, callbacks=None, registered_tensors=None):
         # if self.local_rank is None or self.local_rank == 0:
         if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
             for callback in callbacks:
@@ -461,7 +451,7 @@ class NeuralModuleFactory(object):
                     if num_classes is not None:
                         pt_model.fc = nn.Linear(512, params["num_classes"])
                     return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports, **params,
+                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports, **params
                     )
                 elif _nm_name == "resnet50":
                     input_ports = {
@@ -481,7 +471,7 @@ class NeuralModuleFactory(object):
                     if num_classes is not None:
                         pt_model.fc = nn.Linear(2048, params["num_classes"])
                     return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports, **params,
+                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports, **params
                     )
         else:
             collection_path = "nemo.collections." + collection + "." + name
@@ -517,7 +507,7 @@ class NeuralModuleFactory(object):
                     "Module's {0} requested optimization level {1} is"
                     "different from the one specified by factory - {2}."
                     "Using: {3} for this module".format(
-                        name, params["optimization_level"], self._optim_level, params["optimization_level"],
+                        name, params["optimization_level"], self._optim_level, params["optimization_level"]
                     )
                 )
         else:
@@ -526,13 +516,13 @@ class NeuralModuleFactory(object):
             params["optimization_level"] = self._optim_level
 
         if self._backend == Backend.PyTorch:
-            return self.__get_pytorch_module(name=name, params=params, collection=collection, pretrained=pretrained,)
+            return self.__get_pytorch_module(name=name, params=params, collection=collection, pretrained=pretrained)
         else:
             return None
 
     def create_optimizer(self, optimizer, things_to_optimize, optimizer_params):
         return self._trainer.create_optimizer(
-            optimizer=optimizer, things_to_optimize=things_to_optimize, optimizer_params=optimizer_params,
+            optimizer=optimizer, things_to_optimize=things_to_optimize, optimizer_params=optimizer_params
         )
 
     def train(
@@ -573,11 +563,11 @@ class NeuralModuleFactory(object):
             if not isinstance(callback, EvaluatorCallback):
                 raise TypeError(f"All callbacks passed to the eval action must" f"be inherited from EvaluatorCallback")
         self.train(
-            tensors_to_optimize=None, optimizer='sgd', callbacks=callbacks, optimization_params={'num_epochs': 1},
+            tensors_to_optimize=None, optimizer='sgd', callbacks=callbacks, optimization_params={'num_epochs': 1}
         )
 
     def deployment_export(
-        self, module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None,
+        self, module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None
     ):
         """Exports Neural Module instance for deployment.
 
@@ -606,11 +596,7 @@ class NeuralModuleFactory(object):
             nemo.logging.warning(f"Turned off {m_count} masked convolutions")
 
         return self._trainer.deployment_export(
-            module=module,
-            output=output,
-            d_format=d_format,
-            input_example=input_example,
-            output_example=output_example,
+            module=module, output=output, d_format=d_format, input_example=input_example, output_example=output_example
         )
 
     def infer(

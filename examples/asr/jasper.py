@@ -16,7 +16,7 @@ from nemo.utils.lr_policies import CosineAnnealing
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        parents=[nm_argparse.NemoArgParser()], description='Jasper', conflict_handler='resolve',
+        parents=[nm_argparse.NemoArgParser()], description='Jasper', conflict_handler='resolve'
     )
     parser.set_defaults(
         checkpoint_dir=None,
@@ -29,24 +29,16 @@ def parse_args():
     )
 
     # Overwrite default args
-    parser.add_argument(
-        "--max_steps", type=int, default=None, required=False, help="max number of steps to train",
-    )
-    parser.add_argument(
-        "--num_epochs", type=int, default=None, required=False, help="number of epochs to train",
-    )
-    parser.add_argument(
-        "--model_config", type=str, required=True, help="model configuration file: model.yaml",
-    )
+    parser.add_argument("--max_steps", type=int, default=None, required=False, help="max number of steps to train")
+    parser.add_argument("--num_epochs", type=int, default=None, required=False, help="number of epochs to train")
+    parser.add_argument("--model_config", type=str, required=True, help="model configuration file: model.yaml")
 
     # Create new args
     parser.add_argument("--exp_name", default="Jasper", type=str)
     parser.add_argument("--beta1", default=0.95, type=float)
     parser.add_argument("--beta2", default=0.25, type=float)
     parser.add_argument("--warmup_steps", default=0, type=int)
-    parser.add_argument(
-        "--load_dir", default=None, type=str, help="directory with pre-trained checkpoint",
-    )
+    parser.add_argument("--load_dir", default=None, type=str, help="directory with pre-trained checkpoint")
 
     args = parser.parse_args()
 
@@ -99,7 +91,7 @@ def create_all_dags(args, neural_factory):
     nemo.logging.info('Have {0} examples to train on.'.format(N))
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
-        sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"],
+        sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"]
     )
 
     multiply_batch_config = jasper_params.get('MultiplyBatch', None)
@@ -132,13 +124,11 @@ def create_all_dags(args, neural_factory):
         nemo.logging.warning("There were no val datasets passed")
 
     jasper_encoder = nemo_asr.JasperEncoder(
-        feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"], **jasper_params["JasperEncoder"],
+        feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"], **jasper_params["JasperEncoder"]
     )
 
     jasper_decoder = nemo_asr.JasperDecoderForCTC(
-        feat_in=jasper_params["JasperEncoder"]["jasper"][-1]["filters"],
-        num_classes=len(vocab),
-        factory=neural_factory,
+        feat_in=jasper_params["JasperEncoder"]["jasper"][-1]["filters"], num_classes=len(vocab), factory=neural_factory
     )
 
     ctc_loss = nemo_asr.CTCLossNM(num_classes=len(vocab))
@@ -154,12 +144,12 @@ def create_all_dags(args, neural_factory):
     nemo.logging.info('================================')
 
     # Train DAG
-    (audio_signal_t, a_sig_length_t, transcript_t, transcript_len_t,) = data_layer()
+    (audio_signal_t, a_sig_length_t, transcript_t, transcript_len_t) = data_layer()
     processed_signal_t, p_length_t = data_preprocessor(input_signal=audio_signal_t, length=a_sig_length_t)
 
     if multiply_batch_config:
-        (processed_signal_t, p_length_t, transcript_t, transcript_len_t,) = multiply_batch(
-            in_x=processed_signal_t, in_x_len=p_length_t, in_y=transcript_t, in_y_len=transcript_len_t,
+        (processed_signal_t, p_length_t, transcript_t, transcript_len_t) = multiply_batch(
+            in_x=processed_signal_t, in_x_len=p_length_t, in_y=transcript_t, in_y_len=transcript_len_t
         )
 
     if spectr_augment_config:
@@ -169,7 +159,7 @@ def create_all_dags(args, neural_factory):
     log_probs_t = jasper_decoder(encoder_output=encoded_t)
     predictions_t = greedy_decoder(log_probs=log_probs_t)
     loss_t = ctc_loss(
-        log_probs=log_probs_t, targets=transcript_t, input_length=encoded_len_t, target_length=transcript_len_t,
+        log_probs=log_probs_t, targets=transcript_t, input_length=encoded_len_t, target_length=transcript_len_t
     )
 
     # Callbacks needed to print info to console and Tensorboard
@@ -181,26 +171,26 @@ def create_all_dags(args, neural_factory):
     )
 
     chpt_callback = nemo.core.CheckpointCallback(
-        folder=neural_factory.checkpoint_dir, load_from_folder=args.load_dir, step_freq=args.checkpoint_save_freq,
+        folder=neural_factory.checkpoint_dir, load_from_folder=args.load_dir, step_freq=args.checkpoint_save_freq
     )
 
     callbacks = [train_callback, chpt_callback]
 
     # assemble eval DAGs
     for i, eval_dl in enumerate(data_layers_eval):
-        (audio_signal_e, a_sig_length_e, transcript_e, transcript_len_e,) = eval_dl()
+        (audio_signal_e, a_sig_length_e, transcript_e, transcript_len_e) = eval_dl()
         processed_signal_e, p_length_e = data_preprocessor(input_signal=audio_signal_e, length=a_sig_length_e)
         encoded_e, encoded_len_e = jasper_encoder(audio_signal=processed_signal_e, length=p_length_e)
         log_probs_e = jasper_decoder(encoder_output=encoded_e)
         predictions_e = greedy_decoder(log_probs=log_probs_e)
         loss_e = ctc_loss(
-            log_probs=log_probs_e, targets=transcript_e, input_length=encoded_len_e, target_length=transcript_len_e,
+            log_probs=log_probs_e, targets=transcript_e, input_length=encoded_len_e, target_length=transcript_len_e
         )
 
         # create corresponding eval callback
         tagname = os.path.basename(args.eval_datasets[i]).split(".")[0]
         eval_callback = nemo.core.EvaluatorCallback(
-            eval_tensors=[loss_e, predictions_e, transcript_e, transcript_len_e,],
+            eval_tensors=[loss_e, predictions_e, transcript_e, transcript_len_e],
             user_iter_callback=partial(process_evaluation_batch, labels=vocab),
             user_epochs_done_callback=partial(process_evaluation_epoch, tag=tagname),
             eval_step=args.eval_freq,

@@ -1,21 +1,16 @@
-__all__ = [
-    'TransformerEncoderBlock',
-    'TransformerEncoder',
-    'XLNetEncoderBlock',
-    'XLNetEncoder',
-]
+__all__ = []
 
 import copy
 
 import torch
 import torch.nn as nn
 
-from nemo.collections.nlp.modules.trainables.specific.transformer.modules import (
+from nemo.collections.nlp.nm.trainables.specific.transformer.modules import (
     MultiHeadAttention,
     PositionWiseFF,
     TwoStreamSelfAttention,
 )
-from nemo.collections.nlp.modules.trainables.specific.transformer.utils import form_attention_mask
+from nemo.collections.nlp.nm.trainables.specific.transformer.utils import form_attention_mask
 
 
 class TransformerEncoderBlock(nn.Module):
@@ -47,7 +42,7 @@ class TransformerEncoderBlock(nn.Module):
         super().__init__()
 
         self.first_sub_layer = MultiHeadAttention(
-            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout,
+            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
         self.second_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
 
@@ -72,9 +67,7 @@ class TransformerEncoder(nn.Module):
             memory_states = encoder_states
         return memory_states
 
-    def forward(
-        self, encoder_states, encoder_mask, encoder_mems_list=None, return_mems=False,
-    ):
+    def forward(self, encoder_states, encoder_mask, encoder_mems_list=None, return_mems=False):
         """
         Args:
             encoder_states: output of the embedding_layer (B x L_enc x H)
@@ -116,7 +109,7 @@ class XLNetEncoderBlock(nn.Module):
         super().__init__()
 
         self.first_sub_layer = TwoStreamSelfAttention(
-            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout,
+            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
         self.second_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
 
@@ -139,5 +132,5 @@ class XLNetEncoder(nn.Module):
         query_attn_mask = form_attention_mask(input_mask, diagonal=-1)
         content_attn_mask = form_attention_mask(input_mask, diagonal=0)
         for layer in self.layers:
-            query_states, content_states = layer(query_states, content_states, query_attn_mask, content_attn_mask,)
+            query_states, content_states = layer(query_states, content_states, query_attn_mask, content_attn_mask)
         return query_states, content_states

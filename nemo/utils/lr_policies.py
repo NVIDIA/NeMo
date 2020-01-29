@@ -116,7 +116,7 @@ class SquareRootAnnealing(WarmupPolicy):
 
     def _get_lr(self, initial_lr, step, epoch):
         return _squareroot_annealing(
-            initial_lr=initial_lr, step=step, total_steps=self.total_steps, min_lr=self.min_lr,
+            initial_lr=initial_lr, step=step, total_steps=self.total_steps, min_lr=self.min_lr
         )
 
 

@@ -55,7 +55,7 @@ neural_factory = nemo.core.NeuralModuleFactory(
 )
 
 resnet = neural_factory.get_module(
-    name="resnet50", params={"placement": device}, collection="torchvision", pretrained=False,
+    name="resnet50", params={"placement": device}, collection="torchvision", pretrained=False
 )
 
 dl_train = neural_factory.get_module(

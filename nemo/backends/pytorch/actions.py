@@ -40,17 +40,11 @@ AmpOptimizations = {
     Optimization.mxprO3: "O3",
 }
 
-_float_2_half_req = {
-    Optimization.mxprO1,
-    Optimization.mxprO2,
-    Optimization.mxprO3,
-}
+_float_2_half_req = {Optimization.mxprO1, Optimization.mxprO2, Optimization.mxprO3}
 
 
 class PtActions(Actions):
-    def __init__(
-        self, local_rank=None, global_rank=None, tb_writer=None, optimization_level=Optimization.mxprO0,
-    ):
+    def __init__(self, local_rank=None, global_rank=None, tb_writer=None, optimization_level=Optimization.mxprO0):
         need_apex = local_rank is not None or optimization_level != Optimization.mxprO0
         if need_apex:
             try:
@@ -85,7 +79,7 @@ class PtActions(Actions):
                 )
 
         super(PtActions, self).__init__(
-            local_rank=local_rank, global_rank=global_rank, optimization_level=optimization_level,
+            local_rank=local_rank, global_rank=global_rank, optimization_level=optimization_level
         )
 
         # will be [unique_instance_id -> (NMModule, PTModule)]
@@ -118,7 +112,7 @@ class PtActions(Actions):
             if producer_args is None:
                 return tuple((producer, ()))
             else:
-                return tuple((producer, tuple([(k, v) for k, v in producer_args.items()]),))
+                return tuple((producer, tuple([(k, v) for k, v in producer_args.items()])))
 
         def is_in_degree_zero(node, processed_nodes):
             """A node has in degree of zero"""
@@ -285,9 +279,7 @@ class PtActions(Actions):
         return optimizer
 
     @staticmethod
-    def __setup_optimizer(
-        optimizer_instance, optimizer_class, optimization_params, params_to_optimize,
-    ):
+    def __setup_optimizer(optimizer_instance, optimizer_class, optimization_params, params_to_optimize):
 
         if optimizer_instance is None:
             # Setup optimizer instance, by default it is SGD
@@ -301,7 +293,7 @@ class PtActions(Actions):
                 )
             elif optimizer_class.lower() == "adam":
                 optimizer = optim.Adam(
-                    params=params_to_optimize, lr=lr, betas=optimization_params.get("betas", (0.9, 0.999)),
+                    params=params_to_optimize, lr=lr, betas=optimization_params.get("betas", (0.9, 0.999))
                 )
             elif optimizer_class.lower() == "fused_adam":
                 optimizer = FusedAdam(params=params_to_optimize, lr=lr)
@@ -331,13 +323,13 @@ class PtActions(Actions):
                     betas=optimization_params.get("betas", (0.95, 0.25)),
                 )
             elif optimizer_class.lower() == "fused_lamb":
-                optimizer = FusedLAMB(params_to_optimize, lr=lr,)
+                optimizer = FusedLAMB(params_to_optimize, lr=lr)
             else:
                 raise ValueError("Unknown optimizer class: {0}".format(optimizer_class))
 
             if optimization_params.get("larc", False):
                 nemo.logging.info("Enabling larc")
-                optimizer = LARC(optimizer, trust_coefficient=optimization_params.get("larc_eta", 2e-2),)
+                optimizer = LARC(optimizer, trust_coefficient=optimization_params.get("larc_eta", 2e-2))
         else:
             nemo.logging.info("Optimizer instance: {0} is provided.")
             if optimizer_class is not None and optimizer_class != "":
@@ -350,9 +342,7 @@ class PtActions(Actions):
             optimizer = optimizer_instance
         return optimizer
 
-    def __initialize_amp(
-        self, optimizer, optim_level, amp_max_loss_scale=2.0 ** 24, amp_min_loss_scale=1.0,
-    ):
+    def __initialize_amp(self, optimizer, optim_level, amp_max_loss_scale=2.0 ** 24, amp_min_loss_scale=1.0):
         if optim_level not in AmpOptimizations:
             raise ValueError(f"__initialize_amp() was called with unknown " "optim_level={optim_level}")
         # in this case, nothing to do here
@@ -379,7 +369,7 @@ class PtActions(Actions):
         return optimizer
 
     def __nm_graph_forward_pass(
-        self, call_chain, registered_tensors, mode=ModelMode.train, disable_allreduce=False, use_cache=False,
+        self, call_chain, registered_tensors, mode=ModelMode.train, disable_allreduce=False, use_cache=False
     ):
         for ind in range(1, len(call_chain)):
             if use_cache:
@@ -423,7 +413,7 @@ class PtActions(Actions):
                 key = nmtensor.unique_name
                 call_set[tensor_name] = registered_tensors[key]
             # actual PyTorch module call with signature
-            if isinstance(self.module_reference_table[m_id][0], TrainableNeuralModuleWrapper,):
+            if isinstance(self.module_reference_table[m_id][0], TrainableNeuralModuleWrapper):
                 new_tensors = pmodule(**call_set)
             else:
                 new_tensors = pmodule(force_pt=True, **call_set)
@@ -561,7 +551,7 @@ class PtActions(Actions):
                     t.unique_name: d for t, d in zip(call_chain[0][2].values(), tensors) if t is not None
                 }
                 self.__nm_graph_forward_pass(
-                    call_chain=call_chain, registered_tensors=registered_e_tensors, mode=ModelMode.eval,
+                    call_chain=call_chain, registered_tensors=registered_e_tensors, mode=ModelMode.eval
                 )
 
                 if not is_distributed or self.global_rank == 0:
@@ -625,9 +615,7 @@ class PtActions(Actions):
                         for key, val in vals_to_log.items():
                             callback.swriter.add_scalar(key, val, step)
 
-    def _infer(
-        self, tensors_to_return, verbose=False, cache=False, use_cache=False, offload_to_cpu=True,
-    ):
+    def _infer(self, tensors_to_return, verbose=False, cache=False, use_cache=False, offload_to_cpu=True):
         """
         Does the same as _eval() just with tensors instead of eval callback.
         """
@@ -897,14 +885,12 @@ class PtActions(Actions):
         if callbacks is not None:
             for callback in callbacks:
                 if isinstance(callback, EvaluatorCallback):
-                    (callchain, _,) = self.__get_top_sorted_modules_and_dataloader(hook=callback.eval_tensors)
+                    (callchain, _) = self.__get_top_sorted_modules_and_dataloader(hook=callback.eval_tensors)
                     for module in callchain:
                         self.modules.add(module[0])
 
     @staticmethod
-    def __module_export(
-        module, output, d_format: DeploymentFormat, input_example=None, output_example=None,
-    ):
+    def __module_export(module, output, d_format: DeploymentFormat, input_example=None, output_example=None):
         # Check if output already exists
         destination = Path(output)
         if destination.exists():
@@ -1025,9 +1011,7 @@ class PtActions(Actions):
             type(module).__call__ = __old_call__
 
     @staticmethod
-    def deployment_export(
-        module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None,
-    ):
+    def deployment_export(module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None):
         """Exports Neural Module instance for deployment.
 
         Args:
@@ -1087,7 +1071,7 @@ class PtActions(Actions):
         ):
             # Parse graph into a topologically sorted sequence of neural
             # modules' calls
-            (opt_call_chain, t_dataset,) = self.__get_top_sorted_modules_and_dataloader(hook=tensors_to_optimize)
+            (opt_call_chain, t_dataset) = self.__get_top_sorted_modules_and_dataloader(hook=tensors_to_optimize)
             # Extract trainable weights which will be optimized
             params_list = [
                 p[0].parameters() for p in opt_call_chain if isinstance(p[0], TrainableNM) or p[0].is_trainable()
@@ -1123,7 +1107,7 @@ class PtActions(Actions):
             datasets = []
             training_loop = []
             for step in tensors_to_optimize:
-                (step_call_chain, dataset,) = self.__get_top_sorted_modules_and_dataloader(hook=step[1])
+                (step_call_chain, dataset) = self.__get_top_sorted_modules_and_dataloader(hook=step[1])
                 datasets.append(dataset)
                 training_loop.append((step[0], step[1], step_call_chain))
 
@@ -1148,7 +1132,7 @@ class PtActions(Actions):
                     all_tensors = logging_tensors
                     for step in training_loop:
                         all_tensors = all_tensors + step[1]
-                    (logging_callchain, _,) = self.__get_top_sorted_modules_and_dataloader(hook=all_tensors)
+                    (logging_callchain, _) = self.__get_top_sorted_modules_and_dataloader(hook=all_tensors)
 
         self._get_all_modules(training_loop, callbacks, logging_callchain)
 
@@ -1166,11 +1150,7 @@ class PtActions(Actions):
             )
             # Use stored mapping to map amp_init opts to training loop
             for i, step in enumerate(training_loop):
-                training_loop[i] = (
-                    self.optimizers[training_loop_opts[i]],
-                    step[1],
-                    step[2],
-                )
+                training_loop[i] = (self.optimizers[training_loop_opts[i]], step[1], step[2])
 
         dataNM = training_loop[0][2][0][0]
         if dataNM.placement == DeviceType.AllGpu:
@@ -1219,10 +1199,7 @@ class PtActions(Actions):
                         process_group = create_syncbn_process_group(synced_batchnorm_groupsize)
                         pmodule = convert_syncbn(pmodule, process_group=process_group)
 
-                    self.module_reference_table[key] = (
-                        self.module_reference_table[key][0],
-                        pmodule,
-                    )
+                    self.module_reference_table[key] = (self.module_reference_table[key][0], pmodule)
         # single GPU/CPU training
         else:
             if t_dataset is not None:
@@ -1319,7 +1296,7 @@ class PtActions(Actions):
                 if nan:
                     continue
                 if self._optim_level in AmpOptimizations and self._optim_level != Optimization.mxprO0:
-                    with amp.scale_loss(final_loss, curr_optimizer, delay_unscale=disable_allreduce,) as scaled_loss:
+                    with amp.scale_loss(final_loss, curr_optimizer, delay_unscale=disable_allreduce) as scaled_loss:
                         if torch.isnan(scaled_loss).any() or torch.isinf(scaled_loss).any():
                             if stop_on_nan_loss:
                                 raise ValueError('Loss is NaN or inf -' ' exiting')
@@ -1345,9 +1322,7 @@ class PtActions(Actions):
                     curr_optimizer.step()
                     batch_counter = 0
                     # Register iteration end with callbacks
-                    self._update_callbacks(
-                        callbacks=callbacks, registered_tensors=registered_tensors,
-                    )
+                    self._update_callbacks(callbacks=callbacks, registered_tensors=registered_tensors)
                     self._perform_on_iteration_end(callbacks=callbacks)
                     self.step += 1
             # End of epoch for loop
@@ -1410,15 +1385,11 @@ class PtActions(Actions):
                     pt_modules.append(call_chain[i][0]._pt_module)
 
             amp.initialize(
-                min_loss_scale=1.0, models=pt_modules, optimizers=None, opt_level=AmpOptimizations[self._optim_level],
+                min_loss_scale=1.0, models=pt_modules, optimizers=None, opt_level=AmpOptimizations[self._optim_level]
             )
             self.amp_initialized = True
 
         # Run infer
         return self._infer(
-            tensors_to_return=tensors,
-            verbose=verbose,
-            cache=cache,
-            use_cache=use_cache,
-            offload_to_cpu=offload_to_cpu,
+            tensors_to_return=tensors, verbose=verbose, cache=cache, use_cache=use_cache, offload_to_cpu=offload_to_cpu
         )

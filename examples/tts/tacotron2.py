@@ -22,7 +22,7 @@ from nemo.utils.lr_policies import CosineAnnealing
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        parents=[nm_argparse.NemoArgParser()], description='Tacotron2', conflict_handler='resolve',
+        parents=[nm_argparse.NemoArgParser()], description='Tacotron2', conflict_handler='resolve'
     )
     parser.set_defaults(
         checkpoint_dir=None,
@@ -37,19 +37,11 @@ def parse_args():
     )
 
     # Overwrite default args
-    parser.add_argument(
-        "--max_steps", type=int, default=None, required=False, help="max number of steps to train",
-    )
-    parser.add_argument(
-        "--num_epochs", type=int, default=None, required=False, help="number of epochs to train",
-    )
-    parser.add_argument(
-        "--model_config", type=str, required=True, help="model configuration file: model.yaml",
-    )
+    parser.add_argument("--max_steps", type=int, default=None, required=False, help="max number of steps to train")
+    parser.add_argument("--num_epochs", type=int, default=None, required=False, help="number of epochs to train")
+    parser.add_argument("--model_config", type=str, required=True, help="model configuration file: model.yaml")
     parser.add_argument("--grad_norm_clip", type=float, default=1.0, help="gradient clipping")
-    parser.add_argument(
-        "--min_lr", type=float, default=1e-5, help="minimum learning rate to decay to",
-    )
+    parser.add_argument("--min_lr", type=float, default=1e-5, help="minimum learning rate to decay to")
 
     # Create new args
     parser.add_argument("--exp_name", default="Tacotron2", type=str)
@@ -82,7 +74,7 @@ def create_NMs(tacotron2_params, decoder_infer=False):
         **tacotron2_params["AudioToMelSpectrogramPreprocessor"]
     )
     text_embedding = nemo_tts.TextEmbedding(
-        len(tacotron2_params["labels"]) + 3, **tacotron2_params["TextEmbedding"],  # + 3 special chars
+        len(tacotron2_params["labels"]) + 3, **tacotron2_params["TextEmbedding"]  # + 3 special chars
     )
     t2_enc = nemo_tts.Tacotron2Encoder(**tacotron2_params["Tacotron2Encoder"])
     if decoder_infer:
@@ -98,15 +90,7 @@ def create_NMs(tacotron2_params, decoder_infer=False):
     nemo.logging.info('================================')
     nemo.logging.info(f"Total number of parameters: {total_weights}")
     nemo.logging.info('================================')
-    return (
-        data_preprocessor,
-        text_embedding,
-        t2_enc,
-        t2_dec,
-        t2_postnet,
-        t2_loss,
-        makegatetarget,
-    )
+    return (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget)
 
 
 def create_train_dag(
@@ -119,7 +103,7 @@ def create_train_dag(
     checkpoint_save_freq,
     cpu_per_dl=1,
 ):
-    (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget,) = neural_modules
+    (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget) = neural_modules
 
     train_dl_params = copy.deepcopy(tacotron2_params["AudioToTextDataLayer"])
     train_dl_params.update(tacotron2_params["AudioToTextDataLayer"]["train"])
@@ -146,9 +130,9 @@ def create_train_dag(
     spec_target, spec_target_len = data_preprocessor(input_signal=audio, length=audio_len)
 
     transcript_embedded = text_embedding(char_phone=transcript)
-    transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len,)
+    transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len)
     mel_decoder, gate, alignments = t2_dec(
-        char_phone_encoded=transcript_encoded, encoded_length=transcript_len, mel_target=spec_target,
+        char_phone_encoded=transcript_encoded, encoded_length=transcript_len, mel_target=spec_target
     )
     mel_postnet = t2_postnet(mel_input=mel_decoder)
     gate_target = makegatetarget(mel_target=spec_target, target_len=spec_target_len)
@@ -164,7 +148,7 @@ def create_train_dag(
 
     # Callbacks needed to print info to console and Tensorboard
     train_callback = nemo.core.SimpleLossLoggerCallback(
-        tensors=[loss_t, spec_target, mel_postnet, gate, gate_target, alignments,],
+        tensors=[loss_t, spec_target, mel_postnet, gate, gate_target, alignments],
         print_func=lambda x: nemo.logging.info(f"Loss: {x[0].data}"),
         log_to_tb_func=partial(tacotron2_log_to_tb_func, log_images=True, log_images_freq=log_freq),
         tb_writer=neural_factory.tb_writer,
@@ -177,9 +161,9 @@ def create_train_dag(
 
 
 def create_eval_dags(
-    neural_factory, neural_modules, tacotron2_params, eval_datasets, eval_batch_size, eval_freq, cpu_per_dl=1,
+    neural_factory, neural_modules, tacotron2_params, eval_datasets, eval_batch_size, eval_freq, cpu_per_dl=1
 ):
-    (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget,) = neural_modules
+    (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget) = neural_modules
 
     eval_dl_params = copy.deepcopy(tacotron2_params["AudioToTextDataLayer"])
     eval_dl_params.update(tacotron2_params["AudioToTextDataLayer"]["eval"])
@@ -204,9 +188,9 @@ def create_eval_dags(
         spec_target, spec_target_len = data_preprocessor(input_signal=audio, length=audio_len)
 
         transcript_embedded = text_embedding(char_phone=transcript)
-        transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len,)
+        transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len)
         mel_decoder, gate, alignments = t2_dec(
-            char_phone_encoded=transcript_encoded, encoded_length=transcript_len, mel_target=spec_target,
+            char_phone_encoded=transcript_encoded, encoded_length=transcript_len, mel_target=spec_target
         )
         mel_postnet = t2_postnet(mel_input=mel_decoder)
         gate_target = makegatetarget(mel_target=spec_target, target_len=spec_target_len)
@@ -222,14 +206,7 @@ def create_eval_dags(
 
         # create corresponding eval callback
         tagname = os.path.basename(eval_dataset).split(".")[0]
-        eval_tensors = [
-            loss,
-            spec_target,
-            mel_postnet,
-            gate,
-            gate_target,
-            alignments,
-        ]
+        eval_tensors = [loss, spec_target, mel_postnet, gate, gate_target, alignments]
         eval_callback = nemo.core.EvaluatorCallback(
             eval_tensors=eval_tensors,
             user_iter_callback=tacotron2_process_eval_batch,

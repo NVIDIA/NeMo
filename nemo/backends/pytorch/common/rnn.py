@@ -67,7 +67,7 @@ class DecoderRNN(TrainableNM):
         return {
             'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             'encoder_outputs': NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}, optional=True
             ),
         }
 
@@ -90,9 +90,9 @@ class DecoderRNN(TrainableNM):
             2: AxisType(TimeTag)
         """
         return {
-            'log_probs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            'log_probs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             'attention_weights': NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}, optional=True,
+                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag)}, optional=True
             ),
         }
 
@@ -127,7 +127,7 @@ class DecoderRNN(TrainableNM):
         self.in_dropout = nn.Dropout(in_dropout)
         rnn_class = getattr(nn, rnn_type.upper())
         self.rnn = rnn_class(
-            hidden_size, hidden_size, n_layers, dropout=(0 if n_layers == 1 else gru_dropout), batch_first=True,
+            hidden_size, hidden_size, n_layers, dropout=(0 if n_layers == 1 else gru_dropout), batch_first=True
         )
         self.out = nn.Linear(hidden_size, voc_size)
         if tie_emb_out_weights:
@@ -186,7 +186,7 @@ class DecoderRNN(TrainableNM):
         max_len = targets.size(1)
         rands = torch.rand(max_len)  # Precalculate randomness
         for i in range(max_len):
-            (step_log_prob, decoder_hidden, step_attention_weights,) = self.forward_step(
+            (step_log_prob, decoder_hidden, step_attention_weights) = self.forward_step(
                 decoder_input, encoder_outputs, decoder_hidden
             )
             log_probs.append(step_log_prob)

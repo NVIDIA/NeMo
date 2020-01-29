@@ -28,7 +28,7 @@ class JasperRNNConnector(TrainableNM):
 
             2: AxisType(TimeTag)
         """
-        return {'tensor': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag),})}
+        return {'tensor': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)})}
 
     @property
     def output_ports(self):
@@ -41,7 +41,7 @@ class JasperRNNConnector(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {'tensor': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
+        return {'tensor': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
 
     def __init__(self, in_channels, out_channels, **kwargs):
         super().__init__(**kwargs)

@@ -52,7 +52,7 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
             0: AxisType(BatchTag)
         """
         return {
-            "log_probs": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            "log_probs": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             "log_probs_length": NeuralType({0: AxisType(BatchTag)}),
         }
 
