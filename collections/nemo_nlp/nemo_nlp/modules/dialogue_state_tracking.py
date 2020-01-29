@@ -145,7 +145,7 @@ class TRADEGenerator(TrainableNM):
 
         maxlen = encoder_outputs.size(1)
         padding_mask_bool = ~ (torch.arange(maxlen, device=self._device)[None, :] <= enc_len[:, None])
-        padding_mask = torch.zeros_like(padding_mask_bool, dtype=encoder_outputs.dtype)
+        padding_mask = torch.zeros_like(padding_mask_bool, dtype=encoder_outputs.dtype, device=self._device)
         padding_mask.masked_fill_(mask=padding_mask_bool, value=-np.inf)
 
         for wi in range(max_res_len):
