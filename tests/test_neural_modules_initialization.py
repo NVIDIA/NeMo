@@ -37,9 +37,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
     """
 
     def setUp(self) -> None:
-
-        # Create the default Neural Factory.
-        self.nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.CPU)
+        super().setUp()
 
         # Mockup abstract methods.
         MockupModule.__abstractmethods__ = set()

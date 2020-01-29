@@ -23,7 +23,11 @@ import nemo
 
 class NeMoUnitTest(unittest.TestCase):
     def setUp(self) -> None:
-        nemo.core.neural_factory.NeuralModuleFactory.reset_default_factory()
-        print("---------------------------------------------------------")
-        print(self._testMethodName)
-        print("---------------------------------------------------------")
+        """ Default setup - instantiates Neural Factory. """
+        # Initialize the default Neural Factory - on CPU.
+        self.nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.CPU)
+        # Reset loggers.
+        self.nf._exp_manager.reset_loggers()
+
+        # Print standard header.
+        nemo.logging.info("-" * 20 + " " + self._testMethodName + " " + "-" * 20)

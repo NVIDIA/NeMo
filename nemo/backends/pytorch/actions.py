@@ -956,6 +956,7 @@ class PtActions(Actions):
         # whole class, not just this object! Which is why we need to repair it
         # in the finally block
         type(module).__call__ = torch.nn.Module.__call__
+        # Rest is changing the instance.
         module._local_parameters = None
         module._placement = None
         module._factory = None
@@ -1022,7 +1023,7 @@ class PtActions(Actions):
                 else:
                     return NeuralModule.__call__(self, **kwargs)
 
-            type(module).__call__ = __old_call__
+            type(module).__calll__ = __old_call__
 
     @staticmethod
     def deployment_export(
