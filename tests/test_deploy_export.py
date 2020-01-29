@@ -53,7 +53,9 @@ class TestDeployExport(NeMoUnitTest):
         )
 
     def test_TokenClassifier_module_export(self):
-        t_class = nemo_nlp.TokenClassifier(hidden_size=512, num_classes=16, use_transformer_pretrained=False)
+        t_class = nemo_nlp.nm.trainables.TokenClassifier(
+            hidden_size=512, num_classes=16, use_transformer_pretrained=False
+        )
         self.__test_export_route(
             module=t_class,
             out_name="t_class.pt",
@@ -62,7 +64,9 @@ class TestDeployExport(NeMoUnitTest):
         )
 
     def test_TokenClassifier_module_onnx_export(self):
-        t_class = nemo_nlp.TokenClassifier(hidden_size=512, num_classes=16, use_transformer_pretrained=False)
+        t_class = nemo_nlp.nm.trainables.TokenClassifier(
+            hidden_size=512, num_classes=16, use_transformer_pretrained=False
+        )
         self.__test_export_route(
             module=t_class,
             out_name="t_class.onnx",
@@ -77,7 +81,7 @@ class TestDeployExport(NeMoUnitTest):
         )
 
     def test_hf_bert_ts(self):
-        bert = nemo_nlp.huggingface.BERT(pretrained_model_name="bert-base-uncased")
+        bert = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name="bert-base-uncased")
         input_example = (
             torch.randint(low=0, high=16, size=(2, 16)).cuda(),
             torch.randint(low=0, high=1, size=(2, 16)).cuda(),
@@ -88,7 +92,7 @@ class TestDeployExport(NeMoUnitTest):
         )
 
     def test_hf_bert_pt(self):
-        bert = nemo_nlp.huggingface.BERT(pretrained_model_name="bert-base-uncased")
+        bert = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name="bert-base-uncased")
         self.__test_export_route(module=bert, out_name="bert.pt", mode=nemo.core.DeploymentFormat.PYTORCH)
 
     def test_jasper_encoder_to_onnx(self):
