@@ -63,12 +63,16 @@ WNLI	Accuracy	                    43.66
 import argparse
 import json
 import os
-import sys
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
-from nemo.collections.nlp import NemoBertTokenizer, SentencePieceTokenizer
+from nemo.collections.nlp import (
+    GlueDataLayerClassification,
+    GlueDataLayerRegression,
+    NemoBertTokenizer,
+    SentencePieceTokenizer,
+)
 from nemo.collections.nlp.data.datasets.utils import output_modes, processors
 from nemo.collections.nlp.utils.callbacks.glue import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
@@ -255,11 +259,9 @@ def create_pipeline(
     evaluate=False,
     processor=task_processors[0],
 ):
-    data_layer = 'GlueDataLayerClassification'
+    data_layer = GlueDataLayerClassification
     if output_mode == 'regression':
-        data_layer = 'GlueDataLayerRegression'
-
-    data_layer = getattr(sys.modules[__name__], data_layer)
+        data_layer = GlueDataLayerRegression
 
     data_layer = data_layer(
         dataset_type=args.dataset_type,

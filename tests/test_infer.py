@@ -19,9 +19,9 @@
 import torch
 
 import nemo
-from .common_setup import NeMoUnitTest
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core.neural_types import *
+from tests.common_setup import NeMoUnitTest
 
 
 class AddsTen(NonTrainableNM):
