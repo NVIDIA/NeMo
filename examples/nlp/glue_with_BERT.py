@@ -67,14 +67,10 @@ import os
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
-from nemo.collections.nlp import (
-    GlueDataLayerClassification,
-    GlueDataLayerRegression,
-    NemoBertTokenizer,
-    SentencePieceTokenizer,
-)
 from nemo.collections.nlp.callbacks.glue import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets.utils import output_modes, processors
+from nemo.collections.nlp.nm.trainables import GlueDataLayerClassification, GlueDataLayerRegression
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description="GLUE_with_pretrained_BERT")

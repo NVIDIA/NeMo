@@ -7,9 +7,11 @@ import sys
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp import NemoBertTokenizer, SentencePieceTokenizer, TokenClassificationLoss, TokenClassifier
 from nemo.collections.nlp.callbacks.token_classification import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets import utils
+from nemo.collections.nlp.nm.losses import TokenClassificationLoss
+from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments

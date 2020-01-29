@@ -104,7 +104,7 @@ else:
 # instantiate necessary modules for the whole translation pipeline, namely
 # data layers, encoder, decoder, output log_softmax, beam_search_translator
 # and loss function
-encoder = nemo_nlp.nm.data_layers.TransformerEncoderNM(
+encoder = nemo_nlp.nm.trainables.TransformerEncoderNM(
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
@@ -117,7 +117,7 @@ encoder = nemo_nlp.nm.data_layers.TransformerEncoderNM(
     max_seq_length=args.max_seq_length,
 )
 
-decoder = nemo_nlp.nm.data_layers.TransformerDecoderNM(
+decoder = nemo_nlp.nm.trainables.TransformerDecoderNM(
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
@@ -130,11 +130,11 @@ decoder = nemo_nlp.nm.data_layers.TransformerDecoderNM(
     max_seq_length=args.max_seq_length,
 )
 
-log_softmax = nemo_nlp.nm.data_layers.TokenClassifier(
+log_softmax = nemo_nlp.nm.trainables.TokenClassifier(
     args.d_model, num_classes=tgt_tokenizer.vocab_size, num_layers=1, log_softmax=True
 )
 
-beam_search = nemo_nlp.nm.data_layers.BeamSearchTranslatorNM(
+beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     decoder=decoder,
     log_softmax=log_softmax,
     max_seq_length=args.max_seq_length,
