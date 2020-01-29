@@ -53,10 +53,11 @@ class TestDeployExport(NeMoUnitTest):
         sess_options = ort.SessionOptions()
         sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
         ort_session = ort.InferenceSession(out_name, sess_options)
-        outputs_ort = ort_session.run(None, {'audio_signal': input_example[0].cpu().numpy(),
-                                             'encoded_lengths': input_example[1].cpu().numpy()})
+        outputs_ort = ort_session.run(
+            None, {'audio_signal': input_example[0].cpu().numpy(), 'encoded_lengths': input_example[1].cpu().numpy()}
+        )
         outputs_ort = torch.from_numpy(outputs_ort[0]).cuda()
-        self.assertLess((outputs_ort - outputs_fwd).norm(p=2), 5.e-4)
+        self.assertLess((outputs_ort - outputs_fwd).norm(p=2), 5.0e-4)
         if out.exists():
             os.remove(out)
 
