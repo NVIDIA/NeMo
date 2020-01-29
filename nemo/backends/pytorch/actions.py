@@ -1334,7 +1334,11 @@ class PtActions(Actions):
                         final_loss.backward(bps_scale.to(final_loss.get_device()))
                     # single device (CPU or GPU)
                     else:
-                        final_loss.backward(bps_scale.to(final_loss.get_device()))
+                        # Fix (workaround?) enabling to backpropagate gradiens on CPUs.
+                        if final_loss.get_device() < 0:
+                            final_loss.backward(bps_scale.to(final_loss))
+                        else:
+                            final_loss.backward(bps_scale.to(final_loss.get_device()))
 
                 batch_counter += 1
 
