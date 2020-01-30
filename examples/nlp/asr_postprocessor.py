@@ -7,7 +7,7 @@ import torch
 import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.machine_translation_datalayer
-import nemo.collections.nlp.nm.trainables.common.token_classification_nm
+import nemo.collections.nlp.nm.trainables.token_classification_nm
 from nemo.collections.nlp.callbacks.machine_translation_callback import (
     eval_epochs_done_callback_wer,
     eval_iter_callback,

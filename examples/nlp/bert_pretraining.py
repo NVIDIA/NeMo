@@ -66,9 +66,6 @@ from pytorch_transformers import BertConfig
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.nm.data_layers.lm_bert_datalayer
-import nemo.collections.nlp.nm.trainables.common.sequence_classification_nm
-import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo.collections.nlp.data.datasets.datasets_utils import BERTPretrainingDataDesc
 from nemo.utils.lr_policies import get_lr_policy
 
@@ -183,12 +180,12 @@ if args.bert_checkpoint is not None:
 data layers, BERT encoder, and MLM and NSP loss functions
 """
 
-mlm_classifier = nemo.collections.nlp.nm.trainables.common.token_classification_nm.BertTokenClassifier(
+mlm_classifier = nemo_nlp.nm.trainables.token_classification_nm.BertTokenClassifier(
     args.hidden_size, num_classes=args.vocab_size, activation=args.hidden_act, log_softmax=True
 )
 mlm_loss_fn = nemo_nlp.nm.losses.MaskedLanguageModelingLossNM()
 if not args.only_mlm_loss:
-    nsp_classifier = nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier(
+    nsp_classifier = nemo_nlp.nm.trainables.sequence_classification_nm.SequenceClassifier(
         args.hidden_size, num_classes=2, num_layers=2, activation='tanh', log_softmax=False
     )
     nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
@@ -208,12 +205,12 @@ def create_pipeline(data_file, batch_size, preprocessed_data=False, batches_per_
             kwargs['mask_probability'],
             kwargs['short_seq_prob'],
         )
-        data_layer = nemo.collections.nlp.nm.data_layers.lm_bert_datalayer.BertPretrainingDataLayer(
+        data_layer = nemo_nlp.nm.data_layers.lm_bert_datalayer.BertPretrainingDataLayer(
             tokenizer, data_file, max_seq_length, mask_probability, short_seq_prob, batch_size=batch_size
         )
     else:
         training, max_predictions_per_seq = (kwargs['training'], kwargs['max_predictions_per_seq'])
-        data_layer = nemo.collections.nlp.nm.data_layers.lm_bert_datalayer.BertPretrainingPreprocessedDataLayer(
+        data_layer = nemo_nlp.nm.data_layers.lm_bert_datalayer.BertPretrainingPreprocessedDataLayer(
             data_file, max_predictions_per_seq, batch_size=batch_size, training=training
         )
 

@@ -1,3 +1,4 @@
+__all__ = ['BertQuestionAnsweringDataLayer']
 from nemo.collections.nlp.data import SquadDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
