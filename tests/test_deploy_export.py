@@ -29,6 +29,13 @@ from tests.common_setup import NeMoUnitTest
 
 
 class TestDeployExport(NeMoUnitTest):
+    def setUp(self):
+        """ Setups neural factory so it will use GPU instead of CPU. """
+        NeMoUnitTest.setUp(self)
+
+        # Perform computations on GPU.
+        self.nf._placement = nemo.core.DeviceType.GPU
+
     def __test_export_route(self, module, out_name, mode, input_example=None):
         out = Path(out_name)
         if out.exists():

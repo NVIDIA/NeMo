@@ -48,8 +48,8 @@
 
 .. code-block:: python
 
-    def __init__(self, *, module_params, ..., **kwargs)
-        super().__init__(**kwargs)
+    def __init__(self, module_params, ...)
+        super().__init__()
 
 (4) 实现 ``torch.nn.Module`` 模块里的 ``forward`` 方法 
 
@@ -76,9 +76,9 @@
                 0: AxisType(BatchTag),
                 1: AxisType(ChannelTag)})}
 
-        def __init__(self, **kwargs):
+        def __init__(self):
             # (3) 调用基类构造函数
-            TrainableNM.__init__(self, **kwargs)
+            TrainableNM.__init__(self)
             # Neural Modules 的特定部分，剩下的是 PyTorch 代码
             self._dim = self.local_parameters["dim"]
             self.fc1 = nn.Linear(self._dim, 1)
@@ -115,8 +115,8 @@
         def output_ports(self):
             return {...}
 
-        def __init__(self, *, module_params, .., **kwargs)
-            TrainableNM.__init__(self, **kwargs)
+        def __init__(self, module_params, ...)
+            TrainableNM.__init__(self)
 
 (4) 修改 ``forward`` 方法，使得它的输入参数和你的输入端口名字匹配。
 
@@ -162,11 +162,11 @@
                 "label": NeuralType({0: AxisType(BatchTag)}),
             }
 
-        def __init__(self, **kwargs):
-            DataLayerNM.__init__(self, **kwargs)
+        def __init__(self, input_size, path):
+            DataLayerNM.__init__(self)
 
-            self._input_size = kwargs["input_size"]
-            self._path = kwargs["path"]
+            self._input_size = input_size"
+            self._path = path
 
             self._transforms = transforms.Compose([
                 transforms.RandomResizedCrop(self._input_size),
@@ -216,9 +216,9 @@ Example
         def output_ports(self):
             return {"loss": NeuralType(None)}
 
-        def __init__(self, **kwargs):
+        def __init__(self):
             # 神经模块 API
-            super().__init__(**kwargs)
+            super().__init__()
 
             # 结束神经模块 API
             self._criterion = torch.nn.CrossEntropyLoss()
@@ -226,5 +226,3 @@ Example
         # 你需要实现这个方法
         def _loss_function(self, **kwargs):
             return self._criterion(*(kwargs.values()))
-
-

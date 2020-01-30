@@ -86,11 +86,11 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
         """
         return {"y_pred": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}, optional=True)}
 
-    def __init__(self, *, dim, **kwargs):
+    def __init__(self, dim):
         # Part specific for Neural Modules API:
         #   (1) call base constructor
         #   (2) define input and output ports
-        TrainableNM.__init__(self, **kwargs)
+        TrainableNM.__init__(self)
 
         # And of Neural Modules specific part. Rest is Pytorch code
         self._dim = dim
@@ -218,8 +218,8 @@ class MSELoss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self):
+        LossNM.__init__(self)
         self._criterion = nn.MSELoss()
 
     def _loss_function(self, **kwargs):
@@ -255,8 +255,8 @@ class L1Loss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self):
+        LossNM.__init__(self)
         self._criterion = nn.L1Loss()
 
     def _loss_function(self, **kwargs):
@@ -290,9 +290,9 @@ class CrossEntropyLoss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         # Neural Module API specific
-        NeuralModule.__init__(self, **kwargs)
+        NeuralModule.__init__(self)
         # End of Neural Module API specific
         self._criterion = nn.CrossEntropyLoss()
 
@@ -342,9 +342,9 @@ class DopeDualLoss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         # Neural Module API specific
-        NeuralModule.__init__(self, **kwargs)
+        NeuralModule.__init__(self)
 
     # You need to implement this function
     def _loss_function(self, **kwargs):

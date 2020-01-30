@@ -1,4 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
+import copy
 import importlib
 import itertools
 import json
@@ -946,18 +947,17 @@ class PtActions(Actions):
         if len(dynamic_axes) == 0:
             dynamic_axes = None
 
-        local_parameters = {}
-        if module._local_parameters is not None:
-            for key, value in module._local_parameters.items():
-                local_parameters[key] = value
+        # Make a deep copy of init parameters.
+        init_params_copy = copy.deepcopy(module._init_params)
 
         # Remove NeMo-related things from the module
         # We need to change __call__ method. Note that this will change the
         # whole class, not just this object! Which is why we need to repair it
         # in the finally block
         type(module).__call__ = torch.nn.Module.__call__
-        # Rest is changing the instance.
-        module._local_parameters = None
+
+        # Reset standard instance field - making the file (probably) lighter.
+        module._init_params = None
         module._placement = None
         module._factory = None
         module._device = None
@@ -1008,7 +1008,7 @@ class PtActions(Actions):
             elif d_format == DeploymentFormat.PYTORCH:
                 torch.save(module.state_dict(), output)
                 with open(output + ".json", 'w') as outfile:
-                    json.dump(local_parameters, outfile)
+                    json.dump(init_params_copy, outfile)
 
             else:
                 raise NotImplementedError(f"Not supported deployment format: {d_format}")

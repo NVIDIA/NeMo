@@ -50,8 +50,8 @@ class DialogDataLayer(DataLayerNM):
             "max_tgt_lengths": NeuralType(None),
         }
 
-    def __init__(self, *, batch_size, corpus_name, datafile, min_count=3, **kwargs):
-        DataLayerNM.__init__(self, **kwargs)
+    def __init__(self, batch_size, corpus_name, datafile, min_count=3):
+        DataLayerNM.__init__(self)
 
         self._batch_size = batch_size
         self._corpus_name = corpus_name
@@ -129,8 +129,8 @@ class EncoderRNN(TrainableNM):
             "hidden": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
-    def __init__(self, *, voc_size, encoder_n_layers, hidden_size, dropout, bidirectional=True, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+    def __init__(self, voc_size, encoder_n_layers, hidden_size, dropout, bidirectional=True):
+        TrainableNM.__init__(self)
 
         self.voc_size = voc_size
         self.n_layers = encoder_n_layers
@@ -217,8 +217,8 @@ class LuongAttnDecoderRNN(TrainableNM):
             "hidden": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
-    def __init__(self, *, attn_model, hidden_size, voc_size, decoder_n_layers, dropout, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+    def __init__(self, attn_model, hidden_size, voc_size, decoder_n_layers, dropout):
+        TrainableNM.__init__(self)
 
         self.attn_model = attn_model
         self.hidden_size = hidden_size
@@ -360,8 +360,8 @@ class MaskedXEntropyLoss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self):
+        LossNM.__init__(self)
 
         self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
 
@@ -416,8 +416,8 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
             "hidden": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
-    def __init__(self, *, attn_model, hidden_size, voc_size, decoder_n_layers, dropout, max_dec_steps=10, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+    def __init__(self, attn_model, hidden_size, voc_size, decoder_n_layers, dropout, max_dec_steps=10):
+        TrainableNM.__init__(self)
 
         self.attn_model = attn_model
         self.hidden_size = hidden_size

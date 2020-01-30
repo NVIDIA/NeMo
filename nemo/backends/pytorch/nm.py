@@ -20,18 +20,28 @@ class TrainableNM(NeuralModule, nn.Module):
 
     .. code-block:: python
 
-      def __init__(self, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+      def __init__(self):
+        TrainableNM.__init__(self)
         .... # you code
 
     Then make sure that your forward(..) method accepts arguments named like
     input ports.
+
+    Args:
+        pretrained_model_name (str): name of pretrained model to use in order
+            to initialize this neural module
+
     """
 
-    def __init__(self):
+    def __init__(self, pretrained_model_name=None):
+
         NeuralModule.__init__(self)  # For NeuralModule API
         nn.Module.__init__(self)  # For PyTorch API
+
         self._device = get_cuda_device(self.placement)
+
+        # Store pretrained model name (to be removed/changed)
+        self._pretrained_model_name = pretrained_model_name
 
     def __call__(self, *input, force_pt=False, **kwargs):
         pt_call = len(input) > 0 or force_pt
