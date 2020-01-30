@@ -5,7 +5,6 @@ import numpy as np
 from sklearn.metrics import classification_report
 from transformers import BertTokenizer
 
-import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.joint_intent_slot.join_intent_slot_nm
 from nemo.collections.nlp.data.datasets.datasets_utils import JointIntentSlotDataDesc
 

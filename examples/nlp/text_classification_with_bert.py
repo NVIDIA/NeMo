@@ -5,7 +5,6 @@ import numpy as np
 from transformers import BertTokenizer
 
 import nemo
-import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.text_classification_datalayer
 import nemo.collections.nlp.nm.trainables.common.sequence_classification_nm
 from nemo.collections.nlp.data.datasets.datasets_utils import SentenceClassificationDataDesc
