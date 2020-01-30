@@ -22,10 +22,14 @@ import shutil
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.callbacks.squad import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.utils.download_squad import SquadDownloader
+import nemo.collections.nlp.nm.data_layers.qa_squad_datalayer
+import nemo.collections.nlp.nm.trainables.common.token_classification_nm
+from nemo.collections.nlp.callbacks.qa_squad_callback import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.data.scripts.download_squad import SquadDownloader
 from nemo.utils.lr_policies import get_lr_policy
 from tests.common_setup import NeMoUnitTest
+
+print(dir(nemo_nlp))
 
 
 class TestSquad(NeMoUnitTest):
@@ -91,14 +95,14 @@ class TestSquad(NeMoUnitTest):
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
         )
-        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=pretrained_bert_model)
+        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=pretrained_bert_model)
         hidden_size = model.local_parameters["hidden_size"]
-        qa_head = nemo_nlp.nm.trainables.TokenClassifier(
+        qa_head = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
             hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False
         )
         squad_loss = nemo_nlp.nm.losses.QuestionAnsweringLoss()
 
-        data_layer = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
+        data_layer = nemo.collections.nlp.nm.data_layers.qa_squad_datalayer.BertQuestionAnsweringDataLayer(
             mode='train',
             version_2_with_negative=version_2_with_negative,
             batch_size=batch_size,
@@ -116,7 +120,7 @@ class TestSquad(NeMoUnitTest):
         qa_output = qa_head(hidden_states=hidden_states)
         loss, _, _ = squad_loss(logits=qa_output, start_positions=start_positions, end_positions=end_positions)
 
-        data_layer_eval = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
+        data_layer_eval = nemo.collections.nlp.nm.data_layers.qa_squad_datalayer.BertQuestionAnsweringDataLayer(
             mode='dev',
             version_2_with_negative=version_2_with_negative,
             batch_size=batch_size,
@@ -200,14 +204,14 @@ class TestSquad(NeMoUnitTest):
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
         )
-        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=pretrained_bert_model)
+        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=pretrained_bert_model)
         hidden_size = model.local_parameters["hidden_size"]
-        qa_head = nemo_nlp.nm.trainables.TokenClassifier(
+        qa_head = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
             hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False
         )
         squad_loss = nemo_nlp.nm.losses.QuestionAnsweringLoss()
 
-        data_layer = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
+        data_layer = nemo.collections.nlp.nm.data_layers.qa_squad_datalayer.BertQuestionAnsweringDataLayer(
             mode='train',
             version_2_with_negative=version_2_with_negative,
             batch_size=batch_size,
@@ -225,7 +229,7 @@ class TestSquad(NeMoUnitTest):
         qa_output = qa_head(hidden_states=hidden_states)
         loss, _, _ = squad_loss(logits=qa_output, start_positions=start_positions, end_positions=end_positions)
 
-        data_layer_eval = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
+        data_layer_eval = nemo.collections.nlp.nm.data_layers.qa_squad_datalayer.BertQuestionAnsweringDataLayer(
             mode='dev',
             version_2_with_negative=version_2_with_negative,
             batch_size=batch_size,

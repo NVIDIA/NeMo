@@ -64,13 +64,13 @@ import argparse
 import json
 import os
 
-import nemo
 import nemo.collections.nlp as nemo_nlp
+import nemo.collections.nlp.nm.trainables.common.sequence_regression_nm
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
-from nemo.collections.nlp.callbacks.glue import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
-from nemo.collections.nlp.data.datasets.utils import output_modes, processors
-from nemo.collections.nlp.nm.data_layers import GlueDataLayerClassificationDataLayer, GlueDataLayerRegressionDataLayer
+from nemo.collections.nlp.data.datasets.datasets_utils import output_modes, processors
+from nemo.collections.nlp.nm.data_layers import GlueClassificationDataLayer, GlueRegressionDataLayer
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description="GLUE_with_pretrained_BERT")
@@ -201,7 +201,9 @@ if args.bert_checkpoint is None:
     nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+    model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+        pretrained_model_name=args.pretrained_bert_model
+    )
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     Replace BERT-STEP-150000.pt with the path to your checkpoint.
@@ -216,9 +218,11 @@ else:
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
             config = json.load(json_file)
-        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
+        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(**config)
     else:
-        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+            pretrained_model_name=args.pretrained_bert_model
+        )
 
     model.restore_from(args.bert_checkpoint)
 
@@ -226,10 +230,12 @@ hidden_size = model.local_parameters["hidden_size"]
 
 # uses [CLS] token for classification (the first token)
 if args.task_name == 'sts-b':
-    pooler = nemo_nlp.nm.trainables.SequenceRegression(hidden_size=hidden_size)
+    pooler = nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.SequenceRegression(
+        hidden_size=hidden_size
+    )
     glue_loss = MSELoss()
 else:
-    pooler = nemo_nlp.nm.trainables.SequenceClassifier(
+    pooler = nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier(
         hidden_size=hidden_size, num_classes=num_labels, log_softmax=False
     )
     glue_loss = CrossEntropyLoss()

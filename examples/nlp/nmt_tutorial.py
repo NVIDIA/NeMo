@@ -7,7 +7,9 @@ import torch
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.callbacks.translation import eval_epochs_done_callback, eval_iter_callback
+import nemo.collections.nlp.nm.data_layers.machine_translation_datalayer
+import nemo.collections.nlp.nm.trainables.common.token_classification_nm
+from nemo.collections.nlp.callbacks.machine_translation_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = nemo.utils.NemoArgParser(description='Transformer for Neural Machine Translation')
@@ -130,7 +132,7 @@ decoder = nemo_nlp.nm.trainables.TransformerDecoderNM(
     max_seq_length=args.max_seq_length,
 )
 
-log_softmax = nemo_nlp.nm.trainables.TokenClassifier(
+log_softmax = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
     args.d_model, num_classes=tgt_tokenizer.vocab_size, num_layers=1, log_softmax=True
 )
 
@@ -154,7 +156,7 @@ if tie_weight:
 
 
 def create_pipeline(dataset_src, dataset_tgt, tokens_in_batch, clean=False, training=True):
-    data_layer = nemo_nlp.nm.data_layers.TranslationDataLayer(
+    data_layer = nemo.collections.nlp.nm.data_layers.machine_translation_datalayer.TranslationDataLayer(
         tokenizer_src=src_tokenizer,
         tokenizer_tgt=tgt_tokenizer,
         dataset_src=dataset_src,

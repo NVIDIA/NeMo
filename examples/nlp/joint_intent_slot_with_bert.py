@@ -7,8 +7,10 @@ from transformers import BertTokenizer
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.callbacks.joint_intent_slot import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data.datasets.utils import JointIntentSlotDataDesc
+import nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer
+import nemo.collections.nlp.nm.trainables.joint_intent_slot.join_intent_slot_nm
+from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.data.datasets.datasets_utils import JointIntentSlotDataDesc
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
@@ -69,10 +71,10 @@ See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
 if args.bert_checkpoint and args.bert_config:
-    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(config_filename=args.bert_config, factory=nf)
+    pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(config_filename=args.bert_config, factory=nf)
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 else:
-    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
+    pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
         pretrained_model_name=args.pretrained_bert_model, factory=nf
     )
 
@@ -83,7 +85,7 @@ data_desc = JointIntentSlotDataDesc(
 )
 
 # Create sentence classification loss on top
-classifier = nemo_nlp.nm.trainables.JointIntentSlotClassifier(
+classifier = nemo.collections.nlp.nm.trainables.joint_intent_slot.join_intent_slot_nm.JointIntentSlotClassifier(
     hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
 )
 
@@ -107,7 +109,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
     slot_file = f'{data_desc.data_dir}/{mode}_slots.tsv'
     shuffle = args.shuffle_data if mode == 'train' else False
 
-    data_layer = nemo_nlp.nm.data_layers.BertJointIntentSlotDataLayer(
+    data_layer = nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer.BertJointIntentSlotDataLayer(
         input_file=data_file,
         slot_file=slot_file,
         pad_label=data_desc.pad_label,

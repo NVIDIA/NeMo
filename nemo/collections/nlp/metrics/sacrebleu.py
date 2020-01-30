@@ -37,7 +37,7 @@ from itertools import zip_longest
 from typing import Iterable, List, Tuple, Union
 
 from nemo import logging
-from nemo.collections.nlp.metrics.fairseq_tokenizer import tokenize_en
+from nemo.collections.nlp.data.tokenizers.fairseq_tokenizer import tokenize_en
 
 VERSION = '1.3.5'
 

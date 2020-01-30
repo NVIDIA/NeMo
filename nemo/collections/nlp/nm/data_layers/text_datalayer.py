@@ -1,0 +1,30 @@
+import sys
+
+from nemo.backends.pytorch import DataLayerNM
+
+
+class TextDataLayer(DataLayerNM):
+    """
+    Generic Text Data Layer NM which wraps PyTorch's dataset
+
+    Args:
+        dataset_type: type of dataset used for this datalayer
+        dataset_params (dict): all the params for the dataset
+    """
+
+    def __init__(self, dataset_type, dataset_params, **kwargs):
+        super().__init__(**kwargs)
+        if isinstance(dataset_type, str):
+            dataset_type = getattr(sys.modules[__name__], dataset_type)
+        self._dataset = dataset_type(**dataset_params)
+
+    def __len__(self):
+        return len(self._dataset)
+
+    @property
+    def dataset(self):
+        return self._dataset
+
+    @property
+    def data_iterator(self):
+        return None

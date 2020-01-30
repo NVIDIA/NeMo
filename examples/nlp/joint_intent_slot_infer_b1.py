@@ -3,9 +3,9 @@ import argparse
 import numpy as np
 from transformers import BertTokenizer
 
-import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.data.datasets.utils import JointIntentSlotDataDesc
+import nemo.collections.nlp.nm.trainables.joint_intent_slot.join_intent_slot_nm
+from nemo.collections.nlp.data.datasets.datasets_utils import JointIntentSlotDataDesc
 from nemo.collections.nlp.utils.nlp_utils import read_intent_slot_outputs
 
 # Parsing arguments
@@ -30,7 +30,7 @@ nf = nemo.core.NeuralModuleFactory(
 See the list of pretrained models, call:
 nemo_nlp.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
+pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
     pretrained_model_name=args.pretrained_bert_model, factory=nf
 )
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
@@ -42,12 +42,12 @@ query = args.query
 if args.do_lower_case:
     query = query.lower()
 
-data_layer = nemo_nlp.nm.data_layers.BertJointIntentSlotInferDataLayer(
+data_layer = nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer.BertJointIntentSlotInferDataLayer(
     queries=[query], tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
 )
 
 # Create sentence classification loss on top
-classifier = nemo_nlp.nm.trainables.JointIntentSlotClassifier(
+classifier = nemo.collections.nlp.nm.trainables.joint_intent_slot.join_intent_slot_nm.JointIntentSlotClassifier(
     hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
 )
 

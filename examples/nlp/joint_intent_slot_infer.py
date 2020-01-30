@@ -2,12 +2,12 @@ import argparse
 import os
 
 import numpy as np
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report
 from transformers import BertTokenizer
 
-import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.data.datasets.utils import JointIntentSlotDataDesc
+import nemo.collections.nlp.nm.trainables.joint_intent_slot.join_intent_slot_nm
+from nemo.collections.nlp.data.datasets.datasets_utils import JointIntentSlotDataDesc
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Joint-intent BERT')
@@ -35,7 +35,7 @@ nf = nemo.core.NeuralModuleFactory(
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
@@ -43,7 +43,7 @@ data_desc = JointIntentSlotDataDesc(args.data_dir, args.do_lower_case, args.data
 
 # Evaluation pipeline
 nemo.logging.info("Loading eval data...")
-data_layer = nemo_nlp.nm.data_layers.BertJointIntentSlotDataLayer(
+data_layer = nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer.BertJointIntentSlotDataLayer(
     input_file=f'{data_desc.data_dir}/{args.eval_file_prefix}.tsv',
     slot_file=f'{data_desc.data_dir}/{args.eval_file_prefix}_slots.tsv',
     pad_label=data_desc.pad_label,
@@ -55,7 +55,7 @@ data_layer = nemo_nlp.nm.data_layers.BertJointIntentSlotDataLayer(
     local_rank=args.local_rank,
 )
 
-classifier = nemo_nlp.nm.trainables.JointIntentSlotClassifier(
+classifier = nemo.collections.nlp.nm.trainables.joint_intent_slot.join_intent_slot_nm.JointIntentSlotClassifier(
     hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots
 )
 

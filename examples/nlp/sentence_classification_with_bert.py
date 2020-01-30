@@ -2,14 +2,14 @@ import argparse
 import math
 
 import numpy as np
-import torch
-from torch import nn
 from transformers import BertTokenizer
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.data.datasets.utils import SentenceClassificationDataDesc
-from nemo.collections.nlp.callbacks.sentence_classification import eval_epochs_done_callback, eval_iter_callback
+import nemo.collections.nlp.nm.data_layers.text_classification_datalayer
+import nemo.collections.nlp.nm.trainables.common.sequence_classification_nm
+from nemo.collections.nlp.data.datasets.datasets_utils import SentenceClassificationDataDesc
+from nemo.collections.nlp.utils.callbacks.sentence_classification import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
@@ -66,10 +66,12 @@ nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
 
 if args.bert_checkpoint and args.bert_config:
-    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(config_filename=args.bert_config, factory=nf)
+    pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+        config_filename=args.bert_config, factory=nf
+    )
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 else:
-    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
+    pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
         pretrained_model_name=args.pretrained_bert_model, factory=nf
     )
 
@@ -79,7 +81,7 @@ tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 data_desc = SentenceClassificationDataDesc(args.dataset_name, args.data_dir, args.do_lower_case)
 
 # Create sentence classification loss on top
-classifier = nemo_nlp.nm.trainables.SequenceClassifier(
+classifier = nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier(
     hidden_size=hidden_size, num_classes=data_desc.num_labels, dropout=args.fc_dropout
 )
 
@@ -95,7 +97,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
     shuffle = args.shuffle_data if mode == 'train' else False
 
-    data_layer = nemo_nlp.nm.data_layers.BertSentenceClassificationDataLayer(
+    data_layer = nemo.collections.nlp.nm.data_layers.text_classification_datalayer.BertSentenceClassificationDataLayer(
         input_file=data_file,
         tokenizer=tokenizer,
         max_seq_length=args.max_seq_length,

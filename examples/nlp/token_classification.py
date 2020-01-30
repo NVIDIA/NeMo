@@ -7,11 +7,10 @@ import sys
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.callbacks.token_classification import eval_epochs_done_callback, eval_iter_callback
+import nemo.collections.nlp.nm.data_layers.token_classification_datalayer
+from nemo.collections.nlp.callbacks.token_classification_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
-from nemo.collections.nlp.data.datasets import utils
-from nemo.collections.nlp.nm.losses import TokenClassificationLoss
-from nemo.collections.nlp.nm.trainables import TokenClassifier
+from nemo.collections.nlp.data.datasets import datasets_utils
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
@@ -110,7 +109,7 @@ if args.bert_checkpoint is None:
     nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+    model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     """
@@ -124,9 +123,9 @@ else:
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
             config = json.load(json_file)
-        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
+        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(**config)
     else:
-        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
     model.restore_from(args.bert_checkpoint)
     nemo.logging.info(f"Model restored from {args.bert_checkpoint}")
@@ -173,7 +172,7 @@ def create_pipeline(
            [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
         )
 
-    data_layer = nemo_nlp.nm.data_layers.BertTokenClassificationDataLayer(
+    data_layer = nemo.collections.nlp.nm.data_layers.token_classification_datalayer.BertTokenClassificationDataLayer(
         tokenizer=tokenizer,
         text_file=text_file,
         label_file=label_file,
@@ -198,7 +197,7 @@ def create_pipeline(
         if args.use_weighted_loss:
             nemo.logging.info(f"Using weighted loss")
             label_freqs = data_layer.dataset.label_frequencies
-            class_weights = utils.calc_class_weights(label_freqs)
+            class_weights = datasets_utils.calc_class_weights(label_freqs)
 
             nemo.logging.info(f"class_weights: {class_weights}")
 

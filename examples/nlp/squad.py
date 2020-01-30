@@ -64,7 +64,9 @@ import os
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.callbacks.squad import eval_epochs_done_callback, eval_iter_callback
+import nemo.collections.nlp.nm.data_layers.qa_squad_datalayer
+import nemo.collections.nlp.nm.trainables.common.token_classification_nm
+from nemo.collections.nlp.callbacks.qa_squad_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
 
 
@@ -212,7 +214,7 @@ def create_pipeline(
     batches_per_step=1,
     mode="train",
 ):
-    data_layer = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
+    data_layer = nemo.collections.nlp.nm.data_layers.qa_squad_datalayer.BertQuestionAnsweringDataLayer(
         mode=mode,
         version_2_with_negative=version_2_with_negative,
         batch_size=batch_size,
@@ -283,17 +285,17 @@ if __name__ == "__main__":
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
             config = json.load(json_file)
-        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
+        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(**config)
     else:
         """ Use this if you're using a standard BERT model.
         To see the list of pretrained models, call:
         nemo_nlp.huggingface.BERT.list_pretrained_models()
         """
-        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
     hidden_size = model.local_parameters["hidden_size"]
 
-    qa_head = nemo_nlp.nm.trainables.TokenClassifier(
+    qa_head = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
         hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False
     )
     squad_loss = nemo_nlp.nm.losses.QuestionAnsweringLoss()

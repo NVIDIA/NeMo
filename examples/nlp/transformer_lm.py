@@ -3,8 +3,10 @@ import math
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.callbacks.language_modeling import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data.datasets.utils import LanguageModelDataDesc
+import nemo.collections.nlp.nm.data_layers.lm_transformer_datalayer
+import nemo.collections.nlp.nm.trainables.common.token_classification_nm
+from nemo.collections.nlp.callbacks.lm_transformer_callback import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.data.datasets.datasets_utils import LanguageModelDataDesc
 from nemo.utils.lr_policies import CosineAnnealing
 
 parser = nemo.utils.NemoArgParser(description='LM Transformer')
@@ -88,7 +90,7 @@ encoder = nemo_nlp.nm.trainables.TransformerEncoderNM(
     max_seq_length=args.max_seq_length,
 )
 
-log_softmax = nemo_nlp.nm.trainables.TokenClassifier(
+log_softmax = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
     args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
 )
 
@@ -103,7 +105,7 @@ log_softmax.mlp.last_linear_layer.weight = encoder.embedding_layer.token_embeddi
 def create_pipeline(
     dataset, max_seq_length=args.max_seq_length, batch_step=args.max_seq_length, batch_size=args.batch_size
 ):
-    data_layer = nemo_nlp.nm.data_layers.LanguageModelingDataLayer(
+    data_layer = nemo.collections.nlp.nm.data_layers.lm_transformer_datalayer.LanguageModelingDataLayer(
         dataset, tokenizer, max_seq_length, batch_step, batch_size=batch_size
     )
     src, src_mask, labels = data_layer()
