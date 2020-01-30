@@ -3,10 +3,8 @@
 import argparse
 import json
 import os
-import sys
 
 import nemo
-import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.callbacks.token_classification_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets import datasets_utils
@@ -16,10 +14,7 @@ from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
-parser = argparse.ArgumentParser(
-    description="Token classification\
-                        with pretrained BERT"
-)
+parser = argparse.ArgumentParser(description="Token classification with pretrained BERT")
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=8, type=int)
 parser.add_argument("--max_seq_length", default=128, type=int)
@@ -45,38 +40,33 @@ parser.add_argument(
     "--tokenizer_model",
     default="tokenizer.model",
     type=str,
-    help="Path to pretrained tokenizer model, \
-                    only used if --tokenizer is sentencepiece",
+    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
 )
 parser.add_argument(
     "--tokenizer",
     default="nemobert",
     type=str,
     choices=["nemobert", "sentencepiece"],
-    help="tokenizer to use, \
-                    only relevant when using custom pretrained checkpoint.",
+    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
 )
 parser.add_argument(
     "--work_dir",
     default='output',
     type=str,
-    help="The output directory where the model prediction\
-                    and checkpoints will be written.",
+    help="The output directory where the model prediction and checkpoints will be written.",
 )
 parser.add_argument("--use_cache", action='store_true', help="Whether to cache preprocessed data")
 parser.add_argument(
     "--save_epoch_freq",
     default=1,
     type=int,
-    help="Frequency of saving checkpoint\
-                    '-1' - step checkpoint won't be saved",
+    help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
 )
 parser.add_argument(
     "--save_step_freq",
     default=-1,
     type=int,
-    help="Frequency of saving checkpoint \
-                    '-1' - step checkpoint won't be saved",
+    help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
 )
 parser.add_argument("--loss_step_freq", default=250, type=int, help="Frequency of printing loss")
 parser.add_argument("--use_weighted_loss", action='store_true', help="Flag to indicate whether to use weighted loss")

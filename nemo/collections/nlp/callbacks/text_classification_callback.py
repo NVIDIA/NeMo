@@ -1,13 +1,10 @@
 # Copyright (c) 2019 NVIDIA Corporation
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
-import os
 import random
-import time
 
-import numpy as np  # nopep8
-from matplotlib import pyplot as plt  # nopep8
-from sklearn.metrics import classification_report, confusion_matrix  # nopep8
+import numpy as np
+from sklearn.metrics import classification_report
 
 import nemo
 from nemo.collections.nlp.utils.callback_utils import list2str, tensor2list, plot_confusion_matrix

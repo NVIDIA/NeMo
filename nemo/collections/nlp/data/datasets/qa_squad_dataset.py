@@ -49,6 +49,7 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 """
 
+__all__ = ['SquadDataset']
 
 class SquadDataset(Dataset):
     """

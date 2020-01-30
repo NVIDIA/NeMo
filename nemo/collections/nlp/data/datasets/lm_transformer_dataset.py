@@ -19,6 +19,7 @@ from torch.utils.data import Dataset
 
 import nemo.collections.nlp.data.datasets.datasets_preprocessing as utils
 
+__all__ = ['LanguageModelingDataset']
 
 class LanguageModelingDataset(Dataset):
     def __init__(self, tokenizer, dataset, max_seq_length=512, batch_step=None):

@@ -28,8 +28,9 @@ from torch.utils.data import Dataset
 import nemo
 import nemo.collections.nlp.data.datasets.datasets_utils as utils
 
+__all__ = ['BertTextClassificationDataset']
 
-class BertSentenceClassificationDataset(Dataset):
+class BertTextClassificationDataset(Dataset):
     """A dataset class that converts from raw data to
     a dataset that can be used by DataLayerNM.
 

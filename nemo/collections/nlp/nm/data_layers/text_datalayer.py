@@ -1,5 +1,4 @@
 __all__ = ['TextDataLayer']
-import sys
 
 from nemo.backends.pytorch import DataLayerNM
 from nemo.collections.nlp.data.datasets import *

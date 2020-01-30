@@ -1,5 +1,5 @@
 __all__ = ['BertSentenceClassificationDataLayer']
-from nemo.collections.nlp.data import BertSentenceClassificationDataset
+from nemo.collections.nlp.data import BertTextClassificationDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
 
@@ -12,7 +12,7 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
     All the data processing is done BertSentenceClassificationDataset.
 
     Args:
-        dataset (BertSentenceClassificationDataset):
+        dataset (BertTextClassificationDataset):
                 the dataset that needs to be converted to DataLayerNM
     """
 
@@ -54,7 +54,7 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
         num_samples=-1,
         shuffle=False,
         batch_size=64,
-        dataset_type=BertSentenceClassificationDataset,
+        dataset_type=BertTextClassificationDataset,
         **kwargs
     ):
         kwargs['batch_size'] = batch_size

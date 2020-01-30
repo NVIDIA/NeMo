@@ -30,6 +30,7 @@ from torch.utils.data import Dataset
 import nemo
 import nemo.collections.nlp.data.datasets.datasets_utils as utils
 
+__all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
 
 def get_features(
     queries,
