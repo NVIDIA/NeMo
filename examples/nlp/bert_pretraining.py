@@ -163,7 +163,7 @@ if not args.preprocessed_data:
     args.vocab_size = tokenizer.vocab_size
 
 print(vars(args))
-bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
     vocab_size=args.vocab_size,
     num_hidden_layers=args.num_hidden_layers,
     hidden_size=args.hidden_size,
