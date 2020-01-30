@@ -169,6 +169,39 @@ class Logger(metaclass=SingletonMetaClass):
         self.setLevel(verbosity_level)
 
     @contextmanager
+    def patch_stderr_handler(self, stream):
+        """ Useful for unittests
+        """
+        if self._logger is not None:
+            try:
+                old_stream = self._handlers["stream_stderr"].stream
+                if old_stream is None:
+                    raise ValueError
+
+                # Port backwards set_stream() from python 3.7
+                self._handlers["stream_stderr"].acquire()
+                try:
+                    self._handlers["stream_stderr"].flush()
+                    self._handlers["stream_stderr"].stream = stream
+                finally:
+                    self._handlers["stream_stderr"].release()
+
+                yield stream
+            except (KeyError, ValueError):
+                raise RuntimeError("Impossible to patch logging handlers if handler does not exist")
+            finally:
+                # Port backwards set_stream() from python 3.7
+                self._handlers["stream_stderr"].acquire()
+                try:
+                    self._handlers["stream_stderr"].flush()
+                    self._handlers["stream_stderr"].stream = old_stream
+                finally:
+                    self._handlers["stream_stderr"].release()
+
+        else:
+            raise RuntimeError("Impossible to patch logging handlers if handler does not exist")
+
+    @contextmanager
     def temp_verbosity(self, verbosity_level):
         """Sets the a temporary threshold for what messages will be logged."""
 
