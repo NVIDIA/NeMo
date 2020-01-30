@@ -7,7 +7,6 @@ import torch
 import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.machine_translation_datalayer
-import nemo.collections.nlp.nm.trainables.token_classification_nm
 from nemo.collections.nlp.callbacks.machine_translation_callback import (
     eval_epochs_done_callback_wer,
     eval_iter_callback,
@@ -97,7 +96,7 @@ decoder = nemo_nlp.nm.trainables.TransformerDecoderNM(
 
 decoder.restore_from(args.restore_from, local_rank=args.local_rank)
 
-t_log_softmax = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
+t_log_softmax = nemo_nlp.nm.trainables.TokenClassifier(
     args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
 )
 
@@ -123,7 +122,7 @@ decoder.embedding_layer.position_embedding.weight = encoder.bert.embeddings.posi
 def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):
     dataset_src = os.path.join(args.data_dir, dataset + "." + args.src_lang)
     dataset_tgt = os.path.join(args.data_dir, dataset + "." + args.tgt_lang)
-    data_layer = nemo.collections.nlp.nm.data_layers.machine_translation_datalayer.TranslationDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.machine_translation_datalayer.TranslationDataLayer(
         tokenizer_src=tokenizer,
         tokenizer_tgt=tokenizer,
         dataset_src=dataset_src,
