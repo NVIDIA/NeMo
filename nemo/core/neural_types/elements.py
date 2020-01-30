@@ -24,6 +24,10 @@ __all__ = [
     'SpectrogramType',
     'MelSpectrogramType',
     'MFCCSpectrogramType',
+    'LogitsType',
+    'LabelsType',
+    'LossType',
+    'RegressionValuesType'
 ]
 import abc
 from abc import ABC, abstractmethod
@@ -99,6 +103,21 @@ class ChannelType(ElementType):
         return "convolutional channel value"
 
 
+class LogitsType(ElementType):
+    def __str__(self):
+        return "neural type representing logits"
+
+
+class LabelsType(ElementType):
+    def __str__(self):
+        return "neural type representing labels"
+
+
+class LossType(ElementType):
+    def __str__(self):
+        return "neural type representing loss value"
+
+
 class AcousticEncodedRepresentation(ChannelType):
     def __str__(self):
         return "encoded representation returned by the acoustic encoder model"
@@ -130,3 +149,8 @@ class MelSpectrogramType(SpectrogramType):
 class MFCCSpectrogramType(SpectrogramType):
     def __str__(self):
         return "mfcc spectorgram type"
+
+
+class RegressionValuesType(ElementType):
+    def __str__(self):
+        return "regression values type"

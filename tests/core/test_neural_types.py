@@ -51,7 +51,13 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         self.assertEqual(another16K.compare(audio16K), NeuralTypeComparisonResult.SAME)
         self.assertEqual(audio16K.compare(another16K), NeuralTypeComparisonResult.SAME)
 
-    def test_transpose_same(self):
+    def test_transpose_same_1(self):
+        type1 = NeuralType(axes=('B', 'T', 'C'))
+        type2 = NeuralType(axes=('T', 'B', 'C'))
+        self.assertEqual(type1.compare(type2), NeuralTypeComparisonResult.TRANSPOSE_SAME)
+        self.assertEqual(type2.compare(type1), NeuralTypeComparisonResult.TRANSPOSE_SAME)
+
+    def test_transpose_same_2(self):
         audio16K = NeuralType(AudioSignal(16000), axes=('B', 'T'))
         audio16K_t = NeuralType(AudioSignal(16000), axes=('T', 'B'))
         self.assertEqual(audio16K.compare(audio16K_t), NeuralTypeComparisonResult.TRANSPOSE_SAME)
@@ -66,6 +72,12 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         self.assertEqual(input.compare(out2), NeuralTypeComparisonResult.GREATER)
         self.assertEqual(out1.compare(input), NeuralTypeComparisonResult.LESS)
         self.assertEqual(out2.compare(input), NeuralTypeComparisonResult.LESS)
+
+    def test_singletone(self):
+        loss_output1 = NeuralType(axes=None)
+        loss_output2 = NeuralType(axes=None)
+        self.assertEqual(loss_output1.compare(loss_output2), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(loss_output2.compare(loss_output1), NeuralTypeComparisonResult.SAME)
 
     def test_list_of_lists(self):
         T1 = NeuralType(

@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, RegressionTag, TimeTag
+from nemo.core.neural_types import NeuralType, LogitsType, LabelsType, LossType, RegressionValuesType
 
 __all__ = ['SequenceLoss', 'CrossEntropyLoss', 'MSELoss']
 
@@ -34,23 +34,10 @@ class SequenceLoss(LossNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        log_probs:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
-
-        targets:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
         """
         return {
-            'log_probs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
-            'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            'log_probs': NeuralType(axes=('B', 'T', 'D')),
+            'targets': NeuralType(axes=('B', 'T'))
         }
 
     @property
@@ -61,7 +48,7 @@ class SequenceLoss(LossNM):
             NeuralType(None)
 
         """
-        return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(elements_type=LossType)}
 
     def __init__(
         self,
@@ -139,8 +126,8 @@ class CrossEntropyLoss(LossNM):
 
         """
         return {
-            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            "labels": NeuralType({0: AxisType(BatchTag),}),
+            "logits": NeuralType(elements_type=LogitsType, axes=('B', 'D')),
+            "labels": NeuralType(elements_type=LabelsType, axes=tuple('B'))
         }
 
     @property
@@ -150,7 +137,7 @@ class CrossEntropyLoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(elements_type=LossType)}
 
     def __init__(self, weight=None, **kwargs):
         LossNM.__init__(self, **kwargs)
@@ -175,8 +162,8 @@ class MSELoss(LossNM):
             0: AxisType(RegressionTag)
         """
         return {
-            "preds": NeuralType({0: AxisType(RegressionTag)}),
-            "labels": NeuralType({0: AxisType(RegressionTag)}),
+            "preds": NeuralType(RegressionValuesType, tuple('B')),
+            "labels": NeuralType(LabelsType, tuple('B')),
         }
 
     @property
@@ -186,7 +173,7 @@ class MSELoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(elements_type=LossType)}
 
     def __init__(self, **kwargs):
         LossNM.__init__(self, **kwargs)

@@ -18,4 +18,4 @@
 from .callbacks import *
 from .neural_factory import *
 from .neural_modules import *
-from .old_neural_types import *
+from .neural_types import *
