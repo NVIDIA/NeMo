@@ -93,9 +93,8 @@ class WaveGlowNM(TrainableNM):
         n_wn_layers: int = 8,
         n_wn_channels: int = 512,
         wn_kernel_size: int = 3,
-        **kwargs
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         wavenet_config = {
             "n_layers": n_wn_layers,
             "n_channels": n_wn_channels,
@@ -196,7 +195,6 @@ class WaveGlowInferNM(WaveGlowNM):
         n_wn_channels: int = 512,
         wn_kernel_size: int = 3,
         sigma: float = 0.6,
-        **kwargs
     ):
         self._sigma = sigma
         super().__init__(
@@ -208,7 +206,6 @@ class WaveGlowInferNM(WaveGlowNM):
             n_wn_layers=n_wn_layers,
             n_wn_channels=n_wn_channels,
             wn_kernel_size=wn_kernel_size,
-            **kwargs
         )
         self._removed_weight_norm = False
 
@@ -286,8 +283,8 @@ class WaveGlowLoss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, sigma: float = 1.0, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, sigma: float = 1.0):
+        super().__init__()
         self.sigma = sigma
 
     def _loss_function(self, **kwargs):

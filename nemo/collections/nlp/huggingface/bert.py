@@ -68,7 +68,6 @@ class BERT(TrainableNM):
 
     def __init__(
         self,
-        *,
         pretrained_model_name=None,
         config_filename=None,
         vocab_size=None,
@@ -78,9 +77,8 @@ class BERT(TrainableNM):
         intermediate_size=3072,
         hidden_act="gelu",
         max_position_embeddings=512,
-        **kwargs
     ):
-        TrainableNM.__init__(self, **kwargs)
+        super().__init__()
 
         # Check that only one of pretrained_model_name, config_filename, and
         # vocab_size was passed in
@@ -99,6 +97,7 @@ class BERT(TrainableNM):
                 + "BERT constructor."
             )
 
+        # TK: The following code checks the same once again.
         if vocab_size is not None:
             config = BertConfig(
                 vocab_size_or_config_json_file=vocab_size,
@@ -125,8 +124,9 @@ class BERT(TrainableNM):
 
         self.add_module("bert", model)
         self.config = model.config
-        for key, value in self.config.to_dict().items():
-            self._local_parameters[key] = value
+        # TK: storing config name in init_params instead.
+        # for key, value in self.config.to_dict().items():
+        #    self._local_parameters[key] = value
 
     @staticmethod
     def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:

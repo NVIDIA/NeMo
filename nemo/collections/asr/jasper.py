@@ -124,7 +124,6 @@ class JasperEncoder(TrainableNM):
 
     def __init__(
         self,
-        *,
         jasper,
         activation,
         feat_in,
@@ -134,9 +133,8 @@ class JasperEncoder(TrainableNM):
         conv_mask=True,
         frame_splicing=1,
         init_mode='xavier_uniform',
-        **kwargs
     ):
-        TrainableNM.__init__(self, **kwargs)
+        TrainableNM.__init__(self)
 
         activation = jasper_activations[activation]()
         feat_in = feat_in * frame_splicing
@@ -234,8 +232,8 @@ class JasperDecoderForCTC(TrainableNM):
         """
         return {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
 
-    def __init__(self, *, feat_in, num_classes, init_mode="xavier_uniform", **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform"):
+        super().__init__()
 
         self._feat_in = feat_in
         # Add 1 for blank char

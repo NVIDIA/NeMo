@@ -38,8 +38,8 @@ class ImageFolderDataLayer(DataLayerNM):
             "label": NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def __init__(self, *, input_size=32, batch_size, path, shuffle=True, is_eval=False, **kwargs):
-        DataLayerNM.__init__(self, **kwargs)
+    def __init__(self, input_size=32, batch_size, path, shuffle=True, is_eval=False):
+        DataLayerNM.__init__(self)
 
         self._input_size = input_size
         self._batch_size = batch_size

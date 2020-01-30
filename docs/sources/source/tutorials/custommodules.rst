@@ -48,8 +48,8 @@ Defining a module from scratch
 
 .. code-block:: python
 
-    def __init__(self, *, module_params, ..., **kwargs)
-        super().__init__(**kwargs)
+    def __init__(self, module_params, ...)
+        super().__init__()
 
 (4) Implement ``forward`` method from ``torch.nn.Module``
 
@@ -76,11 +76,11 @@ Example 1
                 0: AxisType(BatchTag),
                 1: AxisType(ChannelTag)})}
 
-        def __init__(self, **kwargs):
+        def __init__(self, dim):
             # (3) Call base constructor
-            TrainableNM.__init__(self, **kwargs)
+            TrainableNM.__init__(self)
             # And of Neural Modules specific part. Rest is PyTorch code
-            self._dim = self.local_parameters["dim"]
+            self._dim = dim
             self.fc1 = nn.Linear(self._dim, 1)
             t.nn.init.xavier_uniform_(self.fc1.weight)
             self._device = t.device(
@@ -116,8 +116,8 @@ Converting from PyTorch's nn.Module
         def output_ports(self):
             return {...}
 
-        def __init__(self, *, module_params, .., **kwargs)
-            TrainableNM.__init__(self, **kwargs)
+        def __init__(self, module_params, ...)
+            TrainableNM.__init__(self)
 
 (4) Modify ``forward`` method so that its input arguments match your input port names exactly.
 
@@ -167,11 +167,11 @@ This example wraps PyTorch's *ImageFolder* dataset into a neural module data lay
                 "label": NeuralType({0: AxisType(BatchTag)}),
             }
 
-        def __init__(self, **kwargs):
-            DataLayerNM.__init__(self, **kwargs)
+        def __init__(self, input_size, path):
+            DataLayerNM.__init__(self)
 
-            self._input_size = kwargs["input_size"]
-            self._path = kwargs["path"]
+            self._input_size = input_size
+            self._path = path
 
             self._transforms = transforms.Compose([
                 transforms.RandomResizedCrop(self._input_size),
@@ -223,9 +223,9 @@ Example
         def output_ports(self):
             return {"loss": NeuralType(None)}
 
-        def __init__(self, **kwargs):
+        def __init__(self):
             # Neural Module API specific
-            super().__init__(**kwargs)
+            super().__init__()
 
             # End of Neural Module API specific
             self._criterion = torch.nn.CrossEntropyLoss()
@@ -233,5 +233,3 @@ Example
         # You need to implement this function
         def _loss_function(self, **kwargs):
             return self._criterion(*(kwargs.values()))
-
-

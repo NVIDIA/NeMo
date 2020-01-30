@@ -64,18 +64,11 @@ class SequenceLoss(LossNM):
         return {"loss": NeuralType(None)}
 
     def __init__(
-        self,
-        pad_id=0,
-        smoothing_coef=0.0,
-        sample_wise=False,
-        aux_ctc=False,
-        ctc_initial_coef=0.1,
-        ctc_blank_id=None,
-        **kwargs
+        self, pad_id=0, smoothing_coef=0.0, sample_wise=False, aux_ctc=False, ctc_initial_coef=0.1, ctc_blank_id=None
     ):
         assert (not aux_ctc) or (ctc_blank_id is not None), "Should be a blank id if using CTC loss"
 
-        super().__init__(**kwargs)
+        super().__init__()
 
         self.pad_id = pad_id
         self.smoothing_coef = smoothing_coef
@@ -152,8 +145,8 @@ class CrossEntropyLoss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, weight=None, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self, weight=None):
+        LossNM.__init__(self)
         if weight:
             weight = torch.FloatTensor(weight).to(self._device)
         self._criterion = nn.CrossEntropyLoss(weight=weight)
@@ -188,8 +181,8 @@ class MSELoss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self):
+        LossNM.__init__(self)
         self._criterion = nn.MSELoss()
 
     def _loss_function(self, preds, labels):

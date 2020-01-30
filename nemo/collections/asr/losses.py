@@ -53,8 +53,8 @@ class CTCLossNM(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, *, num_classes, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self, num_classes):
+        super().__init__()
 
         # self._blank = self.local_parameters.get('blank', 0)
         self._blank = num_classes

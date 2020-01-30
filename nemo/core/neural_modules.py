@@ -38,13 +38,9 @@ PretrainedModelInfo = namedtuple(
 
 class NeuralModule(ABC):
     """Abstract class that every Neural Module must inherit from.
-
-    Args:
-        pretrained_model_name (str): name of pretrained model to use in order
-            to initialize this neural module
     """
 
-    def __init__(self, pretrained_model_name=None):
+    def __init__(self):
 
         # Get default factory.
         self._factory = NeuralModuleFactory.get_default_factory()
@@ -70,9 +66,6 @@ class NeuralModule(ABC):
 
         # Validate the parameters.
         # self.validate_params(self._init_params)
-
-        # Store pretrained model name (to be removed/changed)
-        self._pretrained_model_name = pretrained_model_name
 
     def extract_init_params(self):
         """

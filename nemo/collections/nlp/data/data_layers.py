@@ -44,13 +44,15 @@ class TextDataLayer(DataLayerNM):
     Args:
         dataset_type: type of dataset used for this datalayer
         dataset_params (dict): all the params for the dataset
+        batch_size: size of batch
     """
 
-    def __init__(self, dataset_type, dataset_params, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, dataset_type, dataset_params, batch_size):
+        super().__init__()
         if isinstance(dataset_type, str):
             dataset_type = getattr(sys.modules[__name__], dataset_type)
         self._dataset = dataset_type(**dataset_params)
+        self._batch_size = batch_size
 
     def __len__(self):
         return len(self._dataset)
@@ -115,9 +117,7 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
         shuffle=False,
         batch_size=64,
         dataset_type=BertSentenceClassificationDataset,
-        **kwargs
     ):
-        kwargs['batch_size'] = batch_size
         dataset_params = {
             'input_file': input_file,
             'tokenizer': tokenizer,
@@ -125,7 +125,7 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
             'num_samples': num_samples,
             'shuffle': shuffle,
         }
-        super().__init__(dataset_type, dataset_params, **kwargs)
+        super().__init__(dataset_type, dataset_params, batch_size)
 
 
 class BertJointIntentSlotDataLayer(TextDataLayer):
@@ -207,9 +207,7 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
         ignore_extra_tokens=False,
         ignore_start_end=False,
         dataset_type=BertJointIntentSlotDataset,
-        **kwargs
     ):
-        kwargs['batch_size'] = batch_size
         dataset_params = {
             'input_file': input_file,
             'slot_file': slot_file,
@@ -221,7 +219,7 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
             'ignore_extra_tokens': ignore_extra_tokens,
             'ignore_start_end': ignore_start_end,
         }
-        super().__init__(dataset_type, dataset_params, **kwargs)
+        super().__init__(dataset_type, dataset_params, batch_size)
 
 
 class BertJointIntentSlotInferDataLayer(TextDataLayer):
@@ -281,16 +279,13 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
             "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
 
-    def __init__(
-        self, queries, tokenizer, max_seq_length, batch_size=1, dataset_type=BertJointIntentSlotInferDataset, **kwargs
-    ):
-        kwargs['batch_size'] = batch_size
+    def __init__(self, queries, tokenizer, max_seq_length, batch_size=1, dataset_type=BertJointIntentSlotInferDataset):
         dataset_params = {
             'queries': queries,
             'tokenizer': tokenizer,
             'max_seq_length': max_seq_length,
         }
-        super().__init__(dataset_type, dataset_params, **kwargs)
+        super().__init__(dataset_type, dataset_params, batch_size)
 
 
 class LanguageModelingDataLayer(TextDataLayer):
@@ -333,7 +328,7 @@ class LanguageModelingDataLayer(TextDataLayer):
         }
 
     def __init__(
-        self, dataset, tokenizer, max_seq_length, batch_step=128, dataset_type=LanguageModelingDataset, **kwargs
+        self, dataset, tokenizer, max_seq_length, batch_size, batch_step=128, dataset_type=LanguageModelingDataset
     ):
         dataset_params = {
             'dataset': dataset,
@@ -341,7 +336,7 @@ class LanguageModelingDataLayer(TextDataLayer):
             'max_seq_length': max_seq_length,
             'batch_step': batch_step,
         }
-        super().__init__(dataset_type, dataset_params, **kwargs)
+        super().__init__(dataset_type, dataset_params, batch_size)
 
 
 class BertTokenClassificationDataLayer(TextDataLayer):
@@ -403,9 +398,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
         ignore_start_end=False,
         use_cache=False,
         dataset_type=BertTokenClassificationDataset,
-        **kwargs
     ):
-        kwargs['batch_size'] = batch_size
         dataset_params = {
             'text_file': text_file,
             'label_file': label_file,
@@ -419,7 +412,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
             'ignore_start_end': ignore_start_end,
             'use_cache': use_cache,
         }
-        super().__init__(dataset_type, dataset_params, **kwargs)
+        super().__init__(dataset_type, dataset_params, batch_size)
 
 
 class BertTokenClassificationInferDataLayer(TextDataLayer):
@@ -462,21 +455,14 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
         }
 
     def __init__(
-        self,
-        queries,
-        tokenizer,
-        max_seq_length,
-        batch_size=1,
-        dataset_type=BertTokenClassificationInferDataset,
-        **kwargs
+        self, queries, tokenizer, max_seq_length, batch_size=1, dataset_type=BertTokenClassificationInferDataset
     ):
-        kwargs['batch_size'] = batch_size
         dataset_params = {
             'queries': queries,
             'tokenizer': tokenizer,
             'max_seq_length': max_seq_length,
         }
-        super().__init__(dataset_type, dataset_params, **kwargs)
+        super().__init__(dataset_type, dataset_params, batch_size)
 
 
 class BertPunctuationCapitalizationDataLayer(TextDataLayer):
@@ -548,7 +534,6 @@ class BertPunctuationCapitalizationDataLayer(TextDataLayer):
         dataset_type=BertPunctuationCapitalizationDataset,
         **kwargs
     ):
-        kwargs['batch_size'] = batch_size
         dataset_params = {
             'text_file': text_file,
             'label_file': label_file,
@@ -563,7 +548,7 @@ class BertPunctuationCapitalizationDataLayer(TextDataLayer):
             'ignore_start_end': ignore_start_end,
             'use_cache': use_cache,
         }
-        super().__init__(dataset_type, dataset_params, **kwargs)
+        super().__init__(dataset_type, dataset_params, batch_size)
 
 
 class BertPunctuationCapitalizationInferDataLayer(TextDataLayer):
@@ -606,21 +591,14 @@ class BertPunctuationCapitalizationInferDataLayer(TextDataLayer):
         }
 
     def __init__(
-        self,
-        queries,
-        tokenizer,
-        max_seq_length,
-        batch_size=1,
-        dataset_type=BertTokenClassificationInferDataset,
-        **kwargs
+        self, queries, tokenizer, max_seq_length, batch_size=1, dataset_type=BertTokenClassificationInferDataset,
     ):
-        kwargs['batch_size'] = batch_size
         dataset_params = {
             'queries': queries,
             'tokenizer': tokenizer,
             'max_seq_length': max_seq_length,
         }
-        super().__init__(dataset_type, dataset_params, **kwargs)
+        super().__init__(dataset_type, dataset_params, batch_size)
 
 
 class BertQuestionAnsweringDataLayer(TextDataLayer):
@@ -696,9 +674,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
         mode="train",
         batch_size=64,
         dataset_type=SquadDataset,
-        **kwargs
     ):
-        kwargs['batch_size'] = batch_size
         dataset_params = {
             'data_dir': data_dir,
             'mode': mode,
@@ -709,7 +685,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             'doc_stride': doc_stride,
         }
 
-        super().__init__(dataset_type, dataset_params, **kwargs)
+        super().__init__(dataset_type, dataset_params, batch_size)
 
 
 class BertPretrainingDataLayer(TextDataLayer):
@@ -774,7 +750,6 @@ class BertPretrainingDataLayer(TextDataLayer):
     def __init__(
         self, tokenizer, dataset, max_seq_length, mask_probability, short_seq_prob=0.1, batch_size=64, **kwargs
     ):
-        kwargs['batch_size'] = batch_size
         dataset_params = {
             'tokenizer': tokenizer,
             'dataset': dataset,
@@ -782,7 +757,7 @@ class BertPretrainingDataLayer(TextDataLayer):
             'mask_probability': mask_probability,
             'short_seq_prob': short_seq_prob,
         }
-        super().__init__(BertPretrainingDataset, dataset_params, **kwargs)
+        super().__init__(BertPretrainingDataset, dataset_params, batch_size)
 
 
 class BertPretrainingPreprocessedDataLayer(DataLayerNM):
@@ -844,7 +819,7 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
             "labels": NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def __init__(self, dataset, max_pred_length, batch_size=64, training=True, **kwargs):
+    def __init__(self, dataset, max_pred_length, batch_size=64, training=True):
 
         if os.path.isdir(dataset):
             self.files = [
@@ -863,7 +838,7 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
             total_length += len(fp['input_ids'])
             fp.close()
         self.total_length = total_length
-        super().__init__(**kwargs)
+        super().__init__()
 
     def _collate_fn(self, x):
         num_components = len(x[0])
@@ -979,10 +954,10 @@ class TranslationDataLayer(TextDataLayer):
         tokenizer_tgt,
         dataset_src,
         dataset_tgt,
+        batch_size=64,
         tokens_in_batch=1024,
         clean=False,
         dataset_type=TranslationDataset,
-        **kwargs
     ):
         dataset_params = {
             'tokenizer_src': tokenizer_src,
@@ -992,7 +967,7 @@ class TranslationDataLayer(TextDataLayer):
             'tokens_in_batch': tokens_in_batch,
             'clean': clean,
         }
-        super().__init__(dataset_type, dataset_params, **kwargs)
+        super().__init__(dataset_type, dataset_params, batch_size)
 
         if self._placement == nemo.core.DeviceType.AllGpu:
             sampler = pt_data.distributed.DistributedSampler(self._dataset)
@@ -1077,7 +1052,6 @@ class GlueDataLayerClassification(TextDataLayer):
         dataset_type=GLUEDataset,
         **kwargs
     ):
-        kwargs['batch_size'] = batch_size
         dataset_params = {
             'data_dir': data_dir,
             'output_mode': 'classification',
@@ -1088,7 +1062,7 @@ class GlueDataLayerClassification(TextDataLayer):
             'max_seq_length': max_seq_length,
         }
 
-        super().__init__(dataset_type, dataset_params, **kwargs)
+        super().__init__(dataset_type, dataset_params, batch_size)
 
 
 class GlueDataLayerRegression(TextDataLayer):
@@ -1144,9 +1118,7 @@ class GlueDataLayerRegression(TextDataLayer):
         shuffle=False,
         batch_size=64,
         dataset_type=GLUEDataset,
-        **kwargs
     ):
-        kwargs['batch_size'] = batch_size
         dataset_params = {
             'data_dir': data_dir,
             'output_mode': 'regression',
@@ -1157,4 +1129,4 @@ class GlueDataLayerRegression(TextDataLayer):
             'max_seq_length': max_seq_length,
         }
 
-        super().__init__(dataset_type, dataset_params, **kwargs)
+        super().__init__(dataset_type, dataset_params, batch_size)
