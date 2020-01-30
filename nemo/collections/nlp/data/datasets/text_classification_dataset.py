@@ -30,6 +30,7 @@ import nemo.collections.nlp.data.datasets.datasets_utils as utils
 
 __all__ = ['BertTextClassificationDataset']
 
+
 class BertTextClassificationDataset(Dataset):
     """A dataset class that converts from raw data to
     a dataset that can be used by DataLayerNM.

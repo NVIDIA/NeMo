@@ -28,6 +28,7 @@ from tqdm import tqdm
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataset']
 
+
 class BertPretrainingDataset(Dataset):
     def __init__(
         self,

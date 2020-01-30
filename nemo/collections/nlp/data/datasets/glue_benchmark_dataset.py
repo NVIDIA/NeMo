@@ -27,6 +27,7 @@ import nemo
 
 __all__ = ['GLUEDataset']
 
+
 class GLUEDataset(Dataset):
     def __init__(self, data_dir, tokenizer, max_seq_length, processor, output_mode, evaluate, token_params):
         self.tokenizer = tokenizer

@@ -22,6 +22,7 @@ from nemo.collections.nlp.data.datasets.datasets_preprocessing import clean_src_
 
 __all__ = ['TranslationDataset']
 
+
 class TranslationDataset(Dataset):
     def __init__(self, tokenizer_src, tokenizer_tgt, dataset_src, dataset_tgt, tokens_in_batch=1024, clean=False):
 
