@@ -27,31 +27,21 @@ def eval_iter_callback(tensors,
             loss_numpy = v[0].cpu().numpy()
             global_vars['loss'].append(loss_numpy)
         if kv.startswith('point_outputs'):
-            # point_outputs = v[0].cpu().numpy()
-            point_outputs = v[0]  # .cpu().numpy()
+            point_outputs = v[0]
         if kv.startswith('gate_outputs'):
-            # gate_outputs = v[0].cpu().numpy()
-            gate_outputs = v[0]  # .cpu().numpy()
+            gate_outputs = v[0]
         if kv.startswith('gating_labels'):
             gating_labels = v[0].cpu().numpy()
             global_vars['gating_labels'].extend(gating_labels)
         if kv.startswith('tgt_ids'):
-            # tgt_ids = v[0].cpu().numpy()
-            tgt_ids = v[0] #.cpu().numpy()
+            tgt_ids = v[0]
 
     point_outputs_max = torch.argmax(point_outputs, dim=-1)
     mask_paddings = (tgt_ids == data_desc.vocab.pad_id)
     comp_res = ((point_outputs_max == tgt_ids) | mask_paddings)
     comp_res = torch.all(comp_res, axis=-1, keepdims=False)
 
-    # point_outputs_max = np.argmax(point_outputs, axis=-1)
-    # mask_paddings = (tgt_ids == data_desc.vocab.pad_id)
-    # comp_res = np.logical_or(point_outputs_max == tgt_ids, mask_paddings)
-    # comp_res = np.all(comp_res, axis=-1, keepdims=False)
-
     global_vars['comp_res'].extend(comp_res.cpu().numpy())
-    # global_vars['comp_res'].extend(comp_res)
-    # global_vars['gating_preds'].extend(np.argmax(gate_outputs, axis=-1))
     global_vars['gating_preds'].extend(torch.argmax(gate_outputs, axis=-1).cpu().numpy())
 
 
@@ -89,10 +79,8 @@ def evaluate_metrics(comp_res, gating_labels, gating_preds, ptr_code):
                     correct_slots += 1
                 else:
                     turn_wrong = True
-            elif gating_labels[result_idx][slot_idx] \
-                    == gating_preds[result_idx][slot_idx] \
-                    or (slot_eq and
-                        gating_preds[result_idx][slot_idx] == ptr_code):
+            elif gating_labels[result_idx][slot_idx] == gating_preds[result_idx][slot_idx] \
+                    or (slot_eq and gating_preds[result_idx][slot_idx] == ptr_code):
                 correct_slots += 1
             else:
                 turn_wrong = True
