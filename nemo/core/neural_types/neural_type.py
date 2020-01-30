@@ -25,7 +25,7 @@ __all__ = [
     'CanNotInferResultNeuralType',
 ]
 import uuid
-from typing import Tuple
+from typing import Tuple, Optional
 
 from .axes import AxisKind, AxisType
 from .comparison import NeuralTypeComparisonResult
@@ -36,18 +36,21 @@ class NeuralType(object):
     """This is the main class which would represent neural type concept.
     nmTensors derives from this. It is used to represent *the types* of inputs and outputs."""
 
-    def __init__(self, elements_type: ElementType, axes: Tuple, optional=False):
-        self.__check_sanity(axes)
+    def __init__(self, elements_type: ElementType = VoidType(), axes: Optional[Tuple] = None, optional=False):
         self.elements_type = elements_type
-        axes_list = []
-        for axis in axes:
-            if isinstance(axis, str):
-                axes_list.append(AxisType(AxisKind.from_str(axis), None))
-            elif isinstance(axis, AxisType):
-                axes_list.append(axis)
-            else:
-                raise ValueError(f"axis type must be either str or AxisType instance")
-        self.axes_tuple = tuple(axes_list)
+        if axes is not None:
+            self.__check_sanity(axes)
+            axes_list = []
+            for axis in axes:
+                if isinstance(axis, str):
+                    axes_list.append(AxisType(AxisKind.from_str(axis), None))
+                elif isinstance(axis, AxisType):
+                    axes_list.append(axis)
+                else:
+                    raise ValueError(f"axis type must be either str or AxisType instance")
+            self.axes_tuple = tuple(axes_list)
+        else:
+            self.axes_tuple = None
         self.optional = optional
 
     def compare(self, second) -> NeuralTypeComparisonResult:
@@ -57,6 +60,12 @@ class NeuralType(object):
 
         kinds_a = dict()
         kinds_b = dict()
+
+        if self.axes_tuple is None:
+            if second.axes_tuple is None:
+                return self.elements_type.compare(second.elements_type)
+            else:
+                return NeuralTypeComparisonResult.INCOMPATIBLE
 
         dimensions_pass = True
         for axis_a, axis_b in zip(axes_a, axes_b):
