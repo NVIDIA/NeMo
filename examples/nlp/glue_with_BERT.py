@@ -93,7 +93,6 @@ parser.add_argument(
     choices=['cola', 'sst-2', 'mrpc', 'sts-b', 'qqp', 'mnli', 'qnli', 'rte', 'wnli'],
     help="GLUE task name, MNLI includes both matched and mismatched tasks",
 )
-parser.add_argument("--dataset_type", default="GLUEDataset", type=str, help='Type of dataset to create datalayers')
 parser.add_argument(
     "--pretrained_bert_model", default="bert-base-cased", type=str, help="Name of the pre-trained model"
 )
@@ -243,7 +242,6 @@ def create_pipeline(
         data_layer = GlueRegressionDataLayer
 
     data_layer = data_layer(
-        dataset_type=args.dataset_type,
         processor=processor,
         evaluate=evaluate,
         batch_size=batch_size,

@@ -56,7 +56,7 @@ class GlueClassificationDataLayer(TextDataLayer):
         num_samples=-1,
         shuffle=False,
         batch_size=64,
-        dataset_type='GLUEDataset',
+        dataset_type=GLUEDataset,
         **kwargs
     ):
         kwargs['batch_size'] = batch_size
@@ -125,7 +125,7 @@ class GlueRegressionDataLayer(TextDataLayer):
         num_samples=-1,
         shuffle=False,
         batch_size=64,
-        dataset_type='GLUEDataset',
+        dataset_type=GLUEDataset,
         **kwargs
     ):
         kwargs['batch_size'] = batch_size
