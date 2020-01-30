@@ -29,6 +29,7 @@ from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import f1_score, matthews_corrcoef
 
 import nemo
+from nemo.collections.nlp.utils.callback_utils import list2str, tensor2list
 
 
 def eval_iter_callback(tensors, global_vars):
@@ -46,16 +47,16 @@ def eval_iter_callback(tensors, global_vars):
         if 'logits' in kv:
             for v_tensor in v:
                 for logit_tensor in v_tensor:
-                    logits_lists.append(logit_tensor.detach().cpu().tolist())
+                    logits_lists.append(tensor2list(logit_tensor))
         # for GLUE STS-B task (regression)
         elif 'preds' in kv:
             for v_tensor in v:
                 for pred_tensor in v_tensor:
-                    preds_lists.append(pred_tensor.detach().cpu().tolist())
+                    preds_lists.append(tensor2list(pred_tensor))
         if 'labels' in kv:
             for v_tensor in v:
                 for label_tensor in v_tensor:
-                    labels_lists.append(label_tensor.detach().cpu().tolist())
+                    labels_lists.append(tensor2list(label_tensor))
 
     if len(logits_lists) > 0:
         preds = list(np.argmax(np.asarray(logits_lists), 1))
@@ -65,22 +66,19 @@ def eval_iter_callback(tensors, global_vars):
     global_vars["all_preds"].extend(preds)
     global_vars["all_labels"].extend(labels_lists)
 
-
-def list2str(l):
-    return ' '.join([str(j) for j in l])
-
-
 def eval_epochs_done_callback(global_vars, output_dir, task_name):
     labels = np.asarray(global_vars['all_labels'])
     preds = np.asarray(global_vars['all_preds'])
 
+    # print predictions and labels for a small random subset of data
+    sample_size = 20
     i = 0
-    if preds.shape[0] > 21:
-        i = random.randint(0, preds.shape[0] - 21)
+    if preds.shape[0] > sample_size + 1:
+        i = random.randint(0, preds.shape[0] - sample_size - 1)
 
     nemo.logging.info("Task name: %s" % task_name.upper())
-    nemo.logging.info("Sampled preds: [%s]" % list2str(preds[i : i + 20]))
-    nemo.logging.info("Sampled labels: [%s]" % list2str(labels[i : i + 20]))
+    nemo.logging.info("Sampled preds: [%s]" % list2str(preds[i : i + sample_size]))
+    nemo.logging.info("Sampled labels: [%s]" % list2str(labels[i : i + sample_size]))
 
     results = compute_metrics(task_name, preds, labels)
 

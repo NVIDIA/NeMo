@@ -5,8 +5,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix
 
-import nemo
-
 
 def list2str(l):
     return ' '.join([str(x) for x in l])
@@ -16,7 +14,7 @@ def tensor2list(tensor):
     return tensor.detach().cpu().tolist()
 
 
-def plot_confusion_matrix(label_ids, labels, preds, graph_fold, normalize=False, prefix=''):
+def plot_confusion_matrix(labels, preds, graph_fold, label_ids=None, normalize=False, prefix=''):
     '''
     Plot confusion matrix.
     Args:
@@ -28,34 +26,52 @@ def plot_confusion_matrix(label_ids, labels, preds, graph_fold, normalize=False,
       prefix (str): prefix for the plot name
 
     '''
-    # remove labels from label_ids that don't appear in the dev set
-    used_labels = set(labels) | set(preds)
-    label_ids = {k: label_ids[k] for k, v in label_ids.items() if v in used_labels}
+    if label_ids is None:
+        _plot_confusion_matrix(labels, preds, graph_fold)
 
-    ids_to_labels = {label_ids[k]: k for k in label_ids}
-    classes = [ids_to_labels[id] for id in sorted(label_ids.values())]
+    else:
+        # remove labels from label_ids that don't appear in the dev set
+        used_labels = set(labels) | set(preds)
+        label_ids = {k: label_ids[k] for k, v in label_ids.items() if v in used_labels}
 
-    title = 'Confusion matrix'
+        ids_to_labels = {label_ids[k]: k for k in label_ids}
+        classes = [ids_to_labels[id] for id in sorted(label_ids.values())]
+
+        title = 'Confusion matrix'
+        cm = confusion_matrix(labels, preds)
+        if normalize:
+            sums = cm.sum(axis=1)[:, np.newaxis]
+            sums = np.where(sums == 0, 1, sums)
+            cm = cm.astype('float') / sums
+            title = 'Normalized ' + title
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+
+        cax = ax.matshow(cm)
+        ax.set_xticks(np.arange(-1, len(classes) + 1))
+        ax.set_yticks(np.arange(-1, len(classes) + 1))
+        ax.set_xticklabels([''] + classes, rotation=90)
+        ax.set_yticklabels([''] + classes)
+        ax.set_ylabel('True')
+        ax.set_xlabel('Predicted')
+
+        os.makedirs(graph_fold, exist_ok=True)
+        fig.colorbar(cax)
+
+        title = (prefix + ' ' + title).strip()
+        plt.savefig(os.path.join(graph_fold, title + '_' + time.strftime('%Y%m%d-%H%M%S')))
+
+
+def _plot_confusion_matrix(labels, preds, graph_fold):
     cm = confusion_matrix(labels, preds)
-    if normalize:
-        sums = cm.sum(axis=1)[:, np.newaxis]
-        sums = np.where(sums == 0, 1, sums)
-        cm = cm.astype('float') / sums
-        title = 'Normalized ' + title
-
+    nemo.logging.info(f'Confusion matrix:\n{cm}')
     fig = plt.figure()
     ax = fig.add_subplot(111)
-
     cax = ax.matshow(cm)
-    ax.set_xticks(np.arange(-1, len(classes) + 1))
-    ax.set_yticks(np.arange(-1, len(classes) + 1))
-    ax.set_xticklabels([''] + classes, rotation=90)
-    ax.set_yticklabels([''] + classes)
-    ax.set_ylabel('True')
-    ax.set_xlabel('Predicted')
-
-    os.makedirs(graph_fold, exist_ok=True)
+    plt.title('Confusion matrix of the classifier')
     fig.colorbar(cax)
-
-    title = (prefix + ' ' + title).strip()
-    plt.savefig(os.path.join(graph_fold, title + '_' + time.strftime('%Y%m%d-%H%M%S')))
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    os.makedirs(graph_fold, exist_ok=True)
+    plt.savefig(os.path.join(graph_fold, time.strftime('%Y%m%d-%H%M%S')))
