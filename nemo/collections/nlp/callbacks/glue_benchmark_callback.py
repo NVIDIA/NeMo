@@ -31,6 +31,7 @@ from sklearn.metrics import f1_score, matthews_corrcoef
 import nemo
 from nemo.collections.nlp.utils.callback_utils import list2str, tensor2list
 
+
 def eval_iter_callback(tensors, global_vars):
     if "all_preds" not in global_vars.keys():
         global_vars["all_preds"] = []
