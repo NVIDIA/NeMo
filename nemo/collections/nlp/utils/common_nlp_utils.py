@@ -1,11 +1,8 @@
 import os
 import re
 import string
-import time
 
 import numpy as np
-from matplotlib import pyplot as plt
-from sklearn.metrics import confusion_matrix
 
 import nemo
 
