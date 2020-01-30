@@ -1,3 +1,4 @@
+__all_ = ['JointIntentSlotClassifier']
 from torch import nn as nn
 
 from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM

@@ -1,3 +1,4 @@
+__all__ = ['SequenceClassifier']
 from torch import nn as nn
 
 from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM

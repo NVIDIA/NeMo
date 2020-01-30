@@ -6,7 +6,7 @@ import numpy as np
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo.collections.nlp.data import NemoBertTokenizer
-from nemo.collections.nlp.utils.nlp_utils import get_vocab
+from nemo.collections.nlp.data.datasets.datasets_utils import get_vocab
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='NER with pretrained BERT')

@@ -1,3 +1,4 @@
+__all__ = ['LossAggregatorNM']
 from nemo.backends.pytorch import LossNM
 from nemo.core import NeuralType
 

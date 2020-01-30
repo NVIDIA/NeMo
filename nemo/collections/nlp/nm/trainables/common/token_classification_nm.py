@@ -1,3 +1,4 @@
+__all__ = ['BertTokenClassifier', 'TokenClassifier']
 from torch import nn as nn
 
 from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
@@ -16,7 +17,6 @@ class BertTokenClassifier(TrainableNM):
         hidden_size (int): hidden size (d_model) of the Transformer
         num_classes (int): number of classes in softmax classifier, e.g. size
             of the vocabulary in language modeling objective
-        num_layers (int): number of layers in classifier MLP
         activation (str): activation function applied in classifier MLP layers
         log_softmax (bool): whether to apply log_softmax to MLP output
         dropout (float): dropout ratio applied to MLP

@@ -1,3 +1,4 @@
+__all__ = ['JointIntentSlotLoss']
 import torch
 from torch import nn
 

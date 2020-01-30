@@ -17,6 +17,7 @@ class BERT(TrainableNM):
     Args:
         pretrained_model_name (str): If using a pretrained model, this should
             be the model's name. Otherwise, should be left as None.
+        config_filename (str): path to model configuration file. Optional.
         vocab_size (int): Size of the vocabulary file, if not using a
             pretrained model.
         hidden_size (int): Size of the encoder and pooler layers.

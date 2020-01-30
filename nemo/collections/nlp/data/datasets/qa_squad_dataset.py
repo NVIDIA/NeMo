@@ -27,20 +27,22 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 import nemo
-from nemo.collections.nlp.data.datasets.datasets_utils import DataProcessor
-from nemo.collections.nlp.metrics.squad_metrics import (
-    _compute_softmax,
+from nemo.collections.nlp.data.datasets.datasets_utils import (
+    DataProcessor,
     _get_best_indexes,
+    _is_whitespace,
+    get_final_text,
+    normalize_answer,
+)
+from nemo.collections.nlp.metrics.squad_metrics import (
     apply_no_ans_threshold,
     exact_match_score,
     f1_score,
     find_all_best_thresh,
-    get_final_text,
     make_eval_dict,
     merge_eval,
-    normalize_answer,
 )
-from nemo.collections.nlp.utils.nlp_utils import _is_whitespace
+from nemo.collections.nlp.utils.loss_utils import _compute_softmax
 
 
 """

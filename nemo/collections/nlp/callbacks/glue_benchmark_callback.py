@@ -66,6 +66,7 @@ def eval_iter_callback(tensors, global_vars):
     global_vars["all_preds"].extend(preds)
     global_vars["all_labels"].extend(labels_lists)
 
+
 def eval_epochs_done_callback(global_vars, output_dir, task_name):
     labels = np.asarray(global_vars['all_labels'])
     preds = np.asarray(global_vars['all_preds'])

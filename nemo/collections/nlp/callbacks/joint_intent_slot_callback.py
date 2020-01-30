@@ -7,9 +7,9 @@ import time
 import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix
-from nemo.collections.nlp.utils.callback_utils import list2str, plot_confusion_matrix, tensor2list
 
 import nemo
+from nemo.collections.nlp.utils.callback_utils import list2str, plot_confusion_matrix, tensor2list
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
