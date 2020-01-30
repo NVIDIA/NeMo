@@ -249,9 +249,9 @@ def create_pipeline(
     evaluate=False,
     processor=task_processors[0],
 ):
-    data_layer = GlueDataLayerClassificationDataLayer
+    data_layer = GlueClassificationDataLayer
     if output_mode == 'regression':
-        data_layer = GlueDataLayerRegressionDataLayer
+        data_layer = GlueRegressionDataLayer
 
     data_layer = data_layer(
         dataset_type=args.dataset_type,

@@ -7,7 +7,7 @@ import sys
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.nm.data_layers.punctuation_capitalization_datalayer
+from nemo.collections.nlp.nm.data_layers import BertPunctuationCapitalizationDataLayer
 from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
     eval_epochs_done_callback,
     eval_iter_callback,
@@ -186,7 +186,7 @@ def create_pipeline(
            [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
         )
 
-    data_layer = nemo.collections.nlp.nm.data_layers.punctuation_capitalization_datalayer.BertPunctuationCapitalizationDataLayer(
+    data_layer = BertPunctuationCapitalizationDataLayer(
         tokenizer=tokenizer,
         text_file=text_file,
         label_file=label_file,
