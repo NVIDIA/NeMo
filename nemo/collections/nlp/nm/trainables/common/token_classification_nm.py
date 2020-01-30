@@ -1,12 +1,11 @@
 from torch import nn as nn
 
-from nemo.backends.pytorch import TrainableNM, MultiLayerPerceptron
-from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import gelu
-from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
-from nemo.core import NeuralType, AxisType, BatchTag, TimeTag, ChannelTag
-
+from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
+from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import gelu, transformer_weights_init
+from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
 ACT2FN = {"gelu": gelu, "relu": nn.functional.relu}
+
 
 class BertTokenClassifier(TrainableNM):
     """

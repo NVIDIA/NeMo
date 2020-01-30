@@ -23,13 +23,12 @@ import itertools
 import os
 import pickle
 import random
-import nemo.collections.nlp.data.datasets.datasets_utils
 
 import numpy as np
 from torch.utils.data import Dataset
-import nemo.collections.nlp.data.datasets.datasets_utils as utils
 
 import nemo
+import nemo.collections.nlp.data.datasets.datasets_utils as utils
 
 
 def get_features(

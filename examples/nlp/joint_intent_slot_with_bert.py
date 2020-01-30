@@ -71,7 +71,9 @@ See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
 if args.bert_checkpoint and args.bert_config:
-    pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(config_filename=args.bert_config, factory=nf)
+    pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+        config_filename=args.bert_config, factory=nf
+    )
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 else:
     pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(

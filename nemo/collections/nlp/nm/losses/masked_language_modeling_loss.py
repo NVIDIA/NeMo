@@ -1,6 +1,6 @@
 from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.nm.losses.smoothed_cross_entropy_loss import SmoothedCrossEntropyLoss
-from nemo.core import NeuralType, AxisType, BatchTag, TimeTag, ChannelTag
+from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
 
 class MaskedLanguageModelingLossNM(LossNM):

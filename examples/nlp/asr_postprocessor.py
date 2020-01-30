@@ -8,7 +8,10 @@ import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.machine_translation_datalayer
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
-from nemo.collections.nlp.callbacks.machine_translation_callback import eval_epochs_done_callback_wer, eval_iter_callback
+from nemo.collections.nlp.callbacks.machine_translation_callback import (
+    eval_epochs_done_callback_wer,
+    eval_iter_callback,
+)
 from nemo.collections.nlp.data.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.core.callbacks import CheckpointCallback
 from nemo.utils.lr_policies import SquareAnnealing

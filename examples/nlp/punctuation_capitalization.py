@@ -8,7 +8,10 @@ import sys
 import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.punctuation_capitalization_datalayer
-from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
+    eval_epochs_done_callback,
+    eval_iter_callback,
+)
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets import datasets_utils
 from nemo.utils.lr_policies import get_lr_policy
@@ -111,7 +114,9 @@ if args.bert_checkpoint is None:
     nemo_nlp.huggingface.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+    model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+        pretrained_model_name=args.pretrained_bert_model
+    )
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     """
@@ -127,7 +132,9 @@ else:
             config = json.load(json_file)
         model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(**config)
     else:
-        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+            pretrained_model_name=args.pretrained_bert_model
+        )
 
     model.restore_from(args.bert_checkpoint)
     nemo.logging.info(f"Model restored from {args.bert_checkpoint}")

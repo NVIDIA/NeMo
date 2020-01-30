@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch import LossNM
-from nemo.core import NeuralType, AxisType, BatchTag, TimeTag, ChannelTag
+from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
 
 class TokenClassificationLoss(LossNM):

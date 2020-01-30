@@ -109,7 +109,9 @@ if args.bert_checkpoint is None:
     nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+    model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+        pretrained_model_name=args.pretrained_bert_model
+    )
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     """
@@ -125,7 +127,9 @@ else:
             config = json.load(json_file)
         model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(**config)
     else:
-        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+            pretrained_model_name=args.pretrained_bert_model
+        )
 
     model.restore_from(args.bert_checkpoint)
     nemo.logging.info(f"Model restored from {args.bert_checkpoint}")

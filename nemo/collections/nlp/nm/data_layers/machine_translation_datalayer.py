@@ -4,7 +4,7 @@ from torch.utils import data as pt_data
 import nemo
 from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import NeuralType, AxisType, BatchTag, TimeTag
+from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
 
 
 class TranslationDataLayer(TextDataLayer):

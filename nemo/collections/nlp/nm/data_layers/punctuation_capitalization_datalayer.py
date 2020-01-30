@@ -1,6 +1,6 @@
 from nemo.collections.nlp.data import BertPunctuationCapitalizationDataset, BertTokenClassificationInferDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import NeuralType, AxisType, BatchTag, TimeTag
+from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
 
 
 class BertPunctuationCapitalizationDataLayer(TextDataLayer):

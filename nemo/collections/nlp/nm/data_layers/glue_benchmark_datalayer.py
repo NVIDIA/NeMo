@@ -1,6 +1,6 @@
 from nemo.collections.nlp.data import GLUEDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import NeuralType, AxisType, BatchTag, TimeTag, CategoricalTag, RegressionTag
+from nemo.core import AxisType, BatchTag, CategoricalTag, NeuralType, RegressionTag, TimeTag
 
 
 class GlueClassificationDataLayer(TextDataLayer):

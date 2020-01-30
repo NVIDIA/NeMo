@@ -291,7 +291,9 @@ if __name__ == "__main__":
         To see the list of pretrained models, call:
         nemo_nlp.huggingface.BERT.list_pretrained_models()
         """
-        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+            pretrained_model_name=args.pretrained_bert_model
+        )
 
     hidden_size = model.local_parameters["hidden_size"]
 

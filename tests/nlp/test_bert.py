@@ -16,8 +16,8 @@
 # limitations under the License.
 # =============================================================================
 
-from tests.common_setup import NeMoUnitTest
 import nemo.collections.nlp as nemo_nlp
+from tests.common_setup import NeMoUnitTest
 
 
 class TestBert(NeMoUnitTest):
