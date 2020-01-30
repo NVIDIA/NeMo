@@ -3,17 +3,18 @@
 import argparse
 import json
 import os
-import sys
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.nm.data_layers import BertPunctuationCapitalizationDataLayer
 from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
     eval_epochs_done_callback,
     eval_iter_callback,
 )
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets import datasets_utils
+from nemo.collections.nlp.nm.data_layers import PunctuationCapitalizationDataLayer
+from nemo.collections.nlp.nm.losses.token_classification_loss import TokenClassificationLoss
+from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
@@ -186,7 +187,7 @@ def create_pipeline(
            [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
         )
 
-    data_layer = BertPunctuationCapitalizationDataLayer(
+    data_layer = PunctuationCapitalizationDataLayer(
         tokenizer=tokenizer,
         text_file=text_file,
         label_file=label_file,
@@ -248,7 +249,7 @@ def create_pipeline(
 
         losses = [task_loss, punct_loss, capit_loss]
         logits = [punct_logits, capit_logits]
-        return (losses, logits, steps_per_epoch, punct_label_ids, capit_label_ids)
+        return losses, logits, steps_per_epoch, punct_label_ids, capit_label_ids
     else:
         tensors_to_evaluate = [punct_logits, capit_logits, punct_labels, capit_labels, subtokens_mask]
         return tensors_to_evaluate, data_layer

@@ -1,10 +1,10 @@
-__all__ = ['BertPunctuationCapitalizationDataLayer', 'BertPunctuationCapitalizationInferDataLayer']
+__all__ = ['PunctuationCapitalizationDataLayer', 'PunctuationCapitalizationInferDataLayer']
 from nemo.collections.nlp.data import BertPunctuationCapitalizationDataset, BertTokenClassificationInferDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
 
 
-class BertPunctuationCapitalizationDataLayer(TextDataLayer):
+class PunctuationCapitalizationDataLayer(TextDataLayer):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
@@ -91,7 +91,7 @@ class BertPunctuationCapitalizationDataLayer(TextDataLayer):
         super().__init__(dataset_type, dataset_params, **kwargs)
 
 
-class BertPunctuationCapitalizationInferDataLayer(TextDataLayer):
+class PunctuationCapitalizationInferDataLayer(TextDataLayer):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
