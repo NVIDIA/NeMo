@@ -1,9 +1,4 @@
-import os
-import time
-
 import numpy as np
-from matplotlib import pyplot as plt
-from sklearn.metrics import confusion_matrix
 
 import nemo
 
@@ -76,48 +71,3 @@ def write_vocab_in_order(vocab, outfile):
     with open(outfile, 'w') as f:
         for key in sorted(vocab.keys()):
             f.write(f'{vocab[key]}\n')
-
-
-def plot_confusion_matrix(label_ids, labels, preds, graph_fold, normalize=False, prefix=''):
-    '''
-    Plot confusion matrix.
-    Args:
-      label_ids (dict): label to id map, for example: {'O': 0, 'LOC': 1}
-      labels (list of ints): list of true labels
-      preds (list of ints): list of predicted labels
-      graph_fold (str): path to output folder
-      normalize (bool): flag to indicate whether to normalize confusion matrix
-      prefix (str): prefix for the plot name
-
-    '''
-    # remove labels from label_ids that don't appear in the dev set
-    used_labels = set(labels) | set(preds)
-    label_ids = {k: label_ids[k] for k, v in label_ids.items() if v in used_labels}
-
-    ids_to_labels = {label_ids[k]: k for k in label_ids}
-    classes = [ids_to_labels[id] for id in sorted(label_ids.values())]
-
-    title = 'Confusion matrix'
-    cm = confusion_matrix(labels, preds)
-    if normalize:
-        sums = cm.sum(axis=1)[:, np.newaxis]
-        sums = np.where(sums == 0, 1, sums)
-        cm = cm.astype('float') / sums
-        title = 'Normalized ' + title
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-
-    cax = ax.matshow(cm)
-    ax.set_xticks(np.arange(-1, len(classes) + 1))
-    ax.set_yticks(np.arange(-1, len(classes) + 1))
-    ax.set_xticklabels([''] + classes, rotation=90)
-    ax.set_yticklabels([''] + classes)
-    ax.set_ylabel('True')
-    ax.set_xlabel('Predicted')
-
-    os.makedirs(graph_fold, exist_ok=True)
-    fig.colorbar(cax)
-
-    title = (prefix + ' ' + title).strip()
-    plt.savefig(os.path.join(graph_fold, title + '_' + time.strftime('%Y%m%d-%H%M%S')))
