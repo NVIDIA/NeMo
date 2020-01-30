@@ -25,6 +25,8 @@ from torch.utils.data import Dataset
 
 import nemo
 
+__all__ = ['GLUEDataset']
+
 
 class GLUEDataset(Dataset):
     def __init__(self, data_dir, tokenizer, max_seq_length, processor, output_mode, evaluate, token_params):

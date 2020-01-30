@@ -26,6 +26,8 @@ import numpy as np
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+__all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataset']
+
 
 class BertPretrainingDataset(Dataset):
     def __init__(

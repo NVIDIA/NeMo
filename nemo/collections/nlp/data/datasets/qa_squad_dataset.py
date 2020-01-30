@@ -44,12 +44,13 @@ from nemo.collections.nlp.metrics.squad_metrics import (
 )
 from nemo.collections.nlp.utils.loss_utils import _compute_softmax
 
-
 """
 Utility functions for Question Answering NLP tasks
 Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 """
+
+__all__ = ['SquadDataset']
 
 
 class SquadDataset(Dataset):
