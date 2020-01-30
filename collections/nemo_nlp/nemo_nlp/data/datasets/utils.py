@@ -1065,7 +1065,7 @@ class Vocab:
 
 class MultiWOZDataDesc:
     """
-    Processes MultiWOZ dataset and creates vocabulary file and list of slots.
+    Processes MultiWOZ dataset, creates vocabulary file and list of slots.
     """
 
     def __init__(self,
