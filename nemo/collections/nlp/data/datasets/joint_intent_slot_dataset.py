@@ -20,10 +20,18 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 """
 import itertools
 import random
+from collections.nlp.data.datasets.datasets_utils import (
+    get_label_stats,
+    merge,
+    process_atis,
+    process_dialogflow,
+    process_jarvis_datasets,
+    process_mturk,
+    process_snips,
+)
+from collections.nlp.utils.common_nlp_utils import calc_class_weights, get_vocab, if_exist, label2idx
 
 import numpy as np
-from collections.nlp.data.datasets.datasets_utils import process_atis, process_jarvis_datasets, get_label_stats, process_mturk, merge, process_dialogflow, process_snips
-from collections.nlp.utils.common_nlp_utils import if_exist, get_vocab, label2idx, calc_class_weights
 from torch.utils.data import Dataset
 
 import nemo

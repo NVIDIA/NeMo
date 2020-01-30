@@ -14,11 +14,10 @@
 # ==============================================================================
 """Pytorch Dataset for training Neural Machine Translation."""
 from collections import OrderedDict
+from collections.nlp.data.datasets.lm_transformer_dataset import dataset_to_ids
 
 import numpy as np
 from torch.utils.data import Dataset
-
-from collections.nlp.data.datasets.lm_transformer_dataset import dataset_to_ids
 
 __all__ = ['TranslationDataset']
 

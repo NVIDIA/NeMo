@@ -1,5 +1,6 @@
 import argparse
 import math
+from collections.nlp.data.datasets.text_classification_dataset import SentenceClassificationDataDesc
 
 import numpy as np
 from transformers import BertTokenizer
@@ -7,7 +8,6 @@ from transformers import BertTokenizer
 import nemo
 import nemo.collections.nlp.nm.data_layers.text_classification_datalayer
 import nemo.collections.nlp.nm.trainables.common.sequence_classification_nm
-from collections.nlp.data.datasets.text_classification_dataset import SentenceClassificationDataDesc
 from nemo.collections.nlp.utils.callbacks.sentence_classification import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
 

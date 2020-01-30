@@ -13,19 +13,20 @@
 # limitations under the License.
 # ==============================================================================
 """Pytorch Dataset for training Neural Machine Translation."""
+import collections.nlp.data.datasets.datasets_utils
 import glob
 import os
 import pickle
 import re
-
-import collections.nlp.data.datasets.datasets_utils
-import nemo
-import numpy as np
 from collections.nlp.data.datasets.datasets_utils import DATABASE_EXISTS_TMP, download_wkt2
 from collections.nlp.utils.common_nlp_utils import if_exist
+
+import numpy as np
 from sentencepiece import SentencePieceTrainer as SPT
 from torch.utils.data import Dataset
 from tqdm import tqdm
+
+import nemo
 
 __all__ = ['LanguageModelingDataset']
 

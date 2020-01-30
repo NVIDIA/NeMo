@@ -20,14 +20,21 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-import random
-
 import collections.nlp.data.datasets.joint_intent_slot_dataset
 import collections.nlp.utils.common_nlp_utils
+import random
+from collections.nlp.data.datasets.datasets_utils import (
+    get_intent_labels,
+    get_label_stats,
+    process_imdb,
+    process_jarvis_datasets,
+    process_nlu,
+    process_sst_2,
+    process_thucnews,
+)
+from collections.nlp.utils.common_nlp_utils import calc_class_weights, if_exist
+
 import numpy as np
-from collections.nlp.data.datasets.datasets_utils import process_sst_2, process_imdb, process_thucnews, process_nlu, process_jarvis_datasets, \
-    get_label_stats, get_intent_labels
-from collections.nlp.utils.common_nlp_utils import if_exist, calc_class_weights
 from torch.utils.data import Dataset
 
 import nemo

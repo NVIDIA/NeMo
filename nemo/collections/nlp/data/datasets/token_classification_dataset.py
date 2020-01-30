@@ -19,12 +19,12 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
+import collections.nlp.data.datasets.joint_intent_slot_dataset
 import itertools
 import os
 import pickle
 import random
 
-import collections.nlp.data.datasets.joint_intent_slot_dataset
 import numpy as np
 from torch.utils.data import Dataset
 

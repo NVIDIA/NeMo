@@ -1,10 +1,10 @@
 # pylint: disable=invalid-name
 
 import argparse
+import collections.nlp.utils.common_nlp_utils
 import json
 import os
 
-import collections.nlp.utils.common_nlp_utils
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (

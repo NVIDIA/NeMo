@@ -246,9 +246,7 @@ def create_pipeline(
 if __name__ == "__main__":
     args = parse_args()
     if not os.path.exists(args.data_dir):
-        raise FileNotFoundError(
-            "SQUAD datasets not found. Datasets can be " "obtained using scripts/get_squad.py"
-        )
+        raise FileNotFoundError("SQUAD datasets not found. Datasets can be " "obtained using scripts/get_squad.py")
 
     if not args.version_2_with_negative:
         args.work_dir = f'{args.work_dir}/squad1.1'

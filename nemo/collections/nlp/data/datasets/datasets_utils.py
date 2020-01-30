@@ -5,10 +5,16 @@ import os
 import random
 import shutil
 import subprocess
-
 from collections import Counter
+from collections.nlp.utils.common_nlp_utils import (
+    get_vocab,
+    ids2text,
+    if_exist,
+    list2str,
+    write_vocab,
+    write_vocab_in_order,
+)
 
-from collections.nlp.utils.common_nlp_utils import if_exist, get_vocab, list2str, write_vocab_in_order, write_vocab, ids2text
 from tqdm import tqdm
 
 import nemo

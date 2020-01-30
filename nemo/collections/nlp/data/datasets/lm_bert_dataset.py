@@ -20,14 +20,15 @@ import glob
 import os
 import pickle
 import random
-
-import h5py
-import nemo
-import numpy as np
 from collections.nlp.data.datasets.datasets_utils import download_wkt2
 from collections.nlp.data.datasets.lm_transformer_dataset import create_vocab_mlm
+
+import h5py
+import numpy as np
 from torch.utils.data import Dataset
 from tqdm import tqdm
+
+import nemo
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataset']
 

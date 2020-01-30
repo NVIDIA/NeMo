@@ -2,12 +2,12 @@
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 import random
+from collections.nlp.utils.common_nlp_utils import list2str, tensor2list
 
 import numpy as np
 from sklearn.metrics import classification_report
 
 import nemo
-from collections.nlp.utils.common_nlp_utils import list2str, tensor2list
 from nemo.collections.nlp.utils.common_nlp_utils import plot_confusion_matrix
 
 
