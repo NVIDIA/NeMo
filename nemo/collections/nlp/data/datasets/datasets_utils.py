@@ -46,14 +46,6 @@ def get_label_stats(labels, outfile='stats.tsv'):
     return total, label_frequencies
 
 
-def list2str(l):
-    return ' '.join([str(x) for x in l])
-
-
-def tensor2list(tensor):
-    return tensor.detach().cpu().tolist()
-
-
 def if_exist(outfold, files):
     if not os.path.exists(outfold):
         return False
@@ -551,10 +543,6 @@ def process_snips(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     )
 
     return outfold
-
-
-# def list2str(nums):
-#     return ' '.join([str(num) for num in nums])
 
 
 def merge(data_dir, subdirs, dataset_name, modes=['train', 'test']):

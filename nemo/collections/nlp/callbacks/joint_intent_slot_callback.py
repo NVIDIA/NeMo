@@ -4,18 +4,14 @@ import os
 import random
 import time
 
-import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix
+from nemo.collections.nlp.utils.callback_utils import list2str, plot_confusion_matrix, tensor2list
 
 import nemo
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
-
-
-def tensor2list(tensor):
-    return tensor.detach().cpu().tolist()
 
 
 def eval_iter_callback(tensors, global_vars, eval_data_layer):
@@ -68,10 +64,6 @@ def eval_iter_callback(tensors, global_vars, eval_data_layer):
     global_vars["all_subtokens_mask"].extend(all_subtokens_mask)
 
 
-def list2str(l):
-    return ' '.join([str(j) for j in l])
-
-
 def eval_epochs_done_callback(global_vars, graph_fold):
     intent_labels = np.asarray(global_vars['all_intent_labels'])
     intent_preds = np.asarray(global_vars['all_intent_preds'])
@@ -83,24 +75,17 @@ def eval_epochs_done_callback(global_vars, graph_fold):
     slot_labels = slot_labels[subtokens_mask]
     slot_preds = slot_preds[subtokens_mask]
 
+    # print predictions and labels for a small random subset of data
+    sample_size = 20
     i = 0
-    if intent_preds.shape[0] > 21:
-        i = random.randint(0, intent_preds.shape[0] - 21)
-    nemo.logging.info("Sampled i_preds: [%s]" % list2str(intent_preds[i : i + 20]))
-    nemo.logging.info("Sampled intents: [%s]" % list2str(intent_labels[i : i + 20]))
-    nemo.logging.info("Sampled s_preds: [%s]" % list2str(slot_preds[i : i + 20]))
-    nemo.logging.info("Sampled slots: [%s]" % list2str(slot_labels[i : i + 20]))
-    cm = confusion_matrix(intent_labels, intent_preds)
-    nemo.logging.info(f'Confusion matrix:\n{cm}')
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    cax = ax.matshow(cm)
-    plt.title('Confusion matrix of the classifier')
-    fig.colorbar(cax)
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    os.makedirs(graph_fold, exist_ok=True)
-    plt.savefig(os.path.join(graph_fold, time.strftime('%Y%m%d-%H%M%S')))
+    if intent_preds.shape[0] > sample_size + 1:
+        i = random.randint(0, intent_preds.shape[0] - sample_size - 1)
+    nemo.logging.info("Sampled i_preds: [%s]" % list2str(intent_preds[i : i + sample_size]))
+    nemo.logging.info("Sampled intents: [%s]" % list2str(intent_labels[i : i + sample_size]))
+    nemo.logging.info("Sampled s_preds: [%s]" % list2str(slot_preds[i : i + sample_size]))
+    nemo.logging.info("Sampled slots: [%s]" % list2str(slot_labels[i : i + sample_size]))
+
+    plot_confusion_matrix(intent_labels, intent_preds, graph_fold)
 
     nemo.logging.info('Intent prediction results')
     correct_preds = sum(intent_labels == intent_preds)

@@ -64,13 +64,15 @@ import argparse
 import json
 import os
 
+import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.nm.trainables.common.sequence_regression_nm
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
 from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets.datasets_utils import output_modes, processors
 from nemo.collections.nlp.nm.data_layers import GlueClassificationDataLayer, GlueRegressionDataLayer
+from nemo.collections.nlp.nm.trainables.common.sequence_classification_nm import SequenceClassifier
+from nemo.collections.nlp.nm.trainables.common.sequence_regression_nm import SequenceRegression
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description="GLUE_with_pretrained_BERT")
@@ -81,8 +83,7 @@ parser.add_argument(
     default='COLA',
     type=str,
     required=True,
-    help="The input data dir. Should contain the .tsv    \
-                    files (or other data files) for the task.",
+    help="The input data dir. Should contain the .tsv files (or other data files) for the task.",
 )
 parser.add_argument(
     "--task_name",
@@ -90,10 +91,8 @@ parser.add_argument(
     type=str,
     required=True,
     choices=['cola', 'sst-2', 'mrpc', 'sts-b', 'qqp', 'mnli', 'qnli', 'rte', 'wnli'],
-    help="GLUE task name, MNLI includes both matched and \
-                    mismatched tasks",
+    help="GLUE task name, MNLI includes both matched and mismatched tasks",
 )
-parser.add_argument("--dataset_type", default="GLUEDataset", type=str, help='Type of dataset to create datalayers')
 parser.add_argument(
     "--pretrained_bert_model", default="bert-base-cased", type=str, help="Name of the pre-trained model"
 )
@@ -103,24 +102,21 @@ parser.add_argument(
     "--tokenizer_model",
     default="tokenizer.model",
     type=str,
-    help="Path to pretrained tokenizer model, \
-                    only used if --tokenizer is sentencepiece",
+    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
 )
 parser.add_argument(
     "--tokenizer",
     default="nemobert",
     type=str,
     choices=["nemobert", "sentencepiece"],
-    help="tokenizer to use, \
-                    only relevant when using custom pretrained checkpoint.",
+    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
 )
 parser.add_argument(
     "--max_seq_length",
     default=128,
     type=int,
     choices=range(1, 513),
-    help="The maximum total input sequence length after   \
-                    tokenization.Sequences longer than this will be       \
+    help="The maximum total input sequence length after tokenization.Sequences longer than this will be \
                     truncated, sequences shorter will be padded.",
 )
 parser.add_argument("--optimizer_kind", default="adam", type=str, help="Optimizer kind")
@@ -139,22 +135,19 @@ parser.add_argument(
     "--work_dir",
     default='output_glue',
     type=str,
-    help="The output directory where the model predictions \
-                    and checkpoints will be written.",
+    help="The output directory where the model predictions and checkpoints will be written.",
 )
 parser.add_argument(
     "--save_epoch_freq",
     default=1,
     type=int,
-    help="Frequency of saving checkpoint \
-                    '-1' - epoch checkpoint won't be saved",
+    help="Frequency of saving checkpoint '-1' - epoch checkpoint won't be saved",
 )
 parser.add_argument(
     "--save_step_freq",
     default=-1,
     type=int,
-    help="Frequency of saving checkpoint \
-                    '-1' - step checkpoint won't be saved",
+    help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
 )
 parser.add_argument("--loss_step_freq", default=25, type=int, help="Frequency of printing loss")
 
@@ -163,8 +156,7 @@ args = parser.parse_args()
 if not os.path.exists(args.data_dir):
     raise FileNotFoundError(
         "GLUE datasets not found. Datasets can be "
-        "obtained at https://gist.github.com/W4ngatang/ \
-                            60c2bdb54d156a41194446737ce03e2e"
+        "obtained at https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e"
     )
 
 args.work_dir = f'{args.work_dir}/{args.task_name.upper()}'
@@ -230,14 +222,10 @@ hidden_size = model.local_parameters["hidden_size"]
 
 # uses [CLS] token for classification (the first token)
 if args.task_name == 'sts-b':
-    pooler = nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.SequenceRegression(
-        hidden_size=hidden_size
-    )
+    pooler = SequenceRegression(hidden_size=hidden_size)
     glue_loss = MSELoss()
 else:
-    pooler = nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier(
-        hidden_size=hidden_size, num_classes=num_labels, log_softmax=False
-    )
+    pooler = SequenceClassifier(hidden_size=hidden_size, num_classes=num_labels, log_softmax=False)
     glue_loss = CrossEntropyLoss()
 
 
@@ -249,12 +237,11 @@ def create_pipeline(
     evaluate=False,
     processor=task_processors[0],
 ):
-    data_layer = GlueDataLayerClassificationDataLayer
+    data_layer = GlueClassificationDataLayer
     if output_mode == 'regression':
-        data_layer = GlueDataLayerRegressionDataLayer
+        data_layer = GlueRegressionDataLayer
 
     data_layer = data_layer(
-        dataset_type=args.dataset_type,
         processor=processor,
         evaluate=evaluate,
         batch_size=batch_size,

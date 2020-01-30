@@ -2,6 +2,7 @@ __all__ = ['TextDataLayer']
 import sys
 
 from nemo.backends.pytorch import DataLayerNM
+from nemo.collections.nlp.data.datasets import *
 
 
 class TextDataLayer(DataLayerNM):
@@ -15,8 +16,6 @@ class TextDataLayer(DataLayerNM):
 
     def __init__(self, dataset_type, dataset_params, **kwargs):
         super().__init__(**kwargs)
-        if isinstance(dataset_type, str):
-            dataset_type = getattr(sys.modules[__name__], dataset_type)
         self._dataset = dataset_type(**dataset_params)
 
     def __len__(self):

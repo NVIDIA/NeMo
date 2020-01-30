@@ -7,10 +7,12 @@ import sys
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.nm.data_layers.token_classification_datalayer
 from nemo.collections.nlp.callbacks.token_classification_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets import datasets_utils
+from nemo.collections.nlp.nm.data_layers import BertTokenClassificationDataLayer
+from nemo.collections.nlp.nm.losses import TokenClassificationLoss
+from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
@@ -176,7 +178,7 @@ def create_pipeline(
            [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
         )
 
-    data_layer = nemo.collections.nlp.nm.data_layers.token_classification_datalayer.BertTokenClassificationDataLayer(
+    data_layer = BertTokenClassificationDataLayer(
         tokenizer=tokenizer,
         text_file=text_file,
         label_file=label_file,

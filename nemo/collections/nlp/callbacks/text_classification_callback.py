@@ -10,6 +10,7 @@ from matplotlib import pyplot as plt  # nopep8
 from sklearn.metrics import classification_report, confusion_matrix  # nopep8
 
 import nemo
+from nemo.collections.nlp.utils.callback_utils import list2str, tensor2list, plot_confusion_matrix
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
@@ -27,20 +28,16 @@ def eval_iter_callback(tensors, global_vars, eval_data_layer):
         if 'logits' in kv:
             for v_tensor in v:
                 for logit_tensor in v_tensor:
-                    logits_lists.append(logit_tensor.detach().cpu().tolist())
+                    logits_lists.append(tensor2list(logit_tensor))
 
         if 'labels' in kv:
             for v_tensor in v:
                 for label_tensor in v_tensor:
-                    labels_lists.append(label_tensor.detach().cpu().tolist())
+                    labels_lists.append(tensor2list(label_tensor))
 
     preds = list(np.argmax(np.asarray(logits_lists), 1))
     global_vars["all_preds"].extend(preds)
     global_vars["all_labels"].extend(labels_lists)
-
-
-def list2str(l):
-    return ' '.join([str(j) for j in l])
 
 
 def eval_epochs_done_callback(global_vars, graph_fold):
@@ -48,22 +45,15 @@ def eval_epochs_done_callback(global_vars, graph_fold):
     preds = np.asarray(global_vars['all_preds'])
     accuracy = sum(labels == preds) / labels.shape[0]
     nemo.logging.info(f'Accuracy: {accuracy}')
+
+    # print predictions and labels for a small random subset of data
+    sample_size = 20
     i = 0
-    if preds.shape[0] > 21:
-        i = random.randint(0, preds.shape[0] - 21)
-    nemo.logging.info("Sampled preds: [%s]" % list2str(preds[i : i + 20]))
-    nemo.logging.info("Sampled labels: [%s]" % list2str(labels[i : i + 20]))
-    cm = confusion_matrix(labels, preds)
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    cax = ax.matshow(cm)
-    plt.title('Confusion matrix of the classifier')
-    fig.colorbar(cax)
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    os.makedirs(graph_fold, exist_ok=True)
-    plt.savefig(os.path.join(graph_fold, time.strftime('%Y%m%d-%H%M%S')))
+    if preds.shape[0] > sample_size + 1:
+        i = random.randint(0, preds.shape[0] - sample_size - 1)
+    nemo.logging.info("Sampled preds: [%s]" % list2str(preds[i : i + sample_size]))
+    nemo.logging.info("Sampled labels: [%s]" % list2str(labels[i : i + sample_size]))
 
+    plot_confusion_matrix(labels, preds, graph_fold)
     nemo.logging.info(classification_report(labels, preds))
-
     return dict({"accuracy": accuracy})
