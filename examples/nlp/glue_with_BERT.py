@@ -65,7 +65,6 @@ import json
 import os
 
 import nemo
-import nemo.collections.nlp as nemo_nlp
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
 from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer

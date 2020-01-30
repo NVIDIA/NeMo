@@ -19,7 +19,6 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-import itertools
 import random
 
 import numpy as np

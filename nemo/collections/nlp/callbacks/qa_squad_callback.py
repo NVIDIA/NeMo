@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+__all__ = ['eval_epochs_done_callback', 'eval_iter_callback']
+
 
 def eval_iter_callback(tensors, global_vars):
     if "eval_start_logits" not in global_vars.keys():

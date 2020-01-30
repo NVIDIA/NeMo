@@ -317,9 +317,9 @@ DATASETS = {
             'newstest2017-zhen-src.zh.sgm',
             'newstest2017-zhen-ref.en.sgm',
             'Translator-HumanParityData-master/Translator-HumanParityData/References/Translator-HumanParityData'
-            '-Reference-HT.txt',
+            + '-Reference-HT.txt',
             'Translator-HumanParityData-master/Translator-HumanParityData/References/Translator-HumanParityData'
-            '-Reference-PE.txt',
+            + '-Reference-PE.txt',
         ],
     },
     'wmt16': {
