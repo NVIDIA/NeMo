@@ -18,7 +18,7 @@ from collections import OrderedDict
 import numpy as np
 from torch.utils.data import Dataset
 
-from nemo.collections.nlp.data.datasets.datasets_preprocessing import clean_src_and_target, dataset_to_ids
+from collections.nlp.data.datasets.lm_transformer_dataset import dataset_to_ids
 
 __all__ = ['TranslationDataset']
 
@@ -152,3 +152,36 @@ class TranslationDataset(Dataset):
             batches.pop(-1)
 
         return batches
+
+
+def clean_src_and_target(src_ids, tgt_ids, max_tokens=128, min_tokens=3, max_tokens_diff=25, max_tokens_ratio=2.5):
+    """
+    Cleans source and target sentences to get rid of noisy data.
+    Specifically, a pair of sentences is removed if
+      -- either source or target is longer than *max_tokens*
+      -- either source or target is shorter than *min_tokens*
+      -- absolute difference between source and target is larger than
+         *max_tokens_diff*
+      -- one sentence is *max_tokens_ratio* times longer than the other
+    """
+
+    if len(src_ids) != len(tgt_ids):
+        raise ValueError("Source and target corpora have different lengths!")
+    src_ids_, tgt_ids_ = [], []
+    for i in range(len(src_ids)):
+        src_len, tgt_len = len(src_ids[i]), len(tgt_ids[i])
+        if (
+            src_len > max_tokens
+            or tgt_len > max_tokens
+            or src_len < min_tokens
+            or tgt_len < min_tokens
+            or (src_ids[i] == tgt_ids[i])
+            or np.abs(src_len - tgt_len) > max_tokens_diff
+        ):
+            continue
+        ratio = max(src_len - 2, 1) / max(tgt_len - 2, 1)
+        if ratio > max_tokens_ratio or ratio < (1 / max_tokens_ratio):
+            continue
+        src_ids_.append(src_ids[i])
+        tgt_ids_.append(tgt_ids[i])
+    return src_ids_, tgt_ids_

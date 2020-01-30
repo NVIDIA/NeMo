@@ -22,7 +22,10 @@ import pickle
 import random
 
 import h5py
+import nemo
 import numpy as np
+from collections.nlp.data.datasets.datasets_utils import download_wkt2
+from collections.nlp.data.datasets.lm_transformer_dataset import create_vocab_mlm
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
@@ -370,3 +373,23 @@ class BertPretrainingPreprocessedDataset(Dataset):
         input_mask = np.asarray(input_mask, dtype=np.float32)
         output_mask = np.asarray(output_mask, dtype=np.float32)
         return (input_ids, segment_ids, input_mask, output_ids, output_mask, next_sentence_labels)
+
+
+class BERTPretrainingDataDesc:
+    def __init__(self, dataset_name, data_dir, vocab_size, sample_size, special_tokens, train_file=''):
+        if dataset_name == 'wikitext-2':
+            if not os.path.exists(data_dir):
+                data_dir = download_wkt2(data_dir)
+            self.data_dir, self.tokenizer_model = create_vocab_mlm(
+                data_dir, vocab_size, sample_size, special_tokens, train_file
+            )
+        else:
+            nemo.logging.warning(
+                "Looks like you passed a dataset name that isn't "
+                "already supported by NeMo. Please make sure that "
+                "you build the preprocessing method for it."
+            )
+
+        self.train_file = f'{data_dir}/train.txt'
+        self.eval_file = f'{data_dir}/valid.txt'
+        self.test_file = f'{data_dir}/test.txt'

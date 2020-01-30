@@ -22,7 +22,12 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 
 import random
 
+import collections.nlp.data.datasets.joint_intent_slot_dataset
+import collections.nlp.utils.common_nlp_utils
 import numpy as np
+from collections.nlp.data.datasets.datasets_utils import process_sst_2, process_imdb, process_thucnews, process_nlu, process_jarvis_datasets, \
+    get_label_stats, get_intent_labels
+from collections.nlp.utils.common_nlp_utils import if_exist, calc_class_weights
 from torch.utils.data import Dataset
 
 import nemo
@@ -79,7 +84,7 @@ class BertTextClassificationDataset(Dataset):
                 all_sent_subtokens.append(sent_subtokens)
                 sent_lengths.append(len(sent_subtokens))
 
-        utils.get_stats(sent_lengths)
+        collections.nlp.data.datasets.joint_intent_slot_dataset.get_stats(sent_lengths)
         self.max_seq_length = min(max_seq_length, max(sent_lengths))
 
         for i in range(len(all_sent_subtokens)):
@@ -142,8 +147,8 @@ class BertTextClassificationDataset(Dataset):
                 nemo.logging.info("example_index: %s" % sent_id)
                 nemo.logging.info("subtokens: %s" % " ".join(sent_subtokens))
                 nemo.logging.info("sent_label: %s" % sent_label)
-                nemo.logging.info("input_ids: %s" % utils.list2str(input_ids))
-                nemo.logging.info("input_mask: %s" % utils.list2str(input_mask))
+                nemo.logging.info("input_ids: %s" % collections.nlp.utils.common_nlp_utils.list2str(input_ids))
+                nemo.logging.info("input_mask: %s" % collections.nlp.utils.common_nlp_utils.list2str(input_mask))
 
             self.features.append(
                 InputFeatures(
@@ -165,3 +170,74 @@ class InputFeatures(object):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
+
+
+class SentenceClassificationDataDesc:
+    def __init__(self, dataset_name, data_dir, do_lower_case):
+        if dataset_name == 'sst-2':
+            self.data_dir = process_sst_2(data_dir)
+            self.num_labels = 2
+            self.eval_file = self.data_dir + '/dev.tsv'
+        elif dataset_name == 'imdb':
+            self.num_labels = 2
+            self.data_dir = process_imdb(data_dir, do_lower_case)
+            self.eval_file = self.data_dir + '/test.tsv'
+        elif dataset_name == 'thucnews':
+            self.num_labels = 14
+            self.data_dir = process_thucnews(data_dir)
+            self.eval_file = self.data_dir + '/test.tsv'
+        elif dataset_name.startswith('nlu-'):
+            if dataset_name.endswith('chat'):
+                self.data_dir = f'{data_dir}/ChatbotCorpus.json'
+                self.num_labels = 2
+            elif dataset_name.endswith('ubuntu'):
+                self.data_dir = f'{data_dir}/AskUbuntuCorpus.json'
+                self.num_labels = 5
+            elif dataset_name.endswith('web'):
+                data_dir = f'{data_dir}/WebApplicationsCorpus.json'
+                self.num_labels = 8
+            self.data_dir = process_nlu(data_dir, do_lower_case, dataset_name=dataset_name)
+            self.eval_file = self.data_dir + '/test.tsv'
+        elif dataset_name.startswith('jarvis'):
+            self.data_dir = process_jarvis_datasets(
+                data_dir, do_lower_case, dataset_name, modes=['train', 'test', 'eval'], ignore_prev_intent=False
+            )
+
+            intents = get_intent_labels(f'{self.data_dir}/dict.intents.csv')
+            self.num_labels = len(intents)
+        else:
+            raise ValueError(
+                "Looks like you passed a dataset name that isn't "
+                "already supported by NeMo. Please make sure "
+                "that you build the preprocessing method for it."
+            )
+
+        self.train_file = self.data_dir + '/train.tsv'
+
+        for mode in ['train', 'test', 'eval']:
+
+            if not if_exist(self.data_dir, [f'{mode}.tsv']):
+                nemo.logging.info(f' Stats calculation for {mode} mode' f' is skipped as {mode}.tsv was not found.')
+                continue
+
+            input_file = f'{self.data_dir}/{mode}.tsv'
+            with open(input_file, 'r') as f:
+                input_lines = f.readlines()[1:]  # Skipping headers at index 0
+
+            queries, raw_sentences = [], []
+            for input_line in input_lines:
+                parts = input_line.strip().split()
+                raw_sentences.append(int(parts[-1]))
+                queries.append(' '.join(parts[:-1]))
+
+            infold = input_file[: input_file.rfind('/')]
+
+            nemo.logging.info(f'Three most popular classes during {mode}ing')
+            total_sents, sent_label_freq = get_label_stats(raw_sentences, infold + f'/{mode}_sentence_stats.tsv')
+
+            if mode == 'train':
+                self.class_weights = calc_class_weights(sent_label_freq)
+                nemo.logging.info(f'Class weights are - {self.class_weights}')
+
+            nemo.logging.info(f'Total Sentences - {total_sents}')
+            nemo.logging.info(f'Sentence class frequencies - {sent_label_freq}')

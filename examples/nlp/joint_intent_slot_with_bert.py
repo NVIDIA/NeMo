@@ -10,7 +10,7 @@ import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer
 import nemo.collections.nlp.nm.trainables.joint_intent_slot.join_intent_slot_nm
 from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data.datasets.datasets_utils import JointIntentSlotDataDesc
+from collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments

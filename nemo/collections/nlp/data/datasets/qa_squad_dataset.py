@@ -27,30 +27,27 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 import nemo
-from nemo.collections.nlp.data.datasets.datasets_utils import (
-    DataProcessor,
-    _get_best_indexes,
-    _is_whitespace,
-    get_final_text,
-    normalize_answer,
-)
+from collections.nlp.data.datasets.glue_benchmark_dataset import DataProcessor
 from nemo.collections.nlp.metrics.squad_metrics import (
+    _compute_softmax,
+    _get_best_indexes,
     apply_no_ans_threshold,
     exact_match_score,
     f1_score,
     find_all_best_thresh,
+    get_final_text,
     make_eval_dict,
     merge_eval,
+    normalize_answer,
 )
-from nemo.collections.nlp.utils.loss_utils import _compute_softmax
+from nemo.collections.nlp.utils.common_nlp_utils import _is_whitespace
+
 
 """
 Utility functions for Question Answering NLP tasks
 Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 """
-
-__all__ = ['SquadDataset']
 
 
 class SquadDataset(Dataset):
@@ -808,6 +805,48 @@ def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer, orig_ans
 
 def _check_is_max_context(doc_spans, cur_span_index, position):
     """Check if this is the 'max context' doc span for the token."""
+    best_score = None
+    best_span_index = None
+    for (span_index, doc_span) in enumerate(doc_spans):
+        end = doc_span.start + doc_span.length - 1
+        if position < doc_span.start:
+            continue
+        if position > end:
+            continue
+        num_left_context = position - doc_span.start
+        num_right_context = end - position
+        score = min(num_left_context, num_right_context) + 0.01 * doc_span.length
+        if best_score is None or score > best_score:
+            best_score = score
+            best_span_index = span_index
+
+    return cur_span_index == best_span_index
+
+
+def check_is_max_context(doc_spans, cur_span_index, position):
+    """Check if this is the 'max context' doc span for the token.
+
+    Because of the sliding window approach taken to scoring documents,
+    a single token can appear in multiple documents.
+
+    Example:
+        Doc: the man went to the store and bought a gallon of milk
+        Span A: the man went to the
+        Span B: to the store and bought
+        Span C: and bought a gallon of
+        ...
+
+    Now the word 'bought' will have two scores from spans B and C. We only
+    want to consider the score with "maximum context", which we define as
+    the *minimum* of its left and right context (the *sum* of left and
+    right context will always be the same, of course).
+
+    In the example the maximum context for 'bought' would be span C since
+    it has 1 left context and 3 right context, while span B has 4 left context
+    and 0 right context.
+
+    Code adapted from the code by the Google AI and HuggingFace.
+    """
     best_score = None
     best_span_index = None
     for (span_index, doc_span) in enumerate(doc_spans):

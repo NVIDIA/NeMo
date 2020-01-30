@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 
+import collections.nlp.utils.common_nlp_utils
 import nemo
 from nemo.collections.nlp.callbacks.token_classification_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
@@ -193,7 +194,7 @@ def create_pipeline(
         if args.use_weighted_loss:
             nemo.logging.info(f"Using weighted loss")
             label_freqs = data_layer.dataset.label_frequencies
-            class_weights = datasets_utils.calc_class_weights(label_freqs)
+            class_weights = collections.nlp.utils.common_nlp_utils.calc_class_weights(label_freqs)
 
             nemo.logging.info(f"class_weights: {class_weights}")
 

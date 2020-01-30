@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 
+import collections.nlp.utils.common_nlp_utils
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
@@ -214,7 +215,7 @@ def create_pipeline(
         if args.use_weighted_loss_punct:
             nemo.logging.info(f"Using weighted loss for punctuation task")
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
-            class_weights = datasets_utils.calc_class_weights(punct_label_freqs)
+            class_weights = collections.nlp.utils.common_nlp_utils.calc_class_weights(punct_label_freqs)
 
         # Initialize punctuation loss
         punct_classifier = punct_classifier(

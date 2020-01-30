@@ -18,7 +18,7 @@ Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 
 Download the Squad data by running the script:
-examples/nlp/scripts/download_squad.py
+examples/nlp/scripts/get_squad.py
 
 To finetune Squad v1.1 on pretrained BERT large uncased on 1 GPU:
 python squad.py
@@ -247,7 +247,7 @@ if __name__ == "__main__":
     args = parse_args()
     if not os.path.exists(args.data_dir):
         raise FileNotFoundError(
-            "SQUAD datasets not found. Datasets can be " "obtained using scripts/download_squad.py"
+            "SQUAD datasets not found. Datasets can be " "obtained using scripts/get_squad.py"
         )
 
     if not args.version_2_with_negative:

@@ -6,7 +6,7 @@ from sklearn.metrics import classification_report
 from transformers import BertTokenizer
 
 import nemo.collections.nlp.nm.trainables.joint_intent_slot.join_intent_slot_nm
-from nemo.collections.nlp.data.datasets.datasets_utils import JointIntentSlotDataDesc
+from collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Joint-intent BERT')

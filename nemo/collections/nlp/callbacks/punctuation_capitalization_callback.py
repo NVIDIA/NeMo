@@ -7,7 +7,8 @@ import numpy as np
 from sklearn.metrics import classification_report
 
 import nemo
-from nemo.collections.nlp.utils.callback_utils import list2str, plot_confusion_matrix, tensor2list
+from collections.nlp.utils.common_nlp_utils import list2str, tensor2list
+from nemo.collections.nlp.utils.common_nlp_utils import plot_confusion_matrix
 
 
 def eval_iter_callback(tensors, global_vars):
@@ -105,5 +106,5 @@ def _eval_epochs_done_callback(task_name, global_vars, label_ids, graph_fold=Non
 
     # calculate and plot confusion_matrix
     if graph_fold:
-        plot_confusion_matrix(labels, preds, graph_fold, label_ids, normalize=normalize_cm, prefix=task_name)
+        plot_confusion_matrix(label_ids, labels, preds, graph_fold, normalize=normalize_cm, prefix=task_name)
     return accuracy

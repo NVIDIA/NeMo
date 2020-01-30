@@ -1,7 +1,7 @@
 __all__ = ['PaddedSmoothedCrossEntropyLossNM']
 from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.nm.losses.smoothed_cross_entropy_loss import SmoothedCrossEntropyLoss
-from nemo.collections.nlp.utils.nlp_utils import mask_padded_tokens
+from nemo.collections.nlp.utils.common_nlp_utils import mask_padded_tokens
 from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
 

@@ -24,6 +24,7 @@ import os
 import pickle
 import random
 
+import collections.nlp.data.datasets.joint_intent_slot_dataset
 import numpy as np
 from torch.utils.data import Dataset
 
@@ -112,7 +113,7 @@ def get_features(
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
     nemo.logging.info(f'Max length: {max_seq_length}')
-    utils.get_stats(sent_lengths)
+    collections.nlp.data.datasets.joint_intent_slot_dataset.get_stats(sent_lengths)
     too_long_count = 0
 
     for i, subtokens in enumerate(all_subtokens):
