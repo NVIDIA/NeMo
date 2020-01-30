@@ -190,12 +190,14 @@ class DataLayerNM(NeuralModule):
     """
 
     def __init__(self):
+        NeuralModule.__init__(self)  # For NeuralModule API
+        self._device = get_cuda_device(self.placement)
+
         # if 'batch_size' not in kwargs:
         #    nemo.logging.warning("No batch_size specified in the data layer. "
         #                    "Setting batch_size to 1.")
         #    kwargs['batch_size'] = 1
-        NeuralModule.__init__(self)  # For NeuralModule API
-        self._device = get_cuda_device(self.placement)
+        self._batch_size = 1
 
     @property
     def input_ports(self):
@@ -278,6 +280,10 @@ class DataLayerNM(NeuralModule):
         `dataset`.
         If this is implemented, `dataset` property should return None.
         """
+
+    @property
+    def batch_size(self):
+        return self._batch_size
 
 
 class LossNM(NeuralModule):

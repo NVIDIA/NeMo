@@ -518,7 +518,7 @@ class PtActions(Actions):
                         dataset=dl_nm.dataset,
                         sampler=sampler,
                         num_workers=dl_nm.local_parameters.get("num_workers", os.cpu_count()),
-                        batch_size=dl_nm.local_parameters["batch_size"],
+                        batch_size=dl_nm.batch_size,
                         shuffle=(sampler is None),
                     )
                 else:
@@ -532,7 +532,7 @@ class PtActions(Actions):
                         dataset=dl_nm.dataset,
                         sampler=None,  # not distributed sampler
                         num_workers=call_chain[0][0].local_parameters.get("num_workers", os.cpu_count()),
-                        batch_size=call_chain[0][0].local_parameters["batch_size"],
+                        batch_size=call_chain[0][0].batch_size,
                         shuffle=call_chain[0][0].local_parameters.get("shuffle", False),
                     )
                 else:
@@ -673,7 +673,7 @@ class PtActions(Actions):
                         dataset=dl_nm.dataset,
                         sampler=sampler,
                         num_workers=dl_nm.local_parameters.get("num_workers", os.cpu_count()),
-                        batch_size=dl_nm.local_parameters["batch_size"],
+                        batch_size=dl_nm.batch_size,
                         shuffle=(sampler is None),
                     )
                 else:
@@ -688,7 +688,7 @@ class PtActions(Actions):
                         dataset=dl_nm.dataset,
                         sampler=None,  # not distributed sampler
                         num_workers=call_chain[0][0].local_parameters.get("num_workers", os.cpu_count()),
-                        batch_size=call_chain[0][0].local_parameters["batch_size"],
+                        batch_size=call_chain[0][0].batch_size,
                         shuffle=call_chain[0][0].local_parameters.get("shuffle", False),
                     )
                 else:
@@ -1186,7 +1186,7 @@ class PtActions(Actions):
                     dataset=t_dataset,
                     sampler=train_sampler,
                     num_workers=dataNM.local_parameters.get("num_workers", os.cpu_count()),
-                    batch_size=dataNM.local_parameters["batch_size"],
+                    batch_size=dataNM.batch_size,
                     shuffle=(train_sampler is None),
                 )
             else:
@@ -1232,7 +1232,7 @@ class PtActions(Actions):
                     dataset=t_dataset,
                     sampler=None,
                     num_workers=dataNM.local_parameters.get("num_workers", os.cpu_count()),
-                    batch_size=dataNM.local_parameters["batch_size"],
+                    batch_size=dataNM.batch_size,
                     shuffle=dataNM.local_parameters.get("shuffle", True),
                 )
             else:

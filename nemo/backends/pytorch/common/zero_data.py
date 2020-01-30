@@ -97,7 +97,3 @@ class ZerosDataLayer(DataLayerNM):
     @property
     def dataset(self):
         return self._dataset
-
-    @property
-    def batch_size(self):
-        return self._batch_size
