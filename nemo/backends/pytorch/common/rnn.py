@@ -111,9 +111,8 @@ class DecoderRNN(TrainableNM):
         rnn_type='gru',
         n_layers=2,
         tie_emb_out_weights=True,
-        **kwargs
     ):
-        super().__init__(**kwargs)
+        super().__init__()
 
         self.bos_id = bos_id
         self.attention_type = attention_type

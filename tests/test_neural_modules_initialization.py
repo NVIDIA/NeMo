@@ -36,10 +36,10 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         Class testing methods related to Neural Module import/export.
     """
 
-    def __init__(self, *args, **kwargs):
-        super(NeuralModuleConfigTest, self).__init__(*args, **kwargs)
+    def setUp(self) -> None:
+        super().setUp()
 
-        # Overwrite abc abstract methods.
+        # Mockup abstract methods.
         MockupModule.__abstractmethods__ = set()
 
         # Create object.
@@ -51,7 +51,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
 
         # Check error output.
-        self.assertEqual(self.module.validate_params(params), True)
+        self.assertEqual(self.module._validate_params(params), True)
 
     def test_nested_dict(self):
         """ Tests whether (nested) dicts are handled."""
@@ -64,7 +64,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         }
 
         # Check error output.
-        self.assertEqual(self.module.validate_params(params), True)
+        self.assertEqual(self.module._validate_params(params), True)
 
     def test_nested_list(self):
         """ Tests whether (nested) lists are handled."""
@@ -72,7 +72,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         params = {"list_outer": [[1, 2, 3, 4]]}
 
         # Check error output.
-        self.assertEqual(self.module.validate_params(params), True)
+        self.assertEqual(self.module._validate_params(params), True)
 
     def test_nested_mix(self):
         """ Tests whether (nested) lists are handled."""
@@ -80,4 +80,4 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         params = {"list_outer": [{"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}]}
 
         # Check error output.
-        self.assertEqual(self.module.validate_params(params), True)
+        self.assertEqual(self.module._validate_params(params), True)

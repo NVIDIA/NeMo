@@ -32,11 +32,11 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
         """
         return {"y_pred": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
 
-    def __init__(self, *, dim, **kwargs):
+    def __init__(self, dim):
         # Part specific for Neural Modules API:
         #   (1) call base constructor
         #   (2) define input and output ports
-        TrainableNM.__init__(self, **kwargs)
+        super().__init__()
 
         # And of Neural Modules specific part. Rest is Pytorch code
         self._dim = dim
@@ -87,11 +87,11 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
         """
         return {"y_pred": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}, optional=True)}
 
-    def __init__(self, *, dim, **kwargs):
+    def __init__(self, dim):
         # Part specific for Neural Modules API:
         #   (1) call base constructor
         #   (2) define input and output ports
-        TrainableNM.__init__(self, **kwargs)
+        super().__init__()
 
         # And of Neural Modules specific part. Rest is Pytorch code
         self._dim = dim
@@ -151,8 +151,18 @@ class RealFunctionDataLayer(DataLayerNM):
             "y": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
-    def __init__(self, *, n, batch_size, f_name="sin", x_lo=-4, x_hi=4):
-        DataLayerNM.__init__(self)
+    def __init__(self, batch_size, f_name="sin", n=1000, x_lo=-4, x_hi=4):
+        """
+            Creates a datalayer returning (x-y) pairs, with n points from a given range.
+
+            Args:
+                batch_size: size of batch
+                f_name: name of function ["sin" | "cos"]
+                n: number of points
+                x_lo: lower boundary along x axis
+                x_hi: higher boundary along x axis
+        """
+        super().__init__()
 
         # Dicionary with handled functions.
         handled_funcs = {"sin": t.sin, "cos": t.cos}
@@ -209,8 +219,8 @@ class MSELoss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self):
+        super().__init__()
         self._criterion = nn.MSELoss()
 
     def _loss_function(self, **kwargs):
@@ -246,8 +256,8 @@ class L1Loss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self):
+        super().__init__()
         self._criterion = nn.L1Loss()
 
     def _loss_function(self, **kwargs):
@@ -281,9 +291,9 @@ class CrossEntropyLoss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         # Neural Module API specific
-        NeuralModule.__init__(self, **kwargs)
+        NeuralModule.__init__(self)
         # End of Neural Module API specific
         self._criterion = nn.CrossEntropyLoss()
 
@@ -333,9 +343,9 @@ class DopeDualLoss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         # Neural Module API specific
-        NeuralModule.__init__(self, **kwargs)
+        NeuralModule.__init__(self)
 
     # You need to implement this function
     def _loss_function(self, **kwargs):

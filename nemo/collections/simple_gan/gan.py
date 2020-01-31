@@ -48,8 +48,8 @@ class SimpleDiscriminator(TrainableNM):
         """
         return {"decision": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag, 1)})}
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self):
+        super().__init__()
         self.layers = torch.nn.Sequential(
             torch.nn.Conv2d(1, 64, 3, padding=1),
             torch.nn.ReLU(),
@@ -123,8 +123,8 @@ class SimpleGenerator(TrainableNM):
             )
         }
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self):
+        super().__init__()
         self.layers = torch.nn.Sequential(
             torch.nn.ConvTranspose2d(64, 128, 3, stride=2),
             torch.nn.ReLU(),
@@ -174,8 +174,8 @@ class DiscriminatorLoss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, neg=False, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, neg=False):
+        super().__init__()
         self.neg = neg
 
     def _loss(self, decision):
@@ -233,8 +233,8 @@ class GradientPenalty(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, lambda_, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, lambda_):
+        super().__init__()
         self.lambda_ = lambda_
 
     def _loss(self, interpolated_image, interpolated_decision):
@@ -328,8 +328,8 @@ class InterpolateImage(TrainableNM):
             )
         }
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self):
+        super().__init__()
 
     def forward(self, image1, image2):
         alpha = torch.rand(image1.shape[0], 1).unsqueeze(-1).unsqueeze(-1)
@@ -372,8 +372,8 @@ class RandomDataLayer(DataLayerNM):
             )
         }
 
-    def __init__(self, *, batch_size, **kwargs):
-        DataLayerNM.__init__(self, **kwargs)
+    def __init__(self, batch_size):
+        super().__init__()
         self._batch_size = batch_size
 
         class DummyDataset(torch.utils.data.Dataset):
@@ -457,9 +457,9 @@ class MnistGanDataLayer(DataLayerNM):
             "label": NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def __init__(self, *, batch_size, root, train=True, shuffle=True, **kwargs):
+    def __init__(self, batch_size, root, train=True, shuffle=True):
+        super().__init__()
         self._input_size = (28, 28)
-        DataLayerNM.__init__(self, **kwargs)
 
         self._batch_size = batch_size
         self._train = train
@@ -467,7 +467,7 @@ class MnistGanDataLayer(DataLayerNM):
         self._root = root
         self._transforms = transforms.Compose([transforms.ToTensor()])
 
-        self._dataset = datasets.MNIST(root=self._root, train=self._train, download=True, transform=self._transforms,)
+        self._dataset = datasets.MNIST(root=self._root, train=self._train, download=True, transform=self._transforms)
 
         class DatasetWrapper(Dataset):
             def __init__(self, dataset):
