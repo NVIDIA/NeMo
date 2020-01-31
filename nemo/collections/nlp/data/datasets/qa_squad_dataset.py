@@ -42,6 +42,7 @@ from nemo.collections.nlp.metrics.squad_metrics import (
 from nemo.collections.nlp.utils.common_nlp_utils import _is_whitespace
 from nemo.collections.nlp.utils.loss_utils import _compute_softmax
 
+from nemo import logging
 
 """
 Utility functions for Question Answering NLP tasks
@@ -370,7 +371,7 @@ class SquadDataset(Dataset):
                 gold_answers = [""]
 
             if qas_id not in preds:
-                print("Missing prediction for %s" % qas_id)
+                logging.warning("Missing prediction for %s" % qas_id)
                 continue
 
             prediction = preds[qas_id]

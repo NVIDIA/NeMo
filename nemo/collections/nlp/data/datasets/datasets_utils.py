@@ -21,6 +21,8 @@ from nemo.collections.nlp.utils.common_nlp_utils import (
     write_vocab_in_order,
 )
 
+from nemo import logging
+
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
 MODE_EXISTS_TMP = '{} mode of {} dataset has already been processed and stored at {}'
 
@@ -427,8 +429,8 @@ def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names, task_n
     slot_tags = []
     inorder_utterances = []
     all_labels = get_slot_labels(slot_annotations, task_name)
-    print(f'agreed_all - {len(agreed_all)}')
-    print(f'Slot annotations - {len(slot_annotations)}')
+    logging.info(f'agreed_all - {len(agreed_all)}')
+    logging.info(f'Slot annotations - {len(slot_annotations)}')
 
     for annotation in slot_annotations[0:]:
         an = json.loads(annotation)
@@ -474,9 +476,9 @@ def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names, task_n
             query_text = f'{utterance.strip()}\t{intent_num}\n'
             inorder_utterances.append(query_text)
         # else:
-        #     print(utterance)
+        #     logging.warning(utterance)
 
-    print(f'inorder utterances - {len(inorder_utterances)}')
+    logging.info(f'inorder utterances - {len(inorder_utterances)}')
 
     return all_labels, inorder_utterances, slot_tags
 
@@ -487,14 +489,14 @@ def get_intents_mturk(utterances, outfold):
 
     agreed_all = {}
 
-    print('Printing all intent_labels')
+    logging.info('Printing all intent_labels')
     intent_dict = f'{outfold}/dict.intents.csv'
     if os.path.exists(intent_dict):
         with open(intent_dict, 'r') as f:
             for intent_name in f.readlines():
                 intent_names[intent_name.strip()] = intent_count
                 intent_count += 1
-    print(intent_names)
+    logging.info(intent_names)
 
     for i, utterance in enumerate(utterances[1:]):
 
@@ -505,7 +507,7 @@ def get_intents_mturk(utterances, outfold):
             intent_names[utterance[1]] = intent_count
             intent_count += 1
 
-    print(f'Total number of utterance samples: {len(agreed_all)}')
+    logging.info(f'Total number of utterance samples: {len(agreed_all)}')
 
     return agreed_all, intent_names
 

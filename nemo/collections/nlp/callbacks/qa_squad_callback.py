@@ -16,6 +16,8 @@ limitations under the License.
 
 __all__ = ['eval_epochs_done_callback', 'eval_iter_callback']
 
+from nemo import logging
+
 
 def eval_iter_callback(tensors, global_vars):
     if "eval_start_logits" not in global_vars.keys():
@@ -65,7 +67,7 @@ def eval_epochs_done_callback(
         do_lower_case=do_lower_case,
     )
 
-    print(f"Exact_match = {exact_match}, f1 = {f1}")
+    logging.info(f"Exact_match = {exact_match}, f1 = {f1}")
 
     global_vars["eval_unique_ids"] = []
     global_vars["eval_start_logits"] = []

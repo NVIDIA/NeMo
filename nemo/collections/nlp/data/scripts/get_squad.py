@@ -15,6 +15,8 @@ import argparse
 import os
 import urllib.request
 
+from nemo import logging
+
 
 class SquadDownloader:
     def __init__(self, save_path):
@@ -41,9 +43,9 @@ class SquadDownloader:
             url = item
             file = self.download_urls[item]
 
-            print('Downloading:', url)
+            logging.info('Downloading:', url)
             if os.path.isfile(self.save_path + '/' + file):
-                print('** Download file already exists, skipping download')
+                logging.info('** Download file already exists, skipping download')
             else:
                 response = urllib.request.urlopen(url)
                 with open(self.save_path + '/' + file, "wb") as handle:
@@ -60,6 +62,6 @@ if __name__ == '__main__':
         default=os.path.split(os.path.abspath(__file__))[0] + '../../../../../../examples/data/lm',
     )
     args = parser.parse_args()
-    print(args.destDir)
+    logging.info(args.destDir)
     squad_dl = SquadDownloader(args.destDir)
     squad_dl.download()
