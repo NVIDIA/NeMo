@@ -6,12 +6,18 @@ import random
 import shutil
 import subprocess
 from collections import Counter
-from nemo.collections.nlp.utils.callback_utils import list2str
-from nemo.collections.nlp.utils.common_nlp_utils import get_vocab, ids2text, if_exist, write_vocab, write_vocab_in_order
 
 from tqdm import tqdm
 
 import nemo
+from nemo.collections.nlp.utils.callback_utils import list2str
+from nemo.collections.nlp.utils.common_nlp_utils import (
+    get_vocab,
+    ids2text,
+    if_exist,
+    write_vocab,
+    write_vocab_in_order,
+)
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
 MODE_EXISTS_TMP = '{} mode of {} dataset has already been processed and stored at {}'
