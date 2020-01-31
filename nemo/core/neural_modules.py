@@ -67,9 +67,6 @@ class NeuralModule(ABC):
         # Validate the parameters.
         # self.validate_params(self._init_params)
 
-        # Empty list - to be removed.
-        self._local_parameters = {}
-
     def extract_init_params(self):
         """
             Retrieves the dictionary of of parameters (keys, values) passed to constructor of a class derived
@@ -455,13 +452,15 @@ class NeuralModule(ABC):
         return self._placement
 
     @property
+    @deprecated(version=0.11)
     def local_parameters(self) -> Optional[Dict]:
         """Get module's parameters
 
         Returns:
           module's parameters
         """
-        return self._local_parameters
+        return self._init_params
+        # return self._local_parameters
 
     @property
     def unique_instance_id(self):

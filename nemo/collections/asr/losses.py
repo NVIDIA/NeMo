@@ -56,7 +56,6 @@ class CTCLossNM(LossNM):
     def __init__(self, num_classes):
         super().__init__()
 
-        # self._blank = self.local_parameters.get('blank', 0)
         self._blank = num_classes
         self._criterion = nn.CTCLoss(blank=self._blank, reduction='none')
 

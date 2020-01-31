@@ -222,7 +222,6 @@ class TableLookUp2(NeuralModule):
 
     def __init__(self, detokenizer=None):
         NeuralModule.__init__(self)
-        # self._sp_decoder = self.local_parameters.get("sp_decoder", {})
         self._detokenizer = detokenizer
 
     def __call__(self, force_pt=False, *input, **kwargs):
