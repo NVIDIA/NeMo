@@ -20,7 +20,6 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 """
 import itertools
 import random
-from collections.nlp.data.datasets.datasets_utils import get_stats
 
 import numpy as np
 from torch.utils.data import Dataset
@@ -28,6 +27,7 @@ from torch.utils.data import Dataset
 import nemo
 from nemo.collections.nlp.data.datasets.datasets_utils import (
     get_label_stats,
+    get_stats,
     merge,
     process_atis,
     process_dialogflow,
