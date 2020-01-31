@@ -11,7 +11,6 @@ from inspect import getargvalues, getfullargspec, stack
 from typing import Dict, List, Optional, Set, Tuple
 
 import nemo
-from .neural_factory import DeviceType, Optimization
 from .neural_types import (
     CanNotInferResultNeuralType,
     NeuralPortNameMismatchError,
