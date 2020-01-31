@@ -9,6 +9,7 @@ import string
 import subprocess
 from collections import Counter
 
+import numpy as np
 from tqdm import tqdm
 
 import nemo
@@ -922,3 +923,15 @@ def get_tokens(s):
     if not s:
         return []
     return normalize_answer(s).split()
+
+
+def get_stats(lengths):
+    lengths = np.asarray(lengths)
+    nemo.logging.info(
+        f'Min: {np.min(lengths)} | \
+                 Max: {np.max(lengths)} | \
+                 Mean: {np.mean(lengths)} | \
+                 Median: {np.median(lengths)}'
+    )
+    nemo.logging.info(f'75 percentile: {np.percentile(lengths, 75)}')
+    nemo.logging.info(f'99 percentile: {np.percentile(lengths, 99)}')

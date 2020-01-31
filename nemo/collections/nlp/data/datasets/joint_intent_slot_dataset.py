@@ -20,6 +20,7 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 """
 import itertools
 import random
+from collections.nlp.data.datasets.datasets_utils import get_stats
 
 import numpy as np
 from torch.utils.data import Dataset
@@ -402,15 +403,3 @@ class JointIntentSlotDataDesc:
             if none_slot_label not in slots:
                 raise ValueError(f'none_slot_label {none_slot_label} not ' f'found in {self.slot_dict_file}.')
             self.pad_label = slots[none_slot_label]
-
-
-def get_stats(lengths):
-    lengths = np.asarray(lengths)
-    nemo.logging.info(
-        f'Min: {np.min(lengths)} | \
-                 Max: {np.max(lengths)} | \
-                 Mean: {np.mean(lengths)} | \
-                 Median: {np.median(lengths)}'
-    )
-    nemo.logging.info(f'75 percentile: {np.percentile(lengths, 75)}')
-    nemo.logging.info(f'99 percentile: {np.percentile(lengths, 99)}')

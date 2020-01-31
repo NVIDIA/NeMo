@@ -19,6 +19,7 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
+import collections.nlp.data.datasets.datasets_utils
 import itertools
 import os
 import pickle
@@ -113,7 +114,7 @@ def get_features(
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
     nemo.logging.info(f'Max length: {max_seq_length}')
-    nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.get_stats(sent_lengths)
+    collections.nlp.data.datasets.datasets_utils.get_stats(sent_lengths)
     too_long_count = 0
 
     for i, subtokens in enumerate(all_subtokens):
