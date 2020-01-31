@@ -1,6 +1,6 @@
-__all__ = ['_compute_softmax']
-
 import math
+
+__all__ = ['_compute_softmax']
 
 
 def _compute_softmax(scores):

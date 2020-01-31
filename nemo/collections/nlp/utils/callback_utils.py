@@ -1,5 +1,3 @@
-__all__ = ['list2str', 'tensor2list', 'plot_confusion_matrix']
-
 import os
 import time
 
@@ -8,6 +6,8 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix
 
 from nemo import logging
+
+__all__ = ['list2str', 'tensor2list', 'plot_confusion_matrix']
 
 
 def list2str(l):

@@ -1,4 +1,3 @@
-__all__ = ['BertPretrainingDataLayer', 'BertPretrainingPreprocessedDataLayer']
 import os
 import random
 
@@ -11,6 +10,8 @@ from nemo.backends.pytorch import DataLayerNM
 from nemo.collections.nlp.data import BertPretrainingDataset, BertPretrainingPreprocessedDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
+
+__all__ = ['BertPretrainingDataLayer', 'BertPretrainingPreprocessedDataLayer']
 
 
 class BertPretrainingDataLayer(TextDataLayer):

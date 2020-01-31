@@ -1,6 +1,7 @@
-__all__ = ['TokenizerSpec']
 from abc import ABC, abstractmethod
 from typing import List
+
+__all__ = ['TokenizerSpec']
 
 
 class TokenizerSpec(ABC):

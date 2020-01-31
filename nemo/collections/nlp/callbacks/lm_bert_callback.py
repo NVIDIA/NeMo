@@ -1,9 +1,9 @@
 # Copyright (c) 2019 NVIDIA Corporation
-__all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
-
 import numpy as np
 
 from nemo import logging
+
+__all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 
 def eval_iter_callback(tensors, global_vars):

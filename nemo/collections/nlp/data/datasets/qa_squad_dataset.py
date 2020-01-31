@@ -42,6 +42,7 @@ from nemo.collections.nlp.metrics.squad_metrics import (
 from nemo.collections.nlp.utils.common_nlp_utils import _is_whitespace
 from nemo.collections.nlp.utils.loss_utils import _compute_softmax
 
+__all__ = ['SquadDataset']
 
 """
 Utility functions for Question Answering NLP tasks

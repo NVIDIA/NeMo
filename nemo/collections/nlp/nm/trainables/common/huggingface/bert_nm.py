@@ -1,5 +1,4 @@
 # Copyright (c) 2019 NVIDIA Corporation
-__all__ = ['BERT']
 from typing import List, Optional
 
 from transformers import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAINED_MODEL_ARCHIVE_MAP, BertConfig, BertModel
@@ -7,6 +6,8 @@ from transformers import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAINED_MOD
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_modules import PretrainedModelInfo
 from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+
+__all__ = ['BERT']
 
 
 class BERT(TrainableNM):

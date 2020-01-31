@@ -2,13 +2,12 @@
 https://github.com/NVIDIA/DeepLearningExamples/blob/
 master/PyTorch/Translation/Transformer/fairseq/tokenizer.py
 """
-
-__all__ = ['get_unicode_categories', 'tokenize_en']
-
 import re
 import sys
 import unicodedata
 from collections import defaultdict
+
+__all__ = ['get_unicode_categories', 'tokenize_en']
 
 
 def get_unicode_categories():

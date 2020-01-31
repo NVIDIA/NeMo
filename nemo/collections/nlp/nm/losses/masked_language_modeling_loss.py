@@ -1,7 +1,8 @@
-__all__ = ['MaskedLanguageModelingLossNM']
 from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.nm.losses.smoothed_cross_entropy_loss import SmoothedCrossEntropyLoss
 from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+
+__all__ = ['MaskedLanguageModelingLossNM']
 
 
 class MaskedLanguageModelingLossNM(LossNM):

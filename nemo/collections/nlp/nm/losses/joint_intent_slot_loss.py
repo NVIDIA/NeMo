@@ -1,9 +1,10 @@
-__all__ = ['JointIntentSlotLoss']
 import torch
 from torch import nn
 
 from nemo.backends.pytorch import LossNM
 from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+
+__all__ = ['JointIntentSlotLoss']
 
 
 class JointIntentSlotLoss(LossNM):

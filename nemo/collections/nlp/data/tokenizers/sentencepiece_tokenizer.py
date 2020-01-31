@@ -1,7 +1,8 @@
-__all__ = ['SentencePieceTokenizer']
 import sentencepiece as spm
 
 from nemo.collections.nlp.data.tokenizers.tokenizer_spec import TokenizerSpec
+
+__all__ = ['SentencePieceTokenizer']
 
 
 class SentencePieceTokenizer(TokenizerSpec):
