@@ -163,7 +163,7 @@
             }
 
         def __init__(self, input_size, path):
-            DataLayerNM.__init__(self)
+            super().__init__()
 
             self._input_size = input_size
             self._path = path

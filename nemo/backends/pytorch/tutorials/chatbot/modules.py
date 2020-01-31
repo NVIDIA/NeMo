@@ -51,7 +51,7 @@ class DialogDataLayer(DataLayerNM):
         }
 
     def __init__(self, batch_size, corpus_name, datafile, min_count=3):
-        DataLayerNM.__init__(self)
+        super().__init__()
 
         self._batch_size = batch_size
         self._corpus_name = corpus_name
