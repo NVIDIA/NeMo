@@ -1,4 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
+import os
 from abc import abstractmethod
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -197,7 +198,14 @@ class DataLayerNM(NeuralModule):
         #    nemo.logging.warning("No batch_size specified in the data layer. "
         #                    "Setting batch_size to 1.")
         #    kwargs['batch_size'] = 1
+
+        # Set default values of variables used by trained/passed to DataLoader.
+        # NOTE: That also means that those are parameters of DataLoader/trainer, not DataLayer.
+        # Thus those fields will be removed from DataLayer and moved to trainer configuration
+        # (when the time for that will come;))
         self._batch_size = 1
+        self._num_workers = os.cpu_count()  # Use all CPUs by default.
+        self._shuffle = True  # Shuffle by default.
 
     @property
     def input_ports(self):
@@ -283,7 +291,33 @@ class DataLayerNM(NeuralModule):
 
     @property
     def batch_size(self):
+        """ Property returning the batch size. """
         return self._batch_size
+
+    @batch_size.setter
+    def batch_size(self, bs):
+        """ Property setting the batch size. """
+        self._batch_size = bs
+
+    @property
+    def shuffle(self):
+        """ Property returning the shuffle flag. """
+        return self._shuffle
+
+    @shuffle.setter
+    def batch_size(self, sh):
+        """ Property setting the shuffle flag. """
+        self._shuffle = sh
+
+    @property
+    def num_workers(self):
+        """ Property returning the number of workers. """
+        return self._batch_size
+
+    @num_workers.setter
+    def num_workers(self, nw):
+        """ Property setting the number of workers. """
+        self._num_workers = nw
 
 
 class LossNM(NeuralModule):

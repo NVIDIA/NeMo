@@ -494,8 +494,8 @@ class PtActions(Actions):
         """
         with torch.no_grad():
             # each call chain corresponds to a tensor in tensors_2_evaluate
-            dl_nm = None
             call_chain, _ = self.__get_top_sorted_modules_and_dataloader(hook=tensors_2_evaluate)
+            # "Retrieve" data layer from call chain.
             dl_nm = call_chain[0][0]
 
             # Prepare eval_dataloader
@@ -513,13 +513,16 @@ class PtActions(Actions):
                 #     )
                 # )
                 if dl_nm.dataset is not None:
-                    sampler = torch.utils.data.distributed.DistributedSampler(dl_nm.dataset)
+                    sampler = torch.utils.data.distributed.DistributedSampler(
+                        dataset=dl_nm.dataset,
+                        shuffle=dl_nm.shuffle
+                    )
                     eval_dataloader = torch.utils.data.DataLoader(
                         dataset=dl_nm.dataset,
                         sampler=sampler,
-                        num_workers=dl_nm.local_parameters.get("num_workers", os.cpu_count()),
+                        num_workers=dl_nm.num_workers,
                         batch_size=dl_nm.batch_size,
-                        shuffle=(sampler is None),
+                        shuffle=False
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -531,9 +534,9 @@ class PtActions(Actions):
                     eval_dataloader = torch.utils.data.DataLoader(
                         dataset=dl_nm.dataset,
                         sampler=None,  # not distributed sampler
-                        num_workers=call_chain[0][0].local_parameters.get("num_workers", os.cpu_count()),
-                        batch_size=call_chain[0][0].batch_size,
-                        shuffle=call_chain[0][0].local_parameters.get("shuffle", False),
+                        num_workers=dl_nm.num_workers,
+                        batch_size=dl_nm.batch_size,
+                        shuffle=dl_nm.shuffle,
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -668,13 +671,16 @@ class PtActions(Actions):
                 #     )
                 # )
                 if dl_nm.dataset is not None:
-                    sampler = torch.utils.data.distributed.DistributedSampler(dl_nm.dataset)
+                    sampler = torch.utils.data.distributed.DistributedSampler(
+                        dataset = dl_nm.dataset,
+                        shuffle=dl_nm.shuffle
+                    )
                     eval_dataloader = torch.utils.data.DataLoader(
                         dataset=dl_nm.dataset,
                         sampler=sampler,
-                        num_workers=dl_nm.local_parameters.get("num_workers", os.cpu_count()),
+                        num_workers=dl_nm.num_workers,
                         batch_size=dl_nm.batch_size,
-                        shuffle=(sampler is None),
+                        shuffle=False,
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -687,9 +693,9 @@ class PtActions(Actions):
                     eval_dataloader = torch.utils.data.DataLoader(
                         dataset=dl_nm.dataset,
                         sampler=None,  # not distributed sampler
-                        num_workers=call_chain[0][0].local_parameters.get("num_workers", os.cpu_count()),
-                        batch_size=call_chain[0][0].batch_size,
-                        shuffle=call_chain[0][0].local_parameters.get("shuffle", False),
+                        num_workers=dl_nm.num_workers,
+                        batch_size=dl_nm.batch_size,
+                        shuffle=dl_nm.shuffle,
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -1181,13 +1187,16 @@ class PtActions(Actions):
             #         "optimizers")
             nemo.logging.info("Doing distributed training")
             if t_dataset is not None:
-                train_sampler = torch.utils.data.distributed.DistributedSampler(t_dataset)
+                train_sampler = torch.utils.data.distributed.DistributedSampler(
+                    dataset=t_dataset,
+                    shuffle=dataNM.shuffle
+                )
                 train_dataloader = torch.utils.data.DataLoader(
                     dataset=t_dataset,
                     sampler=train_sampler,
-                    num_workers=dataNM.local_parameters.get("num_workers", os.cpu_count()),
+                    num_workers=dataNM.num_workers,
                     batch_size=dataNM.batch_size,
-                    shuffle=(train_sampler is None),
+                    shuffle=False,
                 )
             else:
                 train_dataloader = dataNM.data_iterator
@@ -1231,9 +1240,9 @@ class PtActions(Actions):
                 train_dataloader = torch.utils.data.DataLoader(
                     dataset=t_dataset,
                     sampler=None,
-                    num_workers=dataNM.local_parameters.get("num_workers", os.cpu_count()),
+                    num_workers=dataNM.num_workers,
                     batch_size=dataNM.batch_size,
-                    shuffle=dataNM.local_parameters.get("shuffle", True),
+                    shuffle=dataNM.shuffle
                 )
             else:
                 train_dataloader = dataNM.data_iterator
