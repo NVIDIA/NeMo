@@ -19,7 +19,6 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-import nemo.collections.nlp.data.datasets.joint_intent_slot_dataset
 import itertools
 import os
 import pickle
@@ -30,6 +29,7 @@ from torch.utils.data import Dataset
 
 import nemo
 import nemo.collections.nlp.data.datasets.datasets_utils as utils
+import nemo.collections.nlp.data.datasets.joint_intent_slot_dataset
 
 __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
 

@@ -3,7 +3,9 @@ import glob
 import json
 import os
 import random
+import re
 import shutil
+import string
 import subprocess
 from collections import Counter
 
@@ -894,3 +896,28 @@ def download_wkt2(data_dir):
     data_dir = 'data/lm/wikitext-2'
     subprocess.call('scripts/get_wkt2.sh')
     return data_dir
+
+
+def normalize_answer(s):
+    """Lower text and remove punctuation, articles and extra whitespace."""
+
+    def remove_articles(text):
+        return re.sub(r'\b(a|an|the)\b', ' ', text)
+
+    def white_space_fix(text):
+        return ' '.join(text.split())
+
+    def remove_punc(text):
+        exclude = set(string.punctuation)
+        return ''.join(ch for ch in text if ch not in exclude)
+
+    def lower(text):
+        return text.lower()
+
+    return white_space_fix(remove_articles(remove_punc(lower(s))))
+
+
+def get_tokens(s):
+    if not s:
+        return []
+    return normalize_answer(s).split()

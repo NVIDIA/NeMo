@@ -20,7 +20,6 @@ import json
 import os
 import pickle
 import sys
-from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import DataProcessor
 
 import numpy as np
 import torch
@@ -28,8 +27,8 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 import nemo
+from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import DataProcessor
 from nemo.collections.nlp.metrics.squad_metrics import (
-    _compute_softmax,
     _get_best_indexes,
     apply_no_ans_threshold,
     exact_match_score,
@@ -41,6 +40,7 @@ from nemo.collections.nlp.metrics.squad_metrics import (
     normalize_answer,
 )
 from nemo.collections.nlp.utils.common_nlp_utils import _is_whitespace
+from nemo.collections.nlp.utils.loss_utils import _compute_softmax
 
 
 """

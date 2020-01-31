@@ -1,11 +1,11 @@
 # pylint: disable=invalid-name
 
 import argparse
-import nemo.collections.nlp.utils.common_nlp_utils
 import json
 import os
 
 import nemo
+import nemo.collections.nlp.utils.common_nlp_utils
 from nemo.collections.nlp.callbacks.token_classification_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets import datasets_utils

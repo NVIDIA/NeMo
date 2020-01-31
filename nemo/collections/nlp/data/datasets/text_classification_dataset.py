@@ -20,9 +20,14 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
+import random
+
+import numpy as np
+from torch.utils.data import Dataset
+
+import nemo
 import nemo.collections.nlp.data.datasets.joint_intent_slot_dataset
 import nemo.collections.nlp.utils.common_nlp_utils
-import random
 from nemo.collections.nlp.data.datasets.datasets_utils import (
     get_intent_labels,
     get_label_stats,
@@ -33,11 +38,6 @@ from nemo.collections.nlp.data.datasets.datasets_utils import (
     process_thucnews,
 )
 from nemo.collections.nlp.utils.common_nlp_utils import calc_class_weights, if_exist
-
-import numpy as np
-from torch.utils.data import Dataset
-
-import nemo
 
 __all__ = ['BertTextClassificationDataset']
 

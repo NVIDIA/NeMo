@@ -1,10 +1,10 @@
 import argparse
-from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 
 import numpy as np
 from transformers import BertTokenizer
 
 import nemo.collections.nlp.nm.trainables.joint_intent_slot.join_intent_slot_nm
+from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 from nemo.collections.nlp.utils.common_nlp_utils import read_intent_slot_outputs
 
 # Parsing arguments

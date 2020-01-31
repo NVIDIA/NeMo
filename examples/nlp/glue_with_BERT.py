@@ -63,12 +63,12 @@ WNLI	Accuracy	                    43.66
 import argparse
 import json
 import os
-from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import output_modes, processors
 
 import nemo
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
 from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
+from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import output_modes, processors
 from nemo.collections.nlp.nm.data_layers import GlueClassificationDataLayer, GlueRegressionDataLayer
 from nemo.collections.nlp.nm.trainables.common.sequence_classification_nm import SequenceClassifier
 from nemo.collections.nlp.nm.trainables.common.sequence_regression_nm import SequenceRegression

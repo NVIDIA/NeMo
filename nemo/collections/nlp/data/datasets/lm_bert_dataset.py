@@ -20,8 +20,6 @@ import glob
 import os
 import pickle
 import random
-from nemo.collections.nlp.data.datasets.datasets_utils import download_wkt2
-from nemo.collections.nlp.data.datasets.lm_transformer_dataset import create_vocab_mlm
 
 import h5py
 import numpy as np
@@ -29,6 +27,8 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 import nemo
+from nemo.collections.nlp.data.datasets.datasets_utils import download_wkt2
+from nemo.collections.nlp.data.datasets.lm_transformer_dataset import create_vocab_mlm
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataset']
 
