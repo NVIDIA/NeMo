@@ -32,7 +32,7 @@ labels = jasper_model_definition['labels']
 # Instantiate necessary Neural Modules
 # Note that data layer is missing from here
 neural_factory = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.GPU, backend=nemo.core.Backend.PyTorch)
-data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(factory=neural_factory)
+data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor()
 jasper_encoder = nemo_asr.JasperEncoder(
     jasper=jasper_model_definition['JasperEncoder']['jasper'],
     activation=jasper_model_definition['JasperEncoder']['activation'],
