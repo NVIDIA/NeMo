@@ -618,7 +618,7 @@ class SpectrogramAugmentation(NonTrainableNM):
         rect_freq=20,
         rng=None,
     ):
-        NonTrainableNM.__init__(self)
+        super().__init__()
 
         if rect_masks > 0:
             self.spec_cutout = SpecCutout(rect_masks=rect_masks, rect_time=rect_time, rect_freq=rect_freq, rng=rng,)
@@ -710,7 +710,7 @@ class MultiplyBatch(NonTrainableNM):
         }
 
     def __init__(self, mult_batch=1):
-        NonTrainableNM.__init__(self)
+        super().__init__()
         self.mult = mult_batch
 
     @torch.no_grad()
