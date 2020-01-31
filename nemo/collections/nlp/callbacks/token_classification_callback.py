@@ -69,6 +69,6 @@ def eval_epochs_done_callback(global_vars, label_ids, graph_fold=None, none_labe
 
     # calculate and plot confusion_matrix
     if graph_fold:
-        plot_confusion_matrix(label_ids, labels, preds, graph_fold, normalize=normalize_cm)
+        plot_confusion_matrix(labels, preds, graph_fold, label_ids, normalize=normalize_cm)
 
     return dict({'Accuracy': accuracy})

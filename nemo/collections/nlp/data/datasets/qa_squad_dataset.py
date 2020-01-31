@@ -107,7 +107,7 @@ class SquadDataset(Dataset):
                 )
                 master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
                 if master_device:
-                    nemo.logging.info("  Saving train features into cached file %s", cached_train_features_file)
+                    logging.info("  Saving train features into cached file %s", cached_train_features_file)
                     with open(cached_train_features_file, "wb") as writer:
                         pickle.dump(self.features, writer)
         elif mode == "dev":
@@ -532,28 +532,28 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length, doc_stride
                 end_position = 0
 
             if example_index < 1:
-                nemo.logging.info("*** Example ***")
-                nemo.logging.info("unique_id: %s" % (unique_id))
-                nemo.logging.info("example_index: %s" % (example_index))
-                nemo.logging.info("doc_span_index: %s" % (doc_span_index))
-                nemo.logging.info("tokens: %s" % " ".join(tokens))
-                nemo.logging.info(
+                logging.info("*** Example ***")
+                logging.info("unique_id: %s" % (unique_id))
+                logging.info("example_index: %s" % (example_index))
+                logging.info("doc_span_index: %s" % (doc_span_index))
+                logging.info("tokens: %s" % " ".join(tokens))
+                logging.info(
                     "token_to_orig_map: %s" % " ".join(["%d:%d" % (x, y) for (x, y) in token_to_orig_map.items()])
                 )
-                nemo.logging.info(
+                logging.info(
                     "token_is_max_context: %s"
                     % " ".join(["%d:%s" % (x, y) for (x, y) in token_is_max_context.items()])
                 )
-                nemo.logging.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-                nemo.logging.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-                nemo.logging.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+                logging.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
+                logging.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
+                logging.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
                 if has_groundtruth and example.is_impossible:
-                    nemo.logging.info("impossible example")
+                    logging.info("impossible example")
                 if has_groundtruth and not example.is_impossible:
                     answer_text = " ".join(tokens[start_position : (end_position + 1)])
-                    nemo.logging.info("start_position: %d" % (start_position))
-                    nemo.logging.info("end_position: %d" % (end_position))
-                    nemo.logging.info("answer: %s" % (answer_text))
+                    logging.info("start_position: %d" % (start_position))
+                    logging.info("end_position: %d" % (end_position))
+                    logging.info("answer: %s" % (answer_text))
 
             features.append(
                 InputFeatures(

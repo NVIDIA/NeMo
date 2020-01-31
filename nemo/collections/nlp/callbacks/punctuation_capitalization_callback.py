@@ -105,5 +105,5 @@ def _eval_epochs_done_callback(task_name, global_vars, label_ids, graph_fold=Non
 
     # calculate and plot confusion_matrix
     if graph_fold:
-        plot_confusion_matrix(label_ids, labels, preds, graph_fold, normalize=normalize_cm, prefix=task_name)
+        plot_confusion_matrix(labels, preds, graph_fold, label_ids, normalize=normalize_cm, prefix=task_name)
     return accuracy
