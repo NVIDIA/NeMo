@@ -3,7 +3,7 @@ __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 import numpy as np
 
-import nemo
+from nemo import logging
 
 GLOBAL_KEYS = ["eval_loss", "sys"]
 
@@ -23,10 +23,10 @@ def eval_epochs_done_callback(global_vars):
     eval_loss = np.mean(global_vars["eval_loss"])
     eval_ppl = np.exp(eval_loss)
 
-    nemo.logging.info("------------------------------------------------------")
-    nemo.logging.info("Eval loss: {0}".format(np.round(eval_loss, 3)))
-    nemo.logging.info("Eval  ppl: {0}".format(np.round(eval_ppl, 3)))
-    nemo.logging.info("------------------------------------------------------")
+    logging.info("------------------------------------------------------")
+    logging.info("Eval loss: {0}".format(np.round(eval_loss, 3)))
+    logging.info("Eval  ppl: {0}".format(np.round(eval_ppl, 3)))
+    logging.info("------------------------------------------------------")
     for key in GLOBAL_KEYS:
         global_vars[key] = []
     return dict({"Eval_loss": eval_loss, "Eval_ppl": eval_ppl})

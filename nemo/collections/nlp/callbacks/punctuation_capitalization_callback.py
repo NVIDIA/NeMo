@@ -6,7 +6,7 @@ import random
 import numpy as np
 from sklearn.metrics import classification_report
 
-import nemo
+from nemo import logging
 from nemo.collections.nlp.utils.callback_utils import list2str, plot_confusion_matrix, tensor2list
 
 

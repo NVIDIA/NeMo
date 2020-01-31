@@ -27,9 +27,8 @@ import random
 import numpy as np
 from torch.utils.data import Dataset
 
-import nemo
 import nemo.collections.nlp.data.datasets.datasets_utils as datasets_utils
-import nemo.collections.nlp.data.datasets.joint_intent_slot_dataset
+from nemo import logging
 
 __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
 

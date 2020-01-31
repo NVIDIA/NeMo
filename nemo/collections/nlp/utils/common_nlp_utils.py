@@ -4,7 +4,7 @@ import string
 
 import numpy as np
 
-import nemo
+from nemo import logging
 
 
 def _is_whitespace(c):
@@ -27,11 +27,11 @@ def read_intent_slot_outputs(
     pred_slots = np.argmax(slot_logits, axis=2)
     slot_masks = slot_masks > 0.5
     for i, query in enumerate(queries):
-        nemo.logging.info(f'Query: {query}')
+        logging.info(f'Query: {query}')
         pred = pred_intents[i]
-        nemo.logging.info(f'Predicted intent:\t{pred}\t{intent_dict[pred]}')
+        logging.info(f'Predicted intent:\t{pred}\t{intent_dict[pred]}')
         if intents is not None:
-            nemo.logging.info(f'True intent:\t{intents[i]}\t{intent_dict[intents[i]]}')
+            logging.info(f'True intent:\t{intents[i]}\t{intent_dict[intents[i]]}')
 
         pred_slot = pred_slots[i][slot_masks[i]]
         tokens = query.strip().split()
@@ -43,7 +43,7 @@ def read_intent_slot_outputs(
             output = f'{token}\t{slot_dict[pred_slot[j]]}'
             if slots is not None:
                 output = f'{output}\t{slot_dict[slots[i][j]]}'
-            nemo.logging.info(output)
+            logging.info(output)
 
 
 def get_vocab(file):
