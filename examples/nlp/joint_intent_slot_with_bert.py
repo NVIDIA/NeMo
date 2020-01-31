@@ -8,7 +8,7 @@ from transformers import BertTokenizer
 import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer
-import nemo.collections.nlp.nm.trainables.joint_intent_slot.join_intent_slot_nm
+import nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
 from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 from nemo.utils.lr_policies import get_lr_policy
@@ -87,7 +87,7 @@ data_desc = JointIntentSlotDataDesc(
 )
 
 # Create sentence classification loss on top
-classifier = nemo.collections.nlp.nm.trainables.joint_intent_slot.join_intent_slot_nm.JointIntentSlotClassifier(
+classifier = nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm.JointIntentSlotClassifier(
     hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
 )
 

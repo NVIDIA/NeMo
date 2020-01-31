@@ -3,7 +3,6 @@ import os
 
 import numpy as np
 
-import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo.collections.nlp.data import NemoBertTokenizer
 from nemo.collections.nlp.utils.common_nlp_utils import get_vocab
@@ -73,7 +72,7 @@ capit_labels_dict = get_vocab(args.capit_labels_dict)
 
 """ Load the pretrained BERT parameters
 See the list of pretrained models, call:
-nemo_nlp.BERT.list_pretrained_models()
+nemo.collections.nlp.BERT.list_pretrained_models()
 """
 pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
     pretrained_model_name=args.pretrained_bert_model
