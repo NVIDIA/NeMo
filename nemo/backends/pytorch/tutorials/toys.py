@@ -161,7 +161,7 @@ class RealFunctionDataLayer(DataLayerNM):
                 x_lo: lower boundary along x axis
                 x_hi: higher boundary along x axis
         """
-        DataLayerNM.__init__(self)
+        super().__init__()
 
         # Dicionary with handled functions.
         handled_funcs = {"sin": t.sin, "cos": t.cos}
