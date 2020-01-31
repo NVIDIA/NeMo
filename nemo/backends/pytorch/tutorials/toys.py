@@ -5,10 +5,10 @@ import torch as t
 import torch.nn as nn
 import torch.utils.data as t_utils
 
-from ....core import DeviceType, NeuralModule
-from ....core.neural_types import *
-from ..nm import DataLayerNM, LossNM, TrainableNM
 from nemo import logging
+from nemo.backends.pytorch.nm import DataLayerNM, LossNM, TrainableNM
+from nemo.core import DeviceType, NeuralModule
+from nemo.core.neural_types import *
 
 
 class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
