@@ -64,7 +64,7 @@ import argparse
 import json
 import os
 
-import nemo
+from nemo import logging
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
 from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
@@ -303,7 +303,7 @@ if args.task_name == 'mnli':
         )
     )
 
-nemo.logging.info(f"steps_per_epoch = {steps_per_epoch}")
+logging.info(f"steps_per_epoch = {steps_per_epoch}")
 callback_train = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),

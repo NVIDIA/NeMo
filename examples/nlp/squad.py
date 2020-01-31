@@ -62,8 +62,8 @@ import argparse
 import json
 import os
 
-import nemo
 import nemo.collections.nlp as nemo_nlp
+from nemo import logging
 from nemo.collections.nlp.callbacks.qa_squad_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
 
@@ -329,7 +329,7 @@ if __name__ == "__main__":
     )
 
     if not args.evaluation_only:
-        nemo.logging.info(f"steps_per_epoch = {train_steps_per_epoch}")
+        logging.info(f"steps_per_epoch = {train_steps_per_epoch}")
         callback_train = nemo.core.SimpleLossLoggerCallback(
             tensors=[train_loss],
             print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
@@ -394,7 +394,7 @@ if __name__ == "__main__":
             null_score_diff_threshold=args.null_score_diff_threshold,
             do_lower_case=args.do_lower_case,
         )
-        nemo.logging.info(f"exact_match: {exact_match}, f1: {f1}")
+        logging.info(f"exact_match: {exact_match}, f1: {f1}")
         if args.output_prediction_file is not None:
             with open(args.output_prediction_file, "w") as writer:
                 writer.write(json.dumps(all_predictions, indent=4) + "\n")

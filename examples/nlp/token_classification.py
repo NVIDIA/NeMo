@@ -4,11 +4,10 @@ import argparse
 import json
 import os
 
-import nemo
 import nemo.collections.nlp.utils.common_nlp_utils
+from nemo import logging
 from nemo.collections.nlp.callbacks.token_classification_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
-from nemo.collections.nlp.data.datasets import datasets_utils
 from nemo.collections.nlp.nm.data_layers import BertTokenClassificationDataLayer
 from nemo.collections.nlp.nm.losses import TokenClassificationLoss
 from nemo.collections.nlp.nm.trainables import TokenClassifier
@@ -92,7 +91,7 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=True,
 )
 
-nemo.logging.info(args)
+logging.info(args)
 
 output_file = f'{nf.work_dir}/output.txt'
 
@@ -125,7 +124,7 @@ else:
         )
 
     model.restore_from(args.bert_checkpoint)
-    nemo.logging.info(f"Model restored from {args.bert_checkpoint}")
+    logging.info(f"Model restored from {args.bert_checkpoint}")
 
 hidden_size = model.local_parameters["hidden_size"]
 
@@ -150,7 +149,7 @@ def create_pipeline(
 ):
     global classifier, task_loss
 
-    nemo.logging.info(f"Loading {mode} data...")
+    logging.info(f"Loading {mode} data...")
     shuffle = args.shuffle_data if mode == 'train' else False
 
     text_file = f'{args.data_dir}/text_{mode}.txt'
@@ -192,11 +191,11 @@ def create_pipeline(
         class_weights = None
 
         if args.use_weighted_loss:
-            nemo.logging.info(f"Using weighted loss")
+            logging.info(f"Using weighted loss")
             label_freqs = data_layer.dataset.label_frequencies
             class_weights = nemo.collections.nlp.utils.common_nlp_utils.calc_class_weights(label_freqs)
 
-            nemo.logging.info(f"class_weights: {class_weights}")
+            logging.info(f"class_weights: {class_weights}")
 
         classifier = classifier(
             hidden_size=hidden_size, num_classes=len(label_ids), dropout=dropout, num_layers=num_layers
@@ -222,7 +221,7 @@ train_tensors, train_loss, steps_per_epoch, label_ids, _ = create_pipeline()
 
 eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev', label_ids=label_ids)
 
-nemo.logging.info(f"steps_per_epoch = {steps_per_epoch}")
+logging.info(f"steps_per_epoch = {steps_per_epoch}")
 
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(

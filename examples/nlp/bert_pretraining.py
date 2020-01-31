@@ -64,8 +64,8 @@ import os
 
 from pytorch_transformers import BertConfig
 
-import nemo
 import nemo.collections.nlp as nemo_nlp
+from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import BERTPretrainingDataDesc
 from nemo.utils.lr_policies import get_lr_policy
 
@@ -150,11 +150,11 @@ if not args.preprocessed_data:
         args.dataset_name, args.data_dir, args.vocab_size, args.sample_size, special_tokens, 'train.txt'
     )
     if args.tokenizer == "sentence-piece":
-        nemo.logging.info("To use SentencePieceTokenizer.")
+        logging.info("To use SentencePieceTokenizer.")
         tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=data_desc.tokenizer_model)
         tokenizer.add_special_tokens(special_tokens)
     elif args.tokenizer == "nemo-bert":
-        nemo.logging.info("To use NemoBertTokenizer.")
+        logging.info("To use NemoBertTokenizer.")
         vocab_file = os.path.join(args.data_dir, 'vocab.txt')
         # To train on a Chinese dataset, use NemoBertTokenizer
         tokenizer = nemo_nlp.data.NemoBertTokenizer(vocab_file=vocab_file)
@@ -262,7 +262,7 @@ else:
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=log_tensors,
     step_freq=args.print_step_freq,
-    print_func=lambda x: nemo.logging.info(print_msg.format(*[y.item() for y in x])),
+    print_func=lambda x: logging.info(print_msg.format(*[y.item() for y in x])),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer,
 )
