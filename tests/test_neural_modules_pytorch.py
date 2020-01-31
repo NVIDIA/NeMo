@@ -44,26 +44,26 @@ class TestNeuralModulesPT(NeMoUnitTest):
 
     def test_default_init_params(self):
         simple_nm = TestNM1(var1=1)
-        init_params = simple_nm._init_params
+        init_params = simple_nm.init_params
         self.assertEqual(init_params["var1"], 1)
         self.assertEqual(init_params["var2"], 2)
         self.assertEqual(init_params["var3"], 3)
 
     def test_simple_init_params(self):
         simple_nm = TestNM1(var1=10, var3=30)
-        init_params = simple_nm._init_params
+        init_params = simple_nm.init_params
         self.assertEqual(init_params["var1"], 10)
         self.assertEqual(init_params["var2"], 2)
         self.assertEqual(init_params["var3"], 30)
 
     def test_nested_init_params(self):
         simple_nm = TestNM2(var2="hello")
-        init_params = simple_nm._init_params
+        init_params = simple_nm.init_params
         self.assertEqual(init_params["var2"], "hello")
 
     def test_constructor_TaylorNet(self):
         tn = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
-        self.assertEqual(tn._init_params["dim"], 4)
+        self.assertEqual(tn.init_params["dim"], 4)
 
     def test_call_TaylorNet(self):
         x_tg = nemo.core.neural_modules.NmTensor(

@@ -23,7 +23,7 @@ class TrainableNM(NeuralModule, nn.Module):
 
       def __init__(self):
         TrainableNM.__init__(self)
-        .... # you code
+        .... # your code
 
     Then make sure that your forward(..) method accepts arguments named like
     input ports.

@@ -24,8 +24,8 @@ import nemo
 class NeMoUnitTest(unittest.TestCase):
     def setUp(self) -> None:
         """ Default setup - instantiates Neural Factory. """
-        # Initialize the default Neural Factory - on CPU.
-        self.nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.CPU)
+        # Initialize the default Neural Factory - on GPU.
+        self.nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.GPU)
         # Reset loggers.
         self.nf._exp_manager.reset_loggers()
 
