@@ -105,10 +105,10 @@ class TestZeroDL(NeMoUnitTest):
         loss_tensor = loss(predictions=y_pred, target=y)
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss_tensor], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'),
+            tensors=[loss_tensor], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}')
         )
         neural_factory.train(
-            [loss_tensor], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd",
+            [loss_tensor], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd"
         )
 
     def test_asr_with_zero_ds(self):
@@ -148,16 +148,16 @@ class TestZeroDL(NeMoUnitTest):
         # print(jasper_encoder)
         log_probs = jasper_decoder(encoder_output=encoded)
         loss = ctc_loss(
-            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
+            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
         )
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'),
+            tensors=[loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}')
         )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
         )
         neural_factory.train(
-            [loss], callbacks=[callback], optimization_params={"num_epochs": 2, "lr": 0.0003}, optimizer="sgd",
+            [loss], callbacks=[callback], optimization_params={"num_epochs": 2, "lr": 0.0003}, optimizer="sgd"
         )

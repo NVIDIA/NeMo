@@ -106,7 +106,7 @@ class TestWeightSharing(NeMoUnitTest):
         else:
             for key in w1.keys():
                 all_same = all_same and np.array_equal(
-                    w1[key][0].cpu().detach().numpy(), w2[key][0].cpu().detach().numpy(),
+                    w1[key][0].cpu().detach().numpy(), w2[key][0].cpu().detach().numpy()
                 )
         return all_same
 
@@ -141,16 +141,16 @@ class TestWeightSharing(NeMoUnitTest):
         embd.tie_weights_with(
             proj,
             weight_names=["embedding.weight"],
-            name2name_and_transform={"embedding.weight": ("projection.weight", WeightShareTransform.SAME,)},
+            name2name_and_transform={"embedding.weight": ("projection.weight", WeightShareTransform.SAME)},
         )
         self.assertTrue(
-            np.array_equal(embd.embedding.weight.detach().numpy(), proj.projection.weight.detach().numpy(),)
+            np.array_equal(embd.embedding.weight.detach().numpy(), proj.projection.weight.detach().numpy())
         )
         was = embd.embedding.weight.detach().numpy()
         embd.embedding.weight.data = torch.tensor(np.random.randint(0, 10, (3, 2)) * 1.0)
         after = embd.embedding.weight.detach().numpy()
         self.assertTrue(
-            np.array_equal(embd.embedding.weight.detach().numpy(), proj.projection.weight.detach().numpy(),)
+            np.array_equal(embd.embedding.weight.detach().numpy(), proj.projection.weight.detach().numpy())
         )
         self.assertFalse(np.array_equal(was, after))
 
@@ -161,9 +161,9 @@ class TestWeightSharing(NeMoUnitTest):
         weights = torch.tensor(np.random.randint(0, 10, (3, 2)) * 1.0)
         name2weights = {"embedding.weight": (weights, True)}
         embd.set_weights(name2weight=name2weights)
-        self.assertTrue(np.array_equal(embd.embedding.weight.detach().numpy(), weights.detach().numpy(),))
+        self.assertTrue(np.array_equal(embd.embedding.weight.detach().numpy(), weights.detach().numpy()))
         weights = torch.tensor(np.random.randint(0, 10, (3, 2)) * 1.0)
-        self.assertFalse(np.array_equal(embd.embedding.weight.detach().numpy(), weights.detach().numpy(),))
+        self.assertFalse(np.array_equal(embd.embedding.weight.detach().numpy(), weights.detach().numpy()))
 
     def test_freeze_unfreeze_TrainableNM(self):
         path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))
@@ -205,24 +205,24 @@ class TestWeightSharing(NeMoUnitTest):
         # print(jasper_encoder)
         log_probs = jasper_decoder(encoder_output=encoded)
         loss = ctc_loss(
-            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
+            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
         )
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'),
+            tensors=[loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}')
         )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
         )
         optimizer = neural_factory.get_trainer()
         optimizer.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 2, "lr": 0.0003},
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 2, "lr": 0.0003}
         )
 
     def test_freeze_unfreeze_Wrapper(self):
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, placement=nemo.core.DeviceType.GPU, create_tb_writer=False,
+            backend=nemo.core.Backend.PyTorch, placement=nemo.core.DeviceType.GPU, create_tb_writer=False
         )
 
         dl_train = nemo.backends.pytorch.ZerosDataLayer(
@@ -244,7 +244,7 @@ class TestWeightSharing(NeMoUnitTest):
 
         # NOTICE: pretrain=True argument
         resnet = neural_factory.get_module(
-            name="resnet18", params={"num_classes": 2}, collection="torchvision", pretrained=True,
+            name="resnet18", params={"num_classes": 2}, collection="torchvision", pretrained=True
         )
 
         L_train = neural_factory.get_module(name="CrossEntropyLoss", collection="toys", params={})
@@ -259,13 +259,13 @@ class TestWeightSharing(NeMoUnitTest):
         train_loss = L_train(predictions=outputs, labels=labels)
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[train_loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'),
+            tensors=[train_loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}')
         )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
         )
         optimizer = neural_factory.get_trainer()
         optimizer.train(
-            [train_loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 2, "lr": 0.0003},
+            [train_loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 2, "lr": 0.0003}
         )
