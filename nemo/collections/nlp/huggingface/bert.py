@@ -124,9 +124,11 @@ class BERT(TrainableNM):
 
         self.add_module("bert", model)
         self.config = model.config
+
         # TK: storing config name in init_params instead.
         # for key, value in self.config.to_dict().items():
         #    self._local_parameters[key] = value
+
         # Store the only value that will be used externally - hidden_size.
         self._hidden_size = hidden_size
 
