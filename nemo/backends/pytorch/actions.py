@@ -1317,7 +1317,7 @@ class PtActions(Actions):
                     ):
                         if stop_on_nan_loss:
                             raise ValueError('Loss is NaN or inf - exiting')
-                        nemo.logging.warning('Loss is NaN or inf')
+                        logging.warning('Loss is NaN or inf')
                         curr_optimizer.zero_grad()
                         nan = True
                         break
