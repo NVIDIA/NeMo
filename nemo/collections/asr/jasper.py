@@ -134,7 +134,7 @@ class JasperEncoder(TrainableNM):
         frame_splicing=1,
         init_mode='xavier_uniform',
     ):
-        TrainableNM.__init__(self)
+        super().__init__()
 
         activation = jasper_activations[activation]()
         feat_in = feat_in * frame_splicing

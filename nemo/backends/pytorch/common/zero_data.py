@@ -68,7 +68,7 @@ class ZerosDataLayer(DataLayerNM):
     """
 
     def __init__(self, size, output_ports, dtype, batch_size, shapes=None):
-        DataLayerNM.__init__(self)
+        self().__init__()
         self._size = size
         self._output_ports = output_ports
         self._type = dtype
