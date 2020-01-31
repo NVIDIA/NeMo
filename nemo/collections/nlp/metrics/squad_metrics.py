@@ -28,9 +28,8 @@ import collections
 
 from transformers.tokenization_bert import BasicTokenizer
 
-from nemo.collections.nlp.data.datasets.datasets_utils import get_tokens, normalize_answer
-
 from nemo import logging
+from nemo.collections.nlp.data.datasets.datasets_utils import get_tokens, normalize_answer
 
 
 def _get_best_indexes(logits, n_best_size):

@@ -36,7 +36,9 @@ try:
     from apex.normalization import FusedLayerNorm
 except (AttributeError, ModuleNotFoundError):
     # this is lie - it isn't fused in this case
-    logging.warning("Unable to import APEX. Mixed precision, distributed training and " "FusedLayerNorm are not available.")
+    logging.warning(
+        "Unable to import APEX. Mixed precision, distributed training and " "FusedLayerNorm are not available."
+    )
     from torch.nn import LayerNorm as FusedLayerNorm
 
 

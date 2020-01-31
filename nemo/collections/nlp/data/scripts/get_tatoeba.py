@@ -211,7 +211,9 @@ if __name__ == "__main__":
     train_file = os.path.join(args.data_dir, 'train.txt')
     dev_file = os.path.join(args.data_dir, 'dev.txt')
 
-    logging.info(f'Splitting the {args.dataset} dataset into train and dev sets' + ' and creating labels and text files')
+    logging.info(
+        f'Splitting the {args.dataset} dataset into train and dev sets' + ' and creating labels and text files'
+    )
     __split_into_train_dev(clean_eng_sentences, train_file, dev_file, args.percent_dev)
 
     logging.info(f'Creating text and label files for training')

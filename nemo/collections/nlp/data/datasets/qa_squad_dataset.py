@@ -27,6 +27,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 import nemo
+from nemo import logging
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import DataProcessor
 from nemo.collections.nlp.metrics.squad_metrics import (
     _get_best_indexes,
@@ -42,7 +43,6 @@ from nemo.collections.nlp.metrics.squad_metrics import (
 from nemo.collections.nlp.utils.common_nlp_utils import _is_whitespace
 from nemo.collections.nlp.utils.loss_utils import _compute_softmax
 
-from nemo import logging
 
 """
 Utility functions for Question Answering NLP tasks
