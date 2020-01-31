@@ -1,6 +1,8 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import nemo
 
+logging = nemo.logging
+
 nf = nemo.core.NeuralModuleFactory()
 # To use CPU-only do:
 # from nemo.core import DeviceType
@@ -19,7 +21,7 @@ lss = loss(predictions=p, target=y)
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=[lss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'),
+    tensors=[lss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
 )
 
 # Invoke "train" action
