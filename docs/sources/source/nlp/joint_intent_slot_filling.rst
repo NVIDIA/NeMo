@@ -109,7 +109,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
                             num_gpus=1,
                             local_rank=0,
                             mode='train'):
-            nemo.logging.info(f"Loading {mode} data...")
+            logging.info(f"Loading {mode} data...")
             data_file = f'{data_desc.data_dir}/{mode}.tsv'
             slot_file = f'{data_desc.data_dir}/{mode}_slots.tsv'
             shuffle = args.shuffle_data if mode == 'train' else False
@@ -133,15 +133,15 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
                 subtokens_mask, intents, slots = data_layer()
             data_size = len(data_layer)
 
-            print(f'The length of data layer is {data_size}')
+            logging.info(f'The length of data layer is {data_size}')
 
             if data_size < batch_size:
-                nemo.logging.warning("Batch_size is larger than the dataset size")
-                nemo.logging.warning("Reducing batch_size to dataset size")
+                logging.warning("Batch_size is larger than the dataset size")
+                logging.warning("Reducing batch_size to dataset size")
                 batch_size = data_size
 
             steps_per_epoch = math.ceil(data_size / (batch_size * num_gpus))
-            nemo.logging.info(f"Steps_per_epoch = {steps_per_epoch}")
+            logging.info(f"Steps_per_epoch = {steps_per_epoch}")
 
             hidden_states = pretrained_bert_model(input_ids=ids,
                                                   token_type_ids=type_ids,

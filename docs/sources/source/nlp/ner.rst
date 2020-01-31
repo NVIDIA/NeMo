@@ -137,7 +137,7 @@ Now, we will set up our callbacks. We will use 3 callbacks:
 
         callback_train = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss],
-            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())))
+            print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())))
 
         train_data_size = len(train_data_layer)
 

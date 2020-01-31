@@ -9,16 +9,18 @@ from tensorboardX import SummaryWriter
 import nemo
 from nemo.backends.pytorch.torchvision.helpers import compute_accuracy, eval_epochs_done_callback, eval_iter_callback
 
+logging = nemo.logging
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 if not os.path.isdir("hymenoptera_data"):
-    print("Datafolder not found. Downloading data from the Web")
+    logging.info("Datafolder not found. Downloading data from the Web")
     subprocess.run(["wget", "https://download.pytorch.org/tutorial/hymenoptera_data.zip"])
     zip_ref = zipfile.ZipFile('hymenoptera_data.zip', 'r')
     zip_ref.extractall('.')
     zip_ref.close()
 else:
-    print("Found data folder - hymenoptera_data")
+    logging.info("Found data folder - hymenoptera_data")
 
 parser = argparse.ArgumentParser(description='Transfer Learning')
 parser.add_argument("--batch_size", default=32, type=int)
