@@ -532,7 +532,6 @@ class BertPunctuationCapitalizationDataLayer(TextDataLayer):
         ignore_start_end=False,
         use_cache=False,
         dataset_type=BertPunctuationCapitalizationDataset,
-        **kwargs
     ):
         dataset_params = {
             'text_file': text_file,
@@ -747,9 +746,7 @@ class BertPretrainingDataLayer(TextDataLayer):
             "labels": NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def __init__(
-        self, tokenizer, dataset, max_seq_length, mask_probability, short_seq_prob=0.1, batch_size=64, **kwargs
-    ):
+    def __init__(self, tokenizer, dataset, max_seq_length, mask_probability, short_seq_prob=0.1, batch_size=64):
         dataset_params = {
             'tokenizer': tokenizer,
             'dataset': dataset,
@@ -820,6 +817,8 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
         }
 
     def __init__(self, dataset, max_pred_length, batch_size=64, training=True):
+        super().__init__()
+        self._batch_size = batch_size
 
         if os.path.isdir(dataset):
             self.files = [
@@ -829,7 +828,6 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
             self.files = [dataset]
         self.files.sort()
         self.num_files = len(self.files)
-        self.batch_size = batch_size
         self.max_pred_length = max_pred_length
         self.training = training
         total_length = 0
@@ -838,7 +836,6 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
             total_length += len(fp['input_ids'])
             fp.close()
         self.total_length = total_length
-        super().__init__()
 
     def _collate_fn(self, x):
         num_components = len(x[0])
@@ -1050,7 +1047,6 @@ class GlueDataLayerClassification(TextDataLayer):
         shuffle=False,
         batch_size=64,
         dataset_type=GLUEDataset,
-        **kwargs
     ):
         dataset_params = {
             'data_dir': data_dir,

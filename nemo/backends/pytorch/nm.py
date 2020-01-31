@@ -294,30 +294,30 @@ class DataLayerNM(NeuralModule):
         """ Property returning the batch size. """
         return self._batch_size
 
-    @batch_size.setter
-    def batch_size(self, bs):
-        """ Property setting the batch size. """
-        self._batch_size = bs
+    # @batch_size.setter
+    # def batch_size(self, bs):
+    #    """ Property setting the batch size. """
+    #    self._batch_size = bs
 
     @property
     def shuffle(self):
         """ Property returning the shuffle flag. """
         return self._shuffle
 
-    @shuffle.setter
-    def batch_size(self, sh):
-        """ Property setting the shuffle flag. """
-        self._shuffle = sh
+    # @shuffle.setter
+    # def shuffle(self, sh):
+    #    """ Property setting the shuffle flag. """
+    #     self._shuffle = sh
 
     @property
     def num_workers(self):
         """ Property returning the number of workers. """
-        return self._batch_size
+        return self._num_workers
 
-    @num_workers.setter
-    def num_workers(self, nw):
-        """ Property setting the number of workers. """
-        self._num_workers = nw
+    # @num_workers.setter
+    # def num_workers(self, nw):
+    #    """ Property setting the number of workers. """
+    #    self._num_workers = nw
 
 
 class LossNM(NeuralModule):
