@@ -143,7 +143,7 @@ def process_nlu(filename, uncased, modes=['train', 'test'], dataset_name='nlu-ub
 
     if not os.path.exists(filename):
         link = 'https://github.com/sebischair/NLU-Evaluation-Corpora'
-        raise ValueError(f'Data not found at {filename}. ' 'Please download IMDB from {link}.')
+        raise ValueError(f'Data not found at {filename}. ' f'Please download IMDB from {link}.')
 
     if dataset_name == 'nlu-ubuntu':
         INTENT = {'makeupdate': 1, 'setupprinter': 2, 'shutdowncomputer': 3, 'softwarerecommendation': 4, 'none': 0}
@@ -361,7 +361,7 @@ def process_mturk(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     if not os.path.exists(data_dir):
         link = 'www.mturk.com'
         raise ValueError(
-            f'Data not found at {data_dir}. ' 'Export your mturk data from' '{link} and unzip at {data_dir}.'
+            f'Data not found at {data_dir}. ' f'Export your mturk data from' f'{link} and unzip at {data_dir}.'
         )
 
     outfold = f'{data_dir}/nemo-processed'
@@ -683,7 +683,7 @@ def process_dialogflow(data_dir, uncased, modes=['train', 'test'], dev_split=0.1
     if not os.path.exists(data_dir):
         link = 'www.dialogflow.com'
         raise ValueError(
-            f'Data not found at {data_dir}. ' 'Export your dialogflow data from' '{link} and unzip at {data_dir}.'
+            f'Data not found at {data_dir}. ' f'Export your dialogflow data from' f'{link} and unzip at {data_dir}.'
         )
 
     outfold = f'{data_dir}/dialogflow/nemo-processed'
@@ -753,7 +753,7 @@ def process_snips(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     if not os.path.exists(data_dir):
         link = 'www.github.com/snipsco/spoken-language'
         '-understanding-research-datasets'
-        raise ValueError(f'Data not found at {data_dir}. ' 'Resquest to download the SNIPS dataset from {link}.')
+        raise ValueError(f'Data not found at {data_dir}. ' f'Resquest to download the SNIPS dataset from {link}.')
 
     outfold = f'{data_dir}/nemo-processed'
 
