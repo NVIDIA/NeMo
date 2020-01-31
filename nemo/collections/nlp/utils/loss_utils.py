@@ -1,3 +1,5 @@
+__all__ = ['_compute_softmax']
+
 import math
 
 
