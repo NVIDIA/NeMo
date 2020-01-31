@@ -26,7 +26,7 @@ import numpy as np
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-import nemo
+from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import download_wkt2
 from nemo.collections.nlp.data.datasets.lm_transformer_dataset import create_vocab_mlm
 
@@ -385,7 +385,7 @@ class BERTPretrainingDataDesc:
                 data_dir, vocab_size, sample_size, special_tokens, train_file
             )
         else:
-            nemo.logging.warning(
+            logging.warning(
                 "Looks like you passed a dataset name that isn't "
                 "already supported by NeMo. Please make sure that "
                 "you build the preprocessing method for it."

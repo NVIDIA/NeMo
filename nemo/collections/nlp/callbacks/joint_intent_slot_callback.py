@@ -5,7 +5,7 @@ import random
 import numpy as np
 from sklearn.metrics import classification_report
 
-import nemo
+from nemo import logging
 from nemo.collections.nlp.utils.callback_utils import list2str, plot_confusion_matrix, tensor2list
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
@@ -77,26 +77,26 @@ def eval_epochs_done_callback(global_vars, graph_fold):
     i = 0
     if intent_preds.shape[0] > sample_size + 1:
         i = random.randint(0, intent_preds.shape[0] - sample_size - 1)
-    nemo.logging.info("Sampled i_preds: [%s]" % list2str(intent_preds[i : i + sample_size]))
-    nemo.logging.info("Sampled intents: [%s]" % list2str(intent_labels[i : i + sample_size]))
-    nemo.logging.info("Sampled s_preds: [%s]" % list2str(slot_preds[i : i + sample_size]))
-    nemo.logging.info("Sampled slots: [%s]" % list2str(slot_labels[i : i + sample_size]))
+    logging.info("Sampled i_preds: [%s]" % list2str(intent_preds[i : i + sample_size]))
+    logging.info("Sampled intents: [%s]" % list2str(intent_labels[i : i + sample_size]))
+    logging.info("Sampled s_preds: [%s]" % list2str(slot_preds[i : i + sample_size]))
+    logging.info("Sampled slots: [%s]" % list2str(slot_labels[i : i + sample_size]))
 
     plot_confusion_matrix(intent_labels, intent_preds, graph_fold)
 
-    nemo.logging.info('Intent prediction results')
+    logging.info('Intent prediction results')
     correct_preds = sum(intent_labels == intent_preds)
     intent_accuracy = correct_preds / intent_labels.shape[0]
-    nemo.logging.info(f'Intent accuracy: {intent_accuracy}')
-    nemo.logging.info(
+    logging.info(f'Intent accuracy: {intent_accuracy}')
+    logging.info(
         f'Classification report:\n \
         {classification_report(intent_labels, intent_preds)}'
     )
 
-    nemo.logging.info('Slot prediction results')
+    logging.info('Slot prediction results')
     slot_accuracy = sum(slot_labels == slot_preds) / slot_labels.shape[0]
-    nemo.logging.info(f'Slot accuracy: {slot_accuracy}')
-    nemo.logging.info(
+    logging.info(f'Slot accuracy: {slot_accuracy}')
+    logging.info(
         f'Classification report:\n \
         {classification_report(slot_labels[:-2], slot_preds[:-2])}'
     )
