@@ -37,6 +37,9 @@ class NeuralType(object):
     nmTensors derives from this. It is used to represent *the types* of inputs and outputs."""
 
     def __init__(self, elements_type: ElementType = VoidType(), axes: Optional[Tuple] = None, optional=False):
+        if not isinstance(elements_type, ElementType):
+            raise ValueError(f"elements_type of NeuralType must be an instance of a class derived from ElementType."
+                             f"Did you pass a class instead?")
         self.elements_type = elements_type
         if axes is not None:
             self.__check_sanity(axes)
@@ -48,21 +51,24 @@ class NeuralType(object):
                     axes_list.append(axis)
                 else:
                     raise ValueError(f"axis type must be either str or AxisType instance")
-            self.axes_tuple = tuple(axes_list)
+            self.axes = tuple(axes_list)
         else:
-            self.axes_tuple = None
+            self.axes = None
         self.optional = optional
 
     def compare(self, second) -> NeuralTypeComparisonResult:
         # First, handle dimensionality
-        axes_a = self.axes_tuple
-        axes_b = second.axes_tuple
+        axes_a = self.axes
+        axes_b = second.axes
 
         kinds_a = dict()
         kinds_b = dict()
 
-        if self.axes_tuple is None:
-            if second.axes_tuple is None:
+        if isinstance(self.elements_type, VoidType) and self.axes is None:
+            return NeuralTypeComparisonResult.SAME
+
+        if self.axes is None:
+            if second.axes is None:
                 return self.elements_type.compare(second.elements_type)
             else:
                 return NeuralTypeComparisonResult.INCOMPATIBLE
@@ -125,7 +131,7 @@ class NmTensor(NeuralType):
           producer_args (dict): a dictionary of port_name->NmTensor value
             of arguments which were sent to producer to create this
         """
-        super(NmTensor, self).__init__(elements_type=ntype.elemts_type, axes=ntype.axes, optional=ntype.optional)
+        super(NmTensor, self).__init__(elements_type=ntype.elements_type, axes=ntype.axes, optional=ntype.optional)
         self._producer = producer
         self._producer_args = producer_args
         self._name = name

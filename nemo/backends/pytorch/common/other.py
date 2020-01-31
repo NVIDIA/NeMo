@@ -33,14 +33,8 @@ class SimpleCombiner(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        x1:
-            Empty?!?
-
-        x2:
-            Empty?!?
         """
-        return {"x1": NeuralType({}), "x2": NeuralType({})}
+        return {"x1": NeuralType(VoidType()), "x2": NeuralType(VoidType())}
 
     @property
     def output_ports(self):
@@ -49,7 +43,7 @@ class SimpleCombiner(TrainableNM):
         combined:
             None
         """
-        return {"combined": None}
+        return {"combined": NeuralType(VoidType())}
 
     def __init__(self, mode="add", **kwargs):
         TrainableNM.__init__(self, **kwargs)

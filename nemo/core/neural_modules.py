@@ -22,6 +22,7 @@ import collections
 import uuid
 from abc import ABC, abstractmethod
 from collections import namedtuple
+from copy import deepcopy
 from enum import Enum
 from inspect import getargvalues, stack
 from typing import Dict, List, Optional, Set, Tuple
@@ -142,10 +143,6 @@ class NeuralModule(ABC):
         Returns:
           NmTensor object or tuple of NmTensor objects
         """
-        # if self._assigned_top_order is not None:
-        #    raise ValueError("We currently do not support calling same NM"
-        #                     "more than once")
-
         # Get input and output ports definitions.
         input_port_defs = self.input_ports
         output_port_defs = self.output_ports
@@ -153,34 +150,45 @@ class NeuralModule(ABC):
         first_input_nmtensor_type = None
         input_nmtensors_are_of_same_type = True
         for port_name, tgv in kwargs.items():
+            # make sure that passed arguments correspond to input port names
             if port_name not in input_port_defs.keys():
                 raise NeuralPortNameMismatchError("Wrong input port name: {0}".format(port_name))
 
-            type_comatibility = input_port_defs[port_name].compare(tgv)
-
-            if first_input_nmtensor_type is None:
-                first_input_nmtensor_type = NeuralType(tgv._axis2type)
-            else:
-                if first_input_nmtensor_type._axis2type is None:
-                    input_nmtensors_are_of_same_type = True
-                else:
-                    input_nmtensors_are_of_same_type = first_input_nmtensor_type.compare(
-                        tgv
-                    ) == NeuralTypeComparisonResult.SAME and len(first_input_nmtensor_type._axis2type)
-            if not (
-                type_comatibility == NeuralTypeComparisonResult.SAME
-                or type_comatibility == NeuralTypeComparisonResult.GREATER
-            ):
+            input_port = input_port_defs[port_name]
+            type_comatibility = input_port.compare(tgv)
+            if type_comatibility != NeuralTypeComparisonResult.SAME and type_comatibility != \
+                    NeuralTypeComparisonResult.GREATER:
                 raise NeuralPortNmTensorMismatchError(
                     "\n\nIn {0}. \n"
                     "Port: {1} and a NmTensor it was fed are \n"
                     "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
                     "\n\nType comparison result: {4}".format(
                         self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility,
-                    )
-                )
-            if type_comatibility == NeuralTypeComparisonResult.LESS:
-                print('Types were raised')
+                    ))
+
+            # if first_input_nmtensor_type is None:
+            #     first_input_nmtensor_type = NeuralType(tgv._axis2type)
+            # else:
+            #     if first_input_nmtensor_type._axis2type is None:
+            #         input_nmtensors_are_of_same_type = True
+            #     else:
+            #         input_nmtensors_are_of_same_type = first_input_nmtensor_type.compare(
+            #             tgv
+            #         ) == NeuralTypeComparisonResult.SAME and len(first_input_nmtensor_type._axis2type)
+            # if not (
+            #     type_comatibility == NeuralTypeComparisonResult.SAME
+            #     or type_comatibility == NeuralTypeComparisonResult.GREATER
+            # ):
+            #     raise NeuralPortNmTensorMismatchError(
+            #         "\n\nIn {0}. \n"
+            #         "Port: {1} and a NmTensor it was fed are \n"
+            #         "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
+            #         "\n\nType comparison result: {4}".format(
+            #             self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility,
+            #         )
+            #     )
+            # if type_comatibility == NeuralTypeComparisonResult.LESS:
+            #     print('Types were raised')
 
         if len(output_port_defs) == 1:
             out_name = list(output_port_defs)[0]
