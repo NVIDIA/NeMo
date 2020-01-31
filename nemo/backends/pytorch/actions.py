@@ -514,15 +514,14 @@ class PtActions(Actions):
                 # )
                 if dl_nm.dataset is not None:
                     sampler = torch.utils.data.distributed.DistributedSampler(
-                        dataset=dl_nm.dataset,
-                        shuffle=dl_nm.shuffle
+                        dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
                     )
                     eval_dataloader = torch.utils.data.DataLoader(
                         dataset=dl_nm.dataset,
                         sampler=sampler,
                         num_workers=dl_nm.num_workers,
                         batch_size=dl_nm.batch_size,
-                        shuffle=False
+                        shuffle=False,
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -672,8 +671,7 @@ class PtActions(Actions):
                 # )
                 if dl_nm.dataset is not None:
                     sampler = torch.utils.data.distributed.DistributedSampler(
-                        dataset=dl_nm.dataset,
-                        shuffle=dl_nm.shuffle
+                        dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
                     )
                     eval_dataloader = torch.utils.data.DataLoader(
                         dataset=dl_nm.dataset,
@@ -1188,8 +1186,7 @@ class PtActions(Actions):
             nemo.logging.info("Doing distributed training")
             if t_dataset is not None:
                 train_sampler = torch.utils.data.distributed.DistributedSampler(
-                    dataset=t_dataset,
-                    shuffle=dataNM.shuffle
+                    dataset=t_dataset, shuffle=dataNM.shuffle
                 )
                 train_dataloader = torch.utils.data.DataLoader(
                     dataset=t_dataset,
@@ -1242,7 +1239,7 @@ class PtActions(Actions):
                     sampler=None,
                     num_workers=dataNM.num_workers,
                     batch_size=dataNM.batch_size,
-                    shuffle=dataNM.shuffle
+                    shuffle=dataNM.shuffle,
                 )
             else:
                 train_dataloader = dataNM.data_iterator
