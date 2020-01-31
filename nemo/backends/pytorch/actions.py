@@ -12,16 +12,15 @@ import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
 
-import nemo
-from ...core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
-from ...core.callbacks import ActionCallback, EvaluatorCallback, SimpleLossLoggerCallback
-from ...core.neural_factory import Actions, ModelMode, Optimization
-from ...core.neural_types import *
-from ...utils.helpers import get_checkpoint_from_dir
-from .module_wrapper import TrainableNeuralModuleWrapper
-from .nm import DataLayerNM
-from .optimizers import AdamW, Novograd, master_params
-from nemo.backends.pytorch.nm import TrainableNM
+from nemo import logging
+from nemo.backends.pytorch.module_wrapper import TrainableNeuralModuleWrapper
+from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
+from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
+from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
+from nemo.core.callbacks import ActionCallback, EvaluatorCallback, SimpleLossLoggerCallback
+from nemo.core.neural_factory import Actions, ModelMode, Optimization
+from nemo.core.neural_types import *
+from nemo.utils.helpers import get_checkpoint_from_dir
 
 # these imports will happen on as-needed basis
 amp = None
@@ -336,14 +335,14 @@ class PtActions(Actions):
                 raise ValueError("Unknown optimizer class: {0}".format(optimizer_class))
 
             if optimization_params.get("larc", False):
-                nemo.logging.info("Enabling larc")
+                logging.info("Enabling larc")
                 optimizer = LARC(optimizer, trust_coefficient=optimization_params.get("larc_eta", 2e-2),)
         else:
-            nemo.logging.info("Optimizer instance: {0} is provided.")
+            logging.info("Optimizer instance: {0} is provided.")
             if optimizer_class is not None and optimizer_class != "":
-                nemo.logging.warning("Ignoring `optimizer_class` parameter because" "`optimizer_instance` is provided")
+                logging.warning("Ignoring `optimizer_class` parameter because" "`optimizer_instance` is provided")
             if optimization_params is not None and optimization_params != {}:
-                nemo.logging.warning(
+                logging.warning(
                     "Ignoring `optimization_params` parameter for "
                     "optimizer because `optimizer_instance` is provided"
                 )
@@ -506,7 +505,7 @@ class PtActions(Actions):
                 assert dist.is_initialized()
                 is_distributed = True
                 world_size = torch.distributed.get_world_size()
-                # nemo.logging.info(
+                # logging.info(
                 #     "Doing distributed evaluation. Rank {0} of {1}".format(
                 #         self.local_rank, world_size
                 #     )
@@ -547,7 +546,7 @@ class PtActions(Actions):
             num_batches = len(eval_dataloader)
             for epoch_i, data in enumerate(eval_dataloader, 0):
                 if verbose and (num_batches < 10 or (epoch_i % int(num_batches / 10) == 0)):
-                    nemo.logging.info(f"Evaluating batch {epoch_i} out of {num_batches}")
+                    logging.info(f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
                 if isinstance(data, torch.Tensor):
                     data = (data,)
@@ -571,7 +570,7 @@ class PtActions(Actions):
                 for t2e in tensors_2_evaluate:
                     key = t2e.unique_name
                     if key not in registered_e_tensors.keys():
-                        nemo.logging.info("WARNING: Tensor {} was not found during " "eval".format(key))
+                        logging.info("WARNING: Tensor {} was not found during " "eval".format(key))
                         continue
                     if is_distributed:
                         # where we will all_gather results from all workers
@@ -661,7 +660,7 @@ class PtActions(Actions):
                 assert dist.is_initialized()
                 is_distributed = True
                 world_size = torch.distributed.get_world_size()
-                # nemo.logging.info(
+                # logging.info(
                 #     "Doing distributed evaluation. Rank {0} of {1}".format(
                 #         self.local_rank, world_size
                 #     )
@@ -712,7 +711,7 @@ class PtActions(Actions):
 
             for epoch_i, data in enumerate(loop_iterator, 0):
                 if verbose and (num_batches < 10 or (epoch_i % int(num_batches / 10) == 0)):
-                    nemo.logging.info(f"Evaluating batch {epoch_i} out of {num_batches}")
+                    logging.info(f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
                 if use_cache:
                     registered_e_tensors = data
@@ -754,7 +753,7 @@ class PtActions(Actions):
                 for t2e in tensors_to_return:
                     key = t2e.unique_name
                     if key not in registered_e_tensors.keys():
-                        nemo.logging.info("WARNING: Tensor {} was not found during " "eval".format(key))
+                        logging.info("WARNING: Tensor {} was not found during " "eval".format(key))
                         continue
                     if is_distributed:
                         # where we will all_gather results from all workers
@@ -924,7 +923,7 @@ class PtActions(Actions):
         inputs_to_drop = set()
         outputs_to_drop = set()
         if type(module).__name__ == "JasperEncoder":
-            print(
+            logging.info(
                 f"Module is JasperEncoder. We are removing"
                 f"input and output length ports since they "
                 f"are not needed for deployment"
@@ -1012,7 +1011,7 @@ class PtActions(Actions):
             else:
                 raise NotImplementedError(f"Not supported deployment format: {d_format}")
         except Exception as e:  # nopep8
-            nemo.logging.error(f'ERROR: module export failed for {module} ' f'with exception {e}')
+            logging.error(f'ERROR: module export failed for {module} ' f'with exception {e}')
         finally:
 
             def __old_call__(self, force_pt=False, *input, **kwargs):
@@ -1178,7 +1177,7 @@ class PtActions(Actions):
             #     raise NotImplementedError(
             #         "Distributed training does nor work with multiple "
             #         "optimizers")
-            nemo.logging.info("Doing distributed training")
+            logging.info("Doing distributed training")
             if t_dataset is not None:
                 train_sampler = torch.utils.data.distributed.DistributedSampler(t_dataset)
                 train_dataloader = torch.utils.data.DataLoader(
@@ -1311,7 +1310,7 @@ class PtActions(Actions):
                     ):
                         if stop_on_nan_loss:
                             raise ValueError('Loss is NaN or inf - exiting')
-                        nemo.logging.warning('WARNING: Loss is NaN or inf')
+                        logging.warning('WARNING: Loss is NaN or inf')
                         curr_optimizer.zero_grad()
                         nan = True
                         break
@@ -1323,7 +1322,7 @@ class PtActions(Actions):
                         if torch.isnan(scaled_loss).any() or torch.isinf(scaled_loss).any():
                             if stop_on_nan_loss:
                                 raise ValueError('Loss is NaN or inf -' ' exiting')
-                            nemo.logging.warning('WARNING: Loss is NaN or inf')
+                            logging.warning('WARNING: Loss is NaN or inf')
                             curr_optimizer.zero_grad()
                             continue
                         scaled_loss.backward(bps_scale.to(scaled_loss.get_device()))
@@ -1397,7 +1396,7 @@ class PtActions(Actions):
             module_checkpoints = get_checkpoint_from_dir(modules_to_restore_name, checkpoint_dir, ckpt_pattern)
 
             for mod, checkpoint in zip(modules_to_restore, module_checkpoints):
-                nemo.logging.info(f"Restoring {mod} from {checkpoint}")
+                logging.info(f"Restoring {mod} from {checkpoint}")
                 mod.restore_from(checkpoint, self._local_rank)
 
         # Init Amp

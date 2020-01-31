@@ -31,6 +31,8 @@ from nemo.core import WeightShareTransform
 from nemo.core.neural_types import *
 from tests.common_setup import NeMoUnitTest
 
+logging = nemo.logging
+
 
 class TestWeightSharing(NeMoUnitTest):
     labels = [
@@ -82,20 +84,20 @@ class TestWeightSharing(NeMoUnitTest):
     def setUpClass(cls) -> None:
         super().setUpClass()
         data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
-        print("Looking up for test ASR data")
+        logging.info("Looking up for test ASR data")
         if not os.path.exists(os.path.join(data_folder, "asr")):
-            print("Extracting ASR data to: {0}".format(os.path.join(data_folder, "asr")))
+            logging.info("Extracting ASR data to: {0}".format(os.path.join(data_folder, "asr")))
             tar = tarfile.open(os.path.join(data_folder, "asr.tar.gz"), "r:gz")
             tar.extractall(path=data_folder)
             tar.close()
         else:
-            print("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
+            logging.info("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
 
     @classmethod
     def tearDownClass(cls) -> None:
         super().tearDownClass()
         data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
-        print("Looking up for test ASR data")
+        logging.info("Looking up for test ASR data")
         if os.path.exists(os.path.join(data_folder, "asr")):
             shutil.rmtree(os.path.join(data_folder, "asr"))
 
@@ -202,14 +204,14 @@ class TestWeightSharing(NeMoUnitTest):
         processed_signal, p_length = preprocessing(input_signal=audio_signal, length=a_sig_length)
 
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
-        # print(jasper_encoder)
+        # logging.info(jasper_encoder)
         log_probs = jasper_decoder(encoder_output=encoded)
         loss = ctc_loss(
             log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'),
+            tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
@@ -259,7 +261,7 @@ class TestWeightSharing(NeMoUnitTest):
         train_loss = L_train(predictions=outputs, labels=labels)
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[train_loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'),
+            tensors=[train_loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(

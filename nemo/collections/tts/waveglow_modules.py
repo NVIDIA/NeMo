@@ -3,8 +3,9 @@ import librosa
 import numpy as np
 import torch
 
-from .parts.waveglow import WaveGlow
+from nemo import logging
 from nemo.backends.pytorch.nm import LossNM, TrainableNM
+from nemo.collections.tts.parts.waveglow import WaveGlow
 from nemo.core.neural_types import *
 
 __all__ = ["WaveGlowNM", "WaveGlowInferNM", "WaveGlowLoss"]
@@ -229,7 +230,7 @@ class WaveGlowInferNM(WaveGlowNM):
 
     def forward(self, mel_spectrogram):
         if not self._removed_weight_norm:
-            print("remove WN")
+            logging.info("remove WN")
             self.waveglow = self.waveglow.remove_weightnorm(self.waveglow)
             self._removed_weight_norm = True
         if self.training:

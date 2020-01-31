@@ -23,7 +23,7 @@
 # class TestPytorchChatBotTutorial(NeMoUnitTest):
 #     def test_simple_train(self):
 #         datafile = "tests/data/dialog_sample.txt"
-#         print(datafile)
+#         logging.info(datafile)
 #         voc, pairs = loadPrepareData("cornell", datafile=datafile)
 #         self.assertEqual(voc.name, 'cornell')
 #         self.assertEqual(voc.num_words, 675)
