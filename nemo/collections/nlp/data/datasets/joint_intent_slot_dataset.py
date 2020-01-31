@@ -20,7 +20,7 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 """
 import itertools
 import random
-from collections.nlp.data.datasets.datasets_utils import (
+from nemo.collections.nlp.data.datasets.datasets_utils import (
     get_label_stats,
     merge,
     process_atis,
@@ -29,7 +29,7 @@ from collections.nlp.data.datasets.datasets_utils import (
     process_mturk,
     process_snips,
 )
-from collections.nlp.utils.common_nlp_utils import calc_class_weights, get_vocab, if_exist, label2idx
+from nemo.collections.nlp.utils.common_nlp_utils import calc_class_weights, get_vocab, if_exist, label2idx
 
 import numpy as np
 from torch.utils.data import Dataset

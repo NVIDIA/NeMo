@@ -1,6 +1,6 @@
 import argparse
 import os
-from collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
+from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 
 import numpy as np
 from sklearn.metrics import classification_report

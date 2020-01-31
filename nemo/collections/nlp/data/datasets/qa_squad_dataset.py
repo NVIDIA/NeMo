@@ -20,7 +20,7 @@ import json
 import os
 import pickle
 import sys
-from collections.nlp.data.datasets.glue_benchmark_dataset import DataProcessor
+from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import DataProcessor
 
 import numpy as np
 import torch

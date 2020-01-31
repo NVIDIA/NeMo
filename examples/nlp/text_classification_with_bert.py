@@ -1,6 +1,6 @@
 import argparse
 import math
-from collections.nlp.data.datasets.text_classification_dataset import SentenceClassificationDataDesc
+from nemo.collections.nlp.data.datasets.text_classification_dataset import SentenceClassificationDataDesc
 
 import numpy as np
 from transformers import BertTokenizer

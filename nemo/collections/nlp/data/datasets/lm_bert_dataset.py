@@ -20,8 +20,8 @@ import glob
 import os
 import pickle
 import random
-from collections.nlp.data.datasets.datasets_utils import download_wkt2
-from collections.nlp.data.datasets.lm_transformer_dataset import create_vocab_mlm
+from nemo.collections.nlp.data.datasets.datasets_utils import download_wkt2
+from nemo.collections.nlp.data.datasets.lm_transformer_dataset import create_vocab_mlm
 
 import h5py
 import numpy as np

@@ -20,10 +20,10 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-import collections.nlp.data.datasets.joint_intent_slot_dataset
-import collections.nlp.utils.common_nlp_utils
+import nemo.collections.nlp.data.datasets.joint_intent_slot_dataset
+import nemo.collections.nlp.utils.common_nlp_utils
 import random
-from collections.nlp.data.datasets.datasets_utils import (
+from nemo.collections.nlp.data.datasets.datasets_utils import (
     get_intent_labels,
     get_label_stats,
     process_imdb,
@@ -32,13 +32,12 @@ from collections.nlp.data.datasets.datasets_utils import (
     process_sst_2,
     process_thucnews,
 )
-from collections.nlp.utils.common_nlp_utils import calc_class_weights, if_exist
+from nemo.collections.nlp.utils.common_nlp_utils import calc_class_weights, if_exist
 
 import numpy as np
 from torch.utils.data import Dataset
 
 import nemo
-import nemo.collections.nlp.data.datasets.datasets_utils as utils
 
 __all__ = ['BertTextClassificationDataset']
 
@@ -91,7 +90,7 @@ class BertTextClassificationDataset(Dataset):
                 all_sent_subtokens.append(sent_subtokens)
                 sent_lengths.append(len(sent_subtokens))
 
-        collections.nlp.data.datasets.joint_intent_slot_dataset.get_stats(sent_lengths)
+        nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.get_stats(sent_lengths)
         self.max_seq_length = min(max_seq_length, max(sent_lengths))
 
         for i in range(len(all_sent_subtokens)):
@@ -154,8 +153,8 @@ class BertTextClassificationDataset(Dataset):
                 nemo.logging.info("example_index: %s" % sent_id)
                 nemo.logging.info("subtokens: %s" % " ".join(sent_subtokens))
                 nemo.logging.info("sent_label: %s" % sent_label)
-                nemo.logging.info("input_ids: %s" % collections.nlp.utils.common_nlp_utils.list2str(input_ids))
-                nemo.logging.info("input_mask: %s" % collections.nlp.utils.common_nlp_utils.list2str(input_mask))
+                nemo.logging.info("input_ids: %s" % nemo.collections.nlp.utils.common_nlp_utils.list2str(input_ids))
+                nemo.logging.info("input_mask: %s" % nemo.collections.nlp.utils.common_nlp_utils.list2str(input_mask))
 
             self.features.append(
                 InputFeatures(

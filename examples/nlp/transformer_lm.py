@@ -1,6 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import math
-from collections.nlp.data.datasets.lm_transformer_dataset import LanguageModelDataDesc
+from nemo.collections.nlp.data.datasets.lm_transformer_dataset import LanguageModelDataDesc
 
 import nemo
 import nemo.collections.nlp as nemo_nlp

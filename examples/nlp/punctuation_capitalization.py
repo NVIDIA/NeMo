@@ -1,7 +1,7 @@
 # pylint: disable=invalid-name
 
 import argparse
-import collections.nlp.utils.common_nlp_utils
+import nemo.collections.nlp.utils.common_nlp_utils
 import json
 import os
 
@@ -215,7 +215,7 @@ def create_pipeline(
         if args.use_weighted_loss_punct:
             nemo.logging.info(f"Using weighted loss for punctuation task")
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
-            class_weights = collections.nlp.utils.common_nlp_utils.calc_class_weights(punct_label_freqs)
+            class_weights = nemo.collections.nlp.utils.common_nlp_utils.calc_class_weights(punct_label_freqs)
 
         # Initialize punctuation loss
         punct_classifier = punct_classifier(

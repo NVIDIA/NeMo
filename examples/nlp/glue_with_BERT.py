@@ -63,7 +63,7 @@ WNLI	Accuracy	                    43.66
 import argparse
 import json
 import os
-from collections.nlp.data.datasets.glue_benchmark_dataset import output_modes, processors
+from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import output_modes, processors
 
 import nemo
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss

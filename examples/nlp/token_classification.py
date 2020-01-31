@@ -1,7 +1,7 @@
 # pylint: disable=invalid-name
 
 import argparse
-import collections.nlp.utils.common_nlp_utils
+import nemo.collections.nlp.utils.common_nlp_utils
 import json
 import os
 
@@ -194,7 +194,7 @@ def create_pipeline(
         if args.use_weighted_loss:
             nemo.logging.info(f"Using weighted loss")
             label_freqs = data_layer.dataset.label_frequencies
-            class_weights = collections.nlp.utils.common_nlp_utils.calc_class_weights(label_freqs)
+            class_weights = nemo.collections.nlp.utils.common_nlp_utils.calc_class_weights(label_freqs)
 
             nemo.logging.info(f"class_weights: {class_weights}")
 

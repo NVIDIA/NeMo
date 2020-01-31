@@ -1,5 +1,5 @@
 import argparse
-from collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
+from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 
 import numpy as np
 from transformers import BertTokenizer
