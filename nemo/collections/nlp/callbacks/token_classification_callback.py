@@ -1,6 +1,4 @@
 # Copyright (c) 2019 NVIDIA Corporation
-__all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
-
 import random
 
 import numpy as np
@@ -8,6 +6,8 @@ from sklearn.metrics import classification_report
 
 from nemo import logging
 from nemo.collections.nlp.utils.callback_utils import list2str, plot_confusion_matrix, tensor2list
+
+__all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 
 def eval_iter_callback(tensors, global_vars):

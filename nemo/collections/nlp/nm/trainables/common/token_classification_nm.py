@@ -1,9 +1,10 @@
-__all__ = ['BertTokenClassifier', 'TokenClassifier']
 from torch import nn as nn
 
 from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import gelu, transformer_weights_init
 from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+
+__all__ = ['BertTokenClassifier', 'TokenClassifier']
 
 ACT2FN = {"gelu": gelu, "relu": nn.functional.relu}
 

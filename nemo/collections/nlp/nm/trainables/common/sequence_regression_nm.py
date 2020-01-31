@@ -1,9 +1,10 @@
-__all__ = ['SequenceRegression']
 from torch import nn as nn
 
 from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
 from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, RegressionTag, TimeTag
+
+__all__ = ['SequenceRegression']
 
 
 class SequenceRegression(TrainableNM):

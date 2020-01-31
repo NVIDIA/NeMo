@@ -1,5 +1,6 @@
-__all__ = ['WordTokenizer']
 from nemo.collections.nlp.data.tokenizers.tokenizer_spec import TokenizerSpec
+
+__all__ = ['WordTokenizer']
 
 
 class WordTokenizer(TokenizerSpec):

@@ -1,5 +1,4 @@
 # Copyright (c) 2019 NVIDIA Corporation
-
 import random
 
 import numpy as np

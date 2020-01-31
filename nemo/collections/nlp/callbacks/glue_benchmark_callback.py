@@ -19,8 +19,6 @@ Utility functions for GLUE tasks
 Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 """
-__all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
-
 import os
 import random
 
@@ -30,6 +28,8 @@ from sklearn.metrics import f1_score, matthews_corrcoef
 
 from nemo import logging
 from nemo.collections.nlp.utils.callback_utils import list2str, tensor2list
+
+__all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 
 def eval_iter_callback(tensors, global_vars):

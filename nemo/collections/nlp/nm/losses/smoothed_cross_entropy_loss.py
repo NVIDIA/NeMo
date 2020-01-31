@@ -1,5 +1,6 @@
-__all__ = ['SmoothedCrossEntropyLoss']
 import torch
+
+__all__ = ['SmoothedCrossEntropyLoss']
 
 
 class SmoothedCrossEntropyLoss(torch.nn.Module):

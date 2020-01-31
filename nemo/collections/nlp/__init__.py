@@ -17,6 +17,5 @@ import nemo.collections.nlp.callbacks
 import nemo.collections.nlp.data
 import nemo.collections.nlp.nm
 import nemo.collections.nlp.utils
-from nemo import logging
 
 backend = nemo.core.Backend.PyTorch

@@ -1,8 +1,9 @@
-__all__ = ['QuestionAnsweringLoss']
 from torch import nn
 
 from nemo.backends.pytorch import LossNM
 from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+
+__all__ = ['QuestionAnsweringLoss']
 
 
 class QuestionAnsweringLoss(LossNM):

@@ -1,9 +1,10 @@
-__all__ = ['NemoBertTokenizer']
 import re
 
 from transformers import BertTokenizer
 
 from nemo.collections.nlp.data.tokenizers.tokenizer_spec import TokenizerSpec
+
+__all__ = ['NemoBertTokenizer']
 
 
 def handle_quotes(text):

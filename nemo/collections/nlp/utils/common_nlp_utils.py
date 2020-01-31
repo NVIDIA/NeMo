@@ -1,3 +1,11 @@
+import os
+import re
+import string
+
+import numpy as np
+
+from nemo import logging
+
 __all__ = [
     '_is_whitespace',
     'mask_padded_tokens',
@@ -11,14 +19,6 @@ __all__ = [
     'ids2text',
     'calc_class_weights',
 ]
-
-import os
-import re
-import string
-
-import numpy as np
-
-from nemo import logging
 
 
 def _is_whitespace(c):
