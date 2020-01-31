@@ -25,8 +25,6 @@ import random
 import numpy as np
 from torch.utils.data import Dataset
 
-import nemo
-import nemo.collections.nlp.data.datasets.joint_intent_slot_dataset
 from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import (
     get_intent_labels,
@@ -38,6 +36,7 @@ from nemo.collections.nlp.data.datasets.datasets_utils import (
     process_sst_2,
     process_thucnews,
 )
+from nemo.collections.nlp.utils.callback_utils import list2str
 from nemo.collections.nlp.utils.common_nlp_utils import calc_class_weights, if_exist
 
 __all__ = ['BertTextClassificationDataset']
@@ -153,8 +152,8 @@ class BertTextClassificationDataset(Dataset):
                 logging.info("example_index: %s" % sent_id)
                 logging.info("subtokens: %s" % " ".join(sent_subtokens))
                 logging.info("sent_label: %s" % sent_label)
-                logging.info("input_ids: %s" % nemo.collections.nlp.utils.callback_utils.list2str(input_ids))
-                logging.info("input_mask: %s" % nemo.collections.nlp.utils.callback_utils.list2str(input_mask))
+                logging.info("input_ids: %s" % list2str(input_ids))
+                logging.info("input_mask: %s" % list2str(input_mask))
 
             self.features.append(
                 InputFeatures(
