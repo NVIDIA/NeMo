@@ -73,7 +73,7 @@ if args.bert_checkpoint and args.bert_config:
 else:
     pretrained_bert_model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model, factory=nf)
 
-hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
+hidden_size = pretrained_bert_model.hidden_size
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
 data_desc = SentenceClassificationDataDesc(args.dataset_name, args.data_dir, args.do_lower_case)

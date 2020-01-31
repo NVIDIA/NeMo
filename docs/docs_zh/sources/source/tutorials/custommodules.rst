@@ -76,11 +76,11 @@
                 0: AxisType(BatchTag),
                 1: AxisType(ChannelTag)})}
 
-        def __init__(self):
+        def __init__(self, dim):
             # (3) 调用基类构造函数
             TrainableNM.__init__(self)
             # Neural Modules 的特定部分，剩下的是 PyTorch 代码
-            self._dim = self.local_parameters["dim"]
+            self._dim = dim
             self.fc1 = nn.Linear(self._dim, 1)
             t.nn.init.xavier_uniform_(self.fc1.weight)
             self._device = t.device(

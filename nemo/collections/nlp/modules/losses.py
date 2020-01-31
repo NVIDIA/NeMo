@@ -407,15 +407,14 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self):
+    def __init__(self, pad_id, label_smoothing=0, predict_last_k=0):
         super().__init__()
 
-        loss_params = {
-            "label_smoothing": self.local_parameters.get("label_smoothing", 0),
-            "predict_last_k": self.local_parameters.get("predict_last_k", 0),
-        }
+        # Create the loss function object.
+        loss_params = {"label_smoothing": label_smoothing, "predict_last_k": predict_last_k}
         self._loss_fn = SmoothedCrossEntropyLoss(**loss_params)
-        self._pad_id = self.local_parameters['pad_id']
+        # Store padding.
+        self._pad_id = pad_id
 
     def _loss_function(self, logits, target_ids):
         target_mask = mask_padded_tokens(target_ids, self._pad_id).to(logits.dtype)

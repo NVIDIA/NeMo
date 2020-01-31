@@ -240,7 +240,7 @@ else:
 
     model.restore_from(args.bert_checkpoint)
 
-hidden_size = model.local_parameters["hidden_size"]
+hidden_size = model.hidden_size
 
 # uses [CLS] token for classification (the first token)
 if args.task_name == 'sts-b':

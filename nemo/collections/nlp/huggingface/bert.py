@@ -127,6 +127,18 @@ class BERT(TrainableNM):
         # TK: storing config name in init_params instead.
         # for key, value in self.config.to_dict().items():
         #    self._local_parameters[key] = value
+        # Store the only value that will be used externally - hidden_size.
+        self._hidden_size = hidden_size
+
+    @property
+    def hidden_size(self):
+        """
+            Property returning hidden size.
+
+            Returns:
+                Hidden size.
+        """
+        return self._hidden_size
 
     @staticmethod
     def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:
