@@ -26,8 +26,8 @@ import numpy as np
 from torch.utils.data import Dataset
 
 import nemo
-from nemo import logging
 import nemo.collections.nlp.data.datasets.joint_intent_slot_dataset
+from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import (
     get_intent_labels,
     get_label_stats,
