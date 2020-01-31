@@ -575,7 +575,7 @@ class PtActions(Actions):
                 for t2e in tensors_2_evaluate:
                     key = t2e.unique_name
                     if key not in registered_e_tensors.keys():
-                        nemo.logging.info("WARNING: Tensor {} was not found during " "eval".format(key))
+                        nemo.logging.warning("Tensor {} was not found during " "eval".format(key))
                         continue
                     if is_distributed:
                         # where we will all_gather results from all workers
@@ -672,7 +672,7 @@ class PtActions(Actions):
                 # )
                 if dl_nm.dataset is not None:
                     sampler = torch.utils.data.distributed.DistributedSampler(
-                        dataset = dl_nm.dataset,
+                        dataset=dl_nm.dataset,
                         shuffle=dl_nm.shuffle
                     )
                     eval_dataloader = torch.utils.data.DataLoader(
@@ -761,7 +761,7 @@ class PtActions(Actions):
                 for t2e in tensors_to_return:
                     key = t2e.unique_name
                     if key not in registered_e_tensors.keys():
-                        nemo.logging.info("WARNING: Tensor {} was not found during " "eval".format(key))
+                        nemo.logging.warning("Tensor {} was not found during " "eval".format(key))
                         continue
                     if is_distributed:
                         # where we will all_gather results from all workers
@@ -1321,7 +1321,7 @@ class PtActions(Actions):
                     ):
                         if stop_on_nan_loss:
                             raise ValueError('Loss is NaN or inf - exiting')
-                        nemo.logging.warning('WARNING: Loss is NaN or inf')
+                        nemo.logging.warning('Loss is NaN or inf')
                         curr_optimizer.zero_grad()
                         nan = True
                         break
@@ -1333,7 +1333,7 @@ class PtActions(Actions):
                         if torch.isnan(scaled_loss).any() or torch.isinf(scaled_loss).any():
                             if stop_on_nan_loss:
                                 raise ValueError('Loss is NaN or inf -' ' exiting')
-                            nemo.logging.warning('WARNING: Loss is NaN or inf')
+                            nemo.logging.warning('Loss is NaN or inf')
                             curr_optimizer.zero_grad()
                             continue
                         scaled_loss.backward(bps_scale.to(scaled_loss.get_device()))

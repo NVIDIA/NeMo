@@ -273,9 +273,7 @@ class JointIntentSlotClassifier(TrainableNM):
             "slot_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
         }
 
-    def __init__(
-        self, hidden_size, num_intents, num_slots, dropout=0.0, use_transformer_pretrained=True, **kwargs,
-    ):
+    def __init__(self, hidden_size, num_intents, num_slots, dropout=0.0, use_transformer_pretrained=True):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
         self.slot_mlp = MultiLayerPerceptron(
