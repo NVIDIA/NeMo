@@ -12,7 +12,6 @@ class NemoGPT2Tokenizer(TokenizerSpec):
         errors='replace',
         bos_token="<|endoftext|>",
         eos_token="<|endoftext|>",
-        **kwargs
     ):
         if pretrained_model:
             self.tokenizer = GPT2Tokenizer.from_pretrained(pretrained_model)

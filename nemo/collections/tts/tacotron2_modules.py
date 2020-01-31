@@ -60,8 +60,8 @@ class TextEmbedding(TrainableNM):
             )
         }
 
-    def __init__(self, n_symbols, symbols_embedding_dim: int = 512, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, n_symbols, symbols_embedding_dim: int = 512):
+        super().__init__()
         self.embedding = nn.Embedding(n_symbols, symbols_embedding_dim)
         self.to(self._device)
 
@@ -123,9 +123,9 @@ class Tacotron2Encoder(TrainableNM):
         }
 
     def __init__(
-        self, encoder_n_convolutions: int = 5, encoder_embedding_dim: int = 512, encoder_kernel_size: int = 3, **kwargs
+        self, encoder_n_convolutions: int = 5, encoder_embedding_dim: int = 512, encoder_kernel_size: int = 3
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.encoder = Encoder(
             encoder_n_convolutions=encoder_n_convolutions,
             encoder_embedding_dim=encoder_embedding_dim,
@@ -254,9 +254,8 @@ class Tacotron2Decoder(TrainableNM):
         attention_location_n_filters: int = 32,
         attention_location_kernel_size: int = 31,
         prenet_p_dropout: float = 0.5,
-        **kwargs
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.decoder = Decoder(
             n_mel_channels=n_mel_channels,
             n_frames_per_step=n_frames_per_step,
@@ -450,9 +449,8 @@ class Tacotron2Postnet(TrainableNM):
         postnet_kernel_size: int = 5,
         postnet_n_convolutions: int = 5,
         p_dropout: float = 0.5,
-        **kwargs
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.postnet = Postnet(
             n_mel_channels=n_mel_channels,
             postnet_embedding_dim=postnet_embedding_dim,
@@ -547,8 +545,8 @@ class Tacotron2Loss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, pad_value: float = -11.52, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, pad_value: float = -11.52):
+        super().__init__()
         self.pad_value = pad_value
 
     def _loss_function(self, **kwargs):

@@ -18,7 +18,7 @@ parser.add_argument("--work_dir", default=None, type=str)
 parser.add_argument(
     "--train_dataset",
     # set default=os.getcwd() unless your are running test
-    default="/home/mrjenkins/TestData",
+    default="~/data/mnist",
     type=str,
 )
 parser.add_argument("--amp_opt_level", choices=['O0', 'O1', 'O2', 'O3'], default='O0')
@@ -44,7 +44,7 @@ mnist_data = nemo_simple_gan.MnistGanDataLayer(
     batch_size=batch_size, shuffle=True, train=True, root=args.train_dataset
 )
 
-generator = nemo_simple_gan.SimpleGenerator(batch_size=batch_size)
+generator = nemo_simple_gan.SimpleGenerator()
 discriminator = nemo_simple_gan.SimpleDiscriminator()
 neg_disc_loss = nemo_simple_gan.DiscriminatorLoss(neg=True)
 disc_loss = nemo_simple_gan.DiscriminatorLoss()

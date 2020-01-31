@@ -34,8 +34,8 @@ class GreedyCTCDecoder(TrainableNM):
         """
         return {"predictions": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
 
-    def __init__(self, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+    def __init__(self):
+        super().__init__()
 
     def forward(self, log_probs):
         with torch.no_grad():
