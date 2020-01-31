@@ -25,9 +25,10 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from nemo import logging
 from nemo.core.neural_types import *
 from tests.common_setup import NeMoUnitTest
+
+logging = nemo.logging
 
 
 class TestZeroDL(NeMoUnitTest):

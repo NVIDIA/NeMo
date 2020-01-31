@@ -12,17 +12,15 @@ import torch.distributed as dist
 import torch.nn as nn
 import torch.optim as optim
 
-import nemo
-from ...core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
-from ...core.callbacks import ActionCallback, EvaluatorCallback, SimpleLossLoggerCallback
-from ...core.neural_factory import Actions, ModelMode, Optimization
-from ...core.neural_types import *
-from ...utils.helpers import get_checkpoint_from_dir
-from .module_wrapper import TrainableNeuralModuleWrapper
-from .nm import DataLayerNM
-from .optimizers import AdamW, Novograd, master_params
 from nemo import logging
-from nemo.backends.pytorch.nm import TrainableNM
+from nemo.backends.pytorch.module_wrapper import TrainableNeuralModuleWrapper
+from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
+from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
+from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
+from nemo.core.callbacks import ActionCallback, EvaluatorCallback, SimpleLossLoggerCallback
+from nemo.core.neural_factory import Actions, ModelMode, Optimization
+from nemo.core.neural_types import *
+from nemo.utils.helpers import get_checkpoint_from_dir
 
 # these imports will happen on as-needed basis
 amp = None

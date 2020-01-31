@@ -13,7 +13,8 @@ from tacotron2 import create_NMs
 import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
-from nemo import logging
+
+logging = nemo.logging
 
 
 def parse_args():

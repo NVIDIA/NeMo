@@ -17,8 +17,9 @@
 # =============================================================================
 
 import nemo
-from nemo import logging
 from tests.common_setup import NeMoUnitTest
+
+logging = nemo.logging
 
 
 class TestPytorchTrainers(NeMoUnitTest):

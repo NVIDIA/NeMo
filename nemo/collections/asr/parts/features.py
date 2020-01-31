@@ -7,10 +7,9 @@ import torch
 import torch.nn as nn
 from torch_stft import STFT
 
-import nemo
-from .perturb import AudioAugmentor
-from .segment import AudioSegment
 from nemo import logging
+from nemo.collections.asr.parts.perturb import AudioAugmentor
+from nemo.collections.asr.parts.segment import AudioSegment
 
 CONSTANT = 1e-5
 

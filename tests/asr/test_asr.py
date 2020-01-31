@@ -23,11 +23,11 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from nemo import logging
 from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer, collections, parsers
 from nemo.core import DeviceType
 from tests.common_setup import NeMoUnitTest
 
+logging = nemo.logging
 freq = 16000
 
 

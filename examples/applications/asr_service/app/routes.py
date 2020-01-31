@@ -19,7 +19,8 @@ from werkzeug.utils import secure_filename
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from nemo import logging
+
+logging = nemo.logging
 
 try:
     from app import beam_search_with_lm

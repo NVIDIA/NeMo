@@ -10,7 +10,6 @@ from ruamel.yaml import YAML
 import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.utils.argparse as nm_argparse
-from nemo import logging
 from nemo.collections.asr.helpers import (
     monitor_asr_train_progress,
     post_process_predictions,
@@ -20,6 +19,8 @@ from nemo.collections.asr.helpers import (
     word_error_rate,
 )
 from nemo.utils.lr_policies import CosineAnnealing
+
+logging = nemo.logging
 
 
 def create_dags(jasper_params, args, nf):

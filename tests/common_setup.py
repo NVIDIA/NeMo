@@ -19,7 +19,8 @@
 import unittest
 
 import nemo
-from nemo import logging
+
+logging = nemo.logging
 
 
 class NeMoUnitTest(unittest.TestCase):
