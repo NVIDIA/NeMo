@@ -1,5 +1,5 @@
 __all__ = ['PunctuationCapitalizationDataLayer']
-from nemo.collections.nlp.data import BertPunctuationCapitalizationDataset, BertTokenClassificationInferDataset
+from nemo.collections.nlp.data import BertPunctuationCapitalizationDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
 

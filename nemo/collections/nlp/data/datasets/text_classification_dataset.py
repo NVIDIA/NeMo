@@ -27,7 +27,6 @@ from torch.utils.data import Dataset
 
 import nemo
 import nemo.collections.nlp.data.datasets.joint_intent_slot_dataset
-import nemo.collections.nlp.utils.common_nlp_utils
 from nemo.collections.nlp.data.datasets.datasets_utils import (
     get_intent_labels,
     get_label_stats,
