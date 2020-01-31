@@ -4,7 +4,7 @@ from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
 from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
-__all_ = ['JointIntentSlotClassifier']
+__all__ = ['JointIntentSlotClassifier']
 
 
 class JointIntentSlotClassifier(TrainableNM):
