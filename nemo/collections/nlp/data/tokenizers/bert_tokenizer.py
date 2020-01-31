@@ -1,3 +1,4 @@
+__all__ = ['NemoBertTokenizer']
 import re
 
 from transformers import BertTokenizer

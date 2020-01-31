@@ -15,12 +15,24 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+__all__ = [
+    'f1_score',
+    'exact_match_score',
+    'apply_no_ans_threshold',
+    'make_eval_dict',
+    'merge_eval',
+    'find_all_best_thresh',
+    'find_best_thresh',
+    'normalize_answer',
+    '_get_best_indexes',
+    'get_final_text',
+]
 import collections
-import math
-import re
-import string
 
 from transformers.tokenization_bert import BasicTokenizer
+
+from nemo import logging
+from nemo.collections.nlp.data.datasets.datasets_utils import get_tokens, normalize_answer
 
 
 def _get_best_indexes(logits, n_best_size):
@@ -33,74 +45,6 @@ def _get_best_indexes(logits, n_best_size):
             break
         best_indexes.append(index_and_score[i][0])
     return best_indexes
-
-
-def _compute_softmax(scores):
-    """Compute softmax probability over raw logits."""
-    if not scores:
-        return []
-
-    max_score = None
-    for score in scores:
-        if max_score is None or score > max_score:
-            max_score = score
-
-    exp_scores = []
-    total_sum = 0.0
-    for score in scores:
-        x = math.exp(score - max_score)
-        exp_scores.append(x)
-        total_sum += x
-
-    probs = []
-    for score in exp_scores:
-        probs.append(score / total_sum)
-    return probs
-
-
-def get_tokens(s):
-    if not s:
-        return []
-    return normalize_answer(s).split()
-
-
-def f1_score(prediction, ground_truth):
-    prediction_tokens = get_tokens(prediction)
-    ground_truth_tokens = get_tokens(ground_truth)
-    common = collections.Counter(prediction_tokens) & collections.Counter(ground_truth_tokens)
-    num_same = sum(common.values())
-    if len(ground_truth_tokens) == 0 or len(prediction_tokens) == 0:
-        # If either is no-answer, then F1 is 1 if they agree, 0 otherwise
-        return int(ground_truth_tokens == prediction_tokens)
-    if num_same == 0:
-        return 0
-    precision = 1.0 * num_same / len(prediction_tokens)
-    recall = 1.0 * num_same / len(ground_truth_tokens)
-    f1 = (2 * precision * recall) / (precision + recall)
-    return f1
-
-
-def exact_match_score(prediction, ground_truth):
-    return int(normalize_answer(prediction) == normalize_answer(ground_truth))
-
-
-def normalize_answer(s):
-    """Lower text and remove punctuation, articles and extra whitespace."""
-
-    def remove_articles(text):
-        return re.sub(r'\b(a|an|the)\b', ' ', text)
-
-    def white_space_fix(text):
-        return ' '.join(text.split())
-
-    def remove_punc(text):
-        exclude = set(string.punctuation)
-        return ''.join(ch for ch in text if ch not in exclude)
-
-    def lower(text):
-        return text.lower()
-
-    return white_space_fix(remove_articles(remove_punc(lower(s))))
 
 
 def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
@@ -154,7 +98,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
     start_position = tok_text.find(pred_text)
     if start_position == -1:
         if verbose_logging:
-            print("Unable to find text: '%s' in '%s'" % (pred_text, orig_text))
+            logging.warning("Unable to find text: '%s' in '%s'" % (pred_text, orig_text))
         return orig_text
     end_position = start_position + len(pred_text) - 1
 
@@ -163,7 +107,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
 
     if len(orig_ns_text) != len(tok_ns_text):
         if verbose_logging:
-            print(
+            logging.warning(
                 "Length not equal after stripping spaces: '%s' vs '%s'", orig_ns_text, tok_ns_text,
             )
         return orig_text
@@ -182,7 +126,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
 
     if orig_start_position is None:
         if verbose_logging:
-            print("Couldn't map start position")
+            logging.warning("Couldn't map start position")
         return orig_text
 
     orig_end_position = None
@@ -193,11 +137,31 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
 
     if orig_end_position is None:
         if verbose_logging:
-            print("Couldn't map end position")
+            logging.warning("Couldn't map end position")
         return orig_text
 
     output_text = orig_text[orig_start_position : (orig_end_position + 1)]
     return output_text
+
+
+def f1_score(prediction, ground_truth):
+    prediction_tokens = get_tokens(prediction)
+    ground_truth_tokens = get_tokens(ground_truth)
+    common = collections.Counter(prediction_tokens) & collections.Counter(ground_truth_tokens)
+    num_same = sum(common.values())
+    if len(ground_truth_tokens) == 0 or len(prediction_tokens) == 0:
+        # If either is no-answer, then F1 is 1 if they agree, 0 otherwise
+        return int(ground_truth_tokens == prediction_tokens)
+    if num_same == 0:
+        return 0
+    precision = 1.0 * num_same / len(prediction_tokens)
+    recall = 1.0 * num_same / len(ground_truth_tokens)
+    f1 = (2 * precision * recall) / (precision + recall)
+    return f1
+
+
+def exact_match_score(prediction, ground_truth):
+    return int(normalize_answer(prediction) == normalize_answer(ground_truth))
 
 
 def apply_no_ans_threshold(scores, na_probs, qid_to_has_ans, na_prob_thresh):
@@ -225,7 +189,7 @@ def make_eval_dict(exact_scores, f1_scores, qid_list=None):
         total = len(qid_list)
         return collections.OrderedDict(
             [
-                ("exact", 100.0 * sum(exact_scores[k] for k in qid_list) / total,),
+                ("exact", 100.0 * sum(exact_scores[k] for k in qid_list) / total),
                 ("f1", 100.0 * sum(f1_scores[k] for k in qid_list) / total),
                 ("total", total),
             ]

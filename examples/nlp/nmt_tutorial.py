@@ -7,7 +7,7 @@ import torch
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.callbacks.translation import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.callbacks.machine_translation_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = nemo.utils.NemoArgParser(description='Transformer for Neural Machine Translation')
@@ -76,14 +76,14 @@ if args.src_lang == 'en' and args.tgt_lang == 'de':
     We use YouTokenToMe tokenizer trained on joint
     English & German data for both source and target languages.
     """
-    src_tokenizer = nemo_nlp.YouTokenToMeTokenizer(model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
+    src_tokenizer = nemo_nlp.data.YouTokenToMeTokenizer(model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
     src_vocab_size = src_tokenizer.vocab_size
     if args.src_tokenizer_model == args.tgt_tokenizer_model:
         tgt_tokenizer = src_tokenizer
         # source and target use the same tokenizer, set tie_weight to True
         tie_weight = True
     else:
-        tgt_tokenizer = nemo_nlp.YouTokenToMeTokenizer(model_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
+        tgt_tokenizer = nemo_nlp.data.YouTokenToMeTokenizer(model_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
         # source and target use different tokenizers, set tie_weight to False
         tie_weight = False
     tgt_vocab_size = tgt_tokenizer.vocab_size
@@ -92,9 +92,9 @@ elif args.src_lang == 'en' and args.tgt_lang == 'zh':
     We use YouTokenToMeTokenizer for src since the src contains English words
     and CharTokenizer for tgt since the tgt contains Chinese characters.
     """
-    src_tokenizer = nemo_nlp.YouTokenToMeTokenizer(model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
+    src_tokenizer = nemo_nlp.data.YouTokenToMeTokenizer(model_path=f"{args.data_dir}/{args.src_tokenizer_model}")
     src_vocab_size = src_tokenizer.vocab_size
-    tgt_tokenizer = nemo_nlp.CharTokenizer(vocab_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
+    tgt_tokenizer = nemo_nlp.data.CharTokenizer(vocab_path=f"{args.data_dir}/{args.tgt_tokenizer_model}")
     tgt_vocab_size = tgt_tokenizer.vocab_size
     # source and target use different tokenizers, set tie_weight to False
     tie_weight = False
@@ -104,7 +104,7 @@ else:
 # instantiate necessary modules for the whole translation pipeline, namely
 # data layers, encoder, decoder, output log_softmax, beam_search_translator
 # and loss function
-encoder = nemo_nlp.TransformerEncoderNM(
+encoder = nemo_nlp.nm.trainables.TransformerEncoderNM(
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
@@ -117,7 +117,7 @@ encoder = nemo_nlp.TransformerEncoderNM(
     max_seq_length=args.max_seq_length,
 )
 
-decoder = nemo_nlp.TransformerDecoderNM(
+decoder = nemo_nlp.nm.trainables.TransformerDecoderNM(
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
@@ -130,11 +130,11 @@ decoder = nemo_nlp.TransformerDecoderNM(
     max_seq_length=args.max_seq_length,
 )
 
-log_softmax = nemo_nlp.TokenClassifier(
-    args.d_model, num_classes=tgt_tokenizer.vocab_size, num_layers=1, log_softmax=True,
+log_softmax = nemo_nlp.nm.trainables.token_classification_nm.TokenClassifier(
+    args.d_model, num_classes=tgt_tokenizer.vocab_size, num_layers=1, log_softmax=True
 )
 
-beam_search = nemo_nlp.BeamSearchTranslatorNM(
+beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     decoder=decoder,
     log_softmax=log_softmax,
     max_seq_length=args.max_seq_length,
@@ -144,7 +144,7 @@ beam_search = nemo_nlp.BeamSearchTranslatorNM(
     eos_token=tgt_tokenizer.eos_id(),
 )
 
-loss_fn = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(
+loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(
     pad_id=tgt_tokenizer.pad_id(), label_smoothing=args.label_smoothing
 )
 
@@ -154,7 +154,7 @@ if tie_weight:
 
 
 def create_pipeline(dataset_src, dataset_tgt, tokens_in_batch, clean=False, training=True):
-    data_layer = nemo_nlp.TranslationDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.machine_translation_datalayer.TranslationDataLayer(
         tokenizer_src=src_tokenizer,
         tokenizer_tgt=tgt_tokenizer,
         dataset_src=dataset_src,
@@ -165,7 +165,7 @@ def create_pipeline(dataset_src, dataset_tgt, tokens_in_batch, clean=False, trai
     src, src_mask, tgt, tgt_mask, labels, sent_ids = data_layer()
     src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)
     tgt_hiddens = decoder(
-        input_ids_tgt=tgt, hidden_states_src=src_hiddens, input_mask_src=src_mask, input_mask_tgt=tgt_mask,
+        input_ids_tgt=tgt, hidden_states_src=src_hiddens, input_mask_src=src_mask, input_mask_tgt=tgt_mask
     )
     logits = log_softmax(hidden_states=tgt_hiddens)
     loss = loss_fn(logits=logits, target_ids=labels)
@@ -207,7 +207,7 @@ eval_callback = nemo.core.EvaluatorCallback(
 # callback which saves checkpoints once in a while
 ckpt_dir = nf.checkpoint_dir if not args.interactive else args.restore_checkpoint_from
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=ckpt_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=1,
+    folder=ckpt_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=1
 )
 
 # define learning rate decay policy
@@ -228,7 +228,7 @@ if not args.interactive:
         callbacks=[train_callback, eval_callback, ckpt_callback],
         optimizer=args.optimizer,
         lr_policy=lr_policy_fn,
-        optimization_params={**stop_training_condition, "lr": args.lr, "weight_decay": args.weight_decay,},
+        optimization_params={**stop_training_condition, "lr": args.lr, "weight_decay": args.weight_decay},
         batches_per_step=args.iter_per_step,
     )
 else:

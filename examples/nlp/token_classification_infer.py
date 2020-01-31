@@ -2,12 +2,10 @@ import argparse
 import os
 
 import numpy as np
-from sklearn.metrics import classification_report
 
-import nemo
-import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp import NemoBertTokenizer
-from nemo.collections.nlp.utils.nlp_utils import get_vocab
+import nemo.collections.nlp.nm.trainables.common.token_classification_nm
+from nemo.collections.nlp.data import NemoBertTokenizer
+from nemo.collections.nlp.utils.common_nlp_utils import get_vocab
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='NER with pretrained BERT')
@@ -46,7 +44,7 @@ if not os.path.exists(args.labels_dict):
     raise ValueError(f'Dictionary with ids to labels not found at {args.labels_dict}')
 
 nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None,
+    backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None
 )
 
 labels_dict = get_vocab(args.labels_dict)
@@ -55,25 +53,29 @@ labels_dict = get_vocab(args.labels_dict)
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+    pretrained_model_name=args.pretrained_bert_model
+)
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
 
-data_layer = nemo_nlp.BertTokenClassificationInferDataLayer(
-    queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1,
+data_layer = nemo.collections.nlp.nm.data_layers.token_classification_datalayer.BertTokenClassificationInferDataLayer(
+    queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
 )
 
-classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size, num_classes=len(labels_dict), dropout=args.fc_dropout,)
+classifier = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
+    hidden_size=hidden_size, num_classes=len(labels_dict), dropout=args.fc_dropout
+)
 
 input_ids, input_type_ids, input_mask, _, subtokens_mask = data_layer()
 
-hidden_states = pretrained_bert_model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
+hidden_states = pretrained_bert_model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 logits = classifier(hidden_states=hidden_states)
 
 ###########################################################################
 
 # Instantiate an optimizer to perform `infer` action
-evaluated_tensors = nf.infer(tensors=[logits, subtokens_mask], checkpoint_dir=args.work_dir,)
+evaluated_tensors = nf.infer(tensors=[logits, subtokens_mask], checkpoint_dir=args.work_dir)
 
 
 def concatenate(lists):

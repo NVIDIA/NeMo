@@ -3,8 +3,10 @@ import math
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.callbacks.language_modeling import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data.datasets.utils import LanguageModelDataDesc
+import nemo.collections.nlp.nm.data_layers.lm_transformer_datalayer
+import nemo.collections.nlp.nm.trainables.common.token_classification_nm
+from nemo.collections.nlp.callbacks.lm_transformer_callback import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.data.datasets.lm_transformer_dataset import LanguageModelDataDesc
 from nemo.utils.lr_policies import CosineAnnealing
 
 parser = nemo.utils.NemoArgParser(description='LM Transformer')
@@ -67,14 +69,14 @@ data_desc = LanguageModelDataDesc(args.dataset_name, args.data_dir, args.do_lowe
 # define tokenizer, in this example we use word-level tokenizer
 # we also adjust the vocabulary size to make it multiple of 8 to accelerate
 # training in fp16 mode with the use of Tensor Cores
-tokenizer = nemo_nlp.WordTokenizer(f"{args.data_dir}/{args.tokenizer_model}")
+tokenizer = nemo_nlp.data.WordTokenizer(f"{args.data_dir}/{args.tokenizer_model}")
 vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 
 # instantiate necessary modules for the whole translation pipeline, namely
 # data layers, encoder, decoder, output log_softmax, beam_search_translator
 # and loss function
 
-encoder = nemo_nlp.TransformerEncoderNM(
+encoder = nemo_nlp.nm.trainables.TransformerEncoderNM(
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
@@ -88,18 +90,22 @@ encoder = nemo_nlp.TransformerEncoderNM(
     max_seq_length=args.max_seq_length,
 )
 
-log_softmax = nemo_nlp.TokenClassifier(args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True)
+log_softmax = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
+    args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
+)
 
-loss = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(pad_id=tokenizer.pad_id(), label_smoothing=args.label_smoothing)
+loss = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(
+    pad_id=tokenizer.pad_id(), label_smoothing=args.label_smoothing
+)
 
 # tie weight of embedding and log_softmax layers
 log_softmax.mlp.last_linear_layer.weight = encoder.embedding_layer.token_embedding.weight
 
 
 def create_pipeline(
-    dataset, max_seq_length=args.max_seq_length, batch_step=args.max_seq_length, batch_size=args.batch_size,
+    dataset, max_seq_length=args.max_seq_length, batch_step=args.max_seq_length, batch_size=args.batch_size
 ):
-    data_layer = nemo_nlp.LanguageModelingDataLayer(
+    data_layer = nemo.collections.nlp.nm.data_layers.lm_transformer_datalayer.LanguageModelingDataLayer(
         dataset, tokenizer, max_seq_length, batch_step, batch_size=batch_size
     )
     src, src_mask, labels = data_layer()
@@ -141,7 +147,7 @@ eval_callback = nemo.core.EvaluatorCallback(
 
 # callback which saves checkpoints once in a while
 callback_ckpt = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=-1,
+    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=-1
 )
 
 # define learning rate decay policy

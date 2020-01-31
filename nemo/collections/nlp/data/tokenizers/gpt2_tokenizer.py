@@ -1,3 +1,4 @@
+__all__ = ['NemoGPT2Tokenizer']
 from transformers import GPT2Tokenizer
 
 from nemo.collections.nlp.data.tokenizers.tokenizer_spec import TokenizerSpec
