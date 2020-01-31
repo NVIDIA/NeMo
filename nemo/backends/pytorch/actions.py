@@ -1336,7 +1336,7 @@ class PtActions(Actions):
                     else:
                         # Fix (workaround?) enabling to backpropagate gradiens on CPUs.
                         if final_loss.get_device() < 0:
-                            final_loss.backward(bps_scale.to(final_loss))
+                            final_loss.backward(bps_scale)
                         else:
                             final_loss.backward(bps_scale.to(final_loss.get_device()))
 
