@@ -1,16 +1,3 @@
-# Copyright (c) 2019 NVIDIA Corporation
-import os
-import shutil
-import tarfile
-
-from ruamel.yaml import YAML
-
-import nemo
-import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer, collections, parsers
-from nemo.core import DeviceType
-from tests.common_setup import NeMoUnitTest
-
 # ! /usr/bin/python
 # -*- coding: utf-8 -*-
 
@@ -28,8 +15,19 @@ from tests.common_setup import NeMoUnitTest
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+import os
+import shutil
+import tarfile
 
+from ruamel.yaml import YAML
 
+import nemo
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer, collections, parsers
+from nemo.core import DeviceType
+from tests.common_setup import NeMoUnitTest
+
+logging = nemo.logging
 freq = 16000
 
 
@@ -83,20 +81,20 @@ class TestASRPytorch(NeMoUnitTest):
     def setUpClass(cls) -> None:
         super().setUpClass()
         data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
-        print("Looking up for test ASR data")
+        logging.info("Looking up for test ASR data")
         if not os.path.exists(os.path.join(data_folder, "asr")):
-            print("Extracting ASR data to: {0}".format(os.path.join(data_folder, "asr")))
+            logging.info("Extracting ASR data to: {0}".format(os.path.join(data_folder, "asr")))
             tar = tarfile.open(os.path.join(data_folder, "asr.tar.gz"), "r:gz")
             tar.extractall(path=data_folder)
             tar.close()
         else:
-            print("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
+            logging.info("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
 
     @classmethod
     def tearDownClass(cls) -> None:
         super().tearDownClass()
         data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
-        print("Looking up for test ASR data")
+        logging.info("Looking up for test ASR data")
         if os.path.exists(os.path.join(data_folder, "asr")):
             shutil.rmtree(os.path.join(data_folder, "asr"))
 
@@ -164,19 +162,19 @@ class TestASRPytorch(NeMoUnitTest):
             for s in test_strings:
                 f.write('{"audio_filepath": "", "duration": 1.0, "text": ' f'"{s}"}}\n')
         parser = parsers.make_parser(self.labels, 'en')
-        manifest = collections.ASRAudioText(manifests_files=[manifest_paths], parser=parser)
+        manifest = collections.ASRAudioText(manifests_files=[manifest_paths], parser=parser,)
 
         for i, s in enumerate(normalized_strings):
             self.assertTrue(manifest[i].text_tokens == parser(s))
 
     def test_pytorch_audio_dataset(self):
         featurizer = WaveformFeaturizer.from_config(self.featurizer_config)
-        ds = AudioDataset(manifest_filepath=self.manifest_filepath, labels=self.labels, featurizer=featurizer)
+        ds = AudioDataset(manifest_filepath=self.manifest_filepath, labels=self.labels, featurizer=featurizer,)
 
         for i in range(len(ds)):
             if i == 5:
-                print(ds[i])
-            # print(ds[i][0].shape)
+                logging.info(ds[i])
+            # logging.info(ds[i][0].shape)
             # self.assertEqual(freq, ds[i][0].shape[0])
 
     def test_dataloader(self):
@@ -218,7 +216,7 @@ class TestASRPytorch(NeMoUnitTest):
 
         def create_good_preprocessor_2():
             nemo_asr.AudioToMelSpectrogramPreprocessor(
-                window_size=None, window_stride=None, n_window_size=256, n_window_stride=32
+                window_size=None, window_stride=None, n_window_size=256, n_window_stride=32,
             )
 
         self.assertRaises(ValueError, create_broken_preprocessor_1)
@@ -358,22 +356,22 @@ class TestASRPytorch(NeMoUnitTest):
         processed_signal, p_length = preprocessing(input_signal=audio_signal, length=a_sig_length)
 
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
-        # print(jasper_encoder)
+        # logging.info(jasper_encoder)
         log_probs = jasper_decoder(encoder_output=encoded)
         loss = ctc_loss(
-            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
+            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}')
+            tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
         )
         optimizer = neural_factory.get_trainer()
         optimizer.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003}
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
     def test_double_jasper_training(self):
@@ -424,17 +422,19 @@ class TestASRPytorch(NeMoUnitTest):
         log_probs = mx_max1(x1=log_probs1, x2=log_probs2)
         encoded_len = mx_max2(x1=encoded_len1, x2=encoded_len2)
         loss = ctc_loss(
-            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
+            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )
 
-        callback = nemo.core.SimpleLossLoggerCallback(tensors=[loss], print_func=lambda x: print(str(x[0].item())))
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensors=[loss], print_func=lambda x: logging.info(str(x[0].item()))
+        )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
         )
         optimizer = neural_factory.get_trainer()
         optimizer.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003}
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
     def test_quartznet_training(self):
@@ -474,19 +474,19 @@ class TestASRPytorch(NeMoUnitTest):
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
         log_probs = jasper_decoder(encoder_output=encoded)
         loss = ctc_loss(
-            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
+            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}')
+            tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
         )
         optimizer = neural_factory.get_trainer()
         optimizer.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003}
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
     def test_stft_conv(self):
@@ -525,20 +525,22 @@ class TestASRPytorch(NeMoUnitTest):
         processed_signal, p_length = preprocessing(input_signal=audio_signal, length=a_sig_length)
 
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
-        # print(jasper_encoder)
+        # logging.info(jasper_encoder)
         log_probs = jasper_decoder(encoder_output=encoded)
         loss = ctc_loss(
-            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
+            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )
 
-        callback = nemo.core.SimpleLossLoggerCallback(tensors=[loss], print_func=lambda x: print(str(x[0].item())))
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensors=[loss], print_func=lambda x: logging.info(str(x[0].item()))
+        )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
         )
         optimizer = neural_factory.get_trainer()
         optimizer.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003}
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
     def test_clas(self):
@@ -570,7 +572,7 @@ class TestASRPytorch(NeMoUnitTest):
             feat_in=cfg['input']['train']['features'],
         )
         connector = nemo_asr.JasperRNNConnector(
-            in_channels=cfg['encoder']['jasper'][-1]['filters'], out_channels=cfg['decoder']['hidden_size']
+            in_channels=cfg['encoder']['jasper'][-1]['filters'], out_channels=cfg['decoder']['hidden_size'],
         )
         decoder = nemo.backends.pytorch.common.DecoderRNN(
             voc_size=len(self.labels), bos_id=0, **cfg['decoder']  # fictive
@@ -586,14 +588,16 @@ class TestASRPytorch(NeMoUnitTest):
         loss = loss(log_probs=log_probs, targets=transcripts)
 
         # Train
-        callback = nemo.core.SimpleLossLoggerCallback(tensors=[loss], print_func=lambda x: print(str(x[0].item())))
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensors=[loss], print_func=lambda x: logging.info(str(x[0].item()))
+        )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
         )
         optimizer = neural_factory.get_trainer()
         optimizer.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003}
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
     def test_jasper_eval(self):
@@ -630,14 +634,17 @@ class TestASRPytorch(NeMoUnitTest):
         processed_signal, p_length = preprocessing(input_signal=audio_signal, length=a_sig_length)
 
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
-        # print(jasper_encoder)
+        # logging.info(jasper_encoder)
         log_probs = jasper_decoder(encoder_output=encoded)
         loss = ctc_loss(
-            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
+            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )
         predictions = greedy_decoder(log_probs=log_probs)
 
-        from nemo.collections.asr.helpers import process_evaluation_batch, process_evaluation_epoch
+        from nemo.collections.asr.helpers import (
+            process_evaluation_batch,
+            process_evaluation_epoch,
+        )
 
         eval_callback = nemo.core.EvaluatorCallback(
             eval_tensors=[loss, predictions, transcript, transcript_len],
@@ -646,7 +653,7 @@ class TestASRPytorch(NeMoUnitTest):
         )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
         )
         neural_factory.eval(callbacks=[eval_callback])
 

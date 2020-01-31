@@ -44,7 +44,7 @@ Here's an example:
     # Update printing function to add both losses
     callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[l1_loss_tensor, mse_loss_tensor],
-        print_func=lambda x: print(
+        print_func=lambda x: logging.info(
             f'Train Loss: {str(x[0].item() + x[1].item())}')
     )
 
@@ -84,7 +84,7 @@ loop.
     # SimpleLossLoggerCallback will print loss values to console.
     callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[l1_loss_tensor, mse_loss_tensor],
-        print_func=lambda x: print(
+        print_func=lambda x: logging.info(
             f'L1 Loss: {str(x[0].item())}'
             f'MSE Loss: {str(x[1].item())}')
     )
