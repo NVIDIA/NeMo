@@ -1029,7 +1029,7 @@ class PtActions(Actions):
                 else:
                     return NeuralModule.__call__(self, **kwargs)
 
-            type(module).__calll__ = __old_call__
+            type(module).__call__ = __old_call__
 
     @staticmethod
     def deployment_export(
