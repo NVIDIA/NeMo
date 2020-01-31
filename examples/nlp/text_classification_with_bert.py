@@ -4,9 +4,9 @@ import math
 import numpy as np
 from transformers import BertTokenizer
 
-import nemo
 import nemo.collections.nlp.nm.data_layers.text_classification_datalayer
 import nemo.collections.nlp.nm.trainables.common.sequence_classification_nm
+from nemo import logging
 from nemo.collections.nlp.callbacks.text_classification_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.text_classification_dataset import SentenceClassificationDataDesc
 from nemo.utils.lr_policies import get_lr_policy
@@ -92,7 +92,7 @@ else:
 
 
 def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mode='train'):
-    nemo.logging.info(f"Loading {mode} data...")
+    logging.info(f"Loading {mode} data...")
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
     shuffle = args.shuffle_data if mode == 'train' else False
 
@@ -111,12 +111,12 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
     data_size = len(data_layer)
 
     if data_size < batch_size:
-        nemo.logging.warning("Batch_size is larger than the dataset size")
-        nemo.logging.warning("Reducing batch_size to dataset size")
+        logging.warning("Batch_size is larger than the dataset size")
+        logging.warning("Reducing batch_size to dataset size")
         batch_size = data_size
 
     steps_per_epoch = math.ceil(data_size / (batch_size * num_gpus))
-    nemo.logging.info(f"Steps_per_epoch = {steps_per_epoch}")
+    logging.info(f"Steps_per_epoch = {steps_per_epoch}")
 
     hidden_states = pretrained_bert_model(input_ids=ids, token_type_ids=type_ids, attention_mask=input_mask)
 

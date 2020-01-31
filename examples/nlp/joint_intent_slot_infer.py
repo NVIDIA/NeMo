@@ -6,6 +6,7 @@ from sklearn.metrics import classification_report
 from transformers import BertTokenizer
 
 import nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
+from nemo import logging
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 
 # Parsing arguments
@@ -43,7 +44,7 @@ tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 data_desc = JointIntentSlotDataDesc(args.data_dir, args.do_lower_case, args.dataset_name)
 
 # Evaluation pipeline
-nemo.logging.info("Loading eval data...")
+logging.info("Loading eval data...")
 data_layer = nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer.BertJointIntentSlotDataLayer(
     input_file=f'{data_desc.data_dir}/{args.eval_file_prefix}.tsv',
     slot_file=f'{data_desc.data_dir}/{args.eval_file_prefix}_slots.tsv',
@@ -87,13 +88,13 @@ intent_logits, slot_logits, loss_mask, subtokens_mask, intents, slot_labels = [
 ]
 
 pred_intents = np.argmax(intent_logits, 1)
-nemo.logging.info('Intent prediction results')
+logging.info('Intent prediction results')
 
 intents = np.asarray(intents)
 pred_intents = np.asarray(pred_intents)
 intent_accuracy = sum(intents == pred_intents) / len(pred_intents)
-nemo.logging.info(f'Intent accuracy: {intent_accuracy}')
-nemo.logging.info(classification_report(intents, pred_intents))
+logging.info(f'Intent accuracy: {intent_accuracy}')
+logging.info(classification_report(intents, pred_intents))
 
 slot_preds = np.argmax(slot_logits, axis=2)
 slot_preds_list, slot_labels_list = [], []
@@ -102,9 +103,9 @@ for i, sp in enumerate(slot_preds):
     slot_preds_list.extend(list(slot_preds[i][subtokens_mask[i]]))
     slot_labels_list.extend(list(slot_labels[i][subtokens_mask[i]]))
 
-nemo.logging.info('Slot prediction results')
+logging.info('Slot prediction results')
 slot_labels_list = np.asarray(slot_labels_list)
 slot_preds_list = np.asarray(slot_preds_list)
 slot_accuracy = sum(slot_labels_list == slot_preds_list) / len(slot_labels_list)
-nemo.logging.info(f'Slot accuracy: {slot_accuracy}')
-nemo.logging.info(classification_report(slot_labels_list, slot_preds_list))
+logging.info(f'Slot accuracy: {slot_accuracy}')
+logging.info(classification_report(slot_labels_list, slot_preds_list))

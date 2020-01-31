@@ -4,6 +4,7 @@ import os
 import numpy as np
 
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
+from nemo import logging
 from nemo.collections.nlp.data import NemoBertTokenizer
 from nemo.collections.nlp.utils.common_nlp_utils import get_vocab
 
@@ -95,7 +96,7 @@ logits, subtokens_mask = [concatenate(tensors) for tensors in evaluated_tensors]
 preds = np.argmax(logits, axis=2)
 
 for i, query in enumerate(args.queries):
-    nemo.logging.info(f'Query: {query}')
+    logging.info(f'Query: {query}')
 
     pred = preds[i][subtokens_mask[i] > 0.5]
     words = query.strip().split()
@@ -110,4 +111,4 @@ for i, query in enumerate(args.queries):
             label = add_brackets(label)
             output += label
         output += ' '
-    nemo.logging.info(f'Combined: {output.strip()}')
+    logging.info(f'Combined: {output.strip()}')

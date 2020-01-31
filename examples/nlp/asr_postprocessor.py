@@ -4,9 +4,9 @@ import os
 
 import torch
 
-import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.machine_translation_datalayer
+from nemo import logging
 from nemo.collections.nlp.callbacks.machine_translation_callback import (
     eval_epochs_done_callback_wer,
     eval_iter_callback,
@@ -158,7 +158,7 @@ for eval_dataset in args.eval_datasets:
 
 def print_loss(x):
     loss = x[0].item()
-    nemo.logging.info("Training loss: {:.4f}".format(loss))
+    logging.info("Training loss: {:.4f}".format(loss))
 
 
 # callbacks

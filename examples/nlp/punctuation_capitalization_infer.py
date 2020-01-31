@@ -4,6 +4,7 @@ import os
 import numpy as np
 
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
+from nemo import logging
 from nemo.collections.nlp.data import NemoBertTokenizer
 from nemo.collections.nlp.utils.common_nlp_utils import get_vocab
 
@@ -123,7 +124,7 @@ punct_preds = np.argmax(punct_logits, axis=2)
 capit_preds = np.argmax(capit_logits, axis=2)
 
 for i, query in enumerate(args.queries):
-    nemo.logging.info(f'Query: {query}')
+    logging.info(f'Query: {query}')
 
     punct_pred = punct_preds[i][subtokens_mask[i] > 0.5]
     capit_pred = capit_preds[i][subtokens_mask[i] > 0.5]
@@ -142,4 +143,4 @@ for i, query in enumerate(args.queries):
         if punct_label != args.none_label:
             output += punct_label
         output += ' '
-    nemo.logging.info(f'Combined: {output.strip()}\n')
+    logging.info(f'Combined: {output.strip()}\n')
