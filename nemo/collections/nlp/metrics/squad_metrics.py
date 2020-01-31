@@ -23,6 +23,9 @@ __all__ = [
     'merge_eval',
     'find_all_best_thresh',
     'find_best_thresh',
+    'normalize_answer',
+    '_get_best_indexes',
+    'get_final_text',
 ]
 import collections
 
