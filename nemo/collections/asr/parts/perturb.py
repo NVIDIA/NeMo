@@ -137,7 +137,7 @@ class AudioAugmentor(object):
         ptbs = []
         for p in config:
             if p['aug_type'] not in perturbation_types:
-                logging.info(p['aug_type'], "perturbation not known. Skipping.")
+                logging.warning("%s perturbation not known. Skipping.", p['aug_type'])
                 continue
             perturbation = perturbation_types[p['aug_type']]
             ptbs.append((p['prob'], perturbation(**p['cfg'])))
