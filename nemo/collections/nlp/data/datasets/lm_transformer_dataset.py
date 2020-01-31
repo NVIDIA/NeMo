@@ -24,7 +24,6 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 import nemo
-import nemo.collections.nlp.data.datasets.datasets_utils
 from nemo.collections.nlp.data.datasets.datasets_utils import DATABASE_EXISTS_TMP, download_wkt2
 from nemo.collections.nlp.utils.common_nlp_utils import if_exist
 

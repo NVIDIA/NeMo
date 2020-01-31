@@ -20,7 +20,6 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-import collections.nlp.data.datasets.datasets_utils
 import random
 
 import numpy as np
@@ -32,6 +31,7 @@ import nemo.collections.nlp.utils.common_nlp_utils
 from nemo.collections.nlp.data.datasets.datasets_utils import (
     get_intent_labels,
     get_label_stats,
+    get_stats,
     process_imdb,
     process_jarvis_datasets,
     process_nlu,
@@ -91,7 +91,7 @@ class BertTextClassificationDataset(Dataset):
                 all_sent_subtokens.append(sent_subtokens)
                 sent_lengths.append(len(sent_subtokens))
 
-        collections.nlp.data.datasets.datasets_utils.get_stats(sent_lengths)
+        get_stats(sent_lengths)
         self.max_seq_length = min(max_seq_length, max(sent_lengths))
 
         for i in range(len(all_sent_subtokens)):
