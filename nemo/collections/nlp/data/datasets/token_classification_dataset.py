@@ -112,7 +112,7 @@ def get_features(
             all_labels.append(labels)
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
-    nemo.logging.info(f'Max length: {max_seq_length}')
+    logging.info(f'Max length: {max_seq_length}')
     datasets_utils.get_stats(sent_lengths)
     too_long_count = 0
 
@@ -141,17 +141,17 @@ def get_features(
 
         all_segment_ids.append([0] * max_seq_length)
 
-    nemo.logging.warning(f'{too_long_count} are longer than {max_seq_length}')
+    logging.warning(f'{too_long_count} are longer than {max_seq_length}')
 
     for i in range(min(len(all_input_ids), 5)):
-        nemo.logging.debug("*** Example ***")
-        nemo.logging.debug("i: %s", i)
-        nemo.logging.debug("subtokens: %s", " ".join(list(map(str, all_subtokens[i]))))
-        nemo.logging.debug("loss_mask: %s", " ".join(list(map(str, all_loss_mask[i]))))
-        nemo.logging.debug("input_mask: %s", " ".join(list(map(str, all_input_mask[i]))))
-        nemo.logging.debug("subtokens_mask: %s", " ".join(list(map(str, all_subtokens_mask[i]))))
+        logging.debug("*** Example ***")
+        logging.debug("i: %s", i)
+        logging.debug("subtokens: %s", " ".join(list(map(str, all_subtokens[i]))))
+        logging.debug("loss_mask: %s", " ".join(list(map(str, all_loss_mask[i]))))
+        logging.debug("input_mask: %s", " ".join(list(map(str, all_input_mask[i]))))
+        logging.debug("subtokens_mask: %s", " ".join(list(map(str, all_subtokens_mask[i]))))
         if with_label:
-            nemo.logging.debug("labels: %s", " ".join(list(map(str, all_labels[i]))))
+            logging.debug("labels: %s", " ".join(list(map(str, all_labels[i]))))
     return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_labels)
 
 
@@ -218,10 +218,10 @@ class BertTokenClassificationDataset(Dataset):
         if use_cache and os.path.exists(features_pkl) and os.path.exists(label_ids_pkl):
             # If text_file was already processed, load from pickle
             features = pickle.load(open(features_pkl, 'rb'))
-            nemo.logging.info(f'features restored from {features_pkl}')
+            logging.info(f'features restored from {features_pkl}')
 
             label_ids = pickle.load(open(label_ids_pkl, 'rb'))
-            nemo.logging.info(f'Labels to ids dict restored from {label_ids_pkl}')
+            logging.info(f'Labels to ids dict restored from {label_ids_pkl}')
         else:
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
@@ -255,16 +255,16 @@ class BertTokenClassificationDataset(Dataset):
             # for dev/test sets use label mapping from training set
             if label_ids:
                 if len(label_ids) != len(unique_labels):
-                    nemo.logging.warning(
+                    logging.warning(
                         f'Not all labels from the specified'
                         + ' label_ids dictionary are present in the'
                         + ' current dataset. Using the provided'
                         + ' label_ids dictionary.'
                     )
                 else:
-                    nemo.logging.info(f'Using the provided label_ids dictionary.')
+                    logging.info(f'Using the provided label_ids dictionary.')
             else:
-                nemo.logging.info(
+                logging.info(
                     f'Creating a new label to label_id dictionary.'
                     + ' It\'s recommended to use label_ids generated'
                     + ' during training for dev/test sets to avoid'
@@ -292,10 +292,10 @@ class BertTokenClassificationDataset(Dataset):
 
             if use_cache:
                 pickle.dump(features, open(features_pkl, "wb"))
-                nemo.logging.info(f'features saved to {features_pkl}')
+                logging.info(f'features saved to {features_pkl}')
 
                 pickle.dump(label_ids, open(label_ids_pkl, "wb"))
-                nemo.logging.info(f'labels to ids dict saved to {label_ids_pkl}')
+                logging.info(f'labels to ids dict saved to {label_ids_pkl}')
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
@@ -307,15 +307,15 @@ class BertTokenClassificationDataset(Dataset):
 
         infold = text_file[: text_file.rfind('/')]
         merged_labels = itertools.chain.from_iterable(self.all_labels)
-        nemo.logging.info('Three most popular labels')
+        logging.info('Three most popular labels')
         _, self.label_frequencies = datasets_utils.get_label_stats(merged_labels, infold + '/label_stats.tsv')
 
         # save label_ids
         out = open(infold + '/label_ids.csv', 'w')
         labels, _ = zip(*sorted(self.label_ids.items(), key=lambda x: x[1]))
         out.write('\n'.join(labels))
-        nemo.logging.info(f'Labels: {self.label_ids}')
-        nemo.logging.info(f'Labels mapping saved to : {out.name}')
+        logging.info(f'Labels: {self.label_ids}')
+        logging.info(f'Labels mapping saved to : {out.name}')
 
     def __len__(self):
         return len(self.all_input_ids)

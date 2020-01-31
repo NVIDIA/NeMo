@@ -28,7 +28,7 @@ import numpy as np
 from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import f1_score, matthews_corrcoef
 
-import nemo
+from nemo import logging
 from nemo.collections.nlp.utils.callback_utils import list2str, tensor2list
 
 
@@ -77,9 +77,9 @@ def eval_epochs_done_callback(global_vars, output_dir, task_name):
     if preds.shape[0] > sample_size + 1:
         i = random.randint(0, preds.shape[0] - sample_size - 1)
 
-    nemo.logging.info("Task name: %s" % task_name.upper())
-    nemo.logging.info("Sampled preds: [%s]" % list2str(preds[i : i + sample_size]))
-    nemo.logging.info("Sampled labels: [%s]" % list2str(labels[i : i + sample_size]))
+    logging.info("Task name: %s" % task_name.upper())
+    logging.info("Sampled preds: [%s]" % list2str(preds[i : i + sample_size]))
+    logging.info("Sampled labels: [%s]" % list2str(labels[i : i + sample_size]))
 
     results = compute_metrics(task_name, preds, labels)
 
@@ -88,7 +88,7 @@ def eval_epochs_done_callback(global_vars, output_dir, task_name):
         f.write('labels\t' + list2str(labels) + '\n')
         f.write('preds\t' + list2str(preds) + '\n')
 
-    nemo.logging.info(results)
+    logging.info(results)
 
     return results
 

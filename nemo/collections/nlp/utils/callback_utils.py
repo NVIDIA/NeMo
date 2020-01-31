@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix
 
-import nemo
+from nemo import logging
 
 
 def list2str(l):
@@ -68,7 +68,7 @@ def plot_confusion_matrix(labels, preds, graph_fold, label_ids=None, normalize=F
 
 def _plot_confusion_matrix(labels, preds, graph_fold):
     cm = confusion_matrix(labels, preds)
-    nemo.logging.info(f'Confusion matrix:\n{cm}')
+    logging.info(f'Confusion matrix:\n{cm}')
     fig = plt.figure()
     ax = fig.add_subplot(111)
     cax = ax.matshow(cm)

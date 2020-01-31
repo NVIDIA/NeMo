@@ -125,7 +125,7 @@ def get_features(
             capit_all_labels.append(capit_labels)
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
-    nemo.logging.info(f'Max length: {max_seq_length}')
+    logging.info(f'Max length: {max_seq_length}')
     utils.get_stats(sent_lengths)
     too_long_count = 0
 
@@ -156,12 +156,12 @@ def get_features(
 
         all_segment_ids.append([0] * max_seq_length)
 
-    nemo.logging.info(f'{too_long_count} are longer than {max_seq_length}')
+    logging.info(f'{too_long_count} are longer than {max_seq_length}')
 
     for i in range(min(len(all_input_ids), 5)):
-        nemo.logging.info("*** Example ***")
-        nemo.logging.info("i: %s" % (i))
-        nemo.logging.info("subtokens: %s" % " ".join(list(map(str, all_subtokens[i]))))
+        logging.info("*** Example ***")
+        logging.info("i: %s" % (i))
+        logging.info("subtokens: %s" % " ".join(list(map(str, all_subtokens[i]))))
         nemo.logging.info("loss_mask: %s" % " ".join(list(map(str, all_loss_mask[i]))))
         nemo.logging.info("input_mask: %s" % " ".join(list(map(str, all_input_mask[i]))))
         nemo.logging.info("subtokens_mask: %s" % " ".join(list(map(str, all_subtokens_mask[i]))))

@@ -26,6 +26,7 @@ import numpy as np
 from torch.utils.data import Dataset
 
 import nemo
+from nemo import logging
 import nemo.collections.nlp.data.datasets.joint_intent_slot_dataset
 from nemo.collections.nlp.data.datasets.datasets_utils import (
     get_intent_labels,
@@ -64,7 +65,7 @@ class BertTextClassificationDataset(Dataset):
             too_long_count = 0
 
             lines = f.readlines()[1:]
-            nemo.logging.info(f'{input_file}: {len(lines)}')
+            logging.info(f'{input_file}: {len(lines)}')
 
             if shuffle or num_samples > -1:
                 random.seed(0)
@@ -74,7 +75,7 @@ class BertTextClassificationDataset(Dataset):
 
             for index, line in enumerate(lines):
                 if index % 20000 == 0:
-                    nemo.logging.debug(f"Processing line {index}/{len(lines)}")
+                    logging.debug(f"Processing line {index}/{len(lines)}")
 
                 sent_label = int(line.split()[-1])
                 sent_labels.append(sent_label)
@@ -99,7 +100,7 @@ class BertTextClassificationDataset(Dataset):
                 all_sent_subtokens[i] = ['[CLS]'] + shorten_sent
                 too_long_count += 1
 
-        nemo.logging.info(
+        logging.info(
             f'{too_long_count} out of {len(sent_lengths)} \
                        sentencess with more than {max_seq_length} subtokens.'
         )
@@ -148,12 +149,12 @@ class BertTextClassificationDataset(Dataset):
             assert len(input_mask) == max_seq_length
 
             if sent_id == 0:
-                nemo.logging.info("*** Example ***")
-                nemo.logging.info("example_index: %s" % sent_id)
-                nemo.logging.info("subtokens: %s" % " ".join(sent_subtokens))
-                nemo.logging.info("sent_label: %s" % sent_label)
-                nemo.logging.info("input_ids: %s" % nemo.collections.nlp.utils.callback_utils.list2str(input_ids))
-                nemo.logging.info("input_mask: %s" % nemo.collections.nlp.utils.callback_utils.list2str(input_mask))
+                logging.info("*** Example ***")
+                logging.info("example_index: %s" % sent_id)
+                logging.info("subtokens: %s" % " ".join(sent_subtokens))
+                logging.info("sent_label: %s" % sent_label)
+                logging.info("input_ids: %s" % nemo.collections.nlp.utils.callback_utils.list2str(input_ids))
+                logging.info("input_mask: %s" % nemo.collections.nlp.utils.callback_utils.list2str(input_mask))
 
             self.features.append(
                 InputFeatures(
@@ -222,7 +223,7 @@ class SentenceClassificationDataDesc:
         for mode in ['train', 'test', 'eval']:
 
             if not if_exist(self.data_dir, [f'{mode}.tsv']):
-                nemo.logging.info(f' Stats calculation for {mode} mode' f' is skipped as {mode}.tsv was not found.')
+                logging.info(f' Stats calculation for {mode} mode' f' is skipped as {mode}.tsv was not found.')
                 continue
 
             input_file = f'{self.data_dir}/{mode}.tsv'
@@ -237,12 +238,12 @@ class SentenceClassificationDataDesc:
 
             infold = input_file[: input_file.rfind('/')]
 
-            nemo.logging.info(f'Three most popular classes during {mode}ing')
+            logging.info(f'Three most popular classes during {mode}ing')
             total_sents, sent_label_freq = get_label_stats(raw_sentences, infold + f'/{mode}_sentence_stats.tsv')
 
             if mode == 'train':
                 self.class_weights = calc_class_weights(sent_label_freq)
-                nemo.logging.info(f'Class weights are - {self.class_weights}')
+                logging.info(f'Class weights are - {self.class_weights}')
 
-            nemo.logging.info(f'Total Sentences - {total_sents}')
-            nemo.logging.info(f'Sentence class frequencies - {sent_label_freq}')
+            logging.info(f'Total Sentences - {total_sents}')
+            logging.info(f'Sentence class frequencies - {sent_label_freq}')

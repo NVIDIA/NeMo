@@ -96,7 +96,7 @@ def get_features(
             all_slots.append(slots)
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
-    nemo.logging.info(f'Max length: {max_seq_length}')
+    logging.info(f'Max length: {max_seq_length}')
     get_stats(sent_lengths)
     too_long_count = 0
 
@@ -125,7 +125,7 @@ def get_features(
 
         all_segment_ids.append([0] * max_seq_length)
 
-    nemo.logging.info(f'{too_long_count} are longer than {max_seq_length}')
+    logging.info(f'{too_long_count} are longer than {max_seq_length}')
 
     return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_slots)
 
@@ -348,7 +348,7 @@ class JointIntentSlotDataDesc:
         for mode in ['train', 'test', 'eval']:
 
             if not if_exist(self.data_dir, [f'{mode}.tsv']):
-                nemo.logging.info(f' Stats calculation for {mode} mode' f' is skipped as {mode}.tsv was not found.')
+                logging.info(f' Stats calculation for {mode} mode' f' is skipped as {mode}.tsv was not found.')
                 continue
 
             slot_file = f'{self.data_dir}/{mode}_slots.tsv'
@@ -378,24 +378,24 @@ class JointIntentSlotDataDesc:
 
             infold = input_file[: input_file.rfind('/')]
 
-            nemo.logging.info(f'Three most popular intents during {mode}ing')
+            logging.info(f'Three most popular intents during {mode}ing')
             total_intents, intent_label_freq = get_label_stats(raw_intents, infold + f'/{mode}_intent_stats.tsv')
             merged_slots = itertools.chain.from_iterable(raw_slots)
 
-            nemo.logging.info(f'Three most popular slots during {mode}ing')
+            logging.info(f'Three most popular slots during {mode}ing')
             slots_total, slots_label_freq = get_label_stats(merged_slots, infold + f'/{mode}_slot_stats.tsv')
 
             if mode == 'train':
                 self.slot_weights = calc_class_weights(slots_label_freq)
-                nemo.logging.info(f'Slot weights are - {self.slot_weights}')
+                logging.info(f'Slot weights are - {self.slot_weights}')
 
                 self.intent_weights = calc_class_weights(intent_label_freq)
-                nemo.logging.info(f'Intent weights are - {self.intent_weights}')
+                logging.info(f'Intent weights are - {self.intent_weights}')
 
-            nemo.logging.info(f'Total intents - {total_intents}')
-            nemo.logging.info(f'Intent label frequency - {intent_label_freq}')
-            nemo.logging.info(f'Total Slots - {slots_total}')
-            nemo.logging.info(f'Slots label frequency - {slots_label_freq}')
+            logging.info(f'Total intents - {total_intents}')
+            logging.info(f'Intent label frequency - {intent_label_freq}')
+            logging.info(f'Total Slots - {slots_total}')
+            logging.info(f'Slots label frequency - {slots_label_freq}')
 
         if pad_label != -1:
             self.pad_label = pad_label

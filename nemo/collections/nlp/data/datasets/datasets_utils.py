@@ -12,7 +12,6 @@ from collections import Counter
 import numpy as np
 from tqdm import tqdm
 
-import nemo
 from nemo import logging
 from nemo.collections.nlp.utils.callback_utils import list2str
 from nemo.collections.nlp.utils.common_nlp_utils import (
@@ -36,7 +35,7 @@ def get_label_stats(labels, outfile='stats.tsv'):
     for k, v in label_frequencies:
         out.write(f'{k}\t{v / total}\n')
         if i < 3:
-            nemo.logging.info(f'{i} item: {k}, {v} out of {total}, {v / total}.')
+            logging.info(f'{i} item: {k}, {v} out of {total}, {v / total}.')
         i += 1
     return total, label_frequencies
 
@@ -45,7 +44,7 @@ def process_sst_2(data_dir):
     if not os.path.exists(data_dir):
         link = 'https://gluebenchmark.com/tasks'
         raise ValueError(f'Data not found at {data_dir}. ' f'Please download SST-2 from {link}.')
-    nemo.logging.info('Keep in mind that SST-2 is only available in lower case.')
+    logging.info('Keep in mind that SST-2 is only available in lower case.')
     return data_dir
 
 
@@ -60,9 +59,9 @@ def process_imdb(data_dir, uncased, modes=['train', 'test']):
         outfold = f'{outfold}_uncased'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        nemo.logging.info(DATABASE_EXISTS_TMP.format('IMDB', outfold))
+        logging.info(DATABASE_EXISTS_TMP.format('IMDB', outfold))
         return outfold
-    nemo.logging.info(f'Processing IMDB dataset and store at {outfold}')
+    logging.info(f'Processing IMDB dataset and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -100,9 +99,9 @@ def process_thucnews(data_dir):
     outfold = f'{data_dir}/nemo-processed-thucnews'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        nemo.logging.info(DATABASE_EXISTS_TMP.format('THUCNews', outfold))
+        logging.info(DATABASE_EXISTS_TMP.format('THUCNews', outfold))
         return outfold
-    nemo.logging.info(f'Processing THUCNews dataset and store at {outfold}')
+    logging.info(f'Processing THUCNews dataset and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -119,7 +118,7 @@ def process_thucnews(data_dir):
         test_files = category_files[:test_num]
         train_files = category_files[test_num:]
         for mode in modes:
-            nemo.logging.info(f'Processing {mode} data of the category {category}')
+            logging.info(f'Processing {mode} data of the category {category}')
             if mode == 'test':
                 files = test_files
             else:
@@ -171,9 +170,9 @@ def process_nlu(filename, uncased, modes=['train', 'test'], dataset_name='nlu-ub
         outfold = f'{outfold}_uncased'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        nemo.logging.info(DATABASE_EXISTS_TMP.format(dataset_name.upper(), outfold))
+        logging.info(DATABASE_EXISTS_TMP.format(dataset_name.upper(), outfold))
         return outfold
-    nemo.logging.info(f'Processing data and store at {outfold}')
+    logging.info(f'Processing data and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -220,9 +219,9 @@ def process_atis(infold, uncased, modes=['train', 'test'], dev_split=0):
         outfold = f'{outfold}-uncased'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        nemo.logging.info(DATABASE_EXISTS_TMP.format('ATIS', outfold))
+        logging.info(DATABASE_EXISTS_TMP.format('ATIS', outfold))
         return outfold
-    nemo.logging.info(f'Processing ATIS dataset and store at {outfold}')
+    logging.info(f'Processing ATIS dataset and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -261,10 +260,10 @@ def process_jarvis_datasets(infold, uncased, dataset_name, modes=['train', 'test
         outfold = f'{outfold}-uncased'
 
     if if_exist(outfold, ['dict.intents.csv', 'dict.slots.csv']):
-        nemo.logging.info(DATABASE_EXISTS_TMP.format(dataset_name, outfold))
+        logging.info(DATABASE_EXISTS_TMP.format(dataset_name, outfold))
         return outfold
 
-    nemo.logging.info(f'Processing {dataset_name} dataset and store at {outfold}')
+    logging.info(f'Processing {dataset_name} dataset and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -282,11 +281,11 @@ def process_jarvis_datasets(infold, uncased, dataset_name, modes=['train', 'test
 
     for mode in modes:
         if if_exist(outfold, [f'{mode}.tsv']):
-            nemo.logging.info(MODE_EXISTS_TMP.format(mode, dataset_name, outfold, mode))
+            logging.info(MODE_EXISTS_TMP.format(mode, dataset_name, outfold, mode))
             continue
 
         if not if_exist(infold, [f'{mode}.tsv']):
-            nemo.logging.info(f'{mode} mode of {dataset_name}' f' is skipped as it was not found.')
+            logging.info(f'{mode} mode of {dataset_name}' f' is skipped as it was not found.')
             continue
 
         outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
@@ -368,10 +367,10 @@ def process_mturk(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     outfold = f'{data_dir}/nemo-processed'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        nemo.logging.info(DATABASE_EXISTS_TMP.format('mturk', outfold))
+        logging.info(DATABASE_EXISTS_TMP.format('mturk', outfold))
         return outfold
 
-    nemo.logging.info(f'Processing dataset from mturk and storing at {outfold}')
+    logging.info(f'Processing dataset from mturk and storing at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -533,7 +532,7 @@ def get_slot_labels(slot_annotations, task_name):
 def merge(data_dir, subdirs, dataset_name, modes=['train', 'test']):
     outfold = f'{data_dir}/{dataset_name}'
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        nemo.logging.info(DATABASE_EXISTS_TMP.format('SNIPS-ATIS', outfold))
+        logging.info(DATABASE_EXISTS_TMP.format('SNIPS-ATIS', outfold))
         slots = get_vocab(f'{outfold}/dict.slots.csv')
         none_slot = 0
         for key in slots:
@@ -764,13 +763,13 @@ def process_snips(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     exist = True
     for dataset in ['light', 'speak', 'all']:
         if if_exist(f'{outfold}/{dataset}', [f'{mode}.tsv' for mode in modes]):
-            nemo.logging.info(DATABASE_EXISTS_TMP.format('SNIPS-' + dataset.upper(), outfold))
+            logging.info(DATABASE_EXISTS_TMP.format('SNIPS-' + dataset.upper(), outfold))
         else:
             exist = False
     if exist:
         return outfold
 
-    nemo.logging.info(f'Processing SNIPS dataset and store at {outfold}')
+    logging.info(f'Processing SNIPS dataset and store at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -894,7 +893,7 @@ def get_intent_labels(intent_file):
 
 def download_wkt2(data_dir):
     os.makedirs('data/lm', exist_ok=True)
-    nemo.logging.warning(f'Data not found at {data_dir}. ' f'Downloading wikitext-2 to data/lm')
+    logging.warning(f'Data not found at {data_dir}. ' f'Downloading wikitext-2 to data/lm')
     data_dir = 'data/lm/wikitext-2'
     subprocess.call('scripts/get_wkt2.sh')
     return data_dir
@@ -927,11 +926,11 @@ def get_tokens(s):
 
 def get_stats(lengths):
     lengths = np.asarray(lengths)
-    nemo.logging.info(
+    logging.info(
         f'Min: {np.min(lengths)} | \
                  Max: {np.max(lengths)} | \
                  Mean: {np.mean(lengths)} | \
                  Median: {np.median(lengths)}'
     )
-    nemo.logging.info(f'75 percentile: {np.percentile(lengths, 75)}')
-    nemo.logging.info(f'99 percentile: {np.percentile(lengths, 99)}')
+    logging.info(f'75 percentile: {np.percentile(lengths, 75)}')
+    logging.info(f'99 percentile: {np.percentile(lengths, 99)}')

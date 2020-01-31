@@ -25,7 +25,7 @@ import os
 import numpy as np
 from torch.utils.data import Dataset
 
-import nemo
+from nemo import logging
 
 __all__ = ['GLUEDataset']
 
@@ -107,7 +107,7 @@ def convert_examples_to_features(
     features = []
     for ex_index, example in enumerate(examples):
         if ex_index % 10000 == 0:
-            nemo.logging.info("Writing example %d of %d" % (ex_index, len(examples)))
+            logging.info("Writing example %d of %d" % (ex_index, len(examples)))
 
         tokens_a = tokenizer.text_to_tokens(example.text_a)
 
@@ -189,13 +189,13 @@ def convert_examples_to_features(
             raise KeyError(output_mode)
 
         if ex_index < 5:
-            nemo.logging.info("*** Example ***")
-            nemo.logging.info("guid: %s" % (example.guid))
-            nemo.logging.info("tokens: %s" % " ".join(list(map(str, tokens))))
-            nemo.logging.info("input_ids: %s" % " ".join(list(map(str, input_ids))))
-            nemo.logging.info("input_mask: %s" % " ".join(list(map(str, input_mask))))
-            nemo.logging.info("segment_ids: %s" % " ".join(list(map(str, segment_ids))))
-            nemo.logging.info("label: %s (id = %d)" % (example.label, label_id))
+            logging.info("*** Example ***")
+            logging.info("guid: %s" % (example.guid))
+            logging.info("tokens: %s" % " ".join(list(map(str, tokens))))
+            logging.info("input_ids: %s" % " ".join(list(map(str, input_ids))))
+            logging.info("input_mask: %s" % " ".join(list(map(str, input_mask))))
+            logging.info("segment_ids: %s" % " ".join(list(map(str, segment_ids))))
+            logging.info("label: %s (id = %d)" % (example.label, label_id))
 
         features.append(
             InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_id=label_id)
@@ -292,7 +292,7 @@ class MrpcProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        nemo.logging.info(f'LOOKING AT {os.path.join(data_dir, "train.tsv")}')
+        logging.info(f'LOOKING AT {os.path.join(data_dir, "train.tsv")}')
         return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):

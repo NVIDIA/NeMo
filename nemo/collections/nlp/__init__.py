@@ -13,7 +13,7 @@
 # limitations under the License.
 # =============================================================================
 
-import nemo
+from nemo import logging
 import nemo.collections.nlp.callbacks
 import nemo.collections.nlp.data
 import nemo.collections.nlp.nm

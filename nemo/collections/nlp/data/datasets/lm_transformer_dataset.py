@@ -23,7 +23,7 @@ from sentencepiece import SentencePieceTrainer as SPT
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-import nemo
+from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import DATABASE_EXISTS_TMP, download_wkt2
 from nemo.collections.nlp.utils.common_nlp_utils import if_exist
 
@@ -58,7 +58,7 @@ class LanguageModelDataDesc:
             self.vocab_size = create_vocab_lm(data_dir, do_lower_case)
             self.data_dir = data_dir
         else:
-            nemo.logging.warning(
+            logging.warning(
                 "Looks like you passed a dataset name that isn't "
                 "already supported by NeMo. Please make sure that "
                 "you build the preprocessing method for it."
@@ -71,15 +71,15 @@ def create_vocab_mlm(
     vocab = special_tokens[:]
     bert_dir = f'{data_dir}/bert'
     if if_exist(bert_dir, ['tokenizer.model']):
-        nemo.logging.info(DATABASE_EXISTS_TMP.format('WikiText_BERT', bert_dir))
+        logging.info(DATABASE_EXISTS_TMP.format('WikiText_BERT', bert_dir))
         return data_dir, f'{bert_dir}/tokenizer.model'
-    nemo.logging.info(f'Processing WikiText dataset and store at {bert_dir}')
+    logging.info(f'Processing WikiText dataset and store at {bert_dir}')
     os.makedirs(bert_dir, exist_ok=True)
 
     if not train_file:
         files = glob.glob(f'{data_dir}/*.txt')
         train_file = f'{bert_dir}/merged.txt'
-        nemo.logging.info(f"Merging {len(files)} txt files into {train_file}")
+        logging.info(f"Merging {len(files)} txt files into {train_file}")
 
         with open(train_file, "w") as merged:
             for file in tqdm(files):
@@ -136,10 +136,10 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
 
     cached_ids_dataset = dataset + str(".pkl")
     if os.path.isfile(cached_ids_dataset):
-        nemo.logging.info("Loading cached tokenized dataset ...")
+        logging.info("Loading cached tokenized dataset ...")
         ids = pickle.load(open(cached_ids_dataset, "rb"))
     else:
-        nemo.logging.info("Tokenizing dataset ...")
+        logging.info("Tokenizing dataset ...")
         data = open(dataset, "rb").readlines()
         ids = []
         for sentence in data:
@@ -148,19 +148,19 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
                 sent_ids = [tokenizer.bos_id()] + sent_ids + [tokenizer.eos_id()]
             ids.append(sent_ids)
         if cache_ids:
-            nemo.logging.info("Caching tokenized dataset ...")
+            logging.info("Caching tokenized dataset ...")
             pickle.dump(ids, open(cached_ids_dataset, "wb"))
     return ids
 
 
 def create_vocab_lm(data_dir, do_lower_case):
     if if_exist(data_dir, ['train.txt', 'vocab.txt']):
-        nemo.logging.info("Vocabulary has been created.")
+        logging.info("Vocabulary has been created.")
         with open(os.path.join(data_dir, 'vocab.txt'), 'r') as f:
             vocab_size = len(f.readlines())
         return vocab_size
 
-    nemo.logging.info(f'Creating vocabulary from training data at {data_dir}')
+    logging.info(f'Creating vocabulary from training data at {data_dir}')
 
     with open(f'{data_dir}/train.txt', 'r') as f:
         txt = f.read()
@@ -180,6 +180,6 @@ def create_vocab_lm(data_dir, do_lower_case):
     with open(f'{data_dir}/vocab.txt', 'w') as f:
         for word in sorted(vocab.keys()):
             f.write(word + '\n')
-    nemo.logging.info(f"Created vocabulary of size {len(vocab)}")
+    logging.info(f"Created vocabulary of size {len(vocab)}")
 
     return len(vocab)

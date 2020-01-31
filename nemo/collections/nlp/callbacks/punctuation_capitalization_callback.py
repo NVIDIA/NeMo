@@ -87,21 +87,21 @@ def _eval_epochs_done_callback(task_name, global_vars, label_ids, graph_fold=Non
     preds = preds[subtokens_mask]
 
     accuracy = sum(labels == preds) / labels.shape[0]
-    nemo.logging.info(f'Accuracy for task {task_name}: {accuracy}')
+    logging.info(f'Accuracy for task {task_name}: {accuracy}')
 
     # print predictions and labels for a small random subset of data
     sample_size = 20
     i = 0
     if preds.shape[0] > sample_size + 1:
         i = random.randint(0, preds.shape[0] - sample_size - 1)
-    nemo.logging.info("Sampled preds: [%s]" % list2str(preds[i : i + sample_size]))
-    nemo.logging.info("Sampled labels: [%s]" % list2str(labels[i : i + sample_size]))
+    logging.info("Sampled preds: [%s]" % list2str(preds[i : i + sample_size]))
+    logging.info("Sampled labels: [%s]" % list2str(labels[i : i + sample_size]))
 
     # remove labels from label_ids that don't appear in the dev set
     used_labels = set(labels) | set(preds)
     label_ids = {k: label_ids[k] for k, v in label_ids.items() if v in used_labels}
 
-    nemo.logging.info(classification_report(labels, preds, target_names=label_ids))
+    logging.info(classification_report(labels, preds, target_names=label_ids))
 
     # calculate and plot confusion_matrix
     if graph_fold:
