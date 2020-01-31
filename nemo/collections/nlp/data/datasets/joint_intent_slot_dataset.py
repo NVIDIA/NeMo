@@ -24,7 +24,7 @@ import random
 import numpy as np
 from torch.utils.data import Dataset
 
-import nemo
+from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import (
     get_label_stats,
     get_stats,
