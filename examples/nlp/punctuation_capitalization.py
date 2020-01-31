@@ -12,7 +12,6 @@ from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
     eval_iter_callback,
 )
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
-from nemo.collections.nlp.data.datasets import datasets_utils
 from nemo.collections.nlp.nm.data_layers import PunctuationCapitalizationDataLayer
 from nemo.collections.nlp.nm.losses.token_classification_loss import TokenClassificationLoss
 from nemo.collections.nlp.nm.trainables import TokenClassifier

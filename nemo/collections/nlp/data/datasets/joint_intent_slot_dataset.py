@@ -25,7 +25,6 @@ import numpy as np
 from torch.utils.data import Dataset
 
 import nemo
-import nemo.collections.nlp.data.datasets.datasets_utils as utils
 from nemo.collections.nlp.data.datasets.datasets_utils import (
     get_label_stats,
     merge,
@@ -36,6 +35,8 @@ from nemo.collections.nlp.data.datasets.datasets_utils import (
     process_snips,
 )
 from nemo.collections.nlp.utils.common_nlp_utils import calc_class_weights, get_vocab, if_exist, label2idx
+
+__all__ = ['BertJointIntentSlotDataset', 'BertJointIntentSlotInferDataset', 'JointIntentSlotDataDesc']
 
 
 def get_features(

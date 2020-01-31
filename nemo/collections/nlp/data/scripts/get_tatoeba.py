@@ -18,7 +18,6 @@ import random
 import re
 import string
 import urllib.request
-from collections import Counter
 
 from nemo import logging
 
