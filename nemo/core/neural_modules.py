@@ -19,6 +19,7 @@ from .neural_types import (
     NeuralTypeComparisonResult,
     NmTensor,
 )
+from nemo import logging
 from nemo.core import NeuralModuleFactory
 from nemo.utils.decorators.deprecated import deprecated
 
@@ -71,11 +72,11 @@ class NeuralModule(ABC):
         self._uuid = str(uuid.uuid4())
 
         # if kwargs:
-        #    nemo.logging.warning(
+        #    logging.warning(
         #        "When constructing {}. The base "
         #        "NeuralModule class received the following unused "
         #        "arguments:".format(self.__class__.__name__))
-        #    nemo.logging.warning("{}".format(kwargs.keys()))
+        #    logging.warning("{}".format(kwargs.keys()))
 
     @deprecated()
     @staticmethod
@@ -164,7 +165,7 @@ class NeuralModule(ABC):
                     )
                 )
             if type_comatibility == NeuralTypeComparisonResult.LESS:
-                print('Types were raised')
+                logging.info('Types were raised')
 
         if len(output_port_defs) == 1:
             out_name = list(output_port_defs)[0]

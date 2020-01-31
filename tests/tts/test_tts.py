@@ -24,6 +24,8 @@ import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
 from tests.common_setup import NeMoUnitTest
 
+logging = nemo.logging
+
 
 class TestTTSPytorch(NeMoUnitTest):
     labels = [
@@ -61,18 +63,18 @@ class TestTTSPytorch(NeMoUnitTest):
     def setUp(self) -> None:
         super().setUp()
         data_folder = "tests/data/"
-        print("Looking up for test speech data")
+        logging.info("Looking up for test speech data")
         if not os.path.exists(data_folder + "asr"):
-            print("Extracting speech data to: {0}".format(data_folder + "asr"))
+            logging.info("Extracting speech data to: {0}".format(data_folder + "asr"))
             tar = tarfile.open("tests/data/asr.tar.gz", "r:gz")
             tar.extractall(path=data_folder)
             tar.close()
         else:
-            print("speech data found in: {0}".format(data_folder + "asr"))
+            logging.info("speech data found in: {0}".format(data_folder + "asr"))
 
     def test_tacotron2_training(self):
         data_layer = nemo_asr.AudioToTextDataLayer(
-            manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4
+            manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4,
         )
         preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             window_size=None,
@@ -86,7 +88,7 @@ class TestTTSPytorch(NeMoUnitTest):
             pad_value=-11.52,
         )
         text_embedding = nemo_tts.TextEmbedding(len(self.labels), 256)
-        t2_enc = nemo_tts.Tacotron2Encoder(encoder_n_convolutions=2, encoder_kernel_size=5, encoder_embedding_dim=256)
+        t2_enc = nemo_tts.Tacotron2Encoder(encoder_n_convolutions=2, encoder_kernel_size=5, encoder_embedding_dim=256,)
         t2_dec = nemo_tts.Tacotron2Decoder(
             n_mel_channels=64,
             n_frames_per_step=1,
@@ -103,7 +105,7 @@ class TestTTSPytorch(NeMoUnitTest):
             attention_location_kernel_size=15,
         )
         t2_postnet = nemo_tts.Tacotron2Postnet(
-            n_mel_channels=64, postnet_embedding_dim=256, postnet_kernel_size=5, postnet_n_convolutions=3
+            n_mel_channels=64, postnet_embedding_dim=256, postnet_kernel_size=5, postnet_n_convolutions=3,
         )
         t2_loss = nemo_tts.Tacotron2Loss()
         makegatetarget = nemo_tts.MakeGate()
@@ -113,9 +115,9 @@ class TestTTSPytorch(NeMoUnitTest):
         spec_target, spec_target_len = preprocessing(input_signal=audio, length=audio_len)
 
         transcript_embedded = text_embedding(char_phone=transcript)
-        transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len)
+        transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len,)
         mel_decoder, gate, _ = t2_dec(
-            char_phone_encoded=transcript_encoded, encoded_length=transcript_len, mel_target=spec_target
+            char_phone_encoded=transcript_encoded, encoded_length=transcript_len, mel_target=spec_target,
         )
         mel_postnet = t2_postnet(mel_input=mel_decoder)
         gate_target = makegatetarget(mel_target=spec_target, target_len=spec_target_len)
@@ -130,19 +132,19 @@ class TestTTSPytorch(NeMoUnitTest):
         )
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss_t], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}')
+            tensors=[loss_t], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
         )
         optimizer = neural_factory.get_trainer()
         optimizer.train(
-            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003}
+            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
     def test_waveglow_training(self):
-        data_layer = nemo_tts.AudioDataLayer(manifest_filepath=self.manifest_filepath, n_segments=4000, batch_size=4)
+        data_layer = nemo_tts.AudioDataLayer(manifest_filepath=self.manifest_filepath, n_segments=4000, batch_size=4,)
         preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             window_size=None,
             window_stride=None,
@@ -174,13 +176,13 @@ class TestTTSPytorch(NeMoUnitTest):
         loss_t = waveglow_loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list)
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss_t], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}')
+            tensors=[loss_t], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False
+            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
         )
         optimizer = neural_factory.get_trainer()
         optimizer.train(
-            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003}
+            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )

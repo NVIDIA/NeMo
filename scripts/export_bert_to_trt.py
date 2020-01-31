@@ -22,6 +22,8 @@ import numpy as np
 import tensorrt as trt
 import torch
 
+from nemo import logging
+
 nvinfer = ctypes.CDLL("libnvinfer_plugin.so", mode=ctypes.RTLD_GLOBAL)
 cm = ctypes.CDLL("libcommon.so", mode=ctypes.RTLD_GLOBAL)
 pg = ctypes.CDLL("libbert_plugins.so", mode=ctypes.RTLD_GLOBAL)
@@ -37,8 +39,10 @@ skln_plg_creator = plg_registry.get_plugin_creator("CustomSkipLayerNormPluginDyn
 gelu_plg_creator = plg_registry.get_plugin_creator("CustomGeluPluginDynamic", "1", "")
 emln_plg_creator = plg_registry.get_plugin_creator("CustomEmbLayerNormPluginDynamic", "1", "")
 
-print("creators:", plg_registry, qkv2_plg_creator, skln_plg_creator, gelu_plg_creator, emln_plg_creator)
-print("\n".join([x.name for x in plg_registry.plugin_creator_list]))
+logging.info(
+    "creators:", plg_registry, qkv2_plg_creator, skln_plg_creator, gelu_plg_creator, emln_plg_creator,
+)
+logging.info("\n".join([x.name for x in plg_registry.plugin_creator_list]))
 
 """
 Attentions Keys
@@ -111,7 +115,7 @@ def attention_layer_opt(prefix, config, init_dict, network, input_tensor, imask)
 
     has_mask = imask is not None
 
-    pf_hidden_size = trt.PluginField("hidden_size", np.array([hidden_size], np.int32), trt.PluginFieldType.INT32)
+    pf_hidden_size = trt.PluginField("hidden_size", np.array([hidden_size], np.int32), trt.PluginFieldType.INT32,)
     pf_num_heads = trt.PluginField("num_heads", np.array([num_heads], np.int32), trt.PluginFieldType.INT32)
     pf_S = trt.PluginField("S", np.array([S], np.int32), trt.PluginFieldType.INT32)
     pf_has_mask = trt.PluginField("has_mask", np.array([has_mask], np.int32), trt.PluginFieldType.INT32)
@@ -157,7 +161,7 @@ def transformer_layer_opt(prefix, config, init_dict, network, input_tensor, imas
     hidden_size = idims[2]
 
     context_transposed = attention_layer_opt(
-        prefix + "attention_self_", config, init_dict, network, input_tensor, imask
+        prefix + "attention_self_", config, init_dict, network, input_tensor, imask,
     )
     attention_heads = context_transposed.get_output(0)
 
@@ -166,7 +170,7 @@ def transformer_layer_opt(prefix, config, init_dict, network, input_tensor, imas
     attention_out_fc = network.add_fully_connected(attention_heads, hidden_size, W_aout, B_aout)
 
     skiplayer = skipln(
-        prefix + "attention_output_layernorm_", init_dict, network, attention_out_fc.get_output(0), input_tensor
+        prefix + "attention_output_layernorm_", init_dict, network, attention_out_fc.get_output(0), input_tensor,
     )
     attention_ln = skiplayer.get_output(0)
 
@@ -190,7 +194,7 @@ def transformer_layer_opt(prefix, config, init_dict, network, input_tensor, imas
 
     out_dense = network.add_fully_connected(intermediate_act, hidden_size, W_lout, B_lout)
     set_layer_name(out_dense, prefix + "output_", "dense")
-    out_layer = skipln(prefix + "output_layernorm_", init_dict, network, out_dense.get_output(0), attention_ln)
+    out_layer = skipln(prefix + "output_layernorm_", init_dict, network, out_dense.get_output(0), attention_ln,)
     out_ln = out_layer.get_output(0)
 
     set_tensor_name(out_ln, prefix + "output_", "reshape")
@@ -226,7 +230,7 @@ def bert_pooler(prefix, init_dict, network, input_tensor):
     shuf.first_transpose = (2, 3, 0, 1)
 
     first_token_tensor = network.add_slice(
-        shuf.get_output(0), start=(0, 0, 0, 0), shape=(1, 1, 1, hidden_size), stride=(1, 1, 1, 1)
+        shuf.get_output(0), start=(0, 0, 0, 0), shape=(1, 1, 1, hidden_size), stride=(1, 1, 1, 1),
     )
 
     W_out = init_dict[prefix + POOL_W]
@@ -256,13 +260,13 @@ def squad_output(prefix, init_dict, network, input_tensor):
 
 
 def sequence_class_output(prefix, init_dict, network, input_tensor, softmax=True):
-    print(input_tensor.shape)
+    logging.info(input_tensor.shape)
     seq_len = input_tensor.shape[1]
     hidden_size = input_tensor.shape[2]
 
     shuf = network.add_shuffle(input_tensor)
     shuf.first_transpose = (0, 3, 4, 1, 2)
-    print("seq class in: ", shuf.get_output(0).shape)
+    logging.info("seq class in: ", shuf.get_output(0).shape)
 
     in_shape_tensor = network.add_shape(shuf.get_output(0)).get_output(0)
     out_shape_tensor = network.add_gather(
@@ -272,10 +276,10 @@ def sequence_class_output(prefix, init_dict, network, input_tensor, softmax=True
     ).get_output(0)
 
     first_token_tensor = network.add_slice(
-        shuf.get_output(0), start=(0, 0, 0, 0, 0), shape=(-1, 1, 1, 1, hidden_size), stride=(1, 1, 1, 1, 1)
+        shuf.get_output(0), start=(0, 0, 0, 0, 0), shape=(-1, 1, 1, 1, hidden_size), stride=(1, 1, 1, 1, 1),
     )
     first_token_tensor.set_input(
-        1, network.add_constant((5,), trt.Weights(np.array([0, 0, 0, 0, 0]).astype(np.int32))).get_output(0)
+        1, network.add_constant((5,), trt.Weights(np.array([0, 0, 0, 0, 0]).astype(np.int32))).get_output(0),
     )
     first_token_tensor.set_input(2, out_shape_tensor)
 
@@ -294,7 +298,7 @@ def sequence_class_output(prefix, init_dict, network, input_tensor, softmax=True
     classifier.reshape_dims = trt.Dims([0, -1])
 
     set_layer_name(classifier, prefix, "classifier")
-    print("seq class: ", classifier.get_output(0).shape)
+    logging.info("seq class: ", classifier.get_output(0).shape)
     return classifier
 
 
@@ -315,7 +319,7 @@ def token_class_output(prefix, init_dict, network, input_tensor, softmax=True):
     classifier = network.add_shuffle(classifier.get_output(0))
     classifier.reshape_dims = trt.Dims([0, 0, 0])
 
-    print("tok class: ", classifier.get_output(0).shape)
+    logging.info("tok class: ", classifier.get_output(0).shape)
     return classifier
 
 
@@ -351,7 +355,9 @@ def load_weights(inputbase):
             shape_str = '{} '.format(len(shape)) + ' '.join([str(d) for d in shape])
             weights_dict[outname] = trt.Weights(flat_tensor)
 
-            TRT_LOGGER.log(TRT_LOGGER.INFO, "Orig.name: {:}, TRT name: {:}, shape: {:}".format(pn, outname, shape_str))
+            TRT_LOGGER.log(
+                TRT_LOGGER.INFO, "Orig.name: {:}, TRT name: {:}, shape: {:}".format(pn, outname, shape_str),
+            )
 
         additional_dict = dict()
         for key, value in weights_dict.items():
@@ -437,9 +443,9 @@ def main(
             builder_config.max_workspace_size = 5000 * (1024 * 1024)  # 5000 MiB
             builder_config.set_flag(trt.BuilderFlag.FP16)
 
-            input_ids = network.add_input(name="input_ids", dtype=trt.int32, shape=(-1, S))
-            segment_ids = network.add_input(name="segment_ids", dtype=trt.int32, shape=(-1, S))
-            input_mask = network.add_input(name="input_mask", dtype=trt.int32, shape=(-1, S))
+            input_ids = network.add_input(name="input_ids", dtype=trt.int32, shape=(-1, S,))
+            segment_ids = network.add_input(name="segment_ids", dtype=trt.int32, shape=(-1, S,))
+            input_mask = network.add_input(name="input_mask", dtype=trt.int32, shape=(-1, S,))
 
             def set_profile_shape(profile, batch_size, min_batch=None, max_batch=None):
                 opt_shape = (batch_size, S)
@@ -489,14 +495,22 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='TensorRT BERT Sample')
     parser.add_argument('-bw', '--bert-weight', required=True, help='bert weight from nemo')
-    parser.add_argument('-cw', '--class-weight', required=True, help='classifier weight from nemo')
-
-    parser.add_argument('-t', '--token-classifier', required=False, default=None, help="Name of the token classifier")
-    parser.add_argument('-s', '--seq-classifier', required=False, default=None, help="Name of the sequence classifier")
-
-    parser.add_argument('-o', '--output', required=True, help='The bert engine file, ex bert.engine')
     parser.add_argument(
-        '-b', '--batch-size', type=int, required=False, default=1, help='Preferred batch size (default = 1)'
+        '-cw', '--class-weight', required=True, help='classifier weight from nemo',
+    )
+
+    parser.add_argument(
+        '-t', '--token-classifier', required=False, default=None, help="Name of the token classifier",
+    )
+    parser.add_argument(
+        '-s', '--seq-classifier', required=False, default=None, help="Name of the sequence classifier",
+    )
+
+    parser.add_argument(
+        '-o', '--output', required=True, help='The bert engine file, ex bert.engine',
+    )
+    parser.add_argument(
+        '-b', '--batch-size', type=int, required=False, default=1, help='Preferred batch size (default = 1)',
     )
     parser.add_argument(
         '--max-batch-size',
@@ -538,8 +552,8 @@ if __name__ == "__main__":
 
     outputbase = opt.output
     config_path = opt.config
-    print("token class:", opt.token_classifier)
-    print("seq class:  ", opt.seq_classifier)
+    logging.info("token class:", opt.token_classifier)
+    logging.info("seq class:  ", opt.seq_classifier)
     main(
         opt.bert_weight,
         opt.class_weight,

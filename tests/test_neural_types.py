@@ -21,6 +21,7 @@ import tarfile
 from ruamel.yaml import YAML
 
 import nemo.collections.asr as nemo_asr
+from nemo import logging
 from nemo.core import *
 from tests.common_setup import NeMoUnitTest
 
@@ -32,14 +33,14 @@ class TestNeuralTypes(NeMoUnitTest):
     def setUp(self) -> None:
         super().setUp()
         data_folder = "tests/data/"
-        print("Looking up for test ASR data")
+        logging.info("Looking up for test ASR data")
         if not os.path.exists(data_folder + "asr"):
-            print("Extracting ASR data to: {0}".format(data_folder + "asr"))
+            logging.info("Extracting ASR data to: {0}".format(data_folder + "asr"))
             tar = tarfile.open("tests/data/asr.tar.gz", "r:gz")
             tar.extractall(path=data_folder)
             tar.close()
         else:
-            print("ASR data found in: {0}".format(data_folder + "asr"))
+            logging.info("ASR data found in: {0}".format(data_folder + "asr"))
 
     def test_same(self):
         btc = NeuralType(axis2type={0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})
