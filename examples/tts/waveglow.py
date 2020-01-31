@@ -12,6 +12,8 @@ import nemo.collections.tts as nemo_tts
 import nemo.utils.argparse as nm_argparse
 from nemo.collections.tts import waveglow_eval_log_to_tb_func, waveglow_log_to_tb_func, waveglow_process_eval_batch
 
+logging = nemo.logging
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -73,9 +75,9 @@ def create_NMs(waveglow_params):
     waveglow = nemo_tts.WaveGlowNM(**waveglow_params["WaveGlowNM"])
     waveglow_loss = nemo_tts.WaveGlowLoss()
 
-    nemo.logging.info('================================')
-    nemo.logging.info(f"Total number of parameters: {waveglow.num_weights}")
-    nemo.logging.info('================================')
+    logging.info('================================')
+    logging.info(f"Total number of parameters: {waveglow.num_weights}")
+    logging.info('================================')
     return (data_preprocessor, waveglow, waveglow_loss)
 
 
@@ -95,7 +97,7 @@ def create_train_dag(
 
     N = len(data_layer)
     steps_per_epoch = int(N / (batch_size * neural_factory.world_size))
-    nemo.logging.info('Have {0} examples to train on.'.format(N))
+    logging.info('Have {0} examples to train on.'.format(N))
 
     # Train DAG
     audio, audio_len, = data_layer()
@@ -107,7 +109,7 @@ def create_train_dag(
     # Callbacks needed to print info to console and Tensorboard
     train_callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[loss_t, z, spec_target, spec_target_len],
-        print_func=lambda x: print(f"Loss: {x[0].data}"),
+        print_func=lambda x: logging.info(f"Loss: {x[0].data}"),
         log_to_tb_func=partial(waveglow_log_to_tb_func, log_images=False),
         tb_writer=neural_factory.tb_writer,
     )
@@ -191,7 +193,7 @@ def create_all_dags(
             cpu_per_dl=cpu_per_dl,
         )
     else:
-        nemo.logging.info("There were no val datasets passed")
+        logging.info("There were no val datasets passed")
 
     callbacks = training_callbacks + eval_callbacks
     return training_loss, callbacks, steps_per_epoch
@@ -218,7 +220,7 @@ def main():
     )
 
     if args.local_rank is not None:
-        nemo.logging.info('Doing ALL GPU')
+        logging.info('Doing ALL GPU')
 
     yaml = YAML(typ="safe")
     with open(args.model_config) as file:

@@ -5,6 +5,8 @@ import re
 import inflect
 from unidecode import unidecode
 
+from nemo import logging
+
 NUM_CHECK = re.compile(r'([$]?)(^|\s)(\S*[0-9]\S*)(?=(\s|$)((\S*)(\s|$))?)')
 
 TIME_CHECK = re.compile(r'([0-9]{1,2}):([0-9]{2})(am|pm)?')
@@ -90,7 +92,7 @@ def clean_text(string, table, punctuation_to_replace):
 
 def warn_common_chars(string):
     if re.search(r'[£€]', string):
-        print("WARNING: Your transcript contains one of '£' or '€' which we do" "not currently handle")
+        logging.warning("Your transcript contains one of '£' or '€' which we do" "not currently handle")
 
 
 def clean_numbers(string):

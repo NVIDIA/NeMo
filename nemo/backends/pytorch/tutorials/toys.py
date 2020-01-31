@@ -5,9 +5,10 @@ import torch as t
 import torch.nn as nn
 import torch.utils.data as t_utils
 
-from ....core import DeviceType, NeuralModule
-from ....core.neural_types import *
-from ..nm import DataLayerNM, LossNM, TrainableNM
+from nemo import logging
+from nemo.backends.pytorch.nm import DataLayerNM, LossNM, TrainableNM
+from nemo.core import DeviceType, NeuralModule
+from nemo.core.neural_types import *
 
 
 class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
@@ -104,9 +105,9 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
     def forward(self, x, o=None):
         lst = []
         if o is None:
-            print("O is None")
+            logging.debug("O is None")
         else:
-            print("O is not None")
+            logging.debug("O is not None")
         for pw in range(self._dim):
             lst.append(x ** pw)
         nx = t.cat(lst, dim=-1)

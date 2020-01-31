@@ -157,7 +157,7 @@ Next, we define all Neural Modules participating in our question answering class
 
         train_callback = nemo.core.SimpleLossLoggerCallback(
             tensors=train_tensors,
-            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+            print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
             get_tb_values=lambda x: [["loss", x[0]]],
             step_freq=args.step_freq,
             tb_writer=neural_factory.tb_writer)

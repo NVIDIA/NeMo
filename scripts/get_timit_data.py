@@ -5,6 +5,7 @@
 import argparse
 import fnmatch
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -217,13 +218,13 @@ def __process_data(data_folder: str, dst_folder: str):
                     elif spk in TEST_LIST and 'SA' not in filename:
                         files_test.append(os.path.join(r, filename))
 
-    print("Training samples:" + str(len(files_train)))
-    print("Validation samples:" + str(len(files_dev)))
-    print("Test samples:" + str(len(files_test)))
+    logging.info("Training samples:" + str(len(files_train)))
+    logging.info("Validation samples:" + str(len(files_dev)))
+    logging.info("Test samples:" + str(len(files_test)))
 
     for data_set in ['train', 'dev', 'test']:
 
-        print("Processing: " + data_set)
+        logging.info("Processing: " + data_set)
         entries = []
         if data_set == 'train':
             files = files_train
@@ -260,7 +261,7 @@ def main():
     data_new_root = args.data_new_root
 
     __process_data(data_root, data_new_root)
-    print('Done!')
+    logging.info('Done!')
 
 
 if __name__ == "__main__":
