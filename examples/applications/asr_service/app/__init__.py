@@ -7,6 +7,7 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
+from nemo import logging
 
 app = Flask(__name__)
 # make sure WORK_DIR exists before calling your service
@@ -46,7 +47,7 @@ if ENABLE_NGRAM and os.path.isfile(LM_PATH):
         vocab=labels, beam_width=64, alpha=2.0, beta=1.0, lm_path=LM_PATH, num_cpus=max(os.cpu_count(), 1),
     )
 else:
-    print("Beam search is not enabled")
+    logging.info("Beam search is not enabled")
 
 if __name__ == '__main__':
     app.run()

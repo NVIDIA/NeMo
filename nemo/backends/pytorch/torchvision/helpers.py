@@ -3,9 +3,10 @@ from statistics import mean
 
 import torch
 
+from nemo import logging
 
 def compute_accuracy(tensors):
-    print(f"Train Loss: {str(tensors[0].item())}")
+    logging.info(f"Train Loss: {str(tensors[0].item())}")
     output = tensors[1]
     target = tensors[2]
     res = []
@@ -68,8 +69,8 @@ def eval_iter_callback(tensors, global_vars):
 def eval_epochs_done_callback(global_vars):
     eloss = mean(global_vars["eval_loss"])
     etop1 = mean(global_vars["top1"])
-    print("Evaluation Loss: {0}".format(eloss))
-    print("Evaluation Top@1: {0}".format(etop1))
+    logging.info("Evaluation Loss: {0}".format(eloss))
+    logging.info("Evaluation Top@1: {0}".format(etop1))
     for k in global_vars.keys():
         global_vars[k] = []
     return dict({"Evaluation Loss": eloss, "Evaluation Top@1": etop1})

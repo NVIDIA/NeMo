@@ -19,11 +19,12 @@ from werkzeug.utils import secure_filename
 
 import nemo
 import nemo.collections.asr as nemo_asr
+from nemo import logging
 
 try:
     from app import beam_search_with_lm
 except ImportError:
-    print("Not using Beam Search Decoder with LM")
+    logging.info("Not using Beam Search Decoder with LM")
     ENABLE_NGRAM = False
 
 
@@ -46,7 +47,7 @@ def wav_to_text(manifest, greedy=True):
     predictions = greedy_decoder(log_probs=log_probs)
 
     if ENABLE_NGRAM:
-        print('Running with beam search')
+        logging.info('Running with beam search')
         beam_predictions = beam_search_with_lm(log_probs=log_probs, log_probs_length=encoded_len)
         eval_tensors = [beam_predictions]
 

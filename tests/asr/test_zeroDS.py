@@ -25,6 +25,7 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
+from nemo import logging
 from nemo.core.neural_types import *
 from tests.common_setup import NeMoUnitTest
 
@@ -67,25 +68,25 @@ class TestZeroDL(NeMoUnitTest):
     def setUpClass(cls) -> None:
         super().setUpClass()
         data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
-        print("Looking up for test ASR data")
+        logging.info("Looking up for test ASR data")
         if not os.path.exists(os.path.join(data_folder, "asr")):
-            print("Extracting ASR data to: {0}".format(os.path.join(data_folder, "asr")))
+            logging.info("Extracting ASR data to: {0}".format(os.path.join(data_folder, "asr")))
             tar = tarfile.open(os.path.join(data_folder, "asr.tar.gz"), "r:gz")
             tar.extractall(path=data_folder)
             tar.close()
         else:
-            print("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
+            logging.info("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
 
     @classmethod
     def tearDownClass(cls) -> None:
         super().tearDownClass()
         data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
-        print("Looking up for test ASR data")
+        logging.info("Looking up for test ASR data")
         if os.path.exists(os.path.join(data_folder, "asr")):
             shutil.rmtree(os.path.join(data_folder, "asr"))
 
     def test_simple_train(self):
-        print("Simplest train test with ZeroDL")
+        logging.info("Simplest train test with ZeroDL")
         neural_factory = nemo.core.neural_factory.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, create_tb_writer=False
         )
@@ -105,14 +106,14 @@ class TestZeroDL(NeMoUnitTest):
         loss_tensor = loss(predictions=y_pred, target=y)
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss_tensor], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'),
+            tensors=[loss_tensor], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
         neural_factory.train(
             [loss_tensor], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd",
         )
 
     def test_asr_with_zero_ds(self):
-        print("Testing ASR NMs with ZeroDS and without pre-processing")
+        logging.info("Testing ASR NMs with ZeroDS and without pre-processing")
         path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))
         with open(path) as file:
             jasper_model_definition = self.yaml.load(file)
@@ -145,14 +146,14 @@ class TestZeroDL(NeMoUnitTest):
         # DAG
         processed_signal, p_length, transcript, transcript_len = dl()
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
-        # print(jasper_encoder)
+        # logging.info(jasper_encoder)
         log_probs = jasper_decoder(encoder_output=encoded)
         loss = ctc_loss(
             log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'),
+            tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(

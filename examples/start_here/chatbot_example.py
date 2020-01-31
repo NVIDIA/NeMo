@@ -3,6 +3,7 @@ import os
 import shutil
 
 import nemo
+from nemo import logging
 
 # Get Data
 data_file = "movie_data.txt"
@@ -67,8 +68,8 @@ def outputs2words(tensors, vocab):
     source = ' '.join([s for s in source if s != 'EOS' and s != 'PAD'])
     response = ' '.join([s for s in response if s != 'EOS' and s != 'PAD'])
     target = ' '.join([s for s in target if s != 'EOS' and s != 'PAD'])
-    print(f"Train Loss:{str(tensors[0].item())}")
-    print(f"SOURCE: {source} <---> PREDICTED RESPONSE: {response} " f"<---> TARGET: {target}")
+    logging.info(f"Train Loss:{str(tensors[0].item())}")
+    logging.info(f"SOURCE: {source} <---> PREDICTED RESPONSE: {response} " f"<---> TARGET: {target}")
 
 
 callback = nemo.core.SimpleLossLoggerCallback(

@@ -1,5 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import json
+from nemo import logging
 
 
 class AudioManifest(object):
@@ -27,7 +28,7 @@ class AudioManifest(object):
                     duration += data['duration']
 
                     if max_utts > 0 and len(ids) >= max_utts:
-                        print('Stopping parsing %s as max_utts=%d' % (manifest_path, max_utts))
+                        logging.info('Stopping parsing %s as max_utts=%d' % (manifest_path, max_utts))
                         break
 
         if sort_by_duration:

@@ -5,7 +5,8 @@ import random
 import librosa
 from scipy import signal
 
-from .segment import AudioSegment
+from nemo import logging
+from nemo.collections.asr.parts.segment import AudioSegment
 from nemo.collections.asr.parts import collections, parsers
 
 
@@ -30,7 +31,7 @@ class SpeedPerturbation(Perturbation):
         speed_rate = self._rng.uniform(self._min_rate, self._max_rate)
         if speed_rate <= 0:
             raise ValueError("speed_rate should be greater than zero.")
-        # print("DEBUG: speed:", speed_rate)
+        logging.debug("speed: %f", speed_rate)
         data._samples = librosa.effects.time_stretch(data._samples, speed_rate)
 
 
@@ -42,7 +43,7 @@ class GainPerturbation(Perturbation):
 
     def perturb(self, data):
         gain = self._rng.uniform(self._min_gain_dbfs, self._max_gain_dbfs)
-        # print("DEBUG: gain:", gain)
+        logging.debug("gain: %d", gain)
         data._samples = data._samples * (10.0 ** (gain / 20.0))
 
 
@@ -54,7 +55,7 @@ class ImpulsePerturbation(Perturbation):
     def perturb(self, data):
         impulse_record = self._rng.sample(self._manifest.data, 1)[0]
         impulse = AudioSegment.from_file(impulse_record['audio_filepath'], target_sr=data.sample_rate)
-        # print("DEBUG: impulse:", impulse_record['audio_filepath'])
+        logging.debug("impulse: %s", impulse_record['audio_filepath'])
         data._samples = signal.fftconvolve(data.samples, impulse.samples, "full")
 
 
@@ -70,7 +71,7 @@ class ShiftPerturbation(Perturbation):
             # TODO: do something smarter than just ignore this condition
             return
         shift_samples = int(shift_ms * data.sample_rate // 1000)
-        # print("DEBUG: shift:", shift_samples)
+        logging.debug("shift: %s", shift_samples)
         if shift_samples < 0:
             data._samples[-shift_samples:] = data._samples[:shift_samples]
             data._samples[:-shift_samples] = 0
@@ -94,8 +95,7 @@ class NoisePerturbation(Perturbation):
         noise_record = self._rng.sample(self._manifest.data, 1)[0]
         noise = AudioSegment.from_file(noise_record['audio_filepath'], target_sr=data.sample_rate)
         noise_gain_db = min(data.rms_db - noise.rms_db - snr_db, self._max_gain_db)
-        # print("DEBUG: noise:", snr_db, noise_gain_db, noise_record[
-        # 'audio_filepath'])
+        logging.debug("noise: %s %s %s", snr_db, noise_gain_db, noise_record['audio_filepath'])
 
         # calculate noise segment to use
         start_time = self._rng.uniform(0.0, noise.duration - data.duration)
@@ -137,7 +137,7 @@ class AudioAugmentor(object):
         ptbs = []
         for p in config:
             if p['aug_type'] not in perturbation_types:
-                print(p['aug_type'], "perturbation not known. Skipping.")
+                logging.info(p['aug_type'], "perturbation not known. Skipping.")
                 continue
             perturbation = perturbation_types[p['aug_type']]
             ptbs.append((p['prob'], perturbation(**p['cfg'])))
