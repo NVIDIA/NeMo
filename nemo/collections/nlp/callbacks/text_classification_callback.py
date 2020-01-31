@@ -50,7 +50,6 @@ def eval_epochs_done_callback(global_vars, graph_fold):
         i = random.randint(0, preds.shape[0] - sample_size - 1)
     nemo.logging.info("Sampled preds: [%s]" % list2str(preds[i : i + sample_size]))
     nemo.logging.info("Sampled labels: [%s]" % list2str(labels[i : i + sample_size]))
-
     plot_confusion_matrix(labels, preds, graph_fold)
     nemo.logging.info(classification_report(labels, preds))
     return dict({"accuracy": accuracy})

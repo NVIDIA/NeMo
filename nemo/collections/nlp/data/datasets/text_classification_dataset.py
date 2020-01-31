@@ -132,8 +132,7 @@ class BertTextClassificationDataset(Dataset):
         for sent_id in range(len(all_sent_subtokens)):
             sent_subtokens = all_sent_subtokens[sent_id]
             sent_label = sent_labels[sent_id]
-            word_count = 0
-            # input_ids = tokenizer.tokens_to_ids(sent_subtokens)
+
             input_ids = [tokenizer._convert_token_to_id(t) for t in sent_subtokens]
 
             # The mask has 1 for real tokens and 0 for padding tokens.
@@ -154,8 +153,8 @@ class BertTextClassificationDataset(Dataset):
                 nemo.logging.info("example_index: %s" % sent_id)
                 nemo.logging.info("subtokens: %s" % " ".join(sent_subtokens))
                 nemo.logging.info("sent_label: %s" % sent_label)
-                nemo.logging.info("input_ids: %s" % nemo.collections.nlp.utils.common_nlp_utils.list2str(input_ids))
-                nemo.logging.info("input_mask: %s" % nemo.collections.nlp.utils.common_nlp_utils.list2str(input_mask))
+                nemo.logging.info("input_ids: %s" % nemo.collections.nlp.utils.callback_utils.list2str(input_ids))
+                nemo.logging.info("input_mask: %s" % nemo.collections.nlp.utils.callback_utils.list2str(input_mask))
 
             self.features.append(
                 InputFeatures(

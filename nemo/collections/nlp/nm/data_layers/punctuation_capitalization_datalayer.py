@@ -1,4 +1,4 @@
-__all__ = ['PunctuationCapitalizationDataLayer', 'PunctuationCapitalizationInferDataLayer']
+__all__ = ['PunctuationCapitalizationDataLayer']
 from nemo.collections.nlp.data import BertPunctuationCapitalizationDataset, BertTokenClassificationInferDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
@@ -88,57 +88,4 @@ class PunctuationCapitalizationDataLayer(TextDataLayer):
             'ignore_start_end': ignore_start_end,
             'use_cache': use_cache,
         }
-        super().__init__(dataset_type, dataset_params, **kwargs)
-
-
-class PunctuationCapitalizationInferDataLayer(TextDataLayer):
-    @property
-    def output_ports(self):
-        """Returns definitions of module output ports.
-
-        input_ids:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        input_type_ids:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        input_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        loss_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        subtokens_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        """
-        return {
-            "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-        }
-
-    def __init__(
-        self,
-        queries,
-        tokenizer,
-        max_seq_length,
-        batch_size=1,
-        dataset_type=BertTokenClassificationInferDataset,
-        **kwargs
-    ):
-        kwargs['batch_size'] = batch_size
-        dataset_params = {'queries': queries, 'tokenizer': tokenizer, 'max_seq_length': max_seq_length}
         super().__init__(dataset_type, dataset_params, **kwargs)
