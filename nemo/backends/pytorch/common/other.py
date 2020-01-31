@@ -52,7 +52,7 @@ class SimpleCombiner(TrainableNM):
         return {"combined": None}
 
     def __init__(self, mode="add"):
-        TrainableNM.__init__(self)
+        super().__init__()
         self._mode = mode
 
     def forward(self, x1, x2):
@@ -95,7 +95,7 @@ class ArgMaxSimple(TrainableNM):  # Notice TWO base classes
         }
 
     def __init__(self):
-        TrainableNM.__init__(self)
+        super().__init__()
 
     # this method is key method you need to overwrite from PyTorch
     # nn.Module's API
@@ -276,7 +276,7 @@ class SequenceEmbedding(TrainableNM):
         return {"outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),})}
 
     def __init__(self, voc_size, hidden_size, dropout=0.0):
-        TrainableNM.__init__(self)
+        super().__init__()
 
         self.voc_size = voc_size
         self.hidden_size = hidden_size
@@ -312,7 +312,7 @@ class SequenceProjection(TrainableNM):
         return {"outputs": None}
 
     def __init__(self, from_dim, to_dim, dropout=0.0):
-        TrainableNM.__init__(self)
+        super().__init__()
 
         self.from_dim = from_dim
         self.to_dim = to_dim
@@ -352,7 +352,7 @@ class ZerosLikeNM(TrainableNM):
         return {"input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag),})}
 
     def __init__(self):
-        TrainableNM.__init__(self)
+        super().__init__()
 
     def forward(self, input_type_ids):
         return torch.zeros_like(input_type_ids).long()

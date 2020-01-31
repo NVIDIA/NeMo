@@ -78,7 +78,7 @@ Example 1
 
         def __init__(self, dim):
             # (3) Call base constructor
-            TrainableNM.__init__(self)
+            super().__init__()
             # And of Neural Modules specific part. Rest is PyTorch code
             self._dim = dim
             self.fc1 = nn.Linear(self._dim, 1)
@@ -117,7 +117,7 @@ Converting from PyTorch's nn.Module
             return {...}
 
         def __init__(self, module_params, ...)
-            TrainableNM.__init__(self)
+            super().__init__()
 
 (4) Modify ``forward`` method so that its input arguments match your input port names exactly.
 

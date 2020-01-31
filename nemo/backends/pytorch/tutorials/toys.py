@@ -35,7 +35,7 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
         # Part specific for Neural Modules API:
         #   (1) call base constructor
         #   (2) define input and output ports
-        TrainableNM.__init__(self)
+        super().__init__()
 
         # And of Neural Modules specific part. Rest is Pytorch code
         self._dim = dim
@@ -90,7 +90,7 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
         # Part specific for Neural Modules API:
         #   (1) call base constructor
         #   (2) define input and output ports
-        TrainableNM.__init__(self)
+        super().__init__()
 
         # And of Neural Modules specific part. Rest is Pytorch code
         self._dim = dim
@@ -219,7 +219,7 @@ class MSELoss(LossNM):
         return {"loss": NeuralType(None)}
 
     def __init__(self):
-        LossNM.__init__(self)
+        super().__init__()
         self._criterion = nn.MSELoss()
 
     def _loss_function(self, **kwargs):
@@ -256,7 +256,7 @@ class L1Loss(LossNM):
         return {"loss": NeuralType(None)}
 
     def __init__(self):
-        LossNM.__init__(self)
+        super().__init__()
         self._criterion = nn.L1Loss()
 
     def _loss_function(self, **kwargs):

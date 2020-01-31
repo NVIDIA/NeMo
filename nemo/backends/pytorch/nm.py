@@ -22,7 +22,7 @@ class TrainableNM(NeuralModule, nn.Module):
     .. code-block:: python
 
       def __init__(self):
-        TrainableNM.__init__(self)
+        super().__init__()
         .... # your code
 
     Then make sure that your forward(..) method accepts arguments named like

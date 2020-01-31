@@ -78,7 +78,7 @@
 
         def __init__(self, dim):
             # (3) 调用基类构造函数
-            TrainableNM.__init__(self)
+            super().__init__()
             # Neural Modules 的特定部分，剩下的是 PyTorch 代码
             self._dim = dim
             self.fc1 = nn.Linear(self._dim, 1)
@@ -116,7 +116,7 @@
             return {...}
 
         def __init__(self, module_params, ...)
-            TrainableNM.__init__(self)
+            super().__init__()
 
 (4) 修改 ``forward`` 方法，使得它的输入参数和你的输入端口名字匹配。
 
