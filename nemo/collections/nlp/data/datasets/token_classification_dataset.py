@@ -19,7 +19,6 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-import collections.nlp.data.datasets.datasets_utils
 import itertools
 import os
 import pickle
@@ -29,7 +28,7 @@ import numpy as np
 from torch.utils.data import Dataset
 
 import nemo
-import nemo.collections.nlp.data.datasets.datasets_utils as utils
+import nemo.collections.nlp.data.datasets.datasets_utils as datasets_utils
 import nemo.collections.nlp.data.datasets.joint_intent_slot_dataset
 
 __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
@@ -114,7 +113,7 @@ def get_features(
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
     nemo.logging.info(f'Max length: {max_seq_length}')
-    collections.nlp.data.datasets.datasets_utils.get_stats(sent_lengths)
+    datasets_utils.get_stats(sent_lengths)
     too_long_count = 0
 
     for i, subtokens in enumerate(all_subtokens):
@@ -309,7 +308,7 @@ class BertTokenClassificationDataset(Dataset):
         infold = text_file[: text_file.rfind('/')]
         merged_labels = itertools.chain.from_iterable(self.all_labels)
         nemo.logging.info('Three most popular labels')
-        _, self.label_frequencies = utils.get_label_stats(merged_labels, infold + '/label_stats.tsv')
+        _, self.label_frequencies = datasets_utils.get_label_stats(merged_labels, infold + '/label_stats.tsv')
 
         # save label_ids
         out = open(infold + '/label_ids.csv', 'w')

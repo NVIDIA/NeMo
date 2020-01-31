@@ -26,6 +26,7 @@ import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+import nemo
 from nemo import logging
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import DataProcessor
 from nemo.collections.nlp.metrics.squad_metrics import (
