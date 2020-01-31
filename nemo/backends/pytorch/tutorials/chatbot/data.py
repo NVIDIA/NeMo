@@ -213,7 +213,7 @@ def outputVar(l, voc):
     max_target_len = max([len(indexes) for indexes in indexes_batch])
     padList = zeroPadding(indexes_batch)
     mask = binaryMatrix(padList)
-    mask = t.ByteTensor(mask)
+    mask = t.ByteTensor(mask).to(t.bool)
     padVar = t.LongTensor(padList)
     return padVar, mask, max_target_len
 
