@@ -90,7 +90,7 @@ text.txt 每一行包含文本序列，其中词以空格来进行分隔。label
         label_ids = train_data_layer.dataset.label_ids
         num_classes = len(label_ids)
 
-        hidden_size = bert_model.local_parameters["hidden_size"]
+        hidden_size = bert_model.hidden_size
         ner_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
                                               num_classes=num_classes,
                                               dropout=CLASSIFICATION_DROPOUT)

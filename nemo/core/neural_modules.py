@@ -105,6 +105,16 @@ class NeuralModule(ABC):
         # Return parameters.
         return init_params
 
+    @property
+    def init_params(self) -> Optional[Dict]:
+        """
+            Property returning parameters used to instantiate the module.
+
+            Returns:
+                Dictionary containing parameters used to instantiate the module.
+        """
+        return self._init_params
+
     def validate_params(self, params):
         """
             Checks whether dictionary contains parameters being primitive types (string, int, float etc.)

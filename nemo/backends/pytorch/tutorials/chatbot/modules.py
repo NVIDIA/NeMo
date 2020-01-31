@@ -422,7 +422,6 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
         self.attn_model = attn_model
         self.hidden_size = hidden_size
         self.voc_size = voc_size
-        # self.local_parameters["output_size"]
         self.output_size = voc_size
         self.n_layers = decoder_n_layers
         self.dropout = dropout
