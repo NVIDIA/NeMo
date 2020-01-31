@@ -7,8 +7,6 @@ from ruamel.yaml import YAML
 import nemo
 import nemo.collections.asr as nemo_asr
 
-from nemo improt logging
-
 
 def get_parser():
     parser = argparse.ArgumentParser(description="Convert Jasper NeMo checkpoint to ONNX")

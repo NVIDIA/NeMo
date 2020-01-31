@@ -5,6 +5,7 @@ import torch
 
 from nemo import logging
 
+
 def compute_accuracy(tensors):
     logging.info(f"Train Loss: {str(tensors[0].item())}")
     output = tensors[1]

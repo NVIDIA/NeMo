@@ -7,10 +7,10 @@ from functools import partial
 from ruamel.yaml import YAML
 
 import nemo
-from nemo import logging
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
 import nemo.utils.argparse as nm_argparse
+from nemo import logging
 from nemo.collections.tts import waveglow_eval_log_to_tb_func, waveglow_log_to_tb_func, waveglow_process_eval_batch
 
 

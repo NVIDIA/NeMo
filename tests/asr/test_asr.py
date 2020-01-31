@@ -28,7 +28,6 @@ from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer, collect
 from nemo.core import DeviceType
 from tests.common_setup import NeMoUnitTest
 
-
 freq = 16000
 
 
@@ -426,7 +425,9 @@ class TestASRPytorch(NeMoUnitTest):
             log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )
 
-        callback = nemo.core.SimpleLossLoggerCallback(tensors=[loss], print_func=lambda x: logging.info(str(x[0].item())))
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensors=[loss], print_func=lambda x: logging.info(str(x[0].item()))
+        )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
@@ -530,7 +531,9 @@ class TestASRPytorch(NeMoUnitTest):
             log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )
 
-        callback = nemo.core.SimpleLossLoggerCallback(tensors=[loss], print_func=lambda x: logging.info(str(x[0].item())))
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensors=[loss], print_func=lambda x: logging.info(str(x[0].item()))
+        )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
@@ -585,7 +588,9 @@ class TestASRPytorch(NeMoUnitTest):
         loss = loss(log_probs=log_probs, targets=transcripts)
 
         # Train
-        callback = nemo.core.SimpleLossLoggerCallback(tensors=[loss], print_func=lambda x: logging.info(str(x[0].item())))
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensors=[loss], print_func=lambda x: logging.info(str(x[0].item()))
+        )
         # Instantiate an optimizer to perform `train` action
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,

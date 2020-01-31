@@ -8,9 +8,9 @@ import torch.nn as nn
 from torch_stft import STFT
 
 import nemo
-from nemo import logging
 from .perturb import AudioAugmentor
 from .segment import AudioSegment
+from nemo import logging
 
 CONSTANT = 1e-5
 

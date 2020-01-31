@@ -14,8 +14,8 @@
 import argparse
 import glob
 import json
-import os
 import logging
+import os
 import subprocess
 import tarfile
 

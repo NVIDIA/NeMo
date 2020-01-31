@@ -11,9 +11,9 @@ from scipy.io.wavfile import write
 from tacotron2 import create_NMs
 
 import nemo
-from nemo import logging
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
+from nemo import logging
 
 
 def parse_args():
