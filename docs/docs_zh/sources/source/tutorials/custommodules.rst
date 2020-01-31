@@ -165,7 +165,7 @@
         def __init__(self, input_size, path):
             DataLayerNM.__init__(self)
 
-            self._input_size = input_size"
+            self._input_size = input_size
             self._path = path
 
             self._transforms = transforms.Compose([
