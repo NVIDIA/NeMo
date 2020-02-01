@@ -51,8 +51,8 @@ data_layer = nemo_nlp.BertJointIntentSlotDataLayer(
     max_seq_length=args.max_seq_length,
     shuffle=False,
     batch_size=args.batch_size,
-    num_workers=0,
-    local_rank=args.local_rank,
+    # num_workers=0,
+    # local_rank=args.local_rank,
 )
 
 classifier = nemo_nlp.JointIntentSlotClassifier(

@@ -44,8 +44,6 @@ class NeuralModule(ABC):
         # Get default factory.
         self._factory = NeuralModuleFactory.get_default_factory()
 
-        # TK: So starting from that point - is it even possible that the factory will be None??
-
         # Set module properties from factory else use defaults
         self._placement = self._factory.placement
         # If one needs to change that should override it manually.

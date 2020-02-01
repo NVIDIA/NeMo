@@ -66,7 +66,7 @@ vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 tokens_to_add = vocab_size - tokenizer.vocab_size
 
 zeros_transform = nemo.backends.pytorch.common.ZerosLikeNM()
-encoder = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_model, local_rank=args.local_rank)
+encoder = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_model)
 device = encoder.bert.embeddings.word_embeddings.weight.get_device()
 zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
 encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
