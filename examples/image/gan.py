@@ -18,7 +18,7 @@ parser.add_argument("--work_dir", default=None, type=str)
 parser.add_argument(
     "--train_dataset",
     # set default=os.getcwd() unless your are running test
-    default="~/data/mnist",
+    default="~/TestData/mnist",
     type=str,
 )
 parser.add_argument("--amp_opt_level", choices=['O0', 'O1', 'O2', 'O3'], default='O0')
