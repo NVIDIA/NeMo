@@ -1,5 +1,3 @@
-__all__ = []
-
 import copy
 
 import torch
@@ -11,6 +9,8 @@ from nemo.collections.nlp.nm.trainables.common.transformer.transformer_modules i
     TwoStreamSelfAttention,
 )
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import form_attention_mask
+
+__all__ = []
 
 
 class TransformerEncoderBlock(nn.Module):

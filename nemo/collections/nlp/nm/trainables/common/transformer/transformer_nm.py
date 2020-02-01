@@ -2,7 +2,6 @@
 """
 This package contains Transformer for translation Neural Module
 """
-__all__ = ['TransformerEncoderNM', 'TransformerDecoderNM', 'GreedyLanguageGeneratorNM', 'BeamSearchTranslatorNM']
 
 import math
 
@@ -16,6 +15,8 @@ from nemo.collections.nlp.nm.trainables.common.transformer.transformer_generator
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_modules import TransformerEmbedding
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
 from nemo.core.neural_types import *
+
+__all__ = ['TransformerEncoderNM', 'TransformerDecoderNM', 'GreedyLanguageGeneratorNM', 'BeamSearchTranslatorNM']
 
 
 class TransformerEncoderNM(TrainableNM):
