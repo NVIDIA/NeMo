@@ -18,6 +18,7 @@
 https://github.com/NVIDIA/DeepLearningExamples/blob/
 master/PyTorch/Translation/Transformer/fairseq/tokenizer.py
 """
+
 import re
 import sys
 import unicodedata
