@@ -16,12 +16,14 @@ limitations under the License.
 
 Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
+"""
 
+"""
 Download the Squad data by running the script:
 examples/nlp/scripts/get_squad.py
 
 To finetune Squad v1.1 on pretrained BERT large uncased on 1 GPU:
-python squad.py
+python question_answering_squad.py
 --data_dir /path_to_data_dir/squad/v1.1
 --work_dir /path_to_output_folder
 --bert_checkpoint /path_to_bert_checkpoint
@@ -39,7 +41,7 @@ If --bert_checkpoint is not specified, training starts from
 Huggingface pretrained checkpoints.
 
 To finetune Squad v1.1 on pretrained BERT large uncased on 8 GPU:
-python -m torch.distributed.launch --nproc_per_node=8 squad.py
+python -m torch.distributed.launch --nproc_per_node=8 question_answering_squad.py
 --amp_opt_level "O1"
 --data_dir /path_to_data_dir/squad/v1.1
 --bert_checkpoint /path_to_bert_checkpoint
