@@ -22,7 +22,6 @@ Some parts of this code were adapted from the Annotated Transformer at
 http://nlp.seas.harvard.edu/2018/04/03/attention.html
 Copyright by the HuggingFace and Annotated Transformer authors.
 """
-__all__ = []
 
 import math
 
@@ -31,6 +30,9 @@ from torch import nn
 
 from nemo import logging
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import gelu
+
+__all__ = []
+
 
 try:
     from apex.normalization import FusedLayerNorm
