@@ -24,14 +24,14 @@ Download the GLUE data by running the script:
 https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e
 
 To run this example on 1 GPU:
-python glue_with_BERT.py  \
+python glue_benchmark_with_bert.py  \
 --data_dir /path_to_data_dir/MRPC \
 --task_name mrpc \
 --work_dir /path_to_output_folder \
 
 To run this example on 4 GPUs with mixed precision:
 python -m torch.distributed.launch \
---nproc_per_node=4 glue_with_BERT.py \
+--nproc_per_node=4 glue_benchmark_with_bert.py \
 --data_dir=/path_to_data/MNLI \
 --task_name mnli \
 --work_dir /path_to_output_folder \
