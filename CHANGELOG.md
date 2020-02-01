@@ -72,6 +72,8 @@ To release a new version, please update the changelog as followed:
 ### Added
 - Named tensors tuple module's output for graph construction.
 ([PR #268](https://github.com/NVIDIA/NeMo/pull/268)) - @stasbel
+- Introduced the `deprecated` decorator.
+([PR #298](https://github.com/NVIDIA/NeMo/pull/298)) - @tkornuta-nvidia
 
 ### Changed
 - Additional Collections Repositories merged into core `nemo_toolkit` package.
@@ -80,12 +82,18 @@ To release a new version, please update the changelog as followed:
 ([PR #284](https://github.com/NVIDIA/NeMo/pull/284)) - @stasbel
 - NeMo is not longer using pep8 code style rules. Code style rules are now enforced with `isort` and `black` incorporated into CI checks.
 ([PR #286](https://github.com/NVIDIA/NeMo/pull/286)) - @stasbel
+- Major cleanup of Neural Module constructors (init), aiming at increasing the framework robustness: cleanup of NeuralModule initialization logic, refactor of trainer/actions (getting rid of local_params), fixes of several examples and unit tests, extraction and storing of intial parameters (init_params).  
+([PR #309](https://github.com/NVIDIA/NeMo/pull/309)) - @tkornuta-nvidia
+
 
 ### Dependencies Update
+- Added dependency on `wrapt` (the new version of the `deprecated` warning) - @tkornuta-nvidia, @DEKHTIARJonathan
 
 ### Deprecated
 
 ### Fixed
+- Critical fix of the training action on CPU 
+([PR #308](https://github.com/NVIDIA/NeMo/pull/309)) - @tkornuta-nvidia
 
 ### Removed
 
