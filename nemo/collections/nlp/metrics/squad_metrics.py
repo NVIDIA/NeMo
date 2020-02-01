@@ -15,6 +15,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+
+import collections
+
+from transformers.tokenization_bert import BasicTokenizer
+
+from nemo import logging
+from nemo.collections.nlp.data.datasets.datasets_utils import get_tokens, normalize_answer
+
 __all__ = [
     'f1_score',
     'exact_match_score',
@@ -27,12 +35,6 @@ __all__ = [
     '_get_best_indexes',
     'get_final_text',
 ]
-import collections
-
-from transformers.tokenization_bert import BasicTokenizer
-
-from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils import get_tokens, normalize_answer
 
 
 def _get_best_indexes(logits, n_best_size):

@@ -18,9 +18,11 @@ Smooth BLEU is computed following the method outlined in the paper:
 Chin-Yew Lin, Franz Josef Och. ORANGE: a method for evaluating automatic
 evaluation metrics for machine translation. COLING 2004.
 """
-__all__ = ['compute_bleu']
+
 import collections
 import math
+
+__all__ = ['compute_bleu']
 
 
 def _get_ngrams(segment, max_order):
