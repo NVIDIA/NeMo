@@ -15,6 +15,7 @@
 # =============================================================================
 
 """Pytorch Dataset for training Neural Machine Translation."""
+
 from collections import OrderedDict
 
 import numpy as np
