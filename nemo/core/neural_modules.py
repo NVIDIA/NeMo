@@ -80,12 +80,8 @@ class NeuralModule(ABC):
             (also indirectly) from the Neural Module class.
 
             Returns:
-                Dictionar containing parameters passed to init().
+                Dictionary containing parameters passed to init().
         """
-        # print("Hello from extract_init_params")
-        # print(type(self))
-        # print(getfullargspec(type(self).__init__))
-
         # Get names of arguments of the original module init method.
         init_keys = getfullargspec(type(self).__init__).args
 
@@ -109,6 +105,7 @@ class NeuralModule(ABC):
         # Return parameters.
         return init_params
 
+    # TODO: IF part of API, should not start with _, it hidden should start with __
     def _validate_params(self, params):
         """
             Checks whether dictionary contains parameters being primitive types (string, int, float etc.)
@@ -124,7 +121,7 @@ class NeuralModule(ABC):
 
         # Iterate over parameters and check them one by one.
         for key, variable in params.items():
-            if not self._is_of_allowed_type(variable):
+            if not self.__is_of_allowed_type(variable):
                 nemo.logging.warning(
                     "{} contains variable {} is of type {} which is not of a allowed.".format(
                         key, variable, type(variable)
@@ -135,7 +132,7 @@ class NeuralModule(ABC):
         # Return the result.
         return ok
 
-    def _is_of_allowed_type(self, var):
+    def __is_of_allowed_type(self, var):
         """
             A recursive function that checks if a given variable is allowed (in) 
 
@@ -150,13 +147,13 @@ class NeuralModule(ABC):
         # If this is list - check its elements.
         if var_type == list:
             for list_var in var:
-                if not self._is_of_allowed_type(list_var):
+                if not self.__is_of_allowed_type(list_var):
                     return False
 
         # If this is list - check its elements.
         elif var_type == dict:
             for _, dict_var in var.items():
-                if not self._is_of_allowed_type(dict_var):
+                if not self.__is_of_allowed_type(dict_var):
                     return False
 
         elif var_type not in (str, int, float, bool):
