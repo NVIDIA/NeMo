@@ -1,16 +1,31 @@
+# =============================================================================
+# Copyright 2019 AI Applications Design Team at NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
 import argparse
 import os
 
 import numpy as np
-from sklearn.metrics import classification_report
 
-import nemo
-import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp import NemoBertTokenizer
-from nemo.collections.nlp.utils.nlp_utils import get_vocab
+import nemo.collections.nlp.nm.trainables.common.token_classification_nm
+from nemo import logging
+from nemo.collections.nlp.data import NemoBertTokenizer
+from nemo.collections.nlp.utils.common_nlp_utils import get_vocab
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description='NER with pretrained BERT')
+parser = argparse.ArgumentParser(description='Punctuation and capitalization detection inference')
 parser.add_argument("--max_seq_length", default=128, type=int)
 parser.add_argument("--fc_dropout", default=0, type=float)
 parser.add_argument("--punct_num_fc_layers", default=3, type=int)
@@ -26,8 +41,7 @@ parser.add_argument(
         'how are you',
         'how\'s the weather today',
         'okay',
-        'we bought four shirts one mug and ten '
-        + 'thousand titan rtx graphics cards the more '
+        'we bought four shirts one mug and ten thousand titan rtx graphics cards the more '
         + 'you buy the more you save',
     ],
     help="Example: --queries 'san francisco' --queries 'la'",
@@ -66,7 +80,7 @@ if not (os.path.exists(args.punct_labels_dict) and os.path.exists(args.capit_lab
     )
 
 nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None,
+    backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None
 )
 
 punct_labels_dict = get_vocab(args.punct_labels_dict)
@@ -75,17 +89,19 @@ capit_labels_dict = get_vocab(args.capit_labels_dict)
 
 """ Load the pretrained BERT parameters
 See the list of pretrained models, call:
-nemo_nlp.huggingface.BERT.list_pretrained_models()
+nemo.collections.nlp.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
-hidden_size = pretrained_bert_model.hidden_size
+pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+    pretrained_model_name=args.pretrained_bert_model
+)
+hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
 
-data_layer = nemo_nlp.BertTokenClassificationInferDataLayer(
-    queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1,
+data_layer = nemo.collections.nlp.nm.data_layers.token_classification_datalayer.BertTokenClassificationInferDataLayer(
+    queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
 )
 
-punct_classifier = nemo_nlp.TokenClassifier(
+punct_classifier = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
     hidden_size=hidden_size,
     num_classes=len(punct_labels_dict),
     dropout=args.fc_dropout,
@@ -93,13 +109,13 @@ punct_classifier = nemo_nlp.TokenClassifier(
     name='Punctuation',
 )
 
-capit_classifier = nemo_nlp.TokenClassifier(
-    hidden_size=hidden_size, num_classes=len(capit_labels_dict), dropout=args.fc_dropout, name='Capitalization',
+capit_classifier = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
+    hidden_size=hidden_size, num_classes=len(capit_labels_dict), dropout=args.fc_dropout, name='Capitalization'
 )
 
 input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
 
-hidden_states = pretrained_bert_model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
+hidden_states = pretrained_bert_model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
 punct_logits = punct_classifier(hidden_states=hidden_states)
 capit_logits = capit_classifier(hidden_states=hidden_states)
@@ -107,9 +123,7 @@ capit_logits = capit_classifier(hidden_states=hidden_states)
 ###########################################################################
 
 # Instantiate an optimizer to perform `infer` action
-evaluated_tensors = nf.infer(
-    tensors=[punct_logits, capit_logits, subtokens_mask], checkpoint_dir=args.checkpoints_dir,
-)
+evaluated_tensors = nf.infer(tensors=[punct_logits, capit_logits, subtokens_mask], checkpoint_dir=args.checkpoints_dir)
 
 
 def concatenate(lists):
@@ -126,7 +140,7 @@ punct_preds = np.argmax(punct_logits, axis=2)
 capit_preds = np.argmax(capit_logits, axis=2)
 
 for i, query in enumerate(args.queries):
-    nemo.logging.info(f'Query: {query}')
+    logging.info(f'Query: {query}')
 
     punct_pred = punct_preds[i][subtokens_mask[i] > 0.5]
     capit_pred = capit_preds[i][subtokens_mask[i] > 0.5]
@@ -145,4 +159,4 @@ for i, query in enumerate(args.queries):
         if punct_label != args.none_label:
             output += punct_label
         output += ' '
-    nemo.logging.info(f'Combined: {output.strip()}\n')
+    logging.info(f'Combined: {output.strip()}\n')
