@@ -1,7 +1,9 @@
 onnx
+onnxruntime
 pandas
 tensorboardX
 tensorboard
 torch
 torchvision
 wget
+wrapt

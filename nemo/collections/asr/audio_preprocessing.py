@@ -55,8 +55,8 @@ class AudioPreprocessor(NonTrainableNM):
     transforming the wav files to features.
     """
 
-    def __init__(self, win_length, hop_length, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, win_length, hop_length):
+        super().__init__()
 
         self.win_length = win_length
         self.hop_length = hop_length
@@ -161,7 +161,6 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
 
     def __init__(
         self,
-        *,
         sample_rate=16000,
         window_size=0.02,
         window_stride=0.01,
@@ -170,7 +169,6 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         n_fft=None,
         window="hann",
         normalized=True,
-        **kwargs,
     ):
         if not HAVE_TORCHAUDIO:
             raise ModuleNotFoundError(
@@ -189,7 +187,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         if window_stride:
             n_window_stride = int(window_stride * sample_rate)
 
-        super().__init__(n_window_size, n_window_stride, **kwargs)
+        super().__init__(n_window_size, n_window_stride)
 
         self.win_length = n_window_size
         self.hop_length = n_window_stride
@@ -326,7 +324,6 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
 
     def __init__(
         self,
-        *,
         sample_rate=16000,
         window_size=0.02,
         window_stride=0.01,
@@ -348,7 +345,6 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         stft_conv=False,
         pad_value=0,
         mag_power=2.0,
-        **kwargs,
     ):
         if window_size and n_window_size:
             raise ValueError(f"{self} received both window_size and " f"n_window_size. Only one should be specified.")
@@ -361,7 +357,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         if window_stride:
             n_window_stride = int(window_stride * sample_rate)
 
-        super().__init__(n_window_size, n_window_stride, **kwargs)
+        super().__init__(n_window_size, n_window_stride)
 
         self.featurizer = FilterbankFeatures(
             sample_rate=sample_rate,
@@ -478,7 +474,6 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
 
     def __init__(
         self,
-        *,
         sample_rate=16000,
         window_size=0.02,
         window_stride=0.01,
@@ -493,7 +488,6 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         dct_type=2,
         norm='ortho',
         log=True,
-        **kwargs,
     ):
         if not HAVE_TORCHAUDIO:
             raise ModuleNotFoundError(
@@ -513,7 +507,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         if window_stride:
             n_window_stride = int(window_stride * sample_rate)
 
-        super().__init__(n_window_size, n_window_stride, **kwargs)
+        super().__init__(n_window_size, n_window_stride)
 
         mel_kwargs = {}
 
@@ -615,7 +609,6 @@ class SpectrogramAugmentation(NonTrainableNM):
 
     def __init__(
         self,
-        *,
         freq_masks=0,
         time_masks=0,
         freq_width=10,
@@ -624,9 +617,8 @@ class SpectrogramAugmentation(NonTrainableNM):
         rect_time=5,
         rect_freq=20,
         rng=None,
-        **kwargs,
     ):
-        NonTrainableNM.__init__(self, **kwargs)
+        super().__init__()
 
         if rect_masks > 0:
             self.spec_cutout = SpecCutout(rect_masks=rect_masks, rect_time=rect_time, rect_freq=rect_freq, rng=rng,)
@@ -717,8 +709,8 @@ class MultiplyBatch(NonTrainableNM):
             "out_y_len": NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def __init__(self, *, mult_batch=1, **kwargs):
-        NonTrainableNM.__init__(self, **kwargs)
+    def __init__(self, mult_batch=1):
+        super().__init__()
         self.mult = mult_batch
 
     @torch.no_grad()

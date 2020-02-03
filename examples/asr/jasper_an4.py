@@ -20,6 +20,8 @@ from nemo.collections.asr.helpers import (
 )
 from nemo.utils.lr_policies import CosineAnnealing
 
+logging = nemo.logging
+
 
 def create_dags(jasper_params, args, nf):
     vocab = jasper_params['labels']
@@ -37,7 +39,7 @@ def create_dags(jasper_params, args, nf):
     num_samples = len(data_layer)
     steps_per_epoch = math.ceil(num_samples / (args.batch_size * args.iter_per_step * nf.world_size))
     total_steps = steps_per_epoch * args.num_epochs
-    print("Train samples=", num_samples, "num_steps=", total_steps)
+    logging.info("Train samples=", num_samples, "num_steps=", total_steps)
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         **jasper_params["AudioToMelSpectrogramPreprocessor"]
@@ -57,7 +59,7 @@ def create_dags(jasper_params, args, nf):
     )
 
     num_samples = len(data_layer_eval)
-    nemo.logging.info(f"Eval samples={num_samples}")
+    logging.info(f"Eval samples={num_samples}")
 
     jasper_encoder = nemo_asr.JasperEncoder(**jasper_params["JasperEncoder"])
 
@@ -84,7 +86,7 @@ def create_dags(jasper_params, args, nf):
     loss_e = ctc_loss(
         log_probs=log_probs_e, targets=transcript_e, input_length=encoded_len_e, target_length=transcript_len_e,
     )
-    nemo.logging.info("Num of params in encoder: {0}".format(jasper_encoder.num_weights))
+    logging.info("Num of params in encoder: {0}".format(jasper_encoder.num_weights))
 
     # Callbacks to print info to console and Tensorboard
     train_callback = nemo.core.SimpleLossLoggerCallback(
@@ -194,10 +196,10 @@ def main():
     )
 
     if args.test_after_training:
-        nemo.logging.info("Testing greedy and beam search with LM WER.")
+        logging.info("Testing greedy and beam search with LM WER.")
         # Create BeamSearch NM
         if nf.world_size > 1:
-            nemo.logging.warning("Skipping beam search WER as it does not " "work if doing distributed training.")
+            logging.warning("Skipping beam search WER as it does not " "work if doing distributed training.")
         else:
             beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
                 vocab=vocab, beam_width=64, alpha=2.0, beta=1.5, lm_path=args.lm, num_cpus=max(os.cpu_count(), 1),
@@ -210,7 +212,7 @@ def main():
             greedy_hypotheses = post_process_predictions(evaluated_tensors[1], vocab)
             references = post_process_transcripts(evaluated_tensors[2], evaluated_tensors[3], vocab)
             wer = word_error_rate(hypotheses=greedy_hypotheses, references=references)
-            nemo.logging.info("Greedy WER: {:.2f}%".format(wer * 100))
+            logging.info("Greedy WER: {:.2f}%".format(wer * 100))
             if wer > wer_thr:
                 nf.sync_all_processes(False)
                 raise ValueError(f"Final eval greedy WER {wer * 100:.2f}% > :" f"than {wer_thr * 100:.2f}%")
@@ -225,7 +227,7 @@ def main():
                     beam_hypotheses.append(j[0][1])
 
             beam_wer = word_error_rate(hypotheses=beam_hypotheses, references=references)
-            nemo.logging.info("Beam WER {:.2f}%".format(beam_wer * 100))
+            logging.info("Beam WER {:.2f}%".format(beam_wer * 100))
             assert beam_wer <= beam_wer_thr, "Final eval beam WER {:.2f}%  > than {:.2f}%".format(
                 beam_wer * 100, beam_wer_thr * 100
             )
@@ -266,7 +268,7 @@ def main():
             greedy_hypotheses = post_process_predictions(evaluated_tensors[1], vocab)
             references = post_process_transcripts(evaluated_tensors[2], evaluated_tensors[3], vocab)
             wer_new = word_error_rate(hypotheses=greedy_hypotheses, references=references)
-            nemo.logging.info("New greedy WER: {:.2f}%".format(wer_new * 100))
+            logging.info("New greedy WER: {:.2f}%".format(wer_new * 100))
             if wer_new > wer * 1.1:
                 nf.sync_all_processes(False)
                 raise ValueError(
