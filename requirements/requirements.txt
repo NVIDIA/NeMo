@@ -1,6 +1,7 @@
 onnx
 pandas
 tensorboardX
+tensorboard
 torch
 torchvision
 wget
