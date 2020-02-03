@@ -75,11 +75,12 @@ import argparse
 import math
 import os
 
-from pytorch_transformers import BertConfig
+from transformers import BertConfig
 
+import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils import BERTPretrainingDataDesc
+from nemo.collections.nlp.data.datasets.lm_bert_dataset import BERTPretrainingDataDesc
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description='BERT pretraining')

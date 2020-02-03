@@ -64,6 +64,7 @@ import argparse
 import json
 import os
 
+import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo import logging
 from nemo.collections.nlp.callbacks.qa_squad_callback import eval_epochs_done_callback, eval_iter_callback
