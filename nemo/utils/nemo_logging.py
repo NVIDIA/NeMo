@@ -20,7 +20,7 @@ from contextlib import contextmanager
 
 # from nemo.constants import NEMO_ENV_VARNAME_SAVE_LOGS_TO_DIR
 from nemo.constants import NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR
-from nemo.utils.env_var_parsing import get_env, get_envbool, get_envint
+from nemo.utils.env_var_parsing import get_envbool, get_envint
 from nemo.utils.formatters.base import BaseNeMoFormatter
 from nemo.utils.metaclasses import SingletonMetaClass
 
