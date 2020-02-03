@@ -25,7 +25,7 @@ import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.qa_squad_datalayer
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo.collections.nlp.callbacks.qa_squad_callback import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data.scripts.get_squad import SquadDownloader
+from examples.nlp.scripts.get_squad import SquadDownloader
 from nemo.utils.lr_policies import get_lr_policy
 from tests.common_setup import NeMoUnitTest
 
