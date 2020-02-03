@@ -463,7 +463,7 @@ class NeuralModuleFactory(object):
                     if num_classes is not None:
                         pt_model.fc = nn.Linear(512, params["num_classes"])
                     return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports, **params,
+                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports,
                     )
                 elif _nm_name == "resnet50":
                     input_ports = {
@@ -483,7 +483,7 @@ class NeuralModuleFactory(object):
                     if num_classes is not None:
                         pt_model.fc = nn.Linear(2048, params["num_classes"])
                     return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports, **params,
+                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports,
                     )
         else:
             collection_path = "nemo.collections." + collection + "." + name
