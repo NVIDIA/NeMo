@@ -80,6 +80,10 @@ To release a new version, please update the changelog as followed:
 ([PR #284](https://github.com/NVIDIA/NeMo/pull/284)) - @stasbel
 - NeMo is not longer using pep8 code style rules. Code style rules are now enforced with `isort` and `black` incorporated into CI checks.
 ([PR #286](https://github.com/NVIDIA/NeMo/pull/286)) - @stasbel
+- Refactoring of `nemo_nlp` collections: 
+([PR #316](https://github.com/NVIDIA/NeMo/pull/316)) - @VahidooX, @yzhang123, @ekmb
+    - renaming of files and restructuring of folder in `nemo_nlp`
+    - Updated licenses
 
 ### Dependencies Update
 
