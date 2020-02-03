@@ -3,3 +3,4 @@ pytest
 pytest-runner
 black
 isort[requirements]
+wrapt

@@ -4,6 +4,7 @@
 
 import argparse
 import json
+import logging
 import os
 import random
 import tarfile
@@ -27,12 +28,12 @@ def __maybe_download_file(destination: str, source: str):
     """
     source = URL
     if not os.path.exists(destination):
-        print(f"{destination} does not exist. Downloading ...")
+        logging.info(f"{destination} does not exist. Downloading ...")
         urllib.request.urlretrieve(source, filename=destination + '.tmp')
         os.rename(destination + '.tmp', destination)
-        print(f"Downloaded {destination}.")
+        logging.info(f"Downloaded {destination}.")
     else:
-        print(f"Destination {destination} exists. Skipping.")
+        logging.info(f"Destination {destination} exists. Skipping.")
     return destination
 
 
@@ -44,7 +45,7 @@ def __extract_all_files(filepath: str, data_root: str, data_dir: str):
             for ftar in filelist:
                 extract_file(os.path.join(subfolder, ftar), subfolder)
     else:
-        print(f'Skipping extracting. Data already there {data_dir}')
+        logging.info(f'Skipping extracting. Data already there {data_dir}')
 
 
 def extract_file(filepath: str, data_dir: str):
@@ -53,7 +54,7 @@ def extract_file(filepath: str, data_dir: str):
         tar.extractall(data_dir)
         tar.close()
     except Exception:
-        print('Not extracting. Maybe already there?')
+        logging.info('Not extracting. Maybe already there?')
 
 
 def __process_data(data_folder: str, dst_folder: str):
@@ -111,19 +112,19 @@ def main():
     data_set = "LJSpeech-1.1"
     data_folder = os.path.join(data_root, data_set)
 
-    print(f"Working on: {data_set}")
+    logging.info(f"Working on: {data_set}")
 
     # Download and extract
     if not os.path.exists(data_folder):
         file_path = os.path.join(data_root, data_set + ".tar.bz2")
-        print(f"Getting {data_set}")
+        logging.info(f"Getting {data_set}")
         __maybe_download_file(file_path, data_set)
-        print(f"Extracting {data_set}")
+        logging.info(f"Extracting {data_set}")
         __extract_all_files(file_path, data_root, data_folder)
 
-    print(f"Processing {data_set}")
+    logging.info(f"Processing {data_set}")
     __process_data(data_folder, data_folder)
-    print('Done!')
+    logging.info('Done!')
 
 
 if __name__ == "__main__":
