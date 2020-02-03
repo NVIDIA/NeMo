@@ -28,21 +28,7 @@ from itertools import chain
 
 import setuptools
 
-from nemo.package_info import (
-    __contact_emails__,
-    __contact_names__,
-    __description__,
-    __download_url__,
-    __homepage__,
-    __keywords__,
-    __license__,
-    __package_name__,
-    __repository_url__,
-    __version__,
-)
 
-
-# pep8: disable=E402
 def is_build_action():
     if len(sys.argv) <= 1:
         return False
@@ -58,8 +44,18 @@ def is_build_action():
 if is_build_action():
     os.environ['NEMO_PACKAGE_BUILDING'] = 'True'
 
-# pep8: enable=E402
-
+from nemo.package_info import (
+    __contact_emails__,
+    __contact_names__,
+    __description__,
+    __download_url__,
+    __homepage__,
+    __keywords__,
+    __license__,
+    __package_name__,
+    __repository_url__,
+    __version__,
+)
 
 if os.path.exists('README.rst'):
     # codec is used for consistent encoding
