@@ -32,43 +32,10 @@ class TestSquad(NeMoUnitTest):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '../data/nlp'))
-        if not os.path.exists(data_folder):
-            print(f"mkdir {data_folder}")
-            os.mkdir(data_folder)
-
-        squad_folder = data_folder + '/squad'
-        if not os.path.exists(squad_folder):
-            print("Extracting Squad data to: {0}".format(squad_folder))
-            squad_dl = SquadDownloader(data_folder)
-            squad_dl.download()
-
-            squad_v1_dev_file = os.path.join(squad_folder, 'v1.1/dev-v1.1.json')
-            squad_v1_train_file = os.path.join(squad_folder, 'v1.1/train-v1.1.json')
-            squad_v2_dev_file = os.path.join(squad_folder, 'v2.0/dev-v2.0.json')
-            squad_v2_train_file = os.path.join(squad_folder, 'v2.0/train-v2.0.json')
-            with open(squad_v1_dev_file, "r", encoding="utf-8") as json_file:
-                data = json.load(json_file)
-            data["data"] = [data["data"][0]]
-            with open(squad_v1_dev_file, "w", encoding="utf-8") as json_file:
-                json.dump(data, json_file)
-            with open(squad_v1_train_file, "w", encoding="utf-8") as json_file:
-                json.dump(data, json_file)
-
-            with open(squad_v2_dev_file, "r", encoding="utf-8") as json_file:
-                data = json.load(json_file)
-            data["data"] = [data["data"][0]]
-            with open(squad_v2_dev_file, "w", encoding="utf-8") as json_file:
-                json.dump(data, json_file)
-            with open(squad_v2_train_file, "w", encoding="utf-8") as json_file:
-                json.dump(data, json_file)
 
     @classmethod
     def tearDownClass(cls) -> None:
         super().tearDownClass()
-        squad_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '../data/nlp/squad'))
-        if os.path.exists(squad_folder):
-            shutil.rmtree(squad_folder)
 
     def test_squad_v1(self):
         version_2_with_negative = False
