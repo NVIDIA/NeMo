@@ -2,3 +2,4 @@ parameterized
 pytest
 black
 isort[requirements]
+wrapt

@@ -5,3 +5,4 @@ tensorboardX
 torch
 torchvision
 wget
+wrapt
