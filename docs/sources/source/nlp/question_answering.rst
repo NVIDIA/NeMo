@@ -61,7 +61,7 @@ This will tokenize text following the mapping of the original BERT model.
     .. code-block:: python
 
         from nemo.collections.nlp import NemoBertTokenizer
-        hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
+        hidden_size = pretrained_bert_model.hidden_size
         tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
 
 Next, we define all Neural Modules participating in our question answering classification pipeline.

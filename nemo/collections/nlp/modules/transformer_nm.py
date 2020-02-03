@@ -95,9 +95,8 @@ class TransformerEncoderNM(TrainableNM):
         learn_positional_encodings=False,
         hidden_act='relu',
         mask_future=False,
-        **kwargs
     ):
-        TrainableNM.__init__(self, **kwargs)
+        super().__init__()
 
         self.embedding_layer = TransformerEmbedding(
             vocab_size=vocab_size,
@@ -211,9 +210,8 @@ class TransformerDecoderNM(TrainableNM):
         attn_layer_dropout=0.0,
         learn_positional_encodings=False,
         hidden_act='relu',
-        **kwargs
     ):
-        TrainableNM.__init__(self, **kwargs)
+        super().__init__()
 
         self.embedding_layer = TransformerEmbedding(
             vocab_size=vocab_size,
@@ -280,8 +278,8 @@ class GreedyLanguageGeneratorNM(TrainableNM):
         """
         return {"output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
 
-    def __init__(self, decoder, log_softmax, max_seq_length, pad_token, bos_token, eos_token, batch_size=1, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+    def __init__(self, decoder, log_softmax, max_seq_length, pad_token, bos_token, eos_token, batch_size=1):
+        super().__init__()
 
         self.generator = GreedySequenceGenerator(
             decoder.embedding_layer,
@@ -370,9 +368,8 @@ class BeamSearchTranslatorNM(TrainableNM):
         beam_size=4,
         max_delta_length=50,
         length_penalty=0,
-        **kwargs
     ):
-        TrainableNM.__init__(self, **kwargs)
+        super().__init__()
 
         self.generator = BeamSearchSequenceGenerator(
             decoder.embedding_layer,

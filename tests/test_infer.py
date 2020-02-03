@@ -25,8 +25,8 @@ from tests.common_setup import NeMoUnitTest
 
 
 class AddsTen(NonTrainableNM):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self):
+        super().__init__()
 
     @property
     def input_ports(self):
@@ -41,8 +41,8 @@ class AddsTen(NonTrainableNM):
 
 
 class SubtractsTen(NonTrainableNM):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self):
+        super().__init__()
 
     @property
     def input_ports(self):

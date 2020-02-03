@@ -107,7 +107,6 @@ class FilterbankFeatures(nn.Module):
 
     def __init__(
         self,
-        *,
         sample_rate=16000,
         n_window_size=320,
         n_window_stride=160,

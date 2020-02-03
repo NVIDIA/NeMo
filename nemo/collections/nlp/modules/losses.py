@@ -75,8 +75,8 @@ class QuestionAnsweringLoss(LossNM):
             "end_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
 
-    def __init__(self, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self):
+        super().__init__()
 
     def _loss_function(self, **kwargs):
         logits = kwargs['logits']
@@ -145,8 +145,8 @@ class MaskedLanguageModelingLossNM(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, label_smoothing=0.0, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self, label_smoothing=0.0):
+        super().__init__()
         self._criterion = SmoothedCrossEntropyLoss(label_smoothing)
 
     def _loss_function(self, logits, output_ids, output_mask):
@@ -182,11 +182,10 @@ class LossAggregatorNM(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, *, num_inputs=2, **kwargs):
+    def __init__(self, num_inputs=2):
+        super().__init__()
         # Store number of inputs/losses.
         self.num_losses = num_inputs
-        # kwargs["create_port_args"] = {"num_losses": num_inputs}
-        LossNM.__init__(self, **kwargs)
 
     def _loss_function(self, **kwargs):
         values = [kwargs[x] for x in sorted(kwargs.keys())]
@@ -244,8 +243,8 @@ class TokenClassificationLoss(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, num_classes, class_weights=None, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self, num_classes, class_weights=None):
+        super().__init__()
         if class_weights:
             class_weights = torch.FloatTensor(class_weights).to(self._device)
 
@@ -330,14 +329,9 @@ class JointIntentSlotLoss(LossNM):
         return {"loss": NeuralType(None)}
 
     def __init__(
-        self,
-        num_slots,
-        slot_classes_loss_weights=None,
-        intent_classes_loss_weights=None,
-        intent_loss_weight=0.6,
-        **kwargs
+        self, num_slots, slot_classes_loss_weights=None, intent_classes_loss_weights=None, intent_loss_weight=0.6
     ):
-        LossNM.__init__(self, **kwargs)
+        super().__init__()
         self.num_slots = num_slots
         self.intent_loss_weight = intent_loss_weight
         self.slot_classes_loss_weights = slot_classes_loss_weights
@@ -413,15 +407,14 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self, pad_id, label_smoothing=0, predict_last_k=0):
+        super().__init__()
 
-        loss_params = {
-            "label_smoothing": self.local_parameters.get("label_smoothing", 0),
-            "predict_last_k": self.local_parameters.get("predict_last_k", 0),
-        }
+        # Create the loss function object.
+        loss_params = {"label_smoothing": label_smoothing, "predict_last_k": predict_last_k}
         self._loss_fn = SmoothedCrossEntropyLoss(**loss_params)
-        self._pad_id = self.local_parameters['pad_id']
+        # Store padding.
+        self._pad_id = pad_id
 
     def _loss_function(self, logits, target_ids):
         target_mask = mask_padded_tokens(target_ids, self._pad_id).to(logits.dtype)
