@@ -36,7 +36,7 @@ See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
 pretrained_bert_model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
-hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
+hidden_size = pretrained_bert_model.hidden_size
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
 data_desc = JointIntentSlotDataDesc(args.data_dir, args.do_lower_case, args.dataset_name)
@@ -51,8 +51,8 @@ data_layer = nemo_nlp.BertJointIntentSlotDataLayer(
     max_seq_length=args.max_seq_length,
     shuffle=False,
     batch_size=args.batch_size,
-    num_workers=0,
-    local_rank=args.local_rank,
+    # num_workers=0,
+    # local_rank=args.local_rank,
 )
 
 classifier = nemo_nlp.JointIntentSlotClassifier(

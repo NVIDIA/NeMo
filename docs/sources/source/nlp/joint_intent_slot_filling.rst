@@ -59,7 +59,7 @@ This will tokenize text following the mapping of the original BERT model.
     .. code-block:: python
 
         from transformers import BertTokenizer
-        hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
+        hidden_size = pretrained_bert_model.hidden_size
         tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
 Next, we define all Neural Modules participating in our joint intent slot filling classification pipeline.
@@ -79,7 +79,8 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
     .. code-block:: python
 
         pretrained_bert_model = nemo_nlp.huggingface.BERT(
-        pretrained_model_name=args.pretrained_bert_model, factory=nf)
+            pretrained_model_name=args.pretrained_bert_model
+        )
         hidden_states = pretrained_bert_model(input_ids=ids,
                                               token_type_ids=type_ids,
                                               attention_mask=input_mask)

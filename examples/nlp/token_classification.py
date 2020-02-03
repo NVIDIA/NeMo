@@ -137,7 +137,7 @@ else:
     model.restore_from(args.bert_checkpoint)
     nemo.logging.info(f"Model restored from {args.bert_checkpoint}")
 
-hidden_size = model.local_parameters["hidden_size"]
+hidden_size = model.hidden_size
 
 classifier = "TokenClassifier"
 task_loss = "TokenClassificationLoss"
