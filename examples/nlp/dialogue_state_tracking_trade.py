@@ -15,7 +15,7 @@
 # =============================================================================
 
 """ An implementation of the paper "Transferable Multi-Domain State Generator
-for Task-Oriented Dialogue Systems" (Wu et al., 2019)
+for Task-Oriented Dialogue Systems" (Wu et al., 2019 - ACL 2019)
 Adopted from: https://github.com/jasonwu0731/trade-dst
 """
 
