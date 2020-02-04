@@ -61,7 +61,7 @@ This will tokenize text following the mapping of the original BERT model.
     .. code-block:: python
 
         from nemo.collections.nlp import NemoBertTokenizer
-        hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
+        hidden_size = pretrained_bert_model.hidden_size
         tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
 
 Next, we define all Neural Modules participating in our question answering classification pipeline.
@@ -157,7 +157,7 @@ Next, we define all Neural Modules participating in our question answering class
 
         train_callback = nemo.core.SimpleLossLoggerCallback(
             tensors=train_tensors,
-            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+            print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
             get_tb_values=lambda x: [["loss", x[0]]],
             step_freq=args.step_freq,
             tb_writer=neural_factory.tb_writer)

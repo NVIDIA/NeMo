@@ -10,10 +10,6 @@
   :target: https://github.com/NVIDIA/NeMo/blob/master/LICENSE
   :alt: NeMo core license and license for collections in this repo
 
-.. image:: https://coveralls.io/repos/github/NVIDIA/NeMo/badge.svg?branch=master
-  :target: https://coveralls.io/github/NVIDIA/NeMo?branch=master
-  :alt: NeMo code test coverage
-
 .. image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
   :target: https://lgtm.com/projects/g/NVIDIA/NeMo/context:python
   :alt: Language grade: Python

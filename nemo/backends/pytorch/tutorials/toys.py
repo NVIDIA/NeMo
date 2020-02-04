@@ -5,9 +5,10 @@ import torch as t
 import torch.nn as nn
 import torch.utils.data as t_utils
 
-from ....core import DeviceType, NeuralModule
-from ....core.neural_types import NeuralType, ChannelType, LabelsType
-from ..nm import DataLayerNM, LossNM, TrainableNM
+from nemo import logging
+from nemo.backends.pytorch.nm import DataLayerNM, LossNM, TrainableNM
+from nemo.core import DeviceType, NeuralModule
+from nemo.core.neural_types import *
 
 
 class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
@@ -31,11 +32,11 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
         """
         return {"y_pred": NeuralType(ChannelType(), ('B', 'D'))}
 
-    def __init__(self, *, dim, **kwargs):
+    def __init__(self, dim):
         # Part specific for Neural Modules API:
         #   (1) call base constructor
         #   (2) define input and output ports
-        TrainableNM.__init__(self, **kwargs)
+        super().__init__()
 
         # And of Neural Modules specific part. Rest is Pytorch code
         self._dim = dim
@@ -72,11 +73,11 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
         """
         return {"y_pred": NeuralType(ChannelType(), ('B', 'D'), optional=True)}
 
-    def __init__(self, *, dim, **kwargs):
+    def __init__(self, dim):
         # Part specific for Neural Modules API:
         #   (1) call base constructor
         #   (2) define input and output ports
-        TrainableNM.__init__(self, **kwargs)
+        super().__init__()
 
         # And of Neural Modules specific part. Rest is Pytorch code
         self._dim = dim
@@ -90,9 +91,9 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
     def forward(self, x, o=None):
         lst = []
         if o is None:
-            print("O is None")
+            logging.debug("O is None")
         else:
-            print("O is not None")
+            logging.debug("O is not None")
         for pw in range(self._dim):
             lst.append(x ** pw)
         nx = t.cat(lst, dim=-1)
@@ -106,9 +107,10 @@ class RealFunctionDataLayer(DataLayerNM):
     Args:
         n: Total number of samples
         batch_size: Size of each batch per iteration
-        f: A lambda of the function to apply to each x value to get labels.
+        f_name: Name of the function that will be applied to each x value to get labels.
            Must take a torch tensor as input, and output a torch tensor of
            the same shape. Defaults to torch.sin().
+           [Options: sin | cos]
         x_lo: Lower bound of domain to sample
         x_hi: Upper bound of domain to sample
     """
@@ -125,15 +127,31 @@ class RealFunctionDataLayer(DataLayerNM):
             "y": NeuralType(LabelsType(), ('B', 'D')),
         }
 
-    def __init__(self, *, n, batch_size, f=t.sin, x_lo=-4, x_hi=4, **kwargs):
-        DataLayerNM.__init__(self, **kwargs)
+    def __init__(self, batch_size, f_name="sin", n=1000, x_lo=-4, x_hi=4):
+        """
+            Creates a datalayer returning (x-y) pairs, with n points from a given range.
+
+            Args:
+                batch_size: size of batch
+                f_name: name of function ["sin" | "cos"]
+                n: number of points
+                x_lo: lower boundary along x axis
+                x_hi: higher boundary along x axis
+        """
+        super().__init__()
+
+        # Dicionary with handled functions.
+        handled_funcs = {"sin": t.sin, "cos": t.cos}
+
+        # Get function - raises an exception if function is not handled
+        func = handled_funcs[f_name]
 
         self._n = n
         self._batch_size = batch_size
         self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
 
         x_data = t.tensor(np.random.uniform(low=x_lo, high=x_hi, size=self._n)).unsqueeze(-1).to(self._device)
-        y_data = f(x_data)
+        y_data = func(x_data)
 
         self._data_iterator = t_utils.DataLoader(
             t_utils.TensorDataset(x_data.float(), y_data.float()), batch_size=self._batch_size,
@@ -177,8 +195,8 @@ class MSELoss(LossNM):
         """
         return {"loss": NeuralType(axes=None)}
 
-    def __init__(self, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self):
+        super().__init__()
         self._criterion = nn.MSELoss()
 
     def _loss_function(self, **kwargs):
@@ -204,8 +222,8 @@ class L1Loss(LossNM):
         """
         return {"loss": NeuralType(axes=None)}
 
-    def __init__(self, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self):
+        super().__init__()
         self._criterion = nn.L1Loss()
 
     def _loss_function(self, **kwargs):
@@ -231,9 +249,9 @@ class CrossEntropyLoss(LossNM):
         """
         return {"loss": NeuralType(axes=None)}
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         # Neural Module API specific
-        NeuralModule.__init__(self, **kwargs)
+        NeuralModule.__init__(self)
         # End of Neural Module API specific
         self._criterion = nn.CrossEntropyLoss()
 

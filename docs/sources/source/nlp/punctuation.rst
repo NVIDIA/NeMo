@@ -116,7 +116,7 @@ Now, create the train and evaluation data layers:
         punct_label_ids = train_data_layer.dataset.punct_label_ids
         capit_label_ids = train_data_layer.dataset.capit_label_ids
 
-        hidden_size = bert_model.local_parameters["hidden_size"]
+        hidden_size = bert_model.hidden_size
 
         # Note that you need to specify punct_label_ids and capit_label_ids  - mapping form labels
         # to label_ids generated during creation of the train_data_layer to make sure that
@@ -204,7 +204,7 @@ Now, we will set up our callbacks. We will use 3 callbacks:
 
         callback_train = nemo.core.SimpleLossLoggerCallback(
         tensors=[task_loss, punct_loss, capit_loss, punct_logits, capit_logits],
-        print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+        print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
         step_freq=STEP_FREQ)
 
         train_data_size = len(train_data_layer)
@@ -293,7 +293,7 @@ Run inference, append punctuation and capitalize words based on the generated pr
     capit_preds = np.argmax(capit_logits, axis=2)
 
     for i, query in enumerate(queries):
-        nemo.logging.info(f'Query: {query}')
+        logging.info(f'Query: {query}')
 
         punct_pred = punct_preds[i][subtokens_mask[i] > 0.5]
         capit_pred = capit_preds[i][subtokens_mask[i] > 0.5]
@@ -312,7 +312,7 @@ Run inference, append punctuation and capitalize words based on the generated pr
             if punct_label != 'O':
                 output += punct_label
             output += ' '
-        nemo.logging.info(f'Combined: {output.strip()}\n')
+        logging.info(f'Combined: {output.strip()}\n')
 
 Inference results:
     

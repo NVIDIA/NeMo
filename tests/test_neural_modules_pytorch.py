@@ -1,6 +1,7 @@
 # ! /usr/bin/python
 # -*- coding: utf-8 -*-
 
+# =============================================================================
 # Copyright 2019 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,87 +17,53 @@
 # limitations under the License.
 # =============================================================================
 
+import unittest
+
 import nemo
 from nemo.backends.pytorch.nm import TrainableNM
 from tests.common_setup import NeMoUnitTest
 
 
 class TestNM1(TrainableNM):
-    def __init__(self, var1, var2=2, var3=3, **kwargs):
-        super(TestNM1, self).__init__(**kwargs)
-
-    @property
-    def input_ports(self):
-        """Returns definitions of module input ports."""
-        return {}
-
-    @property
-    def output_ports(self):
-        """Returns definitions of module output ports."""
-        return {}
-
-    def foward(self):
-        pass
+    def __init__(self, var1=1, var2=2, var3=3):
+        super(TestNM1, self).__init__()
 
 
 class TestNM2(TestNM1):
-    def __init__(self, var2, **kwargs):
-        super(TestNM2, self).__init__(**kwargs)
-
-    @property
-    def input_ports(self):
-        """Returns definitions of module input ports."""
-        return {}
-
-    @property
-    def output_ports(self):
-        """Returns definitions of module output ports."""
-        return {}
-
-    def foward(self):
-        pass
-
-
-class BrokenNM(TrainableNM):
-    def __init__(self, var2, *error, **kwargs):
-        super(BrokenNM, self).__init__(**kwargs)
-
-    @property
-    def input_ports(self):
-        """Returns definitions of module input ports."""
-        return {}
-
-    @property
-    def output_ports(self):
-        """Returns definitions of module output ports."""
-        return {}
-
-    def foward(self):
-        pass
+    def __init__(self, var2):
+        super(TestNM2, self).__init__(var2=var2)
 
 
 class TestNeuralModulesPT(NeMoUnitTest):
-    def test_simple_local_params(self):
+    def setUp(self) -> None:
+        super().setUp()
+
+        # Mockup abstract methods.
+        TestNM1.__abstractmethods__ = set()
+        TestNM2.__abstractmethods__ = set()
+
+    def test_default_init_params(self):
+        simple_nm = TestNM1(var1=1)
+        init_params = simple_nm.init_params
+        self.assertEqual(init_params["var1"], 1)
+        self.assertEqual(init_params["var2"], 2)
+        self.assertEqual(init_params["var3"], 3)
+
+    def test_simple_init_params(self):
         simple_nm = TestNM1(var1=10, var3=30)
-        local_params = simple_nm.local_parameters
-        self.assertEqual(local_params["var1"], 10)
-        self.assertEqual(local_params["var2"], 2)
-        self.assertEqual(local_params["var3"], 30)
+        init_params = simple_nm.init_params
+        self.assertEqual(init_params["var1"], 10)
+        self.assertEqual(init_params["var2"], 2)
+        self.assertEqual(init_params["var3"], 30)
 
-    def test_nested_local_params(self):
-        simple_nm = TestNM2(25, var1="hello")
-        local_params = simple_nm.local_parameters
-        self.assertEqual(local_params["var1"], "hello")
-        self.assertEqual(local_params["var2"], 25)
-        self.assertEqual(local_params["var3"], 3)
-
-    def test_posarg_check(self):
-        with self.assertRaises(ValueError):
-            NM = BrokenNM(8)
+    def test_nested_init_params(self):
+        simple_nm = TestNM2(var2="hello")
+        init_params = simple_nm.init_params
+        self.assertEqual(init_params["var2"], "hello")
 
     def test_constructor_TaylorNet(self):
         tn = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
-        self.assertEqual(tn.local_parameters["dim"], 4)
+        self.assertEqual(tn.init_params["dim"], 4)
 
     def test_call_TaylorNet(self):
         x_tg = nemo.core.neural_modules.NmTensor(

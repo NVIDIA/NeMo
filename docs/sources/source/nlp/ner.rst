@@ -94,7 +94,7 @@ We need to create the classifier to sit on top of the pretrained model and defin
 
     .. code-block:: python
 
-        hidden_size = bert_model.local_parameters["hidden_size"]
+        hidden_size = bert_model.hidden_size
         ner_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
                                               num_classes=num_classes,
                                               dropout=CLASSIFICATION_DROPOUT)
@@ -137,7 +137,7 @@ Now, we will set up our callbacks. We will use 3 callbacks:
 
         callback_train = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss],
-            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())))
+            print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())))
 
         train_data_size = len(train_data_layer)
 

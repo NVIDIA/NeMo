@@ -19,6 +19,7 @@
 import os
 import shutil
 import tarfile
+import unittest
 from typing import Dict
 
 import numpy as np
@@ -30,6 +31,8 @@ import nemo.collections.asr as nemo_asr
 from nemo.core import WeightShareTransform
 from nemo.core.neural_types import *
 from tests.common_setup import NeMoUnitTest
+
+logging = nemo.logging
 
 
 class TestWeightSharing(NeMoUnitTest):
@@ -82,20 +85,20 @@ class TestWeightSharing(NeMoUnitTest):
     def setUpClass(cls) -> None:
         super().setUpClass()
         data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
-        print("Looking up for test ASR data")
+        logging.info("Looking up for test ASR data")
         if not os.path.exists(os.path.join(data_folder, "asr")):
-            print("Extracting ASR data to: {0}".format(os.path.join(data_folder, "asr")))
+            logging.info("Extracting ASR data to: {0}".format(os.path.join(data_folder, "asr")))
             tar = tarfile.open(os.path.join(data_folder, "asr.tar.gz"), "r:gz")
             tar.extractall(path=data_folder)
             tar.close()
         else:
-            print("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
+            logging.info("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
 
     @classmethod
     def tearDownClass(cls) -> None:
         super().tearDownClass()
         data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
-        print("Looking up for test ASR data")
+        logging.info("Looking up for test ASR data")
         if os.path.exists(os.path.join(data_folder, "asr")):
             shutil.rmtree(os.path.join(data_folder, "asr"))
 
@@ -170,13 +173,13 @@ class TestWeightSharing(NeMoUnitTest):
         with open(path) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(
-            featurizer_config=self.featurizer_config,
+            # featurizer_config=self.featurizer_config,
             manifest_filepath=self.manifest_filepath,
             labels=self.labels,
             batch_size=4,
         )
         pre_process_params = {
-            'int_values': False,
+            #'int_values': False,
             'frame_splicing': 1,
             'features': 64,
             'window_size': 0.02,
@@ -202,29 +205,25 @@ class TestWeightSharing(NeMoUnitTest):
         processed_signal, p_length = preprocessing(input_signal=audio_signal, length=a_sig_length)
 
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
-        # print(jasper_encoder)
+        # logging.info(jasper_encoder)
         log_probs = jasper_decoder(encoder_output=encoded)
         loss = ctc_loss(
             log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'),
+            tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
-        # Instantiate an optimizer to perform `train` action
-        neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
-        )
-        optimizer = neural_factory.get_trainer()
+        optimizer = self.nf.get_trainer()
         optimizer.train(
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 2, "lr": 0.0003},
         )
 
+    # @unittest.skip(
+    #    "Tests fails at get_pytorch_module() that will be changed in next PR anyway. \
+    #    Besides, quite sure this test is not related with ASR :]"
+    # )
     def test_freeze_unfreeze_Wrapper(self):
-        neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, placement=nemo.core.DeviceType.GPU, create_tb_writer=False,
-        )
-
         dl_train = nemo.backends.pytorch.ZerosDataLayer(
             size=40,
             dtype=[torch.FloatTensor, torch.LongTensor],
@@ -242,12 +241,14 @@ class TestWeightSharing(NeMoUnitTest):
             },
         )
 
+        # WHY THE HELL THIS TEST IS IN ASR!!!!???
+
         # NOTICE: pretrain=True argument
-        resnet = neural_factory.get_module(
+        resnet = self.nf.get_module(
             name="resnet18", params={"num_classes": 2}, collection="torchvision", pretrained=True,
         )
 
-        L_train = neural_factory.get_module(name="CrossEntropyLoss", collection="toys", params={})
+        L_train = self.nf.get_module(name="CrossEntropyLoss", collection="toys", params={})
 
         # NOTICE: Freeze all Neural Module's weights
         resnet.freeze()
@@ -259,13 +260,12 @@ class TestWeightSharing(NeMoUnitTest):
         train_loss = L_train(predictions=outputs, labels=labels)
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[train_loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}'),
+            tensors=[train_loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
         # Instantiate an optimizer to perform `train` action
-        neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
-        )
-        optimizer = neural_factory.get_trainer()
+        optimizer = self.nf.get_trainer()
         optimizer.train(
             [train_loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 2, "lr": 0.0003},
         )
+
+        # WHERE IS ACTUALLY THE TEST?? ARE WE CHECKING ANYTHING??
