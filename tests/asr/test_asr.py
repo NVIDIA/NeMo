@@ -325,7 +325,7 @@ class TestASRPytorch(NeMoUnitTest):
                 self.assertTrue(spec[0].shape[1] == 201)  # n_fft // 2 + 1 bins
                 self.assertTrue(mfcc[0].shape[1] == 15)
 
-    @unittest.skip("Init parameters of nemo_asr.AudioToMelSpectrogramPreprocessor are invalid")
+    # @unittest.skip("Init parameters of nemo_asr.AudioToMelSpectrogramPreprocessor are invalid")
     def test_jasper_training(self):
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
@@ -336,7 +336,6 @@ class TestASRPytorch(NeMoUnitTest):
             batch_size=4,
         )
         pre_process_params = {
-            'int_values': False,
             'frame_splicing': 1,
             'features': 64,
             'window_size': 0.02,
@@ -375,7 +374,7 @@ class TestASRPytorch(NeMoUnitTest):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @unittest.skip("Init parameters of nemo_asr.AudioToMelSpectrogramPreprocessor are invalid")
+    # @unittest.skip("Init parameters of nemo_asr.AudioToMelSpectrogramPreprocessor are invalid")
     def test_double_jasper_training(self):
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
@@ -386,7 +385,6 @@ class TestASRPytorch(NeMoUnitTest):
             batch_size=4,
         )
         pre_process_params = {
-            'int_values': False,
             'frame_splicing': 1,
             'features': 64,
             'window_size': 0.02,
@@ -436,25 +434,18 @@ class TestASRPytorch(NeMoUnitTest):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @unittest.skip("Init parameters of nemo_asr.AudioToMelSpectrogramPreprocessor are invalid")
+    # @unittest.skip("Init parameters of nemo_asr.AudioToMelSpectrogramPreprocessor are invalid")
     def test_quartznet_training(self):
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_test.yaml"))) as f:
             quartz_model_definition = self.yaml.load(f)
-        dl = nemo_asr.AudioToTextDataLayer(
-            # featurizer_config=self.featurizer_config,
-            manifest_filepath=self.manifest_filepath,
-            labels=self.labels,
-            batch_size=4,
-        )
+        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4,)
         pre_process_params = {
-            'int_values': False,
             'frame_splicing': 1,
             'features': 64,
             'window_size': 0.02,
             'n_fft': 512,
             'dither': 1e-05,
             'window': 'hann',
-            'feat_type': 'logfbank',
             'sample_rate': 16000,
             'normalize': 'per_feature',
             'window_stride': 0.01,
@@ -486,18 +477,11 @@ class TestASRPytorch(NeMoUnitTest):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @unittest.skip("Init parameters of nemo_asr.AudioToMelSpectrogramPreprocessor are invalid")
     def test_stft_conv(self):
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
-        dl = nemo_asr.AudioToTextDataLayer(
-            # featurizer_config=self.featurizer_config,
-            manifest_filepath=self.manifest_filepath,
-            labels=self.labels,
-            batch_size=4,
-        )
+        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4,)
         pre_process_params = {
-            'int_values': False,
             'frame_splicing': 1,
             'features': 64,
             'window_size': 0.02,
@@ -538,18 +522,11 @@ class TestASRPytorch(NeMoUnitTest):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @unittest.skip("Init parameters of nemo_asr.AudioToMelSpectrogramPreprocessor are invalid")
     def test_clas(self):
         with open('examples/asr/experimental/configs/garnet_an4.yaml') as file:
             cfg = self.yaml.load(file)
-        dl = nemo_asr.AudioToTextDataLayer(
-            # featurizer_config=self.featurizer_config,
-            manifest_filepath=self.manifest_filepath,
-            labels=self.labels,
-            batch_size=4,
-        )
+        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4,)
         pre_process_params = {
-            'int_values': False,
             'frame_splicing': 1,
             'features': 64,
             'window_size': 0.02,
@@ -571,7 +548,19 @@ class TestASRPytorch(NeMoUnitTest):
             in_channels=cfg['encoder']['jasper'][-1]['filters'], out_channels=cfg['decoder']['hidden_size'],
         )
         decoder = nemo.backends.pytorch.common.DecoderRNN(
-            voc_size=len(self.labels), bos_id=0, **cfg['decoder']  # fictive
+            voc_size=len(self.labels),
+            bos_id=0,
+            hidden_size=cfg['decoder']['hidden_size'],
+            attention_method=cfg['decoder']['attention_method'],
+            attention_type=cfg['decoder']['attention_type'],
+            in_dropout=cfg['decoder']['in_dropout'],
+            gru_dropout=cfg['decoder']['gru_dropout'],
+            attn_dropout=cfg['decoder']['attn_dropout'],
+            teacher_forcing=cfg['decoder']['teacher_forcing'],
+            curriculum_learning=cfg['decoder']['curriculum_learning'],
+            rnn_type=cfg['decoder']['rnn_type'],
+            n_layers=cfg['decoder']['n_layers'],
+            tie_emb_out_weights=cfg['decoder']['tie_emb_out_weights'],
         )
         loss = nemo.backends.pytorch.common.SequenceLoss()
 
@@ -593,18 +582,11 @@ class TestASRPytorch(NeMoUnitTest):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @unittest.skip("Init parameters of nemo_asr.AudioToMelSpectrogramPreprocessor are invalid")
     def test_jasper_eval(self):
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
-        dl = nemo_asr.AudioToTextDataLayer(
-            # featurizer_config=self.featurizer_config,
-            manifest_filepath=self.manifest_filepath,
-            labels=self.labels,
-            batch_size=4,
-        )
+        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4,)
         pre_process_params = {
-            'int_values': False,
             'frame_splicing': 1,
             'features': 64,
             'window_size': 0.02,
@@ -647,7 +629,3 @@ class TestASRPytorch(NeMoUnitTest):
         )
         # Instantiate an optimizer to perform `train` action
         self.nf.eval(callbacks=[eval_callback])
-
-
-# if __name__ == '__main__':
-#    unittest.main()
