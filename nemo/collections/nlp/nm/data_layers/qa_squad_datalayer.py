@@ -91,10 +91,10 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
         doc_stride,
         max_query_length,
         max_seq_length,
-        shuffle=False,
         mode="train",
         batch_size=64,
         dataset_type=SquadDataset,
+        shuffle=False,
     ):
         dataset_params = {
             'data_dir': data_dir,
