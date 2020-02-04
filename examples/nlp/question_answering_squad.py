@@ -64,8 +64,8 @@ import argparse
 import json
 import os
 
-import nemo
 import nemo.collections.nlp as nemo_nlp
+import nemo.core as nemo_core
 from nemo import logging
 from nemo.collections.nlp.callbacks.qa_squad_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
@@ -257,8 +257,8 @@ if __name__ == "__main__":
         args.work_dir = f'{args.work_dir}/squad2.0'
 
     # Instantiate neural factory with supported backend
-    nf = nemo.core.NeuralModuleFactory(
-        backend=nemo.core.Backend.PyTorch,
+    nf = nemo_core.NeuralModuleFactory(
+        backend=nemo_core.Backend.PyTorch,
         local_rank=args.local_rank,
         optimization_level=args.amp_opt_level,
         log_dir=args.work_dir,
@@ -333,7 +333,7 @@ if __name__ == "__main__":
 
     if not args.evaluation_only:
         logging.info(f"steps_per_epoch = {train_steps_per_epoch}")
-        callback_train = nemo.core.SimpleLossLoggerCallback(
+        callback_train = nemo_core.SimpleLossLoggerCallback(
             tensors=[train_loss],
             print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
             get_tb_values=lambda x: [["loss", x[0]]],
@@ -341,10 +341,10 @@ if __name__ == "__main__":
             tb_writer=nf.tb_writer,
         )
 
-        ckpt_callback = nemo.core.CheckpointCallback(
+        ckpt_callback = nemo_core.CheckpointCallback(
             folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
         )
-        callbacks_eval = nemo.core.EvaluatorCallback(
+        callbacks_eval = nemo_core.EvaluatorCallback(
             eval_tensors=eval_output,
             user_iter_callback=lambda x, y: eval_iter_callback(x, y),
             user_epochs_done_callback=lambda x: eval_epochs_done_callback(
