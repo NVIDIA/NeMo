@@ -445,6 +445,7 @@ if __name__ == "__main__":
             null_score_diff_threshold=args.null_score_diff_threshold,
             do_lower_case=args.do_lower_case,
         )
+        
         logging.info(f"exact_match: {exact_match}, f1: {f1}")
         if args.output_prediction_file is not None:
             with open(args.output_prediction_file, "w") as writer:
