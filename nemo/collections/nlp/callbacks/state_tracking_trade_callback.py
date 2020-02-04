@@ -17,11 +17,7 @@
 import numpy as np
 import torch
 
-from nemo.utils.exp_logging import get_logger
-
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
-
-logger = get_logger('')
 
 
 def eval_iter_callback(tensors, global_vars, data_desc):

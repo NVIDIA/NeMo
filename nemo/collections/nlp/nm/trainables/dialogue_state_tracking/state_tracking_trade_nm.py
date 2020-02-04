@@ -1,5 +1,3 @@
-__all__ = ['TRADEGenerator', 'TRADEMaskedCrossEntropy']
-
 import random
 
 import numpy as np
@@ -10,24 +8,32 @@ from torch import nn as nn
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
+__all__ = ['TRADEGenerator']
+
 
 class TRADEGenerator(TrainableNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+        """
+        return {
             'encoder_hidden': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             'encoder_outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             'input_lens': NeuralType({0: AxisType(BatchTag),}),
             'src_ids': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
         }
-        output_ports = {
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+        """
+        return {
             'point_outputs': NeuralType(
                 {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag), 3: AxisType(ChannelTag)}
             ),
             'gate_outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(ChannelTag)}),
         }
-        return input_ports, output_ports
 
     def __init__(self, vocab, embeddings, hid_size, dropout, slots, nb_gate, teacher_forcing=0.5):
         super().__init__()
