@@ -14,7 +14,7 @@ Installation
 
 .. tip:: Instead of installing all requirements. They are all automatically included 
     in the `NVIDIA's PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ .
-    You can pull it like so: `docker pull nvcr.io/nvidia/pytorch:19.08-py3`
+    You can pull it like so: `docker pull nvcr.io/nvidia/pytorch:19.11-py3`
 
 **Installing NeMo and Collections**
 
@@ -56,6 +56,13 @@ Installation
 
    		cd ../nemo_simple_gan
    		pip install .
+
+    d) To install the TTS collection from ``collections/nemo_tts``:
+
+    .. code-block:: bash
+
+      cd ../nemo_tts
+      pip install .
 
 
 4) Run unittests from the nemo directory to validate installation:

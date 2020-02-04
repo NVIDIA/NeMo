@@ -1,14 +1,31 @@
 .. image:: http://www.repostatus.org/badges/latest/active.svg
-	:target: http://www.repostatus.org/#active
-	:alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
+  :target: http://www.repostatus.org/#active
+  :alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
 
 .. image:: https://img.shields.io/badge/documentation-github.io-blue.svg
-	:target: https://nvidia.github.io/NeMo/
-	:alt: NeMo documentation on GitHub pages
-   
+  :target: https://nvidia.github.io/NeMo/
+  :alt: NeMo documentation on GitHub pages
+
 .. image:: https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg
-	:target: https://github.com/NVIDIA/NeMo/blob/master/LICENSE
-	:alt: NeMo core license and license for collections in this repo
+  :target: https://github.com/NVIDIA/NeMo/blob/master/LICENSE
+  :alt: NeMo core license and license for collections in this repo
+
+.. image:: https://coveralls.io/repos/github/NVIDIA/NeMo/badge.svg?branch=master
+  :target: https://coveralls.io/github/NVIDIA/NeMo?branch=master
+  :alt: NeMo code test coverage
+
+.. image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
+  :target: https://lgtm.com/projects/g/NVIDIA/NeMo/context:python
+  :alt: Language grade: Python
+
+.. image:: https://img.shields.io/lgtm/alerts/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
+  :target: https://lgtm.com/projects/g/NVIDIA/NeMo/alerts/
+  :alt: Total alerts
+
+.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+  :target: https://github.com/psf/black
+  :alt: Code style: black
+
 
 
 NVIDIA Neural Modules: NeMo
@@ -19,8 +36,6 @@ NeMo (Neural Modules) is a toolkit for creating AI applications using **neural m
 NeMo makes it easy to combine and re-use these building blocks while providing a level of semantic correctness checking via its neural type system. As long as two modules have compatible inputs and outputs, it is legal to chain them together.
 
 NeMo's API is designed to be **framework-agnostic**, but currently only PyTorch is supported.
-
-NeMo follows a **lazy execution** model: no computation is done until an action (such as `train(...)` is called.
 
 The toolkit comes with extendable collections of pre-built modules for automatic speech recognition (ASR), natural language processing (NLP) and text synthesis (TTS). Furthermore, NeMo provides built-in support for **distributed training** and **mixed precision** on the latest NVIDIA GPUs.
 
@@ -42,18 +57,25 @@ See `this video <https://nvidia.github.io/NeMo/>`_ for a quick walk-through.
 
 **Getting started**
 
-THE LATEST STABLE VERSION OF NeMo is **0.8.2** (which is available via PIP).
+THE LATEST STABLE VERSION OF NeMo is **0.9.0** (which is available via PIP).
 
-We recommend to use NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ which already includes all the requirements above.
+**Docker Container**
+ NVIDIA `NGC NeMo Toolkit container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_ is now available.
 
-* Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:19.10-py3``
-* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=2g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.10-py3``
+* Pull the docker: ``docker pull nvcr.io/nvidia/nemo:v0.9``
+* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.9``
+
+If you are using the NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ follow these instructions
+
+* Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:19.11-py3``
+* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.11-py3``
 
 .. code-block:: bash
 
     pip install nemo-toolkit  # installs NeMo Core
     pip install nemo-asr # installs NeMo ASR collection
     pip install nemo-nlp # installs NeMo NLP collection
+    pip install nemo-tts # installs NeMo TTS collection
 
 * DEVELOPMENT: If you'd like to use master branch and/or develop NeMo you can run "reinstall.sh" script.
 
@@ -68,6 +90,7 @@ See `examples/start_here` to get started with the simplest example. The folder `
 
 * `Speech recognition <https://nvidia.github.io/NeMo/asr/intro.html>`_
 * `Natural language processing <https://nvidia.github.io/NeMo/nlp/intro.html>`_
+* `Speech Synthesis <https://nvidia.github.io/NeMo/tts/intro.html>`_
 
 **Installing From Github**
 
@@ -76,25 +99,19 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 *Note*: For step 2 and 3, if you want to use NeMo in development mode, use: ``pip install -e .`` instead of ``pip install .``
 
 1) Clone the repository ``git clone https://github.com/NVIDIA/NeMo.git``
-2) Go to NeMo folder and install the toolkit:
-
-.. code-block:: bash
-
-	cd NeMo/nemo
-	pip install .
-
-3) Install the collection(s) you want.
+2) Go to NeMo folder and re-install the toolkit with collections:
 
 .. code-block:: bash
 	
-    # Install the ASR collection from collections/nemo_asr 
-    apt-get install libsndfile1
-    cd NeMo/collections/nemo_asr
-    pip install .
-        
-    # Install the NLP collection from collections/nemo_nlp
-    cd NeMo/collections/nemo_nlp
-    pip install .
+    ./reinstall.sh
+
+**Style tests**
+
+.. code-block:: bash
+
+    python setup.py style  # Checks overall project code style and output issues with diff.
+    python setup.py style --fix  # Tries to fix error in-place.
+    python setup.py style --scope=tests  # Operates within certain scope (dir of file).
 
 **Unittests**
 

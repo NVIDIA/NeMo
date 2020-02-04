@@ -21,8 +21,9 @@ def normalize(text):
             text = text.replace(text[sidx:eidx], ''.join(m))
 
     # normalize postcode
-    ms = re.findall('([a-z]{1}[\. ]?[a-z]{1}[\. ]?\d{1,2}[, ]+\d{1}[\. ]?[a-z]{1}[\. ]?[a-z]{1}|[a-z]{2}\d{2}[a-z]{2})',
-                    text)
+    ms = re.findall(
+        '([a-z]{1}[\. ]?[a-z]{1}[\. ]?\d{1,2}[, ]+\d{1}[\. ]?[a-z]{1}[\. ]?[a-z]{1}|[a-z]{2}\d{2}[a-z]{2})', text
+    )
     if ms:
         sidx = 0
         for m in ms:
@@ -36,7 +37,7 @@ def normalize(text):
     # replace time and and price
     text = re.sub(timepat, ' [value_time] ', text)
     text = re.sub(pricepat, ' [value_price] ', text)
-    #text = re.sub(pricepat2, '[value_price]', text)
+    # text = re.sub(pricepat2, '[value_price]', text)
 
     # replace st.
     text = text.replace(';', ',')
@@ -71,8 +72,7 @@ def normalize(text):
     tokens = text.split()
     i = 1
     while i < len(tokens):
-        if re.match(u'^\d+$', tokens[i]) and \
-                re.match(u'\d+$', tokens[i - 1]):
+        if re.match(u'^\d+$', tokens[i]) and re.match(u'\d+$', tokens[i - 1]):
             tokens[i - 1] += tokens[i]
             del tokens[i]
         else:

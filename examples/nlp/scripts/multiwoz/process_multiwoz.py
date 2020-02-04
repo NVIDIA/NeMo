@@ -14,22 +14,18 @@ import shutil
 from nemo_nlp.data.datasets.utils import if_exist
 
 parser = argparse.ArgumentParser(description='Process MultiWOZ dataset')
-parser.add_argument("--data_dir",
-                    default='../../data/statetracking/MULTIWOZ2.1',
-                    type=str)
-parser.add_argument("--out_dir",
-                    default='../../data/statetracking/multiwoz',
-                    type=str)
+parser.add_argument("--data_dir", default='../../data/statetracking/MULTIWOZ2.1', type=str)
+parser.add_argument("--out_dir", default='../../data/statetracking/multiwoz', type=str)
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
     raise FileNotFoundError(f"{args.data_dir} doesn't exist.")
 
-DOMAINS = ['restaurant', 'hotel', 'attraction',
-           'train', 'taxi', 'hospital', 'police']
+DOMAINS = ['restaurant', 'hotel', 'attraction', 'train', 'taxi', 'hospital', 'police']
 PHONE_NUM_TMPL = '\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4,5})'
-POSTCODE_TMPL = '([a-z]{1}[\. ]?[a-z]{1}[\. ]?\d{1,2}[, ]+\d{1}[\. ]?' \
-    + '[a-z]{1}[\. ]?[a-z]{1}|[a-z]{2}\d{2}[a-z]{2})'
+POSTCODE_TMPL = (
+    '([a-z]{1}[\. ]?[a-z]{1}[\. ]?\d{1,2}[, ]+\d{1}[\. ]?' + '[a-z]{1}[\. ]?[a-z]{1}|[a-z]{2}\d{2}[a-z]{2})'
+)
 
 REPLACEMENTS = {}
 with open('replacements.txt', 'r') as f:
@@ -80,7 +76,7 @@ def get_goal(idx, log, goals, last_goal):
         active_goals = get_summary_belief_state(log[idx]["metadata"], True)
         return active_goals[0] if len(active_goals) != 0 else goals[0]
     else:
-        new_goals = get_new_goal(log[idx-2]["metadata"], log[idx]["metadata"])
+        new_goals = get_new_goal(log[idx - 2]["metadata"], log[idx]["metadata"])
         return last_goal if not new_goals else new_goals[0]
 
 
@@ -100,8 +96,7 @@ def get_summary_belief_state(bstate, get_goal=False):
             else:
                 if bstate[domain]['book'][slot]:
                     booking.append(1)
-                    curr_bvalue = [f"{domain}-book {slot.strip().lower()}",
-                                   normalize(bstate[domain]['book'][slot])]
+                    curr_bvalue = [f"{domain}-book {slot.strip().lower()}", normalize(bstate[domain]['book'][slot])]
                     summary_bvalue.append(curr_bvalue)
                 else:
                     booking.append(0)
@@ -118,11 +113,9 @@ def get_summary_belief_state(bstate, get_goal=False):
                 slot_enc[0] = 1
             elif bstate[domain]['semi'][slot] in DONT_CARES:
                 slot_enc[1] = 1
-                summary_bvalue.append([f"{domain}-{slot.strip().lower()}",
-                                       "dontcare"])
+                summary_bvalue.append([f"{domain}-{slot.strip().lower()}", "dontcare"])
             elif bstate[domain]['semi'][slot]:
-                curr_bvalue = [f"{domain}-{slot.strip().lower()}",
-                               normalize(bstate[domain]['semi'][slot])]
+                curr_bvalue = [f"{domain}-{slot.strip().lower()}", normalize(bstate[domain]['semi'][slot])]
                 summary_bvalue.append(curr_bvalue)
             if sum(slot_enc) > 0:
                 domain_active = True
@@ -213,8 +206,7 @@ def create_data(data_dir):
     for dialog_id in data:
         dialog = data[dialog_id]
         curr_dialog_acts = dialog_acts[dialog_id.strip('.json')]
-        goals = [key for key in dialog['goal'].keys() if key in DOMAINS
-                 and dialog['goal'][key]]
+        goals = [key for key in dialog['goal'].keys() if key in DOMAINS and dialog['goal'][key]]
 
         last_goal, act_idx = '', 1
         for idx, turn in enumerate(dialog['log']):
@@ -225,12 +217,10 @@ def create_data(data_dir):
                 last_goal = cur_goal
 
                 dialog['log'][idx - 1]['domain'] = cur_goal  # human's domain
-                dialog['log'][idx]['dialogue_acts'] = get_dialog_act(
-                    curr_dialog_acts, str(act_idx))
+                dialog['log'][idx]['dialogue_acts'] = get_dialog_act(curr_dialog_acts, str(act_idx))
                 act_idx += 1
 
-            dialog['log'][idx]['text'] = fix_delex(
-                curr_dialog_acts, str(act_idx), dialog['log'][idx]['text'])
+            dialog['log'][idx]['text'] = fix_delex(curr_dialog_acts, str(act_idx), dialog['log'][idx]['text'])
 
         delex_data[dialog_id] = dialog
     return delex_data
@@ -254,8 +244,7 @@ def analyze_dialogue(dialog, max_length):
         if idx % 2 == 0:  # usr turn
             usr_turns.append(dialog['log'][idx])
         else:  # sys turn
-            belief_summary, belief_value_summary = get_summary_belief_state(
-                dialog['log'][idx]['metadata'])
+            belief_summary, belief_value_summary = get_summary_belief_state(dialog['log'][idx]['metadata'])
 
             dialog['log'][idx]['belief_summary'] = str(belief_summary)
             dialog['log'][idx]['belief_value_summary'] = belief_value_summary
@@ -275,11 +264,15 @@ def get_dialog(dialog, max_length=50):
 
     dialogs = []
     for idx in range(len(dialog['usr_log'])):
-        dialogs.append({'usr': dialog['usr_log'][idx]['text'],
-                        'sys': dialog['sys_log'][idx]['text'],
-                        'sys_a': dialog['sys_log'][idx]['dialogue_acts'],
-                        'domain': dialog['usr_log'][idx]['domain'],
-                        'bvs': dialog['sys_log'][idx]['belief_value_summary']})
+        dialogs.append(
+            {
+                'usr': dialog['usr_log'][idx]['text'],
+                'sys': dialog['sys_log'][idx]['text'],
+                'sys_a': dialog['sys_log'][idx]['dialogue_acts'],
+                'domain': dialog['usr_log'][idx]['domain'],
+                'bvs': dialog['sys_log'][idx]['belief_value_summary'],
+            }
+        )
 
     return dialogs
 
@@ -288,9 +281,9 @@ def partition_data(data, infold, outfold):
     """Partition the data into train, valid, and test sets
     based on the list of val and test specified in the dataset.
     """
-    if if_exist(outfold, ['trainListFile.json', 'val_dialogs.json',
-                          'test_dialogs.json', 'train_dialogs.json',
-                          'ontology.json']):
+    if if_exist(
+        outfold, ['trainListFile.json', 'val_dialogs.json', 'test_dialogs.json', 'train_dialogs.json', 'ontology.json']
+    ):
         print(f'Data is already processed and stored at {outfold}')
         return
     os.makedirs(outfold, exist_ok=True)
@@ -309,8 +302,7 @@ def partition_data(data, infold, outfold):
 
     for dialog_id in data:
         dialog = data[dialog_id]
-        domains = [key for key in dialog['goal'].keys() if key in DOMAINS
-                   and dialog['goal'][key]]
+        domains = [key for key in dialog['goal'].keys() if key in DOMAINS and dialog['goal'][key]]
 
         dial = get_dialog(dialog)
         if dial:
@@ -322,17 +314,14 @@ def partition_data(data, infold, outfold):
 
             for idx, turn in enumerate(dial):
                 turn_dl = {
-                    'sys_transcript': dial[idx-1]['sys'] if idx > 0 else "",
+                    'sys_transcript': dial[idx - 1]['sys'] if idx > 0 else "",
                     'turn_idx': idx,
                     'transcript': turn['usr'],
-                    'sys_acts': dial[idx-1]['sys_a'] if idx > 0 else [],
-                    'domain': turn['domain']
+                    'sys_acts': dial[idx - 1]['sys_a'] if idx > 0 else [],
+                    'domain': turn['domain'],
                 }
-                turn_dl['belief_state'] = [
-                    {"slots": [s], "act": "inform"} for s in turn['bvs']]
-                turn_dl['turn_label'] = [bs["slots"][0]
-                                         for bs in turn_dl['belief_state']
-                                         if bs not in last_bs]
+                turn_dl['belief_state'] = [{"slots": [s], "act": "inform"} for s in turn['bvs']]
+                turn_dl['turn_label'] = [bs["slots"][0] for bs in turn_dl['belief_state'] if bs not in last_bs]
                 last_bs = turn_dl['belief_state']
                 dialogue['dialog'].append(turn_dl)
 

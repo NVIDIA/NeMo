@@ -13,13 +13,15 @@
 # All configuration values have a default; values that are commented out
 # infer to show the default.
 
+import os
+import sys
+from unittest.mock import MagicMock
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os
-import sys
-from unittest.mock import MagicMock
+import nemo
 
 sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../../../"))
@@ -27,11 +29,11 @@ sys.path.insert(0, os.path.abspath("../../../nemo/nemo"))
 sys.path.insert(0, os.path.abspath("../../../collections"))
 sys.path.insert(0, os.path.abspath("../../../collections/nemo_asr"))
 sys.path.insert(0, os.path.abspath("../../../collections/nemo_nlp"))
+sys.path.insert(0, os.path.abspath("../../../collections/nemo_tts"))
 # sys.path.insert(0, os.path.abspath("../../../collections/nemo_lpr"))
-import nemo
 
 # ---- Mocking up the classes. -----
-MOCK_CLASSES = {'Dataset': 'torch.utils.data', 'Module': 'torch.nn' }
+MOCK_CLASSES = {'Dataset': 'torch.utils.data', 'Module': 'torch.nn'}
 
 
 class Mock(MagicMock):
@@ -40,7 +42,9 @@ class Mock(MagicMock):
         if name in MOCK_CLASSES:
             # return object  # Sphinx renders object in base classes
             return type(name, (object,), {'__module__': MOCK_CLASSES[name]})
-        elif name == '__file__':  # Sphinx tries to find source code, but doesn't matter because it's mocked
+        elif name == '__file__':
+            # Sphinx tries to find source code, but
+            # doesn't matter because it's mocked
             return "FOO"
         elif name == '__loader__':
             return "BAR"
@@ -49,12 +53,20 @@ class Mock(MagicMock):
 
 # ---- Mocking up the python modules. -----
 
-MOCK_MODULES = ['torch', 'torch.nn', 'torch.utils', 'torch.optim',
-                'torch.utils.data', 'torch.utils.data.sampler',
-                'torchvision', 'torchvision.models',
-                'torchtext',
-                'h5py', 'kaldi_io'
-                ]
+MOCK_MODULES = [
+    'torch',
+    'torch.nn',
+    'torch.utils',
+    'torch.optim',
+    'torch.utils.data',
+    'torch.utils.data.sampler',
+    'torchvision',
+    'torchvision.models',
+    'torchtext',
+    'h5py',
+    'kaldi_io',
+    'transformers',
+]
 
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
@@ -79,10 +91,8 @@ extensions = [
     "sphinxcontrib.bibtex",
 ]
 
-
-locale_dirs = ['locale/']   # path is example but recommended.
-gettext_compact = False     # optional.
-
+locale_dirs = ['locale/']  # path is example but recommended.
+gettext_compact = False  # optional.
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -167,12 +177,7 @@ html_static_path = []
 #
 # This is required for the alabaster theme
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
-html_sidebars = {
-    "**": [
-        "relations.html",  # needs 'show_related': True theme option to display
-        "searchbox.html",
-    ]
-}
+html_sidebars = {"**": ["relations.html", "searchbox.html",]}  # needs 'show_related': True theme option to display
 
 html_theme_options = {
     "canonical_url": "",
@@ -211,10 +216,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
-latex_documents = [
-    (master_doc, "nemo.tex", "nemo Documentation", "AI App Design team",
-     "manual")
-]
+latex_documents = [(master_doc, "nemo.tex", "nemo Documentation", "AI App Design team", "manual",)]
 
 # -- Options for manual page output ---------------------------------------
 
@@ -228,38 +230,5 @@ man_pages = [(master_doc, "nemo", "nemo Documentation", [author], 1)]
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (
-        master_doc,
-        "nemo",
-        "nemo Documentation",
-        author,
-        "nemo",
-        "One line description of project.",
-        "Miscellaneous",
-    )
+    (master_doc, "nemo", "nemo Documentation", author, "nemo", "One line description of project.", "Miscellaneous",)
 ]
-
-
-def process_docstring(app, what, name, obj, options, lines):
-    if isinstance(obj, type) and issubclass(obj, nemo.core.NeuralModule):
-        input_ports, output_ports = obj.create_ports()
-        if input_ports:
-            lines.append("Input Ports:")
-            for port_name, port_type in input_ports.items():
-                lines.append("  - **{}**:".format(port_name))
-                lines.append("")
-                for port in str(port_type).split("\n"):
-                    lines.append("    - {}".format(port))
-                lines.append("")
-        if output_ports:
-            lines.append("Output Ports:")
-            for port_name, port_type in output_ports.items():
-                lines.append("  - **{}**:".format(port_name))
-                lines.append("")
-                for port in str(port_type).split("\n"):
-                    lines.append("    - {}".format(port))
-                lines.append("")
-
-
-def setup(app):
-    app.connect('autodoc-process-docstring', process_docstring)

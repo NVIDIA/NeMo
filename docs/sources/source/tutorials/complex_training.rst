@@ -10,11 +10,11 @@ require multiple losses and multiple optimizers.
 
 Multiple Losses
 ---------------
-Taking our Hello World example from earlier. Let's say that we now want to
+Taking our Hello World example from earlier, let's say that we now want to
 optimize for both a square error loss and a l1 loss. We can pass both the
 square error loss tensor and the l1 loss tensor to
 :meth:`NeuralFactory.train()<nemo.core.neural_factory.NeuralModuleFactory.train>`.
-An example is shown below.
+Here's an example:
 
 .. code-block:: python
 
@@ -44,7 +44,7 @@ An example is shown below.
     # Update printing function to add both losses
     callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[l1_loss_tensor, mse_loss_tensor],
-        print_func=lambda x: print(
+        print_func=lambda x: logging.info(
             f'Train Loss: {str(x[0].item() + x[1].item())}')
     )
 
@@ -84,7 +84,7 @@ loop.
     # SimpleLossLoggerCallback will print loss values to console.
     callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[l1_loss_tensor, mse_loss_tensor],
-        print_func=lambda x: print(
+        print_func=lambda x: logging.info(
             f'L1 Loss: {str(x[0].item())}'
             f'MSE Loss: {str(x[1].item())}')
     )
