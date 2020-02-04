@@ -1,13 +1,32 @@
-# Copyright (c) 2019 NVIDIA Corporation
+# =============================================================================
+# Copyright 2019 AI Applications Design Team at NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
 import math
 import os
 
 import torch
 
-import nemo
 import nemo.collections.nlp as nemo_nlp
+import nemo.collections.nlp.nm.data_layers.machine_translation_datalayer
+from nemo import logging
+from nemo.collections.nlp.callbacks.machine_translation_callback import (
+    eval_epochs_done_callback_wer,
+    eval_iter_callback,
+)
 from nemo.collections.nlp.data.tokenizers.bert_tokenizer import NemoBertTokenizer
-from nemo.collections.nlp.utils.callbacks.translation import eval_epochs_done_callback_wer, eval_iter_callback
 from nemo.core.callbacks import CheckpointCallback
 from nemo.utils.lr_policies import SquareAnnealing
 
@@ -47,7 +66,7 @@ parser.add_argument("--tgt_lang", default="real", type=str)
 parser.add_argument("--beam_size", default=4, type=int)
 parser.add_argument("--len_pen", default=0.0, type=float)
 parser.add_argument(
-    "--restore_from", dest="restore_from", type=str, default="../../scripts/bert-base-uncased_decoder.pt",
+    "--restore_from", dest="restore_from", type=str, default="../../scripts/bert-base-uncased_decoder.pt"
 )
 args = parser.parse_args()
 
@@ -66,14 +85,14 @@ vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 tokens_to_add = vocab_size - tokenizer.vocab_size
 
 zeros_transform = nemo.backends.pytorch.common.ZerosLikeNM()
-encoder = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_model)
+encoder = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_model)
 device = encoder.bert.embeddings.word_embeddings.weight.get_device()
 zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
 encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
     (encoder.bert.embeddings.word_embeddings.weight.data, zeros)
 )
 
-decoder = nemo_nlp.TransformerDecoderNM(
+decoder = nemo_nlp.nm.trainables.TransformerDecoderNM(
     d_model=args.d_model,
     d_inner=args.d_inner,
     num_layers=args.num_layers,
@@ -90,11 +109,13 @@ decoder = nemo_nlp.TransformerDecoderNM(
 
 decoder.restore_from(args.restore_from, local_rank=args.local_rank)
 
-t_log_softmax = nemo_nlp.TokenClassifier(args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True)
+t_log_softmax = nemo_nlp.nm.trainables.TokenClassifier(
+    args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
+)
 
-loss_fn = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(pad_id=tokenizer.pad_id(), label_smoothing=0.1)
+loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(pad_id=tokenizer.pad_id(), label_smoothing=0.1)
 
-beam_search = nemo_nlp.BeamSearchTranslatorNM(
+beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     decoder=decoder,
     log_softmax=t_log_softmax,
     max_seq_length=args.max_seq_length,
@@ -114,7 +135,7 @@ decoder.embedding_layer.position_embedding.weight = encoder.bert.embeddings.posi
 def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):
     dataset_src = os.path.join(args.data_dir, dataset + "." + args.src_lang)
     dataset_tgt = os.path.join(args.data_dir, dataset + "." + args.tgt_lang)
-    data_layer = nemo_nlp.TranslationDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.machine_translation_datalayer.TranslationDataLayer(
         tokenizer_src=tokenizer,
         tokenizer_tgt=tokenizer,
         dataset_src=dataset_src,
@@ -126,7 +147,7 @@ def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):
     input_type_ids = zeros_transform(input_type_ids=src)
     src_hiddens = encoder(input_ids=src, token_type_ids=input_type_ids, attention_mask=src_mask)
     tgt_hiddens = decoder(
-        input_ids_tgt=tgt, hidden_states_src=src_hiddens, input_mask_src=src_mask, input_mask_tgt=tgt_mask,
+        input_ids_tgt=tgt, hidden_states_src=src_hiddens, input_mask_src=src_mask, input_mask_tgt=tgt_mask
     )
     log_softmax = t_log_softmax(hidden_states=tgt_hiddens)
     loss = loss_fn(logits=log_softmax, target_ids=labels)
@@ -150,7 +171,7 @@ for eval_dataset in args.eval_datasets:
 
 def print_loss(x):
     loss = x[0].item()
-    nemo.logging.info("Training loss: {:.4f}".format(loss))
+    logging.info("Training loss: {:.4f}".format(loss))
 
 
 # callbacks
@@ -186,6 +207,6 @@ nf.train(
     callbacks=callbacks,
     optimizer=args.optimizer,
     lr_policy=lr_policy,
-    optimization_params={"num_epochs": 300, "lr": args.lr, "weight_decay": args.weight_decay,},
+    optimization_params={"num_epochs": 300, "lr": args.lr, "weight_decay": args.weight_decay},
     batches_per_step=args.iter_per_step,
 )

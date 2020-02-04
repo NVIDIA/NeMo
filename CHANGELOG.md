@@ -84,6 +84,10 @@ To release a new version, please update the changelog as followed:
 ([PR #286](https://github.com/NVIDIA/NeMo/pull/286)) - @stasbel
 - Major cleanup of Neural Module constructors (init), aiming at increasing the framework robustness: cleanup of NeuralModule initialization logic, refactor of trainer/actions (getting rid of local_params), fixes of several examples and unit tests, extraction and storing of intial parameters (init_params).  
 ([PR #309](https://github.com/NVIDIA/NeMo/pull/309)) - @tkornuta-nvidia
+- Refactoring of `nemo_nlp` collections: 
+([PR #316](https://github.com/NVIDIA/NeMo/pull/316)) - @VahidooX, @yzhang123, @ekmb
+    - renaming of files and restructuring of folder in `nemo_nlp`
+    - Updated licenses
 
 
 ### Dependencies Update
