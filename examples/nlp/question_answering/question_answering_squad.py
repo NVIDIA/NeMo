@@ -90,17 +90,11 @@ def parse_args():
     )
     parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
     parser.add_argument(
-        "--tokenizer_model",
-        default="tokenizer.model",
+        "--model_type",
+        default="bert",
         type=str,
-        help="Path to pretrained tokenizer model," "only used if --tokenizer is sentencepiece",
-    )
-    parser.add_argument(
-        "--tokenizer",
-        default="nemobert",
-        type=str,
-        choices=["nemobert", "sentencepiece"],
-        help="tokenizer to use, " "only relevant when using custom " "pretrained checkpoint.",
+        help="model type",
+        choices=['bert', 'roberta']
     )
     parser.add_argument("--optimizer_kind", default="adam", type=str, help="Optimizer kind")
     parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
@@ -244,7 +238,10 @@ def create_pipeline(
         [loss_output.start_logits, loss_output.end_logits, input_data.unique_ids],
         data_layer,
     )
-
+MODEL_CLASSES = {
+    "bert": (nemo_nlp.NemoBertTokenizer),
+    "roberta": (nemo_nlp.NemoRobertaTokenizer),
+}
 
 if __name__ == "__main__":
     args = parse_args()
@@ -268,19 +265,17 @@ if __name__ == "__main__":
         add_time_to_log_dir=False,
     )
 
-    if args.tokenizer == "sentencepiece":
-        try:
-            tokenizer = nemo_nlp.data.utilsSentencePieceTokenizer(model_path=args.tokenizer_model)
-        except Exception:
-            raise ValueError(
-                "Using --tokenizer=sentencepiece \
-                        requires valid --tokenizer_model"
-            )
-        tokenizer.add_special_tokens(["[CLS]", "[SEP]"])
-    elif args.tokenizer == "nemobert":
-        tokenizer = nemo_nlp.data.NemoBertTokenizer(args.pretrained_bert_model)
-    else:
-        raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
+    # if args.tokenizer == "sentencepiece":
+    #     try:
+    #         tokenizer = nemo_nlp.SentencePieceTokenizer(model_path=args.tokenizer_model)
+    #     except Exception:
+    #         raise ValueError(
+    #             "Using --tokenizer=sentencepiece \
+    #                     requires valid --tokenizer_model"
+    #         )
+    #     tokenizer.add_special_tokens(["[CLS]", "[SEP]"])
+    # else:
+    tokenizer = MODEL_CLASSES[args.model_type]
 
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:

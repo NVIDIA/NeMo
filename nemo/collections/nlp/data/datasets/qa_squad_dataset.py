@@ -403,7 +403,14 @@ class SquadDataset(Dataset):
         return exact_match, f1, all_predictions
 
 
-def convert_examples_to_features(examples, tokenizer, max_seq_length, doc_stride, max_query_length, has_groundtruth):
+def convert_examples_to_features(
+    examples, 
+    tokenizer, 
+    max_seq_length, 
+    doc_stride, 
+    max_query_length, 
+    has_groundtruth,
+):
     """Loads a data file into a list of `InputBatch`s."""
 
     unique_id = 1000000000
