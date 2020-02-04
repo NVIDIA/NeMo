@@ -80,4 +80,4 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
             'num_samples': num_samples,
             'shuffle': shuffle,
         }
-        super().__init__(dataset_type, dataset_params, batch_size)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle)
