@@ -136,8 +136,6 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
         num_samples=num_samples,
         shuffle=shuffle,
         batch_size=batch_size,
-        num_workers=0,
-        local_rank=local_rank,
         ignore_extra_tokens=args.ignore_extra_tokens,
         ignore_start_end=args.ignore_start_end,
     )

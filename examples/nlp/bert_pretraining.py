@@ -77,8 +77,9 @@ import os
 
 from transformers import BertConfig
 
-import nemo
+import nemo.backends.pytorch.common as nemo_common
 import nemo.collections.nlp as nemo_nlp
+import nemo.core as nemo_core
 from nemo import logging
 from nemo.collections.nlp.data.datasets.lm_bert_dataset import BERTPretrainingDataDesc
 from nemo.utils.lr_policies import get_lr_policy
@@ -138,8 +139,8 @@ parser.add_argument("--print_step_freq", default=25, type=int)
 parser.add_argument("--config_file", default=None, type=str, help="The BERT model config")
 args = parser.parse_args()
 
-nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch,
+nf = nemo_core.NeuralModuleFactory(
+    backend=nemo_core.Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
@@ -202,7 +203,7 @@ if not args.only_mlm_loss:
     nsp_classifier = nemo_nlp.nm.trainables.sequence_classification_nm.SequenceClassifier(
         args.hidden_size, num_classes=2, num_layers=2, activation='tanh', log_softmax=False
     )
-    nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
+    nsp_loss_fn = nemo_common.CrossEntropyLoss()
 
     bert_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 
@@ -273,7 +274,7 @@ if not args.only_mlm_loss:
 else:
     log_tensors = [train_loss]
     print_msg = "Loss: {:.3f}"
-train_callback = nemo.core.SimpleLossLoggerCallback(
+train_callback = nemo_core.SimpleLossLoggerCallback(
     tensors=log_tensors,
     step_freq=args.print_step_freq,
     print_func=lambda x: logging.info(print_msg.format(*[y.item() for y in x])),
@@ -281,7 +282,7 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     tb_writer=nf.tb_writer,
 )
 
-ckpt_callback = nemo.core.CheckpointCallback(
+ckpt_callback = nemo_core.CheckpointCallback(
     folder=nf.checkpoint_dir,
     epoch_freq=args.save_epoch_freq,
     load_from_folder=args.load_dir,

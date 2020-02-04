@@ -64,7 +64,9 @@ import argparse
 import json
 import os
 
-import nemo
+import nemo.backends.pytorch.common as nemo_common
+import nemo.collections.nlp as nemo_nlp
+import nemo.core as nemo_core
 from nemo import logging
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
 from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_done_callback, eval_iter_callback
@@ -177,8 +179,8 @@ num_labels = len(label_list)
 output_mode = output_modes[args.task_name]
 
 # Instantiate neural factory with supported backend
-nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch,
+nf = nemo_core.NeuralModuleFactory(
+    backend=nemo_core.Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
@@ -193,9 +195,7 @@ if args.bert_checkpoint is None:
     nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
-        pretrained_model_name=args.pretrained_bert_model
-    )
+    model = nemo_nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     Replace BERT-STEP-150000.pt with the path to your checkpoint.
@@ -210,11 +210,9 @@ else:
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
             config = json.load(json_file)
-        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(**config)
+        model = nemo_nlp.nm.trainables.common.huggingface.BERT(**config)
     else:
-        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
-            pretrained_model_name=args.pretrained_bert_model
-        )
+        model = nemo_nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
     model.restore_from(args.bert_checkpoint)
 
@@ -279,7 +277,7 @@ train_loss, steps_per_epoch, _, _ = create_pipeline()
 _, _, eval_data_layer, eval_tensors = create_pipeline(evaluate=True)
 
 callbacks_eval = [
-    nemo.core.EvaluatorCallback(
+    nemo_core.EvaluatorCallback(
         eval_tensors=eval_tensors,
         user_iter_callback=lambda x, y: eval_iter_callback(x, y),
         user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, args.work_dir, eval_task_names[0]),
@@ -295,7 +293,7 @@ Create additional callback and data layer for MNLI mismatched dev set
 if args.task_name == 'mnli':
     _, _, eval_data_layer_mm, eval_tensors_mm = create_pipeline(evaluate=True, processor=task_processors[1])
     callbacks_eval.append(
-        nemo.core.EvaluatorCallback(
+        nemo_core.EvaluatorCallback(
             eval_tensors=eval_tensors_mm,
             user_iter_callback=lambda x, y: eval_iter_callback(x, y),
             user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, args.work_dir, eval_task_names[1]),
@@ -305,7 +303,7 @@ if args.task_name == 'mnli':
     )
 
 logging.info(f"steps_per_epoch = {steps_per_epoch}")
-callback_train = nemo.core.SimpleLossLoggerCallback(
+callback_train = nemo_core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
@@ -313,7 +311,7 @@ callback_train = nemo.core.SimpleLossLoggerCallback(
     tb_writer=nf.tb_writer,
 )
 
-ckpt_callback = nemo.core.CheckpointCallback(
+ckpt_callback = nemo_core.CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
 

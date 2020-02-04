@@ -87,7 +87,7 @@ if args.bert_checkpoint and args.bert_config:
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 else:
     pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
-        pretrained_model_name=args.pretrained_bert_model, factory=nf
+        pretrained_model_name=args.pretrained_bert_model
     )
 
 hidden_size = pretrained_bert_model.hidden_size
