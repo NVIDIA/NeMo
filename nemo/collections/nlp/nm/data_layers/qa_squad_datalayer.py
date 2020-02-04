@@ -106,4 +106,4 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             'doc_stride': doc_stride,
         }
 
-        super().__init__(dataset_type, dataset_params, batch_size, shuffle)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
