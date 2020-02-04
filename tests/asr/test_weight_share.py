@@ -219,10 +219,10 @@ class TestWeightSharing(NeMoUnitTest):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 2, "lr": 0.0003},
         )
 
-    @unittest.skip(
-        "Tests fails at get_pytorch_module() that will be changed in next PR anyway. \
-        Besides, quite sure this test is not related with ASR :]"
-    )
+    # @unittest.skip(
+    #    "Tests fails at get_pytorch_module() that will be changed in next PR anyway. \
+    #    Besides, quite sure this test is not related with ASR :]"
+    # )
     def test_freeze_unfreeze_Wrapper(self):
         dl_train = nemo.backends.pytorch.ZerosDataLayer(
             size=40,
