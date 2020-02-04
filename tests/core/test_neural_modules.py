@@ -17,18 +17,15 @@
 # =============================================================================
 
 import nemo
-from nemo.core.neural_types import NeuralType, ChannelType
+from nemo.core.neural_types import ChannelType, NeuralType
 from tests.common_setup import NeMoUnitTest
 
 
 class NeuralModulesTests(NeMoUnitTest):
     def test_call_TaylorNet(self):
         x_tg = nemo.core.neural_modules.NmTensor(
-            producer=None,
-            producer_args=None,
-            name=None,
-            ntype=NeuralType(ChannelType(), ('B', 'D'))
-            )
+            producer=None, producer_args=None, name=None, ntype=NeuralType(ChannelType(), ('B', 'D'))
+        )
 
         tn = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         # note that real port's name: x was used
@@ -53,5 +50,3 @@ class NeuralModulesTests(NeMoUnitTest):
         self.assertEqual(y.producer_args, {})
         self.assertEqual(x.producer, data_source)
         self.assertEqual(x.producer_args, {})
-
-

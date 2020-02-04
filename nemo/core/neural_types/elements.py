@@ -27,7 +27,7 @@ __all__ = [
     'LogitsType',
     'LabelsType',
     'LossType',
-    'RegressionValuesType'
+    'RegressionValuesType',
 ]
 import abc
 from abc import ABC, abstractmethod
