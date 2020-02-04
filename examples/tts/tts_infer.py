@@ -137,7 +137,7 @@ def create_infer_dags(
         labels=tacotron2_params['labels'],
         batch_size=infer_batch_size,
         num_workers=cpu_per_dl,
-        load_audio=False,
+        # load_audio=False,
         bos_id=len(tacotron2_params['labels']),
         eos_id=len(tacotron2_params['labels']) + 1,
         pad_id=len(tacotron2_params['labels']) + 2,

@@ -78,7 +78,7 @@ See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
 pretrained_bert_model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
-hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
+hidden_size = pretrained_bert_model.hidden_size
 tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
 
 data_layer = nemo_nlp.BertTokenClassificationInferDataLayer(

@@ -88,9 +88,6 @@ class TestZeroDL(NeMoUnitTest):
 
     def test_simple_train(self):
         logging.info("Simplest train test with ZeroDL")
-        neural_factory = nemo.core.neural_factory.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, create_tb_writer=False
-        )
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         data_source = nemo.backends.pytorch.common.ZerosDataLayer(
             size=10000,
@@ -109,7 +106,7 @@ class TestZeroDL(NeMoUnitTest):
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss_tensor], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
-        neural_factory.train(
+        self.nf.train(
             [loss_tensor], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd",
         )
 
@@ -157,9 +154,6 @@ class TestZeroDL(NeMoUnitTest):
             tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
         # Instantiate an optimizer to perform `train` action
-        neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
-        )
-        neural_factory.train(
+        self.nf.train(
             [loss], callbacks=[callback], optimization_params={"num_epochs": 2, "lr": 0.0003}, optimizer="sgd",
         )

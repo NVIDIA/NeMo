@@ -11,7 +11,6 @@ from inspect import getargvalues, getfullargspec, stack
 from typing import Dict, List, Optional, Set, Tuple
 
 import nemo
-from .neural_factory import DeviceType, Optimization
 from .neural_types import (
     CanNotInferResultNeuralType,
     NeuralPortNameMismatchError,
@@ -20,7 +19,6 @@ from .neural_types import (
     NeuralTypeComparisonResult,
     NmTensor,
 )
-from nemo import logging
 from nemo.core import NeuralModuleFactory
 from nemo.utils.decorators.deprecated import deprecated
 
@@ -39,83 +37,57 @@ PretrainedModelInfo = namedtuple(
 
 class NeuralModule(ABC):
     """Abstract class that every Neural Module must inherit from.
-
-    Args:
-        pretrained_model_name (str): name of pretrained model to use in order
-            to initialize this neural module
-        factory (NeuralModuleFactory): :class:`NeuralModuleFactory` which
-            created or which should mange this instance. Required for
-            multi-gpu training.
-        placement (DeviceType): (default:None) where this module should
-            be placed. If provided, this parameter takes precedence over
-            whatever is specified in factory.
     """
 
-    def __init__(self, pretrained_model_name=None, factory=None, placement=None):
+    def __init__(self):
 
-        # Set factory.
-        self._factory = factory
-
-        default_factory = NeuralModuleFactory.get_default_factory()
-        if (factory is None) and (default_factory is not None):
-            factory = default_factory
-
-        # TK: So starting from that point - is it even possible that the factory will be None??
+        # Get default factory.
+        self._factory = NeuralModuleFactory.get_default_factory()
 
         # Set module properties from factory else use defaults
-        print("factory.placement = ", factory.placement)
-        self._placement = factory.placement if factory is not None else DeviceType.GPU
-
-        # Update module properties using overrides if overrides exist
-        if placement is not None:
-            self._placement = placement
-        print("self.placement = ", self.placement)
+        self._placement = self._factory.placement
+        # If one needs to change that should override it manually.
 
         # Optimization level.
-        self._opt_level = factory.optim_level if factory is not None else Optimization.mxprO0
+        self._opt_level = self._factory.optim_level
 
         # Get object UUID.
         self._uuid = str(uuid.uuid4())
 
         # Retrieve dictionary of parameters (keys, values) passed to init.
-        self._init_params = self.extract_init_params()
+        self._init_params = self.__extract_init_params()
 
-        # Check the types of the values.
-        for key, value in self._init_params.items():
-            print("{}: {} ({})".format(key, value, type(value)))
+        # Pint the types of the values.
+        # for key, value in self._init_params.items():
+        #    print("{}: {} ({})".format(key, value, type(value)))
 
         # Validate the parameters.
-        # self.validate_params(self._init_params)
+        # self._validate_params(self._init_params)
 
-        self._pretrained_model_name = pretrained_model_name
-        # self._local_parameters = self.update_local_params()
+    @property
+    def init_params(self) -> Optional[Dict]:
+        """
+            Property returning parameters used to instantiate the module.
 
-        # if kwargs:
-        #    logging.warning(
-        #        "When constructing {}. The base "
-        #        "NeuralModule class received the following unused "
-        #        "arguments:".format(self.__class__.__name__))
-        #    logging.warning("{}".format(kwargs.keys()))
+            Returns:
+                Dictionary containing parameters used to instantiate the module.
+        """
+        return self._init_params
 
-    def extract_init_params(self):
+    def __extract_init_params(self):
         """
             Retrieves the dictionary of of parameters (keys, values) passed to constructor of a class derived
             (also indirectly) from the Neural Module class.
 
             Returns:
-                Dictionar containing parameters passed to init().
+                Dictionary containing parameters passed to init().
         """
-        # print("Hello from extract_init_params")
-        # print(type(self))
-        # print(getfullargspec(type(self).__init__))
-
         # Get names of arguments of the original module init method.
         init_keys = getfullargspec(type(self).__init__).args
 
         # Remove self.
         if "self" in init_keys:
             init_keys.remove("self")
-        print("keys: ", init_keys)
 
         # Create list of params.
         init_params = {}.fromkeys(init_keys)
@@ -133,7 +105,8 @@ class NeuralModule(ABC):
         # Return parameters.
         return init_params
 
-    def validate_params(self, params):
+    # TODO: IF part of API, should not start with _, it hidden should start with __
+    def _validate_params(self, params):
         """
             Checks whether dictionary contains parameters being primitive types (string, int, float etc.)
             or (lists of)+ primitive types.
@@ -148,7 +121,7 @@ class NeuralModule(ABC):
 
         # Iterate over parameters and check them one by one.
         for key, variable in params.items():
-            if not self.is_of_allowed_type(variable):
+            if not self.__is_of_allowed_type(variable):
                 nemo.logging.warning(
                     "{} contains variable {} is of type {} which is not of a allowed.".format(
                         key, variable, type(variable)
@@ -159,7 +132,7 @@ class NeuralModule(ABC):
         # Return the result.
         return ok
 
-    def is_of_allowed_type(self, var):
+    def __is_of_allowed_type(self, var):
         """
             A recursive function that checks if a given variable is allowed (in) 
 
@@ -174,13 +147,13 @@ class NeuralModule(ABC):
         # If this is list - check its elements.
         if var_type == list:
             for list_var in var:
-                if not self.is_of_allowed_type(list_var):
+                if not self.__is_of_allowed_type(list_var):
                     return False
 
         # If this is list - check its elements.
         elif var_type == dict:
             for _, dict_var in var.items():
-                if not self.is_of_allowed_type(dict_var):
+                if not self.__is_of_allowed_type(dict_var):
                     return False
 
         elif var_type not in (str, int, float, bool):
@@ -189,7 +162,7 @@ class NeuralModule(ABC):
         # Well, seems that everything is ok.
         return True
 
-    @deprecated
+    @deprecated(version=0.11)
     @staticmethod
     def create_ports(**kwargs):
         """ Deprecated method, to be remoted in the next release."""
@@ -473,13 +446,15 @@ class NeuralModule(ABC):
         return self._placement
 
     @property
+    @deprecated(version=0.11)
     def local_parameters(self) -> Optional[Dict]:
         """Get module's parameters
 
         Returns:
           module's parameters
         """
-        return self._local_parameters
+        return self._init_params
+        # return self._local_parameters
 
     @property
     def unique_instance_id(self):
@@ -503,34 +478,3 @@ class NeuralModule(ABC):
         """Number of module's weights
         """
         pass
-
-    @staticmethod
-    @deprecated(version=0.11)
-    def update_local_params():
-        """
-        Loops through the call chain of class initializations and stops at the
-        first class that is not an instance of Neural Module. At each step of
-        the loop, the class contructor arguments are added to a dictionary
-        containing the local parameters used to construct the Neural Module
-
-        Returns:
-            A dictionary containing all parameters passed to the module's init
-            chain.
-        """
-        local_parameters = {}
-        for frame in stack()[1:]:
-            posname, kwname, localvars = getargvalues(frame[0])[-3:]
-            # Check if caller is a Neural Module
-            if "self" in localvars and isinstance(localvars["self"], NeuralModule):
-                if posname is not None:
-                    raise ValueError("NeuralModules cannot accept `*` " "positional arguments.")
-                # Get func arg dict
-                localvars.update(localvars.pop(kwname, []))
-                del localvars["self"]
-                local_parameters.update(localvars)
-            # Else we have rearched the end of the init callchain and we are
-            # done
-            else:
-                break
-
-        return local_parameters

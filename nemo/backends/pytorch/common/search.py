@@ -66,8 +66,8 @@ class GreedySearch(NonTrainableNM):
             'attention_weights': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}),
         }
 
-    def __init__(self, decoder, pad_id, bos_id, eos_id, max_len, batch_size=None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, decoder, pad_id, bos_id, eos_id, max_len, batch_size=None):
+        super().__init__()
 
         self.decoder = decoder
         self.pad_id = pad_id
@@ -118,8 +118,8 @@ class BeamSearch(GreedySearch):
 
     """
 
-    def __init__(self, decoder, pad_id, bos_id, eos_id, max_len, batch_size=None, beam_size=8, **kwargs):
-        super().__init__(decoder, pad_id, bos_id, eos_id, max_len, batch_size, **kwargs)
+    def __init__(self, decoder, pad_id, bos_id, eos_id, max_len, batch_size=None, beam_size=8):
+        super().__init__(decoder, pad_id, bos_id, eos_id, max_len, batch_size)
 
         self.beam_size = beam_size
 

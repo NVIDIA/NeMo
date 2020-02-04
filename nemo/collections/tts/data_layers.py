@@ -64,7 +64,6 @@ class AudioDataLayer(DataLayerNM):
 
     def __init__(
         self,
-        *,
         manifest_filepath,
         batch_size,
         min_duration=0.1,
@@ -74,9 +73,8 @@ class AudioDataLayer(DataLayerNM):
         shuffle=True,
         num_workers=0,
         n_segments=0,
-        **kwargs
     ):
-        DataLayerNM.__init__(self, **kwargs)
+        super().__init__()
 
         self._dataset = AudioOnlyDataset(
             manifest_filepath=manifest_filepath,

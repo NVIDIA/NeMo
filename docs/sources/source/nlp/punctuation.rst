@@ -116,7 +116,7 @@ Now, create the train and evaluation data layers:
         punct_label_ids = train_data_layer.dataset.punct_label_ids
         capit_label_ids = train_data_layer.dataset.capit_label_ids
 
-        hidden_size = bert_model.local_parameters["hidden_size"]
+        hidden_size = bert_model.hidden_size
 
         # Note that you need to specify punct_label_ids and capit_label_ids  - mapping form labels
         # to label_ids generated during creation of the train_data_layer to make sure that

@@ -240,7 +240,7 @@ else:
 
     model.restore_from(args.bert_checkpoint)
 
-hidden_size = model.local_parameters["hidden_size"]
+hidden_size = model.hidden_size
 
 # uses [CLS] token for classification (the first token)
 if args.task_name == 'sts-b':
@@ -268,8 +268,8 @@ def create_pipeline(
         processor=processor,
         evaluate=evaluate,
         batch_size=batch_size,
-        num_workers=0,
-        local_rank=local_rank,
+        # num_workers=0,
+        # local_rank=local_rank,
         tokenizer=tokenizer,
         data_dir=args.data_dir,
         max_seq_length=max_seq_length,
