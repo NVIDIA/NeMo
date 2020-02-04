@@ -64,7 +64,6 @@ import argparse
 import json
 import os
 
-import nemo.backends.pytorch.common as nemo_common
 import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
 from nemo import logging
