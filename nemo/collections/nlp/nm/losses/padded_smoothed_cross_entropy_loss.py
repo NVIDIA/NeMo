@@ -69,7 +69,7 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
         LossNM.__init__(self)
 
         self._loss_fn = SmoothedCrossEntropyLoss(label_smoothing, predict_last_k)
-        self._pad_id = self.local_parameters['pad_id']
+        self._pad_id = pad_id
 
     def _loss_function(self, logits, target_ids):
         target_mask = mask_padded_tokens(target_ids, self._pad_id).to(logits.dtype)
