@@ -91,6 +91,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
         doc_stride,
         max_query_length,
         max_seq_length,
+        shuffle=False,
         mode="train",
         batch_size=64,
         dataset_type=SquadDataset,
@@ -105,4 +106,4 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             'doc_stride': doc_stride,
         }
 
-        super().__init__(dataset_type, dataset_params, batch_size)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
