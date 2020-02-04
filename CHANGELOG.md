@@ -84,6 +84,8 @@ To release a new version, please update the changelog as followed:
 ([PR #286](https://github.com/NVIDIA/NeMo/pull/286)) - @stasbel
 - Major cleanup of Neural Module constructors (init), aiming at increasing the framework robustness: cleanup of NeuralModule initialization logic, refactor of trainer/actions (getting rid of local_params), fixes of several examples and unit tests, extraction and storing of intial parameters (init_params).  
 ([PR #309](https://github.com/NVIDIA/NeMo/pull/309)) - @tkornuta-nvidia
+- Updated nemo's use of the logging library. from nemo import logging is now the reccomended way of using the nemo logger. neural_factory.logger and all other instances of logger are now deprecated and planned for removal in the next version. Please see PR 267 for complete change information.
+([PR #267](https://github.com/NVIDIA/NeMo/pull/267), [PR #283](https://github.com/NVIDIA/NeMo/pull/283), [PR #305](https://github.com/NVIDIA/NeMo/pull/305), [PR #311](https://github.com/NVIDIA/NeMo/pull/311)) - @blisc
 
 
 ### Dependencies Update
