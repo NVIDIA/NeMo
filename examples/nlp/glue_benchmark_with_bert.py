@@ -64,6 +64,7 @@ import argparse
 import json
 import os
 
+import nemo
 from nemo import logging
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
 from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_done_callback, eval_iter_callback
