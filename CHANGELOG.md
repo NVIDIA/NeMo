@@ -74,6 +74,8 @@ To release a new version, please update the changelog as followed:
 ([PR #268](https://github.com/NVIDIA/NeMo/pull/268)) - @stasbel
 - Introduced the `deprecated` decorator.
 ([PR #298](https://github.com/NVIDIA/NeMo/pull/298)) - @tkornuta-nvidia
+- Added a dialogue state tracking model (TRADE) on MultiWOZ dataset
+([PR #322](https://github.com/NVIDIA/NeMo/pull/322)) - @chiphuyen, @VahidooX
 
 ### Changed
 - Additional Collections Repositories merged into core `nemo_toolkit` package.
