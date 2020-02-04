@@ -25,7 +25,7 @@ __all__ = [
     'CanNotInferResultNeuralType',
 ]
 import uuid
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 from .axes import AxisKind, AxisType
 from .comparison import NeuralTypeComparisonResult
@@ -38,8 +38,10 @@ class NeuralType(object):
 
     def __init__(self, elements_type: ElementType = VoidType(), axes: Optional[Tuple] = None, optional=False):
         if not isinstance(elements_type, ElementType):
-            raise ValueError(f"elements_type of NeuralType must be an instance of a class derived from ElementType."
-                             f"Did you pass a class instead?")
+            raise ValueError(
+                f"elements_type of NeuralType must be an instance of a class derived from ElementType."
+                f"Did you pass a class instead?"
+            )
         self.elements_type = elements_type
         if axes is not None:
             self.__check_sanity(axes)
