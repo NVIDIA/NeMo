@@ -48,6 +48,6 @@ There are several tools to automatically format your code to be PEP 8 compliant,
 
 ## Nemo style
 1. If you import a module from the same collection, use relative path instead of absolute path. For example, inside ``nemo_nlp``, use ``.utils`` instead of ``nemo_nelp.utils``.
-1. Before accessing something, always make sure that it exists. E.g. right now, in ``actions.py``, there's this line of code ``batch_size=dl_nm.local_parameters["batch_size"]`` but nowhere in the codebase we check that ``batch_size`` is passed into datalayer.
+1. Before accessing something, always make sure that it exists.
 1. Right inheritance. For example, if a module doesn't have any trainable weights, don't inherit from TrainableNM.
 1. Naming consistency, both within NeMo and between NeMo and external literature. E.g. use the name ``logits`` for ``log_probs``, ``hidden_size`` for ``d_model``.

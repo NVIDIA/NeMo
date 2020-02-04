@@ -51,8 +51,8 @@ class SimpleCombiner(TrainableNM):
         """
         return {"combined": None}
 
-    def __init__(self, mode="add", **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+    def __init__(self, mode="add"):
+        super().__init__()
         self._mode = mode
 
     def forward(self, x1, x2):
@@ -94,8 +94,8 @@ class ArgMaxSimple(TrainableNM):  # Notice TWO base classes
             "indices": NeuralType({0: AxisType(BatchTag)}),
         }
 
-    def __init__(self, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+    def __init__(self):
+        super().__init__()
 
     # this method is key method you need to overwrite from PyTorch
     # nn.Module's API
@@ -107,8 +107,8 @@ class ArgMaxSimple(TrainableNM):  # Notice TWO base classes
 class TableLookUp(NeuralModule):
     """Performs a table lookup. For example, convert class ids to names"""
 
-    def __init__(self, ids2classes=None, **kwargs):
-        NeuralModule.__init__(self, **kwargs)
+    def __init__(self, ids2classes=None):
+        NeuralModule.__init__(self)
 
         if ids2classes is None:
             ids2classes = {}
@@ -220,9 +220,8 @@ class TableLookUp2(NeuralModule):
         """
         return {"classes": None}
 
-    def __init__(self, detokenizer=None, **kwargs):
-        NeuralModule.__init__(self, **kwargs)
-        # self._sp_decoder = self.local_parameters.get("sp_decoder", {})
+    def __init__(self, detokenizer=None):
+        NeuralModule.__init__(self)
         self._detokenizer = detokenizer
 
     def __call__(self, force_pt=False, *input, **kwargs):
@@ -276,8 +275,8 @@ class SequenceEmbedding(TrainableNM):
         """
         return {"outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),})}
 
-    def __init__(self, *, voc_size, hidden_size, dropout=0.0, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+    def __init__(self, voc_size, hidden_size, dropout=0.0):
+        super().__init__()
 
         self.voc_size = voc_size
         self.hidden_size = hidden_size
@@ -312,8 +311,8 @@ class SequenceProjection(TrainableNM):
         """
         return {"outputs": None}
 
-    def __init__(self, *, from_dim, to_dim, dropout=0.0, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+    def __init__(self, from_dim, to_dim, dropout=0.0):
+        super().__init__()
 
         self.from_dim = from_dim
         self.to_dim = to_dim
@@ -352,8 +351,8 @@ class ZerosLikeNM(TrainableNM):
         """
         return {"input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag),})}
 
-    def __init__(self, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
+    def __init__(self):
+        super().__init__()
 
     def forward(self, input_type_ids):
         return torch.zeros_like(input_type_ids).long()

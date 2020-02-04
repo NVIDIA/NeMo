@@ -90,7 +90,7 @@ text.txt 每一行包含文本序列，其中词以空格来进行分隔。label
         label_ids = train_data_layer.dataset.label_ids
         num_classes = len(label_ids)
 
-        hidden_size = bert_model.local_parameters["hidden_size"]
+        hidden_size = bert_model.hidden_size
         ner_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
                                               num_classes=num_classes,
                                               dropout=CLASSIFICATION_DROPOUT)
@@ -217,8 +217,8 @@ text.txt 每一行包含文本序列，其中词以空格来进行分隔。label
 
     tokenizer = NemoBertTokenizer(pretrained_model="scibert_scivocab_cased")
     bert_model = nemo_nlp.huggingface.BERT(
-        pretrained_model_name="scibert_scivocab_cased",
-        factory=neural_factory)
+        pretrained_model_name="scibert_scivocab_cased"
+    )
 
 如果你想使用 TensorFlow 训练好的模型，例如 BioBERT ，你需要首先使用 Hugging Face 提供的 `model conversion script`_ 进行模型转换，再在 NeMo 中使用这个模型。
 

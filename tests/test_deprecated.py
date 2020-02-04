@@ -17,15 +17,20 @@
 # limitations under the License.
 # =============================================================================
 
-
+import re
 from io import StringIO
 from unittest.mock import patch
 
+from nemo import logging
 from nemo.utils.decorators import deprecated
 from tests.common_setup import NeMoUnitTest
 
 
 class DeprecatedTest(NeMoUnitTest):
+    NEMO_ERR_MSG_FORMAT = re.compile(
+        r"\[NeMo W [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} deprecated:[0-9]*\] "
+    )
+
     def test_say_whee_deprecated(self):
         """ Tests whether both std and err streams return the right values
         when function is deprecated."""
@@ -36,14 +41,22 @@ class DeprecatedTest(NeMoUnitTest):
 
         # Mock up both std and stderr streams.
         with patch('sys.stdout', new=StringIO()) as std_out:
-            with patch('sys.stderr', new=StringIO()) as std_err:
+            with logging.patch_stderr_handler(StringIO()) as std_err:
                 say_whee()
 
         # Check std output.
         self.assertEqual(std_out.getvalue().strip(), "Whee!")
 
         # Check error output.
-        self.assertEqual(std_err.getvalue().strip(), 'Function ``say_whee`` is deprecated.')
+        # Error ouput now has NeMoBaseFormatter so attempt to strip formatting from error message
+        # Error formatting always in enclosed in '[' and ']' blocks so remove them
+        err_msg = std_err.getvalue().strip()
+        match = self.NEMO_ERR_MSG_FORMAT.match(err_msg)
+        if match:
+            err_msg = err_msg[match.end() :]
+            self.assertEqual(err_msg, 'Function ``say_whee`` is deprecated.')
+        else:
+            raise ValueError("Test case could not find a match, did the format of nemo loggin messages change?")
 
     def test_say_wow_twice_deprecated(self):
         """ Tests whether both std and err streams return the right values
@@ -55,18 +68,24 @@ class DeprecatedTest(NeMoUnitTest):
 
         # Mock up both std and stderr streams - first call
         with patch('sys.stdout', new=StringIO()) as std_out:
-            with patch('sys.stderr', new=StringIO()) as std_err:
+            with logging.patch_stderr_handler(StringIO()) as std_err:
                 say_wow()
 
         # Check std output.
         self.assertEqual(std_out.getvalue().strip(), "Woooow!")
 
         # Check error output.
-        self.assertEqual(std_err.getvalue().strip(), 'Function ``say_wow`` is deprecated.')
+        err_msg = std_err.getvalue().strip()
+        match = self.NEMO_ERR_MSG_FORMAT.match(err_msg)
+        if match:
+            err_msg = err_msg[match.end() :]
+            self.assertEqual(err_msg, 'Function ``say_wow`` is deprecated.')
+        else:
+            raise ValueError("Test case could not find a match, did the format of nemo loggin messages change?")
 
         # Second call.
         with patch('sys.stdout', new=StringIO()) as std_out:
-            with patch('sys.stderr', new=StringIO()) as std_err:
+            with logging.patch_stderr_handler(StringIO()) as std_err:
                 say_wow()
 
         # Check std output.
@@ -79,23 +98,30 @@ class DeprecatedTest(NeMoUnitTest):
         """ Tests whether both std and err streams return the right values
         when function is deprecated and version is provided. """
 
-        @deprecated(version=0.1)
+        version = 0.1
+
+        @deprecated(version=version)
         def say_whoopie():
             print("Whoopie!")
 
         # Mock up both std and stderr streams.
         with patch('sys.stdout', new=StringIO()) as std_out:
-            with patch('sys.stderr', new=StringIO()) as std_err:
+            with logging.patch_stderr_handler(StringIO()) as std_err:
                 say_whoopie()
 
         # Check std output.
         self.assertEqual(std_out.getvalue().strip(), "Whoopie!")
 
-        # Check error output.
-        self.assertEqual(
-            std_err.getvalue().strip(),
-            "Function ``say_whoopie`` is deprecated. It is going to be removed in the 0.1 version.",
-        )
+        err_msg = std_err.getvalue().strip()
+        match = self.NEMO_ERR_MSG_FORMAT.match(err_msg)
+        if match:
+            err_msg = err_msg[match.end() :]
+            self.assertEqual(
+                err_msg,
+                f"Function ``say_whoopie`` is deprecated. It is going to be removed in the {version} version.",
+            )
+        else:
+            raise ValueError("Test case could not find a match, did the format of nemo loggin messages change?")
 
     def test_say_kowabunga_deprecated_explanation(self):
         """ Tests whether both std and err streams return the right values
@@ -107,13 +133,17 @@ class DeprecatedTest(NeMoUnitTest):
 
         # Mock up both std and stderr streams.
         with patch('sys.stdout', new=StringIO()) as std_out:
-            with patch('sys.stderr', new=StringIO()) as std_err:
+            with logging.patch_stderr_handler(StringIO()) as std_err:
                 say_kowabunga()
 
         # Check std output.
         self.assertEqual(std_out.getvalue().strip(), "Kowabunga!")
 
         # Check error output.
-        self.assertEqual(
-            std_err.getvalue().strip(), 'Function ``say_kowabunga`` is deprecated. Please use ``print_ihaa`` instead.'
-        )
+        err_msg = std_err.getvalue().strip()
+        match = self.NEMO_ERR_MSG_FORMAT.match(err_msg)
+        if match:
+            err_msg = err_msg[match.end() :]
+            self.assertEqual(err_msg, 'Function ``say_kowabunga`` is deprecated. Please use ``print_ihaa`` instead.')
+        else:
+            raise ValueError("Test case could not find a match, did the format of nemo loggin messages change?")

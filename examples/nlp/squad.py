@@ -311,7 +311,7 @@ if __name__ == "__main__":
         """
         model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
-    hidden_size = model.local_parameters["hidden_size"]
+    hidden_size = model.hidden_size
 
     qa_head = nemo_nlp.TokenClassifier(hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False)
     squad_loss = nemo_nlp.QuestionAnsweringLoss()
