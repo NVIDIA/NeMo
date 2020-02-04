@@ -49,7 +49,7 @@ pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BE
     pretrained_model_name=args.pretrained_bert_model
 )
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
-hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
+hidden_size = pretrained_bert_model.hidden_size
 
 data_desc = JointIntentSlotDataDesc(args.data_dir, args.do_lower_case, args.dataset_name)
 
