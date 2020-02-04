@@ -1,3 +1,19 @@
+# =============================================================================
+# Copyright 2019 AI Applications Design Team at NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
 import argparse
 import math
 import os
@@ -5,10 +21,12 @@ import os
 import numpy as np
 from transformers import BertTokenizer
 
-import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.data.datasets.utils import JointIntentSlotDataDesc
-from nemo.collections.nlp.utils.callbacks.joint_intent_slot import eval_epochs_done_callback, eval_iter_callback
+import nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer
+import nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
+from nemo import logging
+from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
@@ -44,9 +62,7 @@ parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O
 parser.add_argument("--do_lower_case", action='store_true')
 parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--intent_loss_weight", default=0.6, type=float)
-parser.add_argument(
-    "--class_balancing", default="regular", type=str, choices=["regular", "weighted_loss"],
-)
+parser.add_argument("--class_balancing", default="regular", type=str, choices=["regular", "weighted_loss"])
 
 args = parser.parse_args()
 
@@ -71,43 +87,47 @@ See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
 if args.bert_checkpoint and args.bert_config:
-    pretrained_bert_model = nemo_nlp.huggingface.BERT(config_filename=args.bert_config, factory=nf)
+    pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+        config_filename=args.bert_config
+    )
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 else:
-    pretrained_bert_model = nemo_nlp.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model, factory=nf)
+    pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+        pretrained_model_name=args.pretrained_bert_model
+    )
 
 hidden_size = pretrained_bert_model.hidden_size
 
 data_desc = JointIntentSlotDataDesc(
-    args.data_dir, args.do_lower_case, args.dataset_name, args.none_slot_label, args.pad_label,
+    args.data_dir, args.do_lower_case, args.dataset_name, args.none_slot_label, args.pad_label
 )
 
 # Create sentence classification loss on top
-classifier = nemo_nlp.JointIntentSlotClassifier(
-    hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout,
+classifier = nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm.JointIntentSlotClassifier(
+    hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
 )
 
 if args.class_balancing == 'weighted_loss':
     # Using weighted loss will enable weighted loss for both intents and slots
     # Use the intent_loss_weight hyperparameter to adjust intent loss to
     # prevent overfitting or underfitting.
-    loss_fn = nemo_nlp.JointIntentSlotLoss(
+    loss_fn = nemo_nlp.nm.losses.JointIntentSlotLoss(
         num_slots=data_desc.num_slots,
         slot_classes_loss_weights=data_desc.slot_weights,
         intent_classes_loss_weights=data_desc.intent_weights,
         intent_loss_weight=args.intent_loss_weight,
     )
 else:
-    loss_fn = nemo_nlp.JointIntentSlotLoss(num_slots=data_desc.num_slots)
+    loss_fn = nemo_nlp.nm.losses.JointIntentSlotLoss(num_slots=data_desc.num_slots)
 
 
 def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mode='train'):
-    nemo.logging.info(f"Loading {mode} data...")
+    logging.info(f"Loading {mode} data...")
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
     slot_file = f'{data_desc.data_dir}/{mode}_slots.tsv'
     shuffle = args.shuffle_data if mode == 'train' else False
 
-    data_layer = nemo_nlp.BertJointIntentSlotDataLayer(
+    data_layer = nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer.BertJointIntentSlotDataLayer(
         input_file=data_file,
         slot_file=slot_file,
         pad_label=data_desc.pad_label,
@@ -116,43 +136,35 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
         num_samples=num_samples,
         shuffle=shuffle,
         batch_size=batch_size,
-        num_workers=0,
-        local_rank=local_rank,
         ignore_extra_tokens=args.ignore_extra_tokens,
         ignore_start_end=args.ignore_start_end,
     )
 
-    (ids, type_ids, input_mask, loss_mask, subtokens_mask, intents, slots,) = data_layer()
+    (ids, type_ids, input_mask, loss_mask, subtokens_mask, intents, slots) = data_layer()
     data_size = len(data_layer)
 
     print(f'The length of data layer is {data_size}')
 
     if data_size < batch_size:
-        nemo.logging.warning("Batch_size is larger than the dataset size")
-        nemo.logging.warning("Reducing batch_size to dataset size")
+        logging.warning("Batch_size is larger than the dataset size")
+        logging.warning("Reducing batch_size to dataset size")
         batch_size = data_size
 
     steps_per_epoch = math.ceil(data_size / (batch_size * num_gpus))
-    nemo.logging.info(f"Steps_per_epoch = {steps_per_epoch}")
+    logging.info(f"Steps_per_epoch = {steps_per_epoch}")
 
     hidden_states = pretrained_bert_model(input_ids=ids, token_type_ids=type_ids, attention_mask=input_mask)
 
     intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
     loss = loss_fn(
-        intent_logits=intent_logits, slot_logits=slot_logits, loss_mask=loss_mask, intents=intents, slots=slots,
+        intent_logits=intent_logits, slot_logits=slot_logits, loss_mask=loss_mask, intents=intents, slots=slots
     )
 
     if mode == 'train':
         tensors_to_evaluate = [loss, intent_logits, slot_logits]
     else:
-        tensors_to_evaluate = [
-            intent_logits,
-            slot_logits,
-            intents,
-            slots,
-            subtokens_mask,
-        ]
+        tensors_to_evaluate = [intent_logits, slot_logits, intents, slots, subtokens_mask]
 
     return tensors_to_evaluate, loss, steps_per_epoch, data_layer
 
@@ -191,11 +203,11 @@ eval_callback = nemo.core.EvaluatorCallback(
 
 # Create callback to save checkpoints
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq,
+    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
 
 lr_policy_fn = get_lr_policy(
-    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion,
+    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
 )
 
 nf.train(
@@ -203,5 +215,5 @@ nf.train(
     callbacks=[train_callback, eval_callback, ckpt_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
-    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay,},
+    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
 )
