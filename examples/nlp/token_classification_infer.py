@@ -19,9 +19,11 @@ import os
 
 import numpy as np
 
-import nemo.collections.nlp.nm.trainables.common.token_classification_nm
+import nemo
+import nemo.collections.nlp as nemo_nlp
 from nemo import logging
 from nemo.collections.nlp.data import NemoBertTokenizer
+from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.collections.nlp.utils.common_nlp_utils import get_vocab
 
 # Parsing arguments
@@ -70,19 +72,15 @@ labels_dict = get_vocab(args.labels_dict)
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
-    pretrained_model_name=args.pretrained_bert_model
-)
+pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 hidden_size = pretrained_bert_model.hidden_size
 tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
 
-data_layer = nemo.collections.nlp.nm.data_layers.token_classification_datalayer.BertTokenClassificationInferDataLayer(
+data_layer = nemo_nlp.nm.data_layers.BertTokenClassificationInferDataLayer(
     queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
 )
 
-classifier = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
-    hidden_size=hidden_size, num_classes=len(labels_dict), dropout=args.fc_dropout
-)
+classifier = TokenClassifier(hidden_size=hidden_size, num_classes=len(labels_dict), dropout=args.fc_dropout)
 
 input_ids, input_type_ids, input_mask, _, subtokens_mask = data_layer()
 
@@ -97,10 +95,6 @@ evaluated_tensors = nf.infer(tensors=[logits, subtokens_mask], checkpoint_dir=ar
 
 def concatenate(lists):
     return np.concatenate([t.cpu() for t in lists])
-
-
-def get_preds(logits):
-    return np.argmax(logits, 1)
 
 
 def add_brackets(text, add=args.add_brackets):

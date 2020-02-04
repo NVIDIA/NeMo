@@ -72,8 +72,7 @@ from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_d
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import output_modes, processors
 from nemo.collections.nlp.nm.data_layers import GlueClassificationDataLayer, GlueRegressionDataLayer
-from nemo.collections.nlp.nm.trainables.common.sequence_classification_nm import SequenceClassifier
-from nemo.collections.nlp.nm.trainables.common.sequence_regression_nm import SequenceRegression
+from nemo.collections.nlp.nm.trainables import SequenceClassifier, SequenceRegression
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description="GLUE_with_pretrained_BERT")
@@ -194,7 +193,7 @@ if args.bert_checkpoint is None:
     nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo_nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+    model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     Replace BERT-STEP-150000.pt with the path to your checkpoint.
@@ -209,9 +208,9 @@ else:
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
             config = json.load(json_file)
-        model = nemo_nlp.nm.trainables.common.huggingface.BERT(**config)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
     else:
-        model = nemo_nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
     model.restore_from(args.bert_checkpoint)
 

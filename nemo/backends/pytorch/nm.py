@@ -205,7 +205,7 @@ class DataLayerNM(NeuralModule):
         # (when the time for that will come;))
         self._batch_size = 1
         self._num_workers = os.cpu_count()  # Use all CPUs by default.
-        self._shuffle = True  # Shuffle by default.
+        self._shuffle = False  # Don't shuffle by default.
 
     @property
     def input_ports(self):

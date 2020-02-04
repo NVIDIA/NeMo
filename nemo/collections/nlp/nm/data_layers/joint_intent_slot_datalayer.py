@@ -112,7 +112,7 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
             'ignore_extra_tokens': ignore_extra_tokens,
             'ignore_start_end': ignore_start_end,
         }
-        super().__init__(dataset_type, dataset_params, batch_size)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle)
 
 
 class BertJointIntentSlotInferDataLayer(TextDataLayer):
@@ -174,4 +174,4 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
 
     def __init__(self, queries, tokenizer, max_seq_length, batch_size=1, dataset_type=BertJointIntentSlotInferDataset):
         dataset_params = {'queries': queries, 'tokenizer': tokenizer, 'max_seq_length': max_seq_length}
-        super().__init__(dataset_type, dataset_params, batch_size)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle=False)
