@@ -121,7 +121,7 @@ def create_pipeline(
     dataset, max_seq_length=args.max_seq_length, batch_step=args.max_seq_length, batch_size=args.batch_size
 ):
     data_layer = nemo.collections.nlp.nm.data_layers.lm_transformer_datalayer.LanguageModelingDataLayer(
-        dataset, tokenizer, max_seq_length, batch_step, batch_size=batch_size
+        dataset, tokenizer, max_seq_length, batch_size, batch_step
     )
     src, src_mask, labels = data_layer()
     src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)

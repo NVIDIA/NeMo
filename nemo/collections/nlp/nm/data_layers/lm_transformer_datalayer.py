@@ -60,7 +60,9 @@ class LanguageModelingDataLayer(TextDataLayer):
             "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
 
-    def __init__(self, dataset, tokenizer, max_seq_length, batch_step=128, dataset_type=LanguageModelingDataset):
+    def __init__(
+        self, dataset, tokenizer, max_seq_length, batch_size, batch_step=128, dataset_type=LanguageModelingDataset
+    ):
         dataset_params = {
             'dataset': dataset,
             'tokenizer': tokenizer,
