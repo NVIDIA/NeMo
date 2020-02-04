@@ -7,7 +7,7 @@ import kaldi_io
 import torch
 from torch.utils.data import Dataset
 
-import nemo
+from nemo import logging
 from nemo.collections.asr.parts import collections, parsers
 
 
@@ -230,7 +230,7 @@ class KaldiFeatureDataset(Dataset):
                 f" utt2dur file not found in {kaldi_dir}."
             )
         else:
-            nemo.logging.info(
+            logging.info(
                 f"Did not find utt2dur when loading data from " f"{kaldi_dir}. Skipping dataset duration calculations."
             )
 
@@ -273,12 +273,12 @@ class KaldiFeatureDataset(Dataset):
                     duration += dur
 
                     if max_utts > 0 and len(data) >= max_utts:
-                        print(f"Stop parsing due to max_utts ({max_utts})")
+                        logging.warning(f"Stop parsing due to max_utts ({max_utts})")
                         break
 
         if id2dur:
             # utt2dur durations are in seconds
-            nemo.logging.info(
+            logging.info(
                 f"Dataset loaded with {duration / 60 : .2f} hours. " f"Filtered {filtered_duration / 60 : .2f} hours."
             )
 

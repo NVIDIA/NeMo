@@ -43,8 +43,8 @@ class JasperRNNConnector(TrainableNM):
         """
         return {'tensor': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
 
-    def __init__(self, in_channels, out_channels, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
 
         self.icnn = nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=True)
         self.bn = nn.BatchNorm1d(out_channels)
