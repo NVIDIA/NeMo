@@ -19,55 +19,47 @@ import os
 import re
 import subprocess
 import sys
-
 from collections import namedtuple
-from math import floor, ceil
-import numpy as np
+from math import ceil, floor
 from operator import attrgetter
+
+import numpy as np
 import scipy.io.wavfile as wavfile
 from tqdm import tqdm
 
-parser = argparse.ArgumentParser(
-        description="Prepare HUB5 data for training/eval")
+parser = argparse.ArgumentParser(description="Prepare HUB5 data for training/eval")
 parser.add_argument(
-        "--data_root", default=None, type=str, required=True,
-        help="The path to the root LDC HUB5 dataset directory.")
+    "--data_root", default=None, type=str, required=True, help="The path to the root LDC HUB5 dataset directory.",
+)
 parser.add_argument(
-        "--dest_root", default=None, type=str, required=True,
-        help="Path to the destination root directory for processed files.")
+    "--dest_root",
+    default=None,
+    type=str,
+    required=True,
+    help="Path to the destination root directory for processed files.",
+)
 
 # Optional arguments
 parser.add_argument(
-        "--min_slice_duration", default=10.0, type=float,
-        help="Minimum audio slice duration after processing.")
+    "--min_slice_duration", default=10.0, type=float, help="Minimum audio slice duration after processing.",
+)
 
 args = parser.parse_args()
 
 StmUtterance = namedtuple(
-    'StmUtterance',
-    ['filename', 'channel', 'speaker_id', 'begin', 'end',
-     'label', 'transcript']
+    'StmUtterance', ['filename', 'channel', 'speaker_id', 'begin', 'end', 'label', 'transcript',],
 )
-STM_LINE_FMT = re.compile(
-    r"^(\w+)\s+(\w+)\s+(\w+)\s+([0-9.]+)\s+([0-9.]+)\s+(<.*>)?\s+(.+)$"
-)
+STM_LINE_FMT = re.compile(r"^(\w+)\s+(\w+)\s+(\w+)\s+([0-9.]+)\s+([0-9.]+)\s+(<.*>)?\s+(.+)$")
 
 # Transcription errors and their fixes
-TRANSCRIPT_BUGS = {
-    "en_4622-B-12079-12187": "KIND OF WEIRD BUT"
-}
+TRANSCRIPT_BUGS = {"en_4622-B-12079-12187": "KIND OF WEIRD BUT"}
 
 
 def get_utt_id(segment):
     """
     Gives utterance IDs in a form like: en_4156-a-36558-37113
     """
-    return "{}-{}-{}-{}".format(
-        segment.filename,
-        segment.channel,
-        int(segment.begin * 100),
-        int(segment.end * 100)
-    )
+    return "{}-{}-{}-{}".format(segment.filename, segment.channel, int(segment.begin * 100), int(segment.end * 100),)
 
 
 def convert_utterances(sph_path, wav_path):
@@ -97,10 +89,7 @@ def process_transcripts(dataset_root):
     """
     Reads in transcripts for each audio segment and processes them.
     """
-    stm_path = os.path.join(dataset_root,
-                            "2000_hub5_eng_eval_tr",
-                            "reference",
-                            "hub5e00.english.000405.stm")
+    stm_path = os.path.join(dataset_root, "2000_hub5_eng_eval_tr", "reference", "hub5e00.english.000405.stm",)
     results = []
     chars = set()
 
@@ -138,8 +127,7 @@ def process_transcripts(dataset_root):
     return results, chars
 
 
-def write_one_segment(
-        dest_root, speaker_id, count, audio, sr, duration, transcript):
+def write_one_segment(dest_root, speaker_id, count, audio, sr, duration, transcript):
     """
     Writes out one segment of audio, and writes its corresponding transcript
     in the manifest.
@@ -153,8 +141,7 @@ def write_one_segment(
         duration: duration of the audio
         transcript: the corresponding transcript
     """
-    audio_path = os.path.join(
-            dest_root, "audio", f"{speaker_id}_{count:03}.wav")
+    audio_path = os.path.join(dest_root, "audio", f"{speaker_id}_{count:03}.wav")
 
     manifest_path = os.path.join(dest_root, "manifest_hub5.json")
 
@@ -165,7 +152,7 @@ def write_one_segment(
     transcript = {
         "audio_filepath": audio_path,
         "duration": duration,
-        "text": transcript
+        "text": transcript,
     }
     with open(manifest_path, 'a') as f:
         json.dump(transcript, f)
@@ -199,10 +186,7 @@ def segment_audio(info_list, dest_root, min_slice_duration):
             prev_id = info.speaker_id
             id_count = 0
 
-            sample_rate, audio_data = wavfile.read(
-                os.path.join(
-                    dest_root, 'full_audio_wav', info.filename + '.wav')
-            )
+            sample_rate, audio_data = wavfile.read(os.path.join(dest_root, 'full_audio_wav', info.filename + '.wav'))
             transcript_buffer = ''
             audio_buffer = []
             buffer_duration = 0.0
@@ -211,11 +195,9 @@ def segment_audio(info_list, dest_root, min_slice_duration):
         transcript_buffer += info.transcript
         channel = 0 if info.channel.lower() == 'a' else 1
         audio_buffer.append(
-            audio_data[floor(info.begin * sample_rate):
-                       ceil(info.end * sample_rate),
-                       channel]
+            audio_data[floor(info.begin * sample_rate) : ceil(info.end * sample_rate), channel,]
         )
-        buffer_duration += (info.end - info.begin)
+        buffer_duration += info.end - info.begin
 
         if buffer_duration < min_slice_duration:
             transcript_buffer += ' '
@@ -229,7 +211,7 @@ def segment_audio(info_list, dest_root, min_slice_duration):
                 np.concatenate(audio_buffer, axis=0),
                 sample_rate,
                 buffer_duration,
-                transcript_buffer
+                transcript_buffer,
             )
 
             transcript_buffer = ''

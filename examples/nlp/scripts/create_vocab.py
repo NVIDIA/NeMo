@@ -45,8 +45,7 @@ def main():
         # file before proceeding
         # filepaths = glob.glob(os.path.join(args.dataset_dir, "**", "*.txt"))
         filepaths = glob.glob(os.path.join(args.dataset_dir, "*.txt"))
-        print("Found {} files, concatenenating dataset into one file..."
-              .format(len(filepaths)))
+        print("Found {} files, concatenenating dataset into one file...".format(len(filepaths)))
 
         with open(MERGED_FILE, "w") as f:
             for filepath in tqdm(filepaths):
@@ -59,15 +58,16 @@ def main():
         print("One of 'dataset_dir' and 'train_path' must be specified")
         return
 
-    SPT.Train("--input={} ".format(train_path) +
-              "--model_prefix={} ".format(args.model_prefix) +
-              "--vocab_size={} ".format(args.vocab_size
-                                        - args.num_placeholders) +
-              "--input_sentence_size={} ".format(args.sample_size) +
-              "--shuffle_input_sentence=true " +
-              "--hard_vocab_limit=false " +
-              "--bos_id=-1 " +
-              "--eos_id=-1")
+    SPT.Train(
+        "--input={} ".format(train_path)
+        + "--model_prefix={} ".format(args.model_prefix)
+        + "--vocab_size={} ".format(args.vocab_size - args.num_placeholders)
+        + "--input_sentence_size={} ".format(args.sample_size)
+        + "--shuffle_input_sentence=true "
+        + "--hard_vocab_limit=false "
+        + "--bos_id=-1 "
+        + "--eos_id=-1"
+    )
 
     # Add BERT control symbols
     vocab = ["[PAD]"]
@@ -88,8 +88,7 @@ def main():
 
             tokens.append(token)
 
-    vocab.extend(["[unused{}]".format(i)
-                 for i in range(args.vocab_size - len(tokens))])
+    vocab.extend(["[unused{}]".format(i) for i in range(args.vocab_size - len(tokens))])
     vocab.extend(["[UNK]", "[CLS]", "[SEP]", "[MASK]"])
     vocab.extend(tokens)
 

@@ -66,7 +66,7 @@
     .. code-block:: python
 
         def get_dataset(data_desc, mode, num_samples):
-            nf.logger.info(f"Loading {mode} data...")
+            nemo.logging.info(f"Loading {mode} data...")
             data_file = getattr(data_desc, mode + '_file')
             slot_file = getattr(data_desc, mode + '_slot_file')
             shuffle = args.shuffle_data if mode == 'train' else False

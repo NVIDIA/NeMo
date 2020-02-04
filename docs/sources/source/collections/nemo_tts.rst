@@ -7,7 +7,7 @@ Speech data processing modules
     :members:
     :undoc-members:
     :show-inheritance:
-    :exclude-members: forward, create_ports
+    :exclude-members: forward
 
 Tacotron 2 modules
 ------------------
@@ -15,7 +15,7 @@ Tacotron 2 modules
     :members:
     :undoc-members:
     :show-inheritance:
-    :exclude-members: forward, create_ports
+    :exclude-members: forward
 
 Waveglow modules
 ------------------
@@ -23,4 +23,4 @@ Waveglow modules
     :members:
     :undoc-members:
     :show-inheritance:
-    :exclude-members: forward, create_ports
+    :exclude-members: forward

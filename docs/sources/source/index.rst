@@ -1,5 +1,5 @@
-NVIDIA Neural Modules: NeMo
-===========================
+NVIDIA Neural Modules Developer Guide
+=====================================
 
 .. toctree::
    :hidden:
@@ -23,7 +23,7 @@ A "Neural Module" is a block of code that computes a set of outputs from a set o
 
 Neural Modules’ inputs and outputs have Neural Type for semantic checking.
 
-An application built with NeMo application is a Directed Acyclic Graph (DAG) of connected modules enabling researchers to define and build new speech and nlp networks easily through API Compatible modules.
+An application built with NeMo is a Directed Acyclic Graph (DAG) of connected modules enabling researchers to define and build new speech and nlp networks easily through API Compatible modules.
 
 
 **Introduction**
@@ -61,21 +61,21 @@ You can use NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/contai
 .. code-block:: bash
 
     # Pull the docker
-    docker pull nvcr.io/nvidia/pytorch:19.10-py3
+    docker pull nvcr.io/nvidia/pytorch:19.11-py3
 
     # Do one of the two following commands
     # Run Docker for docker version <19.03
-    nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.10-py3
+    nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.11-py3
     
     # Run Docker for docker version >=19.03
-    docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=1g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.10-py3
+    docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.11-py3
 
     cd /NeMo
 
 and then continue with the following steps.
 
 If you have all requirements installed (or are using `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ ),
-then you can simply use pip to install the latest released version (**currently 0.8.2**) of NeMo and its collections:
+then you can simply use pip to install the latest released version (**currently 0.9.0**) of NeMo and its collections:
 
 .. code-block:: bash
 

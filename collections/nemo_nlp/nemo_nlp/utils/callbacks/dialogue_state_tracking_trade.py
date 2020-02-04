@@ -9,9 +9,7 @@ from nemo.utils.exp_logging import get_logger
 logger = get_logger('')
 
 
-def eval_iter_callback(tensors,
-                       global_vars,
-                       data_desc):
+def eval_iter_callback(tensors, global_vars, data_desc):
 
     if 'loss' not in global_vars:
         global_vars['loss'] = []
@@ -37,8 +35,8 @@ def eval_iter_callback(tensors,
             tgt_ids = v[0]
 
     point_outputs_max = torch.argmax(point_outputs, dim=-1)
-    mask_paddings = (tgt_ids == data_desc.vocab.pad_id)
-    comp_res = ((point_outputs_max == tgt_ids) | mask_paddings)
+    mask_paddings = tgt_ids == data_desc.vocab.pad_id
+    comp_res = (point_outputs_max == tgt_ids) | mask_paddings
     comp_res = torch.all(comp_res, axis=-1, keepdims=False)
 
     global_vars['comp_res'].extend(comp_res.cpu().numpy())
@@ -46,18 +44,17 @@ def eval_iter_callback(tensors,
 
 
 def eval_epochs_done_callback(global_vars, data_desc):
-    joint_acc, turn_acc = \
-        evaluate_metrics(global_vars['comp_res'],
-                         global_vars['gating_labels'],
-                         global_vars['gating_preds'],
-                         data_desc.gating_dict["ptr"])
+    joint_acc, turn_acc = evaluate_metrics(
+        global_vars['comp_res'],
+        global_vars['gating_labels'],
+        global_vars['gating_preds'],
+        data_desc.gating_dict["ptr"],
+    )
 
     gating_comp_flatten = (np.asarray(global_vars['gating_labels']) == np.asarray(global_vars['gating_preds'])).ravel()
     gating_acc = np.sum(gating_comp_flatten) / len(gating_comp_flatten)
 
-    evaluation_metrics = {"Joint_Goal_Acc": joint_acc,
-                          "Turn_Acc": turn_acc,
-                          "Gate_Acc": gating_acc}
+    evaluation_metrics = {"Joint_Goal_Acc": joint_acc, "Turn_Acc": turn_acc, "Gate_Acc": gating_acc}
     print(evaluation_metrics)
 
     return evaluation_metrics
@@ -79,8 +76,9 @@ def evaluate_metrics(comp_res, gating_labels, gating_preds, ptr_code):
                     correct_slots += 1
                 else:
                     turn_wrong = True
-            elif gating_labels[result_idx][slot_idx] == gating_preds[result_idx][slot_idx] \
-                    or (slot_eq and gating_preds[result_idx][slot_idx] == ptr_code):
+            elif gating_labels[result_idx][slot_idx] == gating_preds[result_idx][slot_idx] or (
+                slot_eq and gating_preds[result_idx][slot_idx] == ptr_code
+            ):
                 correct_slots += 1
             else:
                 turn_wrong = True

@@ -1,0 +1,5 @@
+librosa
+matplotlib
+pypinyin
+ruamel.yaml
+scipy

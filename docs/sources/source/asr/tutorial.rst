@@ -1,11 +1,14 @@
 Tutorial
 ========
 
-Make sure you have installed ``nemo`` and ``nemo_asr`` collection.
-See :ref:`installation` section.
+Make sure you have installed ``nemo`` and the ``nemo_asr`` collection.
+See the :ref:`installation` section.
 
 .. note::
-    You only need `nemo` and `nemo_asr` collection for this tutorial.
+  You only need to have ``nemo`` and the ``nemo_asr`` collection for this tutorial.
+
+A more introductory, Jupyter notebook ASR tutorial can be found `on GitHub <https://github.com/NVIDIA/NeMo/tree/master/examples/asr/notebooks>`_.
+
 
 Introduction
 -------------
@@ -13,8 +16,8 @@ Introduction
 This Automatic Speech Recognition (ASR) tutorial is focused on Jasper :cite:`asr-tut-li2019jasper` model. Jasper is CTC-based :cite:`asr-tut-graves2006` end-to-end model. The model is called "end-to-end" because it transcripts speech samples without any additional alignment information. CTC allows finding an alignment between audio and text. 
 CTC-ASR training pipeline consists of the following blocks:
 
-1. audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)
-2. neural acoustic model (which predicts a probability distribution P_t(c) over vocabulary characters c per each time step t given input features per each timestep)
+1. Audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)
+2. Neural acoustic model (which predicts a probability distribution P_t(c) over vocabulary characters c per each time step t given input features per each timestep)
 3. CTC loss function
 
     .. image:: ctc_asr.png
@@ -47,7 +50,7 @@ After download and conversion, your `data` folder should contain 2 json files:
 * dev_clean.json
 * train_clean_100.json
 
-In the tutorial we will use `train_clean_100.json` for training and `dev_clean.json`for evaluation.
+In the tutorial we will use `train_clean_100.json` for training and `dev_clean.json` for evaluation.
 Each line in json file describes a training sample - `audio_filepath` contains path to the wav file, `duration` it's duration in seconds, and `text` is it's transcript:
 
 .. code-block:: json
@@ -83,7 +86,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
     # NeMo's "core" package
     import nemo
     # NeMo's ASR collection
-    import nemo_asr
+    import nemo.collections.asr as nemo_asr
 
     # Create a Neural Factory
     # It creates log files and tensorboard writers for us among other functions
@@ -91,7 +94,6 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
         log_dir='jasper12x1SEP',
         create_tb_writer=True)
     tb_writer = nf.tb_writer
-    logger = nf.logger
 
     # Path to our training manifest
     train_dataset = "<path_to_where_you_put_data>/train_clean_100.json"
@@ -159,7 +161,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
     # These helper functions are needed to print and compute various metrics
     # such as word error rate and log them into tensorboard
     # they are domain-specific and are provided by NeMo's collections
-    from nemo_asr.helpers import monitor_asr_train_progress, \
+    from nemo.collections.asr.helpers import monitor_asr_train_progress, \
         process_evaluation_batch, process_evaluation_epoch
 
     from functools import partial
@@ -174,8 +176,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
         # To print logs to screen, define a print_func
         print_func=partial(
             monitor_asr_train_progress,
-            labels=labels,
-            logger=logger
+            labels=labels
         ))
 
     saver_callback = nemo.core.CheckpointCallback(
@@ -196,7 +197,7 @@ The script below does both training (on `train_clean_100.json`) and evaluation (
             ),
         # how to aggregate statistics (e.g. WER) for the evaluation epoch
         user_epochs_done_callback=partial(
-            process_evaluation_epoch, tag="DEV-CLEAN", logger=logger
+            process_evaluation_epoch, tag="DEV-CLEAN"
             ),
         eval_step=500,
         tb_writer=tb_writer)
@@ -321,6 +322,7 @@ Perform the following steps:
         * ``sudo apt-get update && sudo apt-get install swig``
         * ``sudo apt-get install pkg-config libflac-dev libogg-dev libvorbis-dev libboost-dev``
         * ``sudo apt-get install libsndfile1-dev python-setuptools libboost-all-dev python-dev``
+        * ``sudo apt-get install cmake``
         * ``./install_decoders.sh``
     * Build 6-gram KenLM model on LibriSpeech ``./build_6-gram_OpenSLR_lm.sh``
     * Run jasper_eval.py with the --lm_path flag
@@ -329,6 +331,25 @@ Perform the following steps:
 
         python <nemo_git_repo_root>/examples/asr/jasper_eval.py --model_config=<nemo_git_repo_root>/examples/asr/configs/quartznet15x5.yaml --eval_datasets "<path_to_data>/dev_clean.json" --load_dir=<directory_containing_checkpoints> --lm_path=<path_to_6gram.binary>
 
+Kaldi Compatibility
+-------------------
+
+The ``nemo_asr`` collection can also load datasets that are in a Kaldi-compatible format using the ``KaldiFeatureDataLayer``.
+In order to load your Kaldi-formatted data, you will need to have a directory that contains the following files:
+
+* ``feats.scp``, the file that maps from utterance IDs to the .ark files with the corresponding audio data.
+* ``text``, the file that contains a mapping from the utterance IDs to transcripts.
+* (Optional) ``utt2dur``, the file that maps the utterance IDs to the audio file durations. This is required if you want to filter your audio based on duration.
+
+Of course, you will also need the .ark files that contain the audio data in the location that ``feats.scp`` expects.
+
+To load your Kaldi-formatted data, you can simply use the ``KaldiFeatureDataLayer`` instead of the ``AudioToTextDataLayer``.
+The ``KaldiFeatureDataLayer`` takes in an argument ``kaldi_dir`` instead of a ``manifest_filepath``, and this argument should be set to the directory that contains the files mentioned above.
+See `the documentation <https://nvidia.github.io/NeMo/collections/nemo_asr.html#nemo_asr.data_layer.KaldiFeatureDataLayer>`_ for more detailed information about the arguments to this data layer.
+
+.. note::
+
+  If you are switching to a ``KaldiFeatureDataLayer``, be sure to set any ``feat_in`` parameters to correctly reflect the dimensionality of your Kaldi features, such as in the Jasper encoder. Additionally, your data is likely already preprocessed (e.g. into MFCC format), in which case you can leave out any audio preprocessors like the ``AudioToMelSpectrogramPreprocessor``.
 
 References
 ----------

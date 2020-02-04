@@ -3,11 +3,12 @@
 # USAGE: python get_aishell_data.py --data_root=<where to put data>
 
 import argparse
-import os
-import urllib.request
-import tarfile
-import subprocess
 import json
+import logging
+import os
+import subprocess
+import tarfile
+import urllib.request
 
 parser = argparse.ArgumentParser(description='Aishell Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
@@ -18,7 +19,7 @@ URL = {'data_aishell': "http://www.openslr.org/resources/33/data_aishell.tgz"}
 
 def __maybe_download_file(destination: str, source: str):
     """
-    Downloads source to destination if not exists.
+    Downloads source to destination if it doesn't exist.
     If exists, skips download
     Args:
         destination: local filepath
@@ -29,12 +30,12 @@ def __maybe_download_file(destination: str, source: str):
     """
     source = URL[source]
     if not os.path.exists(destination):
-        print("{0} does not exists. Downloading ...".format(destination))
+        logging.info("{0} does not exist. Downloading ...".format(destination))
         urllib.request.urlretrieve(source, filename=destination + '.tmp')
         os.rename(destination + '.tmp', destination)
-        print("Downloaded {0}.".format(destination))
+        logging.info("Downloaded {0}.".format(destination))
     else:
-        print("Destination {0} exists. Skipping.".format(destination))
+        logging.info("Destination {0} exists. Skipping.".format(destination))
     return destination
 
 
@@ -46,7 +47,7 @@ def __extract_all_files(filepath: str, data_root: str, data_dir: str):
             for ftar in filelist:
                 extract_file(os.path.join(subfolder, ftar), subfolder)
     else:
-        print('Skipping extracting. Data already there %s' % data_dir)
+        logging.info('Skipping extracting. Data already there %s' % data_dir)
 
 
 def extract_file(filepath: str, data_dir: str):
@@ -55,7 +56,7 @@ def extract_file(filepath: str, data_dir: str):
         tar.extractall(data_dir)
         tar.close()
     except Exception:
-        print('Not extracting. Maybe already there?')
+        logging.info('Not extracting. Maybe already there?')
 
 
 def __process_data(data_folder: str, dst_folder: str):
@@ -71,9 +72,7 @@ def __process_data(data_folder: str, dst_folder: str):
     if not os.path.exists(dst_folder):
         os.makedirs(dst_folder)
 
-    transcript_file = os.path.join(data_folder,
-                                   'transcript',
-                                   'aishell_transcript_v0.8.txt')
+    transcript_file = os.path.join(data_folder, 'transcript', 'aishell_transcript_v0.8.txt')
     transcript_dict = {}
     with open(transcript_file, 'r', encoding='utf-8') as f:
         for line in f:
@@ -97,17 +96,14 @@ def __process_data(data_folder: str, dst_folder: str):
                 text = transcript_dict[audio_id]
                 for li in text:
                     vocab_count[li] = vocab_count.get(li, 0) + 1
-                duration = subprocess.check_output(
-                    'soxi -D {0}'.format(audio_path), shell=True)
+                duration = subprocess.check_output('soxi -D {0}'.format(audio_path), shell=True)
                 duration = float(duration)
                 json_lines.append(
                     json.dumps(
-                        {
-                            'audio_filepath': os.path.abspath(audio_path),
-                            'duration': duration,
-                            'text': text
-                        },
-                        ensure_ascii=False))
+                        {'audio_filepath': os.path.abspath(audio_path), 'duration': duration, 'text': text,},
+                        ensure_ascii=False,
+                    )
+                )
 
         manifest_path = os.path.join(dst_folder, dt + '.json')
         with open(manifest_path, 'w', encoding='utf-8') as fout:
@@ -124,16 +120,16 @@ def __process_data(data_folder: str, dst_folder: str):
 def main():
     data_root = args.data_root
     data_set = 'data_aishell'
-    print("\n\nWorking on: {0}".format(data_set))
+    logging.info("\n\nWorking on: {0}".format(data_set))
     file_path = os.path.join(data_root, data_set + ".tgz")
-    print("Getting {0}".format(data_set))
+    logging.info("Getting {0}".format(data_set))
     __maybe_download_file(file_path, data_set)
-    print("Extracting {0}".format(data_set))
+    logging.info("Extracting {0}".format(data_set))
     data_folder = os.path.join(data_root, data_set)
     __extract_all_files(file_path, data_root, data_folder)
-    print("Processing {0}".format(data_set))
+    logging.info("Processing {0}".format(data_set))
     __process_data(data_folder, data_folder)
-    print('Done!')
+    logging.info('Done!')
 
 
 if __name__ == "__main__":
