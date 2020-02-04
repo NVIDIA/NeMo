@@ -7,13 +7,12 @@ import argparse
 import math
 import os
 
-import nemo_nlp
 import numpy as np
-from nemo_nlp.data.datasets.utils import MultiWOZDataDesc
-from nemo_nlp.utils.callbacks.dialogue_state_tracking_trade import eval_epochs_done_callback, eval_iter_callback
 
 import nemo
 from nemo.backends.pytorch.common import EncoderRNN
+from nemo.collections.nlp.callbacks.state_tracking_trade_callback import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.data.datasets.state_tracking_trade_dataset import MultiWOZDataDesc
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description='Dialog state tracking with TRADE model on MultiWOZ dataset')
@@ -70,7 +69,7 @@ nf = nemo.core.NeuralModuleFactory(
 vocab_size = len(data_desc.vocab)
 encoder = EncoderRNN(vocab_size, args.emb_dim, args.hid_dim, args.dropout, args.n_layers)
 
-decoder = nemo_nlp.TRADEGenerator(
+decoder = nemo.collections.nlp.TRADEGenerator(
     data_desc.vocab,
     encoder.embedding,
     args.hid_dim,
@@ -80,16 +79,16 @@ decoder = nemo_nlp.TRADEGenerator(
     teacher_forcing=args.teacher_forcing,
 )
 
-gate_loss_fn = nemo_nlp.CrossEntropyLoss3D(num_classes=len(data_desc.gating_dict))
-ptr_loss_fn = nemo_nlp.TRADEMaskedCrossEntropy()
-total_loss_fn = nemo_nlp.LossAggregatorNM(num_inputs=2)
+gate_loss_fn = nemo.collections.nlp.CrossEntropyLoss3D(num_classes=len(data_desc.gating_dict))
+ptr_loss_fn = nemo.collections.nlp.TRADEMaskedCrossEntropy()
+total_loss_fn = nemo.collections.nlp.LossAggregatorNM(num_inputs=2)
 
 
 def create_pipeline(num_samples, batch_size, num_gpus, local_rank, input_dropout, data_prefix, is_training):
     nf.logger.info(f"Loading {data_prefix} data...")
     shuffle = args.shuffle_data if is_training else False
 
-    data_layer = nemo_nlp.MultiWOZDataLayer(
+    data_layer = nemo.collections.nlp.MultiWOZDataLayer(
         args.data_dir,
         data_desc.domains,
         all_domains=data_desc.all_domains,

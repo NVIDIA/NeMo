@@ -1,4 +1,4 @@
-__all__ = ['DecoderRNN']
+__all__ = ['DecoderRNN', 'EncoderRNN']
 
 import random
 
@@ -203,3 +203,67 @@ class DecoderRNN(TrainableNM):
             attention_weights = None
 
         return log_probs, attention_weights
+
+
+class EncoderRNN(TrainableNM):
+    """ Simple RNN-based encoder using GRU cells
+    Args:
+        sum_hidden (bool): sum the hidden from both direction if True
+                           otherwise concatenate
+    """
+
+    @staticmethod
+    def create_ports():
+        input_ports = {
+            'inputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            'input_lens': NeuralType({0: AxisType(BatchTag),}, optional=True),
+        }
+        output_ports = {
+            'outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            'hidden': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+        }
+        return input_ports, output_ports
+
+    def __init__(
+        self, input_dim, emb_dim, hid_dim, dropout, n_layers=1, pad_idx=1, embedding_to_load=None, sum_hidden=True
+    ):
+        super().__init__()
+        self.dropout = nn.Dropout(dropout)
+        self.embedding = nn.Embedding(input_dim, emb_dim, padding_idx=pad_idx)
+        if embedding_to_load is not None:
+            self.embedding.weight.data.copy_(embedding_to_load)
+        else:
+            self.embedding.weight.data.normal_(0, 0.1)
+        self.rnn = nn.GRU(emb_dim, hid_dim, n_layers, batch_first=True, dropout=dropout, bidirectional=True)
+        self.sum_hidden = sum_hidden
+        self.to(self._device)
+
+    def forward(self, inputs, input_lens=None):
+        embedded = self.embedding(inputs)
+        embedded = self.dropout(embedded)
+        if input_lens is not None:
+            embedded = nn.utils.rnn.pack_padded_sequence(embedded, input_lens, batch_first=True)
+
+        outputs, hidden = self.rnn(embedded)
+        # outputs of shape (seq_len, batch, num_directions * hidden_size)
+        # hidden of shape (num_layers * num_directions, batch, hidden_size)
+        if input_lens is not None:
+            outputs, _ = nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
+        else:
+            outputs = outputs.transpose(0, 1)
+        # outputs of shape: (batch, seq_len, num_directions * hidden_size)
+
+        batch_size = hidden.size()[1]
+
+        # separate final hidden states by layer and direction
+        hidden = hidden.view(self.rnn.num_layers, 2 if self.rnn.bidirectional else 1, batch_size, self.rnn.hidden_size)
+        hidden = hidden.transpose(2, 0).transpose(1, 2)
+        # hidden shape: batch x num_layer x num_directions x hidden_size
+        if self.sum_hidden and self.rnn.bidirectional:
+            hidden = hidden[:, :, 0, :] + hidden[:, :, 1, :]
+            outputs = outputs[:, :, : self.rnn.hidden_size] + outputs[:, :, self.rnn.hidden_size :]
+        else:
+            hidden = hidden.reshape(batch_size, self.rnn.num_layers, -1)
+        # hidden is now of shape (batch, num_layer, [num_directions] * hidden_size)
+
+        return outputs, hidden
