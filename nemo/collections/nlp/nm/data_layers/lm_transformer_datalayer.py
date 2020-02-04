@@ -69,4 +69,4 @@ class LanguageModelingDataLayer(TextDataLayer):
             'max_seq_length': max_seq_length,
             'batch_step': batch_step,
         }
-        super().__init__(dataset_type, dataset_params, batch_size)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle=False)
