@@ -69,7 +69,7 @@ nf = nemo.core.NeuralModuleFactory(
 vocab_size = len(data_desc.vocab)
 encoder = EncoderRNN(vocab_size, args.emb_dim, args.hid_dim, args.dropout, args.n_layers)
 
-decoder = nemo.collections.nlp.TRADEGenerator(
+decoder = nemo.collections.nlp.nm.trainables.TRADEGenerator(
     data_desc.vocab,
     encoder.embedding,
     args.hid_dim,
@@ -79,16 +79,16 @@ decoder = nemo.collections.nlp.TRADEGenerator(
     teacher_forcing=args.teacher_forcing,
 )
 
-gate_loss_fn = nemo.collections.nlp.CrossEntropyLoss3D(num_classes=len(data_desc.gating_dict))
-ptr_loss_fn = nemo.collections.nlp.TRADEMaskedCrossEntropy()
-total_loss_fn = nemo.collections.nlp.LossAggregatorNM(num_inputs=2)
+gate_loss_fn = nemo.collections.nlp.nm.losses.CrossEntropyLoss3D(num_classes=len(data_desc.gating_dict))
+ptr_loss_fn = nemo.collections.nlp.nm.losses.TRADEMaskedCrosEntropy()
+total_loss_fn = nemo.collections.nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 
 
 def create_pipeline(num_samples, batch_size, num_gpus, local_rank, input_dropout, data_prefix, is_training):
     nf.logger.info(f"Loading {data_prefix} data...")
     shuffle = args.shuffle_data if is_training else False
 
-    data_layer = nemo.collections.nlp.MultiWOZDataLayer(
+    data_layer = nemo.collections.nlp.nm.data_layers.MultiWOZDataLayer(
         args.data_dir,
         data_desc.domains,
         all_domains=data_desc.all_domains,
@@ -98,7 +98,6 @@ def create_pipeline(num_samples, batch_size, num_gpus, local_rank, input_dropout
         num_samples=num_samples,
         shuffle=shuffle,
         num_workers=0,
-        local_rank=local_rank,
         batch_size=batch_size,
         mode=data_prefix,
         is_training=is_training,

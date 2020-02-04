@@ -212,17 +212,49 @@ class EncoderRNN(TrainableNM):
                            otherwise concatenate
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        targets:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        encoder_outputs:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             'inputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             'input_lens': NeuralType({0: AxisType(BatchTag),}, optional=True),
         }
-        output_ports = {
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        log_probs:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+
+        attention_weights:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(TimeTag)
+        """
+        return {
             'outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             'hidden': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
         }
-        return input_ports, output_ports
 
     def __init__(
         self, input_dim, emb_dim, hid_dim, dropout, n_layers=1, pad_idx=1, embedding_to_load=None, sum_hidden=True

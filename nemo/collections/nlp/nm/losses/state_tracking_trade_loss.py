@@ -3,6 +3,8 @@ import torch
 from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
+__all__ = ['TRADEMaskedCrosEntropy', 'CrossEntropyLoss3D']
+
 
 class TRADEMaskedCrosEntropy(LossNM):
     """
@@ -12,9 +14,18 @@ class TRADEMaskedCrosEntropy(LossNM):
         label_smoothing (float): label smoothing regularization coefficient
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        hidden_states:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {
             "logits": NeuralType(
                 {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag), 3: AxisType(ChannelTag)}
             ),
@@ -22,8 +33,23 @@ class TRADEMaskedCrosEntropy(LossNM):
             "mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
-        output_ports = {"loss": NeuralType(None)}
-        return input_ports, output_ports
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        intent_logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+
+        slot_logits:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+        """
+        return {"loss": NeuralType(None)}
 
     def __init__(self):
         LossNM.__init__(self)
@@ -65,4 +91,43 @@ class TRADEMaskedCrosEntropy(LossNM):
         mask_ = mask_.float()
         losses = losses * mask_
         loss = losses.sum() / mask_.sum()
+        return loss
+
+
+class CrossEntropyLoss3D(LossNM):
+    """
+    Neural module which implements Token Classification loss.
+    Args:
+        num_classes (int): number of classes in a classifier, e.g. size
+            of the vocabulary in language modeling objective
+        logits (float): output of the classifier
+        labels (long): ground truth labels
+        loss_mask (long): to differentiate from original tokens and paddings
+    """
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+        """
+        return {
+            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(ChannelTag)}),
+            "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+        }
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+        """
+        return {"loss": NeuralType(None)}
+
+    def __init__(self, num_classes, **kwargs):
+        LossNM.__init__(self, **kwargs)
+        self._criterion = torch.nn.CrossEntropyLoss()
+        self.num_classes = num_classes
+
+    def _loss_function(self, logits, labels):
+        logits_flatten = logits.view(-1, self.num_classes)
+        labels_flatten = labels.view(-1)
+
+        loss = self._criterion(logits_flatten, labels_flatten)
         return loss
