@@ -94,7 +94,6 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
         mode="train",
         batch_size=64,
         dataset_type=SquadDataset,
-        shuffle=False,
     ):
         dataset_params = {
             'data_dir': data_dir,
@@ -106,4 +105,4 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             'doc_stride': doc_stride,
         }
 
-        super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
+        super().__init__(dataset_type, dataset_params, batch_size)

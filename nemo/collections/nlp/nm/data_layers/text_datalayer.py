@@ -29,7 +29,7 @@ class TextDataLayer(DataLayerNM):
         dataset_params (dict): all the params for the dataset
     """
 
-    def __init__(self, dataset_type, dataset_params, batch_size, shuffle):
+    def __init__(self, dataset_type, dataset_params, batch_size, shuffle=False):
         super().__init__()
         self._dataset = dataset_type(**dataset_params)
         self._batch_size = batch_size
