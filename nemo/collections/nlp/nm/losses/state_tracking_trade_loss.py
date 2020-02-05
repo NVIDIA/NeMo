@@ -60,7 +60,7 @@ class TRADEMaskedCrossEntropy(LossNM):
     def input_ports(self):
         """Returns definitions of module input ports.
 
-        logits:
+        logits: 4d tensor of logits
             0: AxisType(BatchTag)
 
             1: AxisType(TimeTag)
@@ -69,14 +69,14 @@ class TRADEMaskedCrossEntropy(LossNM):
 
             3: AxisType(ChannelTag)
 
-        targets:
+        targets: 3d tensor of labels
             0: AxisType(BatchTag)
 
             1: AxisType(ChannelTag)
 
             2: AxisType(TimeTag)
 
-        loss_mask:
+        loss_mask: specifies the words to be considered in the loss calculation
             0: AxisType(BatchTag)
 
             1: AxisType(ChannelTag)
@@ -94,7 +94,7 @@ class TRADEMaskedCrossEntropy(LossNM):
     def output_ports(self):
         """Returns definitions of module output ports.
 
-        loss:
+        loss: loss value
             NeuralType(None)
 
         """

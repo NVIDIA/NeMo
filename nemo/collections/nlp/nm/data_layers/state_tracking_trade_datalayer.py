@@ -53,22 +53,22 @@ class MultiWOZDataLayer(TextDataLayer):
     def output_ports(self):
         """Returns definitions of module output ports.
 
-        src_ids:
+        src_ids: ids of input sequences
             0: AxisType(BatchTag)
 
             1: AxisType(ChannelTag)
 
-        src_lens:
+        src_lens: lens of input sequences
             0: AxisType(BatchTag)
 
-        tgt_ids:
+        tgt_ids: labels for the generator output
             0: AxisType(BatchTag)
 
             1: AxisType(ChannelTag)
 
             2: AxisType(TimeTag)
 
-        tgt_lens:
+        tgt_lens: lens of the generator targets
             0: AxisType(BatchTag)
 
             1: AxisType(ChannelTag)
@@ -78,7 +78,7 @@ class MultiWOZDataLayer(TextDataLayer):
 
             1: AxisType(ChannelTag)
 
-        turn_domain:
+        turn_domain: the id of the domain
             NeuralType(None)
 
         """
