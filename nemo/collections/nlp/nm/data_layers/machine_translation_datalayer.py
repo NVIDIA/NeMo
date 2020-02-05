@@ -95,6 +95,7 @@ class TranslationDataLayer(TextDataLayer):
         dataset_src,
         dataset_tgt,
         tokens_in_batch=1024,
+        shuffle=False,
         clean=False,
         dataset_type=TranslationDataset,
     ):
@@ -106,7 +107,7 @@ class TranslationDataLayer(TextDataLayer):
             'tokens_in_batch': tokens_in_batch,
             'clean': clean,
         }
-        super().__init__(dataset_type, dataset_params, batch_size=1)
+        super().__init__(dataset_type, dataset_params, batch_size=1, shuffle=shuffle)
 
         if self._placement == nemo.core.DeviceType.AllGpu:
             sampler = pt_data.distributed.DistributedSampler(self._dataset)

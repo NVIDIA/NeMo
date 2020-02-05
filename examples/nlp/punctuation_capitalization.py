@@ -129,9 +129,7 @@ if args.bert_checkpoint is None:
     nemo_nlp.huggingface.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
-        pretrained_model_name=args.pretrained_bert_model
-    )
+    model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     """
@@ -145,31 +143,20 @@ else:
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
             config = json.load(json_file)
-        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(**config)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
     else:
-        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
-            pretrained_model_name=args.pretrained_bert_model
-        )
+        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
     model.restore_from(args.bert_checkpoint)
     logging.info(f"Model restored from {args.bert_checkpoint}")
 
 hidden_size = model.hidden_size
 
-punct_classifier = TokenClassifier
-punct_loss = TokenClassificationLoss
-
-capit_classifier = TokenClassifier
-capit_loss = TokenClassificationLoss
-task_loss = None
-
 
 def create_pipeline(
-    num_samples=-1,
     pad_label=args.none_label,
     max_seq_length=args.max_seq_length,
     batch_size=args.batch_size,
-    local_rank=args.local_rank,
     num_gpus=args.num_gpus,
     mode='train',
     punct_label_ids=None,
@@ -179,8 +166,9 @@ def create_pipeline(
     use_cache=args.use_cache,
     dropout=args.fc_dropout,
     punct_num_layers=args.punct_num_fc_layers,
+    punct_classifier=TokenClassifier,
+    capit_classifier=TokenClassifier,
 ):
-    global punct_classifier, punct_loss, capit_classifier, capit_loss, task_loss
 
     logging.info(f"Loading {mode} data...")
     shuffle = args.shuffle_data if mode == 'train' else False
@@ -210,8 +198,6 @@ def create_pipeline(
         capit_label_ids=capit_label_ids,
         max_seq_length=max_seq_length,
         batch_size=batch_size,
-        num_workers=0,
-        local_rank=local_rank,
         shuffle=shuffle,
         ignore_extra_tokens=ignore_extra_tokens,
         ignore_start_end=ignore_start_end,
@@ -239,13 +225,13 @@ def create_pipeline(
             name='Punctuation',
         )
 
-        punct_loss = punct_loss(num_classes=len(punct_label_ids), class_weights=class_weights)
+        punct_loss = TokenClassificationLoss(num_classes=len(punct_label_ids), class_weights=class_weights)
 
         # Initialize capitalization loss
         capit_classifier = capit_classifier(
             hidden_size=hidden_size, num_classes=len(capit_label_ids), dropout=dropout, name='Capitalization'
         )
-        capit_loss = capit_loss(num_classes=len(capit_label_ids))
+        capit_loss = TokenClassificationLoss(num_classes=len(capit_label_ids))
 
         task_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 
@@ -263,16 +249,28 @@ def create_pipeline(
 
         losses = [task_loss, punct_loss, capit_loss]
         logits = [punct_logits, capit_logits]
-        return losses, logits, steps_per_epoch, punct_label_ids, capit_label_ids
+        return losses, logits, steps_per_epoch, punct_label_ids, capit_label_ids, punct_classifier, capit_classifier
     else:
         tensors_to_evaluate = [punct_logits, capit_logits, punct_labels, capit_labels, subtokens_mask]
         return tensors_to_evaluate, data_layer
 
 
-(losses, train_logits, steps_per_epoch, punct_label_ids, capit_label_ids) = create_pipeline()
+(
+    losses,
+    train_logits,
+    steps_per_epoch,
+    punct_label_ids,
+    capit_label_ids,
+    punct_classifier,
+    capit_classifier,
+) = create_pipeline()
 
 eval_tensors, data_layer = create_pipeline(
-    mode='dev', punct_label_ids=punct_label_ids, capit_label_ids=capit_label_ids
+    mode='dev',
+    punct_label_ids=punct_label_ids,
+    capit_label_ids=capit_label_ids,
+    punct_classifier=punct_classifier,
+    capit_classifier=capit_classifier,
 )
 
 logging.info(f"steps_per_epoch = {steps_per_epoch}")

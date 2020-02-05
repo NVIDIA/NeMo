@@ -97,7 +97,7 @@ class BertPretrainingDataLayer(TextDataLayer):
             'mask_probability': mask_probability,
             'short_seq_prob': short_seq_prob,
         }
-        super().__init__(BertPretrainingDataset, dataset_params, batch_size)
+        super().__init__(BertPretrainingDataset, dataset_params, batch_size, shuffle=False)
 
 
 class BertPretrainingPreprocessedDataLayer(DataLayerNM):

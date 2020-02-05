@@ -103,4 +103,4 @@ class PunctuationCapitalizationDataLayer(TextDataLayer):
             'ignore_start_end': ignore_start_end,
             'use_cache': use_cache,
         }
-        super().__init__(dataset_type, dataset_params, batch_size)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle)

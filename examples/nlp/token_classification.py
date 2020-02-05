@@ -18,6 +18,7 @@ import argparse
 import json
 import os
 
+import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.utils.common_nlp_utils
 from nemo import logging
 from nemo.collections.nlp.callbacks.token_classification_callback import eval_epochs_done_callback, eval_iter_callback
@@ -115,9 +116,7 @@ if args.bert_checkpoint is None:
     nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
     """
     tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
-        pretrained_model_name=args.pretrained_bert_model
-    )
+    model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     """
@@ -131,27 +130,20 @@ else:
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
             config = json.load(json_file)
-        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(**config)
+        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
     else:
-        model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
-            pretrained_model_name=args.pretrained_bert_model
-        )
+        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
     model.restore_from(args.bert_checkpoint)
     logging.info(f"Model restored from {args.bert_checkpoint}")
 
 hidden_size = model.hidden_size
 
-classifier = TokenClassifier
-task_loss = TokenClassificationLoss
-
 
 def create_pipeline(
-    num_samples=-1,
     pad_label=args.none_label,
     max_seq_length=args.max_seq_length,
     batch_size=args.batch_size,
-    local_rank=args.local_rank,
     num_gpus=args.num_gpus,
     mode='train',
     label_ids=None,
@@ -160,8 +152,8 @@ def create_pipeline(
     use_cache=args.use_cache,
     dropout=args.fc_dropout,
     num_layers=args.num_fc_layers,
+    classifier=TokenClassifier,
 ):
-    global classifier, task_loss
 
     logging.info(f"Loading {mode} data...")
     shuffle = args.shuffle_data if mode == 'train' else False
@@ -190,8 +182,6 @@ def create_pipeline(
         label_ids=label_ids,
         max_seq_length=max_seq_length,
         batch_size=batch_size,
-        num_workers=0,
-        local_rank=local_rank,
         shuffle=shuffle,
         ignore_extra_tokens=ignore_extra_tokens,
         ignore_start_end=ignore_start_end,
@@ -215,25 +205,24 @@ def create_pipeline(
             hidden_size=hidden_size, num_classes=len(label_ids), dropout=dropout, num_layers=num_layers
         )
 
-        task_loss = task_loss(num_classes=len(label_ids), class_weights=class_weights)
+        task_loss = TokenClassificationLoss(num_classes=len(label_ids), class_weights=class_weights)
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-
     logits = classifier(hidden_states=hidden_states)
-    loss = task_loss(logits=logits, labels=labels, loss_mask=loss_mask)
-
-    steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
 
     if mode == 'train':
+        loss = task_loss(logits=logits, labels=labels, loss_mask=loss_mask)
+        steps_per_epoch = len(data_layer) // (batch_size * num_gpus)
         tensors_to_evaluate = [loss, logits]
+        return tensors_to_evaluate, loss, steps_per_epoch, label_ids, classifier
     else:
         tensors_to_evaluate = [logits, labels, subtokens_mask]
-    return tensors_to_evaluate, loss, steps_per_epoch, label_ids, data_layer
+        return tensors_to_evaluate, data_layer
 
 
-train_tensors, train_loss, steps_per_epoch, label_ids, _ = create_pipeline()
+train_tensors, train_loss, steps_per_epoch, label_ids, classifier = create_pipeline()
 
-eval_tensors, _, _, _, data_layer = create_pipeline(mode='dev', label_ids=label_ids)
+eval_tensors, data_layer = create_pipeline(mode='dev', label_ids=label_ids, classifier=classifier)
 
 logging.info(f"steps_per_epoch = {steps_per_epoch}")
 

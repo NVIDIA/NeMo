@@ -104,28 +104,9 @@ class TRADEMaskedCrosEntropy(LossNM):
 
     @staticmethod
     def masking(losses, mask):
-
-        # mask_ = []
-        # batch_size = mask.size(0)
         max_len = losses.size(2)
 
         mask_ = torch.arange(max_len, device=mask.device)[None, None, :] < mask[:, :, None]
-        # mask_ = torch.arange(max_len, device=mask.device).expand(losses.size()) < mask.expand(losses)
-
-        # for si in range(mask.size(1)):
-        #     seq_range = torch.arange(0, max_len).long()
-        #     seq_range_expand = \
-        #         seq_range.unsqueeze(0).expand(batch_size, max_len)
-        #     if mask[:, si].is_cuda:
-        #         seq_range_expand = seq_range_expand.cuda()
-        #     seq_length_expand = mask[:, si].unsqueeze(
-        #         1).expand_as(seq_range_expand)
-        #     mask_.append((seq_range_expand < seq_length_expand))
-        # mask_ = torch.stack(mask_)
-        # mask_ = mask_.transpose(0, 1)
-        # if losses.is_cuda:
-        #     mask_ = mask_.cuda()
-
         mask_ = mask_.float()
         losses = losses * mask_
         loss = losses.sum() / mask_.sum()
