@@ -45,6 +45,29 @@ pipeline {
       }
     }
 
+    stage('Parallel NLP examples test') {
+      failFast true
+      parallel {
+        stage('Token classification training example test') {
+          steps {
+            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=0 python token_classification.py --data_dir ../../../tests/data/ner_zh_sample_data/ --pretrained_bert_model bert-base-chinese --batch_size 2 --num_epochs 1 --save_epoch_freq -1 --work_dir nlp_unittests_output'
+            sh 'rm -rf nlp_unittests_output'
+          }
+        }
+        stage ('Punctuation and classification training example test') {
+          steps {
+            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=1 python punctuation_capitalization.py --data_dir ../../../tests/data/nlp/token_classification_punctuation/ --work_dir nlp_unittests_output --save_epoch_freq -1 --num_epochs 1 --save_step_freq -1 --batch_size 2'
+            sh 'rm -rf nlp_unittests_output'
+          }
+        }
+        stage ('GLUE example test') {
+          steps {
+            sh 'cd examples/nlp/glue_benchmark && CUDA_VISIBLE_DEVICES=0 python glue_benchmark_with_bert.py --data_dir ../../../tests/data/nlp/glue_fake/ --work_dir nlp_unittests_output --save_step_freq -1 --num_epochs 1 --task_name mrpc --batch_size 2
+'           sh 'rm -rf nlp_unittests_output'
+          }
+        }
+      }
+
     stage('Parallel Stage1') {
       failFast true
       parallel {
