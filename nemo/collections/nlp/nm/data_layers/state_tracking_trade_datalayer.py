@@ -52,6 +52,35 @@ class MultiWOZDataLayer(TextDataLayer):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
+
+        src_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+
+        src_lens:
+            0: AxisType(BatchTag)
+
+        tgt_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+
+            2: AxisType(TimeTag)
+
+        tgt_lens:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+
+        gating_labels:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+
+        turn_domain:
+            NeuralType(None)
+
         """
         return {
             "src_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
@@ -59,7 +88,7 @@ class MultiWOZDataLayer(TextDataLayer):
             "tgt_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
             "tgt_lens": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             "gating_labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            'turn_domain': NeuralType(None),
+            "turn_domain": NeuralType(None),
         }
 
     def __init__(

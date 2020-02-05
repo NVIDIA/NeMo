@@ -54,11 +54,41 @@ class TRADEGenerator(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
+
+        encoder_hidden: hidden outputs of the encoder
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+
+        encoder_outputs:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+
+        input_lens:
+            0: AxisType(BatchTag)
+
+        src_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        targets:
+            0: AxisType(BatchTag)
+
+            1: AxisType(BatchTag)
+
+            2: AxisType(TimeTag)
+
         """
         return {
             'encoder_hidden': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             'encoder_outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            'input_lens': NeuralType({0: AxisType(BatchTag),}),
+            'input_lens': NeuralType({0: AxisType(BatchTag)}),
             'src_ids': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
         }
@@ -66,6 +96,23 @@ class TRADEGenerator(TrainableNM):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
+
+        point_outputs:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
+
+            3: AxisType(ChannelTag)
+
+        gate_outputs:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+
+            2: AxisType(ChannelTag)
+
         """
         return {
             'point_outputs': NeuralType(
@@ -175,9 +222,6 @@ class TRADEGenerator(TrainableNM):
 
     @staticmethod
     def attend(seq, cond, padding_mask):
-        """
-        attend over the sequences `seq` using the condition `cond`.
-        """
         scores_ = cond.unsqueeze(1).expand_as(seq).mul(seq).sum(2)
         scores_ = scores_ + padding_mask
         scores = F.softmax(scores_, dim=1)
