@@ -56,12 +56,27 @@ class TRADEMaskedCrosEntropy(LossNM):
     def input_ports(self):
         """Returns definitions of module input ports.
 
-        hidden_states:
+        logits:
             0: AxisType(BatchTag)
 
             1: AxisType(TimeTag)
 
             2: AxisType(ChannelTag)
+
+            3: AxisType(ChannelTag)
+
+        targets:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+
+            2: AxisType(TimeTag)
+
+        mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+
         """
         return {
             "logits": NeuralType(
@@ -75,17 +90,9 @@ class TRADEMaskedCrosEntropy(LossNM):
     def output_ports(self):
         """Returns definitions of module output ports.
 
-        intent_logits:
-            0: AxisType(BatchTag)
+        loss:
+            NeuralType(None)
 
-            1: AxisType(ChannelTag)
-
-        slot_logits:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
         """
         return {"loss": NeuralType(None)}
 
