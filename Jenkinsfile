@@ -63,7 +63,6 @@ pipeline {
           }
         }
         stage ('GLUE example test') {
-          stage ('GLUE example test') {
           steps {
             sh 'cd examples/nlp/glue_benchmark && CUDA_VISIBLE_DEVICES=0 python glue_benchmark_with_bert.py --data_dir /home/mrjenkins/TestData/nlp/glue_fake/ --work_dir glue_output --save_step_freq -1 --num_epochs 1 --task_name mrpc --batch_size 2'
             sh 'rm -rf examples/nlp/glue_benchmark/glue_output'
@@ -77,6 +76,7 @@ pipeline {
           }
         }
       }
+    }
 
     stage('Parallel Stage1') {
       failFast true
