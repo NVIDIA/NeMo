@@ -100,7 +100,7 @@ ptr_loss_fn = nemo.collections.nlp.nm.losses.TRADEMaskedCrosEntropy()
 total_loss_fn = nemo.collections.nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 
 
-def create_pipeline(num_samples, batch_size, num_gpus, local_rank, input_dropout, data_prefix, is_training):
+def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefix, is_training):
     nf.logger.info(f"Loading {data_prefix} data...")
     shuffle = args.shuffle_data if is_training else False
 
@@ -162,7 +162,6 @@ def create_pipeline(num_samples, batch_size, num_gpus, local_rank, input_dropout
     args.num_train_samples,
     batch_size=args.batch_size,
     num_gpus=args.num_gpus,
-    local_rank=args.local_rank,
     input_dropout=args.input_dropout,
     data_prefix=args.train_file_prefix,
     is_training=True,
@@ -172,7 +171,6 @@ tensors_eval, total_loss_eval, ptr_loss_eval, gate_loss_eval, steps_per_epoch_ev
     args.num_eval_samples,
     batch_size=args.eval_batch_size,
     num_gpus=args.num_gpus,
-    local_rank=args.local_rank,
     input_dropout=0.0,
     data_prefix=args.eval_file_prefix,
     is_training=False,
