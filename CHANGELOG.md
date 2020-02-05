@@ -74,8 +74,6 @@ To release a new version, please update the changelog as followed:
 ([PR #268](https://github.com/NVIDIA/NeMo/pull/268)) - @stasbel
 - Introduced the `deprecated` decorator.
 ([PR #298](https://github.com/NVIDIA/NeMo/pull/298)) - @tkornuta-nvidia
-- Added a dialogue state tracking model (TRADE) on MultiWOZ dataset
-([PR #322](https://github.com/NVIDIA/NeMo/pull/322)) - @chiphuyen, @VahidooX
 
 ### Changed
 - Additional Collections Repositories merged into core `nemo_toolkit` package.
@@ -90,7 +88,8 @@ To release a new version, please update the changelog as followed:
 ([PR #316](https://github.com/NVIDIA/NeMo/pull/316)) - @VahidooX, @yzhang123, @ekmb
     - renaming of files and restructuring of folder in `nemo_nlp`
     - Updated licenses
-
+- Updated nemo's use of the logging library. from nemo import logging is now the reccomended way of using the nemo logger. neural_factory.logger and all other instances of logger are now deprecated and planned for removal in the next version. Please see PR 267 for complete change information.
+([PR #267](https://github.com/NVIDIA/NeMo/pull/267), [PR #283](https://github.com/NVIDIA/NeMo/pull/283), [PR #305](https://github.com/NVIDIA/NeMo/pull/305), [PR #311](https://github.com/NVIDIA/NeMo/pull/311)) - @blisc
 
 ### Dependencies Update
 - Added dependency on `wrapt` (the new version of the `deprecated` warning) - @tkornuta-nvidia, @DEKHTIARJonathan

@@ -94,7 +94,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
             'ignore_start_end': ignore_start_end,
             'use_cache': use_cache,
         }
-        super().__init__(dataset_type, dataset_params, batch_size)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle)
 
 
 class BertTokenClassificationInferDataLayer(TextDataLayer):
@@ -137,14 +137,7 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
         }
 
     def __init__(
-        self,
-        queries,
-        tokenizer,
-        max_seq_length,
-        batch_size=1,
-        dataset_type=BertTokenClassificationInferDataset,
-        **kwargs
+        self, queries, tokenizer, max_seq_length, batch_size=1, dataset_type=BertTokenClassificationInferDataset,
     ):
-        kwargs['batch_size'] = batch_size
         dataset_params = {'queries': queries, 'tokenizer': tokenizer, 'max_seq_length': max_seq_length}
-        super().__init__(dataset_type, dataset_params, **kwargs)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle=False)

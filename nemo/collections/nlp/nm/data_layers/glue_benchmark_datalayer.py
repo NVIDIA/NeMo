@@ -70,7 +70,6 @@ class GlueClassificationDataLayer(TextDataLayer):
         processor,
         evaluate=False,
         token_params={},
-        num_samples=-1,
         shuffle=False,
         batch_size=64,
         dataset_type=GLUEDataset,
@@ -84,7 +83,7 @@ class GlueClassificationDataLayer(TextDataLayer):
             'tokenizer': tokenizer,
             'max_seq_length': max_seq_length,
         }
-        super().__init__(dataset_type, dataset_params, batch_size)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle)
 
 
 class GlueRegressionDataLayer(TextDataLayer):
@@ -136,7 +135,6 @@ class GlueRegressionDataLayer(TextDataLayer):
         processor,
         evaluate=False,
         token_params={},
-        num_samples=-1,
         shuffle=False,
         batch_size=64,
         dataset_type=GLUEDataset,
@@ -151,4 +149,4 @@ class GlueRegressionDataLayer(TextDataLayer):
             'max_seq_length': max_seq_length,
         }
 
-        super().__init__(dataset_type, dataset_params, batch_size)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle)

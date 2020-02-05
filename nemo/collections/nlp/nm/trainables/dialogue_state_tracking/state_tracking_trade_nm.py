@@ -90,7 +90,6 @@ class TRADEGenerator(TrainableNM):
         self.slots = slots
         self.teacher_forcing = teacher_forcing
 
-        # Create independent slot embeddings
         self._slots_split_to_index()
         self.slot_emb = nn.Embedding(len(self.slot_w2i), hid_size)
         self.slot_emb.weight.data.normal_(0, 0.1)
@@ -159,8 +158,6 @@ class TRADEGenerator(TrainableNM):
                 p_context_ptr
             ) * p_context_ptr + vocab_pointer_switches.expand_as(p_context_ptr) * p_vocab
             pred_word = torch.argmax(final_p_vocab, dim=1)
-            # words = [self.vocab.idx2word[w_idx.item()]
-            #          for w_idx in pred_word]
 
             all_point_outputs[:, :, wi, :] = torch.reshape(
                 final_p_vocab, (len(self.slots), batch_size, self.vocab_size)
@@ -182,10 +179,6 @@ class TRADEGenerator(TrainableNM):
         attend over the sequences `seq` using the condition `cond`.
         """
         scores_ = cond.unsqueeze(1).expand_as(seq).mul(seq).sum(2)
-        # max_len = max(lens)
-        # for i, l in enumerate(lens):
-        #     if l < max_len:
-        #         scores_.data[i, l:] = -np.inf
         scores_ = scores_ + padding_mask
         scores = F.softmax(scores_, dim=1)
         context = scores.unsqueeze(2).expand_as(seq).mul(seq).sum(1)

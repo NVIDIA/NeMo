@@ -30,15 +30,43 @@ from nemo.collections.nlp.callbacks.qa_squad_callback import eval_epochs_done_ca
 from nemo.utils.lr_policies import get_lr_policy
 from tests.common_setup import NeMoUnitTest
 
+logging = nemo.logging
+
 
 class TestSquad(NeMoUnitTest):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
+        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/nlp/squad"))
+        squad_v1_folder = os.path.join(data_folder, "v1.1")
+        for f in os.listdir(squad_v1_folder):
+            ff = os.path.join(squad_v1_folder, f)
+            if f.startswith("cache"):
+                logging.info(f"remove {ff}")
+                os.remove(ff)
+        squad_v2_folder = os.path.join(data_folder, "v1.1")
+        for f in os.listdir(squad_v2_folder):
+            ff = os.path.join(squad_v1_folder, f)
+            if f.startswith("cache"):
+                logging.info(f"remove {ff}")
+                os.remove(ff)
 
     @classmethod
     def tearDownClass(cls) -> None:
         super().tearDownClass()
+        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/nlp/squad"))
+        squad_v1_folder = os.path.join(data_folder, "v1.1")
+        for f in os.listdir(squad_v1_folder):
+            ff = os.path.join(squad_v1_folder, f)
+            if f.startswith("cache"):
+                logging.info(f"remove {ff}")
+                os.remove(ff)
+        squad_v2_folder = os.path.join(data_folder, "v1.1")
+        for f in os.listdir(squad_v2_folder):
+            ff = os.path.join(squad_v1_folder, f)
+            if f.startswith("cache"):
+                logging.info(f"remove {ff}")
+                os.remove(ff)
 
     def test_squad_v1(self):
         version_2_with_negative = False
