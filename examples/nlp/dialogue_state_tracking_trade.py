@@ -96,7 +96,7 @@ decoder = nemo.collections.nlp.nm.trainables.TRADEGenerator(
 )
 
 gate_loss_fn = nemo.collections.nlp.nm.losses.CrossEntropyLoss3D(num_classes=len(data_desc.gating_dict))
-ptr_loss_fn = nemo.collections.nlp.nm.losses.TRADEMaskedCrosEntropy()
+ptr_loss_fn = nemo.collections.nlp.nm.losses.TRADEMaskedCrossEntropy()
 total_loss_fn = nemo.collections.nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 
 
@@ -140,7 +140,7 @@ def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefi
     )
 
     gate_loss = gate_loss_fn(logits=gate_outputs, labels=gate_labels)
-    ptr_loss = ptr_loss_fn(logits=point_outputs, targets=tgt_ids, mask=tgt_lens)
+    ptr_loss = ptr_loss_fn(logits=point_outputs, targets=tgt_ids, loss_mask=tgt_lens)
     total_loss = total_loss_fn(loss_1=gate_loss, loss_2=ptr_loss)
 
     if is_training:
