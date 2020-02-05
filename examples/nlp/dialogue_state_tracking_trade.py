@@ -25,6 +25,7 @@ import os
 
 import numpy as np
 
+from nemo import logging
 import nemo
 from nemo.backends.pytorch.common import EncoderRNN
 from nemo.collections.nlp.callbacks.state_tracking_trade_callback import eval_epochs_done_callback, eval_iter_callback
@@ -101,7 +102,7 @@ total_loss_fn = nemo.collections.nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 
 
 def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefix, is_training):
-    nf.logger.info(f"Loading {data_prefix} data...")
+    logging.info(f"Loading {data_prefix} data...")
     shuffle = args.shuffle_data if is_training else False
 
     data_layer = nemo.collections.nlp.nm.data_layers.MultiWOZDataLayer(
@@ -126,12 +127,12 @@ def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefi
     print(f'The length of data layer is {data_size}')
 
     if data_size < batch_size:
-        nf.logger.warning("Batch_size is larger than the dataset size")
-        nf.logger.warning("Reducing batch_size to dataset size")
+        logging.warning("Batch_size is larger than the dataset size")
+        logging.warning("Reducing batch_size to dataset size")
         batch_size = data_size
 
     steps_per_epoch = math.ceil(data_size / (batch_size * num_gpus))
-    nf.logger.info(f"Steps_per_epoch = {steps_per_epoch}")
+    logging.info(f"Steps_per_epoch = {steps_per_epoch}")
 
     outputs, hidden = encoder(inputs=src_ids, input_lens=src_lens)
 
