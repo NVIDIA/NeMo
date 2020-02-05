@@ -16,6 +16,7 @@
 
 import numpy as np
 import torch
+
 import nemo.logging as logging
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
