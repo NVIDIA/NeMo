@@ -142,8 +142,8 @@ class MultiWOZDataset(Dataset):
                 resp_len = len(sample['dialogue_history'].split())
                 max_resp_len = max(max_resp_len, resp_len)
 
-        logging.info('Domain count', domain_count)
-        logging.info('Max response length', max_resp_len)
+        logging.info(f'Domain count{domain_count}')
+        logging.info(f'Max response length{max_resp_len}')
         logging.info(f'Processing {len(data)} samples')
 
         if shuffle:
@@ -265,7 +265,7 @@ class MultiWOZDataDesc:
         else:
             self.create_vocab()
 
-        logging.info('Vocab size', len(self.vocab))
+        logging.info(f'Vocab size {len(self.vocab)}')
 
     def get_slots(self):
         used_domains = [key for key in self.ontology if key.split('-')[0] in self.domains]
