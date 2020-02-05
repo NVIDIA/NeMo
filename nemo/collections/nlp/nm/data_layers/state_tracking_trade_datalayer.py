@@ -58,7 +58,7 @@ class MultiWOZDataLayer(TextDataLayer):
 
             1: AxisType(ChannelTag)
 
-        src_lens: lens of input sequences
+        src_lens: lengths of input sequences
             0: AxisType(BatchTag)
 
         tgt_ids: labels for the generator output
@@ -68,17 +68,17 @@ class MultiWOZDataLayer(TextDataLayer):
 
             2: AxisType(TimeTag)
 
-        tgt_lens: lens of the generator targets
+        tgt_lens: lengths of the generator targets
             0: AxisType(BatchTag)
 
             1: AxisType(ChannelTag)
 
-        gating_labels:
+        gating_labels: labels for the gating head
             0: AxisType(BatchTag)
 
             1: AxisType(ChannelTag)
 
-        turn_domain: the id of the domain
+        turn_domain: list of the domains
             NeuralType(None)
 
         """

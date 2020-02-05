@@ -55,29 +55,29 @@ class TRADEGenerator(TrainableNM):
     def input_ports(self):
         """Returns definitions of module input ports.
 
-        encoder_hidden: hidden outputs of the encoder
+        encoder_hidden: hidden states of the encoder
             0: AxisType(BatchTag)
 
             1: AxisType(TimeTag)
 
             2: AxisType(ChannelTag)
 
-        encoder_outputs:
+        encoder_outputs: outputs of the encoder
             0: AxisType(BatchTag)
 
             1: AxisType(TimeTag)
 
             2: AxisType(ChannelTag)
 
-        input_lens:
+        input_lens: lengths of the input sequences to encoder
             0: AxisType(BatchTag)
 
-        src_ids:
+        src_ids: input sequences to encoder
             0: AxisType(BatchTag)
 
             1: AxisType(TimeTag)
 
-        targets:
+        targets: targets for the output of the generator
             0: AxisType(BatchTag)
 
             1: AxisType(BatchTag)
@@ -97,7 +97,7 @@ class TRADEGenerator(TrainableNM):
     def output_ports(self):
         """Returns definitions of module output ports.
 
-        point_outputs:
+        point_outputs: outputs of the generator
             0: AxisType(BatchTag)
 
             1: AxisType(TimeTag)
@@ -106,7 +106,7 @@ class TRADEGenerator(TrainableNM):
 
             3: AxisType(ChannelTag)
 
-        gate_outputs:
+        gate_outputs: outputs of gating heads
             0: AxisType(BatchTag)
 
             1: AxisType(ChannelTag)

@@ -25,8 +25,9 @@ import os
 
 import numpy as np
 
+import nemo.collections.nlp as nemo_nlp
+import nemo.core as nemo_core
 from nemo import logging
-import nemo
 from nemo.backends.pytorch.common import EncoderRNN
 from nemo.collections.nlp.callbacks.state_tracking_trade_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.state_tracking_trade_dataset import MultiWOZDataDesc
@@ -73,8 +74,8 @@ work_dir = f'{args.work_dir}/DST_TRADE'
 
 data_desc = MultiWOZDataDesc(args.data_dir, domains)
 
-nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch,
+nf = nemo_core.NeuralModuleFactory(
+    backend=nemo_core.Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=work_dir,
@@ -86,7 +87,7 @@ nf = nemo.core.NeuralModuleFactory(
 vocab_size = len(data_desc.vocab)
 encoder = EncoderRNN(vocab_size, args.emb_dim, args.hid_dim, args.dropout, args.n_layers)
 
-decoder = nemo.collections.nlp.nm.trainables.TRADEGenerator(
+decoder = nemo_nlp.nm.trainables.TRADEGenerator(
     data_desc.vocab,
     encoder.embedding,
     args.hid_dim,
@@ -96,16 +97,16 @@ decoder = nemo.collections.nlp.nm.trainables.TRADEGenerator(
     teacher_forcing=args.teacher_forcing,
 )
 
-gate_loss_fn = nemo.collections.nlp.nm.losses.CrossEntropyLoss3D(num_classes=len(data_desc.gating_dict))
-ptr_loss_fn = nemo.collections.nlp.nm.losses.TRADEMaskedCrossEntropy()
-total_loss_fn = nemo.collections.nlp.nm.losses.LossAggregatorNM(num_inputs=2)
+gate_loss_fn = nemo_nlp.nm.losses.CrossEntropyLoss3D(num_classes=len(data_desc.gating_dict))
+ptr_loss_fn = nemo_nlp.nm.losses.TRADEMaskedCrossEntropy()
+total_loss_fn = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 
 
 def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefix, is_training):
     logging.info(f"Loading {data_prefix} data...")
     shuffle = args.shuffle_data if is_training else False
 
-    data_layer = nemo.collections.nlp.nm.data_layers.MultiWOZDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.MultiWOZDataLayer(
         args.data_dir,
         data_desc.domains,
         all_domains=data_desc.all_domains,
@@ -178,7 +179,7 @@ tensors_eval, total_loss_eval, ptr_loss_eval, gate_loss_eval, steps_per_epoch_ev
 )
 
 # Create callbacks for train and eval modes
-train_callback = nemo.core.SimpleLossLoggerCallback(
+train_callback = nemo_core.SimpleLossLoggerCallback(
     tensors=[total_loss_train, gate_loss_train, ptr_loss_train],
     print_func=lambda x: logging.info(
         f'Loss:{str(np.round(x[0].item(), 3))}, '
@@ -190,7 +191,7 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     step_freq=steps_per_epoch_train,
 )
 
-eval_callback = nemo.core.EvaluatorCallback(
+eval_callback = nemo_core.EvaluatorCallback(
     eval_tensors=tensors_eval,
     user_iter_callback=lambda x, y: eval_iter_callback(x, y, data_desc),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, data_desc),
@@ -198,7 +199,7 @@ eval_callback = nemo.core.EvaluatorCallback(
     eval_step=steps_per_epoch_train,
 )
 
-ckpt_callback = nemo.core.CheckpointCallback(
+ckpt_callback = nemo_core.CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
 
