@@ -1,0 +1,4 @@
+sale_discount	24:29:product_size,30:37:item	BOS intent_none are the 20 oz bottles on sale too or regular price  EOS
+check_for_availability  49:54:item	BOS intent_none could you help me find a pair of shoes for less than $50 00  EOS
+price_checking  32:47:item	BOS intent_none how much does a fishing license cost  EOS
+return_policy   35:41:location	BOS intent_none do you price match online competitors  EOS
