@@ -124,7 +124,7 @@ def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefi
     src_ids, src_lens, tgt_ids, tgt_lens, gate_labels, turn_domain = data_layer()
 
     data_size = len(data_layer)
-    print(f'The length of data layer is {data_size}')
+    logging.info(f'The length of data layer is {data_size}')
 
     if data_size < batch_size:
         logging.warning("Batch_size is larger than the dataset size")
@@ -180,7 +180,7 @@ tensors_eval, total_loss_eval, ptr_loss_eval, gate_loss_eval, steps_per_epoch_ev
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[total_loss_train, gate_loss_train, ptr_loss_train],
-    print_func=lambda x: print(
+    print_func=lambda x: logging.info(
         f'Loss:{str(np.round(x[0].item(), 3))}, '
         f'Gate Loss:{str(np.round(x[1].item(), 3))}, '
         f'Pointer Loss:{str(np.round(x[2].item(), 3))}'

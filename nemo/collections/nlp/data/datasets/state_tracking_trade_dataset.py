@@ -40,7 +40,7 @@ import json
 import os
 import pickle
 import random
-
+from nemo import logging
 from torch.utils.data import Dataset
 
 __all__ = ['MultiWOZDataset', 'MultiWOZDataDesc']
@@ -54,7 +54,7 @@ class MultiWOZDataset(Dataset):
 
     def __init__(self, data_dir, mode, domains, all_domains, vocab, gating_dict, slots, num_samples=-1, shuffle=False):
 
-        print(f'Processing {mode} data')
+        logging.info(f'Processing {mode} data')
         self.data_dir = data_dir
         self.mode = mode
         self.gating_dict = gating_dict
@@ -64,7 +64,7 @@ class MultiWOZDataset(Dataset):
         self.slots = slots
 
         self.features, self.max_len = self.get_features(num_samples, shuffle)
-        print("Sample 0: " + str(self.features[0]))
+        logging.info("Sample 0: " + str(self.features[0]))
 
     def get_features(self, num_samples, shuffle):
 
@@ -72,7 +72,7 @@ class MultiWOZDataset(Dataset):
             raise ValueError("num_samples has to be positive", num_samples)
 
         filename = f'{self.data_dir}/{self.mode}_dials.json'
-        print(f'Reading from {filename}')
+        logging.info(f'Reading from {filename}')
         dialogs = json.load(open(filename, 'r'))
 
         domain_count = {}
@@ -141,12 +141,12 @@ class MultiWOZDataset(Dataset):
                 resp_len = len(sample['dialogue_history'].split())
                 max_resp_len = max(max_resp_len, resp_len)
 
-        print('Domain count', domain_count)
-        print('Max response length', max_resp_len)
-        print(f'Processing {len(data)} samples')
+        logging.info('Domain count', domain_count)
+        logging.info('Max response length', max_resp_len)
+        logging.info(f'Processing {len(data)} samples')
 
         if shuffle:
-            print(f'Shuffling samples.')
+            logging.info(f'Shuffling samples.')
             random.shuffle(data)
 
         return data, max_resp_len
@@ -229,7 +229,7 @@ class MultiWOZDataDesc:
     """
 
     def __init__(self, data_dir, domains={"attraction": 0, "restaurant": 1, "taxi": 2, "train": 3, "hotel": 4}):
-        print(f'Processing MultiWOZ dataset')
+        logging.info(f'Processing MultiWOZ dataset')
 
         self.all_domains = {
             'attraction': 0,
@@ -260,12 +260,12 @@ class MultiWOZDataDesc:
         self.vocab_file = f'{self.data_dir}/vocab.pkl'
 
         if os.path.exists(self.vocab_file):
-            print(f'Loading vocab from {self.data_dir}')
+            logging.info(f'Loading vocab from {self.data_dir}')
             self.vocab = pickle.load(open(self.vocab_file, 'rb'))
         else:
             self.create_vocab()
 
-        print('Vocab size', len(self.vocab))
+        logging.info('Vocab size', len(self.vocab))
 
     def get_slots(self):
         used_domains = [key for key in self.ontology if key.split('-')[0] in self.domains]
@@ -275,7 +275,7 @@ class MultiWOZDataDesc:
         self.vocab.add_words(self.slots, 'slot')
 
         filename = f'{self.data_dir}/train_dials.json'
-        print(f'Building vocab from {filename}')
+        logging.info(f'Building vocab from {filename}')
         dialogs = json.load(open(filename, 'r'))
 
         max_value_len = 0
@@ -290,7 +290,7 @@ class MultiWOZDataDesc:
                 lengths.append(max_value_len)
                 max_value_len = max(lengths)
 
-        print(f'Saving vocab to {self.data_dir}')
+        logging.info(f'Saving vocab to {self.data_dir}')
         with open(self.vocab_file, 'wb') as handle:
             pickle.dump(self.vocab, handle)
 
