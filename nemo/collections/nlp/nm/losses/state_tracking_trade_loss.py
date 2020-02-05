@@ -41,15 +41,19 @@ import torch
 from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
-__all__ = ['TRADEMaskedCrosEntropy', 'CrossEntropyLoss3D']
+__all__ = ['TRADEMaskedCrossEntropy', 'CrossEntropyLoss3D']
 
 
-class TRADEMaskedCrosEntropy(LossNM):
+class TRADEMaskedCrossEntropy(LossNM):
     """
-    Neural module which implements Masked Language Modeling (MLM) loss.
+    Neural module which implements a cross entropy for trade model with masking feature.
 
     Args:
-        label_smoothing (float): label smoothing regularization coefficient
+        logits (float): output of the classifier
+        targets (long): ground truth targets
+        loss_mask (long): specifies the ones to get ignored in loss calculation
+
+
     """
 
     @property
@@ -72,7 +76,7 @@ class TRADEMaskedCrosEntropy(LossNM):
 
             2: AxisType(TimeTag)
 
-        mask:
+        loss_mask:
             0: AxisType(BatchTag)
 
             1: AxisType(ChannelTag)
@@ -83,7 +87,7 @@ class TRADEMaskedCrosEntropy(LossNM):
                 {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag), 3: AxisType(ChannelTag)}
             ),
             "targets": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
-            "mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
         }
 
     @property
@@ -99,14 +103,14 @@ class TRADEMaskedCrosEntropy(LossNM):
     def __init__(self):
         LossNM.__init__(self)
 
-    def _loss_function(self, logits, targets, mask):
+    def _loss_function(self, logits, targets, loss_mask):
         logits_flat = logits.view(-1, logits.size(-1))
         eps = 1e-10
         log_probs_flat = torch.log(torch.clamp(logits_flat, min=eps))
         target_flat = targets.view(-1, 1)
         losses_flat = -torch.gather(log_probs_flat, dim=1, index=target_flat)
         losses = losses_flat.view(*targets.size())
-        loss = self.masking(losses, mask)
+        loss = self.masking(losses, loss_mask)
         return loss
 
     @staticmethod
@@ -122,13 +126,12 @@ class TRADEMaskedCrosEntropy(LossNM):
 
 class CrossEntropyLoss3D(LossNM):
     """
-    Neural module which implements Token Classification loss.
+    Neural module which implements a cross entropy loss for 3d logits.
     Args:
         num_classes (int): number of classes in a classifier, e.g. size
             of the vocabulary in language modeling objective
         logits (float): output of the classifier
         labels (long): ground truth labels
-        loss_mask (long): to differentiate from original tokens and paddings
     """
 
     @property
