@@ -1,5 +1,5 @@
 # =============================================================================
-# Copyright 2019 AI Applications Design Team at NVIDIA. All Rights Reserved.
+# Copyright 2019 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 import numpy as np
 import torch
+import nemo.logging as logging
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
@@ -66,7 +67,7 @@ def eval_epochs_done_callback(global_vars, data_desc):
     gating_acc = np.sum(gating_comp_flatten) / len(gating_comp_flatten)
 
     evaluation_metrics = {"Joint_Goal_Acc": joint_acc, "Turn_Acc": turn_acc, "Gate_Acc": gating_acc}
-    print(evaluation_metrics)
+    logging.info(evaluation_metrics)
 
     return evaluation_metrics
 
