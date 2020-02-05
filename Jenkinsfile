@@ -119,6 +119,13 @@ pipeline {
       }
     }
 
+    stage('NLP Tests') {
+      failFast true
+      steps {
+        sh 'cd examples/nlp/intent_detection_slot_tagging && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis-retail --data_dir="./data/retail" --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --intent_loss_weight=0.2 --class_balancing=weighted_loss --do_lower_case --shuffle_data --work_dir=nlp_test_outputs'
+      }
+    }
+
   }
 
   post {
