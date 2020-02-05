@@ -21,6 +21,7 @@ from nemo.collections.nlp.nm.data_layers.lm_transformer_datalayer import *
 from nemo.collections.nlp.nm.data_layers.machine_translation_datalayer import *
 from nemo.collections.nlp.nm.data_layers.punctuation_capitalization_datalayer import *
 from nemo.collections.nlp.nm.data_layers.qa_squad_datalayer import *
+from nemo.collections.nlp.nm.data_layers.state_tracking_trade_datalayer import *
 from nemo.collections.nlp.nm.data_layers.text_classification_datalayer import *
 from nemo.collections.nlp.nm.data_layers.text_datalayer import *
 from nemo.collections.nlp.nm.data_layers.token_classification_datalayer import *
