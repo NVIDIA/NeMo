@@ -73,6 +73,7 @@ class JointIntentSlotLoss(LossNM):
             0: AxisType(BatchTag)
 
             1: AxisType(TimeTag)
+
         """
         return {
             "intent_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
