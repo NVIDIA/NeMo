@@ -206,11 +206,7 @@ class DecoderRNN(TrainableNM):
 
 
 class EncoderRNN(TrainableNM):
-    """ Simple RNN-based encoder using GRU cells
-    Args:
-        sum_hidden (bool): sum the hidden from both direction if True
-                           otherwise concatenate
-    """
+    """ Simple RNN-based encoder using GRU cells """
 
     @property
     def input_ports(self):

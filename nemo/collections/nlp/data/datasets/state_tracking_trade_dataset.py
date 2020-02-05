@@ -40,16 +40,18 @@ import json
 import os
 import pickle
 import random
-from nemo import logging
+
 from torch.utils.data import Dataset
+
+from nemo import logging
 
 __all__ = ['MultiWOZDataset', 'MultiWOZDataDesc']
 
 
 class MultiWOZDataset(Dataset):
     """
-    By default, use only vocab from training
-    Need to modify the code a little bit to use for all_vocab
+    By default, use only vocab from training data
+    Need to modify the code a little bit to create the vocab from all files
     """
 
     def __init__(self, data_dir, mode, domains, all_domains, vocab, gating_dict, slots, num_samples=-1, shuffle=False):
@@ -67,7 +69,6 @@ class MultiWOZDataset(Dataset):
         logging.info("Sample 0: " + str(self.features[0]))
 
     def get_features(self, num_samples, shuffle):
-
         if num_samples == 0:
             raise ValueError("num_samples has to be positive", num_samples)
 
@@ -156,7 +157,6 @@ class MultiWOZDataset(Dataset):
 
     def __getitem__(self, idx):
         item = self.features[idx]
-
         return {
             'dialog_id': item['ID'],
             'turn_id': item['turn_id'],
