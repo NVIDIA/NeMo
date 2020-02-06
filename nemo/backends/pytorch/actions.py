@@ -5,11 +5,12 @@ import json
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.optim as optim
 
 from nemo import logging
@@ -26,7 +27,6 @@ from nemo.utils.helpers import get_checkpoint_from_dir
 amp = None
 convert_syncbn = None
 create_syncbn_process_group = None
-DDP = None
 LARC = None
 FusedLAMB = None
 FusedAdam = None
@@ -60,7 +60,6 @@ class PtActions(Actions):
                 if local_rank is not None:
                     global convert_syncbn
                     global create_syncbn_process_group
-                    global DDP
                     global LARC
                     global FusedLAMB
                     global FusedAdam
@@ -69,7 +68,6 @@ class PtActions(Actions):
                     apex_optimizer = importlib.import_module('apex.optimizers')
                     convert_syncbn = parallel.convert_syncbn_model
                     create_syncbn_process_group = parallel.create_syncbn_process_group
-                    DDP = parallel.DistributedDataParallel
                     LARC = parallel.LARC
                     FusedLAMB = apex_optimizer.FusedLAMB
                     FusedAdam = apex_optimizer.FusedAdam
