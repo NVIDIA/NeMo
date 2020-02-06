@@ -1,5 +1,5 @@
 # =============================================================================
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2019 AI Applications Design Team at NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,18 +16,23 @@
 
 from typing import List, Optional
 
-from transformers import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAINED_MODEL_ARCHIVE_MAP, BertConfig, BertModel
+from transformers import (
+    ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP,
+    ALBERT_PRETRAINED_MODEL_ARCHIVE_MAP,
+    AlbertConfig,
+    AlbertModel,
+)
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_modules import PretrainedModelInfo
 from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
-__all__ = ['BERT']
+__all__ = ['Albert']
 
 
-class BERT(TrainableNM):
+class Albert(TrainableNM):
     """
-    BERT wraps around the Huggingface implementation of BERT from their
+    ALBERT wraps around the Huggingface implementation of ALBERT from their
     transformers repository for easy use within NeMo.
 
     Args:
@@ -112,12 +117,12 @@ class BERT(TrainableNM):
             raise ValueError(
                 "Only one of pretrained_model_name, vocab_size, "
                 + "or config_filename should be passed into the "
-                + "BERT constructor."
+                + "ALBERT constructor."
             )
 
         # TK: The following code checks the same once again.
         if vocab_size is not None:
-            config = BertConfig(
+            config = AlbertConfig(
                 vocab_size_or_config_json_file=vocab_size,
                 vocab_size=vocab_size,
                 hidden_size=hidden_size,
@@ -127,20 +132,20 @@ class BERT(TrainableNM):
                 hidden_act=hidden_act,
                 max_position_embeddings=max_position_embeddings,
             )
-            model = BertModel(config)
+            model = AlbertModel(config)
         elif pretrained_model_name is not None:
-            model = BertModel.from_pretrained(pretrained_model_name)
+            model = AlbertModel.from_pretrained(pretrained_model_name)
         elif config_filename is not None:
-            config = BertConfig.from_json_file(config_filename)
-            model = BertModel(config)
+            config = AlbertConfig.from_json_file(config_filename)
+            model = AlbertModel(config)
         else:
             raise ValueError(
-                "Either pretrained_model_name or vocab_size must" + " be passed into the BERT constructor"
+                "Either pretrained_model_name or vocab_size must" + " be passed into the ALBERT constructor"
             )
 
         model.to(self._device)
 
-        self.add_module("bert", model)
+        self.add_module("albert", model)
         self.config = model.config
 
         # TK: storing config name in init_params instead.
@@ -163,15 +168,15 @@ class BERT(TrainableNM):
     @staticmethod
     def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:
         pretrained_models = []
-        for key, value in BERT_PRETRAINED_MODEL_ARCHIVE_MAP.items():
+        for key, value in ALBERT_PRETRAINED_MODEL_ARCHIVE_MAP.items():
             model_info = PretrainedModelInfo(
                 pretrained_model_name=key,
                 description="weights by HuggingFace",
-                parameters=BERT_PRETRAINED_CONFIG_ARCHIVE_MAP[key],
+                parameters=ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP[key],
                 location=value,
             )
             pretrained_models.append(model_info)
         return pretrained_models
 
     def forward(self, input_ids, token_type_ids, attention_mask):
-        return self.bert(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)[0]
+        return self.albert(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)[0]

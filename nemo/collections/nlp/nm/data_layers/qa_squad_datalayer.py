@@ -26,7 +26,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
     Creates the data layer to use for Question Answering classification task.
 
     Args:
-        data_file (str): data file.
+        data_file (str): Directory that contains train.*.json and dev.*.json.
         tokenizer (obj): Tokenizer object, e.g. NemoBertTokenizer.
         version_2_with_negative (bool): True if training should allow
             unanswerable questions.
