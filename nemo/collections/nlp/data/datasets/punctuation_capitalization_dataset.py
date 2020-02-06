@@ -29,8 +29,8 @@ import random
 import numpy as np
 from torch.utils.data import Dataset
 
-from nemo.collections.nlp.data.datasets import datasets_utils as utils
 from nemo import logging
+from nemo.collections.nlp.data.datasets import datasets_utils as utils
 
 
 def get_features(
