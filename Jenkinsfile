@@ -58,15 +58,72 @@ pipeline {
             sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=1 python chatbot_example.py'
           }
         }
-        stage ('NMT test') {
+      }
+    }
+
+    stage('Parallel NLP Examples 1') {
+      failFast true
+      parallel {
+        stage ('Text Classification with BERT Test') {
           steps {
-            sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python nmt_tutorial.py'
+            sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis --data_dir=/home/mrjenkins/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --shuffle_data --work_dir=outputs'
+            sh 'rm -rf examples/nlp/text_classification/outputs'
+          }
+        }
+        stage ('Dialogue State Tracking - TRADE - Multi-GPUs') {
+          steps {
+            sh 'cd examples/nlp/dialogue_state_tracking && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 dialogue_state_tracking_trade.py --batch_size=10 --eval_batch_size=10 --num_train_samples=-1 --num_eval_samples=-1 --num_epochs=1 --dropout=0.2 --eval_file_prefix=test --shuffle_data --num_gpus=2 --lr=0.001 --grad_norm_clip=10 --work_dir=outputs --data_dir=/home/mrjenkins/TestData/nlp/multiwoz2.1'
+            sh 'rm -rf examples/nlp/dialogue_state_tracking/outputs'
+          }
+        }
+        stage ('GLUE Benchmark Test') {
+          steps {
+            sh 'cd examples/nlp/glue_benchmark && CUDA_VISIBLE_DEVICES=1 python glue_benchmark_with_bert.py --data_dir /home/mrjenkins/TestData/nlp/glue_fake/MRPC --work_dir glue_output --save_step_freq -1 --num_epochs 1 --task_name mrpc --batch_size 2'
+            sh 'rm -rf examples/nlp/glue_benchmark/glue_output'
           }
         }
       }
     }
 
-    stage('Parallel Stage2') {
+    stage('Parallel NLP Examples 2') {
+      failFast true
+      parallel {
+        stage('Token Classification Training/Inference Test') {
+          steps {
+            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=0 python token_classification.py --data_dir /home/mrjenkins/TestData/nlp/token_classification_punctuation/ --batch_size 2 --num_epochs 1 --save_epoch_freq 1 --work_dir token_classification_output --pretrained_bert_model bert-base-cased'
+            sh 'cd examples/nlp/token_classification && DATE_F=$(ls token_classification_output/) && CUDA_VISIBLE_DEVICES=0 python token_classification_infer.py --work_dir token_classification_output/$DATE_F/checkpoints/ --labels_dict /home/mrjenkins/TestData/nlp/token_classification_punctuation/label_ids.csv --pretrained_bert_model bert-base-cased'
+            sh 'rm -rf examples/nlp/token_classification/token_classification_output'
+          }
+        }
+        stage ('Punctuation and Classification Training/Inference Test') {
+          steps {
+            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=1 python punctuation_capitalization.py --data_dir /home/mrjenkins/TestData/nlp/token_classification_punctuation/ --work_dir punctuation_output --save_epoch_freq 1 --num_epochs 1 --save_step_freq -1 --batch_size 2'
+            sh 'cd examples/nlp/token_classification && DATE_F=$(ls punctuation_output/) && DATA_DIR="/home/mrjenkins/TestData/nlp/token_classification_punctuation" && CUDA_VISIBLE_DEVICES=1 python punctuation_capitalization_infer.py --checkpoints_dir punctuation_output/$DATE_F/checkpoints/ --punct_labels_dict $DATA_DIR/punct_label_ids.csv --capit_labels_dict $DATA_DIR/capit_label_ids.csv'
+            sh 'rm -rf examples/nlp/token_classification/punctuation_output'
+          }
+        }
+      }
+    }
+
+    stage('Intent Detection/SLot Tagging Examples - Multi-GPU') {
+      failFast true
+        steps {
+          sh 'cd examples/nlp/intent_detection_slot_tagging && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py --num_gpus=2 --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis-retail --data_dir=/home/mrjenkins/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --shuffle_data --work_dir=outputs'
+          sh 'cd examples/nlp/intent_detection_slot_tagging && TASK_NAME=$(ls outputs/) && DATE_F=$(ls outputs/$TASK_NAME/) && CHECKPOINT_DIR=outputs/$TASK_NAME/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer.py --work_dir $CHECKPOINT_DIR --eval_file_prefix=eval --dataset_name=jarvis-retail --data_dir=/home/mrjenkins/TestData/nlp/retail/ --batch_size=10'
+          sh 'cd examples/nlp/intent_detection_slot_tagging && TASK_NAME=$(ls outputs/) && DATE_F=$(ls outputs/$TASK_NAME/) && CHECKPOINT_DIR=outputs/$TASK_NAME/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer_b1.py --data_dir=/home/mrjenkins/TestData/nlp/retail/ --work_dir $CHECKPOINT_DIR --dataset_name=jarvis-retail --query="how much is it?"'
+          sh 'rm -rf examples/nlp/intent_detection_slot_tagging/outputs'
+        }
+      }
+
+    stage('NMT Example') {
+      failFast true
+        steps {
+	      sh 'cd examples/nlp/neural_machine_translation/ && CUDA_VISIBLE_DEVICES=0 python machine_translation_tutorial.py --max_steps 100'
+          sh 'rm -rf examples/nlp/neural_machine_translation/outputs'        
+      }
+    }
+
+    stage('Parallel Stage Jasper') {
       failFast true
       parallel {
         stage('Jasper AN4 O1') {
@@ -82,7 +139,7 @@ pipeline {
       }
     }
 
-    stage('Parallel Stage3') {
+    stage('Parallel Stage GAN') {
       failFast true
       parallel {
         stage('GAN O1') {

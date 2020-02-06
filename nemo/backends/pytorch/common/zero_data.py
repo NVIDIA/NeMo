@@ -67,10 +67,10 @@ class ZerosDataLayer(DataLayerNM):
             Defaults to None.
     """
 
-    def __init__(self, *, size, output_ports, dtype, batch_size, shapes=None, **kwargs):
-        DataLayerNM.__init__(self, **kwargs)
-        self._size = size
+    def __init__(self, size, output_ports, dtype, batch_size, shapes=None):
         self._output_ports = output_ports
+        DataLayerNM.__init__(self)
+        self._size = size
         self._type = dtype
         self._batch_size = batch_size
         self._shapes = shapes
@@ -97,7 +97,3 @@ class ZerosDataLayer(DataLayerNM):
     @property
     def dataset(self):
         return self._dataset
-
-    @property
-    def batch_size(self):
-        return self._batch_size
