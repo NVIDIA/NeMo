@@ -145,6 +145,10 @@ class NeuralModule(ABC):
             Returns:
                 True if all parameters were ok, False otherwise.
         """
+        # Ok, let's export Nones.
+        if var is None:
+            return True
+
         var_type = type(var)
 
         # If this is list - check its elements.
@@ -180,8 +184,9 @@ class NeuralModule(ABC):
         # Check if generic export will work.
         if not self.__validate_params(self._init_params):
             raise ValueError(
-                "Generic export cannot work as some of the values are not primitive types (string, int, float) \
-            or (lists of/dicts of) primitive types"
+                "Generic Module export cannot work as some of the values are not primitive types (string, int, float) "
+                F"or (lists of/dicts of) primitive types. Please implement your own custom `export_config()` and "
+                F"`import_config()` methods for your custom Module class."
             )
 
         # Greate an absolute path.
@@ -199,7 +204,7 @@ class NeuralModule(ABC):
         # Add init parameters.
         to_export["init_params"] = self._init_params
 
-        print(to_export)
+        # print(to_export)
 
         # All parameters are ok, let's export.
         with open(abs_path_file, 'w') as outfile:
