@@ -48,14 +48,22 @@ class TestDeployExport(NeMoUnitTest):
         if out.exists():
             os.remove(out)
 
-        self.nf.deployment_export(module=module, output=out_name, input_example=input_example, d_format=mode)
+        outputs_fwd = (
+            (module.forward(*input_example) if isinstance(input_example, tuple) else module.forward(input_example))
+            if input_example is not None
+            else None
+        )
+        self.nf.deployment_export(
+            module=module, output=out_name, input_example=input_example, d_format=mode, output_example=outputs_fwd
+        )
 
+        tol = 2.0e-3
         self.assertTrue(out.exists())
         if mode == nemo.core.DeploymentFormat.ONNX:
-            if isinstance(input_example, tuple):
-                outputs_fwd = module.forward(*input_example)
-            else:
-                outputs_fwd = module.forward(input_example)
+            # Must recompute beause *module* might be different now
+            outputs_fwd = (
+                module.forward(*input_example) if isinstance(input_example, tuple) else module.forward(input_example)
+            )
             sess_options = ort.SessionOptions()
             sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
             ort_session = ort.InferenceSession(out_name, sess_options)
@@ -70,11 +78,25 @@ class TestDeployExport(NeMoUnitTest):
                 inputs[input_name] = (
                     input_example[i].cpu().numpy() if isinstance(input_example, tuple) else input_example.cpu().numpy()
                 )
-            outputs_ort = ort_session.run(None, inputs)
-            outputs_ort = torch.from_numpy(outputs_ort[0]).cuda()
-            self.assertLess(
-                (outputs_ort - (outputs_fwd[0] if isinstance(outputs_fwd, tuple) else outputs_fwd)).norm(p=2), 5.0e-4
+            outputs_scr = ort_session.run(None, inputs)
+            outputs_scr = torch.from_numpy(outputs_scr[0]).cuda()
+            outputs_fwd = outputs_fwd[0] if isinstance(outputs_fwd, tuple) else outputs_fwd
+            tol = 5.0e-4
+        elif mode == nemo.core.DeploymentFormat.TORCHSCRIPT:
+            scr = torch.jit.load(out_name)
+            if isinstance(module, nemo.backends.pytorch.tutorials.TaylorNet):
+                input_example = torch.randn(4, 1).cuda()
+                outputs_fwd = module.forward(input_example)
+            outputs_scr = (
+                scr.forward(*input_example) if isinstance(input_example, tuple) else scr.forward(input_example)
             )
+        elif mode == nemo.core.DeploymentFormat.PYTORCH:
+            module.load_state_dict(torch.load(out_name))
+            module.eval()
+            outputs_scr = module.forward(*input_example)
+
+        self.assertLess((outputs_scr - outputs_fwd).norm(p=2), tol)
+
         if out.exists():
             os.remove(out)
 
@@ -112,7 +134,10 @@ class TestDeployExport(NeMoUnitTest):
     def test_jasper_decoder_export_ts(self):
         j_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=33)
         self.__test_export_route(
-            module=j_decoder, out_name="j_decoder.ts", mode=nemo.core.DeploymentFormat.TORCHSCRIPT, input_example=None
+            module=j_decoder,
+            out_name="j_decoder.ts",
+            mode=nemo.core.DeploymentFormat.TORCHSCRIPT,
+            input_example=torch.randn(34, 1024, 1).cuda(),
         )
 
     def test_hf_bert_ts(self):
@@ -128,7 +153,14 @@ class TestDeployExport(NeMoUnitTest):
 
     def test_hf_bert_pt(self):
         bert = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name="bert-base-uncased")
-        self.__test_export_route(module=bert, out_name="bert.pt", mode=nemo.core.DeploymentFormat.PYTORCH)
+        input_example = (
+            torch.randint(low=0, high=16, size=(2, 16)).cuda(),
+            torch.randint(low=0, high=1, size=(2, 16)).cuda(),
+            torch.randint(low=0, high=1, size=(2, 16)).cuda(),
+        )
+        self.__test_export_route(
+            module=bert, out_name="bert.pt", mode=nemo.core.DeploymentFormat.PYTORCH, input_example=input_example,
+        )
 
     def test_jasper_encoder_to_onnx(self):
         with open("tests/data/jasper_smaller.yaml") as file:
