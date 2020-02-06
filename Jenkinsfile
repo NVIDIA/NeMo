@@ -48,7 +48,7 @@ pipeline {
     stage('Parallel NLP Examples 1') {
       failFast true
       parallel {
-        stage ('Text Classification with BERT example test') {
+        stage ('Text Classification with BERT Example Test') {
           steps {
             sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis --data_dir=/home/mrjenkins/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --shuffle_data --work_dir=outputs'
             sh 'rm -rf outputs'
@@ -66,27 +66,27 @@ pipeline {
     stage('Parallel NLP Examples 2') {
       failFast true
       parallel {
-        stage('Token classification training and inference test') {
+        stage('Token Classification Training/Inference Test') {
           steps {
             sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=0 python token_classification.py --data_dir /home/mrjenkins/TestData/nlp/token_classification_punctuation/ --batch_size 2 --num_epochs 1 --save_epoch_freq 1 --work_dir token_classification_output --pretrained_bert_model bert-base-cased'
             sh 'cd examples/nlp/token_classification && DATE_F=$(ls token_classification_output/) && CUDA_VISIBLE_DEVICES=0 python token_classification_infer.py --work_dir token_classification_output/$DATE_F/checkpoints/ --labels_dict /home/mrjenkins/TestData/nlp/token_classification_punctuation/label_ids.csv --pretrained_bert_model bert-base-cased'
             sh 'rm -rf examples/nlp/token_classification/token_classification_output'
           }
         }
-        stage ('Punctuation and classification training and inference test') {
+        stage ('Punctuation and Classification Training/Inference Test') {
           steps {
             sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=1 python punctuation_capitalization.py --data_dir /home/mrjenkins/TestData/nlp/token_classification_punctuation/ --work_dir punctuation_output --save_epoch_freq 1 --num_epochs 1 --save_step_freq -1 --batch_size 2'
             sh 'cd examples/nlp/token_classification && DATE_F=$(ls punctuation_output/) && DATA_DIR="/home/mrjenkins/TestData/nlp/token_classification_punctuation" && CUDA_VISIBLE_DEVICES=1 python punctuation_capitalization_infer.py --checkpoints_dir punctuation_output/$DATE_F/checkpoints/ --punct_labels_dict $DATA_DIR/punct_label_ids.csv --capit_labels_dict $DATA_DIR/capit_label_ids.csv'
             sh 'rm -rf examples/nlp/token_classification/punctuation_output'
           }
         }
-        stage ('GLUE example test') {
+        stage ('GLUE Benchmark Example Test') {
           steps {
             sh 'cd examples/nlp/glue_benchmark && CUDA_VISIBLE_DEVICES=0 python glue_benchmark_with_bert.py --data_dir /home/mrjenkins/TestData/nlp/glue_fake/MRPC --work_dir glue_output --save_step_freq -1 --num_epochs 1 --task_name mrpc --batch_size 2'
             sh 'rm -rf examples/nlp/glue_benchmark/glue_output'
           }
         }
-        stage ('Intent Detection/SLot Tagging examples test - Multi-GPUs') {
+        stage ('Intent Detection/SLot Tagging Tracking/Inference - Multi-GPUs') {
           steps {
             sh 'cd examples/nlp/intent_detection_slot_tagging && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py --num_gpus=2 --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis-retail --data_dir=/home/mrjenkins/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --shuffle_data --work_dir=outputs'
             sh 'cd examples/nlp/intent_detection_slot_tagging && TASK_NAME=$(ls outputs/) && DATE_F=$(ls outputs/$TASK_NAME/) && CHECKPOINT_DIR=outputs/$TASK_NAME/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer.py --work_dir $CHECKPOINT_DIR --eval_file_prefix=eval --dataset_name=jarvis-retail --data_dir=/home/mrjenkins/TestData/nlp/retail/ --batch_size=10'
