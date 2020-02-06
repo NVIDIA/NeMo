@@ -8,27 +8,27 @@ pipeline {
     disableConcurrentBuilds()
    }
   stages {
-//
-//     stage('PyTorch version') {
-//       steps {
-//         sh 'python -c "import torch; print(torch.__version__)"'
-//       }
-//     }
-//     stage('Install test requirements') {
-//       steps {
-//         sh 'pip install -r requirements/requirements_test.txt'
-//       }
-//     }
-//     stage('Code formatting checks') {
-//       steps {
-//         sh 'python setup.py style'
-//       }
-//     }
-//     stage('Unittests general') {
-//       steps {
-//         sh './reinstall.sh && python -m unittest tests/*.py'
-//       }
-//     }
+
+    stage('PyTorch version') {
+      steps {
+        sh 'python -c "import torch; print(torch.__version__)"'
+      }
+    }
+    stage('Install test requirements') {
+      steps {
+        sh 'pip install -r requirements/requirements_test.txt'
+      }
+    }
+    stage('Code formatting checks') {
+      steps {
+        sh 'python setup.py style'
+      }
+    }
+    stage('Unittests general') {
+      steps {
+        sh './reinstall.sh && python -m unittest tests/*.py'
+      }
+    }
 //     stage('Unittests ASR') {
 //       steps {
 //         sh 'python -m unittest tests/asr/*.py'
