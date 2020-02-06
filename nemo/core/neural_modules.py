@@ -105,8 +105,7 @@ class NeuralModule(ABC):
         # Return parameters.
         return init_params
 
-    # TODO: IF part of API, should not start with _, it hidden should start with __
-    def _validate_params(self, params):
+    def __validate_params(self, params):
         """
             Checks whether dictionary contains parameters being primitive types (string, int, float etc.)
             or (lists of)+ primitive types.
