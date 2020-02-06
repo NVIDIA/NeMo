@@ -57,7 +57,7 @@ class TestDeployExport(NeMoUnitTest):
             module=module, output=out_name, input_example=input_example, d_format=mode, output_example=outputs_fwd
         )
 
-        tol = 1.0e-3
+        tol = 2.0e-3
         self.assertTrue(out.exists())
         if mode == nemo.core.DeploymentFormat.ONNX:
             # Must recompute beause *module* might be different now
