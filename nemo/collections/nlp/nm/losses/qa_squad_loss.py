@@ -96,6 +96,7 @@ class QuestionAnsweringLoss(LossNM):
             start_positions = start_positions.squeeze(-1)
         if len(end_positions.size()) > 1:
             end_positions = end_positions.squeeze(-1)
+        import ipdb; ipdb.set_trace()
         ignored_index = start_logits.size(1)
         start_positions.clamp_(0, ignored_index)
         end_positions.clamp_(0, ignored_index)
