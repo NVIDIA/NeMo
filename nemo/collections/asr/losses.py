@@ -27,7 +27,7 @@ class CTCLossNM(LossNM):
             "log_probs": NeuralType(LogprobsType(), ('B', 'T', 'D')),
             "targets": NeuralType(ChannelType(), ('B', 'T')),
             "input_length": NeuralType(LengthsType(), tuple('B')),
-            "target_length": NeuralType(LengthsType(), tuple('B'))
+            "target_length": NeuralType(LengthsType(), tuple('B')),
         }
 
     @property

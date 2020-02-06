@@ -169,8 +169,10 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         self.assertRaises(NeuralPortNmTensorMismatchError, wrong)
 
     def test_unspecified_dimensions(self):
-        t0 = NeuralType(SpectrogramType(), (AxisType(AxisKind.Batch, 64), AxisType(AxisKind.Time, 10),
-                                            AxisType(AxisKind.Dimension, 128)))
+        t0 = NeuralType(
+            SpectrogramType(),
+            (AxisType(AxisKind.Batch, 64), AxisType(AxisKind.Time, 10), AxisType(AxisKind.Dimension, 128)),
+        )
         t1 = NeuralType(SpectrogramType(), ('B', 'T', 'C'))
         self.assertEqual(t1.compare(t0), NeuralTypeComparisonResult.SAME)
         self.assertEqual(t0.compare(t1), NeuralTypeComparisonResult.DIM_INCOMPATIBLE)

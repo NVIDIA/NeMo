@@ -404,8 +404,8 @@ class TestASRPytorch(NeMoUnitTest):
             feat_in=jasper_model_definition['AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder'],
         )
-        #mx_max1 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
-        #mx_max2 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
+        # mx_max1 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
+        # mx_max2 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
         jasper_decoder1 = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=len(self.labels))
         jasper_decoder2 = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=len(self.labels))
 

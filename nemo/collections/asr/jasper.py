@@ -80,7 +80,7 @@ class JasperEncoder(TrainableNM):
             # ),
             # "length": NeuralType({0: AxisType(BatchTag)}),
             "audio_signal": NeuralType(SpectrogramType(), ('B', 'D', 'T')),
-            "length": NeuralType(LengthsType(), tuple('B'))
+            "length": NeuralType(LengthsType(), tuple('B')),
         }
 
     @property
@@ -93,7 +93,7 @@ class JasperEncoder(TrainableNM):
             # ),
             # "encoded_lengths": NeuralType({0: AxisType(BatchTag)}),
             "outputs": NeuralType(AcousticEncodedRepresentation(), ('B', 'D', 'T')),
-            "encoded_lengths": NeuralType(LengthsType(), tuple('B'))
+            "encoded_lengths": NeuralType(LengthsType(), tuple('B')),
         }
 
     def __init__(
