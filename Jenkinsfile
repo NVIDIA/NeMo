@@ -117,10 +117,9 @@ pipeline {
 
     stage('NMT Example') {
       failFast true
-      stage ('NMT test') {
         steps {
 	      sh 'cd examples/nlp/neural_machine_translation/ && CUDA_VISIBLE_DEVICES=0 python machine_translation_tutorial.py --max_steps 100'
-          sh 'rm -rf examples/nlp/neural_machine_translation/outputs'        }
+          sh 'rm -rf examples/nlp/neural_machine_translation/outputs'        
       }
     }
 
