@@ -45,7 +45,7 @@ pipeline {
 //       }
 //     }
 
-    stage('Parallel NLP examples test') {
+    stage('Parallel NLP examples test 1') {
       failFast true
       parallel {
         stage ('Text Classification with BERT example test - Multi-GPUs') {
@@ -63,7 +63,7 @@ pipeline {
       }
     }
 
-    stage('Parallel NLP examples test') {
+    stage('Parallel NLP examples test 2') {
       failFast true
       parallel {
         stage('Token classification training and inference test') {
