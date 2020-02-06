@@ -14,9 +14,11 @@
 # limitations under the License.
 # =============================================================================
 
-import nemo.collections.nlp.callbacks
-import nemo.collections.nlp.data
-import nemo.collections.nlp.nm
-import nemo.collections.nlp.utils
+import nemo
+
+from nemo.collections.nlp import data
+from nemo.collections.nlp import callbacks
+from nemo.collections.nlp import nm
+from nemo.collections.nlp import utils
 
 backend = nemo.core.Backend.PyTorch
