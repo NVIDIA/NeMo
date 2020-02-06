@@ -474,12 +474,12 @@ def convert_examples_to_features(
             token_to_orig_map = {}
             token_is_max_context = {}
             segment_ids = []
-            tokens.append("[CLS]")
+            tokens.append(tokenizer.bos_token)
             segment_ids.append(0)
             for token in query_tokens:
                 tokens.append(token)
                 segment_ids.append(0)
-            tokens.append("[SEP]")
+            tokens.append(tokenizer.sep_token)
             segment_ids.append(0)
 
             for i in range(doc_span.length):
@@ -490,7 +490,7 @@ def convert_examples_to_features(
                 token_is_max_context[len(tokens)] = is_max_context
                 tokens.append(all_doc_tokens[split_token_index])
                 segment_ids.append(1)
-            tokens.append("[SEP]")
+            tokens.append(tokenizer.eos_token)
             segment_ids.append(1)
 
             input_ids = tokenizer.tokens_to_ids(tokens)
@@ -501,7 +501,7 @@ def convert_examples_to_features(
 
             # Zero-pad up to the sequence length.
             while len(input_ids) < max_seq_length:
-                input_ids.append(0)
+                input_ids.append(tokenizer.pad_id)
                 input_mask.append(0)
                 segment_ids.append(0)
 
@@ -616,6 +616,9 @@ class SquadProcessor(DataProcessor):
     Processor for the SQuAD data set.
     used by the version 1.1 and version 2.0 of SQuAD, respectively.
     """
+    def __init__(self, data_file, mode):
+        self.data_file = data_file
+        self.mode = mode
 
     def __init__(self, data_file, mode):
         self.data_file = data_file
