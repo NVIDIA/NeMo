@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core.neural_types import *
 
 
 class CTCLossNM(LossNM):
@@ -18,30 +18,16 @@ class CTCLossNM(LossNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        log_probs:
-            1: AxisType(TimeTag)
-
-            0: AxisType(BatchTag)
-
-            2: AxisType(ChannelTag)
-
-        targets:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        input_length:
-            0: AxisType(BatchTag)
-
-        target_length:
-            0: AxisType(BatchTag)
         """
         return {
-            "log_probs": NeuralType({1: AxisType(TimeTag), 0: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
-            "targets": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_length": NeuralType({0: AxisType(BatchTag)}),
-            "target_length": NeuralType({0: AxisType(BatchTag)}),
+            # "log_probs": NeuralType({1: AxisType(TimeTag), 0: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
+            # "targets": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_length": NeuralType({0: AxisType(BatchTag)}),
+            # "target_length": NeuralType({0: AxisType(BatchTag)}),
+            "log_probs": NeuralType(LogprobsType(), ('B', 'T', 'D')),
+            "targets": NeuralType(ChannelType(), ('B', 'T')),
+            "input_length": NeuralType(LengthsType(), tuple('B')),
+            "target_length": NeuralType(LengthsType(), tuple('B'))
         }
 
     @property
@@ -51,7 +37,8 @@ class CTCLossNM(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(None)}
+        # return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(LossType())}
 
     def __init__(self, num_classes):
         super().__init__()

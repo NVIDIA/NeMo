@@ -45,7 +45,7 @@ class SequenceLoss(LossNM):
             NeuralType(None)
 
         """
-        return {"loss": NeuralType(elements_type=LossType)}
+        return {"loss": NeuralType(LossType())}
 
     def __init__(
         self, pad_id=0, smoothing_coef=0.0, sample_wise=False, aux_ctc=False, ctc_initial_coef=0.1, ctc_blank_id=None
