@@ -15,10 +15,6 @@
 # =============================================================================
 
 import nemo
-
-from nemo.collections.nlp import data
-from nemo.collections.nlp import callbacks
-from nemo.collections.nlp import nm
-from nemo.collections.nlp import utils
+from nemo.collections.nlp import callbacks, data, nm, utils
 
 backend = nemo.core.Backend.PyTorch
