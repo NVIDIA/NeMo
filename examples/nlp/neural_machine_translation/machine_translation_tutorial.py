@@ -41,7 +41,7 @@ parser.set_defaults(
     iter_per_step=1,
     eval_freq=1000,
 )
-parser.add_argument("--data_dir", default="../../tests/data/en_de", type=str)
+parser.add_argument("--data_dir", default="../../../tests/data/en_de", type=str)
 parser.add_argument("--dataset_name", default="wmt16", type=str)
 parser.add_argument("--src_lang", default="en", type=str)
 parser.add_argument("--tgt_lang", default="de", choices=['de', 'zh'], type=str)
