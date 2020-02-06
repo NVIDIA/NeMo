@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-
+import nemo
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     AudioSignal,
@@ -24,9 +24,11 @@ from nemo.core.neural_types import (
     ChannelType,
     MelSpectrogramType,
     MFCCSpectrogramType,
+    NeuralPortNmTensorMismatchError,
     NeuralType,
     NeuralTypeComparisonResult,
     SpectrogramType,
+    VoidType,
 )
 from tests.common_setup import NeMoUnitTest
 
@@ -102,3 +104,66 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         )
         # TODO: should this be incompatible instead???
         self.assertEqual(T1.compare(T2), NeuralTypeComparisonResult.TRANSPOSE_SAME)
+
+    def test_void(self):
+        btc_spctr = NeuralType(SpectrogramType(), ('B', 'T', 'C'))
+        btc_spct_bad = NeuralType(SpectrogramType(), ('B', 'T'))
+        btc_void = NeuralType(VoidType(), ('B', 'T', 'C'))
+        self.assertEqual(btc_void.compare(btc_spctr), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(btc_spctr.compare(btc_void), NeuralTypeComparisonResult.INCOMPATIBLE)
+        self.assertEqual(btc_void.compare(btc_spct_bad), NeuralTypeComparisonResult.INCOMPATIBLE)
+
+    def test_big_void(self):
+        big_void_1 = NeuralType(VoidType())
+        big_void_2 = NeuralType()
+
+        btc_spctr = NeuralType(SpectrogramType(), ('B', 'T', 'C'))
+        btc_spct_bad = NeuralType(SpectrogramType(), ('B', 'T'))
+        t1 = NeuralType(
+            elements_type=ChannelType(),
+            axes=(
+                AxisType(kind=AxisKind.Batch, size=None, is_list=True),
+                AxisType(kind=AxisKind.Time, size=None, is_list=True),
+                AxisType(kind=AxisKind.Dimension, size=32, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=128, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=256, is_list=False),
+            ),
+        )
+        t2 = NeuralType(
+            elements_type=ChannelType(),
+            axes=(
+                AxisType(kind=AxisKind.Batch, size=None, is_list=False),
+                AxisType(kind=AxisKind.Time, size=None, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=32, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=128, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=256, is_list=False),
+            ),
+        )
+
+        self.assertEqual(big_void_1.compare(btc_spctr), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(big_void_1.compare(btc_spct_bad), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(big_void_1.compare(t1), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(big_void_1.compare(t2), NeuralTypeComparisonResult.SAME)
+
+        self.assertEqual(big_void_2.compare(btc_spctr), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(big_void_2.compare(btc_spct_bad), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(big_void_2.compare(t1), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(big_void_2.compare(t2), NeuralTypeComparisonResult.SAME)
+
+    def test_dag(self):
+        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
+        trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
+        loss = nemo.backends.pytorch.tutorials.MSELoss()
+        x, y = data_source()
+        y_pred = trainable_module(x=x)
+        _ = loss(predictions=y_pred, target=y)
+
+        def wrong():
+            data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
+            trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
+            loss = nemo.backends.pytorch.tutorials.MSELoss()
+            x, y = data_source()
+            loss_tensor = loss(predictions=x, target=x)
+            _ = trainable_module(x=loss_tensor)
+
+        self.assertRaises(NeuralPortNmTensorMismatchError, wrong)
