@@ -26,7 +26,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
     Creates the data layer to use for Question Answering classification task.
 
     Args:
-        data_dir (str): Directory that contains train.*.json and dev.*.json.
+        data_file (str): data file.
         tokenizer (obj): Tokenizer object, e.g. NemoBertTokenizer.
         version_2_with_negative (bool): True if training should allow
             unanswerable questions.
@@ -85,7 +85,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
 
     def __init__(
         self,
-        data_dir,
+        data_file,
         tokenizer,
         version_2_with_negative,
         doc_stride,
@@ -96,7 +96,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
         dataset_type=SquadDataset,
     ):
         dataset_params = {
-            'data_dir': data_dir,
+            'data_file': data_file,
             'mode': mode,
             'tokenizer': tokenizer,
             'version_2_with_negative': version_2_with_negative,

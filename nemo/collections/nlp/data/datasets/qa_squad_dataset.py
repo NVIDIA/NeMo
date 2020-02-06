@@ -56,7 +56,7 @@ class SquadDataset(Dataset):
     Creates SQuAD dataset for Question Answering.
 
     Args:
-        data_dir (str): Directory that contains train.*.json and dev.*.json.
+        data_file (str): train.*.json or dev.*.json.
         tokenizer (obj): Tokenizer object, e.g. NemoBertTokenizer.
         version_2_with_negative (bool): True if training should allow
             unanswerable questions.
@@ -73,24 +73,20 @@ class SquadDataset(Dataset):
     """
 
     def __init__(
-        self, data_dir, tokenizer, doc_stride, max_query_length, max_seq_length, version_2_with_negative, mode
+        self, data_file, tokenizer, doc_stride, max_query_length, max_seq_length, version_2_with_negative, mode
     ):
         self.tokenizer = tokenizer
-        if not version_2_with_negative:
-            processor_name = 'SquadV1Processor'
-        else:
-            processor_name = 'SquadV2Processor'
-        self.processor = getattr(sys.modules[__name__], processor_name)()
-        if mode == "dev":
-            self.examples = self.processor.get_dev_examples(data_dir=data_dir)
-        elif mode == "train":
-            self.examples = self.processor.get_train_examples(data_dir=data_dir)
-        else:
-            raise Exception
+        self.version_2_with_negative = version_2_with_negative
+        self.processor = SquadProcessor(data_file=data_file, mode=mode)
+        self.mode = mode
+        if mode != "dev" and mode != "train":
+            raise ValueError(f"mode should be either 'train' or 'dev' but got {mode}")
+        self.examples = self.processor.get_examples()
+
         if mode == "train":
             cached_train_features_file = (
-                data_dir
-                + '/cache'
+                data_file
+                + '_cache'
                 + '_{0}_{1}_{2}_{3}'.format(mode, str(max_seq_length), str(doc_stride), str(max_query_length))
             )
 
@@ -612,63 +608,20 @@ class InputFeatures(object):
 class SquadProcessor(DataProcessor):
     """
     Processor for the SQuAD data set.
-    Overriden by SquadV1Processor and SquadV2Processor,
     used by the version 1.1 and version 2.0 of SQuAD, respectively.
     """
 
-    train_file = None
-    dev_file = None
+    def __init__(self, data_file, mode):
+        self.data_file = data_file
+        self.mode = mode
 
-    def get_train_examples(self, data_dir, filename=None):
-        """
-        Returns the training examples from the data directory.
-        Args:
-            data_dir: Directory containing the data files used for
-                training and evaluating.
-            filename: None by default, specify this if the training file
-                has a different name than the original one
-                which is `train-v1.1.json` and `train-v2.0.json`
-                for squad versions 1.1 and 2.0 respectively.
-        """
-        if data_dir is None:
-            data_dir = ""
+    def get_examples(self):
+        if self.data_file is None:
+            raise ValueError("SquadProcessor should be instantiated")
 
-        if self.train_file is None:
-            raise ValueError(
-                "SquadProcessor should be instantiated via \
-                             SquadV1Processor or SquadV2Processor"
-            )
-
-        with open(
-            os.path.join(data_dir, self.train_file if filename is None else filename), "r", encoding="utf-8"
-        ) as reader:
+        with open(self.data_file, "r", encoding="utf-8") as reader:
             input_data = json.load(reader)["data"]
-        return self._create_examples(input_data, "train")
-
-    def get_dev_examples(self, data_dir, filename=None):
-        """
-        Returns the evaluation example from the data directory.
-        Args:
-            data_dir: Directory containing the data files used for
-                training and evaluating.
-            filename: None by default, specify this if the evaluation file
-                has a different name than the original one which is
-                `dev-v1.1.json` and `dev-v2.0.json` for squad
-                versions 1.1 and 2.0 respectively.
-        """
-        if data_dir is None:
-            data_dir = ""
-
-        if self.dev_file is None:
-            raise ValueError(
-                "SquadProcessor should be instantiated via \
-                             SquadV1Processor or SquadV2Processor"
-            )
-        with open(
-            os.path.join(data_dir, self.dev_file if filename is None else filename), "r", encoding="utf-8"
-        ) as reader:
-            input_data = json.load(reader)["data"]
-        return self._create_examples(input_data, "dev")
+        return self._create_examples(input_data, set_type=self.mode)
 
     def _create_examples(self, input_data, set_type):
         examples = []
@@ -708,16 +661,6 @@ class SquadProcessor(DataProcessor):
 
                     examples.append(example)
         return examples
-
-
-class SquadV1Processor(SquadProcessor):
-    train_file = "train-v1.1.json"
-    dev_file = "dev-v1.1.json"
-
-
-class SquadV2Processor(SquadProcessor):
-    train_file = "train-v2.0.json"
-    dev_file = "dev-v2.0.json"
 
 
 class SquadExample(object):

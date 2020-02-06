@@ -19,6 +19,7 @@ import os
 
 import torch
 
+import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.machine_translation_datalayer
 from nemo import logging
@@ -47,7 +48,6 @@ parser.set_defaults(
     work_dir='outputs/asr_postprocessor',
     eval_freq=200,
 )
-
 
 parser.add_argument("--pretrained_model", default="bert-base-uncased", type=str)
 parser.add_argument("--warmup_steps", default=2000, type=int)
@@ -208,6 +208,11 @@ nf.train(
     callbacks=callbacks,
     optimizer=args.optimizer,
     lr_policy=lr_policy,
-    optimization_params={"num_epochs": 300, "max_steps": args.max_steps, "lr": args.lr, "weight_decay": args.weight_decay},
+    optimization_params={
+        "num_epochs": 300,
+        "max_steps": args.max_steps,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+    },
     batches_per_step=args.iter_per_step,
 )

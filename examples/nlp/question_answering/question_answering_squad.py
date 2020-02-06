@@ -24,7 +24,8 @@ examples/nlp/scripts/get_squad.py
 
 To finetune Squad v1.1 on pretrained BERT large uncased on 1 GPU:
 python question_answering_squad.py
---data_dir /path_to_data_dir/squad/v1.1
+--train_file /path_to_data_dir/squad/v1.1/train-v1.1.json
+--dev_file /path_to_data_dir/squad/v1.1/dev-v1.1.json
 --work_dir /path_to_output_folder
 --bert_checkpoint /path_to_bert_checkpoint
 --amp_opt_level "O1"
@@ -43,7 +44,8 @@ Huggingface pretrained checkpoints.
 To finetune Squad v1.1 on pretrained BERT large uncased on 8 GPU:
 python -m torch.distributed.launch --nproc_per_node=8 question_answering_squad.py
 --amp_opt_level "O1"
---data_dir /path_to_data_dir/squad/v1.1
+--train_file /path_to_data_dir/squad/v1.1/train-v1.1.json
+--dev_file /path_to_data_dir/squad/v1.1/dev-v1.1.json
 --bert_checkpoint /path_to_bert_checkpoint
 --batch_size 3
 --num_gpus 8
@@ -64,6 +66,7 @@ import argparse
 import json
 import os
 
+import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
 from nemo import logging
@@ -74,12 +77,10 @@ from nemo.utils.lr_policies import get_lr_policy
 def parse_args():
     parser = argparse.ArgumentParser(description="Squad_with_pretrained_BERT")
     parser.add_argument(
-        "--data_dir",
-        type=str,
-        required=True,
-        help="The input data dir. Should contain "
-        "train.*.json, dev.*.json files "
-        "(or other data files) for the task.",
+        "--train_file", type=str, help="The training data file. Should be *.json",
+    )
+    parser.add_argument(
+        "--dev_file", type=str, required=True, help="The evaluation data file. Should be *.json",
     )
     parser.add_argument(
         "--pretrained_bert_model", default="bert-base-uncased", type=str, help="Name of the pre-trained model"
@@ -202,7 +203,7 @@ def parse_args():
 
 
 def create_pipeline(
-    data_dir,
+    data_file,
     model,
     head,
     loss_fn,
@@ -220,7 +221,7 @@ def create_pipeline(
         version_2_with_negative=version_2_with_negative,
         batch_size=batch_size,
         tokenizer=tokenizer,
-        data_dir=data_dir,
+        data_file=data_file,
         max_query_length=max_query_length,
         max_seq_length=max_seq_length,
         doc_stride=doc_stride,
@@ -248,13 +249,10 @@ def create_pipeline(
 
 if __name__ == "__main__":
     args = parse_args()
-    if not os.path.exists(args.data_dir):
-        raise FileNotFoundError("SQUAD datasets not found. Datasets can be " "obtained using scripts/get_squad.py")
-
-    if not args.version_2_with_negative:
-        args.work_dir = f'{args.work_dir}/squad1.1'
-    else:
-        args.work_dir = f'{args.work_dir}/squad2.0'
+    if not os.path.exists(args.dev_file):
+        raise FileNotFoundError("eval data not found. Datasets can be " "obtained using scripts/get_squad.py")
+    if not args.evaluation_only and not os.path.exists(args.train_file):
+        raise FileNotFoundError("train data not found. Datasets can be " "obtained using scripts/get_squad.py")
 
     # Instantiate neural factory with supported backend
     nf = nemo_core.NeuralModuleFactory(
@@ -264,7 +262,7 @@ if __name__ == "__main__":
         log_dir=args.work_dir,
         create_tb_writer=True,
         files_to_copy=[__file__],
-        add_time_to_log_dir=True,
+        add_time_to_log_dir=False,
     )
 
     if args.tokenizer == "sentencepiece":
@@ -303,7 +301,7 @@ if __name__ == "__main__":
 
     if not args.evaluation_only:
         train_loss, train_steps_per_epoch, _, _ = create_pipeline(
-            data_dir=args.data_dir,
+            data_file=args.train_file,
             model=model,
             head=qa_head,
             loss_fn=squad_loss,
@@ -316,8 +314,9 @@ if __name__ == "__main__":
             batches_per_step=args.batches_per_step,
             mode="train",
         )
+        logging.info(f"training step per epoch: {train_steps_per_epoch}")
     _, _, eval_output, eval_data_layer = create_pipeline(
-        data_dir=args.data_dir,
+        data_file=args.dev_file,
         model=model,
         head=qa_head,
         loss_fn=squad_loss,
