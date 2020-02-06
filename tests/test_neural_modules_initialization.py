@@ -30,6 +30,9 @@ class MockupModule(nemo.core.NeuralModule):
     def __init__(self):
         nemo.core.NeuralModule.__init__(self)
 
+    def validate_params(self, params):
+        return self._NeuralModule__validate_params(params)
+
 
 class NeuralModuleConfigTest(NeMoUnitTest):
     """
@@ -51,7 +54,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
 
         # Check error output.
-        self.assertEqual(self.module._validate_params(params), True)
+        self.assertEqual(self.module.validate_params(params), True)
 
     def test_nested_dict(self):
         """ Tests whether (nested) dicts are handled."""
@@ -64,7 +67,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         }
 
         # Check error output.
-        self.assertEqual(self.module._validate_params(params), True)
+        self.assertEqual(self.module.validate_params(params), True)
 
     def test_nested_list(self):
         """ Tests whether (nested) lists are handled."""
@@ -72,7 +75,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         params = {"list_outer": [[1, 2, 3, 4]]}
 
         # Check error output.
-        self.assertEqual(self.module._validate_params(params), True)
+        self.assertEqual(self.module.validate_params(params), True)
 
     def test_nested_mix(self):
         """ Tests whether (nested) lists are handled."""
@@ -80,4 +83,4 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         params = {"list_outer": [{"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}]}
 
         # Check error output.
-        self.assertEqual(self.module._validate_params(params), True)
+        self.assertEqual(self.module.validate_params(params), True)
