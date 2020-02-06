@@ -108,7 +108,6 @@ transcript_n}
 
     def __init__(
         self,
-        *,
         manifest_filepath,
         labels,
         batch_size,
@@ -125,10 +124,8 @@ transcript_n}
         drop_last=False,
         shuffle=True,
         num_workers=0,
-        # perturb_config=None,
-        **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
 
         self._featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=None)
 
@@ -245,7 +242,6 @@ class KaldiFeatureDataLayer(DataLayerNM):
 
     def __init__(
         self,
-        *,
         kaldi_dir,
         labels,
         batch_size,
@@ -255,9 +251,8 @@ class KaldiFeatureDataLayer(DataLayerNM):
         drop_last=False,
         shuffle=True,
         num_workers=0,
-        **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
 
         # Set up dataset
         dataset_params = {
@@ -382,9 +377,8 @@ class TranscriptDataLayer(DataLayerNM):
         drop_last=False,
         num_workers=0,
         shuffle=True,
-        **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
 
         # Set up dataset
         dataset_params = {

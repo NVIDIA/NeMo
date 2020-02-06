@@ -25,8 +25,8 @@ from tests.common_setup import NeMoUnitTest
 
 
 class AddsTen(NonTrainableNM):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self):
+        super().__init__()
 
     @property
     def input_ports(self):
@@ -41,8 +41,8 @@ class AddsTen(NonTrainableNM):
 
 
 class SubtractsTen(NonTrainableNM):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self):
+        super().__init__()
 
     @property
     def input_ports(self):
@@ -105,22 +105,20 @@ class TestInfer(NeMoUnitTest):
 
         with self.assertRaisesRegex(ValueError, "use_cache was set, but cache was empty"):
             evaluated_tensors = neural_factory.infer(
-                tensors=[twenty_tensor, thirty_tensor], verbose=False, use_cache=True,
+                tensors=[twenty_tensor, thirty_tensor], verbose=False, use_cache=True
             )
 
         new_ten_tensor = minusten(mod_in=twenty_tensor)
         evaluated_tensors = neural_factory.infer(tensors=[new_ten_tensor], verbose=False, cache=True)
 
         with self.assertRaisesRegex(ValueError, "cache was set but was not empty"):
-            evaluated_tensors = neural_factory.infer(
-                tensors=[twenty_tensor, thirty_tensor], verbose=False, cache=True,
-            )
+            evaluated_tensors = neural_factory.infer(tensors=[twenty_tensor, thirty_tensor], verbose=False, cache=True)
 
         neural_factory.clear_cache()
         evaluated_tensors = neural_factory.infer(tensors=[new_ten_tensor], verbose=False, cache=True)
 
         with self.assertRaisesRegex(ValueError, "cache and use_cache were both set."):
             evaluated_tensors = neural_factory.infer(
-                tensors=[twenty_tensor, thirty_tensor], verbose=False, cache=True, use_cache=True,
+                tensors=[twenty_tensor, thirty_tensor], verbose=False, cache=True, use_cache=True
             )
         self.assertEqual(evaluated_tensors[0][0].squeeze().data, 10)
