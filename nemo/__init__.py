@@ -40,5 +40,6 @@ if "NEMO_PACKAGE_BUILDING" not in os.environ:
     from nemo import backends
     from nemo import core
     from nemo import utils
+    from nemo import collections
 
     from nemo.backends.pytorch import tutorials
