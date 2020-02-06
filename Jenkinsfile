@@ -29,21 +29,37 @@ pipeline {
         sh './reinstall.sh && python -m unittest tests/*.py'
       }
     }
-//     stage('Unittests ASR') {
-//       steps {
-//         sh 'python -m unittest tests/asr/*.py'
-//       }
-//     }
-//     stage('Unittests NLP') {
-//       steps {
-//         sh 'python -m unittest tests/nlp/*.py'
-//       }
-//     }
-//     stage('Unittests TTS') {
-//       steps {
-//         sh 'python -m unittest tests/tts/*.py'
-//       }
-//     }
+    stage('Unittests ASR') {
+      steps {
+        sh 'python -m unittest tests/asr/*.py'
+      }
+    }
+    stage('Unittests NLP') {
+      steps {
+        sh 'python -m unittest tests/nlp/*.py'
+      }
+    }
+    stage('Unittests TTS') {
+      steps {
+        sh 'python -m unittest tests/tts/*.py'
+      }
+    }
+
+    stage('Parallel Stage1') {
+      failFast true
+      parallel {
+        stage('Simplest test') {
+          steps {
+            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=0 python simplest_example.py'
+          }
+        }
+        stage ('Chatbot test') {
+          steps {
+            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=1 python chatbot_example.py'
+          }
+        }
+      }
+    }
 
     stage('Parallel NLP Examples 1') {
       failFast true
@@ -66,7 +82,11 @@ pipeline {
             sh 'rm -rf examples/nlp/glue_benchmark/glue_output'
           }
         }
-
+        stage ('NMT test') {
+          steps {
+            sh 'cd examples/nlp/neural_machine_translation/ && CUDA_VISIBLE_DEVICES=0 python machine_translation_tutorial.py'
+          }
+        }
       }
     }
 
@@ -98,28 +118,7 @@ pipeline {
       }
     }
 
-    stage('Parallel Stage1') {
-      failFast true
-      parallel {
-        stage('Simplest test') {
-          steps {
-            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=0 python simplest_example.py'
-          }
-        }
-        stage ('Chatbot test') {
-          steps {
-            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=1 python chatbot_example.py'
-          }
-        }
-        stage ('NMT test') {
-          steps {
-            sh 'cd examples/nlp/neural_machine_translation/ && CUDA_VISIBLE_DEVICES=0 python machine_translation_tutorial.py'
-          }
-        }
-      }
-    }
-
-    stage('Parallel Stage2') {
+    stage('Parallel Stage Jasper') {
       failFast true
       parallel {
         stage('Jasper AN4 O1') {
@@ -135,7 +134,7 @@ pipeline {
       }
     }
 
-    stage('Parallel Stage3') {
+    stage('Parallel Stage GAN') {
       failFast true
       parallel {
         stage('GAN O1') {
