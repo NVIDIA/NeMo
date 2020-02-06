@@ -8,7 +8,10 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 from enum import Enum
 from inspect import getargvalues, getfullargspec, stack
+from os import path
 from typing import Dict, List, Optional, Set, Tuple
+
+import yaml
 
 import nemo
 from .neural_types import (
@@ -19,6 +22,7 @@ from .neural_types import (
     NeuralTypeComparisonResult,
     NmTensor,
 )
+from nemo import logging
 from nemo.core import NeuralModuleFactory
 from nemo.utils.decorators.deprecated import deprecated
 
@@ -133,7 +137,7 @@ class NeuralModule(ABC):
 
     def __is_of_allowed_type(self, var):
         """
-            A recursive function that checks if a given variable is allowed (in) 
+            A recursive function that checks if a given variable is of allowed type.
 
             Args:
                 pretrained_model_name (str): name of pretrained model to use in order.
@@ -149,7 +153,7 @@ class NeuralModule(ABC):
                 if not self.__is_of_allowed_type(list_var):
                     return False
 
-        # If this is list - check its elements.
+        # If this is dict - check its elements.
         elif var_type == dict:
             for _, dict_var in var.items():
                 if not self.__is_of_allowed_type(dict_var):
@@ -160,6 +164,50 @@ class NeuralModule(ABC):
 
         # Well, seems that everything is ok.
         return True
+
+    def export_config(self, config_file, config_dir="~/data/configs"):
+        """
+            A function that exports module "configuration" (i.e. init parameters) to a YAML file.
+
+            Args:
+                config_file: yml file name
+
+                config_dir: directory where the file will be stored (DEFAULT: ~/data/configs)
+
+            Returns:
+                True if all parameters were ok, False otherwise.
+        """
+        # Check if generic export will work.
+        if not self.__validate_params(self._init_params):
+            raise ValueError(
+                "Generic export cannot work as some of the values are not primitive types (string, int, float) \
+            or (lists of/dicts of) primitive types"
+            )
+
+        # Greate an absolute path.
+        abs_path_file = path.join(path.expanduser(config_dir), config_file)
+
+        # Create the exported dictionary.
+        to_export = {}
+        # Add "header" with versions. TOOD: to be SET!
+        to_export["header"] = {
+            "nemo_version": 0.9,
+            "collection_type": "test",
+            "collection_version": 0.2,
+            "class": type(self).__name__,
+        }
+        # Add init parameters.
+        to_export["init_params"] = self._init_params
+
+        print(to_export)
+
+        # All parameters are ok, let's export.
+        with open(abs_path_file, 'w') as outfile:
+            yaml.dump(to_export, outfile, default_flow_style=False)
+
+        logging.info(
+            "Configuration of module {} ({}) exported to {}".format(self._uuid, type(self).__name__, abs_path_file)
+        )
 
     @deprecated(version=0.11)
     @staticmethod

@@ -22,31 +22,31 @@ import nemo
 from tests.common_setup import NeMoUnitTest
 
 
-class MockupModule(nemo.core.NeuralModule):
-    """
-    Mockup component class.
-    """
-
-    def __init__(self):
-        nemo.core.NeuralModule.__init__(self)
-
-    def validate_params(self, params):
-        return self._NeuralModule__validate_params(params)
-
-
 class NeuralModuleConfigTest(NeMoUnitTest):
     """
         Class testing methods related to Neural Module import/export.
     """
 
+    class MockupModule(nemo.core.NeuralModule):
+        """
+        Mockup component class.
+        """
+
+        def __init__(self):
+            nemo.core.NeuralModule.__init__(self)
+
+        def validate_params(self, params):
+            """ Method for accessing private method of NeuralModuce class """
+            return self._NeuralModule__validate_params(params)
+
     def setUp(self) -> None:
         super().setUp()
 
         # Mockup abstract methods.
-        MockupModule.__abstractmethods__ = set()
+        NeuralModuleConfigTest.MockupModule.__abstractmethods__ = set()
 
         # Create object.
-        self.module = MockupModule()
+        self.module = NeuralModuleConfigTest.MockupModule()
 
     def test_build_in_types(self):
         """ Tests whether build-in types are handled."""
