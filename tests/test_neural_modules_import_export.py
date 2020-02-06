@@ -65,3 +65,73 @@ class NeuralModuleImportExportTest(NeMoUnitTest):
         self.assertEqual(loaded_init_params["b"], 12.4)
         self.assertEqual(loaded_init_params["c"], "ala ma kota")
         self.assertEqual(loaded_init_params["d"], True)
+
+    def test_nested_list_export(self):
+        """ Tests whether (nested*) lists are properly exported."""
+
+        # Params: list, list of lists, list of lists of lists, None type!
+        module = NeuralModuleImportExportTest.MockupSimpleModule(
+            a=[123], b=[[12.4]], c=[[["ala", "ma", "kota"], "kot ma"], "ale"], d=None
+        )
+
+        # Export.
+        module.export_config("nested_list_export.yml", "/tmp/")
+
+        # Check the resulting config file.
+        with open("/tmp/nested_list_export.yml", 'r') as stream:
+            loaded_config = yaml.safe_load(stream)
+
+        # Assert that it contains main sections: header and init params.
+        self.assertEqual("header" in loaded_config, True)
+        self.assertEqual("init_params" in loaded_config, True)
+
+        # Check init params.
+        loaded_init_params = loaded_config["init_params"]
+        self.assertEqual(loaded_init_params["a"][0], 123)
+        self.assertEqual(loaded_init_params["b"][0][0], 12.4)
+        self.assertEqual(loaded_init_params["c"][0][0][0], "ala")
+        self.assertEqual(loaded_init_params["c"][0][0][1], "ma")
+        self.assertEqual(loaded_init_params["c"][0][0][2], "kota")
+        self.assertEqual(loaded_init_params["c"][0][1], "kot ma")
+        self.assertEqual(loaded_init_params["c"][1], "ale")
+        self.assertEqual(loaded_init_params["d"], None)
+
+    def test_nested_dict_export(self):
+        """ Tests whether (nested*) dictionaries are properly exported."""
+
+        # Params: dict, dict with list, dict with dict, build-in.
+        module = NeuralModuleImportExportTest.MockupSimpleModule(
+            a={"int": 123}, b={"floats": [12.4, 71.2]}, c={"ala": {"ma": "kota", "nie_ma": "psa"}}, d=True
+        )
+
+        # Export.
+        module.export_config("nested_dict_export.yml", "/tmp/")
+
+        # Check the resulting config file.
+        with open("/tmp/nested_dict_export.yml", 'r') as stream:
+            loaded_config = yaml.safe_load(stream)
+
+        # Assert that it contains main sections: header and init params.
+        self.assertEqual("header" in loaded_config, True)
+        self.assertEqual("init_params" in loaded_config, True)
+
+        # Check init params.
+        loaded_init_params = loaded_config["init_params"]
+        self.assertEqual(loaded_init_params["a"]["int"], 123)
+        self.assertEqual(loaded_init_params["b"]["floats"][0], 12.4)
+        self.assertEqual(loaded_init_params["b"]["floats"][1], 71.2)
+        self.assertEqual(loaded_init_params["c"]["ala"]["ma"], "kota")
+        self.assertEqual(loaded_init_params["c"]["ala"]["nie_ma"], "psa")
+        self.assertEqual(loaded_init_params["d"], True)
+
+    def test_unallowed_export(self):
+        """ Tests whether unallowed types are NOT exported."""
+
+        e = Exception("some random object")
+
+        # Params: dict, dict with list, dict with dict, build-in.
+        module = NeuralModuleImportExportTest.MockupSimpleModule(e, False, False, False)
+
+        # Assert export error.
+        with self.assertRaises(ValueError):
+            module.export_config("unallowed_export.yml", "/tmp/")
