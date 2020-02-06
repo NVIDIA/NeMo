@@ -86,30 +86,6 @@ class TestZeroDL(NeMoUnitTest):
         if os.path.exists(os.path.join(data_folder, "asr")):
             shutil.rmtree(os.path.join(data_folder, "asr"))
 
-    def test_simple_train(self):
-        logging.info("Simplest train test with ZeroDL")
-        trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
-        data_source = nemo.backends.pytorch.common.ZerosDataLayer(
-            size=10000,
-            dtype=torch.FloatTensor,
-            batch_size=128,
-            output_ports={
-                "x": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag, dim=1)}),
-                "y": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag, dim=1)}),
-            },
-        )
-        loss = nemo.backends.pytorch.tutorials.MSELoss()
-        x, y = data_source()
-        y_pred = trainable_module(x=x)
-        loss_tensor = loss(predictions=y_pred, target=y)
-
-        callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss_tensor], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
-        )
-        self.nf.train(
-            [loss_tensor], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd",
-        )
-
     def test_asr_with_zero_ds(self):
         logging.info("Testing ASR NMs with ZeroDS and without pre-processing")
         path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))
@@ -121,16 +97,22 @@ class TestZeroDL(NeMoUnitTest):
             dtype=torch.FloatTensor,
             batch_size=4,
             output_ports={
-                "processed_signal": NeuralType(
-                    {
-                        0: AxisType(BatchTag),
-                        1: AxisType(SpectrogramSignalTag, dim=64),
-                        2: AxisType(ProcessedTimeTag, dim=64),
-                    }
-                ),
-                "processed_length": NeuralType({0: AxisType(BatchTag)}),
-                "transcript": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag, dim=64)}),
-                "transcript_length": NeuralType({0: AxisType(BatchTag)}),
+                # "processed_signal": NeuralType(
+                #    {
+                #        0: AxisType(BatchTag),
+                #        1: AxisType(SpectrogramSignalTag, dim=64),
+                #        2: AxisType(ProcessedTimeTag, dim=64),
+                #    }
+                # ),
+                # "processed_length": NeuralType({0: AxisType(BatchTag)}),
+                # "transcript": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag, dim=64)}),
+                # "transcript_length": NeuralType({0: AxisType(BatchTag)}),
+                "processed_signal": NeuralType(SpectrogramType(), (AxisType(AxisKind.Batch),
+                                                                   AxisType(AxisKind.Dimension, 64),
+                                                                   AxisType(AxisKind.Time, 64))),
+                "processed_length": NeuralType(LengthsType(), tuple('B')),
+                "transcript": NeuralType(ChannelType(), (AxisType(AxisKind.Batch), AxisType(AxisKind.Time, 64))),
+                "transcript_length": NeuralType(LengthsType(), tuple('B'))
             },
         )
 

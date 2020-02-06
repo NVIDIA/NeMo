@@ -6,7 +6,7 @@ import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core import DeviceType
-from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core.neural_types import *
 from nemo.utils.helpers import get_cuda_device
 
 
@@ -41,20 +41,12 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        "log_probs":
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
-
-        log_probs_length:
-            0: AxisType(BatchTag)
         """
         return {
-            "log_probs": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
-            "log_probs_length": NeuralType({0: AxisType(BatchTag)}),
+            # "log_probs": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            # "log_probs_length": NeuralType({0: AxisType(BatchTag)}),
+            "log_probs": NeuralType(LogprobsType(), ('B', 'T', 'D')),
+            "log_probs_length": NeuralType(LengthsType(), tuple('B')),
         }
 
     @property

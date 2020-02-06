@@ -1,16 +1,17 @@
-# Copyright (C) NVIDIA CORPORATION. All Rights Reserved.
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limitations under the License.****
+# limitations under the License.
+# =============================================================================
 """
 This file contains neural modules responsible for preprocessing audio data.
 """
@@ -131,32 +132,24 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
 
         """
         return {
-            "input_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "length": NeuralType({0: AxisType(BatchTag)}),
+            # "input_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "length": NeuralType({0: AxisType(BatchTag)}),
+            "input_signal": NeuralType(AudioSignal(freq=self._sample_rate), ('B', 'T')),
+            "length": NeuralType(LengthsType(), tuple('B'))
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        processed_signal:
-
-            0: AxisType(BatchTag)
-
-            1: AxisType(SpectrogramSignalTag)
-
-            2: AxisType(ProcessedTimeTag)
-
-        processed_length:
-
-            0: AxisType(BatchTag)
-
         """
         return {
-            "processed_signal": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
-            ),
-            "processed_length": NeuralType({0: AxisType(BatchTag)}),
+            # "processed_signal": NeuralType(
+            #    {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+            # ),
+            # "processed_length": NeuralType({0: AxisType(BatchTag)}),
+
+            "processed_signal": NeuralType(SpectrogramType(), ('B', 'D', 'T')),
+            "processed_length": NeuralType(LengthsType(), tuple('B'))
         }
 
     def __init__(
@@ -170,6 +163,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         window="hann",
         normalized=True,
     ):
+        self._sample_rate = sample_rate
         if not HAVE_TORCHAUDIO:
             raise ModuleNotFoundError(
                 "torchaudio is not installed but is necessary for "
@@ -183,9 +177,9 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
                 f"{self} received both window_stride and " f"n_window_stride. Only one should be specified."
             )
         if window_size:
-            n_window_size = int(window_size * sample_rate)
+            n_window_size = int(window_size * self._sample_rate)
         if window_stride:
-            n_window_stride = int(window_stride * sample_rate)
+            n_window_stride = int(window_stride * self._sample_rate)
 
         super().__init__(n_window_size, n_window_stride)
 
@@ -283,19 +277,12 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        input_signal:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        length:
-            0: AxisType(BatchTag)
-
         """
         return {
-            "input_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "length": NeuralType({0: AxisType(BatchTag)}),
+            # "input_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "length": NeuralType({0: AxisType(BatchTag)}),
+            "input_signal": NeuralType(AudioSignal(freq=self._sample_rate), ('B', 'T')),
+            "length": NeuralType(LengthsType(), tuple('B'))
         }
 
     @property
@@ -316,10 +303,12 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
 
         """
         return {
-            "processed_signal": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
-            ),
-            "processed_length": NeuralType({0: AxisType(BatchTag)}),
+            # "processed_signal": NeuralType(
+            #    {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+            # ),
+            # "processed_length": NeuralType({0: AxisType(BatchTag)}),
+            "processed_signal": NeuralType(MelSpectrogramType(), ('B', 'D', 'T')),
+            "processed_length": NeuralType(LengthsType(), tuple('B'))
         }
 
     def __init__(
@@ -346,6 +335,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         pad_value=0,
         mag_power=2.0,
     ):
+        self._sample_rate = sample_rate
         if window_size and n_window_size:
             raise ValueError(f"{self} received both window_size and " f"n_window_size. Only one should be specified.")
         if window_stride and n_window_stride:
@@ -353,14 +343,14 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
                 f"{self} received both window_stride and " f"n_window_stride. Only one should be specified."
             )
         if window_size:
-            n_window_size = int(window_size * sample_rate)
+            n_window_size = int(window_size * self._sample_rate)
         if window_stride:
-            n_window_stride = int(window_stride * sample_rate)
+            n_window_stride = int(window_stride * self._sample_rate)
 
         super().__init__(n_window_size, n_window_stride)
 
         self.featurizer = FilterbankFeatures(
-            sample_rate=sample_rate,
+            sample_rate=self._sample_rate,
             n_window_size=n_window_size,
             n_window_stride=n_window_stride,
             window=window,
@@ -433,43 +423,26 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        input_signal:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        length:
-            0: AxisType(BatchTag)
-
         """
         return {
-            "input_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "length": NeuralType({0: AxisType(BatchTag)}),
+            # "input_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "length": NeuralType({0: AxisType(BatchTag)}),
+            "input_signal": NeuralType(AudioSignal(freq=self._sample_rate), ('B', 'T')),
+            "length": NeuralType(LengthsType(), tuple('B'))
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        processed_signal:
-
-            0: AxisType(BatchTag)
-
-            1: AxisType(MFCCSignalTag)
-
-            2: AxisType(ProcessedTimeTag)
-
-        processed_length:
-
-            0: AxisType(BatchTag)
-
         """
         return {
-            "processed_signal": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(MFCCSignalTag), 2: AxisType(ProcessedTimeTag),}
-            ),
-            "processed_length": NeuralType({0: AxisType(BatchTag)}),
+            # "processed_signal": NeuralType(
+            #    {0: AxisType(BatchTag), 1: AxisType(MFCCSignalTag), 2: AxisType(ProcessedTimeTag),}
+            # ),
+            # "processed_length": NeuralType({0: AxisType(BatchTag)}),
+            "processed_signal": NeuralType(MFCCSpectrogramType(), ('B', 'D', 'T')),
+            "processed_length": NeuralType(LengthsType(), tuple('B'))
+
         }
 
     def __init__(
@@ -489,6 +462,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         norm='ortho',
         log=True,
     ):
+        self._sample_rate = sample_rate
         if not HAVE_TORCHAUDIO:
             raise ModuleNotFoundError(
                 "torchaudio is not installed but is necessary for "
@@ -503,9 +477,9 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
             )
         # Get win_length (n_window_size) and hop_length (n_window_stride)
         if window_size:
-            n_window_size = int(window_size * sample_rate)
+            n_window_size = int(window_size * self._sample_rate)
         if window_stride:
-            n_window_stride = int(window_stride * sample_rate)
+            n_window_stride = int(window_stride * self._sample_rate)
 
         super().__init__(n_window_size, n_window_stride)
 
@@ -531,7 +505,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
 
         # Use torchaudio's implementation of MFCCs as featurizer
         self.featurizer = torchaudio.transforms.MFCC(
-            sample_rate=sample_rate, n_mfcc=n_mfcc, dct_type=dct_type, norm=norm, log_mels=log, melkwargs=mel_kwargs,
+            sample_rate=self._sample_rate, n_mfcc=n_mfcc, dct_type=dct_type, norm=norm, log_mels=log, melkwargs=mel_kwargs,
         )
         self.featurizer.to(self._device)
 
@@ -575,36 +549,22 @@ class SpectrogramAugmentation(NonTrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        input_spec:
-            0: AxisType(BatchTag)
-
-            1: AxisType(SpectrogramSignalTag)
-
-            2: AxisType(TimeTag)
-
         """
         return {
-            "input_spec": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag),})
+            # "input_spec": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(
+            # TimeTag),})
+            "input_spec": NeuralType(SpectrogramType(), ('B', 'D', 'T'))
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        augmented_spec:
-
-            0: AxisType(BatchTag)
-
-            1: AxisType(SpectrogramSignalTag)
-
-            2: AxisType(ProcessedTimeTag)
-
         """
         return {
-            "augmented_spec": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
-            )
+            # "augmented_spec": NeuralType(
+            #    {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+            # )
+            "augmented_spec": NeuralType(SpectrogramType(), ('B', 'D', 'T'))
         }
 
     def __init__(
@@ -652,61 +612,31 @@ class MultiplyBatch(NonTrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        in_x:
-            0: AxisType(BatchTag)
-
-            1: AxisType(SpectrogramSignalTag)
-
-            2: AxisType(TimeTag)
-
-        in_x_len:
-            0: AxisType(BatchTag)
-
-        in_y:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        in_y_len:
-            0: AxisType(BatchTag)
-
         """
         return {
-            "in_x": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag),}),
-            "in_x_len": NeuralType({0: AxisType(BatchTag)}),
-            "in_y": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "in_y_len": NeuralType({0: AxisType(BatchTag)}),
+            # "in_x": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag),}),
+            # "in_x_len": NeuralType({0: AxisType(BatchTag)}),
+            # "in_y": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "in_y_len": NeuralType({0: AxisType(BatchTag)}),
+            "in_x": NeuralType(SpectrogramType(), ('B', 'D', 'T')),
+            "in_x_len": NeuralType(LengthsType(), tuple('B')),
+            "in_y": NeuralType(SpectrogramType(), ('B', 'D', 'T')),
+            "in_y_len": NeuralType(LengthsType(), tuple('B'))
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        out_x:
-            0: AxisType(BatchTag)
-
-            1: AxisType(SpectrogramSignalTag)
-
-            2: AxisType(TimeTag)
-
-        out_x_len:
-            0: AxisType(BatchTag)
-
-        out_y:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        out_y_len:
-            0: AxisType(BatchTag)
-
         """
         return {
-            "out_x": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag),}),
-            "out_x_len": NeuralType({0: AxisType(BatchTag)}),
-            "out_y": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "out_y_len": NeuralType({0: AxisType(BatchTag)}),
+            # "out_x": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(TimeTag),}),
+            # "out_x_len": NeuralType({0: AxisType(BatchTag)}),
+            # "out_y": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "out_y_len": NeuralType({0: AxisType(BatchTag)}),
+            "out_x": NeuralType(SpectrogramType(), ('B', 'D', 'T')),
+            "out_x_len": NeuralType(LengthsType(), tuple('B')),
+            "out_y": NeuralType(SpectrogramType(), ('B', 'D', 'T')),
+            "out_y_len": NeuralType(LengthsType(), tuple('B'))
         }
 
     def __init__(self, mult_batch=1):

@@ -148,7 +148,8 @@ class NeuralType(object):
         for axis_a, axis_b in zip(axes_a, axes_b):
             kinds_a[axis_a.kind] = axis_a.size
             kinds_b[axis_b.kind] = axis_b.size
-            if axis_a.kind != axis_b.kind or axis_a.is_list != axis_b.is_list or axis_a.size != axis_b.size:
+            if axis_a.kind != axis_b.kind or axis_a.is_list != axis_b.is_list or (axis_a.size != axis_b.size and
+                                                                                  axis_a.size is not None):
                 same = False
         if same:
             return 0

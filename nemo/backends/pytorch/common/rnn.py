@@ -22,7 +22,7 @@ from torch import nn
 
 from nemo.backends.pytorch.common.parts import Attention
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core import AxisType
+from nemo.core import *
 from nemo.utils.misc import pad_to
 
 __all__ = ['DecoderRNN', 'EncoderRNN']
@@ -81,10 +81,12 @@ class DecoderRNN(TrainableNM):
             2: AxisType(ChannelTag)
         """
         return {
-            'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            'encoder_outputs': NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
-            ),
+            # 'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            'targets': NeuralType(ChannelType(), ('B', 'T')),
+            # 'encoder_outputs': NeuralType(
+            #   {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
+            # ),
+            'encoder_outputs': NeuralType(ChannelType(), ('B', 'T', 'D'), True)
         }
 
     @property
@@ -106,10 +108,12 @@ class DecoderRNN(TrainableNM):
             2: AxisType(TimeTag)
         """
         return {
-            'log_probs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
-            'attention_weights': NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}, optional=True,
-            ),
+            # 'log_probs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
+            'log_probs': NeuralType(LogprobsType(), ('B', 'T', 'D')),
+            # 'attention_weights': NeuralType(
+            #    {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}, optional=True,
+            # ),
+            'attention_weights': NeuralType(ChannelType(), ('B', 'T', 'T'), True)
         }
 
     def __init__(

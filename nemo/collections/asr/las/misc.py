@@ -4,7 +4,7 @@ from torch import nn
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.collections.asr.jasper import init_weights as jasper_init_weights
-from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core.neural_types import *
 
 
 class JasperRNNConnector(TrainableNM):
@@ -20,15 +20,9 @@ class JasperRNNConnector(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        tensor:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
-
-            2: AxisType(TimeTag)
         """
-        return {'tensor': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag),})}
+        # return {'tensor': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag),})}
+        return {'tensor': NeuralType(ChannelType(), ('B', 'D', 'T'))}
 
     @property
     def output_ports(self):
@@ -41,7 +35,8 @@ class JasperRNNConnector(TrainableNM):
 
             2: AxisType(ChannelTag)
         """
-        return {'tensor': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
+        # return {'tensor': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
+        return {'tensor': NeuralType(ChannelType(), ('B', 'T', 'D'))}
 
     def __init__(self, in_channels, out_channels):
         super().__init__()
