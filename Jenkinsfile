@@ -71,7 +71,7 @@ pipeline {
         stage ('Intent Detection/SLot Tagging examples test - Multi-GPUs') {
           steps {
             sh 'cd examples/nlp/intent_detection_slot_tagging && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis-retail --data_dir=/home/mrjenkins/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --intent_loss_weight=0.2 --class_balancing=weighted_loss --do_lower_case --shuffle_data --work_dir=outputs'
-            sh 'cd examples/nlp/intent_detection_slot_tagging && TASK_NAME=$(ls outputs/) && DATE_F=$(ls outputs/$TASK_NAME/) && CHECKPOINT_DIR=outputs/$TASK_NAME/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 && python joint_intent_slot_infer.py --work_dir CHECKPOINT_DIR --dataset_name=jarvis-retail --data_dir=/home/mrjenkins/TestData/nlp/retail/ --batch_size=10'
+            sh 'cd examples/nlp/intent_detection_slot_tagging && TASK_NAME=$(ls outputs/) && DATE_F=$(ls outputs/$TASK_NAME/) && CHECKPOINT_DIR=outputs/$TASK_NAME/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 && python joint_intent_slot_infer.py --work_dir CHECKPOINT_DIR --eval_file_prefix=eval --dataset_name=jarvis-retail --data_dir=/home/mrjenkins/TestData/nlp/retail/ --batch_size=10'
             sh 'rm -rf outputs'
           }
         }
