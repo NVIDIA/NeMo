@@ -4,37 +4,37 @@ import os
 import subprocess
 import sys
 import time
-import warnings
 from shutil import copyfile
 
 import nemo
+from nemo.utils.decorators import deprecated
 
 
+@deprecated(version=0.11, explanation="Please use nemo.logging instead")
 def get_logger(unused):
-    warnings.warn("This function will be deprecated in the future. You " "can just use nemo.logging instead")
     return nemo.logging
 
 
-class ContextFilter(logging.Filter):
-    """
-    This is a filter which injects contextual information into the log.
-    Use it when we want to inject worker number into the log message.
+# class ContextFilter(logging.Filter):
+#     """
+#     This is a filter which injects contextual information into the log.
+#     Use it when we want to inject worker number into the log message.
 
-    Usage:
-    logger = get_logger(name)
-    tmp = logging.Formatter(
-        'WORKER %(local_rank)s: %(asctime)s - %(levelname)s - %(message)s')
-    logger.addFilter(ContextFilter(self.local_rank))
+#     Usage:
+#     logger = get_logger(name)
+#     tmp = logging.Formatter(
+#         'WORKER %(local_rank)s: %(asctime)s - %(levelname)s - %(message)s')
+#     logger.addFilter(ContextFilter(self.local_rank))
 
-    """
+#     """
 
-    def __init__(self, local_rank):
-        super().__init__()
-        self.local_rank = local_rank
+#     def __init__(self, local_rank):
+#         super().__init__()
+#         self.local_rank = local_rank
 
-    def filter(self, record):
-        record.local_rank = self.local_rank
-        return True
+#     def filter(self, record):
+#         record.local_rank = self.local_rank
+#         return True
 
 
 class ExpManager:
@@ -155,21 +155,21 @@ class ExpManager:
 
     def create_logger(self, level=logging.INFO, log_file=True):
         logger = nemo.logging
-        tmp = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        # tmp = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
-        if self.global_rank == 0:
-            logger.setLevel(level)
-            ch = logging.StreamHandler()
-            ch.setLevel(level)
-            ch.setFormatter(tmp)
-            logger.addHandler(ch)
+        # if self.global_rank == 0:
+        #     logger.setLevel(level)
+        #     ch = logging.StreamHandler()
+        #     ch.setLevel(level)
+        #     ch.setFormatter(tmp)
+        #     logger.addHandler(ch)
 
         if log_file:
             self.log_file = f'{self.work_dir}/log_globalrank-{self.global_rank}_' f'localrank-{self.local_rank}.txt'
-            fh = logging.FileHandler(self.log_file)
-            fh.setLevel(level)
-            fh.setFormatter(tmp)
-            logger.addHandler(fh)
+            logger.add_file_handler(self.log_file)
+            # fh = logging.FileHandler(self.log_file)
+            # fh.setLevel(level)
+            # fh.setFormatter(tmp)
         self.logger = logger
         return logger
 

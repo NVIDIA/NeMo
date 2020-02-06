@@ -1,4 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
+import os
 from abc import abstractmethod
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -20,18 +21,28 @@ class TrainableNM(NeuralModule, nn.Module):
 
     .. code-block:: python
 
-      def __init__(self, **kwargs):
-        TrainableNM.__init__(self, **kwargs)
-        .... # you code
+      def __init__(self):
+        super().__init__()
+        .... # your code
 
     Then make sure that your forward(..) method accepts arguments named like
     input ports.
+
+    Args:
+        pretrained_model_name (str): name of pretrained model to use in order
+            to initialize this neural module
+
     """
 
-    def __init__(self, **kwargs):
-        NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
+    def __init__(self, pretrained_model_name=None):
+
+        NeuralModule.__init__(self)  # For NeuralModule API
         nn.Module.__init__(self)  # For PyTorch API
+
         self._device = get_cuda_device(self.placement)
+
+        # Store pretrained model name (to be removed/changed)
+        self._pretrained_model_name = pretrained_model_name
 
     def __call__(self, *input, force_pt=False, **kwargs):
         pt_call = len(input) > 0 or force_pt
@@ -119,8 +130,8 @@ class TrainableNM(NeuralModule, nn.Module):
 
 
 class NonTrainableNM(NeuralModule):
-    def __init__(self, **kwargs):
-        NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
+    def __init__(self):
+        NeuralModule.__init__(self)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
 
     def __call__(self, force_pt=False, *input, **kwargs):
@@ -179,13 +190,22 @@ class DataLayerNM(NeuralModule):
     data_iterator property to return iterator over the dataset.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self):
+        NeuralModule.__init__(self)  # For NeuralModule API
+        self._device = get_cuda_device(self.placement)
+
         # if 'batch_size' not in kwargs:
         #    nemo.logging.warning("No batch_size specified in the data layer. "
         #                    "Setting batch_size to 1.")
         #    kwargs['batch_size'] = 1
-        NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
-        self._device = get_cuda_device(self.placement)
+
+        # Set default values of variables used by trained/passed to DataLoader.
+        # NOTE: That also means that those are parameters of DataLoader/trainer, not DataLayer.
+        # Thus those fields will be removed from DataLayer and moved to trainer configuration
+        # (when the time for that will come;))
+        self._batch_size = 1
+        self._num_workers = os.cpu_count()  # Use all CPUs by default.
+        self._shuffle = False  # Don't shuffle by default.
 
     @property
     def input_ports(self):
@@ -269,14 +289,44 @@ class DataLayerNM(NeuralModule):
         If this is implemented, `dataset` property should return None.
         """
 
+    @property
+    def batch_size(self):
+        """ Property returning the batch size. """
+        return self._batch_size
+
+    # @batch_size.setter
+    # def batch_size(self, bs):
+    #    """ Property setting the batch size. """
+    #    self._batch_size = bs
+
+    @property
+    def shuffle(self):
+        """ Property returning the shuffle flag. """
+        return self._shuffle
+
+    # @shuffle.setter
+    # def shuffle(self, sh):
+    #    """ Property setting the shuffle flag. """
+    #     self._shuffle = sh
+
+    @property
+    def num_workers(self):
+        """ Property returning the number of workers. """
+        return self._num_workers
+
+    # @num_workers.setter
+    # def num_workers(self, nw):
+    #    """ Property setting the number of workers. """
+    #    self._num_workers = nw
+
 
 class LossNM(NeuralModule):
     """A helper Base class for creating Pytorch-based loss function modules.
     You must implement _loss_function method.
     """
 
-    def __init__(self, **kwargs):
-        NeuralModule.__init__(self, **kwargs)  # For NeuralModule API
+    def __init__(self):
+        NeuralModule.__init__(self)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
 
     def get_weights(self):

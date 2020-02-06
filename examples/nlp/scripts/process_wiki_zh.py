@@ -1,6 +1,7 @@
 #!/usr/bin/env python
+
 # =============================================================================
-# Copyright 2019 NVIDIA Corporation. All Rights Reserved.
+# Copyright 2019 AI Applications Design Team at NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,9 +24,7 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 
 
-def create_vocab(
-    lines, vocab_file, min_frequency=3, special_symbols=["[PAD]", "[SEP]", "[CLS]", "[MASK]", "[UNK]"],
-):
+def create_vocab(lines, vocab_file, min_frequency=3, special_symbols=["[PAD]", "[SEP]", "[CLS]", "[MASK]", "[UNK]"]):
     """Create vocabulary from lines"""
     # Count word occurency
     vocab = {}
@@ -140,11 +139,9 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", default="/raid/data/wiki_zh", type=str)
     parser.add_argument("--output_dir", default="./", type=str)
     parser.add_argument(
-        "--min_frequency", default=0, type=int, help="Characters occuring less frequently " "will be filtered out",
+        "--min_frequency", default=0, type=int, help="Characters occuring less frequently " "will be filtered out"
     )
-    parser.add_argument(
-        "--max_files", default=-1, type=int, help="Max number of dirs to process",
-    )
+    parser.add_argument("--max_files", default=-1, type=int, help="Max number of dirs to process")
     args = parser.parse_args()
 
     process(args.data_dir, args.output_dir, args.min_frequency, args.max_files)
