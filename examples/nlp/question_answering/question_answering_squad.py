@@ -24,8 +24,12 @@ examples/nlp/scripts/get_squad.py
 
 To finetune Squad v1.1 on pretrained BERT large uncased on 1 GPU:
 python question_answering_squad.py
+<<<<<<< 50d4482af8d64a42de6417784c53306553668ce6
 --train_file /path_to_data_dir/squad/v1.1/train-v1.1.json
 --dev_file /path_to_data_dir/squad/v1.1/dev-v1.1.json
+=======
+--data_file /path_to_data_file/squad/v1.1
+>>>>>>> added roberta and albert
 --work_dir /path_to_output_folder
 --bert_checkpoint /path_to_bert_checkpoint
 --amp_opt_level "O1"
@@ -445,7 +449,7 @@ if __name__ == "__main__":
             null_score_diff_threshold=args.null_score_diff_threshold,
             do_lower_case=args.do_lower_case,
         )
-        
+
         logging.info(f"exact_match: {exact_match}, f1: {f1}")
         if args.output_prediction_file is not None:
             with open(args.output_prediction_file, "w") as writer:
