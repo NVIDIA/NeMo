@@ -24,6 +24,23 @@ pipeline {
         sh 'python setup.py style'
       }
     }
+
+    stage('Parallel NLP TEEEEEEST') {
+      failFast true
+      parallel { 
+        stage('asr_processing') {
+          steps {
+            sh 'cd examples/nlp/asr_postprocessor && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch 
+            --nproc_per_node=2  asr_postprocessor.py py --data_dir=/home/mrjenkins/TestData/nlp/asr_postprocessor/pred_real 
+            --restore_from=/home/mrjenkins/TestData/nlp/asr_postprocessor/bert-base-uncased_decoder.pt --max_steps=50 --batch_size=512'
+            sh 'cd examples/nlp/asr_postprocessor && WER=$(cat outputs/asr_postprocessor/log_globalrank-0_localrank-0.txt | grep "Validation WER" | tail -n 1 | egrep -o "[0-9.]+" | tail -n 1) && echo $WER && if [ $(echo "$WER > 2.0" | bc -l) -eq 1 ]; then echo "FAILURE" && exit 1; else echo "SUCCESS"; fi'
+            sh 'rm -rf examples/nlp/asr_postprocessor/outputs'
+          }
+        }
+      }
+    }
+
+
     stage('Unittests general') {
       steps {
         sh './reinstall.sh && python -m unittest tests/*.py'
@@ -84,6 +101,7 @@ pipeline {
         }
       }
     }
+
 
     stage('Parallel NLP Examples 2') {
       failFast true
