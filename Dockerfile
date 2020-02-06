@@ -34,7 +34,7 @@ COPY requirements/requirements_docker.txt requirements.txt
 RUN pip install --disable-pip-version-check -U -r requirements.txt
 
 COPY . .
-RUN cd nemo && pip install -e . && cd ../collections/nemo_asr && pip install -e . && cd ../nemo_nlp && pip install -e . && cd ../nemo_simple_gan && pip install -e . && cd ../nemo_tts && pip install -e .
+RUN pip install ".[all]"
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
     chmod +x start-jupyter.sh
 
