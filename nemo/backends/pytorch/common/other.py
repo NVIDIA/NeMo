@@ -39,7 +39,6 @@ class SimpleCombiner(TrainableNM):
         else:
             return self._input_ports
 
-
     @property
     def output_ports(self):
         """Returns definitions of module output ports.

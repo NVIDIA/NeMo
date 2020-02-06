@@ -86,7 +86,7 @@ class DecoderRNN(TrainableNM):
             # 'encoder_outputs': NeuralType(
             #   {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
             # ),
-            'encoder_outputs': NeuralType(ChannelType(), ('B', 'T', 'D'), True)
+            'encoder_outputs': NeuralType(ChannelType(), ('B', 'T', 'D'), True),
         }
 
     @property
@@ -113,7 +113,7 @@ class DecoderRNN(TrainableNM):
             # 'attention_weights': NeuralType(
             #    {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}, optional=True,
             # ),
-            'attention_weights': NeuralType(ChannelType(), ('B', 'T', 'T'), True)
+            'attention_weights': NeuralType(ChannelType(), ('B', 'T', 'T'), True),
         }
 
     def __init__(
