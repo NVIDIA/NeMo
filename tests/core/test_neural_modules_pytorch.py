@@ -17,10 +17,13 @@
 # limitations under the License.
 # =============================================================================
 
+# TODO: These test look bad/useless - redo
+
 import unittest
 
 import nemo
 from nemo.backends.pytorch.nm import TrainableNM
+from nemo.core.neural_types import ChannelType, NeuralType
 from tests.common_setup import NeMoUnitTest
 
 
@@ -67,15 +70,7 @@ class TestNeuralModulesPT(NeMoUnitTest):
 
     def test_call_TaylorNet(self):
         x_tg = nemo.core.neural_modules.NmTensor(
-            producer=None,
-            producer_args=None,
-            name=None,
-            ntype=nemo.core.neural_types.NeuralType(
-                {
-                    0: nemo.core.neural_types.AxisType(nemo.core.neural_types.BatchTag),
-                    1: nemo.core.neural_types.AxisType(nemo.core.neural_types.ChannelTag),
-                }
-            ),
+            producer=None, producer_args=None, name=None, ntype=NeuralType(ChannelType(), ('B', 'D'))
         )
 
         tn = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)

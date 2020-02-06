@@ -44,7 +44,7 @@ class NeuralType(object):
             )
         self.elements_type = elements_type
         if axes is not None:
-            self.__check_sanity(axes)
+            NeuralType.__check_sanity(axes)
             axes_list = []
             for axis in axes:
                 if isinstance(axis, str):
@@ -63,9 +63,7 @@ class NeuralType(object):
         axes_a = self.axes
         axes_b = second.axes
 
-        kinds_a = dict()
-        kinds_b = dict()
-
+        # "Big void" type
         if isinstance(self.elements_type, VoidType) and self.axes is None:
             return NeuralTypeComparisonResult.SAME
 
@@ -75,28 +73,29 @@ class NeuralType(object):
             else:
                 return NeuralTypeComparisonResult.INCOMPATIBLE
 
-        dimensions_pass = True
-        for axis_a, axis_b in zip(axes_a, axes_b):
-            kinds_a[axis_a.kind] = axis_a.size
-            kinds_b[axis_b.kind] = axis_b.size
-            if axis_a.kind != axis_b.kind or axis_a.is_list != axis_b.is_list:
-                dimensions_pass = False
-
-        if kinds_a.keys() != kinds_b.keys():
-            return NeuralTypeComparisonResult.INCOMPATIBLE
-        for kind, size in kinds_a.items():
-            if size != kinds_b[kind]:
-                return NeuralTypeComparisonResult.DIM_INCOMPATIBLE
-
+        dimensions_pass = NeuralType.__compare_axes(axes_a, axes_b)
         element_comparison_result = self.elements_type.compare(second.elements_type)
-        if dimensions_pass:
+
+        # SAME DIMS
+        if dimensions_pass == 0:
             return element_comparison_result
-        elif element_comparison_result == NeuralTypeComparisonResult.SAME:
-            return NeuralTypeComparisonResult.TRANSPOSE_SAME
+        # TRANSPOSE_SAME DIMS
+        elif dimensions_pass == 1:
+            if element_comparison_result == NeuralTypeComparisonResult.SAME:
+                return NeuralTypeComparisonResult.TRANSPOSE_SAME
+            else:
+                return NeuralTypeComparisonResult.INCOMPATIBLE
+        # DIM_INCOMPATIBLE DIMS
+        elif dimensions_pass == 2:
+            if element_comparison_result == NeuralTypeComparisonResult.SAME:
+                return NeuralTypeComparisonResult.DIM_INCOMPATIBLE
+            else:
+                return NeuralTypeComparisonResult.INCOMPATIBLE
         else:
             return NeuralTypeComparisonResult.INCOMPATIBLE
 
-    def __check_sanity(self, axes):
+    @staticmethod
+    def __check_sanity(axes):
         # check that list come before any tensor dimension
         are_strings = True
         for axis in axes:
@@ -118,6 +117,50 @@ class NeuralType(object):
             raise ValueError(
                 "You have list dimension after Tensor dimension. All list dimensions must preceed Tensor dimensions"
             )
+
+    @staticmethod
+    def __compare_axes(axes_a, axes_b) -> int:
+        """
+        Compares axes_a and axes_b
+        Args:
+            axes_a: first axes tuple
+            axes_b: second axes tuple
+
+        Returns:
+            0 - if they are exactly the same
+            1 - if they are "TRANSPOSE_SAME"
+            2 - if the are "DIM_INCOMPATIBLE"
+            3 - if they are different
+        """
+        if axes_a is None and axes_b is None:
+            return 0
+        elif axes_a is None and axes_b is not None:
+            return 3
+        elif axes_a is not None and axes_b is None:
+            return 3
+        elif len(axes_a) != len(axes_b):
+            return 3
+        # After these ifs we know that len(axes_a) == len(axes_b)
+
+        same = True
+        kinds_a = dict()
+        kinds_b = dict()
+        for axis_a, axis_b in zip(axes_a, axes_b):
+            kinds_a[axis_a.kind] = axis_a.size
+            kinds_b[axis_b.kind] = axis_b.size
+            if axis_a.kind != axis_b.kind or axis_a.is_list != axis_b.is_list or axis_a.size != axis_b.size:
+                same = False
+        if same:
+            return 0
+        else:
+            # can be TRANSPOSE_SAME, DIM_INCOMPATIBLE
+            if kinds_a.keys() == kinds_b.keys():
+                for key, value in kinds_a.items():
+                    if kinds_b[key] != value:
+                        return 2
+                return 1
+            else:
+                return 3
 
 
 class NmTensor(NeuralType):

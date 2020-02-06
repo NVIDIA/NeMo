@@ -69,7 +69,7 @@ class AxisType(object):
            is_list (bool, default=False):
     """
 
-    def __init__(self, kind: AxisKindAbstract, size: Optional[int], is_list=False):
+    def __init__(self, kind: AxisKindAbstract, size: Optional[int] = None, is_list=False):
         if size is not None and is_list:
             raise ValueError("The axis can't be list and have a fixed size")
         self.kind = kind

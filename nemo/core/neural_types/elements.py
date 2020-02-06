@@ -28,6 +28,9 @@ __all__ = [
     'LabelsType',
     'LossType',
     'RegressionValuesType',
+    'PredictionsType',
+    'LogprobsType',
+    'LengthsType',
 ]
 import abc
 from abc import ABC, abstractmethod
@@ -55,7 +58,6 @@ class ElementType(ABC):
 
     def compare(self, second) -> NeuralTypeComparisonResult:
         # First, check general compatibility
-        result = NeuralTypeComparisonResult.SAME
         first_t = type(self)
         second_t = type(second)
 
@@ -108,9 +110,19 @@ class LogitsType(ElementType):
         return "neural type representing logits"
 
 
+class LogprobsType(ElementType):
+    def __str__(self):
+        return "neural type representing log probabilities"
+
+
 class LabelsType(ElementType):
     def __str__(self):
         return "neural type representing labels"
+
+
+class LengthsType(ElementType):
+    def __str__(self):
+        return "neural type representing lengths of something"
 
 
 class LossType(ElementType):
@@ -151,6 +163,11 @@ class MFCCSpectrogramType(SpectrogramType):
         return "mfcc spectorgram type"
 
 
-class RegressionValuesType(ElementType):
+class PredictionsType(ElementType):
+    def __str__(self):
+        return "predictions values type"
+
+
+class RegressionValuesType(PredictionsType):
     def __str__(self):
         return "regression values type"
