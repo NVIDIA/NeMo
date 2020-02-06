@@ -10,8 +10,8 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
     """This class wraps an instance of Pytorch's nn.Module and
     returns NeuralModule's instance."""
 
-    def __init__(self, pt_nn_module, input_ports_dict, output_ports_dict, **kwargs):
-        NeuralModule.__init__(self, **kwargs)
+    def __init__(self, pt_nn_module, input_ports_dict, output_ports_dict):
+        NeuralModule.__init__(self)
         nn.Module.__init__(self)
         self._input_ports = input_ports_dict
         self._output_ports = output_ports_dict

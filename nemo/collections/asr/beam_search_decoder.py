@@ -7,6 +7,7 @@ import torch
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.utils.helpers import get_cuda_device
 
 
 class BeamSearchDecoderWithLM(NonTrainableNM):
@@ -65,9 +66,7 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
         """
         return {"predictions": NeuralType(None)}
 
-    def __init__(
-        self, *, vocab, beam_width, alpha, beta, lm_path, num_cpus, cutoff_prob=1.0, cutoff_top_n=40, **kwargs
-    ):
+    def __init__(self, vocab, beam_width, alpha, beta, lm_path, num_cpus, cutoff_prob=1.0, cutoff_top_n=40):
 
         try:
             from ctc_decoders import Scorer
@@ -79,11 +78,10 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
                 "from nemo/scripts/install_decoders.py"
             )
 
-        super().__init__(
-            # Override default placement from neural factory
-            placement=DeviceType.CPU,
-            **kwargs
-        )
+        super().__init__()
+        # Override the default placement from neural factory and set placement/device to be CPU.
+        self._placement = DeviceType.CPU
+        self._device = get_cuda_device(self._placement)
 
         if self._factory.world_size > 1:
             raise ValueError("BeamSearchDecoderWithLM does not run in distributed mode")
