@@ -249,10 +249,10 @@ def create_pipeline(
 if __name__ == "__main__":
     args = parse_args()
     if not os.path.exists(args.dev_file):
-        raise FileNotFoundError("eval data not found. Datasets can be " "obtained using examples/scripts/get_squad.py")
+        raise FileNotFoundError("eval data not found. Datasets can be " "obtained using examples/nlp/scripts/get_squad.py")
     if not args.evaluation_only and not os.path.exists(args.train_file):
         raise FileNotFoundError(
-            "train data not found. Datasets can be " "obtained using examples/scripts/get_squad.py"
+            "train data not found. Datasets can be " "obtained using examples/nlp/scripts/get_squad.py"
         )
 
     # Instantiate neural factory with supported backend
