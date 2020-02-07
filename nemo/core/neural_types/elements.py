@@ -32,6 +32,8 @@ __all__ = [
     'PredictionsType',
     'LogprobsType',
     'LengthsType',
+    'EmbeddedTextType',
+    'EncodedRepresentation'
 ]
 import abc
 from abc import ABC, abstractmethod
@@ -106,6 +108,11 @@ class ChannelType(ElementType):
         return "convolutional channel value"
 
 
+class EmbeddedTextType(ChannelType):
+    def __str__(self):
+        return "text embedding"
+
+
 class LogitsType(ElementType):
     def __str__(self):
         return "neural type representing logits"
@@ -131,7 +138,12 @@ class LossType(ElementType):
         return "neural type representing loss value"
 
 
-class AcousticEncodedRepresentation(ChannelType):
+class EncodedRepresentation(ChannelType):
+    def __str__(self):
+        return "encoded representation, for example, encoder's output"
+
+
+class AcousticEncodedRepresentation(EncodedRepresentation):
     def __str__(self):
         return "encoded representation returned by the acoustic encoder model"
 
