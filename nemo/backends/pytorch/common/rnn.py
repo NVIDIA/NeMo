@@ -67,18 +67,6 @@ class DecoderRNN(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        targets:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        encoder_outputs:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
         """
         return {
             # 'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
@@ -92,20 +80,6 @@ class DecoderRNN(TrainableNM):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        log_probs:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
-
-        attention_weights:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(TimeTag)
         """
         return {
             # 'log_probs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
@@ -231,45 +205,23 @@ class EncoderRNN(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        targets:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        encoder_outputs:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
         """
         return {
-            'inputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            'input_lens': NeuralType({0: AxisType(BatchTag),}, optional=True),
+            # 'inputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # 'input_lens': NeuralType({0: AxisType(BatchTag),}, optional=True),
+            'inputs': NeuralType(ChannelType(), ('B', 'T')),
+            'input_lens': NeuralType(LengthsType(), tuple('B')),
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        log_probs:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
-
-        attention_weights:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(TimeTag)
         """
         return {
-            'outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            'hidden': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            # 'outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            # 'hidden': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            'outputs': NeuralType(ChannelType(), ('B', 'T', 'D')),
+            'hidden': NeuralType(ChannelType(), ('B', 'T', 'D')),
         }
 
     def __init__(
