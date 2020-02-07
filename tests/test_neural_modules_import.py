@@ -28,7 +28,7 @@ class NeuralModuleImportTest(NeMoUnitTest):
         Class testing Neural Module configuration export.
     """
 
-    class MockupSimpleModule(nemo.core.NeuralModule):
+    class FirstSimpleModule(nemo.core.NeuralModule):
         """
         Mockup component class.
         """
@@ -36,23 +36,32 @@ class NeuralModuleImportTest(NeMoUnitTest):
         def __init__(self, a, b, c, d):
             super().__init__()
 
+    class SecondSimpleModule(nemo.core.NeuralModule):
+        """
+        Mockup component class.
+        """
+
+        def __init__(self, x, y):
+            super().__init__()
+
     def setUp(self) -> None:
         super().setUp()
 
         # Mockup abstract methods.
-        NeuralModuleImportTest.MockupSimpleModule.__abstractmethods__ = set()
+        NeuralModuleImportTest.FirstSimpleModule.__abstractmethods__ = set()
+        NeuralModuleImportTest.SecondSimpleModule.__abstractmethods__ = set()
 
-    def test_simple_export(self):
-        """ Tests whether build-in types are properly exported."""
+    def test_simple_import_root_neural_module(self):
+        """ Tests whether the Neural Module can instantiate a simple module by loading a configuration file."""
 
         # params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
-        orig_module = NeuralModuleImportTest.MockupSimpleModule(123, 12.4, "ala ma kota", True)
+        orig_module = NeuralModuleImportTest.FirstSimpleModule(123, 12.4, "ala ma kota", True)
 
         # Export.
-        orig_module.export_config("simple_export.yml", "/tmp/")
+        orig_module.export_config("first_simple_import.yml", "/tmp/")
 
         # Import and create the new object.
-        new_module = NeuralModuleImportTest.MockupSimpleModule.import_config("simple_export.yml", "/tmp/")
+        new_module = nemo.core.NeuralModule.import_config("first_simple_import.yml", "/tmp/")
 
         # Compare class types.
         self.assertEqual(type(orig_module).__name__, type(new_module).__name__)
@@ -61,3 +70,47 @@ class NeuralModuleImportTest(NeMoUnitTest):
         param_keys = orig_module.init_params.keys()
         for key in param_keys:
             self.assertEqual(orig_module.init_params[key], new_module.init_params[key])
+
+    def test_simple_import_leaf_module(self):
+        """
+            Tests whether a particular module can instantiate another
+            instance (a copy) by loading a configuration file.
+        """
+
+        # params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
+        orig_module = NeuralModuleImportTest.FirstSimpleModule(123, 12.4, "ala ma kota", True)
+
+        # Export.
+        orig_module.export_config("first_simple_import.yml", "/tmp/")
+
+        # Import and create the new object.
+        new_module = NeuralModuleImportTest.FirstSimpleModule.import_config("first_simple_import.yml", "/tmp/")
+
+        # Compare class types.
+        self.assertEqual(type(orig_module).__name__, type(new_module).__name__)
+
+        # Compare objects - by its all params.
+        param_keys = orig_module.init_params.keys()
+        for key in param_keys:
+            self.assertEqual(orig_module.init_params[key], new_module.init_params[key])
+
+    def test_incompatible_import_leaf_module(self):
+        """
+            Tests whether a particular module can instantiate another
+            instance (a copy) by loading a configuration file.
+        """
+
+        # params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
+        orig_module = NeuralModuleImportTest.SecondSimpleModule(["No", "way", "dude!"], None)
+
+        # Export.
+        orig_module.export_config("second_simple_import.yml", "/tmp/")
+
+        # This will actuall create an instance of SecondSimpleModule - OK.
+        new_module = nemo.core.NeuralModule.import_config("second_simple_import.yml", "/tmp/")
+        # Compare class types.
+        self.assertEqual(type(orig_module).__name__, type(new_module).__name__)
+
+        # This will create an instance of SecondSimpleModule, not FirstSimpleModule - SO NOT OK!!
+        with self.assertRaises(ImportError):
+            _ = NeuralModuleImportTest.FirstSimpleModule.import_config("second_simple_import.yml", "/tmp/")

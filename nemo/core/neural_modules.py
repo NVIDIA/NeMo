@@ -246,26 +246,42 @@ class NeuralModule(ABC):
             "Configuration of module {} ({}) exported to {}".format(self._uuid, type(self).__name__, abs_path_file)
         )
 
-    @staticmethod
-    def import_config(config_file, config_dir="~/data/configs"):
+    @classmethod
+    def import_config(cls, config_file, config_dir="~/data/configs"):
+        """
+            Class method 
+        """
 
         # Greate an absolute path.
         abs_path_file = path.join(path.expanduser(config_dir), config_file)
+        print(abs_path_file)
 
         # Open the config file.
         with open(abs_path_file, 'r') as stream:
             loaded_config = yaml.safe_load(stream)
 
         # Make sure that the config is valid.
-        assert (
-            "header" in loaded_config
-        ), "The loaded config `{}` from `{}` doesn't contain the`header` section".format(config_file, config_dir)
+        if "header" not in loaded_config:
+            raise ImportError(
+                "The loaded config `{}` from `{}` doesn't contain the`header` section".format(config_file, config_dir)
+            )
 
-        assert (
-            "init_params" in loaded_config
-        ), "The loaded config `{}` from `{}` doesn't contain the`header` init_params".format(config_file, config_dir)
+        if "init_params" not in loaded_config:
+            raise ImportError(
+                "The loaded config `{}` from `{}` doesn't contain the`header` init_params".format(
+                    config_file, config_dir
+                )
+            )
 
-        # Get object class.
+        # Check if config contains data of a compatible class.
+        if cls.__name__ != "NeuralModule" and loaded_config["header"]["class"] != cls.__name__:
+            txt = "The loaded file `{}` from `{}` contains configuration of ".format(config_file, config_dir)
+            txt = txt + "`{}` thus cannot be used for instantiation of an object of type `{}`".format(
+                loaded_config["header"]["class"], cls.__name__
+            )
+            raise ImportError(txt)
+
+        # Get object class from "full specification".
         spec_list = loaded_config["header"]["full_spec"].split(".")
         mod_obj = __import__(spec_list[0])
         for spec in spec_list[1:]:
