@@ -19,7 +19,6 @@ import os
 
 import torch
 
-import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.machine_translation_datalayer
 from nemo import logging
