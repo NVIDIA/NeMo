@@ -176,7 +176,7 @@ class MFCCSpectrogramType(SpectrogramType):
         return "mfcc spectorgram type"
 
 
-class PredictionsType(ElementType):
+class PredictionsType(LabelsType):
     def __str__(self):
         return "predictions values type"
 
