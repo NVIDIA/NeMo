@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.data import LanguageModelingDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
+from nemo.core import NeuralType, ChannelType, LabelsType
 
 __all__ = ['LanguageModelingDataLayer']
 
@@ -55,9 +55,12 @@ class LanguageModelingDataLayer(TextDataLayer):
             1: AxisType(TimeTag)
         """
         return {
-            "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "input_ids": NeuralType(ChannelType(), ('B', 'T')),
+            "input_mask": NeuralType(ChannelType(), ('B', 'T')),
+            "labels": NeuralType(LabelsType(), ('B', 'T')),
         }
 
     def __init__(

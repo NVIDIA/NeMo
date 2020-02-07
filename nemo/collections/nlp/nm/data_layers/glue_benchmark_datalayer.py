@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.data import GLUEDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import AxisType, BatchTag, CategoricalTag, NeuralType, RegressionTag, TimeTag
+from nemo.core import NeuralType, RegressionValuesType, ChannelType, CategoricalValuesType
 
 __all__ = ['GlueClassificationDataLayer', 'GlueRegressionDataLayer']
 
@@ -36,30 +36,16 @@ class GlueClassificationDataLayer(TextDataLayer):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-            input_ids:
-                0: AxisType(BatchTag)
-
-                1: AxisType(TimeTag)
-
-            input_type_ids:
-                0: AxisType(BatchTag)
-
-                1: AxisType(TimeTag)
-
-            input_mask:
-                0: AxisType(BatchTag)
-
-                1: AxisType(TimeTag)
-
-            labels:
-                0: AxisType(CategoricalTag)
         """
         return {
-            "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "labels": NeuralType({0: AxisType(CategoricalTag)}),
+            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "labels": NeuralType({0: AxisType(CategoricalTag)}),
+            "input_ids": NeuralType(ChannelType(), ('B', 'T')),
+            "input_type_ids": NeuralType(ChannelType(), ('B', 'T')),
+            "input_mask": NeuralType(ChannelType(), ('B', 'T')),
+            "labels": NeuralType(CategoricalValuesType(), tuple('B')),
         }
 
     def __init__(
@@ -101,30 +87,16 @@ class GlueRegressionDataLayer(TextDataLayer):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-            input_ids:
-                0: AxisType(BatchTag)
-
-                1: AxisType(TimeTag)
-
-            input_type_ids:
-                0: AxisType(BatchTag)
-
-                1: AxisType(TimeTag)
-
-            input_mask:
-                0: AxisType(BatchTag)
-
-                1: AxisType(TimeTag)
-
-            labels:
-                0: AxisType(RegressionTag)
         """
         return {
-            "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "labels": NeuralType({0: AxisType(RegressionTag)}),
+            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "labels": NeuralType({0: AxisType(RegressionTag)}),
+            "input_ids": NeuralType(ChannelType(), ('B', 'T')),
+            "input_type_ids": NeuralType(ChannelType(), ('B', 'T')),
+            "input_mask": NeuralType(ChannelType(), ('B', 'T')),
+            "labels": NeuralType(RegressionValuesType(), tuple('B')),
         }
 
     def __init__(

@@ -28,6 +28,7 @@ __all__ = [
     'LabelsType',
     'LossType',
     'RegressionValuesType',
+    'CategoricalValuesType',
     'PredictionsType',
     'LogprobsType',
     'LengthsType',
@@ -169,5 +170,9 @@ class PredictionsType(ElementType):
 
 
 class RegressionValuesType(PredictionsType):
+    def __str__(self):
+        return "regression values type"
+
+class CategoricalValuesType(PredictionsType):
     def __str__(self):
         return "regression values type"

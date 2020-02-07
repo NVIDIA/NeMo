@@ -18,7 +18,7 @@ from torch import nn as nn
 
 from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
-from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core import NeuralType, ChannelType, LogitsType
 
 __all__ = ['JointIntentSlotClassifier']
 
@@ -39,15 +39,9 @@ class JointIntentSlotClassifier(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        hidden_states:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
         """
-        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
+        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
+        return {"hidden_states": NeuralType(ChannelType(), ('B', 'T', 'C'))}
 
     @property
     def output_ports(self):
@@ -66,8 +60,10 @@ class JointIntentSlotClassifier(TrainableNM):
             2: AxisType(ChannelTag)
         """
         return {
-            "intent_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            "slot_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            # "intent_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            # "slot_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            "intent_logits": NeuralType(LogitsType(), ('B', 'D')),
+            "slot_logits": NeuralType(LogitsType(), ('B', 'D'))
         }
 
     def __init__(self, hidden_size, num_intents, num_slots, dropout=0.0, use_transformer_pretrained=True, **kwargs):
