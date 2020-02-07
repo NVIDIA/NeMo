@@ -173,14 +173,12 @@ class NeuralModule(ABC):
     def export_config(self, config_file, config_dir="~/data/configs"):
         """
             A function that exports module "configuration" (i.e. init parameters) to a YAML file.
+            Raises a ValueError exception in case then parameters coudn't be exported.
 
             Args:
                 config_file: yml file name
 
                 config_dir: directory where the file will be stored (DEFAULT: ~/data/configs)
-
-            Returns:
-                True if all parameters were ok, False otherwise.
         """
         # Check if generic export will work.
         if not self.__validate_params(self._init_params):
@@ -249,7 +247,17 @@ class NeuralModule(ABC):
     @classmethod
     def import_config(cls, config_file, config_dir="~/data/configs"):
         """
-            Class method 
+            Class method importing the configuration file.
+            Raises an ImportError exception when config file is invalid or
+            incompatible (when called from a particular class).
+
+            Args:
+                config_file: yml file name
+
+                config_dir: directory where the file will be stored (DEFAULT: ~/data/configs)
+
+            Returns:
+                Instance of the created NeuralModule object.
         """
 
         # Greate an absolute path.
