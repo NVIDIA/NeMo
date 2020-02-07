@@ -39,7 +39,7 @@
 import torch
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core.neural_types import ChannelType, LabelsType, LogitsType, LossType, NeuralType
+from nemo.core.neural_types import ChannelType, LabelsType, LengthsType, LogitsType, LossType, NeuralType
 
 __all__ = ['TRADEMaskedCrossEntropy', 'CrossEntropyLoss3D']
 
@@ -75,7 +75,7 @@ class TRADEMaskedCrossEntropy(LossNM):
             # "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             "logits": NeuralType(LogitsType(), ('B', 'T', 'D', 'D')),
             "targets": NeuralType(ChannelType(), ('B', 'D', 'T')),
-            "loss_mask": NeuralType(ChannelType(), ('B', 'D')),
+            "loss_mask": NeuralType(LengthsType(), ('B', 'D')),
         }
 
     @property
