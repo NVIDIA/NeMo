@@ -17,8 +17,6 @@
 # limitations under the License.
 # =============================================================================
 
-import yaml
-
 import nemo
 from tests.common_setup import NeMoUnitTest
 
