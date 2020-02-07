@@ -33,7 +33,7 @@ __all__ = [
     'LogprobsType',
     'LengthsType',
     'EmbeddedTextType',
-    'EncodedRepresentation'
+    'EncodedRepresentation',
 ]
 import abc
 from abc import ABC, abstractmethod

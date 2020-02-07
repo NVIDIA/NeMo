@@ -150,7 +150,7 @@ class WaveGlowInferNM(WaveGlowNM):
     def output_ports(self):
         """Returns definitions of module output ports.
         """
-        #return {"audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
+        # return {"audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
         return {"audio": NeuralType(AudioSignal(), ('B', 'T'))}
 
     def __str__(self):
