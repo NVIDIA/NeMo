@@ -262,7 +262,6 @@ class NeuralModule(ABC):
 
         # Greate an absolute path.
         abs_path_file = path.join(path.expanduser(config_dir), config_file)
-        print(abs_path_file)
 
         # Open the config file.
         with open(abs_path_file, 'r') as stream:
