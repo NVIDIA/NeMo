@@ -32,22 +32,30 @@ config = {
 }
 
 # instantiate Neural Factory with supported backend
-neural_factory = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, local_rank=None)
+neural_factory = nemo.core.NeuralModuleFactory()
 
 # instantiate necessary neural modules
-dl = neural_factory.get_module(name="DialogDataLayer", collection="tutorials", params=config)
+dl = nemo.tutorials.DialogDataLayer(batch_size=128, corpus_name="cornell", datafile=data_file)
 
 # Instance one on EncoderRNN
-encoder1 = neural_factory.get_module(name="EncoderRNN", collection="tutorials", params=config)
+encoder1 = nemo.tutorials.EncoderRNN(voc_size=(6104 + 3), encoder_n_layers=2, hidden_size=512, dropout=0.1)
+
 # Instance two on EncoderRNN. It will have different weights from instance one
-encoder2 = neural_factory.get_module(name="EncoderRNN", collection="tutorials", params=config)
-mixer = neural_factory.get_module(name="SimpleCombiner", collection="common", params={})
+encoder2 = nemo.tutorials.EncoderRNN(voc_size=(6104 + 3), encoder_n_layers=2, hidden_size=512, dropout=0.1)
 
-decoder = neural_factory.get_module(name="LuongAttnDecoderRNN", collection="tutorials", params=config)
+# Create a simple combiner mixing the encodings.
+mixer = nemo.backends.pytorch.common.SimpleCombiner()
 
-L = neural_factory.get_module(name="MaskedXEntropyLoss", collection="tutorials", params={})
+decoder = nemo.tutorials.LuongAttnDecoderRNN(
+    attn_model="dot", hidden_size=512, voc_size=(6104 + 3), decoder_n_layers=2, dropout=0.1
+)
 
-decoderInfer = neural_factory.get_module(name="GreedyLuongAttnDecoderRNN", collection="tutorials", params=config)
+L = nemo.tutorials.MaskedXEntropyLoss()
+
+decoderInfer = nemo.tutorials.GreedyLuongAttnDecoderRNN(
+    attn_model="dot", hidden_size=512, voc_size=(6104 + 3), decoder_n_layers=2, dropout=0.1, max_dec_steps=10
+)
+
 # notice trainng and inference decoder share parameters
 decoderInfer.tie_weights_with(decoder, list(decoder.get_weights().keys()))
 
@@ -64,8 +72,6 @@ outputs_inf, _ = decoderInfer(encoder_outputs=encoder_outputs)
 
 
 # this function is necessary to print intermediate results to console
-
-
 def outputs2words(tensors, vocab):
     source_ids = tensors[1][:, 0].cpu().numpy().tolist()
     response_ids = tensors[2][:, 0].cpu().numpy().tolist()
