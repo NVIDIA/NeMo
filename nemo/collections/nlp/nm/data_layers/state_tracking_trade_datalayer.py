@@ -43,7 +43,7 @@ from torch.utils import data as pt_data
 import nemo
 from nemo.collections.nlp.data.datasets import MultiWOZDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core.neural_types import ChannelType, LabelsType, NeuralType
+from nemo.core.neural_types import ChannelType, LabelsType, NeuralType, LengthsType
 
 __all__ = ['MultiWOZDataLayer']
 
@@ -75,9 +75,9 @@ class MultiWOZDataLayer(TextDataLayer):
             # "gating_labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             # "turn_domain": NeuralType(None),
             "src_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "src_lens": NeuralType(ChannelType(), tuple('B')),
+            "src_lens": NeuralType(LengthsType(), tuple('B')),
             "tgt_ids": NeuralType(ChannelType(), ('B', 'D', 'T')),
-            "tgt_lens": NeuralType(ChannelType(), ('B', 'D')),
+            "tgt_lens": NeuralType(LengthsType(), ('B', 'D')),
             "gating_labels": NeuralType(LabelsType(), ('B', 'D')),
             "turn_domain": NeuralType(),
         }
