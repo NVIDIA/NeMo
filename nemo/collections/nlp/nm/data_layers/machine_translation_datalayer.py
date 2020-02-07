@@ -20,7 +20,7 @@ from torch.utils import data as pt_data
 import nemo
 from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
+from nemo.core import NeuralType, ChannelType, LabelsType
 
 __all__ = ['TranslationDataLayer']
 
@@ -48,44 +48,34 @@ class TranslationDataLayer(TextDataLayer):
         """Returns definitions of module output ports.
 
         src_ids: indices of tokens which correspond to source sentences
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
 
         src_mask: bool tensor with 0s in place of source tokens to be masked
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
 
         tgt_ids: indices of tokens which correspond to target sentences
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
 
         tgt_mask: bool tensor with 0s in place of target tokens to be masked
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
 
         labels: indices of tokens which should be predicted from each of the
             corresponding target tokens in tgt_ids; for standard neural
             machine translation equals to tgt_ids shifted by 1 to the right
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
 
         sent_ids: indices of the sentences in a batch; important for
             evaluation with external metrics, such as SacreBLEU
-            0: AxisType(BatchTag)
 
         """
         return {
-            "src_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "src_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "tgt_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "tgt_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "sent_ids": NeuralType({0: AxisType(BatchTag)}),
+            # "src_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "src_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "tgt_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "tgt_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "sent_ids": NeuralType({0: AxisType(BatchTag)}),
+            "src_ids": NeuralType(ChannelType(), ('B', 'T')),
+            "src_mask": NeuralType(ChannelType(), ('B', 'T')),
+            "tgt_ids": NeuralType(ChannelType(), ('B', 'T')),
+            "tgt_mask": NeuralType(ChannelType(), ('B', 'T')),
+            "labels": NeuralType(LabelsType(), ('B', 'T')),
+            "sent_ids": NeuralType(ChannelType(), tuple('B')),
         }
 
     def __init__(

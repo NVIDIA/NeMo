@@ -18,7 +18,7 @@ from torch import nn as nn
 
 from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import gelu, transformer_weights_init
-from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core import NeuralType, ChannelType, LogitsType
 
 __all__ = ['BertTokenClassifier', 'TokenClassifier']
 
@@ -42,28 +42,16 @@ class BertTokenClassifier(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        hidden_states:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
         """
-        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
+        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
+        return {"hidden_states": NeuralType(ChannelType(), ('B', 'T', 'D'))}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        logits:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
         """
-        return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
+        # return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
+        return {"logits": NeuralType(LogitsType(), ('B', 'T', 'C'))}
 
     def __init__(
         self,
@@ -115,28 +103,16 @@ class TokenClassifier(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        hidden_states:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
         """
-        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
+        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
+        return {"hidden_states": NeuralType(ChannelType(), ('B', 'T', 'C'))}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        logits:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
         """
-        return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
+        # return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
+        return {"logits": NeuralType(LogitsType(), ('B', 'T', 'D'))}
 
     def __init__(
         self,

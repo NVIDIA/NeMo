@@ -15,7 +15,7 @@
 # =============================================================================
 
 from nemo.backends.pytorch import LossNM
-from nemo.core import NeuralType
+from nemo.core import NeuralType, LossType
 
 __all__ = ['LossAggregatorNM']
 
@@ -35,7 +35,7 @@ class LossAggregatorNM(LossNM):
         """
         input_ports = {}
         for i in range(self.num_losses):
-            input_ports["loss_" + str(i + 1)] = NeuralType(None)
+            input_ports["loss_" + str(i + 1)] = NeuralType()
 
         return input_ports
 
@@ -46,7 +46,7 @@ class LossAggregatorNM(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(LossType())}
 
     def __init__(self, num_inputs=2):
         # Store number of inputs/losses.

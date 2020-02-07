@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.data import BertJointIntentSlotDataset, BertJointIntentSlotInferDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
+from nemo.core import NeuralType, ChannelType
 
 __all__ = ['BertJointIntentSlotDataLayer', 'BertJointIntentSlotInferDataLayer']
 
@@ -43,48 +43,22 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        input_ids:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        input_type_ids:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        input_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        loss_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        subtokens_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        intents:
-            0: AxisType(BatchTag)
-
-        slots:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
         """
         return {
-            "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "intents": NeuralType({0: AxisType(BatchTag)}),
-            "slots": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_ids":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_mask":     NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "loss_mask":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "intents": NeuralType({0: AxisType(BatchTag)}),
+            # "slots":          NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "input_ids": NeuralType(ChannelType(), ('B', 'T')),
+            "input_type_ids": NeuralType(ChannelType(), ('B', 'T')),
+            "input_mask": NeuralType(ChannelType(), ('B', 'T')),
+            "loss_mask": NeuralType(ChannelType(), ('B', 'T')),
+            "subtokens_mask": NeuralType(ChannelType(), ('B', 'T')),
+            "intents": NeuralType(ChannelType(), tuple('B')),
+            "slots": NeuralType(ChannelType(), ('B', 'T')),
         }
 
     def __init__(
@@ -137,39 +111,18 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        input_ids:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        input_type_ids:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        input_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        loss_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        subtokens_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
         """
         return {
-            "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_ids":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_mask":     NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "loss_mask":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "input_ids": NeuralType(ChannelType(), ('B', 'T')),
+            "input_type_ids": NeuralType(ChannelType(), ('B', 'T')),
+            "input_mask": NeuralType(ChannelType(), ('B', 'T')),
+            "loss_mask": NeuralType(ChannelType(), ('B', 'T')),
+            "subtokens_mask": NeuralType(ChannelType(), ('B', 'T'))
         }
 
     def __init__(self, queries, tokenizer, max_seq_length, batch_size=1, dataset_type=BertJointIntentSlotInferDataset):

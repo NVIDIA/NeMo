@@ -17,7 +17,7 @@
 from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.nm.losses.smoothed_cross_entropy_loss import SmoothedCrossEntropyLoss
 from nemo.collections.nlp.utils.common_nlp_utils import mask_padded_tokens
-from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core import AxisType, NeuralType, ChannelType, LogitsType, LossType
 
 __all__ = ['PaddedSmoothedCrossEntropyLossNM']
 
@@ -38,32 +38,20 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        logits:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
-
-        target_ids:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
         """
         return {
-            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            "target_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            # "target_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "logits": NeuralType(LogitsType(), ('B', 'T', 'D')),
+            "target_ids": NeuralType(ChannelType(), ('B', 'T')),
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        loss:
-            NeuralType(None)
         """
-        return {"loss": NeuralType(None)}
+        # return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(LossType())}
 
     def __init__(self, pad_id, label_smoothing=0, predict_last_k=0):
         LossNM.__init__(self)
