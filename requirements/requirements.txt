@@ -8,3 +8,4 @@ torch
 torchvision
 wget
 wrapt
+yaml

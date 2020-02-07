@@ -226,7 +226,7 @@ class NeuralModule(ABC):
 
         # Add "header" with module "specification".
         to_export["header"] = {
-            "nemo_version": nemo_version,
+            "nemo_core_version": nemo_version,
             "collection_type": collection_type,
             "collection_version": collection_version,
             "class": module_class_name,
