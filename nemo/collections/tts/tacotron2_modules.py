@@ -84,7 +84,7 @@ class Tacotron2Encoder(TrainableNM):
             # ),
             # "embedding_length": NeuralType({0: AxisType(BatchTag)}),
             "char_phone_embeddings": NeuralType(EmbeddedTextType(), ('B', 'D', 'T')),
-            "embedding_length": NeuralType(LengthsType(), tuple('B'))
+            "embedding_length": NeuralType(LengthsType(), tuple('B')),
         }
 
     @property
@@ -166,7 +166,7 @@ class Tacotron2Decoder(TrainableNM):
             # ),
             "char_phone_encoded": NeuralType(EncodedRepresentation(), ('B', 'T', 'D')),
             "encoded_length": NeuralType(LengthsType(), tuple('B')),
-            "mel_target": NeuralType(MelSpectrogramType(), ('B', 'D', 'T'))
+            "mel_target": NeuralType(MelSpectrogramType(), ('B', 'D', 'T')),
         }
 
     @property
@@ -181,7 +181,7 @@ class Tacotron2Decoder(TrainableNM):
             # "alignments": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}),
             "mel_output": NeuralType(MelSpectrogramType(), ('B', 'D', 'T')),
             "gate_output": NeuralType(ChannelType(), ('B', 'T')),
-            "alignments": NeuralType(ChannelType(), ('B', 'T', 'T'))
+            "alignments": NeuralType(ChannelType(), ('B', 'T', 'T')),
         }
 
     def __init__(
@@ -279,7 +279,7 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
             # ),
             # "encoded_length": NeuralType({0: AxisType(BatchTag)}),
             "char_phone_encoded": NeuralType(EncodedRepresentation(), ('B', 'T', 'D')),
-            "encoded_length": NeuralType(LengthsType(), tuple('B'))
+            "encoded_length": NeuralType(LengthsType(), tuple('B')),
         }
 
     @property

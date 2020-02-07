@@ -5,7 +5,7 @@ import nemo
 from .parts.datasets import AudioOnlyDataset
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core import DeviceType
-from nemo.core.neural_types import NeuralType, AudioSignal, LengthsType
+from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
 
 
 class AudioDataLayer(DataLayerNM):
