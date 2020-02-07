@@ -1354,7 +1354,7 @@ class PtActions(Actions):
                             curr_optimizer.zero_grad()
                             continue
                         if disable_allreduce:
-                            with self.no_sync(curr_call_chain):
+                            with self.no_sync(self.get_DDP_modules(curr_call_chain)):
                                 scaled_loss.backward(bps_scale.to(scaled_loss.get_device()))
                         else:
                             scaled_loss.backward(bps_scale.to(scaled_loss.get_device()))
@@ -1363,7 +1363,7 @@ class PtActions(Actions):
                     # multi-GPU, float32
                     if self._local_rank is not None:
                         if disable_allreduce:
-                            with self.no_sync(curr_call_chain):
+                            with self.no_sync(self.get_DDP_modules(curr_call_chain)):
                                 final_loss.backward(bps_scale.to(final_loss.get_device()))
                         else:
                             final_loss.backward(bps_scale.to(final_loss.get_device()))
@@ -1462,12 +1462,7 @@ class PtActions(Actions):
             offload_to_cpu=offload_to_cpu,
         )
 
-    @contextmanager
-    def no_sync(self, call_chain):
-        """
-        Wrapper contextmanager around pytorch DDP's @no_sync since pytorch requires ALL wrapper DDP models to be
-        inside the @no_sync context manager for graduation accumulation
-        """
+    def get_DDP_modules(self, callchain):
         modules = []
         for ind in range(1, len(call_chain)):
             m_id = call_chain[ind][0].unique_instance_id
@@ -1475,18 +1470,18 @@ class PtActions(Actions):
             if isinstance(module, DDP):
                 modules.append(module)
 
-        @contextmanager
-        def recursive_yield(list_of_modules):
-            mod = list_of_modules.pop()
-            with mod.no_sync() as ctx:
-                try:
-                    recursive_yield(list_of_modules)
-                    yield [ctx]
-                finally:
-                    pass
+        return modules
 
-        with recursive_yield(modules):
+    @contextmanager
+    def no_sync(self, modules):
+        """
+        Wrapper contextmanager around pytorch DDP's @no_sync since pytorch requires ALL wrapper DDP models to be
+        inside the @no_sync context manager for graduation accumulation
+        """
+        mod = modules.pop()
+        with mod.no_sync() as ctx:
             try:
-                yield
+                self.no_sync(modules)
+                yield [ctx]
             finally:
                 pass
