@@ -8,7 +8,6 @@ pipeline {
     disableConcurrentBuilds()
    }
   stages {
-
     stage('PyTorch version') {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
@@ -24,27 +23,11 @@ pipeline {
         sh 'python setup.py style'
       }
     }
-    stage('Unittests Core') {
+    stage('Unittests') {
       steps {
-        sh './reinstall.sh && python -m unittest tests/core/*.py'
+        sh './reinstall.sh && python -m unittest'
       }
     }
-    stage('Unittests ASR') {
-      steps {
-        sh 'python -m unittest tests/asr/*.py'
-      }
-    }
-    stage('Unittests NLP') {
-      steps {
-        sh 'python -m unittest tests/nlp/*.py'
-      }
-    }
-    stage('Unittests TTS') {
-      steps {
-        sh 'python -m unittest tests/tts/*.py'
-      }
-    }
-
     stage('Parallel Stage1') {
       failFast true
       parallel {
