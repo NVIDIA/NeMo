@@ -67,7 +67,7 @@ parser.add_argument("--tgt_lang", default="real", type=str)
 parser.add_argument("--beam_size", default=4, type=int)
 parser.add_argument("--len_pen", default=0.0, type=float)
 parser.add_argument(
-    "--restore_from", dest="restore_from", type=str, default="../../scripts/bert-base-uncased_decoder.pt"
+    "--restore_from", dest="restore_from", type=str, default="../../../scripts/bert-base-uncased_decoder.pt"
 )
 args = parser.parse_args()
 
