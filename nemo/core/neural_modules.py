@@ -24,6 +24,7 @@ from .neural_types import (
 )
 from nemo import logging
 from nemo.core import NeuralModuleFactory
+from nemo.package_info import __version__ as nemo_version
 from nemo.utils.decorators.deprecated import deprecated
 
 
@@ -126,7 +127,7 @@ class NeuralModule(ABC):
         for key, variable in params.items():
             if not self.__is_of_allowed_type(variable):
                 nemo.logging.warning(
-                    "{} contains variable {} is of type {} which is not of a allowed.".format(
+                    "Parameter '{}' contains a variable '{}' of type '{}' which is not allowed.".format(
                         key, variable, type(variable)
                     )
                 )
@@ -145,7 +146,7 @@ class NeuralModule(ABC):
             Returns:
                 True if all parameters were ok, False otherwise.
         """
-        # Ok, let's export Nones.
+        # Special case: None is also allowed.
         if var is None:
             return True
 
@@ -192,18 +193,49 @@ class NeuralModule(ABC):
         # Greate an absolute path.
         abs_path_file = path.join(path.expanduser(config_dir), config_file)
 
-        # Create the exported dictionary.
+        # Create the dictionary to be exported.
         to_export = {}
-        # Add "header" with versions. TOOD: to be SET!
+
+        # Get module "full specification".
+        module_full_spec = str(self.__module__) + "." + str(self.__class__.__qualname__)
+        module_class_name = type(self).__name__
+        # print(module_full_spec)
+
+        # Check whether module belongs to a collection.
+        spec_list = module_full_spec.split(".")
+
+        # Do not check Neural Modules from unit tests.
+        if spec_list[0] == "tests":
+            # Set collection variables.
+            collection_type = "tests"
+            collection_version = None
+        else:
+            # Check if component belongs to any collection
+            if len(spec_list) < 3 or (spec_list[0] != "nemo" and spec_list[1] != "collection"):
+                logging.warning(
+                    "Module `{}` does not belong to any collection. This won't be allowed in the next release.".format(
+                        module_class_name
+                    )
+                )
+                collection_type = "unknown"
+                collection_version = None
+            else:
+                # Ok, set collection.
+                collection_type = spec_list[2]
+                collection_version = None
+                # TODO: to be SET!
+                # print(getattr("nemo.collections.nlp", __version__))
+
+        # Add "header" with module "specification".
         to_export["header"] = {
-            "nemo_version": 0.9,
-            "collection_type": "test",
-            "collection_version": 0.2,
-            "class": type(self).__name__,
+            "nemo_version": nemo_version,
+            "collection_type": collection_type,
+            "collection_version": collection_version,
+            "class": module_class_name,
+            "full_spec": module_full_spec,
         }
         # Add init parameters.
         to_export["init_params"] = self._init_params
-
         # print(to_export)
 
         # All parameters are ok, let's export.
@@ -213,6 +245,43 @@ class NeuralModule(ABC):
         logging.info(
             "Configuration of module {} ({}) exported to {}".format(self._uuid, type(self).__name__, abs_path_file)
         )
+
+    @staticmethod
+    def import_config(config_file, config_dir="~/data/configs"):
+
+        # Greate an absolute path.
+        abs_path_file = path.join(path.expanduser(config_dir), config_file)
+
+        # Open the config file.
+        with open(abs_path_file, 'r') as stream:
+            loaded_config = yaml.safe_load(stream)
+
+        # Make sure that the config is valid.
+        assert (
+            "header" in loaded_config
+        ), "The loaded config `{}` from `{}` doesn't contain the`header` section".format(config_file, config_dir)
+
+        assert (
+            "init_params" in loaded_config
+        ), "The loaded config `{}` from `{}` doesn't contain the`header` init_params".format(config_file, config_dir)
+
+        # Get object class.
+        spec_list = loaded_config["header"]["full_spec"].split(".")
+        mod_obj = __import__(spec_list[0])
+        for spec in spec_list[1:]:
+            mod_obj = getattr(mod_obj, spec)
+        # print(mod_obj)
+
+        # Get init parameters.
+        init_params = loaded_config["init_params"]
+        # Create and return the object.
+        obj = mod_obj(**init_params)
+        logging.info(
+            "Instantiated a new Neural Module of type `{}` using configuration loaded from the `{}` file".format(
+                loaded_config["header"]["class"], abs_path_file
+            )
+        )
+        return obj
 
     @deprecated(version=0.11)
     @staticmethod

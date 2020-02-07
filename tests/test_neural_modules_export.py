@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # =============================================================================
-# Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@ import nemo
 from tests.common_setup import NeMoUnitTest
 
 
-class NeuralModuleImportExportTest(NeMoUnitTest):
+class NeuralModuleExportTest(NeMoUnitTest):
     """
-        Class testing methods related to Neural Module import/export.
+        Class testing Neural Module configuration export.
     """
 
     class MockupSimpleModule(nemo.core.NeuralModule):
@@ -40,13 +40,13 @@ class NeuralModuleImportExportTest(NeMoUnitTest):
         super().setUp()
 
         # Mockup abstract methods.
-        NeuralModuleImportExportTest.MockupSimpleModule.__abstractmethods__ = set()
+        NeuralModuleExportTest.MockupSimpleModule.__abstractmethods__ = set()
 
     def test_simple_export(self):
         """ Tests whether build-in types are properly exported."""
 
         # params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
-        module = NeuralModuleImportExportTest.MockupSimpleModule(123, 12.4, "ala ma kota", True)
+        module = NeuralModuleExportTest.MockupSimpleModule(123, 12.4, "ala ma kota", True)
 
         # Export.
         module.export_config("simple_export.yml", "/tmp/")
@@ -70,7 +70,7 @@ class NeuralModuleImportExportTest(NeMoUnitTest):
         """ Tests whether (nested*) lists are properly exported."""
 
         # Params: list, list of lists, list of lists of lists, None type!
-        module = NeuralModuleImportExportTest.MockupSimpleModule(
+        module = NeuralModuleExportTest.MockupSimpleModule(
             a=[123], b=[[12.4]], c=[[["ala", "ma", "kota"], "kot ma"], "ale"], d=None
         )
 
@@ -100,7 +100,7 @@ class NeuralModuleImportExportTest(NeMoUnitTest):
         """ Tests whether (nested*) dictionaries are properly exported."""
 
         # Params: dict, dict with list, dict with dict, build-in.
-        module = NeuralModuleImportExportTest.MockupSimpleModule(
+        module = NeuralModuleExportTest.MockupSimpleModule(
             a={"int": 123}, b={"floats": [12.4, 71.2]}, c={"ala": {"ma": "kota", "nie_ma": "psa"}}, d=True
         )
 
@@ -130,7 +130,7 @@ class NeuralModuleImportExportTest(NeMoUnitTest):
         e = Exception("some random object")
 
         # Params: dict, dict with list, dict with dict, build-in.
-        module = NeuralModuleImportExportTest.MockupSimpleModule(e, False, False, False)
+        module = NeuralModuleExportTest.MockupSimpleModule(e, False, False, False)
 
         # Assert export error.
         with self.assertRaises(ValueError):
