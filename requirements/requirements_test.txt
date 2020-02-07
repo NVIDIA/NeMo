@@ -4,4 +4,4 @@ pytest-runner
 black
 isort[requirements]
 wrapt
-yaml
+PyYAML
