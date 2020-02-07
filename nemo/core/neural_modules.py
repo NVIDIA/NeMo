@@ -11,7 +11,7 @@ from inspect import getargvalues, getfullargspec, stack
 from os import path
 from typing import Dict, List, Optional, Set, Tuple
 
-import yaml
+from ruamel import yaml
 
 from .neural_types import (
     CanNotInferResultNeuralType,
@@ -237,7 +237,7 @@ class NeuralModule(ABC):
 
         # All parameters are ok, let's export.
         with open(abs_path_file, 'w') as outfile:
-            yaml.dump(to_export, outfile, default_flow_style=False)
+            yaml.dump(to_export, outfile)
 
         logging.info(
             "Configuration of module {} ({}) exported to {}".format(self._uuid, type(self).__name__, abs_path_file)
@@ -253,7 +253,7 @@ class NeuralModule(ABC):
             Args:
                 config_file: yml file name
 
-                config_dir: directory where the file will be stored (DEFAULT: ~/data/configs)
+                config_dir: directory where the file is be stored (DEFAULT: ~/data/configs)
 
             Returns:
                 Instance of the created NeuralModule object.
