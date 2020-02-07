@@ -13,7 +13,6 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import yaml
 
-import nemo
 from .neural_types import (
     CanNotInferResultNeuralType,
     NeuralPortNameMismatchError,
@@ -126,7 +125,7 @@ class NeuralModule(ABC):
         # Iterate over parameters and check them one by one.
         for key, variable in params.items():
             if not self.__is_of_allowed_type(variable):
-                nemo.logging.warning(
+                logging.warning(
                     "Parameter '{}' contains a variable '{}' of type '{}' which is not allowed.".format(
                         key, variable, type(variable)
                     )
