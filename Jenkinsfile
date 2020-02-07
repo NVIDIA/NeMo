@@ -8,6 +8,7 @@ pipeline {
     disableConcurrentBuilds()
    }
   stages {
+
     stage('PyTorch version') {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
@@ -23,11 +24,28 @@ pipeline {
         sh 'python setup.py style'
       }
     }
-    stage('Unittests') {
+    stage('Unittests general') {
       steps {
-        sh './reinstall.sh && python -m unittest'
+        sh './reinstall.sh && python -m unittest tests/*.py'
       }
     }
+
+    stage('Unittests ASR') {
+      steps {
+        sh 'python -m unittest tests/asr/*.py'
+      }
+    }
+    stage('Unittests NLP') {
+      steps {
+        sh 'python -m unittest tests/nlp/*.py'
+      }
+    }
+    stage('Unittests TTS') {
+      steps {
+        sh 'python -m unittest tests/tts/*.py'
+      }
+    }
+
     stage('Parallel Stage1') {
       failFast true
       parallel {
@@ -39,6 +57,26 @@ pipeline {
         stage ('Chatbot test') {
           steps {
             sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=1 python chatbot_example.py'
+          }
+        }
+      }
+    }
+
+    stage('Parallel NLP-BERT pretraining') {
+      failFast true
+      parallel { 
+        stage('BERT on the fly preprocessing') {
+          steps {
+            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=0 python bert_pretraining.py --amp_opt_level O1 --data_dir /home/mrjenkins/TestData/nlp/wikitext-2 --dataset_name wikitext-2 --work_dir outputs/bert_lm/wikitext2 --batch_size 64 --lr 0.01 --lr_policy CosineAnnealing --lr_warmup_proportion 0.05 --tokenizer sentence-piece --vocab_size 3200 --hidden_size 768 --intermediate_size 3072 --num_hidden_layers 6 --num_attention_heads 12 --hidden_act "gelu" --save_step_freq 200 --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1 --max_steps=300'
+            sh 'cd examples/nlp/language_modeling && LOSS=$(cat outputs/bert_lm/wikitext2/log_globalrank-0_localrank-0.txt |   grep "Loss" |tail -n 1| awk \'{print \$7}\' | egrep -o "[0-9.]+" ) && echo $LOSS && if [ $(echo "$LOSS < 8.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+            sh 'rm -rf examples/nlp/language_modeling/outputs/wikitext2'
+          }
+        }        
+        stage('BERT offline preprocessing') {
+          steps {
+            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=1 python bert_pretraining.py --amp_opt_level O1 --data_dir /home/mrjenkins/TestData/nlp/wiki_book_mini  --work_dir outputs/bert_lm/wiki_book --batch_size 8 --config_file /home/mrjenkins/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --save_step_freq 200 --max_steps 300  --num_gpus 1  --batches_per_step 1 --lr_policy SquareRootAnnealing --beta2 0.999 --beta1 0.9  --lr_warmup_proportion 0.01 --optimizer adam_w  --weight_decay 0.01  --lr 0.875e-4 --preprocessed_data '
+            sh 'cd examples/nlp/language_modeling && LOSS=$(cat outputs/bert_lm/wiki_book/log_globalrank-0_localrank-0.txt |  grep "Loss" |tail -n 1| awk \'{print \$7}\' | egrep -o "[0-9.]+" ) && echo $LOSS && if [ $(echo "$LOSS < 15.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+            sh 'rm -rf examples/nlp/language_modeling/outputs/wiki_book'
           }
         }
       }
@@ -68,6 +106,7 @@ pipeline {
       }
     }
 
+
     stage('Parallel NLP Examples 2') {
       failFast true
       parallel {
@@ -88,7 +127,42 @@ pipeline {
       }
     }
 
-    stage('Intent Detection/SLot Tagging Examples - Multi-GPU') {
+    stage('Parallel NLP-Squad') {
+      failFast true
+      parallel {       
+        stage('Squad v1.1') {
+          steps {
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --amp_opt_level O1 --train_file /home/mrjenkins/TestData/nlp/squad_mini/v1.1/train-v1.1.json --dev_file /home/mrjenkins/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case'
+            sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+            sh 'rm -rf examples/nlp/question_answering/outputs/squadv1 && rm -rf /home/mrjenkins/TestData/nlp/squad_mini/v1.1/*cache*'
+          }
+        }
+        stage('Squad v2.0') {
+          steps {
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --amp_opt_level O1 --train_file /home/mrjenkins/TestData/nlp/squad_mini/v2.0/train-v2.0.json --dev_file /home/mrjenkins/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --work_dir outputs/squadv2 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case --version_2_with_negative'
+            sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv2/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+            sh 'rm -rf examples/nlp/question_answering/outputs/squadv2 && rm -rf /home/mrjenkins/TestData/nlp/squad_mini/v2.0/*cache*'
+          }
+        }
+      }
+    }
+
+
+
+    stage('NLP-ASR processing') {
+      failFast true
+      parallel { 
+        stage('asr_processing') {
+          steps {
+            sh 'cd examples/nlp/asr_postprocessor && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2  asr_postprocessor.py --data_dir=/home/mrjenkins/TestData/nlp/asr_postprocessor/pred_real --restore_from=/home/mrjenkins/TestData/nlp/asr_postprocessor/bert-base-uncased_decoder.pt --max_steps=50 --batch_size=512'
+            sh 'cd examples/nlp/asr_postprocessor && WER=$(cat outputs/asr_postprocessor/log_globalrank-0_localrank-0.txt | grep "Validation WER" | tail -n 1 | egrep -o "[0-9.]+" | tail -n 1) && echo $WER && if [ $(echo "$WER < 2.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+            sh 'rm -rf examples/nlp/asr_postprocessor/outputs'
+          }
+        }
+      }
+    }
+
+    stage('NLP-Intent Detection/SLot Tagging Examples - Multi-GPU') {
       failFast true
         steps {
           sh 'cd examples/nlp/intent_detection_slot_tagging && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py --num_gpus=2 --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis-retail --data_dir=/home/mrjenkins/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --shuffle_data --work_dir=outputs'
@@ -98,7 +172,7 @@ pipeline {
         }
       }
 
-    stage('NMT Example') {
+    stage('NLP-NMT Example') {
       failFast true
         steps {
 	      sh 'cd examples/nlp/neural_machine_translation/ && CUDA_VISIBLE_DEVICES=0 python machine_translation_tutorial.py --max_steps 100'
@@ -153,7 +227,7 @@ pipeline {
       failFast true
       steps {
         sh 'cd examples/tts && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 tacotron2.py --max_steps=51 --model_config=configs/tacotron2.yaml --train_dataset=/home/mrjenkins/TestData/an4_dataset/an4_train.json --amp_opt_level=O1 --eval_freq=50'
-        sh 'cd examples/tts && TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && echo $TTS_CHECKPOINT_DIR && LOSS=$(cat $TTS_CHECKPOINT_DIR/log_globalrank-0_localrank-0.txt | grep -o -E "Loss[ :0-9.]+" | grep -o -E "[0-9.]+" | tail -n 1) && echo $LOSS && if [ $(echo "$LOSS > 3.0" | bc -l) -eq 1 ]; then echo "FAILURE" && exit 1; else echo "SUCCESS"; fi'
+        sh 'cd examples/tts && TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && echo $TTS_CHECKPOINT_DIR && LOSS=$(cat $TTS_CHECKPOINT_DIR/log_globalrank-0_localrank-0.txt | grep -o -E "Loss[ :0-9.]+" | grep -o -E "[0-9.]+" | tail -n 1) && echo $LOSS && if [ $(echo "$LOSS < 3.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
         // sh 'cd examples/tts && TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && cp ../asr/multi_gpu/checkpoints/* $TTS_CHECKPOINT_DIR/checkpoints'
         // sh 'CUDA_VISIBLE_DEVICES=0 python tacotron2_an4_test.py --model_config=configs/tacotron2.yaml --eval_dataset=/home/mrjenkins/TestData/an4_dataset/an4_train.json --jasper_model_config=../asr/configs/jasper_an4.yaml --load_dir=$TTS_CHECKPOINT_DIR/checkpoints'
       }
