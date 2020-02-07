@@ -18,7 +18,7 @@ from torch import nn as nn
 
 from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
-from nemo.core import NeuralType, ChannelType, LogitsType
+from nemo.core import ChannelType, LogitsType, NeuralType
 
 __all__ = ['JointIntentSlotClassifier']
 
@@ -63,7 +63,7 @@ class JointIntentSlotClassifier(TrainableNM):
             # "intent_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             # "slot_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             "intent_logits": NeuralType(LogitsType(), ('B', 'D')),
-            "slot_logits": NeuralType(LogitsType(), ('B', 'D'))
+            "slot_logits": NeuralType(LogitsType(), ('B', 'D')),
         }
 
     def __init__(self, hidden_size, num_intents, num_slots, dropout=0.0, use_transformer_pretrained=True, **kwargs):

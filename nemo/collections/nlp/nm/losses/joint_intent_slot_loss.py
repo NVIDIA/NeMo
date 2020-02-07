@@ -18,7 +18,7 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch import LossNM
-from nemo.core import NeuralType, ChannelType, LossType, LogitsType
+from nemo.core import ChannelType, LogitsType, LossType, NeuralType
 
 __all__ = ['JointIntentSlotLoss']
 
@@ -70,7 +70,7 @@ class JointIntentSlotLoss(LossNM):
         loss:
             NeuralType(None)
         """
-        #return {"loss": NeuralType(None)}
+        # return {"loss": NeuralType(None)}
         return {"loss": NeuralType(LossType())}
 
     def __init__(

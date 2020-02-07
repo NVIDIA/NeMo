@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.data import LanguageModelingDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import NeuralType, ChannelType, LabelsType
+from nemo.core import ChannelType, LabelsType, NeuralType
 
 __all__ = ['LanguageModelingDataLayer']
 

@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.data import SquadDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import NeuralType, ChannelType, LabelsType
+from nemo.core import ChannelType, LabelsType, NeuralType
 
 __all__ = ['BertQuestionAnsweringDataLayer']
 
@@ -62,7 +62,6 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             "start_positions": NeuralType(ChannelType(), tuple('B')),
             "end_positions": NeuralType(ChannelType(), tuple('B')),
             "unique_ids": NeuralType(ChannelType(), tuple('B')),
-
         }
 
     def __init__(

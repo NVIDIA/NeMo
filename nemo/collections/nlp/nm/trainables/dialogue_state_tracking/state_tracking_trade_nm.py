@@ -45,7 +45,7 @@ import torch.nn.functional as F
 from torch import nn as nn
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import NeuralType, ChannelType, LengthsType
+from nemo.core.neural_types import ChannelType, LengthsType, NeuralType
 
 __all__ = ['TRADEGenerator']
 
@@ -77,7 +77,6 @@ class TRADEGenerator(TrainableNM):
             'input_lens': NeuralType(LengthsType(), tuple('B')),
             'src_ids': NeuralType(ChannelType(), ('B', 'T')),
             'targets': NeuralType(ChannelType(), ('B', 'D', 'T')),
-
         }
 
     @property
@@ -97,7 +96,7 @@ class TRADEGenerator(TrainableNM):
         # }
         return {
             'point_outputs': NeuralType(ChannelType(), ('B', 'T', 'D', 'D')),
-            'gate_outputs': NeuralType(ChannelType(), ('B', 'D', 'D'))
+            'gate_outputs': NeuralType(ChannelType(), ('B', 'D', 'D')),
         }
 
     def __init__(self, vocab, embeddings, hid_size, dropout, slots, nb_gate, teacher_forcing=0.5):

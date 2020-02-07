@@ -15,7 +15,7 @@
 # =============================================================================
 
 from nemo.backends.pytorch import LossNM
-from nemo.core import NeuralType, LossType
+from nemo.core import LossType, NeuralType
 
 __all__ = ['LossAggregatorNM']
 
