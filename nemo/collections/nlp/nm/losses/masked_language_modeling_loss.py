@@ -16,7 +16,7 @@
 
 from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.nm.losses.smoothed_cross_entropy_loss import SmoothedCrossEntropyLoss
-from nemo.core import NeuralType, ChannelType, LossType, LogitsType
+from nemo.core import ChannelType, LogitsType, LossType, NeuralType
 
 __all__ = ['MaskedLanguageModelingLossNM']
 

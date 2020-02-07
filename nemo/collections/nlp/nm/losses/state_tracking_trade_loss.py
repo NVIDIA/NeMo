@@ -39,7 +39,7 @@
 import torch
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core.neural_types import NeuralType, ChannelType, LogitsType, LossType, LabelsType
+from nemo.core.neural_types import ChannelType, LabelsType, LogitsType, LossType, NeuralType
 
 __all__ = ['TRADEMaskedCrossEntropy', 'CrossEntropyLoss3D']
 

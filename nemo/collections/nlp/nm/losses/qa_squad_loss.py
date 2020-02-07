@@ -17,7 +17,7 @@
 from torch import nn
 
 from nemo.backends.pytorch import LossNM
-from nemo.core import NeuralType, ChannelType, LogitsType, LossType
+from nemo.core import ChannelType, LogitsType, LossType, NeuralType
 
 __all__ = ['QuestionAnsweringLoss']
 

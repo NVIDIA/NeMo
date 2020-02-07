@@ -18,7 +18,7 @@ from torch import nn as nn
 
 from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
-from nemo.core import NeuralType, RegressionValuesType, ChannelType
+from nemo.core import ChannelType, NeuralType, RegressionValuesType
 
 __all__ = ['SequenceRegression']
 

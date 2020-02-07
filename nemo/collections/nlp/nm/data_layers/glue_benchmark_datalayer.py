@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.data import GLUEDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import NeuralType, RegressionValuesType, ChannelType, CategoricalValuesType
+from nemo.core import CategoricalValuesType, ChannelType, NeuralType, RegressionValuesType
 
 __all__ = ['GlueClassificationDataLayer', 'GlueRegressionDataLayer']
 

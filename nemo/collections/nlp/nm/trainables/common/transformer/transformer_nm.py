@@ -14,7 +14,7 @@ from nemo.collections.nlp.nm.trainables.common.transformer.transformer_generator
 )
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_modules import TransformerEmbedding
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
-from nemo.core.neural_types import NeuralType, ChannelType
+from nemo.core.neural_types import ChannelType, NeuralType
 
 __all__ = ['TransformerEncoderNM', 'TransformerDecoderNM', 'GreedyLanguageGeneratorNM', 'BeamSearchTranslatorNM']
 
