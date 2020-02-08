@@ -63,7 +63,7 @@ class JointIntentSlotClassifier(TrainableNM):
             # "intent_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             # "slot_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             "intent_logits": NeuralType(LogitsType(), ('B', 'D')),
-            "slot_logits": NeuralType(LogitsType(), ('B', 'D')),
+            "slot_logits": NeuralType(LogitsType(), ('B', 'T', 'D')),
         }
 
     def __init__(self, hidden_size, num_intents, num_slots, dropout=0.0, use_transformer_pretrained=True, **kwargs):
