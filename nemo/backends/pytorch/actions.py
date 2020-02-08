@@ -5,7 +5,7 @@ import itertools
 import json
 import os
 from collections import defaultdict
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack
 from pathlib import Path
 from typing import List, Optional
 
