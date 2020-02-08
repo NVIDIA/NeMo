@@ -5,15 +5,15 @@ import itertools
 import json
 import os
 from collections import defaultdict
-from contextlib import contextmanager, ExitStack
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import List, Optional
 
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.optim as optim
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from nemo import logging
 from nemo.backends.pytorch.module_wrapper import TrainableNeuralModuleWrapper

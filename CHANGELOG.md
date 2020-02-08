@@ -90,6 +90,8 @@ To release a new version, please update the changelog as followed:
     - Updated licenses
 - Updated nemo's use of the logging library. from nemo import logging is now the reccomended way of using the nemo logger. neural_factory.logger and all other instances of logger are now deprecated and planned for removal in the next version. Please see PR 267 for complete change information.
 ([PR #267](https://github.com/NVIDIA/NeMo/pull/267), [PR #283](https://github.com/NVIDIA/NeMo/pull/283), [PR #305](https://github.com/NVIDIA/NeMo/pull/305), [PR #311](https://github.com/NVIDIA/NeMo/pull/311)) - @blisc
+- Changed Distributed Data Parallel from Apex to Torch
+([PR #336](https://github.com/NVIDIA/NeMo/pull/336)) - @blisc
 
 - Added TRADE (dialogue state tracking model) on MultiWOZ dataset
 ([PR #322](https://github.com/NVIDIA/NeMo/pull/322)) - @chiphuyen, @VahidooX
@@ -104,6 +106,8 @@ To release a new version, please update the changelog as followed:
 ([PR #308](https://github.com/NVIDIA/NeMo/pull/309)) - @tkornuta-nvidia
 
 ### Removed
+- gradient_predivide_factor arg of train() now has no effect
+([PR #336](https://github.com/NVIDIA/NeMo/pull/336)) - @blisc
 
 ### Security
 
