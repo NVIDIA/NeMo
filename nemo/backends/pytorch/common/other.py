@@ -15,7 +15,7 @@ from typing import Dict, Iterable, Mapping, Optional, Set
 import torch
 import torch.nn as nn
 
-from nemo.backends.pytorch.nm import TrainableNM, NonTrainableNM
+from nemo.backends.pytorch.nm import NonTrainableNM, TrainableNM
 from nemo.core import NeuralModule
 from nemo.core.neural_types import *
 
