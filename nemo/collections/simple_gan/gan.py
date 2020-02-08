@@ -142,11 +142,8 @@ class DiscriminatorLoss(LossNM):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        loss:
-            NeuralType(None)
         """
-        return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(LossType())}
 
     def __init__(self, neg=False):
         super().__init__()
