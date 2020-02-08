@@ -15,7 +15,7 @@ from typing import Dict, Iterable, Mapping, Optional, Set
 import torch
 import torch.nn as nn
 
-from nemo.backends.pytorch.nm import TrainableNM
+from nemo.backends.pytorch.nm import TrainableNM, NonTrainableNM
 from nemo.core import NeuralModule
 from nemo.core.neural_types import *
 
@@ -328,7 +328,7 @@ class SequenceProjection(TrainableNM):
         return p
 
 
-class ZerosLikeNM(TrainableNM):
+class ZerosLikeNM(NonTrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
