@@ -60,7 +60,7 @@ class TestDeployExport(NeMoUnitTest):
             module=module, output=out_name, input_example=input_example, d_format=mode, output_example=outputs_fwd
         )
 
-        tol = 2.0e-3
+        tol = 5.0e-3
         out = Path(out_name)
         self.assertTrue(out.exists())
         if mode == nemo.core.DeploymentFormat.ONNX:
