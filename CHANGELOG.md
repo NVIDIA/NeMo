@@ -70,12 +70,16 @@ To release a new version, please update the changelog as followed:
 ## [Unreleased]
 
 ### Added
+- New Neural Type System and its tests.
+([PR #307](https://github.com/NVIDIA/NeMo/pull/307)) - @okuchaiev
 - Named tensors tuple module's output for graph construction.
 ([PR #268](https://github.com/NVIDIA/NeMo/pull/268)) - @stasbel
 - Introduced the `deprecated` decorator.
 ([PR #298](https://github.com/NVIDIA/NeMo/pull/298)) - @tkornuta-nvidia
 
 ### Changed
+- All collections changed to use New Neural Type System.
+([PR #307](https://github.com/NVIDIA/NeMo/pull/307)) - @okuchaiev
 - Additional Collections Repositories merged into core `nemo_toolkit` package.
 ([PR #289](https://github.com/NVIDIA/NeMo/pull/289)) - @DEKHTIARJonathan
 - Refactor manifest files parsing and processing for re-using.
