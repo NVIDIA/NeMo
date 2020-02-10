@@ -8,4 +8,4 @@ torch
 torchvision
 wget
 wrapt
-ruamel
+ruamel.yaml
