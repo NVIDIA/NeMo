@@ -6,7 +6,7 @@ An ASR system typically generates text with no punctuation and capitalization of
 
 .. tip::
 
-    We recommend you to try this example in Jupyter notebook examples/nlp/PunctuationWithBERT.ipynb.
+    We recommend you to try this example in Jupyter notebook examples/nlp/token_classification/PunctuationWithBERT.ipynb.
 
 Task Description
 ----------------
@@ -24,7 +24,7 @@ Dataset
 This model can work with any dataset as long as it follows the format specified below. For this tutorial, we're going to use the `Tatoeba collection of sentences`_. `This`_ script downloads and preprocesses the dataset. 
 
 .. _Tatoeba collection of sentences: https://tatoeba.org/eng
-.. _This: https://github.com/NVIDIA/NeMo/tree/master/scripts/get_tatoeba_data.py
+.. _This: https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/scripts/get_tatoeba.py
 
 
 The training and evaluation data is divided into 2 files: text.txt and labels.txt. Each line of the text.txt file contains text sequences, where words are separated with spaces:
@@ -78,11 +78,11 @@ First, let's set some parameters that we're going to need through out this tutor
         PUNCT_NUM_FC_LAYERS = 3
         NUM_SAMPLES = 100000
 
-To download an d preprocess a subset of the Tatoeba collection of sentences, run:
+To download and preprocess a subset of the Tatoeba collection of sentences, run:
 
 .. code-block:: bash
         
-        python ../../scripts/get_tatoeba_data.py --data_dir DATA_DIR --num_sample NUM_SAMPLES
+        python ../scripts/get_tatoeba_data.py --data_dir DATA_DIR --num_sample NUM_SAMPLES
 
 Then, we need to create our neural factory with the supported backend. This tutorial assumes that you're training on a single GPU, with mixed precision (``optimization_level="O1"``). If you don't want to use mixed precision, set ``optimization_level`` to ``O0``.
 
@@ -99,14 +99,14 @@ Next, we'll need to define our tokenizer and our BERT model. If you're using a s
     .. code-block:: python
 
         tokenizer = NemoBertTokenizer(pretrained_model=PRETRAINED_BERT_MODEL)
-        bert_model = nemo_nlp.huggingface.BERT(
+        bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
             pretrained_model_name=PRETRAINED_BERT_MODEL)
 
 Now, create the train and evaluation data layers:
 
     .. code-block:: python
 
-        train_data_layer = nemo_nlp.BertPunctuationCapitalizationDataLayer(
+        train_data_layer = nemo_nlp.nm.data_layers.PunctuationCapitalizationDataLayer(
                                             tokenizer=tokenizer,
                                             text_file=os.path.join(DATA_DIR, 'text_train.txt'),
                                             label_file=os.path.join(DATA_DIR, 'labels_train.txt'),
@@ -136,17 +136,17 @@ Now, create punctuation and capitalization classifiers to sit on top of the pret
 
   .. code-block:: python
 
-      punct_classifier = nemo_nlp.TokenClassifier(
-                                                  hidden_size=hidden_size,
-                                                  num_classes=len(punct_label_ids),
-                                                  dropout=CLASSIFICATION_DROPOUT,
-                                                  num_layers=PUNCT_NUM_FC_LAYERS,
-                                                  name='Punctuation')
+      punct_classifier = TokenClassifier(
+                                         hidden_size=hidden_size,
+                                         num_classes=len(punct_label_ids),
+                                         dropout=CLASSIFICATION_DROPOUT,
+                                         num_layers=PUNCT_NUM_FC_LAYERS,
+                                         name='Punctuation')
 
-      capit_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
-                                                  num_classes=len(capit_label_ids),
-                                                  dropout=CLASSIFICATION_DROPOUT,
-                                                  name='Capitalization')
+      capit_classifier = TokenClassifier(hidden_size=hidden_size,
+                                         num_classes=len(capit_label_ids),
+                                         dropout=CLASSIFICATION_DROPOUT,
+                                         name='Capitalization')
 
 
       # If you don't want to use weighted loss for Punctuation task, use class_weights=None
@@ -154,10 +154,10 @@ Now, create punctuation and capitalization classifiers to sit on top of the pret
       class_weights = utils.calc_class_weights(punct_label_freqs)
 
       # define loss
-      punct_loss = nemo_nlp.TokenClassificationLoss(num_classes=len(punct_label_ids),
+      punct_loss = TokenClassificationLoss(num_classes=len(punct_label_ids),
                                                     class_weights=class_weights)
-      capit_loss = nemo_nlp.TokenClassificationLoss(num_classes=len(capit_label_ids))
-      task_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
+      capit_loss = TokenClassificationLoss(num_classes=len(capit_label_ids))
+      task_loss = LossAggregatorNM(num_inputs=2)
 
 
 Below, we're passing the output of the datalayers through the pretrained BERT model and to the classifiers:
@@ -257,7 +257,7 @@ To see how the model performs, let's run inference on a few samples. We need to 
                'we bought four shirts from the nvidia gear store in santa clara',
                'we bought four shirts one mug and ten thousand titan rtx graphics cards',
                'the more you buy the more you save']
-    infer_data_layer = nemo_nlp.BertTokenClassificationInferDataLayer(
+    infer_data_layer = nemo_nlp.nm.data_layers.BertTokenClassificationInferDataLayer(
                                                             queries=queries,
                                                             tokenizer=tokenizer,
                                                             max_seq_length=MAX_SEQ_LENGTH,
@@ -341,13 +341,13 @@ To run the provided training script:
 
 .. code-block:: bash
 
-    python examples/nlp/punctuation_capitalization.py --data_dir path/to/data --pretrained_bert_model=bert-base-uncased --work_dir output
+    python examples/nlp/token_classification/punctuation_capitalization.py --data_dir path/to/data --pretrained_bert_model=bert-base-uncased --work_dir output
 
 To run inference:
 
 .. code-block:: bash
 
-    python examples/nlp/punctuation_capitalization_infer.py --punct_labels_dict path/to/data/punct_label_ids.csv --capit_labels_dict path/to/data/capit_label_ids.csv --work_dir output/checkpoints/
+    python examples/nlp/token_classification/punctuation_capitalization_infer.py --punct_labels_dict path/to/data/punct_label_ids.csv --capit_labels_dict path/to/data/capit_label_ids.csv --work_dir output/checkpoints/
 
 Note, punct_label_ids.csv and capit_label_ids.csv files will be generated during training and stored in the data_dir folder.
 
@@ -359,4 +359,4 @@ To run training on multiple GPUs, run
 .. code-block:: bash
 
     export NUM_GPUS=2
-    python -m torch.distributed.launch --nproc_per_node=$NUM_GPUS examples/nlp/punctuation_capitalization.py --num_gpus $NUM_GPUS --data_dir path/to/data
+    python -m torch.distributed.launch --nproc_per_node=$NUM_GPUS examples/nlp/token_classification/punctuation_capitalization.py --num_gpus $NUM_GPUS --data_dir path/to/data

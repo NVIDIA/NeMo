@@ -1,5 +1,5 @@
 # =============================================================================
-# Copyright 2019 AI Applications Design Team at NVIDIA. All Rights Reserved.
+# Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -87,12 +87,10 @@ See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
 if args.bert_checkpoint and args.bert_config:
-    pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
-        config_filename=args.bert_config
-    )
+    pretrained_bert_model = nemo.collections.nlp.nm.trainables.huggingface.BERT(config_filename=args.bert_config)
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 else:
-    pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+    pretrained_bert_model = nemo.collections.nlp.nm.trainables.huggingface.BERT(
         pretrained_model_name=args.pretrained_bert_model
     )
 
