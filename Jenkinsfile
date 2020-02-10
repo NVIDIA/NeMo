@@ -1,10 +1,5 @@
 pipeline {
-  agent {
-        docker {
-            image 'nvcr.io/nvidia/pytorch:20.01-py3'
-            args '--gpus all'
-        }
-  }
+  agent { dockerfile true }
   environment {
       PATH="/home/mrjenkins/anaconda3/envs/py37p1.4.0/bin:$PATH"
   }
