@@ -169,7 +169,7 @@ class NeuralModule(ABC):
         # Well, seems that everything is ok.
         return True
 
-    def export_config(self, config_file, config_dir="~/data/configs"):
+    def export_to_config(self, config_file, config_dir="~/data/configs"):
         """
             A function that exports module "configuration" (i.e. init parameters) to a YAML file.
             Raises a ValueError exception in case then parameters coudn't be exported.
@@ -183,8 +183,8 @@ class NeuralModule(ABC):
         if not self.__validate_params(self._init_params):
             raise ValueError(
                 "Generic Module export cannot work as some of the values are not primitive types (string, int, float) "
-                F"or (lists of/dicts of) primitive types. Please implement your own custom `export_config()` and "
-                F"`import_config()` methods for your custom Module class."
+                F"or (lists of/dicts of) primitive types. Please implement your own custom `export_to_config()` and "
+                F"`import_from_config()` methods for your custom Module class."
             )
 
         # Greate an absolute path.
@@ -244,7 +244,7 @@ class NeuralModule(ABC):
         )
 
     @classmethod
-    def import_config(cls, config_file, config_dir="~/data/configs"):
+    def import_from_config(cls, config_file, config_dir="~/data/configs"):
         """
             Class method importing the configuration file.
             Raises an ImportError exception when config file is invalid or
