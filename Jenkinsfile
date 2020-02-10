@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
             image 'nvcr.io/nvidia/pytorch:20.01-py3'
-            args '--gpus all'
+            args '--gpus all --user 0:128'
         }
   }
   options {
@@ -18,7 +18,7 @@ pipeline {
     }
     stage('Install test requirements') {
       steps {
-        sh 'pip install --user -r requirements/requirements_test.txt'
+        sh 'pip install -r requirements/requirements_test.txt'
       }
     }
     stage('Code formatting checks') {
