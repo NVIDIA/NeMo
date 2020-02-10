@@ -1,5 +1,5 @@
 # =============================================================================
-# Copyright 2019 AI Applications Design Team at NVIDIA. All Rights Reserved.
+# Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -146,7 +146,7 @@ nf = nemo_core.NeuralModuleFactory(
     log_dir=args.work_dir,
     create_tb_writer=True,
     files_to_copy=[__file__],
-    add_time_to_log_dir=True,
+    add_time_to_log_dir=False,
 )
 
 if args.config_file is not None:
@@ -318,7 +318,6 @@ if args.max_steps < 0:
     optimization_params['num_epochs'] = args.num_epochs
 else:
     optimization_params['max_steps'] = args.max_steps
-
 nf.train(
     tensors_to_optimize=[train_loss],
     lr_policy=lr_policy_fn,

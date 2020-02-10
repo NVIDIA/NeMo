@@ -1,0 +1,2 @@
+queries:
+  - include: py/print-during-import
