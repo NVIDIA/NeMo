@@ -49,7 +49,7 @@ class NeuralModuleExportTest(NeMoUnitTest):
         module = NeuralModuleExportTest.MockupSimpleModule(123, 12.4, "ala ma kota", True)
 
         # Export.
-        module.export_config("simple_export.yml", "/tmp/")
+        module.export_to_config("simple_export.yml", "/tmp/")
 
         # Check the resulting config file.
         with open("/tmp/simple_export.yml", 'r') as stream:
@@ -75,7 +75,7 @@ class NeuralModuleExportTest(NeMoUnitTest):
         )
 
         # Export.
-        module.export_config("nested_list_export.yml", "/tmp/")
+        module.export_to_config("nested_list_export.yml", "/tmp/")
 
         # Check the resulting config file.
         with open("/tmp/nested_list_export.yml", 'r') as stream:
@@ -105,7 +105,7 @@ class NeuralModuleExportTest(NeMoUnitTest):
         )
 
         # Export.
-        module.export_config("nested_dict_export.yml", "/tmp/")
+        module.export_to_config("nested_dict_export.yml", "/tmp/")
 
         # Check the resulting config file.
         with open("/tmp/nested_dict_export.yml", 'r') as stream:
@@ -134,4 +134,4 @@ class NeuralModuleExportTest(NeMoUnitTest):
 
         # Assert export error.
         with self.assertRaises(ValueError):
-            module.export_config("unallowed_export.yml", "/tmp/")
+            module.export_to_config("unallowed_export.yml", "/tmp/")

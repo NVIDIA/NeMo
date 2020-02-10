@@ -56,10 +56,10 @@ class NeuralModuleImportTest(NeMoUnitTest):
         orig_module = NeuralModuleImportTest.FirstSimpleModule(123, 12.4, "ala ma kota", True)
 
         # Export.
-        orig_module.export_config("first_simple_import.yml", "/tmp/")
+        orig_module.export_to_config("first_simple_import.yml", "/tmp/")
 
         # Import and create the new object.
-        new_module = nemo.core.NeuralModule.import_config("first_simple_import.yml", "/tmp/")
+        new_module = nemo.core.NeuralModule.import_from_config("first_simple_import.yml", "/tmp/")
 
         # Compare class types.
         self.assertEqual(type(orig_module).__name__, type(new_module).__name__)
@@ -79,10 +79,10 @@ class NeuralModuleImportTest(NeMoUnitTest):
         orig_module = NeuralModuleImportTest.FirstSimpleModule(123, 12.4, "ala ma kota", True)
 
         # Export.
-        orig_module.export_config("first_simple_import.yml", "/tmp/")
+        orig_module.export_to_config("first_simple_import.yml", "/tmp/")
 
         # Import and create the new object.
-        new_module = NeuralModuleImportTest.FirstSimpleModule.import_config("first_simple_import.yml", "/tmp/")
+        new_module = NeuralModuleImportTest.FirstSimpleModule.import_from_config("first_simple_import.yml", "/tmp/")
 
         # Compare class types.
         self.assertEqual(type(orig_module).__name__, type(new_module).__name__)
@@ -102,13 +102,13 @@ class NeuralModuleImportTest(NeMoUnitTest):
         orig_module = NeuralModuleImportTest.SecondSimpleModule(["No", "way", "dude!"], None)
 
         # Export.
-        orig_module.export_config("second_simple_import.yml", "/tmp/")
+        orig_module.export_to_config("second_simple_import.yml", "/tmp/")
 
         # This will actuall create an instance of SecondSimpleModule - OK.
-        new_module = nemo.core.NeuralModule.import_config("second_simple_import.yml", "/tmp/")
+        new_module = nemo.core.NeuralModule.import_from_config("second_simple_import.yml", "/tmp/")
         # Compare class types.
         self.assertEqual(type(orig_module).__name__, type(new_module).__name__)
 
         # This will create an instance of SecondSimpleModule, not FirstSimpleModule - SO NOT OK!!
         with self.assertRaises(ImportError):
-            _ = NeuralModuleImportTest.FirstSimpleModule.import_config("second_simple_import.yml", "/tmp/")
+            _ = NeuralModuleImportTest.FirstSimpleModule.import_from_config("second_simple_import.yml", "/tmp/")
