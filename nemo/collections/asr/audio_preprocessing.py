@@ -121,15 +121,6 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        input_signal:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        length:
-            0: AxisType(BatchTag)
-
         """
         return {
             # "input_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),

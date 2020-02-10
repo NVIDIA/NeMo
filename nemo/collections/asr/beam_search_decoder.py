@@ -56,7 +56,8 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
         predictions:
             NeuralType(None)
         """
-        return {"predictions": NeuralType(VoidType())}
+        # return {"predictions": NeuralType(VoidType())}
+        return {"predictions": NeuralType(PredictionsType(), ('B', 'T'))}
 
     def __init__(self, vocab, beam_width, alpha, beta, lm_path, num_cpus, cutoff_prob=1.0, cutoff_top_n=40):
 
