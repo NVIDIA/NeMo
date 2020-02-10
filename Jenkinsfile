@@ -21,7 +21,7 @@ pipeline {
     }
     stage('Install test requirements') {
       steps {
-        sh 'pip install -u -r requirements/requirements_test.txt'
+        sh 'pip install --user -r requirements/requirements_test.txt'
       }
     }
     stage('Code formatting checks') {
