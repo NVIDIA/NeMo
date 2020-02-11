@@ -47,11 +47,14 @@ class YouTokenToMeTokenizer(TokenizerSpec):
         ids_ = [id_ for id_ in ids if id_ not in self.special_tokens]
         return [self.tokenizer.id_to_subword(id_) for id_ in ids_]
 
+    @property
     def pad_id(self):
         return self.tokenizer.subword_to_id("<PAD>")
 
+    @property
     def bos_id(self):
         return self.tokenizer.subword_to_id("<BOS>")
 
+    @property
     def eos_id(self):
         return self.tokenizer.subword_to_id("<EOS>")

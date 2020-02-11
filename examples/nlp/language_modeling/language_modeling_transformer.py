@@ -110,7 +110,7 @@ log_softmax = nemo.collections.nlp.nm.trainables.common.token_classification_nm.
 )
 
 loss = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(
-    pad_id=tokenizer.pad_id(), label_smoothing=args.label_smoothing
+    pad_id=tokenizer.pad_id, label_smoothing=args.label_smoothing
 )
 
 # tie weight of embedding and log_softmax layers
