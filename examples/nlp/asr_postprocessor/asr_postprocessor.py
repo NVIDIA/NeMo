@@ -1,5 +1,5 @@
 # =============================================================================
-# Copyright 2019 AI Applications Design Team at NVIDIA. All Rights Reserved.
+# Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ parser.add_argument("--tgt_lang", default="real", type=str)
 parser.add_argument("--beam_size", default=4, type=int)
 parser.add_argument("--len_pen", default=0.0, type=float)
 parser.add_argument(
-    "--restore_from", dest="restore_from", type=str, default="../../scripts/bert-base-uncased_decoder.pt"
+    "--restore_from", dest="restore_from", type=str, default="../../../scripts/bert-base-uncased_decoder.pt"
 )
 args = parser.parse_args()
 
@@ -207,6 +207,11 @@ nf.train(
     callbacks=callbacks,
     optimizer=args.optimizer,
     lr_policy=lr_policy,
-    optimization_params={"num_epochs": 300, "lr": args.lr, "weight_decay": args.weight_decay},
+    optimization_params={
+        "num_epochs": 300,
+        "max_steps": args.max_steps,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+    },
     batches_per_step=args.iter_per_step,
 )

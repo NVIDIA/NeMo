@@ -1,7 +1,7 @@
 # ! /usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright 2019 NVIDIA. All Rights Reserved.
+# Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,5 +40,6 @@ if "NEMO_PACKAGE_BUILDING" not in os.environ:
     from nemo import backends
     from nemo import core
     from nemo import utils
+    from nemo import collections
 
     from nemo.backends.pytorch import tutorials

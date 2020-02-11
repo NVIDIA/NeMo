@@ -18,9 +18,12 @@ FROM ${FROM_IMAGE_NAME}
 
 # Ensure apt-get won't prompt for selecting options
 ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y libsndfile1 sox \
-    python-setuptools python-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y \
+    libsndfile1 sox \
+    python-setuptools \
+    python-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 ENV PATH=$PATH:/usr/src/tensorrt/bin
 WORKDIR /tmp/onnx-trt
@@ -29,16 +32,19 @@ RUN git clone -n https://github.com/onnx/onnx-tensorrt.git && cd onnx-tensorrt &
     mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DGPU_ARCHS="60 70 75" && make -j16 && make install && mv -f /usr/lib/libnvonnx* /usr/lib/x86_64-linux-gnu/ && ldconfig
 
 WORKDIR /workspace/nemo
+ARG NEMO_GIT_BRANCH="master"
 
 COPY requirements/requirements_docker.txt requirements.txt
-RUN pip install --disable-pip-version-check -U -r requirements.txt
+RUN pip install \
+    --disable-pip-version-check --no-cache-dir\
+    --upgrade -r requirements.txt && \
+    pip install --no-cache-dir \
+    git+git://github.com/NVIDIA/NeMo.git@${NEMO_GIT_BRANCH}#egg=project[all]
 
-COPY . .
-RUN cd nemo && pip install -e . && cd ../collections/nemo_asr && pip install -e . && cd ../nemo_nlp && pip install -e . && cd ../nemo_simple_gan && pip install -e . && cd ../nemo_tts && pip install -e .
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
     chmod +x start-jupyter.sh
 
-WORKDIR /workspace/nemo
+
 
 
 

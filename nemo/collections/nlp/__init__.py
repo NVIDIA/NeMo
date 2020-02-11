@@ -1,5 +1,5 @@
 # =============================================================================
-# Copyright 2019 AI Applications Design Team at NVIDIA. All Rights Reserved.
+# Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,9 +14,7 @@
 # limitations under the License.
 # =============================================================================
 
-import nemo.collections.nlp.callbacks
-import nemo.collections.nlp.data
-import nemo.collections.nlp.nm
-import nemo.collections.nlp.utils
+import nemo
+from nemo.collections.nlp import callbacks, data, nm, utils
 
 backend = nemo.core.Backend.PyTorch
