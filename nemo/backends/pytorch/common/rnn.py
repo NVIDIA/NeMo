@@ -70,7 +70,7 @@ class DecoderRNN(TrainableNM):
         """
         return {
             # 'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            'targets': NeuralType(ChannelType(), ('B', 'T')),
+            'targets': NeuralType(LabelsType(), ('B', 'T')),
             # 'encoder_outputs': NeuralType(
             #   {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
             # ),
