@@ -26,7 +26,7 @@ nf = NeuralModuleFactory(placement=DeviceType.CPU)
 # Instantitate RealFunctionDataLayer defaults to f=torch.sin, sampling from x=[-1, 1]
 dl = nemo.tutorials.RealFunctionDataLayer(n=100, f_name="cos", x_lo=-1, x_hi=1, batch_size=128)
 
-# Instantiate a simple FF neural network.
+# Instantiate a simple feed-forward, single layer neural network.
 fx = nemo.tutorials.TaylorNet(dim=4)
 
 # Instantitate loss.
