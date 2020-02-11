@@ -25,7 +25,7 @@ class CTCLossNM(LossNM):
             # "input_length": NeuralType({0: AxisType(BatchTag)}),
             # "target_length": NeuralType({0: AxisType(BatchTag)}),
             "log_probs": NeuralType(LogprobsType(), ('B', 'T', 'D')),
-            "targets": NeuralType(ChannelType(), ('B', 'T')),
+            "targets": NeuralType(PredictionsType(), ('B', 'T')),
             "input_length": NeuralType(LengthsType(), tuple('B')),
             "target_length": NeuralType(LengthsType(), tuple('B')),
         }

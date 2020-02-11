@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .axes import *
-from .comparison import *
-from .elements import *
-from .neural_type import *
+from nemo.core.neural_types.axes import *
+from nemo.core.neural_types.comparison import *
+from nemo.core.neural_types.elements import *
+from nemo.core.neural_types.neural_type import *
