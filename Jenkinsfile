@@ -27,7 +27,7 @@ pipeline {
 
     stage('install') {
       steps {
-        sh './reinstall'
+        sh './reinstall.sh'
       }
     }
 
