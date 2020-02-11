@@ -24,7 +24,7 @@ pipeline {
         sh 'python setup.py style'
       }
     }
-    stage('Unittests general') {
+    stage('Unittests ALL') {
       steps {
         sh './reinstall.sh && python -m unittest'
       }
