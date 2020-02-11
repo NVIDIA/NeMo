@@ -123,8 +123,10 @@ class SimpleGenerator(TrainableNM):
             )
         }
 
-    def __init__(self):
+    def __init__(self, batch_size):
         super().__init__()
+        self._batch_size = batch_size
+
         self.layers = torch.nn.Sequential(
             torch.nn.ConvTranspose2d(64, 128, 3, stride=2),
             torch.nn.ReLU(),

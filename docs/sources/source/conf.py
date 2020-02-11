@@ -25,12 +25,7 @@ import nemo
 
 sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../../../"))
-sys.path.insert(0, os.path.abspath("../../../nemo/nemo"))
-sys.path.insert(0, os.path.abspath("../../../collections"))
-sys.path.insert(0, os.path.abspath("../../../collections/nemo_asr"))
-sys.path.insert(0, os.path.abspath("../../../collections/nemo_nlp"))
-sys.path.insert(0, os.path.abspath("../../../collections/nemo_tts"))
-# sys.path.insert(0, os.path.abspath("../../../collections/nemo_lpr"))
+sys.path.insert(0, os.path.abspath("../../../nemo/"))
 
 # ---- Mocking up the classes. -----
 MOCK_CLASSES = {'Dataset': 'torch.utils.data', 'Module': 'torch.nn'}
@@ -66,6 +61,7 @@ MOCK_MODULES = [
     'h5py',
     'kaldi_io',
     'transformers',
+    'transformers.tokenization_bert',
 ]
 
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
