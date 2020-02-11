@@ -219,7 +219,7 @@ def main():
                 raise ValueError(f"Final eval greedy WER {wer * 100:.2f}% > :" f"than {wer_thr * 100:.2f}%")
         nf.sync_all_processes()
 
-        if nf.world_size == 1:
+        if nf.world_size == 1 and args.lm is not None:
             beam_hypotheses = []
             # Over mini-batch
             for i in evaluated_tensors[-1]:
