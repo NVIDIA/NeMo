@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
             image 'nvcr.io/nvidia/pytorch:20.01-py3'
-            args '--gpus all --user 0:128'
+            args '--runtime=nvidia --gpus all --user 0:128'
         }
   }
   options {
