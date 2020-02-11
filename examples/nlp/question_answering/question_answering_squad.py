@@ -85,20 +85,14 @@ def parse_args():
     parser.add_argument(
         "--dev_file", type=str, required=True, help="The evaluation data file. Should be *.json",
     )
-    parser.add_argument(
-        "--pretrained_bert_model", type=str, help="Name of the pre-trained model"
-    )
+    parser.add_argument("--pretrained_bert_model", type=str, help="Name of the pre-trained model")
     parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
     parser.add_argument(
         "--bert_checkpoint", default=None, type=str, help="Path to BERT model checkpoint for finetuning."
     )
     parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
     parser.add_argument(
-        "--model_type",
-        default="bert",
-        type=str,
-        help="model type",
-        choices=['bert', 'roberta', 'albert']
+        "--model_type", default="bert", type=str, help="model type", choices=['bert', 'roberta', 'albert']
     )
     parser.add_argument("--optimizer_kind", default="adam", type=str, help="Optimizer kind")
     parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
@@ -242,41 +236,42 @@ def create_pipeline(
         [loss_output.start_logits, loss_output.end_logits, input_data.unique_ids],
         data_layer,
     )
+
+
 MODEL_CLASSES = {
     "bert": {
-             "model_name": "bert-base-uncased",
-             "tokenizer_name": "bert-base-uncased",
-             "model": nemo_nlp.nm.trainables.huggingface.BERT,
-             "special_tokens":        
-                {"unk_token": "[UNK]",
-                 "sep_token": "[SEP]",
-                "pad_token": "[PAD]",
-                "bos_token": "[CLS]",
-                "mask_token":"[MASK]",
-                "eos_token":"[SEP]",
-                "cls_token":"[CLS]",
-                },
+        "model_name": "bert-base-uncased",
+        "tokenizer_name": "bert-base-uncased",
+        "model": nemo_nlp.nm.trainables.huggingface.BERT,
+        "special_tokens": {
+            "unk_token": "[UNK]",
+            "sep_token": "[SEP]",
+            "pad_token": "[PAD]",
+            "bos_token": "[CLS]",
+            "mask_token": "[MASK]",
+            "eos_token": "[SEP]",
+            "cls_token": "[CLS]",
+        },
     },
     "roberta": {
-            "model_name": "roberta-base",
-             "tokenizer_name": "roberta-base",
-            "model": nemo_nlp.nm.trainables.huggingface.Roberta,             
-            "special_tokens":      
-                {"unk_token": "<unk>",
-                 "sep_token": "</s>",
-                "pad_token": "<pad>",
-                "bos_token": "<s>",
-                "mask_token":"<mask>",
-                "eos_token":"</s>",
-                "cls_token":"<s>",
-                },
+        "model_name": "roberta-base",
+        "tokenizer_name": "roberta-base",
+        "model": nemo_nlp.nm.trainables.huggingface.Roberta,
+        "special_tokens": {
+            "unk_token": "<unk>",
+            "sep_token": "</s>",
+            "pad_token": "<pad>",
+            "bos_token": "<s>",
+            "mask_token": "<mask>",
+            "eos_token": "</s>",
+            "cls_token": "<s>",
+        },
     },
     "albert": {
-            "model_name": "albert-base-v2",
-             "tokenizer_name": "albert-base-v2",
-            "model": nemo_nlp.nm.trainables.huggingface.Albert,
-            "special_tokens": 
-            {       
+        "model_name": "albert-base-v2",
+        "tokenizer_name": "albert-base-v2",
+        "model": nemo_nlp.nm.trainables.huggingface.Albert,
+        "special_tokens": {
             "unk_token": "<unk>",
             "sep_token": "[SEP]",
             "eos_token": "[SEP]",
@@ -284,8 +279,8 @@ MODEL_CLASSES = {
             "cls_token": "[CLS]",
             "bos_token": "[CLS]",
             "mask_token": "[MASK]",
-                },
-    }
+        },
+    },
 }
 
 if __name__ == "__main__":
@@ -329,8 +324,12 @@ if __name__ == "__main__":
     if args.pretrained_bert_model is None:
         args.pretrained_bert_model = model_name
 
-    tokenizer = tokenizer_cls(do_lower_case=args.do_lower_case, pretrained_model=tokenizer_name, 
-        special_tokens=tokenizer_special_tokens, bert_derivate=args.model_type)
+    tokenizer = tokenizer_cls(
+        do_lower_case=args.do_lower_case,
+        pretrained_model=tokenizer_name,
+        special_tokens=tokenizer_special_tokens,
+        bert_derivate=args.model_type,
+    )
 
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:

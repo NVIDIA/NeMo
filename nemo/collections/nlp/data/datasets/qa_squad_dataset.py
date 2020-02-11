@@ -404,12 +404,7 @@ class SquadDataset(Dataset):
 
 
 def convert_examples_to_features(
-    examples, 
-    tokenizer, 
-    max_seq_length, 
-    doc_stride, 
-    max_query_length, 
-    has_groundtruth,
+    examples, tokenizer, max_seq_length, doc_stride, max_query_length, has_groundtruth,
 ):
     """Loads a data file into a list of `InputBatch`s."""
 
@@ -616,6 +611,7 @@ class SquadProcessor(DataProcessor):
     Processor for the SQuAD data set.
     used by the version 1.1 and version 2.0 of SQuAD, respectively.
     """
+
     def __init__(self, data_file, mode):
         self.data_file = data_file
         self.mode = mode
