@@ -128,7 +128,8 @@ def main():
     parser.add_argument("--eval_datasets", type=str, nargs=1, help="validation dataset path")
 
     # Create new args
-    parser.add_argument("--lm", default="./an4-lm.3gram.binary", type=str)
+    # parser.add_argument("--lm", default="./an4-lm.3gram.binary", type=str)
+    parser.add_argument("--lm", default=None, type=str)
     parser.add_argument("--test_after_training", action='store_true')
     parser.add_argument("--momentum", type=float)
     parser.add_argument("--beta1", default=0.95, type=float)
@@ -198,7 +199,7 @@ def main():
     if args.test_after_training:
         logging.info("Testing greedy and beam search with LM WER.")
         # Create BeamSearch NM
-        if nf.world_size > 1:
+        if nf.world_size > 1 or args.lm is None:
             logging.warning("Skipping beam search WER as it does not " "work if doing distributed training.")
         else:
             beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
@@ -218,7 +219,7 @@ def main():
                 raise ValueError(f"Final eval greedy WER {wer * 100:.2f}% > :" f"than {wer_thr * 100:.2f}%")
         nf.sync_all_processes()
 
-        if nf.world_size == 1:
+        if nf.world_size == 1 and args.lm is not None:
             beam_hypotheses = []
             # Over mini-batch
             for i in evaluated_tensors[-1]:
