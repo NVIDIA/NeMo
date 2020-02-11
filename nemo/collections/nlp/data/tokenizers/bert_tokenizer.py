@@ -16,11 +16,13 @@
 
 import re
 
-from transformers import BertTokenizer, RobertaTokenizer, AlbertTokenizer
+from transformers import AlbertTokenizer, BertTokenizer, RobertaTokenizer
 
 from nemo.collections.nlp.data.tokenizers.tokenizer_spec import TokenizerSpec
 
-__all__ = ['NemoBertTokenizer',]
+__all__ = [
+    'NemoBertTokenizer',
+]
 
 
 def handle_quotes(text):
@@ -72,7 +74,7 @@ class NemoBertTokenizer(TokenizerSpec):
             "cls_token": "[CLS]",
             "bos_token": "[CLS]",
             "mask_token": "[MASK]",
-                        },
+        },
         do_lower_case=True,
     ):
 
@@ -83,11 +85,12 @@ class NemoBertTokenizer(TokenizerSpec):
         elif bert_derivate == 'roberta':
             tokenizer_cls = RobertaTokenizer
 
-        self.tokenizer = tokenizer_cls.from_pretrained(pretrained_model)        
+        self.tokenizer = tokenizer_cls.from_pretrained(pretrained_model)
         for k, v in special_tokens.items():
             setattr(self, k, v)
-        
+
         self.never_split = tuple(special_tokens.values())
+
     def text_to_tokens(self, text):
         tokens = self.tokenizer.tokenize(text)
         return tokens
