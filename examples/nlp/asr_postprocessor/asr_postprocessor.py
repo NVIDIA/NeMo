@@ -113,7 +113,7 @@ t_log_softmax = nemo_nlp.nm.trainables.TokenClassifier(
     args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
 )
 
-loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(pad_id=tokenizer.pad_id(), label_smoothing=0.1)
+loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(pad_id=tokenizer.pad_id, label_smoothing=0.1)
 
 beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     decoder=decoder,
@@ -121,9 +121,9 @@ beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     max_seq_length=args.max_seq_length,
     beam_size=args.beam_size,
     length_penalty=args.len_pen,
-    bos_token=tokenizer.bos_id(),
-    pad_token=tokenizer.pad_id(),
-    eos_token=tokenizer.eos_id(),
+    bos_token=tokenizer.bos_id,
+    pad_token=tokenizer.pad_id,
+    eos_token=tokenizer.eos_id,
 )
 
 # tie all embeddings weights
