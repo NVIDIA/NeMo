@@ -39,7 +39,7 @@ import abc
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, Tuple
 
-from .comparison import NeuralTypeComparisonResult
+from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
 
 
 class ElementType(ABC):

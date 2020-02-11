@@ -241,7 +241,7 @@ class CrossEntropyLoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(axes=None)}
+        return {"loss": NeuralType(LossType())}
 
     def __init__(self):
         # Neural Module API specific

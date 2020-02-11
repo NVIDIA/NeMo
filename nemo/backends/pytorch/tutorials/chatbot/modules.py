@@ -76,7 +76,7 @@ class EncoderRNN(TrainableNM):
         """
         return {
             "input_seq": NeuralType(ChannelType(), ('T', 'B')),
-            "input_lengths": NeuralType(ChannelType(), tuple('B')),
+            "input_lengths": NeuralType(LengthsType(), tuple('B')),
         }
 
     @property
