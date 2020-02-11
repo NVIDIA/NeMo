@@ -14,23 +14,6 @@ if not os.path.isfile(data_file):
         with open(data_file, 'wb') as f_out:
             shutil.copyfileobj(f_in, f_out)
 
-# Configuration
-config = {
-    "corpus_name": "cornell",
-    "datafile": data_file,
-    "attn_model": 'dot',
-    "hidden_size": 512,
-    "encoder_n_layers": 2,
-    "decoder_n_layers": 2,
-    "dropout": 0.1,
-    "voc_size": 6104 + 3,
-    "batch_size": 128,
-    "num_epochs": 15,
-    "optimizer_kind": "adam",
-    "learning_rate": 0.0003,
-    "tb_log_dir": "ChatBot",
-}
-
 # instantiate Neural Factory with supported backend
 neural_factory = nemo.core.NeuralModuleFactory()
 
@@ -98,5 +81,5 @@ optimizer.train(
     tensors_to_optimize=[loss],
     callbacks=[callback],
     optimizer="adam",
-    optimization_params={"num_epochs": config["num_epochs"], "lr": 0.001},
+    optimization_params={"num_epochs": 15, "lr": 0.001},
 )
