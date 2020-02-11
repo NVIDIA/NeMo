@@ -32,7 +32,6 @@ class SentencePieceTokenizer(TokenizerSpec):
         self.id_to_special_token = {}
         self.add_special_tokens(special_tokens)
 
-
     def text_to_tokens(self, text):
         tokens = []
         idx = 0
@@ -90,7 +89,6 @@ class SentencePieceTokenizer(TokenizerSpec):
     def tokens_to_text(self, tokens):
         return self.tokenizer.decode_pieces(tokens)
 
-    
     def ids_to_text(self, ids):
         text = ""
         last_i = 0
@@ -103,7 +101,6 @@ class SentencePieceTokenizer(TokenizerSpec):
 
         text += self.tokenizer.decode_ids(ids[last_i:])
         return text.strip()
-
 
     def tokens_to_ids(self, tokens):
         ids = []
@@ -128,19 +125,23 @@ class SentencePieceTokenizer(TokenizerSpec):
     def add_special_tokens(self, special_tokens):
         if isinstance(special_tokens, list):
             for token in special_tokens:
-                if self.tokenizer.piece_to_id(token) == self.tokenizer.unk_id() and token not in self.special_token_to_id:
+                if (
+                    self.tokenizer.piece_to_id(token) == self.tokenizer.unk_id()
+                    and token not in self.special_token_to_id
+                ):
                     self.special_token_to_id[token] = self.vocab_size
                     self.id_to_special_token[self.vocab_size] = token
                     self.vocab_size += 1
         elif isinstance(special_tokens, dict):
             for token_name, token in special_tokens.items():
-                if self.tokenizer.piece_to_id(token) == self.tokenizer.unk_id() and token not in self.special_token_to_id:
+                if (
+                    self.tokenizer.piece_to_id(token) == self.tokenizer.unk_id()
+                    and token not in self.special_token_to_id
+                ):
                     setattr(self, token_name, token)
                     self.special_token_to_id[token] = self.vocab_size
                     self.id_to_special_token[self.vocab_size] = token
                     self.vocab_size += 1
-
-    
 
     @property
     def pad_id(self):

@@ -251,8 +251,10 @@ class BertPretrainingDataset(Dataset):
                     trunc_document.pop()
 
         truncate_seq_pair(a_document, b_document, max_num_tokens)
-        
-        output_ids = [self.tokenizer.cls_id] + a_document + [self.tokenizer.sep_id] + b_document + [self.tokenizer.eos_id]
+
+        output_ids = (
+            [self.tokenizer.cls_id] + a_document + [self.tokenizer.sep_id] + b_document + [self.tokenizer.eos_id]
+        )
 
         input_ids, output_mask = self.mask_ids(output_ids)
 

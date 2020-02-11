@@ -121,7 +121,7 @@ else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     """
     if args.tokenizer == "sentencepiece":
-        special_tokens= {
+        special_tokens = {
             "sep_token": "[SEP]",
             "pad_token": "[PAD]",
             "bos_token": "[CLS]",

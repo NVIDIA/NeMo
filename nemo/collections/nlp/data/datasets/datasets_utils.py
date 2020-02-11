@@ -945,7 +945,7 @@ def get_intent_labels(intent_file):
 
 def download_wkt2(data_dir):
     if os.path.exists(data_dir):
-        return 
+        return
     os.makedirs('data/lm', exist_ok=True)
     logging.warning(f'Data not found at {data_dir}. ' f'Downloading wikitext-2 to data/lm')
     data_dir = 'data/lm/wikitext-2'

@@ -199,7 +199,7 @@ else:
     Replace BERT-STEP-150000.pt with the path to your checkpoint.
     """
     if args.tokenizer == "sentencepiece":
-        special_tokens= {
+        special_tokens = {
             "sep_token": "[SEP]",
             "pad_token": "[PAD]",
             "bos_token": "[CLS]",

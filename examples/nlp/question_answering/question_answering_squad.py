@@ -91,11 +91,11 @@ def parse_args():
         "--model_type", default="bert", type=str, help="model type", choices=['bert', 'roberta', 'albert']
     )
     parser.add_argument(
-    "--tokenizer_model",
-    default="tokenizer.model",
-    type=str,
-    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
-)
+        "--tokenizer_model",
+        default="tokenizer.model",
+        type=str,
+        help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+    )
     parser.add_argument(
         "--tokenizer",
         default="nemobert",
@@ -322,7 +322,7 @@ if __name__ == "__main__":
                 "Using --tokenizer=sentencepiece \
                         requires valid --tokenizer_model"
             )
-        special_tokens= {
+        special_tokens = {
             "sep_token": "[SEP]",
             "pad_token": "[PAD]",
             "bos_token": "[CLS]",
