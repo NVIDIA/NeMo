@@ -112,7 +112,7 @@ class TestZeroDL(NeMoUnitTest):
                     (AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 64), AxisType(AxisKind.Time, 64)),
                 ),
                 "processed_length": NeuralType(LengthsType(), tuple('B')),
-                "transcript": NeuralType(ChannelType(), (AxisType(AxisKind.Batch), AxisType(AxisKind.Time, 64))),
+                "transcript": NeuralType(LabelsType(), (AxisType(AxisKind.Batch), AxisType(AxisKind.Time, 64))),
                 "transcript_length": NeuralType(LengthsType(), tuple('B')),
             },
         )

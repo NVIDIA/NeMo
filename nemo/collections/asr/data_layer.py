@@ -102,7 +102,7 @@ transcript_n}
             # 'transcript_length': NeuralType({0: AxisType(BatchTag)}),
             'audio_signal': NeuralType(AudioSignal(freq=self._sample_rate), ('B', 'T')),
             'a_sig_length': NeuralType(LengthsType(), tuple('B')),
-            'transcripts': NeuralType(ChannelType(), ('B', 'T')),
+            'transcripts': NeuralType(LabelsType(), ('B', 'T')),
             'transcript_length': NeuralType(LengthsType(), tuple('B')),
         }
 
