@@ -21,7 +21,13 @@ pipeline {
     }
     stage('Code formatting checks') {
       steps {
-        sh 'python setup.py style && ./reinstall'
+        sh 'python setup.py style'
+      }
+    }
+
+    stage('install') {
+      steps {
+        sh './reinstall'
       }
     }
 
