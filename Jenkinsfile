@@ -2,20 +2,13 @@ pipeline {
   agent {
         docker {
             image 'nvcr.io/nvidia/pytorch:20.01-py3'
-            args '--device=/dev/nvidia0 --gpus all --user 0:128'
+            args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home:/home'
         }
   }
   options {
     timeout(time: 1, unit: 'HOURS')
     disableConcurrentBuilds()
    }
-  stages {
-    stage('NVIDIA SMI') {
-      steps {
-        sh 'cat /dev/null > /etc/shinit && nvidia-smi'
-      }
-    }
-
     stage('PyTorch version') {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
@@ -33,23 +26,7 @@ pipeline {
     }
     stage('Unittests general') {
       steps {
-        sh './reinstall.sh && python -m unittest tests/*.py'
-      }
-    }
-
-    stage('Unittests ASR') {
-      steps {
-        sh 'python -m unittest tests/asr/*.py'
-      }
-    }
-    stage('Unittests NLP') {
-      steps {
-        sh 'python -m unittest tests/nlp/*.py'
-      }
-    }
-    stage('Unittests TTS') {
-      steps {
-        sh 'python -m unittest tests/tts/*.py'
+        sh './reinstall.sh && python -m unittest'
       }
     }
 
