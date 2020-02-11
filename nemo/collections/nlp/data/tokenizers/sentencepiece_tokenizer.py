@@ -134,11 +134,11 @@ class SentencePieceTokenizer(TokenizerSpec):
                     self.vocab_size += 1
         elif isinstance(special_tokens, dict):
             for token_name, token in special_tokens.items():
+                setattr(self, token_name, token)
                 if (
                     self.tokenizer.piece_to_id(token) == self.tokenizer.unk_id()
                     and token not in self.special_token_to_id
                 ):
-                    setattr(self, token_name, token)
                     self.special_token_to_id[token] = self.vocab_size
                     self.id_to_special_token[self.vocab_size] = token
                     self.vocab_size += 1
