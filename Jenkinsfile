@@ -1,12 +1,14 @@
 pipeline {
-  agent any
-  environment {
-      PATH="/home/mrjenkins/anaconda3/envs/py37p1.4.0/bin:$PATH"
+  agent {
+        docker {
+            image 'nvcr.io/nvidia/pytorch:20.01-py3'
+            args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home:/home --shm-size=8g'
+        }
   }
   options {
     timeout(time: 1, unit: 'HOURS')
     disableConcurrentBuilds()
-   }
+  }
   stages {
 
     stage('PyTorch version') {
@@ -16,7 +18,7 @@ pipeline {
     }
     stage('Install test requirements') {
       steps {
-        sh 'pip install -r requirements/requirements_test.txt'
+        sh 'apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt'
       }
     }
     stage('Code formatting checks') {
@@ -24,10 +26,9 @@ pipeline {
         sh 'python setup.py style'
       }
     }
-
-    stage('install') {
+    stage('Unittests ALL') {
       steps {
-        sh './reinstall.sh'
+        sh './reinstall.sh && python -m unittest'
       }
     }
 
@@ -48,28 +49,6 @@ pipeline {
             sh 'rm -rf examples/nlp/language_modeling/outputs/wiki_book'
           }
         }
-      }
-    }
-
-    stage('Unittests general') {
-      steps {
-        sh './reinstall.sh && python -m unittest tests/*.py'
-      }
-    }
-
-    stage('Unittests ASR') {
-      steps {
-        sh 'python -m unittest tests/asr/*.py'
-      }
-    }
-    stage('Unittests NLP') {
-      steps {
-        sh 'python -m unittest tests/nlp/*.py'
-      }
-    }
-    stage('Unittests TTS') {
-      steps {
-        sh 'python -m unittest tests/tts/*.py'
       }
     }
 
@@ -155,8 +134,6 @@ pipeline {
         }
       }
     }
-
-
 
     stage('NLP-ASR processing') {
       failFast true
