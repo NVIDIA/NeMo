@@ -23,33 +23,31 @@ from nemo.core import DeviceType, NeuralModule, NeuralModuleFactory
 # Run on CPU.
 nf = NeuralModuleFactory(placement=DeviceType.CPU)
 
-
 # Instantitate RealFunctionDataLayer defaults to f=torch.sin, sampling from x=[-1, 1]
 dl = nemo.tutorials.RealFunctionDataLayer(n=100, f_name="cos", x_lo=-1, x_hi=1, batch_size=128)
 
 # Instantiate a simple FF neural network.
 fx = nemo.tutorials.TaylorNet(dim=4)
+
+# Instantitate loss.
+mse_loss = nemo.tutorials.MSELoss()
+
 # Export the model configuration.
 fx.export_to_config("taylor_net.yml", "/tmp/")
 
-
-# Create a second instance, using the parameters from the configuration.
+# Create a second instance, using the parameters loaded from the previously created configuration.
 fx2 = NeuralModule.import_from_config("taylor_net.yml", "/tmp/")
 
-
-# Instantitate loss,
-loss = nemo.tutorials.MSELoss()
-
-# Describe the activation's flow - using the imported model.
+# Create a graph by connecting the outputs with inputs of modules.
 x, y = dl()
+# Please note that in the graph are using the "second" instance.
 p = fx2(x=x)
-lss = loss(predictions=p, target=y)
+loss = mse_loss(predictions=p, target=y)
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=[lss], print_func=lambda x: nemo.logging.info(f'Train Loss: {str(x[0].item())}')
+    tensors=[loss], print_func=lambda x: nemo.logging.info(f'Train Loss: {str(x[0].item())}')
 )
 
-
-# Invoke "train" action
-nf.train([lss], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd")
+# Invoke the "train" action.
+nf.train([loss], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd")
