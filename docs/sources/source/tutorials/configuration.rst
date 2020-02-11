@@ -17,7 +17,7 @@ In the following example we will once again train a model to learn Taylor's coef
 However, we will extend the example by showing how to export configuration of the module to a YAML file and \
 create a second instance having the same set of parameters.
 
-Let us start by creating the Neural Factory and instatiating the original modules:
+Let us start by creating the Neural Factory and instatiating the modules from the original example:
 
 .. literalinclude:: ../../../../examples/start_here/simplest_example_configuration_import.py
    :language: python
@@ -36,9 +36,13 @@ There is an analogical function `import_from_config()` responsible for loading t
    :language: python
    :lines: 39
 
-Please note that the function actually creates a new instance of object of the class that was stored in the \
-configuration. We can use that module in the same way as every other module, i.e. we can build a graph and train it \
-with a NeMo trainer:
+.. note::
+    The `import_from_config()` function actually creates a new instance of object of the class that was stored in the \
+    configuration. But it is important to understand that both instances do not share any trainable weights. \
+    NeMo offers a separate mechanism for weight tying.
+
+Now we can use the newly imported module in the same way as every other module. \
+For example, we can build a graph and train it with a NeMo trainer:
 
 .. literalinclude:: ../../../../examples/start_here/simplest_example_configuration_import.py
    :language: python
