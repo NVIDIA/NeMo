@@ -84,6 +84,8 @@ from nemo import logging
 from nemo.collections.nlp.data.datasets.lm_bert_dataset import BERTPretrainingDataDesc
 from nemo.utils.lr_policies import get_lr_policy
 
+print("nemo_nlp path", nemo_nlp.__file__)
+
 parser = argparse.ArgumentParser(description='BERT pretraining')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
