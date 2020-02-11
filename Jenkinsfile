@@ -10,6 +10,11 @@ pipeline {
     disableConcurrentBuilds()
    }
   stages {
+    stage('NVIDIA SMI') {
+      steps {
+        sh 'nvidia-smi'
+      }
+    }
 
     stage('PyTorch version') {
       steps {
