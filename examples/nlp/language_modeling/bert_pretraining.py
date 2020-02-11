@@ -160,14 +160,21 @@ if args.config_file is not None:
     args.max_seq_length = config['max_position_embeddings']
 
 if not args.preprocessed_data:
-    special_tokens = ['[PAD]', '[UNK]', '[CLS]', '[SEP]', '[MASK]']
+    special_tokens= {
+            "sep_token": "[SEP]",
+            "pad_token": "[PAD]",
+            "bos_token": "[CLS]",
+            "mask_token": "[MASK]",
+            "eos_token": "[SEP]",
+            "cls_token": "[CLS]",
+    }
     data_desc = BERTPretrainingDataDesc(
-        args.dataset_name, args.data_dir, args.vocab_size, args.sample_size, special_tokens, 'train.txt'
+        args.dataset_name, args.data_dir, args.vocab_size, args.sample_size, list(set(special_tokens.values())), 'train.txt'
     )
     if args.tokenizer == "sentence-piece":
         logging.info("To use SentencePieceTokenizer.")
-        tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=data_desc.tokenizer_model)
-        tokenizer.add_special_tokens(special_tokens)
+        tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=data_desc.tokenizer_model, special_tokens=special_tokens)
+        # import ipdb; ipdb.set_trace()
     elif args.tokenizer == "nemo-bert":
         logging.info("To use NemoBertTokenizer.")
         vocab_file = os.path.join(args.data_dir, 'vocab.txt')

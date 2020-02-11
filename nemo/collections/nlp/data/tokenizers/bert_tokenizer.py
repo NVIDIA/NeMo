@@ -86,6 +86,7 @@ class NemoBertTokenizer(TokenizerSpec):
             tokenizer_cls = RobertaTokenizer
 
         self.tokenizer = tokenizer_cls.from_pretrained(pretrained_model)
+        self.vocab_size = len(self.tokenizer.vocab)
         for k, v in special_tokens.items():
             setattr(self, k, v)
 
