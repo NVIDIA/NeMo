@@ -1,4 +1,4 @@
-nemo.collections.nlp collection
+NeMo NLP collection
 ===================
 
 NLP data processing modules
@@ -70,7 +70,7 @@ NLP Neural Modules
    :show-inheritance:
    :exclude-members: forward
 
-.. automodule:: nemo.collections.nlp.modules.transformer_nm
+.. automodule:: nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm
    :members:
    :undoc-members:
    :show-inheritance:
@@ -79,7 +79,7 @@ NLP Neural Modules
 NLP Hugging Face Neural Modules
 -------------------------------
 
-.. automodule:: nemo.collections.nlp.huggingface.bert
+.. automodule:: nemo.collections.nlp.nm.trainables.common.huggingface
    :members:
    :undoc-members:
    :show-inheritance:

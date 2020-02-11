@@ -1,4 +1,4 @@
-nemo.collections.ASR collection
+NeMo ASR collection
 ===================
 
 语音数据处理模块

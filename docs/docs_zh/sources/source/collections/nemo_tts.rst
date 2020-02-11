@@ -1,4 +1,4 @@
-nemo.collections.TTS collection
+NeMo TTS collection
 ===================
 
 语音数据处理模块

@@ -1,4 +1,4 @@
-nemo.collections.NLP collection
+NeMo NLP collection
 ===================
 
 NLP 数据处理模块
@@ -57,7 +57,7 @@ NLP 神经模块
    :exclude-members: forward
 
 
-.. automodule:: nemo.collections.nlp.modules.losses
+.. automodule:: nemo.collections.nlp.nm.losses
    :members:
    :undoc-members:
    :show-inheritance:
@@ -70,7 +70,7 @@ NLP 神经模块
    :show-inheritance:
    :exclude-members: forward
 
-.. automodule:: nemo.collections.nlp.modules.transformer_nm
+.. automodule:: nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm
    :members:
    :undoc-members:
    :show-inheritance:
@@ -79,7 +79,7 @@ NLP 神经模块
 NLP Hugging Face 神经模块
 -------------------------------
 
-.. automodule:: nemo.collections.nlp.huggingface.bert
+.. automodule:: nemo.collections.nlp.nm.trainables.common.huggingface
    :members:
    :undoc-members:
    :show-inheritance:

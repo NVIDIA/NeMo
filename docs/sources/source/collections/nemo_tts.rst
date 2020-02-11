@@ -1,4 +1,4 @@
-nemo.collections.TTS collection
+NeMo TTS collection
 ===================
 
 Speech data processing modules

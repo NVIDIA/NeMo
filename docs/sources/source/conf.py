@@ -25,7 +25,6 @@ import nemo
 
 sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../../../"))
-sys.path.insert(0, os.path.abspath("../../../nemo/"))
 
 # ---- Mocking up the classes. -----
 MOCK_CLASSES = {'Dataset': 'torch.utils.data', 'Module': 'torch.nn'}
