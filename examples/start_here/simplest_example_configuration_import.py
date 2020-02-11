@@ -1,8 +1,8 @@
-# TODO: actually fill this
 # ! /usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright 2019 NVIDIA. All Rights Reserved.
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,24 +18,31 @@
 # =============================================================================
 
 import nemo
-from nemo.core import DeviceType
+from nemo.core import DeviceType, NeuralModule, NeuralModuleFactory
 
 # Run on CPU.
-nf = nemo.core.NeuralModuleFactory(placement=DeviceType.CPU)
+nf = NeuralModuleFactory(placement=DeviceType.CPU)
 
 
-# instantiate necessary neural modules
-# RealFunctionDataLayer defaults to f=torch.sin, sampling from x=[-4, 4]
-# dl = nemo.tutorials.RealFunctionDataLayer(n=10000, f_name="cos", x=[-4, 4], batch_size=128)
+# Instantitate RealFunctionDataLayer defaults to f=torch.sin, sampling from x=[-1, 1]
 dl = nemo.tutorials.RealFunctionDataLayer(n=100, f_name="cos", x_lo=-1, x_hi=1, batch_size=128)
 
-
+# Instantiate a simple FF neural network.
 fx = nemo.tutorials.TaylorNet(dim=4)
+# Export the model configuration.
+fx.export_to_config("taylor_net.yml", "/tmp/")
+
+
+# Create a second instance, using the parameters from the configuration.
+fx2 = NeuralModule.import_from_config("taylor_net.yml", "/tmp/")
+
+
+# Instantitate loss,
 loss = nemo.tutorials.MSELoss()
 
-# describe activation's flow
+# Describe the activation's flow - using the imported model.
 x, y = dl()
-p = fx(x=x)
+p = fx2(x=x)
 lss = loss(predictions=p, target=y)
 
 # SimpleLossLoggerCallback will print loss values to console.
