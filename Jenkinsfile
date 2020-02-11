@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
             image 'nvcr.io/nvidia/pytorch:20.01-py3'
-            args '--runtime=nvidia --gpus all --user 0:128'
+            args '--gpus all --user 0:128'
         }
   }
   options {
@@ -12,7 +12,7 @@ pipeline {
   stages {
     stage('NVIDIA SMI') {
       steps {
-        sh 'nvidia-smi'
+        sh 'cat /dev/null > /etc/shinit && nvidia-smi'
       }
     }
 
