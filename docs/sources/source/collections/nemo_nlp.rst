@@ -1,9 +1,9 @@
-NeMo_NLP collection
+nemo.collections.nlp collection
 ===================
 
 NLP data processing modules
 ---------------------------
-.. automodule:: nemo_nlp.data_layers
+.. automodule:: nemo.collections.nlp.data_layers
     :members:
     :undoc-members:
     :show-inheritance:
@@ -12,37 +12,37 @@ NLP data processing modules
 NLP Tokenizers
 --------------
 
-.. automodule:: nemo_nlp.data.tokenizers.bert_tokenizer
+.. automodule:: nemo.collections.nlp.data.tokenizers.bert_tokenizer
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: nemo_nlp.data.tokenizers.char_tokenizer
+.. automodule:: nemo.collections.nlp.data.tokenizers.char_tokenizer
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: nemo_nlp.data.tokenizers.gpt2_tokenizer
+.. automodule:: nemo.collections.nlp.data.tokenizers.gpt2_tokenizer
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: nemo_nlp.data.tokenizers.spc_tokenizer
+.. automodule:: nemo.collections.nlp.data.tokenizers.spc_tokenizer
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: nemo_nlp.data.tokenizers.tokenizer_spec
+.. automodule:: nemo.collections.nlp.data.tokenizers.tokenizer_spec
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: nemo_nlp.data.tokenizers.word_tokenizer
+.. automodule:: nemo.collections.nlp.data.tokenizers.word_tokenizer
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: nemo_nlp.data.tokenizers.yttm_tokenizer
+.. automodule:: nemo.collections.nlp.data.tokenizers.yttm_tokenizer
    :members:
    :undoc-members:
    :show-inheritance:
@@ -50,27 +50,27 @@ NLP Tokenizers
 NLP Neural Modules
 ------------------
 
-.. automodule:: nemo_nlp.modules.classifiers
+.. automodule:: nemo.collections.nlp.modules.classifiers
    :members:
    :undoc-members:
    :show-inheritance:
    :exclude-members: forward
 
 
-.. automodule:: nemo_nlp.modules.losses
+.. automodule:: nemo.collections.nlp.modules.losses
    :members:
    :undoc-members:
    :show-inheritance:
    :exclude-members: forward
 
 
-.. automodule:: nemo_nlp.modules.pytorch_utils
+.. automodule:: nemo.collections.nlp.modules.pytorch_utils
    :members:
    :undoc-members:
    :show-inheritance:
    :exclude-members: forward
 
-.. automodule:: nemo_nlp.modules.transformer_nm
+.. automodule:: nemo.collections.nlp.modules.transformer_nm
    :members:
    :undoc-members:
    :show-inheritance:
@@ -79,7 +79,7 @@ NLP Neural Modules
 NLP Hugging Face Neural Modules
 -------------------------------
 
-.. automodule:: nemo_nlp.huggingface.bert
+.. automodule:: nemo.collections.nlp.huggingface.bert
    :members:
    :undoc-members:
    :show-inheritance:
