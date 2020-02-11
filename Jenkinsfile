@@ -8,7 +8,9 @@ pipeline {
   options {
     timeout(time: 1, unit: 'HOURS')
     disableConcurrentBuilds()
-   }
+  }
+  stages {
+
     stage('PyTorch version') {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
@@ -130,8 +132,6 @@ pipeline {
         }
       }
     }
-
-
 
     stage('NLP-ASR processing') {
       failFast true
