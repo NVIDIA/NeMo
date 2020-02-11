@@ -21,7 +21,6 @@ ruamel.yaml
 sentencepiece
 six
 sox
-torch
 tqdm
 unidecode
 wget
