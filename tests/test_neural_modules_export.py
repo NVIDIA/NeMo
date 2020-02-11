@@ -59,6 +59,10 @@ class NeuralModuleExportTest(NeMoUnitTest):
         self.assertEqual("header" in loaded_config, True)
         self.assertEqual("init_params" in loaded_config, True)
 
+        # Assert that the header contains class and spec.
+        self.assertEqual("class" in loaded_config["header"], True)
+        self.assertEqual("full_spec" in loaded_config["header"], True)
+
         # Check init params.
         loaded_init_params = loaded_config["init_params"]
         self.assertEqual(loaded_init_params["a"], 123)
