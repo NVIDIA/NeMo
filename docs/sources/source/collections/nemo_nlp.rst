@@ -3,11 +3,10 @@ NeMo NLP collection
 
 NLP data processing modules
 ---------------------------
-.. automodule:: nemo.collections.nlp.data_layers
+.. automodule:: nemo.collections.nlp.data.datasets
     :members:
     :undoc-members:
     :show-inheritance:
-    :exclude-members: forward
 
 NLP Tokenizers
 --------------
@@ -27,7 +26,7 @@ NLP Tokenizers
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: nemo.collections.nlp.data.tokenizers.spc_tokenizer
+.. automodule:: nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer
    :members:
    :undoc-members:
    :show-inheritance:
@@ -42,7 +41,7 @@ NLP Tokenizers
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: nemo.collections.nlp.data.tokenizers.yttm_tokenizer
+.. automodule:: nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer
    :members:
    :undoc-members:
    :show-inheritance:
@@ -50,21 +49,33 @@ NLP Tokenizers
 NLP Neural Modules
 ------------------
 
-.. automodule:: nemo.collections.nlp.modules.classifiers
+.. automodule:: nemo.collections.nlp.nm.data_layers
    :members:
    :undoc-members:
    :show-inheritance:
    :exclude-members: forward
 
 
-.. automodule:: nemo.collections.nlp.modules.losses
+.. automodule:: nemo.collections.nlp.nm.losses
    :members:
    :undoc-members:
    :show-inheritance:
    :exclude-members: forward
 
 
-.. automodule:: nemo.collections.nlp.modules.pytorch_utils
+.. automodule:: nemo.collections.nlp.nm.trainables.common.sequence_classification_nm
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :exclude-members: forward
+
+.. automodule:: nemo.collections.nlp.nm.trainables.common.sequence_regression_nm
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :exclude-members: forward
+
+.. automodule:: nemo.collections.nlp.nm.trainables.common.token_classification_nm
    :members:
    :undoc-members:
    :show-inheritance:
@@ -76,10 +87,22 @@ NLP Neural Modules
    :show-inheritance:
    :exclude-members: forward
 
+.. automodule:: nemo.collections.nlp.nm.trainables.dialogue_state_tracking.state_tracking_trade_nm
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :exclude-members: forward
+
+.. automodule:: nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :exclude-members: forward
+
 NLP Hugging Face Neural Modules
 -------------------------------
 
-.. automodule:: nemo.collections.nlp.nm.trainables.common.huggingface
+.. automodule:: nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm
    :members:
    :undoc-members:
    :show-inheritance:
