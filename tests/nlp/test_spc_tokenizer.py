@@ -23,16 +23,28 @@ from tests.common_setup import NeMoUnitTest
 class TestSPCTokenizer(NeMoUnitTest):
     def test_add_special_tokens(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
-
-        special_tokens = ["[CLS]", "[MASK]", "[SEP]"]
+        special_tokens= {
+            "sep_token": "[SEP]",
+            "pad_token": "[PAD]",
+            "bos_token": "[CLS]",
+            "mask_token": "[MASK]",
+            "eos_token": "[SEP]",
+            "cls_token": "[CLS]",
+        }
         tokenizer.add_special_tokens(special_tokens)
-
-        self.assertTrue(tokenizer.vocab_size == tokenizer.original_vocab_size + len(special_tokens))
+        self.assertTrue(tokenizer.vocab_size == tokenizer.original_vocab_size + len(set(special_tokens.values())))
 
     def test_text_to_tokens(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
 
-        special_tokens = ["[CLS]", "[MASK]", "[SEP]"]
+        special_tokens= {
+            "sep_token": "[SEP]",
+            "pad_token": "[PAD]",
+            "bos_token": "[CLS]",
+            "mask_token": "[MASK]",
+            "eos_token": "[SEP]",
+            "cls_token": "[CLS]",
+        }
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
@@ -55,21 +67,36 @@ class TestSPCTokenizer(NeMoUnitTest):
     def test_text_to_ids(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
 
-        special_tokens = ["[CLS]", "[MASK]", "[SEP]"]
+        special_tokens= {
+            "sep_token": "[SEP]",
+            "pad_token": "[PAD]",
+            "bos_token": "[CLS]",
+            "mask_token": "[MASK]",
+            "eos_token": "[SEP]",
+            "cls_token": "[CLS]",
+        }
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
         ids = tokenizer.text_to_ids(text)
 
         self.assertTrue(len(ids) == len(text.split()))
-        self.assertTrue(ids.count(tokenizer.special_tokens["[CLS]"]) == 1)
-        self.assertTrue(ids.count(tokenizer.special_tokens["[MASK]"]) == 1)
-        self.assertTrue(ids.count(tokenizer.special_tokens["[SEP]"]) == 2)
+        self.assertTrue(ids.count(tokenizer.token_to_id("[CLS]")) == 1)
+        self.assertTrue(ids.count(tokenizer.token_to_id("[MASK]")) == 1)
+        self.assertTrue(ids.count(tokenizer.token_to_id("[SEP]"))== 2)
 
     def test_ids_to_text(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
 
-        special_tokens = ["[CLS]", "[MASK]", "[SEP]"]
+        
+        special_tokens= {
+            "sep_token": "[SEP]",
+            "pad_token": "[PAD]",
+            "bos_token": "[CLS]",
+            "mask_token": "[MASK]",
+            "eos_token": "[SEP]",
+            "cls_token": "[CLS]",
+        }
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
@@ -81,7 +108,15 @@ class TestSPCTokenizer(NeMoUnitTest):
     def test_tokens_to_ids(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
 
-        special_tokens = ["[CLS]", "[MASK]", "[SEP]"]
+        
+        special_tokens= {
+            "sep_token": "[SEP]",
+            "pad_token": "[PAD]",
+            "bos_token": "[CLS]",
+            "mask_token": "[MASK]",
+            "eos_token": "[SEP]",
+            "cls_token": "[CLS]",
+        }
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
@@ -89,14 +124,21 @@ class TestSPCTokenizer(NeMoUnitTest):
         ids = tokenizer.tokens_to_ids(tokens)
 
         self.assertTrue(len(ids) == len(tokens))
-        self.assertTrue(ids.count(tokenizer.special_tokens["[CLS]"]) == 1)
-        self.assertTrue(ids.count(tokenizer.special_tokens["[MASK]"]) == 1)
-        self.assertTrue(ids.count(tokenizer.special_tokens["[SEP]"]) == 2)
+        self.assertTrue(ids.count(tokenizer.token_to_id("[CLS]")) == 1)
+        self.assertTrue(ids.count(tokenizer.token_to_id("[MASK]")) == 1)
+        self.assertTrue(ids.count(tokenizer.token_to_id("[SEP]"))== 2)
 
     def test_ids_to_tokens(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
 
-        special_tokens = ["[CLS]", "[MASK]", "[SEP]"]
+        special_tokens= {
+            "sep_token": "[SEP]",
+            "pad_token": "[PAD]",
+            "bos_token": "[CLS]",
+            "mask_token": "[MASK]",
+            "eos_token": "[SEP]",
+            "cls_token": "[CLS]",
+        }
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"

@@ -24,12 +24,8 @@ examples/nlp/scripts/get_squad.py
 
 To finetune Squad v1.1 on pretrained BERT large uncased on 1 GPU:
 python question_answering_squad.py
-<<<<<<< 50d4482af8d64a42de6417784c53306553668ce6
 --train_file /path_to_data_dir/squad/v1.1/train-v1.1.json
 --dev_file /path_to_data_dir/squad/v1.1/dev-v1.1.json
-=======
---data_file /path_to_data_file/squad/v1.1
->>>>>>> added roberta and albert
 --work_dir /path_to_output_folder
 --bert_checkpoint /path_to_bert_checkpoint
 --amp_opt_level "O1"
@@ -93,6 +89,19 @@ def parse_args():
     parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
     parser.add_argument(
         "--model_type", default="bert", type=str, help="model type", choices=['bert', 'roberta', 'albert']
+    )
+    parser.add_argument(
+    "--tokenizer_model",
+    default="tokenizer.model",
+    type=str,
+    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+)
+    parser.add_argument(
+        "--tokenizer",
+        default="nemobert",
+        type=str,
+        choices=["nemobert", "sentencepiece"],
+        help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
     )
     parser.add_argument("--optimizer_kind", default="adam", type=str, help="Optimizer kind")
     parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
@@ -305,21 +314,28 @@ if __name__ == "__main__":
         add_time_to_log_dir=False,
     )
 
-    # if args.tokenizer == "sentencepiece":
-    #     try:
-    #         tokenizer = nemo_nlp.SentencePieceTokenizer(model_path=args.tokenizer_model)
-    #     except Exception:
-    #         raise ValueError(
-    #             "Using --tokenizer=sentencepiece \
-    #                     requires valid --tokenizer_model"
-    #         )
-    #     tokenizer.add_special_tokens(["[CLS]", "[SEP]"])
-    # else:
-    tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
-    tokenizer_special_tokens = MODEL_CLASSES[args.model_type]["special_tokens"]
-    model_cls = MODEL_CLASSES[args.model_type]["model"]
-    model_name = MODEL_CLASSES[args.model_type]["model_name"]
-    tokenizer_name = MODEL_CLASSES[args.model_type]["tokenizer_name"]
+    if args.tokenizer == "sentencepiece":
+        try:
+            tokenizer = nemo_nlp.SentencePieceTokenizer(model_path=args.tokenizer_model)
+        except Exception:
+            raise ValueError(
+                "Using --tokenizer=sentencepiece \
+                        requires valid --tokenizer_model"
+            )
+        special_tokens= {
+            "sep_token": "[SEP]",
+            "pad_token": "[PAD]",
+            "bos_token": "[CLS]",
+            "eos_token": "[SEP]",
+            "cls_token": "[CLS]",
+        }
+        tokenizer.add_special_tokens(special_tokens)
+    else:
+        tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
+        tokenizer_special_tokens = MODEL_CLASSES[args.model_type]["special_tokens"]
+        model_cls = MODEL_CLASSES[args.model_type]["model"]
+        model_name = MODEL_CLASSES[args.model_type]["model_name"]
+        tokenizer_name = MODEL_CLASSES[args.model_type]["tokenizer_name"]
 
     if args.pretrained_bert_model is None:
         args.pretrained_bert_model = model_name
