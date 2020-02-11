@@ -178,6 +178,7 @@ if not args.preprocessed_data:
     )
     if args.tokenizer == "sentence-piece":
         logging.info("To use SentencePieceTokenizer.")
+        print(nemo_nlp.__file__)
         tokenizer = nemo_nlp.data.SentencePieceTokenizer(
             model_path=data_desc.tokenizer_model, special_tokens=special_tokens
         )
