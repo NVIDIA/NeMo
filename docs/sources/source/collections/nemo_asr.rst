@@ -1,4 +1,4 @@
-NeMo_ASR collection
+NeMo ASR collection
 ===================
 
 Speech data processing modules
