@@ -1,9 +1,9 @@
-NeMo_ASR collection
+NeMo ASR collection
 ===================
 
 Speech data processing modules
 ------------------------------
-.. automodule:: nemo_asr.data_layer
+.. automodule:: nemo.collections.asr.data_layer
     :members:
     :undoc-members:
     :show-inheritance:
@@ -11,7 +11,7 @@ Speech data processing modules
 
 Automatic Speech Recognition modules
 ------------------------------------
-.. automodule:: nemo_asr.jasper
+.. automodule:: nemo.collections.asr.jasper
     :members:
     :undoc-members:
     :show-inheritance:
