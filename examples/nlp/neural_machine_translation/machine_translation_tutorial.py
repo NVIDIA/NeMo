@@ -146,7 +146,7 @@ decoder = nemo_nlp.nm.trainables.TransformerDecoderNM(
     max_seq_length=args.max_seq_length,
 )
 
-log_softmax = nemo_nlp.nm.trainables.token_classification_nm.TokenClassifier(
+log_softmax = nemo_nlp.nm.trainables.TokenClassifier(
     args.d_model, num_classes=tgt_tokenizer.vocab_size, num_layers=1, log_softmax=True
 )
 

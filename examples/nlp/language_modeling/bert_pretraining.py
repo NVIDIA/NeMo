@@ -189,7 +189,7 @@ if not args.preprocessed_data:
         raise ValueError("Please add your tokenizer " "or use sentence-piece or nemo-bert.")
     args.vocab_size = tokenizer.vocab_size
 
-(vars(args))
+
 bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
     vocab_size=args.vocab_size,
     num_hidden_layers=args.num_hidden_layers,
@@ -232,24 +232,26 @@ def create_pipeline(data_file, batch_size, preprocessed_data=False, batches_per_
             kwargs['mask_probability'],
             kwargs['short_seq_prob'],
         )
-        data_layer = nemo_nlp.nm.data_layers.lm_bert_datalayer.BertPretrainingDataLayer(
+        data_layer = nemo_nlp.nm.data_layers.BertPretrainingDataLayer(
             tokenizer, data_file, max_seq_length, mask_probability, short_seq_prob, batch_size=batch_size
         )
     else:
         training, max_predictions_per_seq = (kwargs['training'], kwargs['max_predictions_per_seq'])
-        data_layer = nemo_nlp.nm.data_layers.lm_bert_datalayer.BertPretrainingPreprocessedDataLayer(
+        data_layer = nemo_nlp.nm.data_layers.BertPretrainingPreprocessedDataLayer(
             data_file, max_predictions_per_seq, batch_size=batch_size, training=training
         )
 
     steps_per_epoch = math.ceil(len(data_layer) / (batch_size * args.num_gpus * batches_per_step))
 
-    (input_ids, input_type_ids, input_mask, output_ids, output_mask, nsp_labels) = data_layer()
-    hidden_states = bert_model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+    input_data = data_layer()
+    hidden_states = bert_model(
+        input_ids=input_data.input_ids, token_type_ids=input_data.input_type_ids, attention_mask=input_data.input_mask
+    )
     mlm_logits = mlm_classifier(hidden_states=hidden_states)
-    mlm_loss = mlm_loss_fn(logits=mlm_logits, output_ids=output_ids, output_mask=output_mask)
+    mlm_loss = mlm_loss_fn(logits=mlm_logits, output_ids=input_data.output_ids, output_mask=input_data.output_mask)
     if not args.only_mlm_loss:
         nsp_logits = nsp_classifier(hidden_states=hidden_states)
-        nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=nsp_labels)
+        nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=input_data.labels)
         loss = bert_loss(loss_1=mlm_loss, loss_2=nsp_loss)
     else:
         loss = mlm_loss

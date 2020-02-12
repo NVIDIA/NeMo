@@ -19,14 +19,13 @@ import os
 
 import torch
 
+import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.nm.data_layers.machine_translation_datalayer
 from nemo import logging
 from nemo.collections.nlp.callbacks.machine_translation_callback import (
     eval_epochs_done_callback_wer,
     eval_iter_callback,
 )
-from nemo.collections.nlp.data.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.core.callbacks import CheckpointCallback
 from nemo.utils.lr_policies import SquareAnnealing
 
@@ -80,7 +79,7 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=False,
 )
 
-tokenizer = NemoBertTokenizer(pretrained_model=args.pretrained_model)
+tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model)
 vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 tokens_to_add = vocab_size - tokenizer.vocab_size
 
@@ -135,7 +134,7 @@ decoder.embedding_layer.position_embedding.weight = encoder.bert.embeddings.posi
 def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):
     dataset_src = os.path.join(args.data_dir, dataset + "." + args.src_lang)
     dataset_tgt = os.path.join(args.data_dir, dataset + "." + args.tgt_lang)
-    data_layer = nemo_nlp.nm.data_layers.machine_translation_datalayer.TranslationDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.TranslationDataLayer(
         tokenizer_src=tokenizer,
         tokenizer_tgt=tokenizer,
         dataset_src=dataset_src,
