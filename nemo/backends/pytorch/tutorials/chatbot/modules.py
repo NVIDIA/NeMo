@@ -23,7 +23,7 @@ class DialogDataLayer(DataLayerNM):
         """
         return {
             "src": NeuralType(ChannelType(), ('T', 'B')),
-            "src_lengths": NeuralType(ChannelType(), tuple('B')),
+            "src_lengths": NeuralType(LengthsType(), tuple('B')),
             "tgt": NeuralType(LabelsType(), ('T', 'B')),
             "mask": NeuralType(ChannelType(), ('T', 'B')),
             "max_tgt_lengths": NeuralType(axes=None),
