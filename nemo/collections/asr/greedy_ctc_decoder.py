@@ -15,14 +15,14 @@ class GreedyCTCDecoder(TrainableNM):
         """Returns definitions of module input ports.
         """
         # return {"log_probs": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
-        return {"log_probs": NeuralType(LogprobsType(), ('B', 'T', 'D'))}
+        return {"log_probs": NeuralType(('B', 'T', 'D'), LogprobsType())}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         # return {"predictions": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
-        return {"predictions": NeuralType(PredictionsType(), ('B', 'T'))}
+        return {"predictions": NeuralType(('B', 'T'), PredictionsType())}
 
     def __init__(self):
         super().__init__()

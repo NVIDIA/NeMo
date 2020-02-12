@@ -70,12 +70,12 @@ class TranslationDataLayer(TextDataLayer):
             # "tgt_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "sent_ids": NeuralType({0: AxisType(BatchTag)}),
-            "src_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "src_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "tgt_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "tgt_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "labels": NeuralType(LabelsType(), ('B', 'T')),
-            "sent_ids": NeuralType(ChannelType(), tuple('B')),
+            "src_ids": NeuralType(('B', 'T'), ChannelType()),
+            "src_mask": NeuralType(('B', 'T'), ChannelType()),
+            "tgt_ids": NeuralType(('B', 'T'), ChannelType()),
+            "tgt_mask": NeuralType(('B', 'T'), ChannelType()),
+            "labels": NeuralType(('B', 'T'), LabelsType()),
+            "sent_ids": NeuralType(tuple('B'), ChannelType()),
         }
 
     def __init__(

@@ -51,8 +51,8 @@ class TransformerEncoderNM(TrainableNM):
         return {
             # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "input_mask_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "input_mask_src": NeuralType(ChannelType(), ('B', 'T')),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask_src": NeuralType(('B', 'T'), ChannelType()),
         }
 
     @property
@@ -61,7 +61,7 @@ class TransformerEncoderNM(TrainableNM):
 
         """
         # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
-        return {"hidden_states": NeuralType(ChannelType(), ('B', 'T', 'D'))}
+        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(
         self,
@@ -142,10 +142,10 @@ class TransformerDecoderNM(TrainableNM):
             # "hidden_states_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             # "input_mask_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "input_mask_tgt": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_ids_tgt": NeuralType(ChannelType(), ('B', 'T')),
-            "hidden_states_src": NeuralType(ChannelType(), ('B', 'T', 'D')),
-            "input_mask_src": NeuralType(ChannelType(), ('B', 'T')),
-            "input_mask_tgt": NeuralType(ChannelType(), ('B', 'T')),
+            "input_ids_tgt": NeuralType(('B', 'T'), ChannelType()),
+            "hidden_states_src": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "input_mask_src": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask_tgt": NeuralType(('B', 'T'), ChannelType()),
         }
 
     @property
@@ -153,7 +153,7 @@ class TransformerDecoderNM(TrainableNM):
         """Returns definitions of module output ports.
         """
         # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
-        return {"hidden_states": NeuralType(ChannelType(), ('B', 'T', 'D'))}
+        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(
         self,
@@ -220,14 +220,14 @@ class GreedyLanguageGeneratorNM(TrainableNM):
         """Returns definitions of module input ports.
         """
         # return {"input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
-        return {"input_ids": NeuralType(ChannelType(), ('B', 'T'))}
+        return {"input_ids": NeuralType(('B', 'T'), ChannelType())}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         # return {"output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
-        return {"output_ids": NeuralType(ChannelType(), ('B', 'T'))}
+        return {"output_ids": NeuralType(('B', 'T'), ChannelType())}
 
     def __init__(self, decoder, log_softmax, max_seq_length, pad_token, bos_token, eos_token, batch_size=1):
         super().__init__()
@@ -278,8 +278,8 @@ class BeamSearchTranslatorNM(TrainableNM):
         return {
             # "hidden_states_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             # "input_mask_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "hidden_states_src": NeuralType(ChannelType(), ('B', 'T', 'C')),
-            "input_mask_src": NeuralType(ChannelType(), ('B', 'T')),
+            "hidden_states_src": NeuralType(('B', 'T', 'C'), ChannelType()),
+            "input_mask_src": NeuralType(('B', 'T'), ChannelType()),
         }
 
     @property
@@ -287,7 +287,7 @@ class BeamSearchTranslatorNM(TrainableNM):
         """Returns definitions of module output ports.
         """
         # return {"output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
-        return {"output_ids": NeuralType(ChannelType(), ('B', 'T'))}
+        return {"output_ids": NeuralType(('B', 'T'), ChannelType())}
 
     @property
     def num_weights(self):

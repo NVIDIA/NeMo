@@ -21,7 +21,7 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
         Returns:
           A (dict) of module's input ports names to NeuralTypes mapping
         """
-        return {"x": NeuralType(ChannelType(), ('B', 'D'))}
+        return {"x": NeuralType(('B', 'D'), ChannelType())}
 
     @property
     def output_ports(self):
@@ -30,7 +30,7 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
         Returns:
           A (dict) of module's output ports names to NeuralTypes mapping
         """
-        return {"y_pred": NeuralType(ChannelType(), ('B', 'D'))}
+        return {"y_pred": NeuralType(('B', 'D'), ChannelType())}
 
     def __init__(self, dim):
         # Part specific for Neural Modules API:
@@ -63,15 +63,15 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
 
         """
         return {
-            "x": NeuralType(ChannelType(), ('B', 'D')),
-            "o": NeuralType(ChannelType(), ('B', 'D')),
+            "x": NeuralType(('B', 'D'), ChannelType()),
+            "o": NeuralType(('B', 'D'), ChannelType()),
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
-        return {"y_pred": NeuralType(ChannelType(), ('B', 'D'), optional=True)}
+        return {"y_pred": NeuralType(('B', 'D'), ChannelType(), optional=True)}
 
     def __init__(self, dim):
         # Part specific for Neural Modules API:
@@ -123,8 +123,8 @@ class RealFunctionDataLayer(DataLayerNM):
         """Returns definitions of module output ports
         """
         return {
-            "x": NeuralType(ChannelType(), ('B', 'D')),
-            "y": NeuralType(LabelsType(), ('B', 'D')),
+            "x": NeuralType(('B', 'D'), ChannelType()),
+            "y": NeuralType(('B', 'D'), LabelsType()),
         }
 
     def __init__(self, batch_size, f_name="sin", n=1000, x_lo=-4, x_hi=4):
@@ -182,15 +182,15 @@ class MSELoss(LossNM):
             1: AxisType(ChannelTag)
         """
         return {
-            "predictions": NeuralType(ChannelType(), ('B', 'D')),
-            "target": NeuralType(LabelsType(), ('B', 'D')),
+            "predictions": NeuralType(('B', 'D'), ChannelType()),
+            "target": NeuralType(('B', 'D'), LabelsType()),
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
-        return {"loss": NeuralType(LossType())}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self):
         super().__init__()
@@ -206,15 +206,15 @@ class L1Loss(LossNM):
         """Returns definitions of module input ports.
         """
         return {
-            "predictions": NeuralType(ChannelType(), ('B', 'D')),
-            "target": NeuralType(LabelsType(), ('B', 'D')),
+            "predictions": NeuralType(('B', 'D'), ChannelType()),
+            "target": NeuralType(('B', 'D'), LabelsType()),
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
-        return {"loss": NeuralType(LossType())}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self):
         super().__init__()
@@ -230,8 +230,8 @@ class CrossEntropyLoss(LossNM):
         """Returns definitions of module input ports.
         """
         return {
-            "predictions": NeuralType(ChannelType(), ('B', 'D')),
-            "labels": NeuralType(LabelsType(), tuple('B')),
+            "predictions": NeuralType(('B', 'D'), ChannelType()),
+            "labels": NeuralType(tuple('B'), LabelsType()),
         }
 
     @property
@@ -241,7 +241,7 @@ class CrossEntropyLoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(LossType())}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self):
         # Neural Module API specific

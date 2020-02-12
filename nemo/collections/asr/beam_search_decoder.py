@@ -45,8 +45,8 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
         return {
             # "log_probs": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
             # "log_probs_length": NeuralType({0: AxisType(BatchTag)}),
-            "log_probs": NeuralType(LogprobsType(), ('B', 'T', 'D')),
-            "log_probs_length": NeuralType(LengthsType(), tuple('B')),
+            "log_probs": NeuralType(('B', 'T', 'D'), LogprobsType()),
+            "log_probs_length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -57,7 +57,7 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
             NeuralType(None)
         """
         # return {"predictions": NeuralType(VoidType())}
-        return {"predictions": NeuralType(PredictionsType(), ('B', 'T'))}
+        return {"predictions": NeuralType(('B', 'T'), PredictionsType())}
 
     def __init__(self, vocab, beam_width, alpha, beta, lm_path, num_cpus, cutoff_prob=1.0, cutoff_top_n=40):
 

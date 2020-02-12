@@ -42,14 +42,14 @@ class SequenceClassifier(TrainableNM):
     def input_ports(self):
         """Returns definitions of module input ports.
         """
-        return {"hidden_states": NeuralType(ChannelType(), ('B', 'T', 'D'))}
+        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         # return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
-        return {"logits": NeuralType(LogitsType(), ('B', 'D'))}
+        return {"logits": NeuralType(('B', 'D'), LogitsType())}
 
     def __init__(
         self,

@@ -23,9 +23,8 @@ from tests.common_setup import NeMoUnitTest
 
 class NeuralModulesTests(NeMoUnitTest):
     def test_call_TaylorNet(self):
-        x_tg = nemo.core.neural_modules.NmTensor(
-            producer=None, producer_args=None, name=None, ntype=NeuralType(ChannelType(), ('B', 'D'))
-        )
+        x_tg = nemo.core.neural_modules.NmTensor(producer=None, producer_args=None, name=None, ntype=NeuralType((
+            'B', 'D'), ChannelType()))
 
         tn = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         # note that real port's name: x was used

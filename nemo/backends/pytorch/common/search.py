@@ -36,7 +36,7 @@ class GreedySearch(NonTrainableNM):
             # 'encoder_outputs': NeuralType(
             #     {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
             # )
-            "encoder_outputs": NeuralType(ChannelType(), ('B', 'T', 'D'), optional=True)
+            "encoder_outputs": NeuralType(('B', 'T', 'D'), ChannelType(), optional=True)
         }
 
     @property
@@ -47,8 +47,8 @@ class GreedySearch(NonTrainableNM):
         return {
             # 'predictions': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # 'attention_weights': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}),
-            "predictions": NeuralType(ChannelType(), ('B', 'T')),
-            "attention_weights": NeuralType(ChannelType(), ('B', 'T', 'T')),
+            "predictions": NeuralType(('B', 'T'), ChannelType()),
+            "attention_weights": NeuralType(('B', 'T', 'T'), ChannelType()),
         }
 
     def __init__(self, decoder, pad_id, bos_id, eos_id, max_len, batch_size=None):

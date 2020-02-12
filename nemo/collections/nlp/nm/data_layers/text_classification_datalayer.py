@@ -42,10 +42,10 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
             # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "labels": NeuralType({0: AxisType(BatchTag)}),
-            "input_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "input_type_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "input_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "labels": NeuralType(LabelsType(), tuple('B')),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), ChannelType()),
+            "labels": NeuralType(tuple('B'), LabelsType()),
         }
 
     def __init__(

@@ -24,10 +24,10 @@ class CTCLossNM(LossNM):
             # "targets": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "input_length": NeuralType({0: AxisType(BatchTag)}),
             # "target_length": NeuralType({0: AxisType(BatchTag)}),
-            "log_probs": NeuralType(LogprobsType(), ('B', 'T', 'D')),
-            "targets": NeuralType(LabelsType(), ('B', 'T')),
-            "input_length": NeuralType(LengthsType(), tuple('B')),
-            "target_length": NeuralType(LengthsType(), tuple('B')),
+            "log_probs": NeuralType(('B', 'T', 'D'), LogprobsType()),
+            "targets": NeuralType(('B', 'T'), LabelsType()),
+            "input_length": NeuralType(tuple('B'), LengthsType()),
+            "target_length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -38,7 +38,7 @@ class CTCLossNM(LossNM):
             NeuralType(None)
         """
         # return {"loss": NeuralType(None)}
-        return {"loss": NeuralType(LossType())}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, num_classes):
         super().__init__()

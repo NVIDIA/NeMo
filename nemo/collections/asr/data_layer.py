@@ -100,10 +100,10 @@ transcript_n}
             # 'a_sig_length': NeuralType({0: AxisType(BatchTag)}),
             # 'transcripts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # 'transcript_length': NeuralType({0: AxisType(BatchTag)}),
-            'audio_signal': NeuralType(AudioSignal(freq=self._sample_rate), ('B', 'T')),
-            'a_sig_length': NeuralType(LengthsType(), tuple('B')),
-            'transcripts': NeuralType(LabelsType(), ('B', 'T')),
-            'transcript_length': NeuralType(LengthsType(), tuple('B')),
+            'audio_signal': NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'transcripts': NeuralType(('B', 'T'), LabelsType()),
+            'transcript_length': NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
@@ -221,9 +221,9 @@ class KaldiFeatureDataLayer(DataLayerNM):
             # 'processed_length': NeuralType({0: AxisType(BatchTag)}),
             # 'transcripts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # 'transcript_length': NeuralType({0: AxisType(BatchTag)}),
-            'processed_signal': NeuralType(SpectrogramType(), ('B', 'D', 'T')),
-            'transcripts': NeuralType(ChannelType(), ('B', 'T')),
-            'transcript_length': NeuralType(LengthsType(), tuple('B')),
+            'processed_signal': NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            'transcripts': NeuralType(('B', 'T'), ChannelType()),
+            'transcript_length': NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
@@ -350,8 +350,8 @@ class TranscriptDataLayer(DataLayerNM):
         return {
             # 'texts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # 'texts_length': NeuralType({0: AxisType(BatchTag)}),
-            'texts': NeuralType(ChannelType(), ('B', 'T')),
-            'texts_length': NeuralType(LengthsType(), tuple('B')),
+            'texts': NeuralType(('B', 'T'), ChannelType()),
+            'texts_length': NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(

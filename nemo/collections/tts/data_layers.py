@@ -52,8 +52,8 @@ class AudioDataLayer(DataLayerNM):
         return {
             # "audio_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "a_sig_length": NeuralType({0: AxisType(BatchTag)}),
-            "audio_signal": NeuralType(AudioSignal(), ('B', 'T')),
-            "a_sig_length": NeuralType(LengthsType(), tuple('B')),
+            "audio_signal": NeuralType(('B', 'T'), AudioSignal()),
+            "a_sig_length": NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(

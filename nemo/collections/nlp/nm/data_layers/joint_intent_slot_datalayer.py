@@ -52,13 +52,13 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
             # "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "intents": NeuralType({0: AxisType(BatchTag)}),
             # "slots":          NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "input_type_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "input_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "loss_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "subtokens_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "intents": NeuralType(ChannelType(), tuple('B')),
-            "slots": NeuralType(ChannelType(), ('B', 'T')),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), ChannelType()),
+            "loss_mask": NeuralType(('B', 'T'), ChannelType()),
+            "subtokens_mask": NeuralType(('B', 'T'), ChannelType()),
+            "intents": NeuralType(tuple('B'), ChannelType()),
+            "slots": NeuralType(('B', 'T'), ChannelType()),
         }
 
     def __init__(
@@ -118,11 +118,11 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
             # "input_mask":     NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "loss_mask":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "input_type_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "input_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "loss_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "subtokens_mask": NeuralType(ChannelType(), ('B', 'T')),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), ChannelType()),
+            "loss_mask": NeuralType(('B', 'T'), ChannelType()),
+            "subtokens_mask": NeuralType(('B', 'T'), ChannelType()),
         }
 
     def __init__(self, queries, tokenizer, max_seq_length, batch_size=1, dataset_type=BertJointIntentSlotInferDataset):

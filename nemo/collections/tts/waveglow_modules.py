@@ -47,8 +47,8 @@ class WaveGlowNM(TrainableNM):
             #     {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
             # ),
             # "audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "mel_spectrogram": NeuralType(MelSpectrogramType(), ('B', 'D', 'T')),
-            "audio": NeuralType(AudioSignal(), ('B', 'T')),
+            "mel_spectrogram": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "audio": NeuralType(('B', 'T'), AudioSignal()),
         }
 
     @property
@@ -60,9 +60,9 @@ class WaveGlowNM(TrainableNM):
             # "audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "log_s_list": NeuralType(),
             # "log_det_W_list": NeuralType(),
-            "audio": NeuralType(AudioSignal(), ('B', 'T')),
-            "log_s_list": NeuralType(ChannelType()),
-            "log_det_W_list": NeuralType(ChannelType()),
+            "audio": NeuralType(('B', 'T'), AudioSignal()),
+            "log_s_list": NeuralType(elements_type=ChannelType()),
+            "log_det_W_list": NeuralType(elements_type=ChannelType()),
         }
 
     def __init__(
@@ -143,7 +143,7 @@ class WaveGlowInferNM(WaveGlowNM):
             # "mel_spectrogram": NeuralType(
             #     {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
             # )
-            "mel_spectrogram": NeuralType(MelSpectrogramType(), ('B', 'D', 'T'))
+            "mel_spectrogram": NeuralType(('B', 'D', 'T'), MelSpectrogramType())
         }
 
     @property
@@ -151,7 +151,7 @@ class WaveGlowInferNM(WaveGlowNM):
         """Returns definitions of module output ports.
         """
         # return {"audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
-        return {"audio": NeuralType(AudioSignal(), ('B', 'T'))}
+        return {"audio": NeuralType(('B', 'T'), AudioSignal())}
 
     def __str__(self):
         return "WaveGlowNM"
@@ -233,16 +233,16 @@ class WaveGlowLoss(LossNM):
             # "z": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "log_s_list": NeuralType(),
             # "log_det_W_list": NeuralType(),
-            "z": NeuralType(AudioSignal(), ('B', 'T')),
-            "log_s_list": NeuralType(ChannelType()),
-            "log_det_W_list": NeuralType(ChannelType()),
+            "z": NeuralType(('B', 'T'), AudioSignal()),
+            "log_s_list": NeuralType(elements_type=ChannelType()),
+            "log_det_W_list": NeuralType(elements_type=ChannelType()),
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
-        return {"loss": NeuralType(LossType())}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, sigma: float = 1.0):
         super().__init__()

@@ -27,16 +27,26 @@ __all__ = [
 import uuid
 from typing import Optional, Tuple
 
-from .axes import AxisKind, AxisType
-from .comparison import NeuralTypeComparisonResult
-from .elements import *
+from nemo.core.neural_types.axes import AxisKind, AxisType
+from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
+from nemo.core.neural_types.elements import *
 
 
 class NeuralType(object):
     """This is the main class which would represent neural type concept.
-    nmTensors derives from this. It is used to represent *the types* of inputs and outputs."""
+    nmTensors derives from this. It is used to represent *the types* of inputs and outputs.
+    Args:
+        axes (Optional[Tuple]): a tuple of AxisTypes objects representing the semantics of what varying each axis means
+            You can use a short, string-based form here. For example: ('B', 'C', 'H', 'W') would correspond to an NCHW
+            format frequently used in computer vision. ('B', 'T', 'D') is frequently used for signal processing and
+            means [batch, time, dimension/channel].
+        elements_type (ElementType): an instance of ElementType class representing the semantics of what is stored
+            inside the tensor. For example: logits (LogitsType), log probabilities (LogprobType), etc.
+        optional (bool): By default, this is false. If set to True, it would means that input to the port of this
+            type can be optional.
+    """
 
-    def __init__(self, elements_type: ElementType = VoidType(), axes: Optional[Tuple] = None, optional=False):
+    def __init__(self, axes: Optional[Tuple] = None, elements_type: ElementType = VoidType(), optional=False):
         if not isinstance(elements_type, ElementType):
             raise ValueError(
                 f"elements_type of NeuralType must be an instance of a class derived from ElementType."
@@ -59,6 +69,8 @@ class NeuralType(object):
         self.optional = optional
 
     def compare(self, second) -> NeuralTypeComparisonResult:
+        """Performs neural type comparison of self with second. When you chain two modules' inputs/outputs via
+        __call__ method, this comparison will be called to ensure neural type compatibility."""
         # First, handle dimensionality
         axes_a = self.axes
         axes_b = second.axes
@@ -180,7 +192,7 @@ class NmTensor(NeuralType):
           producer_args (dict): a dictionary of port_name->NmTensor value
             of arguments which were sent to producer to create this
         """
-        super(NmTensor, self).__init__(elements_type=ntype.elements_type, axes=ntype.axes, optional=ntype.optional)
+        super(NmTensor, self).__init__(axes=ntype.axes, elements_type=ntype.elements_type, optional=ntype.optional)
         self._producer = producer
         self._producer_args = producer_args
         self._name = name

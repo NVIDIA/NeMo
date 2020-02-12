@@ -44,14 +44,14 @@ class BertTokenClassifier(TrainableNM):
         """Returns definitions of module input ports.
         """
         # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
-        return {"hidden_states": NeuralType(ChannelType(), ('B', 'T', 'D'))}
+        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         # return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
-        return {"logits": NeuralType(LogitsType(), ('B', 'T', 'C'))}
+        return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
 
     def __init__(
         self,
@@ -105,14 +105,14 @@ class TokenClassifier(TrainableNM):
         """Returns definitions of module input ports.
         """
         # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
-        return {"hidden_states": NeuralType(ChannelType(), ('B', 'T', 'C'))}
+        return {"hidden_states": NeuralType(('B', 'T', 'C'), ChannelType())}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         # return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
-        return {"logits": NeuralType(LogitsType(), ('B', 'T', 'D'))}
+        return {"logits": NeuralType(('B', 'T', 'D'), LogitsType())}
 
     def __init__(
         self,

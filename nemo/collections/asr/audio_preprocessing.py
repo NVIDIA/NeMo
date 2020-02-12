@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -125,8 +125,8 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         return {
             # "input_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "length": NeuralType({0: AxisType(BatchTag)}),
-            "input_signal": NeuralType(AudioSignal(freq=self._sample_rate), ('B', 'T')),
-            "length": NeuralType(LengthsType(), tuple('B')),
+            "input_signal": NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
+            "length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -138,8 +138,8 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
             #    {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
             # ),
             # "processed_length": NeuralType({0: AxisType(BatchTag)}),
-            "processed_signal": NeuralType(SpectrogramType(), ('B', 'D', 'T')),
-            "processed_length": NeuralType(LengthsType(), tuple('B')),
+            "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "processed_length": NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
@@ -199,6 +199,10 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
 
     def get_features(self, input_signal, length):
         return self.featurizer(input_signal)
+
+    @property
+    def sample_rate(self):
+        return self._sample_rate
 
 
 class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
@@ -271,8 +275,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         return {
             # "input_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "length": NeuralType({0: AxisType(BatchTag)}),
-            "input_signal": NeuralType(AudioSignal(freq=self._sample_rate), ('B', 'T')),
-            "length": NeuralType(LengthsType(), tuple('B')),
+            "input_signal": NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
+            "length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -297,8 +301,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             #    {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
             # ),
             # "processed_length": NeuralType({0: AxisType(BatchTag)}),
-            "processed_signal": NeuralType(MelSpectrogramType(), ('B', 'D', 'T')),
-            "processed_length": NeuralType(LengthsType(), tuple('B')),
+            "processed_signal": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "processed_length": NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
@@ -417,8 +421,8 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         return {
             # "input_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "length": NeuralType({0: AxisType(BatchTag)}),
-            "input_signal": NeuralType(AudioSignal(freq=self._sample_rate), ('B', 'T')),
-            "length": NeuralType(LengthsType(), tuple('B')),
+            "input_signal": NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
+            "length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -430,8 +434,8 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
             #    {0: AxisType(BatchTag), 1: AxisType(MFCCSignalTag), 2: AxisType(ProcessedTimeTag),}
             # ),
             # "processed_length": NeuralType({0: AxisType(BatchTag)}),
-            "processed_signal": NeuralType(MFCCSpectrogramType(), ('B', 'D', 'T')),
-            "processed_length": NeuralType(LengthsType(), tuple('B')),
+            "processed_signal": NeuralType(('B', 'D', 'T'), MFCCSpectrogramType()),
+            "processed_length": NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
@@ -547,7 +551,7 @@ class SpectrogramAugmentation(NonTrainableNM):
         return {
             # "input_spec": NeuralType({0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(
             # TimeTag),})
-            "input_spec": NeuralType(SpectrogramType(), ('B', 'D', 'T'))
+            "input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())
         }
 
     @property
@@ -558,7 +562,7 @@ class SpectrogramAugmentation(NonTrainableNM):
             # "augmented_spec": NeuralType(
             #    {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
             # )
-            "augmented_spec": NeuralType(SpectrogramType(), ('B', 'D', 'T'))
+            "augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())
         }
 
     def __init__(
@@ -612,10 +616,10 @@ class MultiplyBatch(NonTrainableNM):
             # "in_x_len": NeuralType({0: AxisType(BatchTag)}),
             # "in_y": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "in_y_len": NeuralType({0: AxisType(BatchTag)}),
-            "in_x": NeuralType(SpectrogramType(), ('B', 'D', 'T')),
-            "in_x_len": NeuralType(LengthsType(), tuple('B')),
-            "in_y": NeuralType(SpectrogramType(), ('B', 'D', 'T')),
-            "in_y_len": NeuralType(LengthsType(), tuple('B')),
+            "in_x": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "in_x_len": NeuralType(tuple('B'), LengthsType()),
+            "in_y": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "in_y_len": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -627,10 +631,10 @@ class MultiplyBatch(NonTrainableNM):
             # "out_x_len": NeuralType({0: AxisType(BatchTag)}),
             # "out_y": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "out_y_len": NeuralType({0: AxisType(BatchTag)}),
-            "out_x": NeuralType(SpectrogramType(), ('B', 'D', 'T')),
-            "out_x_len": NeuralType(LengthsType(), tuple('B')),
-            "out_y": NeuralType(SpectrogramType(), ('B', 'D', 'T')),
-            "out_y_len": NeuralType(LengthsType(), tuple('B')),
+            "out_x": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "out_x_len": NeuralType(tuple('B'), LengthsType()),
+            "out_y": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "out_y_len": NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(self, mult_batch=1):

@@ -37,7 +37,7 @@ class TextEmbedding(TrainableNM):
         """Returns definitions of module input ports.
         """
         # return {"char_phone": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
-        return {"char_phone": NeuralType(LabelsType(), ('B', 'T'))}
+        return {"char_phone": NeuralType(('B', 'T'), LabelsType())}
 
     @property
     def output_ports(self):
@@ -47,7 +47,7 @@ class TextEmbedding(TrainableNM):
             # "char_phone_embeddings": NeuralType(
             #     {0: AxisType(BatchTag), 1: AxisType(EmbeddedTextTag), 2: AxisType(TimeTag),}
             # )
-            "char_phone_embeddings": NeuralType(EmbeddedTextType(), ('B', 'D', 'T'))
+            "char_phone_embeddings": NeuralType(('B', 'D', 'T'), EmbeddedTextType())
         }
 
     def __init__(self, n_symbols, symbols_embedding_dim: int = 512):
@@ -83,8 +83,8 @@ class Tacotron2Encoder(TrainableNM):
             #     {0: AxisType(BatchTag), 1: AxisType(EmbeddedTextTag), 2: AxisType(TimeTag),}
             # ),
             # "embedding_length": NeuralType({0: AxisType(BatchTag)}),
-            "char_phone_embeddings": NeuralType(EmbeddedTextType(), ('B', 'D', 'T')),
-            "embedding_length": NeuralType(LengthsType(), tuple('B')),
+            "char_phone_embeddings": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
+            "embedding_length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -95,7 +95,7 @@ class Tacotron2Encoder(TrainableNM):
             # "char_phone_encoded": NeuralType(
             #     {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(EncodedRepresentationTag),}
             # )
-            "char_phone_encoded": NeuralType(EncodedRepresentation(), ('B', 'T', 'D'))
+            "char_phone_encoded": NeuralType(('B', 'T', 'D'), EncodedRepresentation())
         }
 
     def __init__(
@@ -164,9 +164,9 @@ class Tacotron2Decoder(TrainableNM):
             # "mel_target": NeuralType(
             #     {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
             # ),
-            "char_phone_encoded": NeuralType(EncodedRepresentation(), ('B', 'T', 'D')),
-            "encoded_length": NeuralType(LengthsType(), tuple('B')),
-            "mel_target": NeuralType(MelSpectrogramType(), ('B', 'D', 'T')),
+            "char_phone_encoded": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "encoded_length": NeuralType(tuple('B'), LengthsType()),
+            "mel_target": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
         }
 
     @property
@@ -179,9 +179,9 @@ class Tacotron2Decoder(TrainableNM):
             # ),
             # "gate_output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "alignments": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}),
-            "mel_output": NeuralType(MelSpectrogramType(), ('B', 'D', 'T')),
-            "gate_output": NeuralType(ChannelType(), ('B', 'T')),
-            "alignments": NeuralType(ChannelType(), ('B', 'T', 'T')),
+            "mel_output": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "gate_output": NeuralType(('B', 'T'), ChannelType()),
+            "alignments": NeuralType(('B', 'T', 'T'), ChannelType()),
         }
 
     def __init__(
@@ -278,8 +278,8 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
             #     {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(EncodedRepresentationTag),}
             # ),
             # "encoded_length": NeuralType({0: AxisType(BatchTag)}),
-            "char_phone_encoded": NeuralType(EncodedRepresentation(), ('B', 'T', 'D')),
-            "encoded_length": NeuralType(LengthsType(), tuple('B')),
+            "char_phone_encoded": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "encoded_length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -293,10 +293,10 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
             # "gate_output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "alignments": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}),
             # "mel_len": NeuralType({0: AxisType(BatchTag)}),
-            "mel_output": NeuralType(MelSpectrogramType(), ('B', 'D', 'T')),
-            "gate_output": NeuralType(ChannelType(), ('B', 'T')),
-            "alignments": NeuralType(ChannelType(), ('B', 'T', 'T')),
-            "mel_len": NeuralType(LengthsType(), tuple('B')),
+            "mel_output": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "gate_output": NeuralType(('B', 'T'), ChannelType()),
+            "alignments": NeuralType(('B', 'T', 'T'), ChannelType()),
+            "mel_len": NeuralType(tuple('B'), LengthsType()),
         }
 
     def __str__(self):
@@ -336,7 +336,7 @@ class Tacotron2Postnet(TrainableNM):
             # "mel_input": NeuralType(
             #     {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
             # )
-            "mel_input": NeuralType(MelSpectrogramType(), ('B', 'D', 'T'))
+            "mel_input": NeuralType(('B', 'D', 'T'), MelSpectrogramType())
         }
 
     @property
@@ -347,7 +347,7 @@ class Tacotron2Postnet(TrainableNM):
             # "mel_output": NeuralType(
             #     {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
             # ),
-            "mel_output": NeuralType(MelSpectrogramType(), ('B', 'D', 'T'))
+            "mel_output": NeuralType(('B', 'D', 'T'), MelSpectrogramType())
         }
 
     def __init__(
@@ -405,20 +405,20 @@ class Tacotron2Loss(LossNM):
             # "gate_target": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "target_len": NeuralType({0: AxisType(BatchTag)}),
             # "seq_len": NeuralType({0: AxisType(BatchTag)}),
-            "mel_out": NeuralType(MelSpectrogramType(), ('B', 'D', 'T')),
-            "mel_out_postnet": NeuralType(MelSpectrogramType(), ('B', 'D', 'T')),
-            "gate_out": NeuralType(ChannelType(), ('B', 'T')),
-            "mel_target": NeuralType(MelSpectrogramType(), ('B', 'D', 'T')),
-            "gate_target": NeuralType(ChannelType(), ('B', 'T')),
-            "target_len": NeuralType(LengthsType(), tuple('B')),
-            "seq_len": NeuralType(LengthsType(), tuple('B')),
+            "mel_out": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "mel_out_postnet": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "gate_out": NeuralType(('B', 'T'), ChannelType()),
+            "mel_target": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "gate_target": NeuralType(('B', 'T'), ChannelType()),
+            "target_len": NeuralType(tuple('B'), LengthsType()),
+            "seq_len": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
-        return {"loss": NeuralType(LossType())}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, pad_value: float = -11.52):
         super().__init__()
@@ -476,8 +476,8 @@ class MakeGate(NonTrainableNM):
             # "mel_target": NeuralType(
             #     {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
             # ),
-            "target_len": NeuralType(LengthsType(), tuple('B')),
-            "mel_target": NeuralType(MelSpectrogramType(), ('B', 'D', 'T')),
+            "target_len": NeuralType(tuple('B'), LengthsType()),
+            "mel_target": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
         }
 
     @property
@@ -485,7 +485,7 @@ class MakeGate(NonTrainableNM):
         """Returns definitions of module output ports.
         """
         # return {"gate_target": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
-        return {"gate_target": NeuralType(ChannelType(), ('B', 'T'))}
+        return {"gate_target": NeuralType(('B', 'T'), ChannelType())}
 
     def forward(self, target_len, mel_target):
         max_len = mel_target.shape[2]

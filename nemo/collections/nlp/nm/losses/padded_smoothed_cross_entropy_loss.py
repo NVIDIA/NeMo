@@ -42,8 +42,8 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
         return {
             # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             # "target_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "logits": NeuralType(LogitsType(), ('B', 'T', 'D')),
-            "target_ids": NeuralType(LabelsType(), ('B', 'T')),
+            "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+            "target_ids": NeuralType(('B', 'T'), LabelsType()),
         }
 
     @property
@@ -51,7 +51,7 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
         """Returns definitions of module output ports.
         """
         # return {"loss": NeuralType(None)}
-        return {"loss": NeuralType(LossType())}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, pad_id, label_smoothing=0, predict_last_k=0):
         LossNM.__init__(self)

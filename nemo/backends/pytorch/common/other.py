@@ -28,7 +28,7 @@ class SequenceEmbedding(TrainableNM):
         """Returns definitions of module output ports.
         """
         # return {"outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),})}
-        return {"outputs": NeuralType(ChannelType(), ('T', 'B', 'D'))}
+        return {"outputs": NeuralType(('T', 'B', 'D'), ChannelType())}
 
     def __init__(self, voc_size, hidden_size, dropout=0.0):
         super().__init__()
@@ -53,14 +53,14 @@ class ZerosLikeNM(TrainableNM):
         """Returns definitions of module input ports.
         """
         # return {"input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag),})}
-        return {"input_type_ids": NeuralType(VoidType(), ('B', 'T'))}
+        return {"input_type_ids": NeuralType(('B', 'T'), VoidType())}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         # return {"input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag),})}
-        return {"input_type_ids": NeuralType(ChannelType(), ('B', 'T'))}
+        return {"input_type_ids": NeuralType(('B', 'T'), ChannelType())}
 
     def __init__(self):
         super().__init__()
