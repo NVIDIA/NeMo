@@ -37,7 +37,8 @@ class NeuralTypeSystemTests(NeMoUnitTest):
     def test_short_vs_long_version(self):
         long_version = NeuralType(
             axes=(AxisType(AxisKind.Batch, None), AxisType(AxisKind.Dimension, None), AxisType(AxisKind.Time, None)),
-            elements_type=AcousticEncodedRepresentation())
+            elements_type=AcousticEncodedRepresentation(),
+        )
         short_version = NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())
         self.assertEqual(long_version.compare(short_version), NeuralTypeComparisonResult.SAME)
         self.assertEqual(short_version.compare(long_version), NeuralTypeComparisonResult.SAME)
@@ -81,20 +82,26 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         self.assertEqual(loss_output2.compare(loss_output1), NeuralTypeComparisonResult.SAME)
 
     def test_list_of_lists(self):
-        T1 = NeuralType(axes=(
-            AxisType(kind=AxisKind.Batch, size=None, is_list=True),
-            AxisType(kind=AxisKind.Time, size=None, is_list=True),
-            AxisType(kind=AxisKind.Dimension, size=32, is_list=False),
-            AxisType(kind=AxisKind.Dimension, size=128, is_list=False),
-            AxisType(kind=AxisKind.Dimension, size=256, is_list=False),
-        ), elements_type=ChannelType())
-        T2 = NeuralType(axes=(
-            AxisType(kind=AxisKind.Batch, size=None, is_list=False),
-            AxisType(kind=AxisKind.Time, size=None, is_list=False),
-            AxisType(kind=AxisKind.Dimension, size=32, is_list=False),
-            AxisType(kind=AxisKind.Dimension, size=128, is_list=False),
-            AxisType(kind=AxisKind.Dimension, size=256, is_list=False),
-        ), elements_type=ChannelType())
+        T1 = NeuralType(
+            axes=(
+                AxisType(kind=AxisKind.Batch, size=None, is_list=True),
+                AxisType(kind=AxisKind.Time, size=None, is_list=True),
+                AxisType(kind=AxisKind.Dimension, size=32, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=128, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=256, is_list=False),
+            ),
+            elements_type=ChannelType(),
+        )
+        T2 = NeuralType(
+            axes=(
+                AxisType(kind=AxisKind.Batch, size=None, is_list=False),
+                AxisType(kind=AxisKind.Time, size=None, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=32, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=128, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=256, is_list=False),
+            ),
+            elements_type=ChannelType(),
+        )
         # TODO: should this be incompatible instead???
         self.assertEqual(T1.compare(T2), NeuralTypeComparisonResult.TRANSPOSE_SAME)
 
@@ -112,20 +119,26 @@ class NeuralTypeSystemTests(NeMoUnitTest):
 
         btc_spctr = NeuralType(('B', 'T', 'C'), SpectrogramType())
         btc_spct_bad = NeuralType(('B', 'T'), SpectrogramType())
-        t1 = NeuralType(axes=(
-            AxisType(kind=AxisKind.Batch, size=None, is_list=True),
-            AxisType(kind=AxisKind.Time, size=None, is_list=True),
-            AxisType(kind=AxisKind.Dimension, size=32, is_list=False),
-            AxisType(kind=AxisKind.Dimension, size=128, is_list=False),
-            AxisType(kind=AxisKind.Dimension, size=256, is_list=False),
-        ), elements_type=ChannelType())
-        t2 = NeuralType(axes=(
-            AxisType(kind=AxisKind.Batch, size=None, is_list=False),
-            AxisType(kind=AxisKind.Time, size=None, is_list=False),
-            AxisType(kind=AxisKind.Dimension, size=32, is_list=False),
-            AxisType(kind=AxisKind.Dimension, size=128, is_list=False),
-            AxisType(kind=AxisKind.Dimension, size=256, is_list=False),
-        ), elements_type=ChannelType())
+        t1 = NeuralType(
+            axes=(
+                AxisType(kind=AxisKind.Batch, size=None, is_list=True),
+                AxisType(kind=AxisKind.Time, size=None, is_list=True),
+                AxisType(kind=AxisKind.Dimension, size=32, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=128, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=256, is_list=False),
+            ),
+            elements_type=ChannelType(),
+        )
+        t2 = NeuralType(
+            axes=(
+                AxisType(kind=AxisKind.Batch, size=None, is_list=False),
+                AxisType(kind=AxisKind.Time, size=None, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=32, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=128, is_list=False),
+                AxisType(kind=AxisKind.Dimension, size=256, is_list=False),
+            ),
+            elements_type=ChannelType(),
+        )
 
         self.assertEqual(big_void_1.compare(btc_spctr), NeuralTypeComparisonResult.SAME)
         self.assertEqual(big_void_1.compare(btc_spct_bad), NeuralTypeComparisonResult.SAME)
@@ -156,8 +169,10 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         self.assertRaises(NeuralPortNmTensorMismatchError, wrong)
 
     def test_unspecified_dimensions(self):
-        t0 = NeuralType((AxisType(AxisKind.Batch, 64), AxisType(AxisKind.Time, 10), AxisType(AxisKind.Dimension, 128)),
-                        SpectrogramType())
+        t0 = NeuralType(
+            (AxisType(AxisKind.Batch, 64), AxisType(AxisKind.Time, 10), AxisType(AxisKind.Dimension, 128)),
+            SpectrogramType(),
+        )
         t1 = NeuralType(('B', 'T', 'C'), SpectrogramType())
         self.assertEqual(t1.compare(t0), NeuralTypeComparisonResult.SAME)
         self.assertEqual(t0.compare(t1), NeuralTypeComparisonResult.DIM_INCOMPATIBLE)
