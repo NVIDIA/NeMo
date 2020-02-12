@@ -50,29 +50,27 @@ See this video for a walk-through.
 **Requirements**
 
 1) Python 3.6 or 3.7
-2) PyTorch 1.2 with GPU support
+2) PyTorch 1.2 or later with GPU support
 3) NVIDIA APEX: https://github.com/NVIDIA/apex
 
 
 **Getting started**
 
-You can use NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ which already includes all the requirements above.
+You can use NVIDIA `NGC NeMo container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_ for the latest NeMo release and all dependencies.
 
 .. code-block:: bash
 
     # Pull the docker
-    docker pull nvcr.io/nvidia/pytorch:19.11-py3
+    docker pull nvcr.io/nvidia/nemo:v0.9
 
     # Do one of the two following commands
     # Run Docker for docker version <19.03
-    nvidia-docker run -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.11-py3
+    nvidia-docker run -it --rm --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.9
     
     # Run Docker for docker version >=19.03
-    docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.11-py3
+    docker run -it --rm --gpus all --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.9
 
-    cd /NeMo
-
-and then continue with the following steps.
+and begin using NeMo immediately.
 
 If you have all requirements installed (or are using `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ ),
 then you can simply use pip to install the latest released version (**currently 0.9.0**) of NeMo and its collections:
@@ -129,3 +127,32 @@ This command runs unittests:
 
     ./reinstall.sh
     python -m unittest tests/*.py
+
+**Building Docker Container**
+
+The NeMo Docker image requires Docker Buildx which is included in Docker 19.03 and layer. To build a custom NeMo Docker image, run
+
+.. code-block:: bash
+
+    docker buildx build --build-arg NEMO_VERSION=$(git describe --tags) -t nemo .
+
+The ``NEMO_VERSION`` build arg is required. We recommend always setting to ``git describe --tags`` so that the build is traceable and replicable.
+At runtime, the value of ``NEMO_VERSION`` specified at build time is exposed as an environment variable.
+
+You may also specify a build arg ``BASE_IMAGE`` to override the underlying version of PyTorch used, though there are no compatability guarantees.
+
+For development purposes, you can also create a Docker image containing only NeMo's dependencies, and map your local development branch into the
+container at runtime.
+
+.. code-block:: bash
+
+    # build the development container
+    docker buildx build --build-arg BASE_IMAGE=nvcr.io/nvidia/pytorch:20.01-py3 --target nemo-deps -t nemo-devel .
+
+    # launch the container, mapping local nemo into it
+    cd <nemo_path>
+    docker run -it --rm --gpus all -v $(pwd):/workspace/nemo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.9
+
+    # install in development mode
+    ./reinstall.sh
+
