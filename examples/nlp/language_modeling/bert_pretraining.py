@@ -183,9 +183,8 @@ if not args.preprocessed_data:
         )
     elif args.tokenizer == "nemo-bert":
         logging.info("To use NemoBertTokenizer.")
-        vocab_file = os.path.join(args.data_dir, 'vocab.txt')
         # To train on a Chinese dataset, use NemoBertTokenizer
-        tokenizer = nemo_nlp.data.NemoBertTokenizer(vocab_file=vocab_file)
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model="bert-base-uncased")
     else:
         raise ValueError("Please add your tokenizer " "or use sentence-piece or nemo-bert.")
     args.vocab_size = tokenizer.vocab_size
