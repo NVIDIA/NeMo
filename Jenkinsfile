@@ -32,23 +32,7 @@ pipeline {
       }
     }
 
-    stage('Parallel Stage1') {
-      failFast true
-      parallel {
-        stage('Simplest test') {
-          steps {
-            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=0 python simplest_example.py'
-          }
-        }
-        stage ('Chatbot test') {
-          steps {
-            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=1 python chatbot_example.py'
-          }
-        }
-      }
-    }
-
-    stage('Parallel NLP-BERT pretraining') {
+     stage('Parallel NLP-BERT pretraining') {
       failFast true
       parallel { 
         stage('BERT on the fly preprocessing') {
@@ -67,6 +51,24 @@ pipeline {
         }
       }
     }
+
+    stage('Parallel Stage1') {
+      failFast true
+      parallel {
+        stage('Simplest test') {
+          steps {
+            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=0 python simplest_example.py'
+          }
+        }
+        stage ('Chatbot test') {
+          steps {
+            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=1 python chatbot_example.py'
+          }
+        }
+      }
+    }
+
+   
 
     stage('Parallel NLP Examples 1') {
       failFast true
@@ -116,14 +118,14 @@ pipeline {
     stage('Parallel NLP-Squad') {
       failFast true
       parallel {       
-        stage('Squad v1.1') {
+        stage('BERT Squad v1.1') {
           steps {
             sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --amp_opt_level O1 --train_file /home/mrjenkins/TestData/nlp/squad_mini/v1.1/train-v1.1.json --dev_file /home/mrjenkins/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case'
             sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv1 && rm -rf /home/mrjenkins/TestData/nlp/squad_mini/v1.1/*cache*'
           }
         }
-        stage('Squad v2.0') {
+        stage('BERT Squad v2.0') {
           steps {
             sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --amp_opt_level O1 --train_file /home/mrjenkins/TestData/nlp/squad_mini/v2.0/train-v2.0.json --dev_file /home/mrjenkins/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --work_dir outputs/squadv2 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case --version_2_with_negative'
             sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv2/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
@@ -133,14 +135,22 @@ pipeline {
       }
     }
 
-    stage('NLP-ASR processing') {
+
+    stage('Parallel NLP-Examples 3') {
       failFast true
       parallel { 
         stage('asr_processing') {
           steps {
-            sh 'cd examples/nlp/asr_postprocessor && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2  asr_postprocessor.py --data_dir=/home/mrjenkins/TestData/nlp/asr_postprocessor/pred_real --restore_from=/home/mrjenkins/TestData/nlp/asr_postprocessor/bert-base-uncased_decoder.pt --max_steps=50 --batch_size=512'
-            sh 'cd examples/nlp/asr_postprocessor && WER=$(cat outputs/asr_postprocessor/log_globalrank-0_localrank-0.txt | grep "Validation WER" | tail -n 1 | egrep -o "[0-9.]+" | tail -n 1) && echo $WER && if [ $(echo "$WER < 2.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+            sh 'cd examples/nlp/asr_postprocessor && CUDA_VISIBLE_DEVICES=0 python asr_postprocessor.py --data_dir=/home/mrjenkins/TestData/nlp/asr_postprocessor/pred_real --restore_from=/home/mrjenkins/TestData/nlp/asr_postprocessor/bert-base-uncased_decoder.pt --max_steps=25 --batch_size=64'
+            sh 'cd examples/nlp/asr_postprocessor && WER=$(cat outputs/asr_postprocessor/log_globalrank-0_localrank-0.txt | grep "Validation WER" | tail -n 1 | egrep -o "[0-9.]+" | tail -n 1) && echo $WER && if [ $(echo "$WER < 25.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/asr_postprocessor/outputs'
+          }
+        }
+        stage('Roberta Squad v1.1') {
+          steps {
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --amp_opt_level O1 --train_file /home/mrjenkins/TestData/nlp/squad_mini/v1.1/train-v1.1.json --dev_file /home/mrjenkins/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1_roberta --batch_size 2 --save_step_freq 500 --num_epochs 1 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case  --model_type roberta --pretrained_model_name roberta-base'
+            sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1_roberta/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+            sh 'rm -rf examples/nlp/question_answering/outputs/squadv1_roberta && rm -rf /home/mrjenkins/TestData/nlp/squad_mini/v1.1/*cache*'
           }
         }
       }

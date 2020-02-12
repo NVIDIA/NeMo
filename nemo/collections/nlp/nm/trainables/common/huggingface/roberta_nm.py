@@ -1,5 +1,5 @@
 # =============================================================================
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2019 AI Applications Design Team at NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,18 +16,23 @@
 
 from typing import List, Optional
 
-from transformers import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAINED_MODEL_ARCHIVE_MAP, BertConfig, BertModel
+from transformers import (
+    ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP,
+    ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP,
+    RobertaConfig,
+    RobertaModel,
+)
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_modules import PretrainedModelInfo
-from nemo.core.neural_types import ChannelType, NeuralType
+from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
 
-__all__ = ['BERT']
+__all__ = ['Roberta']
 
 
-class BERT(TrainableNM):
+class Roberta(TrainableNM):
     """
-    BERT wraps around the Huggingface implementation of BERT from their
+    ROBERTA wraps around the Huggingface implementation of ROBERTA from their
     transformers repository for easy use within NeMo.
 
     Args:
@@ -49,22 +54,40 @@ class BERT(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
+
+        input_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        token_type_ids:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+        attention_mask:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
         """
         return {
-            # "input_ids":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "token_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "attention_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "token_type_ids": NeuralType(('B', 'T'), ChannelType()),
-            "attention_mask": NeuralType(('B', 'T'), ChannelType()),
+            "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "token_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "attention_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
+
+        hidden_states:
+            0: AxisType(BatchTag)
+
+            1: AxisType(TimeTag)
+
+            2: AxisType(ChannelTag)
         """
-        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
-        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
+        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
 
     def __init__(
         self,
@@ -94,12 +117,12 @@ class BERT(TrainableNM):
             raise ValueError(
                 "Only one of pretrained_model_name, vocab_size, "
                 + "or config_filename should be passed into the "
-                + "BERT constructor."
+                + "ROBERTA constructor."
             )
 
         # TK: The following code checks the same once again.
         if vocab_size is not None:
-            config = BertConfig(
+            config = RobertaConfig(
                 vocab_size_or_config_json_file=vocab_size,
                 vocab_size=vocab_size,
                 hidden_size=hidden_size,
@@ -109,20 +132,20 @@ class BERT(TrainableNM):
                 hidden_act=hidden_act,
                 max_position_embeddings=max_position_embeddings,
             )
-            model = BertModel(config)
+            model = RobertaModel(config)
         elif pretrained_model_name is not None:
-            model = BertModel.from_pretrained(pretrained_model_name)
+            model = RobertaModel.from_pretrained(pretrained_model_name)
         elif config_filename is not None:
-            config = BertConfig.from_json_file(config_filename)
-            model = BertModel(config)
+            config = RobertaConfig.from_json_file(config_filename)
+            model = RobertaModel(config)
         else:
             raise ValueError(
-                "Either pretrained_model_name or vocab_size must" + " be passed into the BERT constructor"
+                "Either pretrained_model_name or vocab_size must" + " be passed into the ROBERTA constructor"
             )
 
         model.to(self._device)
 
-        self.add_module("bert", model)
+        self.add_module("roberta", model)
         self.config = model.config
 
         # TK: storing config name in init_params instead.
@@ -145,15 +168,15 @@ class BERT(TrainableNM):
     @staticmethod
     def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:
         pretrained_models = []
-        for key, value in BERT_PRETRAINED_MODEL_ARCHIVE_MAP.items():
+        for key, value in ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP.items():
             model_info = PretrainedModelInfo(
                 pretrained_model_name=key,
                 description="weights by HuggingFace",
-                parameters=BERT_PRETRAINED_CONFIG_ARCHIVE_MAP[key],
+                parameters=ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP[key],
                 location=value,
             )
             pretrained_models.append(model_info)
         return pretrained_models
 
     def forward(self, input_ids, token_type_ids, attention_mask):
-        return self.bert(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)[0]
+        return self.roberta(input_ids, attention_mask=attention_mask)[0]
