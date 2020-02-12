@@ -44,7 +44,7 @@ mnist_data = nemo_simple_gan.MnistGanDataLayer(
     batch_size=batch_size, shuffle=True, train=True, root=args.train_dataset
 )
 
-generator = nemo_simple_gan.SimpleGenerator()
+generator = nemo_simple_gan.SimpleGenerator(batch_size)
 discriminator = nemo_simple_gan.SimpleDiscriminator()
 neg_disc_loss = nemo_simple_gan.DiscriminatorLoss(neg=True)
 disc_loss = nemo_simple_gan.DiscriminatorLoss()
