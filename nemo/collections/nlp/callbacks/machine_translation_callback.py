@@ -43,7 +43,7 @@ def eval_iter_callback(tensors, global_vars, tgt_tokenizer):
         if "tgt" in kv:
             ref = []
             for tgt in v:
-                nonpad_tokens = (tgt != tgt_tokenizer.pad_id()).sum().item()
+                nonpad_tokens = (tgt != tgt_tokenizer.pad_id).sum().item()
                 tgt_sentences = tgt.cpu().numpy().tolist()
                 for sentence in tgt_sentences:
                     ref.append(tgt_tokenizer.ids_to_text(sentence))

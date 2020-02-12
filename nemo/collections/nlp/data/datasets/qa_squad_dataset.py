@@ -403,7 +403,9 @@ class SquadDataset(Dataset):
         return exact_match, f1, all_predictions
 
 
-def convert_examples_to_features(examples, tokenizer, max_seq_length, doc_stride, max_query_length, has_groundtruth):
+def convert_examples_to_features(
+    examples, tokenizer, max_seq_length, doc_stride, max_query_length, has_groundtruth,
+):
     """Loads a data file into a list of `InputBatch`s."""
 
     unique_id = 1000000000
@@ -446,7 +448,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length, doc_stride
                 all_doc_tokens, tok_start_position, tok_end_position, tokenizer, example.answer_text
             )
 
-        # The -3 accounts for [CLS], [SEP] and [SEP]
+        # The -3 accounts for tokenizer.cls_token, tokenizer.sep_token and tokenizer.eos_token
         # doc_spans contains all possible contexts options of given length
         max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
         _DocSpan = collections.namedtuple("DocSpan", ["start", "length"])
@@ -467,12 +469,12 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length, doc_stride
             token_to_orig_map = {}
             token_is_max_context = {}
             segment_ids = []
-            tokens.append("[CLS]")
+            tokens.append(tokenizer.bos_token)
             segment_ids.append(0)
             for token in query_tokens:
                 tokens.append(token)
                 segment_ids.append(0)
-            tokens.append("[SEP]")
+            tokens.append(tokenizer.sep_token)
             segment_ids.append(0)
 
             for i in range(doc_span.length):
@@ -483,7 +485,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length, doc_stride
                 token_is_max_context[len(tokens)] = is_max_context
                 tokens.append(all_doc_tokens[split_token_index])
                 segment_ids.append(1)
-            tokens.append("[SEP]")
+            tokens.append(tokenizer.eos_token)
             segment_ids.append(1)
 
             input_ids = tokenizer.tokens_to_ids(tokens)
@@ -494,7 +496,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length, doc_stride
 
             # Zero-pad up to the sequence length.
             while len(input_ids) < max_seq_length:
-                input_ids.append(0)
+                input_ids.append(tokenizer.pad_id)
                 input_mask.append(0)
                 segment_ids.append(0)
 
@@ -504,7 +506,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length, doc_stride
 
             # calculate start and end position in final array
             # of tokens in answer if no answer,
-            # 0 for both pointing to [CLS]
+            # 0 for both pointing to tokenizer.cls_token
             start_position = None
             end_position = None
             if has_groundtruth and not example.is_impossible:
@@ -609,6 +611,10 @@ class SquadProcessor(DataProcessor):
     Processor for the SQuAD data set.
     used by the version 1.1 and version 2.0 of SQuAD, respectively.
     """
+
+    def __init__(self, data_file, mode):
+        self.data_file = data_file
+        self.mode = mode
 
     def __init__(self, data_file, mode):
         self.data_file = data_file

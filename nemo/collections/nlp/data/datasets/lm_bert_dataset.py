@@ -46,9 +46,6 @@ class BertPretrainingDataset(Dataset):
         sentence_idx_file=None,
     ):
         self.tokenizer = tokenizer
-        self.cls_id = tokenizer.token_to_id("[CLS]")
-        self.sep_id = tokenizer.token_to_id("[SEP]")
-        self.pad_id = tokenizer.token_to_id("[PAD]")
 
         # Loading enormous datasets into RAM isn't always feasible -- for
         # example, the pubmed corpus is 200+ GB, which doesn't fit into RAM on
@@ -144,7 +141,7 @@ class BertPretrainingDataset(Dataset):
 
     def __getitem__(self, idx, min_doc_length=16):
         # Each sequence has three special tokens, as follows:
-        # [CLS] <document a> [SEP] <document b> [SEP]
+        # tokenizer.cls_token <document a> tokenizer.sep_token <document b> tokenizer.eos_token
         num_special_tokens = 3
 
         max_num_tokens = self.max_seq_length - num_special_tokens
@@ -255,7 +252,9 @@ class BertPretrainingDataset(Dataset):
 
         truncate_seq_pair(a_document, b_document, max_num_tokens)
 
-        output_ids = [self.cls_id] + a_document + [self.sep_id] + b_document + [self.sep_id]
+        output_ids = (
+            [self.tokenizer.cls_id] + a_document + [self.tokenizer.sep_id] + b_document + [self.tokenizer.eos_id]
+        )
 
         input_ids, output_mask = self.mask_ids(output_ids)
 
@@ -267,8 +266,8 @@ class BertPretrainingDataset(Dataset):
 
         padding_length = max(0, self.max_seq_length - len(input_ids))
         if padding_length > 0:
-            input_ids.extend([self.pad_id] * padding_length)
-            output_ids.extend([self.pad_id] * padding_length)
+            input_ids.extend([self.tokenizer.pad_id] * padding_length)
+            output_ids.extend([self.tokenizer.pad_id] * padding_length)
             output_mask.extend([0] * padding_length)
 
         # TODO: wrap the return value with () for consistent style.
@@ -311,7 +310,7 @@ class BertPretrainingDataset(Dataset):
         mask_id = self.tokenizer.token_to_id("[MASK]")
 
         for word_ids in cand_indexes:
-            is_special = (word_ids[0] == self.cls_id) or (word_ids[0] == self.sep_id)
+            is_special = (word_ids[0] == self.tokenizer.cls_id) or (word_ids[0] == self.tokenizer.sep_id)
             if is_special or (random.random() > self.mask_probability):
                 output_mask.extend([0] * len(word_ids))
                 masked_ids.extend(word_ids)
@@ -326,7 +325,7 @@ class BertPretrainingDataset(Dataset):
                     for _ in word_ids:
                         # randomly select a valid word
                         random_word = random.randrange(self.vocab_size)
-                        while random_word in (self.cls_id, self.sep_id):
+                        while random_word in (self.tokenizer.cls_id, self.tokenizer.sep_id):
                             random_word = random.randrange(self.vocab_size)
                         masked_ids.append(random_word)
                 # for 10%, use same token

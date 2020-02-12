@@ -14,4 +14,6 @@
 # limitations under the License.
 # =============================================================================
 
+from nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm import *
 from nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm import *
+from nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm import *

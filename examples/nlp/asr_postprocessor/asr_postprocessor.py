@@ -19,14 +19,13 @@ import os
 
 import torch
 
+import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.nm.data_layers.machine_translation_datalayer
 from nemo import logging
 from nemo.collections.nlp.callbacks.machine_translation_callback import (
     eval_epochs_done_callback_wer,
     eval_iter_callback,
 )
-from nemo.collections.nlp.data.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.core.callbacks import CheckpointCallback
 from nemo.utils.lr_policies import SquareAnnealing
 
@@ -80,7 +79,7 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=False,
 )
 
-tokenizer = NemoBertTokenizer(pretrained_model=args.pretrained_model)
+tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model)
 vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 tokens_to_add = vocab_size - tokenizer.vocab_size
 
@@ -113,7 +112,7 @@ t_log_softmax = nemo_nlp.nm.trainables.TokenClassifier(
     args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
 )
 
-loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(pad_id=tokenizer.pad_id(), label_smoothing=0.1)
+loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(pad_id=tokenizer.pad_id, label_smoothing=0.1)
 
 beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     decoder=decoder,
@@ -121,9 +120,9 @@ beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     max_seq_length=args.max_seq_length,
     beam_size=args.beam_size,
     length_penalty=args.len_pen,
-    bos_token=tokenizer.bos_id(),
-    pad_token=tokenizer.pad_id(),
-    eos_token=tokenizer.eos_id(),
+    bos_token=tokenizer.bos_id,
+    pad_token=tokenizer.pad_id,
+    eos_token=tokenizer.eos_id,
 )
 
 # tie all embeddings weights
@@ -135,7 +134,7 @@ decoder.embedding_layer.position_embedding.weight = encoder.bert.embeddings.posi
 def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):
     dataset_src = os.path.join(args.data_dir, dataset + "." + args.src_lang)
     dataset_tgt = os.path.join(args.data_dir, dataset + "." + args.tgt_lang)
-    data_layer = nemo_nlp.nm.data_layers.machine_translation_datalayer.TranslationDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.TranslationDataLayer(
         tokenizer_src=tokenizer,
         tokenizer_tgt=tokenizer,
         dataset_src=dataset_src,
