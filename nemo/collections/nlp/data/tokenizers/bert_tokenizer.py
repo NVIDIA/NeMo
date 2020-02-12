@@ -64,7 +64,8 @@ def remove_spaces(text):
 class NemoBertTokenizer(TokenizerSpec):
     def __init__(
         self,
-        pretrained_model,
+        pretrained_model=None,
+        vocab_file=None,
         bert_derivate='bert',
         special_tokens={
             "unk_token": "[UNK]",
@@ -84,8 +85,13 @@ class NemoBertTokenizer(TokenizerSpec):
             tokenizer_cls = AlbertTokenizer
         elif bert_derivate == 'roberta':
             tokenizer_cls = RobertaTokenizer
+        if pretrained_model is not None:
+            self.tokenizer = tokenizer_cls.from_pretrained(pretrained_model)
+        elif vocab_file is not None:
+            self.tokenizer = tokenizer_cls(vocab_file=vocab_file)
+        else:
+            raise ValueError("either 'vocab_file' or 'pretrained_model' has to be specified")
 
-        self.tokenizer = tokenizer_cls.from_pretrained(pretrained_model)
         if hasattr(self.tokenizer, "vocab"):
             self.vocab_size = len(self.tokenizer.vocab)
         for k, v in special_tokens.items():
