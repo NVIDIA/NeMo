@@ -1,9 +1,9 @@
-NeMo_ASR collection
+NeMo ASR collection
 ===================
 
 语音数据处理模块
 ------------------------------
-.. automodule:: nemo_asr.data_layer
+.. automodule:: nemo.collections.asr.data_layer
     :members:
     :undoc-members:
     :show-inheritance:
@@ -11,7 +11,7 @@ NeMo_ASR collection
 
 语音识别模块
 ------------------------------------
-.. automodule:: nemo_asr.jasper
+.. automodule:: nemo.collections.asr.jasper
     :members:
     :undoc-members:
     :show-inheritance:

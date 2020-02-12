@@ -4,4 +4,5 @@ pytest-runner
 black
 isort[requirements]
 wrapt
+wget
 ruamel.yaml
