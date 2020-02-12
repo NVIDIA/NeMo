@@ -141,7 +141,7 @@ class BertPretrainingDataset(Dataset):
 
     def __getitem__(self, idx, min_doc_length=16):
         # Each sequence has three special tokens, as follows:
-        # [CLS] <document a> [SEP] <document b> [SEP]
+        # tokenizer.cls_token <document a> tokenizer.sep_token <document b> tokenizer.eos_token
         num_special_tokens = 3
 
         max_num_tokens = self.max_seq_length - num_special_tokens

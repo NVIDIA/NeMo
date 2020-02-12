@@ -68,26 +68,10 @@ This will tokenize text following the mapping of the original BERT model.
         hidden_size = model.hidden_size
         tokenizer = nemo_nlp.data.NemoBertTokenizer(bert_derivate='bert', pretrained_model="bert-base-uncased")
         # to use RoBERTa tokenizer, run e.g.
-        special_tokens_roberta = {
-            "unk_token": "<unk>",
-            "sep_token": "</s>",
-            "pad_token": "<pad>",
-            "bos_token": "<s>",
-            "mask_token": "<mask>",
-            "eos_token": "</s>",
-            "cls_token": "<s>",
-        }
+        special_tokens_roberta = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['roberta']
         tokenizer = nemo_nlp.data.NemoBertTokenizer(bert_derivate='roberta', pretrained_model="roberta-base", special_tokens=special_tokens_roberta)
         # to use Albert tokenizer, run e.g.
-        special_tokens_albert = {
-            "unk_token": "<unk>",
-            "sep_token": "[SEP]",
-            "eos_token": "[SEP]",
-            "pad_token": "<pad>",
-            "cls_token": "[CLS]",
-            "bos_token": "[CLS]",
-            "mask_token": "[MASK]",
-        }
+        special_tokens_albert = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['albert']
         tokenizer = nemo_nlp.data.NemoBertTokenizer(bert_derivate='albert', pretrained_model="albert-base-v1", special_tokens=special_tokens_albert)
 
 
