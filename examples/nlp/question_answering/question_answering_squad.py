@@ -216,7 +216,7 @@ def create_pipeline(
     batches_per_step=1,
     mode="train",
 ):
-    data_layer = nemo_nlp.nm.data_layers.qa_squad_datalayer.BertQuestionAnsweringDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
         mode=mode,
         version_2_with_negative=version_2_with_negative,
         batch_size=batch_size,
@@ -316,7 +316,7 @@ if __name__ == "__main__":
 
     if args.tokenizer == "sentencepiece":
         try:
-            tokenizer = nemo_nlp.SentencePieceTokenizer(model_path=args.tokenizer_model)
+            tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
         except Exception:
             raise ValueError(
                 "Using --tokenizer=sentencepiece \
@@ -354,13 +354,13 @@ if __name__ == "__main__":
     else:
         """ Use this if you're using a standard BERT model.
         To see the list of pretrained models, call:
-        nemo_nlp.huggingface.BERT.list_pretrained_models()
+        nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
         """
         model = model_cls(pretrained_model_name=args.pretrained_model_name)
 
     hidden_size = model.hidden_size
 
-    qa_head = nemo_nlp.nm.trainables.token_classification_nm.TokenClassifier(
+    qa_head = nemo_nlp.nm.trainables.TokenClassifier(
         hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False
     )
     squad_loss = nemo_nlp.nm.losses.QuestionAnsweringLoss()

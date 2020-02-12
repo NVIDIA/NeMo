@@ -5,7 +5,7 @@ BERT预训练
 
 创建一个专门领域的BERT模型对于某些应用是更有优势的。比如一个专门针对生物医学领域的专业BERT，类似于BioBERT :cite:`nlp-bert-lee2019biobert` 和SciBERT :cite:`nlp-bert-beltagy2019scibert` 。
 
-本教程中所使用的代码来自于 ``examples/nlp/bert_pretraining.py``.
+本教程中所使用的代码来自于 ``examples/nlp/language_modeling/bert_pretraining.py``.
 
 语料下载
 --------
@@ -51,10 +51,20 @@ BERT预训练
 
         # If you're using a custom vocabulary, create your tokenizer like this
         tokenizer = SentencePieceTokenizer(model_path="tokenizer.model")
-        tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
+        special_tokens = {
+            "sep_token": "[SEP]",
+            "pad_token": "[PAD]",
+            "bos_token": "[CLS]",
+            "mask_token": "[MASK]",
+            "eos_token": "[SEP]",
+            "cls_token": "[CLS]",
+        }
+        tokenizer.add_special_tokens(special_tokens)
 
         # Otherwise, create your tokenizer like this
         tokenizer = NemoBertTokenizer(vocab_file="vocab.txt")
+        # or
+        tokenizer = NemoBertTokenizer(pretrained_model="bert-base-uncased") 
 
 创建模型
 --------
@@ -78,76 +88,99 @@ BERT预训练
 
     .. code-block:: python
 
-        bert_model = nemo_nlp.huggingface.BERT(
-            vocab_size=tokenizer.vocab_size,
-            num_layers=args.num_layers,
-            d_model=args.d_model,
-            num_heads=args.num_heads,
-            d_inner=args.d_inner,
-            max_seq_length=args.max_seq_length,
-            hidden_act="gelu")
+        bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
+            vocab_size=args.vocab_size,
+            num_hidden_layers=args.num_hidden_layers,
+            hidden_size=args.hidden_size,
+            num_attention_heads=args.num_attention_heads,
+            intermediate_size=args.intermediate_size,
+            max_position_embeddings=args.max_seq_length,
+            hidden_act=args.hidden_act)
 
 如果你想从一个已有的BERT模型文件继续训练，那设置一个模型的名字即可。如果想查看完整的预训练好的BERT模型列表，可以使用 `nemo_nlp.huggingface.BERT.list_pretrained_models()` 。
 
     .. code-block:: python
 
-        bert_model = nemo_nlp.huggingface.BERT(pretrained_model_name="bert-base-cased")
+        bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name="bert-base-cased")
 
 接下来，我们需要定义分类器和损失函数。在本教程中，我们会同时使用掩码语言模型和预测下一句模型这两个模型的损失函数，如果你只用掩饰语言模型作为损失的话，可能会观察到更高的准确率。
 
     .. code-block:: python
 
-        mlm_classifier = nemo_nlp.TokenClassifier(args.d_model,
+        mlm_classifier = nemo_nlp.nm.trainables.TokenClassifier(args.d_model,
                                                   num_classes=tokenizer.vocab_size,
                                                   num_layers=1,
                                                   log_softmax=True)
-        mlm_loss_fn = nemo_nlp.MaskedLanguageModelingLossNM()
+        mlm_loss_fn = nemo_nlp.nm.losses.MaskedLanguageModelingLossNM()
 
-        nsp_classifier = nemo_nlp.SequenceClassifier(args.d_model,
+        nsp_classifier = nemo_nlp.nm.trainables.SequenceClassifier(args.d_model,
                                                      num_classes=2,
                                                      num_layers=2,
                                                      log_softmax=True)
         nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 
-        bert_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
+        bert_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 
 然后，我们把从输入到输出的整个计算流程封装成一个函数。有了这个函数，我们就可以很方便的分别创建训练流和评估流：
 
     .. code-block:: python
 
         def create_pipeline(**args):
-            dataset = nemo_nlp.BertPretrainingDataset(**params)
-            data_layer = nemo_nlp.BertPretrainingDataLayer(dataset)
-            steps_per_epoch = len(data_layer) // (batch_size * args.num_gpus)
+                    data_layer = nemo_nlp.nm.data_layers.BertPretrainingDataLayer(
+                                            tokenizer,
+                                            data_file,
+                                            max_seq_length,
+                                            mask_probability,
+                                            short_seq_prob,
+                                            batch_size)
+                    # for preprocessed data
+                    # data_layer = nemo_nlp.BertPretrainingPreprocessedDataLayer(
+                    #        data_file,
+                    #        max_predictions_per_seq,
+                    #        batch_size, is_training)
 
-            input_ids, input_type_ids, input_mask, \
-                output_ids, output_mask, nsp_labels = data_layer()
+                    steps_per_epoch = len(data_layer) // (batch_size * args.num_gpus * args.batches_per_step)
 
-            hidden_states = bert_model(input_ids=input_ids,
-                                       token_type_ids=input_type_ids,
-                                       attention_mask=input_mask)
+                    input_data = data_layer()
 
-            mlm_logits = mlm_classifier(hidden_states=hidden_states)
-            mlm_loss = mlm_loss_fn(logits=mlm_logits,
-                                   output_ids=output_ids,
-                                   output_mask=output_mask)
+                    hidden_states = bert_model(input_ids=input_data.input_ids,
+                                            token_type_ids=input_data.input_type_ids,
+                                            attention_mask=input_data.input_mask)
 
-            nsp_logits = nsp_classifier(hidden_states=hidden_states)
-            nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=nsp_labels)
+                    mlm_logits = mlm_classifier(hidden_states=hidden_states)
+                    mlm_loss = mlm_loss_fn(logits=mlm_logits,
+                                        output_ids=input_data.output_ids,
+                                        output_mask=input_data.output_mask)
 
-            loss = bert_loss(loss_1=mlm_loss, loss_2=nsp_loss)
+                    nsp_logits = nsp_classifier(hidden_states=hidden_states)
+                    nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=input_data.labels)
 
-            return loss, [mlm_loss, nsp_loss], steps_per_epoch
+                    loss = bert_loss(loss_1=mlm_loss, loss_2=nsp_loss)
+
+                    return loss, mlm_loss, nsp_loss, steps_per_epoch
 
 
-        train_loss, _, steps_per_epoch = create_pipeline(data_desc.train_file,
-                                                         args.max_seq_length,
-                                                         args.mask_probability,
-                                                         args.batch_size)
-        eval_loss, eval_tensors, _ = create_pipeline(data_desc.eval_file,
-                                                     args.max_seq_length,
-                                                     args.mask_probability,
-                                                     args.eval_batch_size)
+                train_loss, _, _, steps_per_epoch = create_pipeline(
+                                            data_file=data_desc.train_file,
+                                            preprocessed_data=False,
+                                            max_seq_length=args.max_seq_length,
+                                            mask_probability=args.mask_probability,
+                                            short_seq_prob=args.short_seq_prob,
+                                            batch_size=args.batch_size,
+                                            batches_per_step=args.batches_per_step)
+
+                # for preprocessed data 
+                # train_loss, _, _, steps_per_epoch = create_pipeline(
+                #                            data_file=args.data_dir,
+                #                            preprocessed_data=True,
+                #                            max_predictions_per_seq=args.max_predictions_per_seq,
+                #                            training=True,
+                #                            batch_size=args.batch_size,
+                #                            batches_per_step=args.batches_per_step)
+
+                eval_loss, eval_tensors, _ = create_pipeline(data_desc.eval_file,
+                                                            args.max_seq_length,
+                                            
 
 
 
