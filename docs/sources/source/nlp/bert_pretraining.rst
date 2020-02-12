@@ -4,7 +4,7 @@ Pretraining BERT
 In this tutorial, we will build and train a masked language model, either from scratch or from a pretrained BERT model, using the BERT architecture :cite:`nlp-bert-devlin2018bert`.
 Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See the :ref:`installation` section for more details.
 
-The code used in this tutorial can be found at ``examples/nlp/bert_pretraining.py``.
+The code used in this tutorial can be found at ``examples/nlp/language_modeling/bert_pretraining.py``.
 
 Introduction
 ------------
@@ -77,10 +77,20 @@ To train on a Chinese dataset, you should use `NemoBertTokenizer`.
 
         # If you're using a custom vocabulary, create your tokenizer like this
         tokenizer = SentencePieceTokenizer(model_path="tokenizer.model")
-        tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
+        special_tokens = {
+            "sep_token": "[SEP]",
+            "pad_token": "[PAD]",
+            "bos_token": "[CLS]",
+            "mask_token": "[MASK]",
+            "eos_token": "[SEP]",
+            "cls_token": "[CLS]",
+        }
+        tokenizer.add_special_tokens(special_tokens)
 
         # Otherwise, create your tokenizer like this
         tokenizer = NemoBertTokenizer(vocab_file="vocab.txt")
+        # or
+        tokenizer = NemoBertTokenizer(pretrained_model="bert-base-uncased") 
 
 Create the model
 ----------------
@@ -105,7 +115,7 @@ We also need to define the BERT model that we will be pre-training. Here, you ca
 
     .. code-block:: python
 
-        bert_model = nemo_nlp.huggingface.BERT(
+        bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
             vocab_size=args.vocab_size,
             num_hidden_layers=args.num_hidden_layers,
             hidden_size=args.hidden_size,
@@ -126,22 +136,22 @@ For the full list of BERT model names, check out `nemo_nlp.huggingface.BERT.list
 
     .. code-block:: python
 
-        bert_model = nemo_nlp.huggingface.BERT(pretrained_model_name="bert-base-cased")
+        bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name="bert-base-cased")
 
 Next, we will define our classifier and loss functions. We will demonstrate how to pre-train with both MLM (masked language model) and NSP (next sentence prediction) losses,
 but you may observe higher downstream accuracy by only pre-training with MLM loss.
 
     .. code-block:: python
 
-        mlm_classifier = nemo_nlp.BertTokenClassifier(
+        mlm_classifier = nemo_nlp.nm.trainables.BertTokenClassifier(
                                     args.hidden_size,
                                     num_classes=args.vocab_size,
                                     activation=ACT2FN[args.hidden_act],
                                     log_softmax=True)
 
-        mlm_loss_fn = nemo_nlp.MaskedLanguageModelingLossNM()
+        mlm_loss_fn = nemo_nlp.nm.losses.MaskedLanguageModelingLossNM()
 
-        nsp_classifier = nemo_nlp.SequenceClassifier(
+        nsp_classifier = nemo_nlp.nm.trainables.SequenceClassifier(
                                                 args.hidden_size,
                                                 num_classes=2,
                                                 num_layers=2,
@@ -150,7 +160,7 @@ but you may observe higher downstream accuracy by only pre-training with MLM los
 
         nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 
-        bert_loss = nemo_nlp.LossAggregatorNM(num_inputs=2)
+        bert_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 
 Then, we create the pipeline from input to output that can be used for both training and evaluation:
 
@@ -159,7 +169,7 @@ For training from raw text use nemo_nlp.BertPretrainingDataLayer, for preprocess
     .. code-block:: python
 
         def create_pipeline(**args):
-            data_layer = nemo_nlp.BertPretrainingDataLayer(
+            data_layer = nemo_nlp.nm.data_layers.BertPretrainingDataLayer(
                                     tokenizer,
                                     data_file,
                                     max_seq_length,
@@ -174,20 +184,19 @@ For training from raw text use nemo_nlp.BertPretrainingDataLayer, for preprocess
 
             steps_per_epoch = len(data_layer) // (batch_size * args.num_gpus * args.batches_per_step)
 
-            input_ids, input_type_ids, input_mask, \
-                output_ids, output_mask, nsp_labels = data_layer()
+            input_data = data_layer()
 
-            hidden_states = bert_model(input_ids=input_ids,
-                                       token_type_ids=input_type_ids,
-                                       attention_mask=input_mask)
+            hidden_states = bert_model(input_ids=input_data.input_ids,
+                                       token_type_ids=input_data.input_type_ids,
+                                       attention_mask=input_data.input_mask)
 
             mlm_logits = mlm_classifier(hidden_states=hidden_states)
             mlm_loss = mlm_loss_fn(logits=mlm_logits,
-                                   output_ids=output_ids,
-                                   output_mask=output_mask)
+                                   output_ids=input_data.output_ids,
+                                   output_mask=input_data.output_mask)
 
             nsp_logits = nsp_classifier(hidden_states=hidden_states)
-            nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=nsp_labels)
+            nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=input_data.labels)
 
             loss = bert_loss(loss_1=mlm_loss, loss_2=nsp_loss)
 
