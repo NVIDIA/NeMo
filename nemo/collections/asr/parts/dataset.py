@@ -2,6 +2,7 @@
 # https://github.com/ryanleary/patter
 # TODO: review, and copyright and fix/add comments
 import os
+from os.path import expanduser
 
 import kaldi_io
 import torch
@@ -152,7 +153,9 @@ class AudioDataset(Dataset):
     def __getitem__(self, index):
         sample = self.collection[index]
         if self.load_audio:
-            features = self.featurizer.process(sample.audio_file, offset=0, duration=sample.duration, trim=self.trim,)
+            features = self.featurizer.process(
+                expanduser(sample.audio_file), offset=0, duration=sample.duration, trim=self.trim,
+            )
             f, fl = features, torch.tensor(features.shape[0]).long()
         else:
             f, fl = None, None
