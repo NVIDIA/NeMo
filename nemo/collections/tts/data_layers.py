@@ -5,7 +5,7 @@ import nemo
 from .parts.datasets import AudioOnlyDataset
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core import DeviceType
-from nemo.core.neural_types import *
+from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
 
 
 class AudioDataLayer(DataLayerNM):
@@ -48,18 +48,12 @@ class AudioDataLayer(DataLayerNM):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        audio_signal:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        a_sig_length:
-            0: AxisType(BatchTag)
         """
         return {
-            "audio_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "a_sig_length": NeuralType({0: AxisType(BatchTag)}),
+            # "audio_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "a_sig_length": NeuralType({0: AxisType(BatchTag)}),
+            "audio_signal": NeuralType(('B', 'T'), AudioSignal()),
+            "a_sig_length": NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
