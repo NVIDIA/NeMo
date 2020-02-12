@@ -69,8 +69,12 @@ class TestNeuralModulesPT(NeMoUnitTest):
         self.assertEqual(tn.init_params["dim"], 4)
 
     def test_call_TaylorNet(self):
-        x_tg = nemo.core.neural_modules.NmTensor(producer=None, producer_args=None, name=None, ntype=NeuralType(
-            elements_type=ChannelType(), axes=('B', 'D')))
+        x_tg = nemo.core.neural_modules.NmTensor(
+            producer=None,
+            producer_args=None,
+            name=None,
+            ntype=NeuralType(elements_type=ChannelType(), axes=('B', 'D')),
+        )
 
         tn = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         # note that real port's name: x was used

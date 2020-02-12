@@ -109,7 +109,8 @@ class TestZeroDL(NeMoUnitTest):
                 # "transcript_length": NeuralType({0: AxisType(BatchTag)}),
                 "processed_signal": NeuralType(
                     (AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 64), AxisType(AxisKind.Time, 64)),
-                    SpectrogramType()),
+                    SpectrogramType(),
+                ),
                 "processed_length": NeuralType(tuple('B'), LengthsType()),
                 "transcript": NeuralType((AxisType(AxisKind.Batch), AxisType(AxisKind.Time, 64)), LabelsType()),
                 "transcript_length": NeuralType(tuple('B'), LengthsType()),

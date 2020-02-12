@@ -102,6 +102,7 @@ class VoidType(ElementType):
     It is a good practice to use this type only as necessary.
     For example, when you need template-like functionality.
     """
+
     def compare(cls, second: abc.ABCMeta) -> NeuralTypeComparisonResult:
         return NeuralTypeComparisonResult.SAME
 
@@ -152,6 +153,7 @@ class AudioSignal(ElementType):
         freq (int): sampling frequency of a signal. Note that two signals will only be the same if their
         freq is the same.
     """
+
     def __init__(self, freq: int = 16000):
         self._params = {}
         self._params['freq'] = freq
