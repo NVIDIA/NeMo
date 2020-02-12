@@ -43,11 +43,12 @@ def main(
 ):
     yaml = YAML(typ="safe")
 
-    logging.info("Loading config file...")
+    nemo.logging.info("Loading config file...")
     with open(config_file) as f:
         jasper_model_definition = yaml.load(f)
 
-    logging.info("Determining model shape...")
+    print(jasper_model_definition)
+    nemo.logging.info("Determining model shape...")
     if 'AudioPreprocessing' in jasper_model_definition:
         num_encoder_input_features = jasper_model_definition['AudioPreprocessing']['features']
     elif 'AudioToMelSpectrogramPreprocessor' in jasper_model_definition:
@@ -55,22 +56,25 @@ def main(
     else:
         num_encoder_input_features = 64
     num_decoder_input_features = jasper_model_definition['JasperEncoder']['jasper'][-1]['filters']
-    logging.info("  Num encoder input features: {}".format(num_encoder_input_features))
-    logging.info("  Num decoder input features: {}".format(num_decoder_input_features))
+    nemo.logging.info("  Num encoder input features: {}".format(num_encoder_input_features))
+    nemo.logging.info("  Num decoder input features: {}".format(num_decoder_input_features))
 
-    logging.info("Initializing models...")
+    nf = nemo.core.NeuralModuleFactory(create_tb_writer=False)
+
+    nemo.logging.info("Initializing models...")
     jasper_encoder = nemo_asr.JasperEncoder(
         feat_in=num_encoder_input_features, **jasper_model_definition['JasperEncoder']
     )
+
     jasper_decoder = nemo_asr.JasperDecoderForCTC(
         feat_in=num_decoder_input_features, num_classes=len(jasper_model_definition['labels']),
     )
 
     # This is necessary if you are using checkpoints trained with NeMo
     # version before 0.9
-    logging.info("Loading checkpoints...")
+    nemo.logging.info("Loading checkpoints...")
     if pre_v09_model:
-        logging.info("  Converting pre v0.9 checkpoint...")
+        nemo.logging.info("  Converting pre v0.9 checkpoint...")
         ckpt = torch.load(nn_encoder)
         new_ckpt = {}
         for k, v in ckpt.items():
@@ -83,23 +87,22 @@ def main(
         jasper_encoder.restore_from(nn_encoder)
     jasper_decoder.restore_from(nn_decoder)
 
-    nf = nemo.core.NeuralModuleFactory(create_tb_writer=False)
-    logging.info("Exporting encoder...")
+
+    nemo.logging.info("Exporting encoder...")
     nf.deployment_export(
         jasper_encoder,
         nn_onnx_encoder,
         nemo.core.neural_factory.DeploymentFormat.ONNX,
         torch.zeros(batch_size, num_encoder_input_features, time_steps, dtype=torch.float, device="cuda:0",),
     )
-    logging.info("Exporting decoder...")
+    nemo.logging.info("Exporting decoder...")
     nf.deployment_export(
         jasper_decoder,
         nn_onnx_decoder,
         nemo.core.neural_factory.DeploymentFormat.ONNX,
         (torch.zeros(batch_size, num_decoder_input_features, time_steps // 2, dtype=torch.float, device="cuda:0",)),
     )
-    logging.info("Export completed successfully.")
-
+    nemo.logging.info("Export completed successfully.")
 
 if __name__ == "__main__":
     args = get_parser().parse_args()
