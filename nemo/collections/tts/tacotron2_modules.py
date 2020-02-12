@@ -37,7 +37,7 @@ class TextEmbedding(TrainableNM):
         """Returns definitions of module input ports.
         """
         # return {"char_phone": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
-        return {"char_phone": NeuralType(ChannelType(), ('B', 'T'))}
+        return {"char_phone": NeuralType(LabelsType(), ('B', 'T'))}
 
     @property
     def output_ports(self):
