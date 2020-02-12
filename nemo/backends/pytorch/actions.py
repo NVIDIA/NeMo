@@ -919,10 +919,10 @@ class PtActions(Actions):
         dynamic_axes = defaultdict(list)
 
         def __extract_dynamic_axes(port_name: str, ntype: NeuralType, dynamic_axes: defaultdict):
-            if ntype.axis2type:
-                for axis_id, axistype in ntype.axis2type.items():
-                    if issubclass(axistype.semantics, BatchTag) or issubclass(axistype.semantics, TimeTag):
-                        dynamic_axes[port_name].append(axis_id)
+            if ntype.axes:
+                for ind, axis in enumerate(ntype.axes):
+                    if axis.kind == AxisKind.Batch or axis.kind == AxisKind.Time:
+                        dynamic_axes[port_name].append(ind)
 
         # This is a hack for Jasper to Jarvis export -- need re-design for this
         inputs_to_drop = set()

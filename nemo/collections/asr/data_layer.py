@@ -1,4 +1,17 @@
-# Copyright (c) 2019 NVIDIA Corporation
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
 """This package contains Neural Modules responsible for ASR data layers."""
 
 from functools import partial
@@ -81,29 +94,16 @@ transcript_n}
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        audio_signal:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        a_sig_length:
-            0: AxisType(BatchTag)
-
-        transcripts:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        transcript_length:
-            0: AxisType(BatchTag)
-
         """
         return {
-            'audio_signal': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            'a_sig_length': NeuralType({0: AxisType(BatchTag)}),
-            'transcripts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            'transcript_length': NeuralType({0: AxisType(BatchTag)}),
+            # 'audio_signal': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # 'a_sig_length': NeuralType({0: AxisType(BatchTag)}),
+            # 'transcripts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # 'transcript_length': NeuralType({0: AxisType(BatchTag)}),
+            'audio_signal': NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'transcripts': NeuralType(('B', 'T'), LabelsType()),
+            'transcript_length': NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
@@ -126,8 +126,8 @@ transcript_n}
         num_workers=0,
     ):
         super().__init__()
-
-        self._featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=None)
+        self._sample_rate = sample_rate
+        self._featurizer = WaveformFeaturizer(sample_rate=self._sample_rate, int_values=int_values, augmentor=None)
 
         # Set up dataset
         dataset_params = {
@@ -212,32 +212,18 @@ class KaldiFeatureDataLayer(DataLayerNM):
     def output_ports(self):
         """Returns definitions of module output ports.
 
-        processed_signal:
-            0: AxisType(BatchTag)
-
-            1: AxisType(SpectrogramSignalTag)
-
-            2: AxisType(ProcessedTimeTag)
-
-        processed_length:
-            0: AxisType(BatchTag)
-
-        transcripts:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        transcript_length:
-            0: AxisType(BatchTag)
 
         """
         return {
-            'processed_signal': NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
-            ),
-            'processed_length': NeuralType({0: AxisType(BatchTag)}),
-            'transcripts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            'transcript_length': NeuralType({0: AxisType(BatchTag)}),
+            # 'processed_signal': NeuralType(
+            #    {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+            # ),
+            # 'processed_length': NeuralType({0: AxisType(BatchTag)}),
+            # 'transcripts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # 'transcript_length': NeuralType({0: AxisType(BatchTag)}),
+            'processed_signal': NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            'transcripts': NeuralType(('B', 'T'), ChannelType()),
+            'transcript_length': NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
@@ -362,8 +348,10 @@ class TranscriptDataLayer(DataLayerNM):
 
         """
         return {
-            'texts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            'texts_length': NeuralType({0: AxisType(BatchTag)}),
+            # 'texts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # 'texts_length': NeuralType({0: AxisType(BatchTag)}),
+            'texts': NeuralType(('B', 'T'), ChannelType()),
+            'texts_length': NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
