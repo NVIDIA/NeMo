@@ -174,7 +174,7 @@ pipeline {
         // }
         stage('GAN O2') {
           steps {
-            sh 'cd examples/image && CUDA_VISIBLE_DEVICES=0 python gan.py --amp_opt_level=O2 --num_epochs=3 --train_dataset=/home/mrjenkins/TestData/MNIST/'
+            sh 'cd examples/image && CUDA_VISIBLE_DEVICES=0 python gan.py --amp_opt_level=O2 --num_epochs=3 --train_dataset=/home/mrjenkins/TestData/'
           }
         }
         stage('Jasper AN4 O2') {
