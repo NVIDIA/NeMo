@@ -56,12 +56,12 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             # "start_positions": NeuralType({0: AxisType(BatchTag)}),
             # "end_positions": NeuralType({0: AxisType(BatchTag)}),
             # "unique_ids": NeuralType({0: AxisType(BatchTag)}),
-            "input_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "input_type_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "input_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "start_positions": NeuralType(ChannelType(), tuple('B')),
-            "end_positions": NeuralType(ChannelType(), tuple('B')),
-            "unique_ids": NeuralType(ChannelType(), tuple('B')),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), ChannelType()),
+            "start_positions": NeuralType(tuple('B'), ChannelType()),
+            "end_positions": NeuralType(tuple('B'), ChannelType()),
+            "unique_ids": NeuralType(tuple('B'), ChannelType()),
         }
 
     def __init__(

@@ -44,19 +44,25 @@ from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
 
 class ElementType(ABC):
     """Abstract class defining semantics of the tensor elements.
-    We are replying on Python for inheritance checking"""
+    We are relying on Python for inheritance checking"""
 
-    @abstractmethod
-    def __str__(cls):
-        pass
+    def __str__(self):
+        self.__doc__
 
     @property
     def type_parameters(self) -> Dict:
-        """Override this property to parametrize your type"""
+        """Override this property to parametrize your type. For example, you can specify 'storage' type such as
+        float, int, bool with 'dtype' keyword. Another example, is if you want to represent a signal with a
+        particular property (say, sample frequency), then you can put sample_freq->value in there.
+        When two types are compared their type_parameters must match."""
         return {}
 
     @property
     def fields(self) -> Optional[Tuple]:
+        """This should be used to logically represent tuples/structures. For example, if you want to represent a
+        bounding box (x, y, width, height) you can put a tuple with names ('x', y', 'w', 'h') in here.
+        Under the hood this should be converted to the last tesnor dimension of fixed size = len(fields).
+        When two types are compared their fields must match."""
         return None
 
     def compare(self, second) -> NeuralTypeComparisonResult:
@@ -92,67 +98,61 @@ class ElementType(ABC):
 
 
 class VoidType(ElementType):
-    """Void-like type which is compatible with everything
+    """Void-like type which is compatible with everything.
+    It is a good practice to use this type only as necessary.
+    For example, when you need template-like functionality.
     """
-
-    def __str__(self):
-        return str("void type. compatible with everything")
-
     def compare(cls, second: abc.ABCMeta) -> NeuralTypeComparisonResult:
         return NeuralTypeComparisonResult.SAME
 
 
 # TODO: Consider moving these files elsewhere
 class ChannelType(ElementType):
-    def __str__(self):
-        return "convolutional channel value"
+    """Element to represent convolutional input/output channel.
+    """
 
 
 class EmbeddedTextType(ChannelType):
-    def __str__(self):
-        return "text embedding"
+    """Element to represent output on word/text embedding layers
+    """
 
 
 class LogitsType(ElementType):
-    def __str__(self):
-        return "neural type representing logits"
+    """Element type to represent logits"""
 
 
 class LogprobsType(ElementType):
-    def __str__(self):
-        return "neural type representing log probabilities"
+    """Element type to represent log-probabilities. For example, outputs of softmax layers."""
 
 
 class LabelsType(ElementType):
-    def __str__(self):
-        return "neural type representing labels"
+    """Element type to represent some sort of labels. This is often used as a base class to create
+    a more concrete types such as RegressionValuesType, etc."""
 
 
 class LengthsType(ElementType):
-    def __str__(self):
-        return "neural type representing lengths of something"
+    """Element type representing lengths of something"""
 
 
 class LossType(ElementType):
-    def __str__(self):
-        return "neural type representing loss value"
+    """Element type to represent outputs of Loss modules"""
 
 
 class EncodedRepresentation(ChannelType):
-    def __str__(self):
-        return "encoded representation, for example, encoder's output"
+    """Element type to represent encoded representation, for example, encoder's output"""
 
 
 class AcousticEncodedRepresentation(EncodedRepresentation):
-    def __str__(self):
-        return "encoded representation returned by the acoustic encoder model"
+    """Element type to represent encoded representation returned by the acoustic encoder model"""
 
 
 class AudioSignal(ElementType):
-    def __str__(self):
-        return "encoded representation returned by the acoustic encoder model"
-
-    def __init__(self, freq=16000):
+    """Element type to represent encoded representation returned by the acoustic encoder model
+    Args:
+        freq (int): sampling frequency of a signal. Note that two signals will only be the same if their
+        freq is the same.
+    """
+    def __init__(self, freq: int = 16000):
         self._params = {}
         self._params['freq'] = freq
 
@@ -162,30 +162,24 @@ class AudioSignal(ElementType):
 
 
 class SpectrogramType(ChannelType):
-    def __str__(self):
-        return "generic spectorgram type"
+    """Element type to represent generic spectrogram signal"""
 
 
 class MelSpectrogramType(SpectrogramType):
-    def __str__(self):
-        return "mel spectorgram type"
+    """Element type to represent mel spectrogram signal"""
 
 
 class MFCCSpectrogramType(SpectrogramType):
-    def __str__(self):
-        return "mfcc spectorgram type"
+    """Element type to represent MFCC spectrogram signal"""
 
 
 class PredictionsType(LabelsType):
-    def __str__(self):
-        return "predictions values type"
+    """Element type to represent some sort of predictions returned by model"""
 
 
 class RegressionValuesType(PredictionsType):
-    def __str__(self):
-        return "regression values type"
+    """Element type to represent labels for regression task"""
 
 
 class CategoricalValuesType(PredictionsType):
-    def __str__(self):
-        return "regression values type"
+    """Element type to represent labels for categorical classification task"""

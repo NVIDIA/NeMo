@@ -56,11 +56,11 @@ class JointIntentSlotLoss(LossNM):
             # "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "intents": NeuralType({0: AxisType(BatchTag)}),
             # "slots": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "intent_logits": NeuralType(LogitsType(), ('B', 'D')),
-            "slot_logits": NeuralType(LogitsType(), ('B', 'T', 'D')),
-            "loss_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "intents": NeuralType(ChannelType(), tuple('B')),
-            "slots": NeuralType(ChannelType(), ('B', 'T')),
+            "intent_logits": NeuralType(('B', 'D'), LogitsType()),
+            "slot_logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+            "loss_mask": NeuralType(('B', 'T'), ChannelType()),
+            "intents": NeuralType(tuple('B'), ChannelType()),
+            "slots": NeuralType(('B', 'T'), ChannelType()),
         }
 
     @property
@@ -71,7 +71,7 @@ class JointIntentSlotLoss(LossNM):
             NeuralType(None)
         """
         # return {"loss": NeuralType(None)}
-        return {"loss": NeuralType(LossType())}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(
         self, num_slots, slot_classes_loss_weights=None, intent_classes_loss_weights=None, intent_loss_weight=0.6,

@@ -31,12 +31,12 @@ class AddsTen(NonTrainableNM):
     @property
     def input_ports(self):
         # return {"mod_in": NeuralType({0: AxisType(BatchTag), 1: AxisType(BaseTag, dim=1)})}
-        return {"mod_in": NeuralType(ChannelType(), (AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)))}
+        return {"mod_in": NeuralType((AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)), ChannelType())}
 
     @property
     def output_ports(self):
         # return {"mod_out": NeuralType({0: AxisType(BatchTag), 1: AxisType(BaseTag, dim=1)})}
-        return {"mod_out": NeuralType(ChannelType(), (AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)))}
+        return {"mod_out": NeuralType((AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)), ChannelType())}
 
     def forward(self, mod_in):
         return mod_in + 10
@@ -48,11 +48,11 @@ class SubtractsTen(NonTrainableNM):
 
     @property
     def input_ports(self):
-        return {"mod_in": NeuralType(ChannelType(), (AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)))}
+        return {"mod_in": NeuralType((AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)), ChannelType())}
 
     @property
     def output_ports(self):
-        return {"mod_out": NeuralType(ChannelType(), (AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)))}
+        return {"mod_out": NeuralType((AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)), ChannelType())}
 
     def forward(self, mod_in):
         return mod_in - 10
@@ -69,7 +69,7 @@ class TestInfer(NeMoUnitTest):
             dtype=torch.FloatTensor,
             batch_size=1,
             output_ports={
-                "dl_out": NeuralType(ChannelType(), (AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)))
+                "dl_out": NeuralType((AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)), ChannelType())
             },
         )
         addten = AddsTen()
@@ -98,7 +98,7 @@ class TestInfer(NeMoUnitTest):
             dtype=torch.FloatTensor,
             batch_size=1,
             output_ports={
-                "dl_out": NeuralType(ChannelType(), (AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)))
+                "dl_out": NeuralType((AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)), ChannelType())
             },
         )
         addten = AddsTen()

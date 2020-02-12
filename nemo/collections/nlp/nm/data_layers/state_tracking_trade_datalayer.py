@@ -74,11 +74,11 @@ class MultiWOZDataLayer(TextDataLayer):
             # "tgt_lens": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             # "gating_labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             # "turn_domain": NeuralType(None),
-            "src_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "src_lens": NeuralType(LengthsType(), tuple('B')),
-            "tgt_ids": NeuralType(ChannelType(), ('B', 'D', 'T')),
-            "tgt_lens": NeuralType(LengthsType(), ('B', 'D')),
-            "gating_labels": NeuralType(LabelsType(), ('B', 'D')),
+            "src_ids": NeuralType(('B', 'T'), ChannelType()),
+            "src_lens": NeuralType(tuple('B'), LengthsType()),
+            "tgt_ids": NeuralType(('B', 'D', 'T'), ChannelType()),
+            "tgt_lens": NeuralType(('B', 'D'), LengthsType()),
+            "gating_labels": NeuralType(('B', 'D'), LabelsType()),
             "turn_domain": NeuralType(),
         }
 

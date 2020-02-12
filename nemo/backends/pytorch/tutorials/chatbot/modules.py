@@ -22,10 +22,10 @@ class DialogDataLayer(DataLayerNM):
         """Returns definitions of module output ports.
         """
         return {
-            "src": NeuralType(ChannelType(), ('T', 'B')),
-            "src_lengths": NeuralType(LengthsType(), tuple('B')),
-            "tgt": NeuralType(LabelsType(), ('T', 'B')),
-            "mask": NeuralType(ChannelType(), ('T', 'B')),
+            "src": NeuralType(('T', 'B'), ChannelType()),
+            "src_lengths": NeuralType(tuple('B'), LengthsType()),
+            "tgt": NeuralType(('T', 'B'), LabelsType()),
+            "mask": NeuralType(('T', 'B'), ChannelType()),
             "max_tgt_lengths": NeuralType(axes=None),
         }
 
@@ -75,8 +75,8 @@ class EncoderRNN(TrainableNM):
         """Returns definitions of module input ports.
         """
         return {
-            "input_seq": NeuralType(ChannelType(), ('T', 'B')),
-            "input_lengths": NeuralType(LengthsType(), tuple('B')),
+            "input_seq": NeuralType(('T', 'B'), ChannelType()),
+            "input_lengths": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -84,8 +84,8 @@ class EncoderRNN(TrainableNM):
         """Returns definitions of module output ports.
         """
         return {
-            "outputs": NeuralType(ChannelType(), ('T', 'B', 'D')),
-            "hidden": NeuralType(ChannelType(), ('B', 'D')),
+            "outputs": NeuralType(('T', 'B', 'D'), ChannelType()),
+            "hidden": NeuralType(('B', 'D'), ChannelType()),
         }
 
     def __init__(self, voc_size, encoder_n_layers, hidden_size, dropout, bidirectional=True):
@@ -135,8 +135,8 @@ class LuongAttnDecoderRNN(TrainableNM):
         """Returns definitions of module input ports.
         """
         return {
-            "targets": NeuralType(LabelsType(), ('T', 'B')),
-            "encoder_outputs": NeuralType(ChannelType(), ('T', 'B', 'D')),
+            "targets": NeuralType(('T', 'B'), LabelsType()),
+            "encoder_outputs": NeuralType(('T', 'B', 'D'), ChannelType()),
             "max_target_len": NeuralType(axes=None),
         }
 
@@ -157,8 +157,8 @@ class LuongAttnDecoderRNN(TrainableNM):
             1: AxisType(ChannelTag)
         """
         return {
-            "outputs": NeuralType(ChannelType(), ('T', 'B', 'D')),
-            "hidden": NeuralType(ChannelType(), ('B', 'D')),
+            "outputs": NeuralType(('T', 'B', 'D'), ChannelType()),
+            "hidden": NeuralType(('B', 'D'), ChannelType()),
         }
 
     def __init__(self, attn_model, hidden_size, voc_size, decoder_n_layers, dropout):
@@ -273,9 +273,9 @@ class MaskedXEntropyLoss(LossNM):
         """Returns definitions of module input ports.
         """
         return {
-            "predictions": NeuralType(ChannelType(), ('T', 'B', 'D')),
-            "target": NeuralType(LabelsType(), ('T', 'B')),
-            "mask": NeuralType(ChannelType(), ('T', 'B')),
+            "predictions": NeuralType(('T', 'B', 'D'), ChannelType()),
+            "target": NeuralType(('T', 'B'), LabelsType()),
+            "mask": NeuralType(('T', 'B'), ChannelType()),
         }
 
     @property
@@ -285,7 +285,7 @@ class MaskedXEntropyLoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(LossType(), axes=None)}
+        return {"loss": NeuralType(axes=None, elements_type=LossType())}
 
     def __init__(self):
         super().__init__()
@@ -309,15 +309,15 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
     def input_ports(self):
         """Returns definitions of module input ports.
         """
-        return {"encoder_outputs": NeuralType(ChannelType(), ('T', 'B', 'D'))}
+        return {"encoder_outputs": NeuralType(('T', 'B', 'D'), ChannelType())}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         return {
-            "outputs": NeuralType(ChannelType(), ('T', 'B')),
-            "hidden": NeuralType(ChannelType(), ('B', 'D')),
+            "outputs": NeuralType(('T', 'B'), ChannelType()),
+            "hidden": NeuralType(('B', 'D'), ChannelType()),
         }
 
     def __init__(self, attn_model, hidden_size, voc_size, decoder_n_layers, dropout, max_dec_steps=10):

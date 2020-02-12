@@ -70,11 +70,11 @@ class DecoderRNN(TrainableNM):
         """
         return {
             # 'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            'targets': NeuralType(LabelsType(), ('B', 'T')),
+            'targets': NeuralType(('B', 'T'), LabelsType()),
             # 'encoder_outputs': NeuralType(
             #   {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
             # ),
-            'encoder_outputs': NeuralType(ChannelType(), ('B', 'T', 'D'), True),
+            'encoder_outputs': NeuralType(('B', 'T', 'D'), ChannelType(), True),
         }
 
     @property
@@ -83,11 +83,11 @@ class DecoderRNN(TrainableNM):
         """
         return {
             # 'log_probs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
-            'log_probs': NeuralType(LogprobsType(), ('B', 'T', 'D')),
+            'log_probs': NeuralType(('B', 'T', 'D'), LogprobsType()),
             # 'attention_weights': NeuralType(
             #    {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}, optional=True,
             # ),
-            'attention_weights': NeuralType(ChannelType(), ('B', 'T', 'T'), True),
+            'attention_weights': NeuralType(('B', 'T', 'T'), ChannelType(), True),
         }
 
     def __init__(
@@ -209,8 +209,8 @@ class EncoderRNN(TrainableNM):
         return {
             # 'inputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # 'input_lens': NeuralType({0: AxisType(BatchTag),}, optional=True),
-            'inputs': NeuralType(ChannelType(), ('B', 'T')),
-            'input_lens': NeuralType(LengthsType(), tuple('B')),
+            'inputs': NeuralType(('B', 'T'), ChannelType()),
+            'input_lens': NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -220,8 +220,8 @@ class EncoderRNN(TrainableNM):
         return {
             # 'outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             # 'hidden': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            'outputs': NeuralType(ChannelType(), ('B', 'T', 'D')),
-            'hidden': NeuralType(ChannelType(), ('B', 'T', 'D')),
+            'outputs': NeuralType(('B', 'T', 'D'), ChannelType()),
+            'hidden': NeuralType(('B', 'T', 'D'), ChannelType()),
         }
 
     def __init__(

@@ -73,9 +73,9 @@ class TRADEMaskedCrossEntropy(LossNM):
             # ),
             # "targets": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
             # "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            "logits": NeuralType(LogitsType(), ('B', 'T', 'D', 'D')),
-            "targets": NeuralType(ChannelType(), ('B', 'D', 'T')),
-            "loss_mask": NeuralType(LengthsType(), ('B', 'D')),
+            "logits": NeuralType(('B', 'T', 'D', 'D'), LogitsType()),
+            "targets": NeuralType(('B', 'D', 'T'), ChannelType()),
+            "loss_mask": NeuralType(('B', 'D'), LengthsType()),
         }
 
     @property
@@ -83,7 +83,7 @@ class TRADEMaskedCrossEntropy(LossNM):
         """Returns definitions of module output ports.
         """
         # return {"loss": NeuralType(None)}
-        return {"loss": NeuralType(LossType())}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self):
         LossNM.__init__(self)
@@ -126,8 +126,8 @@ class CrossEntropyLoss3D(LossNM):
         return {
             # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(ChannelTag)}),
             # "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            "logits": NeuralType(LogitsType(), ('B', 'D', 'D')),
-            "labels": NeuralType(LabelsType(), ('B', 'D')),
+            "logits": NeuralType(('B', 'D', 'D'), LogitsType()),
+            "labels": NeuralType(('B', 'D'), LabelsType()),
         }
 
     @property
@@ -135,7 +135,7 @@ class CrossEntropyLoss3D(LossNM):
         """Returns definitions of module output ports.
         """
         # return {"loss": NeuralType(None)}
-        return {"loss": NeuralType(LossType())}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, num_classes, **kwargs):
         LossNM.__init__(self, **kwargs)

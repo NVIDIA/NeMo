@@ -79,8 +79,8 @@ class JasperEncoder(TrainableNM):
             #    {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
             # ),
             # "length": NeuralType({0: AxisType(BatchTag)}),
-            "audio_signal": NeuralType(SpectrogramType(), ('B', 'D', 'T')),
-            "length": NeuralType(LengthsType(), tuple('B')),
+            "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -92,8 +92,8 @@ class JasperEncoder(TrainableNM):
             #    {0: AxisType(BatchTag), 1: AxisType(EncodedRepresentationTag), 2: AxisType(ProcessedTimeTag),}
             # ),
             # "encoded_lengths": NeuralType({0: AxisType(BatchTag)}),
-            "outputs": NeuralType(AcousticEncodedRepresentation(), ('B', 'D', 'T')),
-            "encoded_lengths": NeuralType(LengthsType(), tuple('B')),
+            "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
@@ -184,7 +184,7 @@ class JasperDecoderForCTC(TrainableNM):
             # "encoder_output": NeuralType(
             #    {0: AxisType(BatchTag), 1: AxisType(EncodedRepresentationTag), 2: AxisType(ProcessedTimeTag),}
             # )
-            "encoder_output": NeuralType(AcousticEncodedRepresentation(), ('B', 'D', 'T'))
+            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())
         }
 
     @property
@@ -192,7 +192,7 @@ class JasperDecoderForCTC(TrainableNM):
         """Returns definitions of module output ports.
         """
         # return {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
-        return {"output": NeuralType(LogprobsType(), ('B', 'T', 'D'))}
+        return {"output": NeuralType(('B', 'T', 'D'), LogprobsType())}
 
     def __init__(self, feat_in, num_classes, init_mode="xavier_uniform"):
         super().__init__()

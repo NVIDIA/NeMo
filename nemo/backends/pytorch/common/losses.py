@@ -45,7 +45,7 @@ class SequenceLoss(LossNM):
             NeuralType(None)
 
         """
-        return {"loss": NeuralType(LossType())}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(
         self, pad_id=0, smoothing_coef=0.0, sample_wise=False, aux_ctc=False, ctc_initial_coef=0.1, ctc_blank_id=None
@@ -107,8 +107,8 @@ class CrossEntropyLoss(LossNM):
         """Returns definitions of module input ports.
         """
         return {
-            "logits": NeuralType(elements_type=LogitsType(), axes=('B', 'D')),
-            "labels": NeuralType(elements_type=LabelsType(), axes=tuple('B')),
+            "logits": NeuralType(axes=('B', 'D'), elements_type=LogitsType()),
+            "labels": NeuralType(axes=tuple('B'), elements_type=LabelsType()),
         }
 
     @property
@@ -143,8 +143,8 @@ class MSELoss(LossNM):
             0: AxisType(RegressionTag)
         """
         return {
-            "preds": NeuralType(RegressionValuesType(), tuple('B')),
-            "labels": NeuralType(LabelsType(), tuple('B')),
+            "preds": NeuralType(tuple('B'), RegressionValuesType()),
+            "labels": NeuralType(tuple('B'), LabelsType()),
         }
 
     @property

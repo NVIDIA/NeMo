@@ -37,9 +37,9 @@ class MaskedLanguageModelingLossNM(LossNM):
             # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             # "output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "output_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "logits": NeuralType(LogitsType(), ('B', 'T', 'D')),
-            "output_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "output_mask": NeuralType(ChannelType(), ('B', 'T')),
+            "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+            "output_ids": NeuralType(('B', 'T'), ChannelType()),
+            "output_mask": NeuralType(('B', 'T'), ChannelType()),
         }
 
     @property
@@ -49,7 +49,7 @@ class MaskedLanguageModelingLossNM(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(LossType())}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, label_smoothing=0.0):
         LossNM.__init__(self)

@@ -43,9 +43,9 @@ class QuestionAnsweringLoss(LossNM):
             # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             # "start_positions": NeuralType({0: AxisType(BatchTag)}),
             # "end_positions": NeuralType({0: AxisType(BatchTag)}),
-            "logits": NeuralType(LogitsType(), ('B', 'T', 'D')),
-            "start_positions": NeuralType(ChannelType(), tuple('B')),
-            "end_positions": NeuralType(ChannelType(), tuple('B')),
+            "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+            "start_positions": NeuralType(tuple('B'), ChannelType()),
+            "end_positions": NeuralType(tuple('B'), ChannelType()),
         }
 
     @property
@@ -69,9 +69,9 @@ class QuestionAnsweringLoss(LossNM):
             # "loss": NeuralType(None),
             # "start_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "end_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "loss": NeuralType(LossType()),
-            "start_logits": NeuralType(ChannelType(), ('B', 'T')),
-            "end_logits": NeuralType(ChannelType(), ('B', 'T')),
+            "loss": NeuralType(elements_type=LossType()),
+            "start_logits": NeuralType(('B', 'T'), ChannelType()),
+            "end_logits": NeuralType(('B', 'T'), ChannelType()),
         }
 
     def __init__(self):

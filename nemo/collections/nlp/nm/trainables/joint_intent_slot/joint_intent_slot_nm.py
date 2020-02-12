@@ -41,7 +41,7 @@ class JointIntentSlotClassifier(TrainableNM):
         """Returns definitions of module input ports.
         """
         # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
-        return {"hidden_states": NeuralType(ChannelType(), ('B', 'T', 'C'))}
+        return {"hidden_states": NeuralType(('B', 'T', 'C'), ChannelType())}
 
     @property
     def output_ports(self):
@@ -62,8 +62,8 @@ class JointIntentSlotClassifier(TrainableNM):
         return {
             # "intent_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             # "slot_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            "intent_logits": NeuralType(LogitsType(), ('B', 'D')),
-            "slot_logits": NeuralType(LogitsType(), ('B', 'T', 'D')),
+            "intent_logits": NeuralType(('B', 'D'), LogitsType()),
+            "slot_logits": NeuralType(('B', 'T', 'D'), LogitsType()),
         }
 
     def __init__(self, hidden_size, num_intents, num_slots, dropout=0.0, use_transformer_pretrained=True, **kwargs):

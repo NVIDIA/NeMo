@@ -22,7 +22,7 @@ class JasperRNNConnector(TrainableNM):
         """Returns definitions of module input ports.
         """
         # return {'tensor': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag),})}
-        return {'tensor': NeuralType(ChannelType(), ('B', 'D', 'T'))}
+        return {'tensor': NeuralType(('B', 'D', 'T'), ChannelType())}
 
     @property
     def output_ports(self):
@@ -36,7 +36,7 @@ class JasperRNNConnector(TrainableNM):
             2: AxisType(ChannelTag)
         """
         # return {'tensor': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
-        return {'tensor': NeuralType(ChannelType(), ('B', 'T', 'D'))}
+        return {'tensor': NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(self, in_channels, out_channels):
         super().__init__()

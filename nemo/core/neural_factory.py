@@ -463,14 +463,12 @@ class NeuralModuleFactory(object):
                 _nm_name = name.lower()
                 if _nm_name == "resnet18":
                     input_ports = {
-                        "x": NeuralType(
-                            {
-                                0: AxisType(BatchTag),
-                                1: AxisType(ChannelTag),
-                                2: AxisType(HeightTag, 224),
-                                3: AxisType(WidthTag, 224),
-                            }
-                        )
+                        "x": NeuralType({
+                            0: AxisType(BatchTag),
+                            1: AxisType(ChannelTag),
+                            2: AxisType(HeightTag, 224),
+                            3: AxisType(WidthTag, 224),
+                        })
                     }
                     output_ports = {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
 
@@ -483,14 +481,12 @@ class NeuralModuleFactory(object):
                     )
                 elif _nm_name == "resnet50":
                     input_ports = {
-                        "x": NeuralType(
-                            {
-                                0: AxisType(BatchTag),
-                                1: AxisType(ChannelTag),
-                                2: AxisType(HeightTag, 224),
-                                3: AxisType(WidthTag, 224),
-                            }
-                        )
+                        "x": NeuralType({
+                            0: AxisType(BatchTag),
+                            1: AxisType(ChannelTag),
+                            2: AxisType(HeightTag, 224),
+                            3: AxisType(WidthTag, 224),
+                        })
                     }
                     output_ports = {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
 

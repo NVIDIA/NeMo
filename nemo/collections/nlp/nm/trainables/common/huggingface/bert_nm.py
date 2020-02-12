@@ -54,9 +54,9 @@ class BERT(TrainableNM):
             # "input_ids":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "token_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "attention_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "token_type_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "attention_mask": NeuralType(ChannelType(), ('B', 'T')),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "token_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('B', 'T'), ChannelType()),
         }
 
     @property
@@ -64,7 +64,7 @@ class BERT(TrainableNM):
         """Returns definitions of module output ports.
         """
         # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
-        return {"hidden_states": NeuralType(ChannelType(), ('B', 'T', 'D'))}
+        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(
         self,

@@ -46,7 +46,7 @@ class LossAggregatorNM(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(LossType())}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, num_inputs=2):
         # Store number of inputs/losses.

@@ -72,12 +72,12 @@ class TRADEGenerator(TrainableNM):
             # 'input_lens': NeuralType({0: AxisType(BatchTag)}),
             # 'src_ids': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # 'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
-            'encoder_hidden': NeuralType(ChannelType(), ('B', 'T', 'C')),
-            'encoder_outputs': NeuralType(ChannelType(), ('B', 'T', 'C')),
-            'input_lens': NeuralType(LengthsType(), tuple('B')),
-            'src_ids': NeuralType(ChannelType(), ('B', 'T')),
+            'encoder_hidden': NeuralType(('B', 'T', 'C'), ChannelType()),
+            'encoder_outputs': NeuralType(('B', 'T', 'C'), ChannelType()),
+            'input_lens': NeuralType(tuple('B'), LengthsType()),
+            'src_ids': NeuralType(('B', 'T'), ChannelType()),
             # 'targets': NeuralType(ChannelType(), ('B', 'D', 'T')),
-            'targets': NeuralType(LabelsType(), ('B', 'D', 'T')),
+            'targets': NeuralType(('B', 'D', 'T'), LabelsType()),
         }
 
     @property
@@ -96,8 +96,8 @@ class TRADEGenerator(TrainableNM):
         #     'gate_outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(ChannelTag)}),
         # }
         return {
-            'point_outputs': NeuralType(LogitsType(), ('B', 'T', 'D', 'D')),
-            'gate_outputs': NeuralType(LogitsType(), ('B', 'D', 'D')),
+            'point_outputs': NeuralType(('B', 'T', 'D', 'D'), LogitsType()),
+            'gate_outputs': NeuralType(('B', 'D', 'D'), LogitsType()),
         }
 
     def __init__(self, vocab, embeddings, hid_size, dropout, slots, nb_gate, teacher_forcing=0.5):

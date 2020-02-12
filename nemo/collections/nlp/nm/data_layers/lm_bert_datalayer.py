@@ -56,12 +56,12 @@ class BertPretrainingDataLayer(TextDataLayer):
             # "output_ids":     NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "output_mask":    NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "labels":         NeuralType({0: AxisType(BatchTag)}),
-            "input_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "input_type_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "input_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "output_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "output_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "labels": NeuralType(LabelsType(), tuple('B')),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), ChannelType()),
+            "output_ids": NeuralType(('B', 'T'), ChannelType()),
+            "output_mask": NeuralType(('B', 'T'), ChannelType()),
+            "labels": NeuralType(tuple('B'), LabelsType()),
         }
 
     def __init__(self, tokenizer, dataset, max_seq_length, mask_probability, short_seq_prob=0.1, batch_size=64):
@@ -101,12 +101,12 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
             # "output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "output_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "labels": NeuralType({0: AxisType(BatchTag)}),
-            "input_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "input_type_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "input_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "output_ids": NeuralType(ChannelType(), ('B', 'T')),
-            "output_mask": NeuralType(ChannelType(), ('B', 'T')),
-            "labels": NeuralType(LabelsType(), tuple('B')),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), ChannelType()),
+            "output_ids": NeuralType(('B', 'T'), ChannelType()),
+            "output_mask": NeuralType(('B', 'T'), ChannelType()),
+            "labels": NeuralType(tuple('B'), LabelsType()),
         }
 
     def __init__(self, dataset, max_pred_length, batch_size=64, training=True):

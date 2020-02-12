@@ -32,11 +32,15 @@ class AxisKindAbstract(Enum):
 
 class AxisKind(AxisKindAbstract):
     """This Enum represents what does varying axis dimension mean.
-    For example, does this dimension correspond to width, batch, time, etc."""
+    For example, does this dimension correspond to width, batch, time, etc.
+    The "Dimension" and "Channel" kinds are the same and used to represent
+    a general axis.
+    """
 
     Batch = 0
     Time = 1
     Dimension = 2
+    Channel = 2
     Width = 3
     Height = 4
 
@@ -64,9 +68,10 @@ class AxisKind(AxisKindAbstract):
 class AxisType(object):
     """This class represents axis semantics and (optionally) it's dimensionality
        Args:
-           kind (AxisKindAbstract):
-           size (int, optional):
-           is_list (bool, default=False):
+           kind (AxisKindAbstract): what kind of axis it is? For example Batch, Height, etc.
+           size (int, optional): specify if the axis should have a fixed size. By default it is set to None and you
+           typically do not want to set it for Batch and Time
+           is_list (bool, default=False): whether this is a list or a tensor axis
     """
 
     def __init__(self, kind: AxisKindAbstract, size: Optional[int] = None, is_list=False):

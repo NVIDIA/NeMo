@@ -41,14 +41,14 @@ class SequenceRegression(TrainableNM):
         """Returns definitions of module input ports.
         """
         # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
-        return {"hidden_states": NeuralType(ChannelType(), ('B', 'T', 'D'))}
+        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         # return {"preds": NeuralType({0: AxisType(RegressionTag)})}
-        return {"preds": NeuralType(RegressionValuesType(), tuple('B'))}
+        return {"preds": NeuralType(tuple('B'), RegressionValuesType())}
 
     def __init__(self, hidden_size, num_layers=2, activation='relu', dropout=0.0, use_transformer_pretrained=True):
         super().__init__()
