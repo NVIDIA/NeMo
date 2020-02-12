@@ -164,12 +164,17 @@ pipeline {
       }
     }
 
-    stage('Parallel Stage Jasper') {
+    stage('Parallel Stage Jasper / GAN') {
       failFast true
       parallel {
-        stage('Jasper AN4 O1') {
+        // stage('Jasper AN4 O1') {
+        //   steps {
+        //     sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0 python jasper_an4.py --amp_opt_level=O1 --num_epochs=35 --test_after_training --work_dir=O1'
+        //   }
+        // }
+        stage('GAN O2') {
           steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0 python jasper_an4.py --amp_opt_level=O1 --num_epochs=35 --test_after_training --work_dir=O1'
+            sh 'cd examples/image && CUDA_VISIBLE_DEVICES=0 python gan.py --amp_opt_level=O2 --num_epochs=3 --train_dataset=/home/mrjenkins/TestData/MNIST/'
           }
         }
         stage('Jasper AN4 O2') {
@@ -180,21 +185,16 @@ pipeline {
       }
     }
 
-    stage('Parallel Stage GAN') {
-      failFast true
-      parallel {
-        stage('GAN O1') {
-          steps {
-            sh 'cd examples/image && CUDA_VISIBLE_DEVICES=0 python gan.py --amp_opt_level=O1 --num_epochs=3'
-          }
-        }
-        stage('GAN O2') {
-          steps {
-            sh 'cd examples/image && CUDA_VISIBLE_DEVICES=1 python gan.py --amp_opt_level=O2 --num_epochs=3'
-          }
-        }
-      }
-    }
+    // stage('Parallel Stage GAN') {
+    //   failFast true
+    //   parallel {
+    //     stage('GAN O1') {
+    //       steps {
+    //         sh 'cd examples/image && CUDA_VISIBLE_DEVICES=0 python gan.py --amp_opt_level=O1 --num_epochs=3'
+    //       }
+    //     }
+    //   }
+    // }
 
     stage('Multi-GPU test') {
       failFast true
