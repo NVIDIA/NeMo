@@ -448,7 +448,7 @@ def convert_examples_to_features(
                 all_doc_tokens, tok_start_position, tok_end_position, tokenizer, example.answer_text
             )
 
-        # The -3 accounts for [CLS], [SEP] and [SEP]
+        # The -3 accounts for tokenizer.cls_token, tokenizer.sep_token and tokenizer.eos_token
         # doc_spans contains all possible contexts options of given length
         max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
         _DocSpan = collections.namedtuple("DocSpan", ["start", "length"])
@@ -506,7 +506,7 @@ def convert_examples_to_features(
 
             # calculate start and end position in final array
             # of tokens in answer if no answer,
-            # 0 for both pointing to [CLS]
+            # 0 for both pointing to tokenizer.cls_token
             start_position = None
             end_position = None
             if has_groundtruth and not example.is_impossible:

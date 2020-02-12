@@ -248,49 +248,11 @@ def create_pipeline(
 
 
 MODEL_CLASSES = {
-    "bert": {
-        "model_name": "bert-base-uncased",
-        "tokenizer_name": "bert-base-uncased",
-        "model": nemo_nlp.nm.trainables.huggingface.BERT,
-        "special_tokens": {
-            "unk_token": "[UNK]",
-            "sep_token": "[SEP]",
-            "pad_token": "[PAD]",
-            "bos_token": "[CLS]",
-            "mask_token": "[MASK]",
-            "eos_token": "[SEP]",
-            "cls_token": "[CLS]",
-        },
-    },
-    "roberta": {
-        "model_name": "roberta-base",
-        "tokenizer_name": "roberta-base",
-        "model": nemo_nlp.nm.trainables.huggingface.Roberta,
-        "special_tokens": {
-            "unk_token": "<unk>",
-            "sep_token": "</s>",
-            "pad_token": "<pad>",
-            "bos_token": "<s>",
-            "mask_token": "<mask>",
-            "eos_token": "</s>",
-            "cls_token": "<s>",
-        },
-    },
-    "albert": {
-        "model_name": "albert-base-v2",
-        "tokenizer_name": "albert-base-v2",
-        "model": nemo_nlp.nm.trainables.huggingface.Albert,
-        "special_tokens": {
-            "unk_token": "<unk>",
-            "sep_token": "[SEP]",
-            "eos_token": "[SEP]",
-            "pad_token": "<pad>",
-            "cls_token": "[CLS]",
-            "bos_token": "[CLS]",
-            "mask_token": "[MASK]",
-        },
-    },
+    'bert': nemo_nlp.nm.trainables.huggingface.BERT,
+    'albert': nemo_nlp.nm.trainables.huggingface.Albert,
+    'roberta': nemo_nlp.nm.trainables.huggingface.Roberta,
 }
+
 
 if __name__ == "__main__":
     args = parse_args()
@@ -322,30 +284,24 @@ if __name__ == "__main__":
                 "Using --tokenizer=sentencepiece \
                         requires valid --tokenizer_model"
             )
-        special_tokens = {
-            "sep_token": "[SEP]",
-            "pad_token": "[PAD]",
-            "bos_token": "[CLS]",
-            "eos_token": "[SEP]",
-            "cls_token": "[CLS]",
-        }
+        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[args.model_type]
         tokenizer.add_special_tokens(special_tokens)
     else:
         tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
-        tokenizer_special_tokens = MODEL_CLASSES[args.model_type]["special_tokens"]
-        model_cls = MODEL_CLASSES[args.model_type]["model"]
-        model_name = MODEL_CLASSES[args.model_type]["model_name"]
-        tokenizer_name = MODEL_CLASSES[args.model_type]["tokenizer_name"]
+        tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[args.model_type]
+        tokenizer_name = nemo_nlp.utils.MODEL_NAMES[args.model_type]["tokenizer_name"]
+        tokenizer = tokenizer_cls(
+            do_lower_case=args.do_lower_case,
+            pretrained_model=tokenizer_name,
+            special_tokens=tokenizer_special_tokens,
+            bert_derivate=args.model_type,
+        )
+
+    model_cls = MODEL_CLASSES[args.model_type]
+    model_name = nemo_nlp.utils.MODEL_NAMES[args.model_type]["model_name"]
 
     if args.pretrained_model_name is None:
         args.pretrained_model_name = model_name
-
-    tokenizer = tokenizer_cls(
-        do_lower_case=args.do_lower_case,
-        pretrained_model=tokenizer_name,
-        special_tokens=tokenizer_special_tokens,
-        bert_derivate=args.model_type,
-    )
 
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
