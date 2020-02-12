@@ -74,7 +74,7 @@ class TRADEMaskedCrossEntropy(LossNM):
             # "targets": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
             # "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             "logits": NeuralType(('B', 'T', 'D', 'D'), LogitsType()),
-            "targets": NeuralType(('B', 'D', 'T'), ChannelType()),
+            "targets": NeuralType(('B', 'D', 'T'), LabelsType()),
             "loss_mask": NeuralType(('B', 'D'), LengthsType()),
         }
 
