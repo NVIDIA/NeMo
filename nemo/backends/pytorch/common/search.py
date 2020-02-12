@@ -3,7 +3,7 @@ __all__ = ['GreedySearch', 'BeamSearch']
 import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core.neural_types import ChannelType, NeuralType
 
 INF = float('inf')
 BIG_NUM = 1e4
@@ -31,39 +31,24 @@ class GreedySearch(NonTrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        encoder_outputs:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
         """
         return {
-            'encoder_outputs': NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
-            )
+            # 'encoder_outputs': NeuralType(
+            #     {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
+            # )
+            "encoder_outputs": NeuralType(('B', 'T', 'D'), ChannelType(), optional=True)
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
 
-        predictions:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        attention_weights:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(TimeTag)
         """
         return {
-            'predictions': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            'attention_weights': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}),
+            # 'predictions': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # 'attention_weights': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}),
+            "predictions": NeuralType(('B', 'T'), ChannelType()),
+            "attention_weights": NeuralType(('B', 'T', 'T'), ChannelType()),
         }
 
     def __init__(self, decoder, pad_id, bos_id, eos_id, max_len, batch_size=None):

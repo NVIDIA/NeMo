@@ -7,16 +7,7 @@ import torch.nn.functional as F
 
 from .parts.jasper import JasperBlock, init_weights, jasper_activations
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import (
-    AxisType,
-    BatchTag,
-    ChannelTag,
-    EncodedRepresentationTag,
-    NeuralType,
-    ProcessedTimeTag,
-    SpectrogramSignalTag,
-    TimeTag,
-)
+from nemo.core.neural_types import *
 
 
 class JasperEncoder(TrainableNM):
@@ -82,44 +73,27 @@ class JasperEncoder(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        audio_signal:
-            0: AxisType(BatchTag)
-
-            1: AxisType(SpectrogramSignalTag)
-
-            2: AxisType(ProcessedTimeTag)
-
-        length:
-            0: AxisType(BatchTag)
         """
         return {
-            "audio_signal": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
-            ),
-            "length": NeuralType({0: AxisType(BatchTag)}),
+            # "audio_signal": NeuralType(
+            #    {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag),}
+            # ),
+            # "length": NeuralType({0: AxisType(BatchTag)}),
+            "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        outputs:
-            0: AxisType(BatchTag)
-
-            1: AxisType(EncodedRepresentationTag)
-
-            2: AxisType(ProcessedTimeTag)
-
-        encoded_lengths:
-            0: AxisType(BatchTag)
-
         """
         return {
-            "outputs": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(EncodedRepresentationTag), 2: AxisType(ProcessedTimeTag),}
-            ),
-            "encoded_lengths": NeuralType({0: AxisType(BatchTag)}),
+            # "outputs": NeuralType(
+            #    {0: AxisType(BatchTag), 1: AxisType(EncodedRepresentationTag), 2: AxisType(ProcessedTimeTag),}
+            # ),
+            # "encoded_lengths": NeuralType({0: AxisType(BatchTag)}),
+            "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
@@ -205,32 +179,20 @@ class JasperDecoderForCTC(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        encoder_output:
-            0: AxisType(BatchTag)
-
-            1: AxisType(EncodedRepresentationTag)
-
-            2: AxisType(ProcessedTimeTag)
         """
         return {
-            "encoder_output": NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(EncodedRepresentationTag), 2: AxisType(ProcessedTimeTag),}
-            )
+            # "encoder_output": NeuralType(
+            #    {0: AxisType(BatchTag), 1: AxisType(EncodedRepresentationTag), 2: AxisType(ProcessedTimeTag),}
+            # )
+            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        output:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
         """
-        return {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
+        # return {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
+        return {"output": NeuralType(('B', 'T', 'D'), LogprobsType())}
 
     def __init__(self, feat_in, num_classes, init_mode="xavier_uniform"):
         super().__init__()
