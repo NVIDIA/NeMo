@@ -54,41 +54,37 @@ neural_factory = nemo.core.NeuralModuleFactory(
     optimization_level=nemo.core.Optimization.mxprO0,
 )
 
-resnet = neural_factory.get_module(
-    name="resnet50", params={"placement": device}, collection="torchvision", pretrained=False,
-)
+resnet = neural_factory.get_module(name="resnet50", params={}, collection="torchvision", pretrained=False)
 
 dl_train = neural_factory.get_module(
     name="ImageFolderDataLayer",
     collection="torchvision",
     params={
         "batch_size": batch_size,
-        "input_size": resnet.inputs["x"].axis2type[2].dim,
+        "input_size": resnet.input_ports["x"].axis2type[2].dim,
         "shuffle": True,
         "path": args.data_root + "train",
         # "path": "/mnt/D1/Data/ImageNet/ImageFolder/train",
-        "placement": device,
     },
 )
 
-L_train = neural_factory.get_module(name="CrossEntropyLoss", collection="toys", params={"placement": device})
+L_train = neural_factory.get_module(name="CrossEntropyLoss", collection="toys", params={})
 
 dl_eval = neural_factory.get_module(
     name="ImageFolderDataLayer",
     collection="torchvision",
     params={
         "batch_size": batch_size,
-        "input_size": resnet.inputs["x"].axis2type[2].dim,
+        "input_size": resnet.input_ports["x"].axis2type[2].dim,
         "shuffle": False,
         "is_eval": True,
         "path": args.data_root + "val",
         # "path": "/mnt/D1/Data/ImageNet/ImageFolder/val",
         # "path": "/raid/okuchaiev/Data/ImageNet/ImageFolder/val",
-        "placement": device,
     },
 )
 
-L_eval = neural_factory.get_module(name="CrossEntropyLoss", collection="toys", params={"placement": device})
+L_eval = neural_factory.get_module(name="CrossEntropyLoss", collection="toys", params={})
 
 step_per_epoch = int(len(dl_train) / (batch_size * num_gpus))
 
