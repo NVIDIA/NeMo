@@ -178,11 +178,9 @@ if not args.preprocessed_data:
     )
     if args.tokenizer == "sentence-piece":
         logging.info("To use SentencePieceTokenizer.")
-        print(nemo_nlp.__file__)
         tokenizer = nemo_nlp.data.SentencePieceTokenizer(
             model_path=data_desc.tokenizer_model, special_tokens=special_tokens
         )
-        # import ipdb; ipdb.set_trace()
     elif args.tokenizer == "nemo-bert":
         logging.info("To use NemoBertTokenizer.")
         vocab_file = os.path.join(args.data_dir, 'vocab.txt')
@@ -192,7 +190,7 @@ if not args.preprocessed_data:
         raise ValueError("Please add your tokenizer " "or use sentence-piece or nemo-bert.")
     args.vocab_size = tokenizer.vocab_size
 
-print(vars(args))
+(vars(args))
 bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
     vocab_size=args.vocab_size,
     num_hidden_layers=args.num_hidden_layers,
@@ -281,7 +279,7 @@ else:
         batches_per_step=args.batches_per_step,
     )
 
-print("steps per epoch", steps_per_epoch)
+logging.info("steps per epoch", steps_per_epoch)
 # callback which prints training loss and perplexity once in a while
 if not args.only_mlm_loss:
     log_tensors = [train_loss, mlm_loss, nsp_loss]

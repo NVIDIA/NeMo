@@ -81,7 +81,7 @@ def parse_args():
     parser.add_argument(
         "--dev_file", type=str, required=True, help="The evaluation data file. Should be *.json",
     )
-    parser.add_argument("--pretrained_bert_model", type=str, help="Name of the pre-trained model")
+    parser.add_argument("--pretrained_model_name", type=str, help="Name of the pre-trained model")
     parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
     parser.add_argument(
         "--bert_checkpoint", default=None, type=str, help="Path to BERT model checkpoint for finetuning."
@@ -337,8 +337,8 @@ if __name__ == "__main__":
         model_name = MODEL_CLASSES[args.model_type]["model_name"]
         tokenizer_name = MODEL_CLASSES[args.model_type]["tokenizer_name"]
 
-    if args.pretrained_bert_model is None:
-        args.pretrained_bert_model = model_name
+    if args.pretrained_model_name is None:
+        args.pretrained_model_name = model_name
 
     tokenizer = tokenizer_cls(
         do_lower_case=args.do_lower_case,
@@ -356,7 +356,7 @@ if __name__ == "__main__":
         To see the list of pretrained models, call:
         nemo_nlp.huggingface.BERT.list_pretrained_models()
         """
-        model = model_cls(pretrained_model_name=args.pretrained_bert_model)
+        model = model_cls(pretrained_model_name=args.pretrained_model_name)
 
     hidden_size = model.hidden_size
 
