@@ -27,9 +27,6 @@ pipeline {
       }
     }
     stage('L0: Unittests ALL') {
-      when {
-        changeset "**/*.py"
-      }
       steps {
         sh './reinstall.sh && python -m unittest'
       }
@@ -37,7 +34,6 @@ pipeline {
 
     stage('L1: Parallel Stage1') {
       when {
-        changeset "**/*.py"
         anyOf{
           branch 'master'
           changeRequest()
@@ -60,7 +56,6 @@ pipeline {
 
     stage('L1: Parallel NLP-BERT pretraining') {
       when {
-        changeset "**/*.py"
         anyOf{
           branch 'master'
           changeRequest()
@@ -87,7 +82,6 @@ pipeline {
 
     stage('L1: Parallel NLP Examples 1') {
       when {
-        changeset "**/*.py"
         anyOf{
           branch 'master'
           changeRequest()
@@ -119,7 +113,6 @@ pipeline {
 
     stage('L1: Parallel NLP Examples 2') {
       when {
-        changeset "**/*.py"
         anyOf{
           branch 'master'
           changeRequest()
@@ -146,7 +139,6 @@ pipeline {
 
     stage('L1: Parallel NLP-Squad') {
       when {
-        changeset "**/*.py"
         anyOf{
           branch 'master'
           changeRequest()
@@ -173,7 +165,6 @@ pipeline {
 
     stage('L1: NLP-ASR processing') {
       when {
-        changeset "**/*.py"
         anyOf{
           branch 'master'
           changeRequest()
@@ -193,7 +184,6 @@ pipeline {
 
     stage('L1: NLP-Intent Detection/SLot Tagging Examples - Multi-GPU') {
       when {
-        changeset "**/*.py"
         anyOf{
           branch 'master'
           changeRequest()
@@ -210,7 +200,6 @@ pipeline {
 
     stage('L1: NLP-NMT Example') {
       when {
-        changeset "**/*.py"
         anyOf{
           branch 'master'
           changeRequest()
@@ -225,7 +214,6 @@ pipeline {
 
     stage('L1: Parallel Stage Jasper / GAN') {
       when {
-        changeset "**/*.py"
         anyOf{
           branch 'master'
           changeRequest()
@@ -264,7 +252,6 @@ pipeline {
 
     stage('L1: Multi-GPU test') {
       when {
-        changeset "**/*.py"
         anyOf{
           branch 'master'
           changeRequest()
@@ -282,7 +269,6 @@ pipeline {
 
     stage('L1: TTS Tests') {
       when {
-        changeset "**/*.py"
         anyOf{
           branch 'master'
           changeRequest()
