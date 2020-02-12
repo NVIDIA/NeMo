@@ -104,6 +104,8 @@ To release a new version, please update the changelog as followed:
 ([PR #308](https://github.com/NVIDIA/NeMo/pull/309)) - @tkornuta-nvidia
 
 ### Removed
+- Dropped support of the following ASR configs: jasper10x4.yaml, quartznet10x5.yaml, quartznet15x5_in.yaml, quartznet5x3.yaml, quartznet5x5.yaml, quartznet_an4.yaml. They are moved to experimental/configs and can still be used with v0.9 for use in replicating paper results
+([PR #354](https://github.com/NVIDIA/NeMo/pull/354)) - @blisc
 
 ### Security
 
