@@ -190,7 +190,6 @@ nf = nemo_core.NeuralModuleFactory(
 )
 
 
-
 if args.bert_checkpoint is None:
     """ Use this if you're using a standard BERT model.
     To see the list of pretrained models, call:
@@ -209,7 +208,7 @@ else:
         tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
     else:
         raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
-    
+
     if args.bert_config is not None:
         config = BertConfig.from_json_file(args.bert_config).to_dict()
         args.vocab_size = config['vocab_size']
@@ -221,14 +220,14 @@ else:
         args.max_seq_length = config['max_position_embeddings']
 
         model = nemo_nlp.nm.trainables.huggingface.BERT(
-        vocab_size=args.vocab_size,
-        num_hidden_layers=args.num_hidden_layers,
-        hidden_size=args.hidden_size,
-        num_attention_heads=args.num_attention_heads,
-        intermediate_size=args.intermediate_size,
-        max_position_embeddings=args.max_seq_length,
-        hidden_act=args.hidden_act,
-    )
+            vocab_size=args.vocab_size,
+            num_hidden_layers=args.num_hidden_layers,
+            hidden_size=args.hidden_size,
+            num_attention_heads=args.num_attention_heads,
+            intermediate_size=args.intermediate_size,
+            max_position_embeddings=args.max_seq_length,
+            hidden_act=args.hidden_act,
+        )
         logging.info(f"using {args.bert_config}")
     else:
         model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
