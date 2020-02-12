@@ -25,7 +25,7 @@ class SentencePieceTokenizer(TokenizerSpec):
     def __init__(self, model_path, special_tokens={}):
         self.tokenizer = spm.SentencePieceProcessor()
         self.tokenizer.Load(model_path)
-        # wihtout special tokens
+        # without special tokens
         self.original_vocab_size = self.tokenizer.get_piece_size()
         self.vocab_size = self.tokenizer.get_piece_size()
         self.special_token_to_id = {}

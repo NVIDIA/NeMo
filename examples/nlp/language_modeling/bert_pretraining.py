@@ -160,14 +160,7 @@ if args.config_file is not None:
     args.max_seq_length = config['max_position_embeddings']
 
 if not args.preprocessed_data:
-    special_tokens = {
-        "sep_token": "[SEP]",
-        "pad_token": "[PAD]",
-        "bos_token": "[CLS]",
-        "mask_token": "[MASK]",
-        "eos_token": "[SEP]",
-        "cls_token": "[CLS]",
-    }
+    special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
     data_desc = BERTPretrainingDataDesc(
         args.dataset_name,
         args.data_dir,

@@ -134,14 +134,7 @@ else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     """
     if args.tokenizer == "sentencepiece":
-        special_tokens = {
-            "sep_token": "[SEP]",
-            "pad_token": "[PAD]",
-            "bos_token": "[CLS]",
-            "mask_token": "[MASK]",
-            "eos_token": "[SEP]",
-            "cls_token": "[CLS]",
-        }
+        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
         tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model, special_tokens=special_tokens)
     elif args.tokenizer == "nemobert":
         tokenizer = NemoBertTokenizer(args.pretrained_bert_model)

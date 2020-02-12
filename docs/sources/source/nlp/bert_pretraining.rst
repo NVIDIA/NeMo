@@ -61,7 +61,7 @@ If have an available vocab, say the ``vocab.txt`` file from any `pretrained BERT
 
     .. code-block:: python
 
-        data_desc = BERTPretrainingDataDesc(args.dataset_name,
+        data_desc = nemo_nlp.data.BERTPretrainingDataDesc(args.dataset_name,
                                             args.data_dir,
                                             args.vocab_size,
                                             args.sample_size,
@@ -76,21 +76,14 @@ To train on a Chinese dataset, you should use `NemoBertTokenizer`.
     .. code-block:: python
 
         # If you're using a custom vocabulary, create your tokenizer like this
-        tokenizer = SentencePieceTokenizer(model_path="tokenizer.model")
-        special_tokens = {
-            "sep_token": "[SEP]",
-            "pad_token": "[PAD]",
-            "bos_token": "[CLS]",
-            "mask_token": "[MASK]",
-            "eos_token": "[SEP]",
-            "cls_token": "[CLS]",
-        }
+        tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path="tokenizer.model")
+        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
         # Otherwise, create your tokenizer like this
-        tokenizer = NemoBertTokenizer(vocab_file="vocab.txt")
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(vocab_file="vocab.txt")
         # or
-        tokenizer = NemoBertTokenizer(pretrained_model="bert-base-uncased") 
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model="bert-base-uncased") 
 
 Create the model
 ----------------
