@@ -25,7 +25,7 @@ from transformers import (
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_modules import PretrainedModelInfo
-from nemo.core.neural_types import NeuralType, ChannelType
+from nemo.core.neural_types import ChannelType, NeuralType
 
 __all__ = ['Roberta']
 
@@ -70,7 +70,7 @@ class Roberta(TrainableNM):
     def output_ports(self):
         """Returns definitions of module output ports.
         """
-        #return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
+        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(
