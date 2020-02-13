@@ -2,7 +2,12 @@ import json
 import os
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import DATABASE_EXISTS_TMP, read_csv, partition_data, write_files
+from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import (
+    DATABASE_EXISTS_TMP,
+    partition_data,
+    read_csv,
+    write_files,
+)
 from nemo.collections.nlp.utils import if_exist
 
 

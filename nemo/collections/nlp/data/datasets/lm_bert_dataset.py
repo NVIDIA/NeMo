@@ -24,11 +24,11 @@ import random
 
 import h5py
 import numpy as np
+from examples.nlp.scripts.download_wkt2 import download_wkt2
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from nemo import logging
-from examples.nlp.scripts.download_wkt2 import download_wkt2
 from nemo.collections.nlp.data.datasets.lm_transformer_dataset import create_vocab_mlm
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataset']

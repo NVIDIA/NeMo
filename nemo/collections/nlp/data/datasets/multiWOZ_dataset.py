@@ -294,7 +294,6 @@ class MultiWOZDataDesc:
         with open(self.vocab_file, 'wb') as handle:
             pickle.dump(self.vocab, handle)
 
-
     def fix_general_label_error_multiwoz(self, labels, slots):
         label_dict = dict([label['slots'][0] for label in labels])
         GENERAL_TYPO = {

@@ -26,12 +26,12 @@ from nemo.collections.nlp.data.datasets.lm_bert_dataset import (
 )
 from nemo.collections.nlp.data.datasets.lm_transformer_dataset import LanguageModelingDataset
 from nemo.collections.nlp.data.datasets.machine_translation_dataset import TranslationDataset
+from nemo.collections.nlp.data.datasets.multiWOZ_dataset import *
 from nemo.collections.nlp.data.datasets.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
     BertPunctuationCapitalizationInferDataset,
 )
 from nemo.collections.nlp.data.datasets.qa_squad_dataset import SquadDataset
-from nemo.collections.nlp.data.datasets.multiWOZ_dataset import *
 from nemo.collections.nlp.data.datasets.text_classification_dataset import BertTextClassificationDataset
 from nemo.collections.nlp.data.datasets.token_classification_dataset import (
     BertTokenClassificationDataset,

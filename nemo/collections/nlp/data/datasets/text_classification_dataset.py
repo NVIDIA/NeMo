@@ -26,10 +26,15 @@ import numpy as np
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils import process_sst_2, process_imdb, process_thucnews, \
-    process_nlu, process_jarvis_datasets
-from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import get_stats, get_intent_labels
-from nemo.collections.nlp.utils import if_exist, calc_class_weights
+from nemo.collections.nlp.data.datasets.datasets_utils import (
+    process_imdb,
+    process_jarvis_datasets,
+    process_nlu,
+    process_sst_2,
+    process_thucnews,
+)
+from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import get_intent_labels, get_stats
+from nemo.collections.nlp.utils import calc_class_weights, if_exist
 from nemo.collections.nlp.utils.callback_utils import list2str
 
 __all__ = ['BertTextClassificationDataset']

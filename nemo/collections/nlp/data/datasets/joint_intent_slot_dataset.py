@@ -26,13 +26,18 @@ import numpy as np
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import (
-    get_label_stats,
-    get_stats,
-    DATABASE_EXISTS_TMP)
-from nemo.collections.nlp.data.datasets.datasets_utils.datasets_processing import process_atis, process_jarvis_datasets, process_snips
+from nemo.collections.nlp.data.datasets.datasets_utils.datasets_processing import (
+    process_atis,
+    process_jarvis_datasets,
+    process_snips,
+)
 from nemo.collections.nlp.data.datasets.datasets_utils.dialogflow_utils import process_dialogflow
 from nemo.collections.nlp.data.datasets.datasets_utils.mturk_utils import process_mturk
+from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import (
+    DATABASE_EXISTS_TMP,
+    get_label_stats,
+    get_stats,
+)
 from nemo.collections.nlp.utils import list2str, write_vocab_in_order
 from nemo.collections.nlp.utils.common_nlp_utils import calc_class_weights, get_vocab, if_exist, label2idx
 

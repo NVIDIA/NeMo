@@ -4,8 +4,13 @@ import os
 import shutil
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import DATABASE_EXISTS_TMP, MODE_EXISTS_TMP, get_dataset, create_dataset
-from nemo.collections.nlp.utils import get_vocab, if_exist, ids2text
+from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import (
+    DATABASE_EXISTS_TMP,
+    MODE_EXISTS_TMP,
+    create_dataset,
+    get_dataset,
+)
+from nemo.collections.nlp.utils import get_vocab, ids2text, if_exist
 
 __all__ = [
     'process_atis',
@@ -14,8 +19,9 @@ __all__ = [
     'process_sst_2',
     'process_imdb',
     'process_nlu',
-    'process_thucnews'
+    'process_thucnews',
 ]
+
 
 def process_atis(infold, uncased, modes=['train', 'test'], dev_split=0):
     """ MSFT's dataset, processed by Kaggle

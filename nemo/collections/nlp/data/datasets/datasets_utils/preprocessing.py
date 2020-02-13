@@ -25,9 +25,7 @@ from collections import Counter
 import numpy as np
 
 from nemo import logging
-from nemo.collections.nlp.utils.common_nlp_utils import (
-    write_vocab,
-)
+from nemo.collections.nlp.utils.common_nlp_utils import write_vocab
 
 __all__ = [
     'get_label_stats',
@@ -266,5 +264,3 @@ def get_stats(lengths):
     )
     logging.info(f'75 percentile: {np.percentile(lengths, 75)}')
     logging.info(f'99 percentile: {np.percentile(lengths, 99)}')
-
-
