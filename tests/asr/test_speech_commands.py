@@ -258,7 +258,7 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
         # logging.info(jasper_encoder)
         log_probs = jasper_decoder(encoder_output=encoded)
-        loss = ce_loss(logits=log_probs, targets=targets)
+        loss = ce_loss(logits=log_probs, labels=targets)
 
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
@@ -314,7 +314,7 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
         encoded2, encoded_len2 = jasper_encoder2(audio_signal=processed_signal, length=p_length)
         logits1 = jasper_decoder1(encoder_output=encoded1)
         logits2 = jasper_decoder2(encoder_output=encoded2)
-        loss = ce_loss(logits=logits1, targets=targets,)
+        loss = ce_loss(logits=logits1, labels=targets,)
 
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss], print_func=lambda x: logging.info(str(x[0].item()))
@@ -360,7 +360,7 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
         # logging.info(jasper_encoder)
         logits = jasper_decoder(encoder_output=encoded)
-        loss = ce_loss(logits=logits, targets=targets)
+        loss = ce_loss(logits=logits, labels=targets)
 
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss], print_func=lambda x: logging.info(str(x[0].item()))
@@ -404,7 +404,7 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
         # logging.info(jasper_encoder)
         logits = jasper_decoder(encoder_output=encoded)
-        loss = ce_loss(logits=logits, targets=targets,)
+        loss = ce_loss(logits=logits, labels=targets,)
 
         from nemo.collections.asr.helpers import (
             process_classification_evaluation_batch,
