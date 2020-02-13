@@ -70,6 +70,15 @@ python -m torch.distributed.launch --nproc_per_node=8 bert_pretraining.py \
 
 350000 iterations on a DGX1 with 8 V100 32GB GPUs with AMP O1 optimization
 should finish under 5 days and yield an MRPC score of ACC/F1 85.05/89.35.
+
+More information about BERT pretraining can be found at 
+https://nvidia.github.io/NeMo/nlp/bert_pretraining.html
+
+Pretrained BERT models can be found at 
+https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo
+https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo
+https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo
+
 """
 import argparse
 import math
