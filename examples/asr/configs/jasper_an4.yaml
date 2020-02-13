@@ -3,12 +3,29 @@ sample_rate: &sample_rate 16000
 dropout: &drop 0.0
 repeat:  &rep  1
 
-AudioToTextDataLayer:
-    sample_rate: *sample_rate
-    train:
+labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+         "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
+
+
+AudioToTextDataLayer_train:
+    header:
+        full_spec: nemo.collections.asr.AudioToTextDataLayer
+    init_params:
+        sample_rate: *sample_rate
+        labels: *labels
+        batch_size: 48
         shuffle: true
-    eval:
+
+
+AudioToTextDataLayer_eval:
+    header:
+        full_spec: nemo.collections.asr.AudioToTextDataLayer
+    init_params:
+        sample_rate: *sample_rate
+        labels: *labels
+        batch_size: 64
         shuffle: false
+
 
 AudioToMelSpectrogramPreprocessor:
     normalize: "per_feature"
@@ -84,6 +101,3 @@ JasperEncoder:
 
 JasperDecoderForCTC:
     feat_in: *enc_feat_out
-
-labels: [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-         "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]

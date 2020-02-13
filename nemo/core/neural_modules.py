@@ -228,7 +228,7 @@ class NeuralModule(ABC):
             "nemo_core_version": nemo_version,
             "collection_type": collection_type,
             "collection_version": collection_version,
-            "class": module_class_name,
+            # "class": module_class_name, # Operating only on full_spec now.
             "full_spec": module_full_spec,
         }
         # Add init parameters.
@@ -244,7 +244,7 @@ class NeuralModule(ABC):
         )
 
     @classmethod
-    def import_from_config(cls, config_file, config_dir="~/data/configs"):
+    def import_from_config(cls, config_file, config_dir="~/data/configs", section_name=None, overwrite_params={}):
         """
             Class method importing the configuration file.
             Raises an ImportError exception when config file is invalid or
@@ -254,6 +254,11 @@ class NeuralModule(ABC):
                 config_file: yml file name
 
                 config_dir: directory where the file is be stored (DEFAULT: ~/data/configs)
+
+                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
+
+                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default
+                parameters loaded from the configuration file
 
             Returns:
                 Instance of the created NeuralModule object.
@@ -266,29 +271,42 @@ class NeuralModule(ABC):
         with open(abs_path_file, 'r') as stream:
             loaded_config = yaml.safe_load(stream)
 
+        # Check section.
+        if section_name is not None:
+            if section_name not in loaded_config:
+                raise ImportError(
+                    "The loaded config `{}` from `{}` doesn't contain the indicated `{}` section".format(
+                        config_file, config_dir, section_name
+                    )
+                )
+            # Section exists - use only it for configuration.
+            loaded_config = loaded_config[section_name]
+
         # Make sure that the config is valid.
         if "header" not in loaded_config:
             raise ImportError(
-                "The loaded config `{}` from `{}` doesn't contain the`header` section".format(config_file, config_dir)
+                "The loaded config `{}` from `{}` doesn't contain the `header` section".format(config_file, config_dir)
             )
 
         if "init_params" not in loaded_config:
             raise ImportError(
-                "The loaded config `{}` from `{}` doesn't contain the`header` init_params".format(
+                "The loaded config `{}` from `{}` doesn't contain the `init_params` section".format(
                     config_file, config_dir
                 )
             )
 
+        # Parse the "full specification".
+        spec_list = loaded_config["header"]["full_spec"].split(".")
+
         # Check if config contains data of a compatible class.
-        if cls.__name__ != "NeuralModule" and loaded_config["header"]["class"] != cls.__name__:
+        if cls.__name__ != "NeuralModule" and spec_list[-1] != cls.__name__:
             txt = "The loaded file `{}` from `{}` contains configuration of ".format(config_file, config_dir)
             txt = txt + "`{}` thus cannot be used for instantiation of an object of type `{}`".format(
-                loaded_config["header"]["class"], cls.__name__
+                spec_list[-1], cls.__name__
             )
             raise ImportError(txt)
 
         # Get object class from "full specification".
-        spec_list = loaded_config["header"]["full_spec"].split(".")
         mod_obj = __import__(spec_list[0])
         for spec in spec_list[1:]:
             mod_obj = getattr(mod_obj, spec)
@@ -296,11 +314,14 @@ class NeuralModule(ABC):
 
         # Get init parameters.
         init_params = loaded_config["init_params"]
+        # Update
+        init_params.update(overwrite_params)
+
         # Create and return the object.
         obj = mod_obj(**init_params)
         logging.info(
             "Instantiated a new Neural Module of type `{}` using configuration loaded from the `{}` file".format(
-                loaded_config["header"]["class"], abs_path_file
+                spec_list[-1], abs_path_file
             )
         )
         return obj
