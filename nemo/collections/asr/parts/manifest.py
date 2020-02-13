@@ -1,5 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import json
+from os.path import expanduser
 from typing import Any, Dict, Iterator, List, Union
 
 
@@ -42,7 +43,7 @@ def item_iter(manifests_files: Union[str, List[str]]) -> Iterator[Dict[str, Any]
         manifests_files = [manifests_files]
 
     for manifest_file in manifests_files:
-        with open(manifest_file, 'r') as f:
+        with open(expanduser(manifest_file), 'r') as f:
             for line in f:
                 item = __parse_item(line)
 
