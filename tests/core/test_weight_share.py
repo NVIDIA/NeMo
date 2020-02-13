@@ -27,9 +27,12 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
+from nemo.collections.nlp.nm.trainables.common import TokenClassifier
+from nemo.collections.nlp.nm.losses import PaddedSmoothedCrossEntropyLossNM
 from nemo.core import WeightShareTransform
 from nemo.core.neural_types import *
 from tests.common_setup import NeMoUnitTest
+from nemo.backends.pytorch.nm import DataLayerNM
 
 logging = nemo.logging
 
@@ -136,26 +139,69 @@ class TestWeightSharing(NeMoUnitTest):
     #     tn2.fc1.bias.data = torch.tensor([0.1])
     #     self.assertTrue(self.__check_if_weights_are_equal(tn1.get_weights(), tn2.get_weights()))
 
-    # def test_tie_weights2(self):
-    #     voc_size = 3
-    #     dim = 2
-    #     embd = nemo.backends.pytorch.common.other.SequenceEmbedding(voc_size=voc_size, hidden_size=dim)
-    #     proj = nemo.backends.pytorch.common.other.SequenceProjection(from_dim=dim, to_dim=voc_size)
-    #     embd.tie_weights_with(
-    #         proj,
-    #         weight_names=["embedding.weight"],
-    #         name2name_and_transform={"embedding.weight": ("projection.weight", WeightShareTransform.SAME,)},
-    #     )
-    #     self.assertTrue(
-    #         np.array_equal(embd.embedding.weight.detach().numpy(), proj.projection.weight.detach().numpy(),)
-    #     )
-    #     was = embd.embedding.weight.detach().numpy()
-    #     embd.embedding.weight.data = torch.tensor(np.random.randint(0, 10, (3, 2)) * 1.0)
-    #     after = embd.embedding.weight.detach().numpy()
-    #     self.assertTrue(
-    #         np.array_equal(embd.embedding.weight.detach().numpy(), proj.projection.weight.detach().numpy(),)
-    #     )
-    #     self.assertFalse(np.array_equal(was, after))
+    def test_tie_weights(self):
+        class DummyDataLayer(DataLayerNM):
+            def __init__(self, vocab_size):
+                super().__init__()
+                self.vocab_size = vocab_size
+
+                class DummyDS(torch.utils.data.Dataset):
+                    def __init__(self, vocab_size):
+                        super().__init__()
+
+                    def __getitem__(self, index):
+                        model_inputs = torch.randint(high=vocab_size, size=[10])
+                        model_outputs = torch.randint(high=vocab_size, size=[10])
+                        return (model_inputs, model_outputs)
+
+                    def __len__(self):
+                        return 10
+
+                self._dataset = DummyDS(vocab_size)
+
+            @property
+            def output_ports(self):
+                return {
+                    "model_inputs": NeuralType(('B', 'T')),
+                    "model_outputs": NeuralType(('B', 'T')),
+                }
+
+            def __len__(self):
+                return len(self._dataset)
+
+            @property
+            def dataset(self):
+                return self._dataset
+
+            def data_iterator(self):
+                pass
+
+        voc_size = 10
+        dim = 10
+        embd = nemo.backends.pytorch.common.other.SequenceEmbedding(voc_size=voc_size, hidden_size=dim)
+        proj = TokenClassifier(hidden_size=dim, num_classes=voc_size)
+        data = DummyDataLayer(voc_size)
+        loss = PaddedSmoothedCrossEntropyLossNM(0)
+        embd.tie_weights_with(
+            proj,
+            weight_names=["embedding.weight"],
+            name2name_and_transform={"embedding.weight": ("mlp.layer2.weight", WeightShareTransform.SAME)},
+        )
+        self.assertTrue(
+            np.array_equal(embd.embedding.weight.detach().cpu().numpy(), proj.mlp.layer2.weight.detach().cpu().numpy())
+        )
+        _in, _out = data()
+        pred = embd(input_seq=_in)
+        pred = proj(hidden_states=pred)
+        loss_t = loss(target_ids=_in, logits=pred)
+
+        self.nf.train(
+            [loss_t], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.0003},
+        )
+
+        self.assertTrue(
+            np.array_equal(embd.embedding.weight.detach().cpu().numpy(), proj.mlp.layer2.weight.detach().cpu().numpy())
+        )
 
     def test_set_weights(self):
         voc_size = 3
