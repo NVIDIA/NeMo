@@ -80,3 +80,12 @@ class AxisType(object):
         self.kind = kind
         self.size = size
         self.is_list = is_list
+
+    def __repr__(self):
+        if self.size is None:
+            representation = str(self.kind)
+        else:
+            representation = f"{str(self.kind)}:{self.size}"
+        if self.is_list:
+            representation += "_listdim"
+        return representation

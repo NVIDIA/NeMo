@@ -9,6 +9,7 @@ from .parts.layers import get_mask_from_lengths
 from .parts.tacotron2 import Decoder, Encoder, Postnet
 from nemo.backends.pytorch.nm import LossNM, NonTrainableNM, TrainableNM
 from nemo.core.neural_types import *
+from nemo.utils.decorators import add_port_docs
 
 __all__ = [
     "MakeGate",
@@ -33,6 +34,7 @@ class TextEmbedding(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -40,6 +42,7 @@ class TextEmbedding(TrainableNM):
         return {"char_phone": NeuralType(('B', 'T'), LabelsType())}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -75,6 +78,7 @@ class Tacotron2Encoder(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -88,6 +92,7 @@ class Tacotron2Encoder(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -153,6 +158,7 @@ class Tacotron2Decoder(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -170,6 +176,7 @@ class Tacotron2Decoder(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -270,6 +277,7 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -283,6 +291,7 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -329,6 +338,7 @@ class Tacotron2Postnet(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -340,6 +350,7 @@ class Tacotron2Postnet(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -388,6 +399,7 @@ class Tacotron2Loss(LossNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -415,6 +427,7 @@ class Tacotron2Loss(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -468,6 +481,7 @@ class MakeGate(NonTrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -481,6 +495,7 @@ class MakeGate(NonTrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

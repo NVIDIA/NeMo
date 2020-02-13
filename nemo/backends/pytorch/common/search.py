@@ -4,6 +4,7 @@ import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core.neural_types import ChannelType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 INF = float('inf')
 BIG_NUM = 1e4
@@ -29,6 +30,7 @@ class GreedySearch(NonTrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -40,6 +42,7 @@ class GreedySearch(NonTrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 

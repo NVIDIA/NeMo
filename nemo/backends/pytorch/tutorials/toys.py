@@ -9,12 +9,14 @@ from nemo import logging
 from nemo.backends.pytorch.nm import DataLayerNM, LossNM, TrainableNM
 from nemo.core import DeviceType, NeuralModule
 from nemo.core.neural_types import *
+from nemo.utils.decorators import add_port_docs
 
 
 class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
     """Module which learns Taylor's coefficients."""
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
 
@@ -24,6 +26,7 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
         return {"x": NeuralType(('B', 'D'), ChannelType())}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
@@ -58,6 +61,7 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
     """Module which learns Taylor's coefficients."""
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
 
@@ -68,6 +72,7 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -119,6 +124,7 @@ class RealFunctionDataLayer(DataLayerNM):
         return self._n
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports
         """
@@ -168,6 +174,7 @@ class RealFunctionDataLayer(DataLayerNM):
 
 class MSELoss(LossNM):
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
 
@@ -187,6 +194,7 @@ class MSELoss(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -202,6 +210,7 @@ class MSELoss(LossNM):
 
 class L1Loss(LossNM):
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -211,6 +220,7 @@ class L1Loss(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -226,6 +236,7 @@ class L1Loss(LossNM):
 
 class CrossEntropyLoss(LossNM):
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -235,6 +246,7 @@ class CrossEntropyLoss(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 

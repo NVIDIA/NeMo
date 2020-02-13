@@ -7,6 +7,7 @@ from torchvision import datasets, transforms
 from nemo.backends.pytorch.nm import DataLayerNM, LossNM, TrainableNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import ChannelType, LabelsType, LossType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 
 class SimpleDiscriminator(TrainableNM):
@@ -15,6 +16,7 @@ class SimpleDiscriminator(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -31,6 +33,7 @@ class SimpleDiscriminator(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -65,6 +68,7 @@ class SimpleGenerator(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -81,6 +85,7 @@ class SimpleGenerator(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -128,6 +133,7 @@ class DiscriminatorLoss(LossNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
 
@@ -142,6 +148,7 @@ class DiscriminatorLoss(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -168,6 +175,7 @@ class GradientPenalty(LossNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -186,6 +194,7 @@ class GradientPenalty(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
@@ -225,6 +234,7 @@ class InterpolateImage(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -250,6 +260,7 @@ class InterpolateImage(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -286,6 +297,7 @@ class RandomDataLayer(DataLayerNM):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
@@ -351,6 +363,7 @@ class MnistGanDataLayer(DataLayerNM):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
