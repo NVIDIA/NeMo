@@ -14,6 +14,10 @@
 # limitations under the License.
 # =============================================================================
 
+
+# Todo: fix weight tying
+
+
 """
 
 To pretrain BERT on raw text dataset run
