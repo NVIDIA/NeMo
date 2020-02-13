@@ -81,26 +81,27 @@ def parse_args():
     parser.add_argument(
         "--dev_file", type=str, required=True, help="The evaluation data file. Should be *.json",
     )
-    parser.add_argument(
-        "--pretrained_bert_model", default="bert-base-uncased", type=str, help="Name of the pre-trained model"
-    )
+    parser.add_argument("--pretrained_model_name", type=str, help="Name of the pre-trained model")
     parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
     parser.add_argument(
         "--bert_checkpoint", default=None, type=str, help="Path to BERT model checkpoint for finetuning."
     )
     parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
     parser.add_argument(
+        "--model_type", default="bert", type=str, help="model type", choices=['bert', 'roberta', 'albert']
+    )
+    parser.add_argument(
         "--tokenizer_model",
         default="tokenizer.model",
         type=str,
-        help="Path to pretrained tokenizer model," "only used if --tokenizer is sentencepiece",
+        help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
     )
     parser.add_argument(
         "--tokenizer",
         default="nemobert",
         type=str,
         choices=["nemobert", "sentencepiece"],
-        help="tokenizer to use, " "only relevant when using custom " "pretrained checkpoint.",
+        help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
     )
     parser.add_argument("--optimizer_kind", default="adam", type=str, help="Optimizer kind")
     parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
@@ -215,7 +216,7 @@ def create_pipeline(
     batches_per_step=1,
     mode="train",
 ):
-    data_layer = nemo_nlp.nm.data_layers.qa_squad_datalayer.BertQuestionAnsweringDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
         mode=mode,
         version_2_with_negative=version_2_with_negative,
         batch_size=batch_size,
@@ -246,6 +247,13 @@ def create_pipeline(
     )
 
 
+MODEL_CLASSES = {
+    'bert': nemo_nlp.nm.trainables.huggingface.BERT,
+    'albert': nemo_nlp.nm.trainables.huggingface.Albert,
+    'roberta': nemo_nlp.nm.trainables.huggingface.Roberta,
+}
+
+
 if __name__ == "__main__":
     args = parse_args()
     if not os.path.exists(args.dev_file):
@@ -270,32 +278,45 @@ if __name__ == "__main__":
 
     if args.tokenizer == "sentencepiece":
         try:
-            tokenizer = nemo_nlp.data.utilsSentencePieceTokenizer(model_path=args.tokenizer_model)
+            tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
         except Exception:
             raise ValueError(
                 "Using --tokenizer=sentencepiece \
                         requires valid --tokenizer_model"
             )
-        tokenizer.add_special_tokens(["[CLS]", "[SEP]"])
-    elif args.tokenizer == "nemobert":
-        tokenizer = nemo_nlp.data.NemoBertTokenizer(args.pretrained_bert_model)
+        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[args.model_type]
+        tokenizer.add_special_tokens(special_tokens)
     else:
-        raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
+        tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
+        tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[args.model_type]
+        tokenizer_name = nemo_nlp.utils.MODEL_NAMES[args.model_type]["tokenizer_name"]
+        tokenizer = tokenizer_cls(
+            do_lower_case=args.do_lower_case,
+            pretrained_model=tokenizer_name,
+            special_tokens=tokenizer_special_tokens,
+            bert_derivate=args.model_type,
+        )
+
+    model_cls = MODEL_CLASSES[args.model_type]
+    model_name = nemo_nlp.utils.MODEL_NAMES[args.model_type]["model_name"]
+
+    if args.pretrained_model_name is None:
+        args.pretrained_model_name = model_name
 
     if args.bert_config is not None:
         with open(args.bert_config) as json_file:
             config = json.load(json_file)
-        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
+        model = model_cls(**config)
     else:
         """ Use this if you're using a standard BERT model.
         To see the list of pretrained models, call:
-        nemo_nlp.huggingface.BERT.list_pretrained_models()
+        nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
         """
-        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+        model = model_cls(pretrained_model_name=args.pretrained_model_name)
 
     hidden_size = model.hidden_size
 
-    qa_head = nemo_nlp.nm.trainables.token_classification_nm.TokenClassifier(
+    qa_head = nemo_nlp.nm.trainables.TokenClassifier(
         hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False
     )
     squad_loss = nemo_nlp.nm.losses.QuestionAnsweringLoss()
@@ -399,6 +420,7 @@ if __name__ == "__main__":
             null_score_diff_threshold=args.null_score_diff_threshold,
             do_lower_case=args.do_lower_case,
         )
+
         logging.info(f"exact_match: {exact_match}, f1: {f1}")
         if args.output_prediction_file is not None:
             with open(args.output_prediction_file, "w") as writer:

@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.data import SquadDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
+from nemo.core import ChannelType, LabelsType, NeuralType
 
 __all__ = ['BertQuestionAnsweringDataLayer']
 
@@ -26,7 +26,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
     Creates the data layer to use for Question Answering classification task.
 
     Args:
-        data_file (str): data file.
+        data_file (str): data_file in *.json.
         tokenizer (obj): Tokenizer object, e.g. NemoBertTokenizer.
         version_2_with_negative (bool): True if training should allow
             unanswerable questions.
@@ -48,39 +48,20 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-            input_ids:
-                0: AxisType(BatchTag)
-
-                1: AxisType(TimeTag)
-
-            input_type_ids:
-                0: AxisType(BatchTag)
-
-                1: AxisType(TimeTag)
-
-            input_mask:
-                0: AxisType(BatchTag)
-
-                1: AxisType(TimeTag)
-
-            start_positions:
-                0: AxisType(BatchTag)
-
-            end_positions:
-                0: AxisType(BatchTag)
-
-            unique_ids:
-                0: AxisType(BatchTag)
-
         """
         return {
-            "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "start_positions": NeuralType({0: AxisType(BatchTag)}),
-            "end_positions": NeuralType({0: AxisType(BatchTag)}),
-            "unique_ids": NeuralType({0: AxisType(BatchTag)}),
+            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "start_positions": NeuralType({0: AxisType(BatchTag)}),
+            # "end_positions": NeuralType({0: AxisType(BatchTag)}),
+            # "unique_ids": NeuralType({0: AxisType(BatchTag)}),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), ChannelType()),
+            "start_positions": NeuralType(tuple('B'), ChannelType()),
+            "end_positions": NeuralType(tuple('B'), ChannelType()),
+            "unique_ids": NeuralType(tuple('B'), ChannelType()),
         }
 
     def __init__(

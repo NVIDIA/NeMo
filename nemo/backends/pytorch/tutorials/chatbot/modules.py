@@ -20,34 +20,13 @@ class DialogDataLayer(DataLayerNM):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        src:
-            0: AxisType(TimeTag)
-
-            1: AxisType(BatchTag)
-
-        src_lengths:
-            0: AxisType(BatchTag)
-
-        tgt:
-            0: AxisType(TimeTag)
-
-            1: AxisType(BatchTag)
-
-        mask:
-            0: AxisType(TimeTag)
-
-            1: AxisType(BatchTag)
-
-        max_tgt_lengths:
-            None
         """
         return {
-            "src": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
-            "src_lengths": NeuralType({0: AxisType(BatchTag)}),
-            "tgt": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
-            "mask": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
-            "max_tgt_lengths": NeuralType(None),
+            "src": NeuralType(('T', 'B'), ChannelType()),
+            "src_lengths": NeuralType(tuple('B'), LengthsType()),
+            "tgt": NeuralType(('T', 'B'), LabelsType()),
+            "mask": NeuralType(('T', 'B'), ChannelType()),
+            "max_tgt_lengths": NeuralType(axes=None),
         }
 
     def __init__(self, batch_size, corpus_name, datafile, min_count=3):
@@ -94,39 +73,19 @@ class EncoderRNN(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        input_seq:
-            0: AxisType(TimeTag)
-
-            1: AxisType(BatchTag)
-
-        input_lengths:
-            0: AxisType(BatchTag)
         """
         return {
-            "input_seq": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
-            "input_lengths": NeuralType({0: AxisType(BatchTag)}),
+            "input_seq": NeuralType(('T', 'B'), ChannelType()),
+            "input_lengths": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        outputs:
-            0: AxisType(TimeTag)
-
-            1: AxisType(BatchTag)
-
-            2: AxisType(ChannelTag)
-
-        hidden:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
         """
         return {
-            "outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
-            "hidden": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "outputs": NeuralType(('T', 'B', 'D'), ChannelType()),
+            "hidden": NeuralType(('B', 'D'), ChannelType()),
         }
 
     def __init__(self, voc_size, encoder_n_layers, hidden_size, dropout, bidirectional=True):
@@ -174,26 +133,11 @@ class LuongAttnDecoderRNN(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        targets:
-            0: AxisType(TimeTag)
-
-            1: AxisType(BatchTag)
-
-        encoder_outputs:
-            0: AxisType(TimeTag)
-
-            1: AxisType(BatchTag)
-
-            2: AxisType(ChannelTag)
-
-        max_target_len:
-            None
         """
         return {
-            "targets": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
-            "encoder_outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
-            "max_target_len": NeuralType(None),
+            "targets": NeuralType(('T', 'B'), LabelsType()),
+            "encoder_outputs": NeuralType(('T', 'B', 'D'), ChannelType()),
+            "max_target_len": NeuralType(axes=None),
         }
 
     @property
@@ -213,8 +157,8 @@ class LuongAttnDecoderRNN(TrainableNM):
             1: AxisType(ChannelTag)
         """
         return {
-            "outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
-            "hidden": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "outputs": NeuralType(('T', 'B', 'D'), ChannelType()),
+            "hidden": NeuralType(('B', 'D'), ChannelType()),
         }
 
     def __init__(self, attn_model, hidden_size, voc_size, decoder_n_layers, dropout):
@@ -327,28 +271,11 @@ class MaskedXEntropyLoss(LossNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        predictions
-            0: AxisType(TimeTag)
-
-            1: AxisType(BatchTag)
-
-            2: AxisType(ChannelTag)}
-
-        target:
-            0: AxisType(TimeTag)
-
-            1: AxisType(BatchTag)
-
-        mask:
-            0: AxisType(TimeTag)
-
-            1: AxisType(BatchTag)
         """
         return {
-            "predictions": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),}),
-            "target": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
-            "mask": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)}),
+            "predictions": NeuralType(('T', 'B', 'D'), ChannelType()),
+            "target": NeuralType(('T', 'B'), LabelsType()),
+            "mask": NeuralType(('T', 'B'), ChannelType()),
         }
 
     @property
@@ -358,7 +285,7 @@ class MaskedXEntropyLoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(axes=None, elements_type=LossType())}
 
     def __init__(self):
         super().__init__()
@@ -381,39 +308,16 @@ class GreedyLuongAttnDecoderRNN(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        encoder_outputs:
-            0: AxisType(TimeTag)
-
-            1: AxisType(BatchTag)
-
-            2: AxisType(ChannelTag)
         """
-        return {"encoder_outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),})}
+        return {"encoder_outputs": NeuralType(('T', 'B', 'D'), ChannelType())}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        outputs:
-            0: AxisType(TimeTag)
-
-            1: AxisType(BatchTag)
-
-        hidden:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
         """
         return {
-            "outputs": NeuralType(
-                {
-                    0: AxisType(TimeTag),
-                    1: AxisType(BatchTag),
-                    # 2: AxisType(ChannelTag)
-                }
-            ),
-            "hidden": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            "outputs": NeuralType(('T', 'B'), ChannelType()),
+            "hidden": NeuralType(('B', 'D'), ChannelType()),
         }
 
     def __init__(self, attn_model, hidden_size, voc_size, decoder_n_layers, dropout, max_dec_steps=10):

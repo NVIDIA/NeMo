@@ -4,8 +4,9 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 
-from nemo.backends.pytorch.nm import DataLayerNM, LossNM, NonTrainableNM, TrainableNM
-from nemo.core import AxisType, BatchTag, ChannelTag, DeviceType, HeightTag, NeuralType, WidthTag
+from nemo.backends.pytorch.nm import DataLayerNM, LossNM, TrainableNM
+from nemo.core import DeviceType
+from nemo.core.neural_types import ChannelType, LabelsType, LossType, NeuralType
 
 
 class SimpleDiscriminator(TrainableNM):
@@ -16,37 +17,25 @@ class SimpleDiscriminator(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        image:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
-
-            2: AxisType(HeightTag, 28)
-
-            3: AxisType(WidthTag, 28)
         """
         return {
-            "image": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, 28),
-                    3: AxisType(WidthTag, 28),
-                }
-            )
+            # "image": NeuralType(
+            #     {
+            #         0: AxisType(BatchTag),
+            #         1: AxisType(ChannelTag),
+            #         2: AxisType(HeightTag, 28),
+            #         3: AxisType(WidthTag, 28),
+            #     }
+            # )
+            "image": NeuralType(('B', 'C', 'H', 'W'), ChannelType())
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        decision:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag, 1)
         """
-        return {"decision": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag, 1)})}
+        # return {"decision": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag, 1)})}
+        return {"decision": NeuralType(('B', 'C'), ChannelType())}
 
     def __init__(self):
         super().__init__()
@@ -78,53 +67,39 @@ class SimpleGenerator(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        latents:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag, 64)
-
-            2: AxisType(HeightTag, 4)
-
-            3: AxisType(WidthTag, 4)
         """
         return {
-            "latents": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag, 64),
-                    2: AxisType(HeightTag, 4),
-                    3: AxisType(WidthTag, 4),
-                }
-            )
+            # "latents": NeuralType(
+            #     {
+            #         0: AxisType(BatchTag),
+            #         1: AxisType(ChannelTag, 64),
+            #         2: AxisType(HeightTag, 4),
+            #         3: AxisType(WidthTag, 4),
+            #     }
+            # )
+            "latents": NeuralType(('B', 'C', 'H', 'W'), ChannelType())
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        image:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
-
-            2: AxisType(HeightTag, 28)
-
-            3: AxisType(WidthTag, 28)
         """
         return {
-            "image": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, 28),
-                    3: AxisType(WidthTag, 28),
-                }
-            )
+            # "image": NeuralType(
+            #     {
+            #         0: AxisType(BatchTag),
+            #         1: AxisType(ChannelTag),
+            #         2: AxisType(HeightTag, 28),
+            #         3: AxisType(WidthTag, 28),
+            #     }
+            # )
+            "image": NeuralType(('B', 'C', 'H', 'W'), ChannelType())
         }
 
-    def __init__(self):
+    def __init__(self, batch_size):
         super().__init__()
+        self._batch_size = batch_size
+
         self.layers = torch.nn.Sequential(
             torch.nn.ConvTranspose2d(64, 128, 3, stride=2),
             torch.nn.ReLU(),
@@ -162,17 +137,15 @@ class DiscriminatorLoss(LossNM):
             1: AxisType(ChannelTag, 1)
         """
         return {
-            "decision": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag, 1)}),
+            # "decision": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag, 1)}),
+            "decision": NeuralType(('B', 'D'), ChannelType())
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        loss:
-            NeuralType(None)
         """
-        return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, neg=False):
         super().__init__()
@@ -197,31 +170,19 @@ class GradientPenalty(LossNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        interpolated_image:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
-
-            2: AxisType(HeightTag, 28)
-
-            3: AxisType(WidthTag, 28)
-
-        interpolated_decision:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag, 1)
         """
         return {
-            "interpolated_image": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, 28),
-                    3: AxisType(WidthTag, 28),
-                }
-            ),
-            "interpolated_decision": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag, 1)}),
+            # "interpolated_image": NeuralType(
+            #     {
+            #         0: AxisType(BatchTag),
+            #         1: AxisType(ChannelTag),
+            #         2: AxisType(HeightTag, 28),
+            #         3: AxisType(WidthTag, 28),
+            #     }
+            # ),
+            # "interpolated_decision": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag, 1)}),
+            "interpolated_image": NeuralType(('B', 'C', 'H', 'W'), ChannelType()),
+            "interpolated_decision": NeuralType(('B', 'C'), ChannelType()),
         }
 
     @property
@@ -231,7 +192,7 @@ class GradientPenalty(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, lambda_):
         super().__init__()
@@ -266,66 +227,42 @@ class InterpolateImage(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        image1:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
-
-            2: AxisType(HeightTag, 28)
-
-            3: AxisType(WidthTag, 28)
-
-        image2:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
-
-            2: AxisType(HeightTag, 28)
-
-            3: AxisType(WidthTag, 28)
         """
         return {
-            "image1": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, 28),
-                    3: AxisType(WidthTag, 28),
-                }
-            ),
-            "image2": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, 28),
-                    3: AxisType(WidthTag, 28),
-                }
-            ),
+            # "image1": NeuralType(
+            #     {
+            #         0: AxisType(BatchTag),
+            #         1: AxisType(ChannelTag),
+            #         2: AxisType(HeightTag, 28),
+            #         3: AxisType(WidthTag, 28),
+            #     }
+            # ),
+            # "image2": NeuralType(
+            #     {
+            #         0: AxisType(BatchTag),
+            #         1: AxisType(ChannelTag),
+            #         2: AxisType(HeightTag, 28),
+            #         3: AxisType(WidthTag, 28),
+            #     }
+            # ),
+            "image1": NeuralType(('B', 'C', 'H', 'W'), ChannelType()),
+            "image2": NeuralType(('B', 'C', 'H', 'W'), ChannelType()),
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        interpolated_image:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
-
-            2: AxisType(HeightTag, 28)
-
-            3: AxisType(WidthTag, 28)
         """
         return {
-            "interpolated_image": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, 28),
-                    3: AxisType(WidthTag, 28),
-                }
-            )
+            # "interpolated_image": NeuralType(
+            #     {
+            #         0: AxisType(BatchTag),
+            #         1: AxisType(ChannelTag),
+            #         2: AxisType(HeightTag, 28),
+            #         3: AxisType(WidthTag, 28),
+            #     }
+            # )
+            "interpolated_image": NeuralType(('B', 'C', 'H', 'W'), ChannelType())
         }
 
     def __init__(self):
@@ -362,14 +299,15 @@ class RandomDataLayer(DataLayerNM):
             3: AxisType(WidthTag, 4)
         """
         return {
-            "latent": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag, 64),
-                    2: AxisType(HeightTag, 4),
-                    3: AxisType(WidthTag, 4),
-                }
-            )
+            # "latent": NeuralType(
+            #     {
+            #         0: AxisType(BatchTag),
+            #         1: AxisType(ChannelTag, 64),
+            #         2: AxisType(HeightTag, 4),
+            #         3: AxisType(WidthTag, 4),
+            #     }
+            # )
+            "latent": NeuralType(('B', 'C', 'H', 'W'), ChannelType())
         }
 
     def __init__(self, batch_size):
@@ -415,46 +353,28 @@ class MnistGanDataLayer(DataLayerNM):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        latent:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag, 64)
-
-            2: AxisType(HeightTag, 4)
-
-            3: AxisType(WidthTag, 4)
-
-        image:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
-
-            2: AxisType(HeightTag, user defined)
-
-            3: AxisType(WidthTag, user defined)
-
-        label:
-            0: AxisType(BatchTag)
         """
         return {
-            "latent": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag, 64),
-                    2: AxisType(HeightTag, 4),
-                    3: AxisType(WidthTag, 4),
-                }
-            ),
-            "image": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, self._input_size[1]),
-                    3: AxisType(WidthTag, self._input_size[0]),
-                }
-            ),
-            "label": NeuralType({0: AxisType(BatchTag)}),
+            # "latent": NeuralType(
+            #     {
+            #         0: AxisType(BatchTag),
+            #         1: AxisType(ChannelTag, 64),
+            #         2: AxisType(HeightTag, 4),
+            #         3: AxisType(WidthTag, 4),
+            #     }
+            # ),
+            # "image": NeuralType(
+            #     {
+            #         0: AxisType(BatchTag),
+            #         1: AxisType(ChannelTag),
+            #         2: AxisType(HeightTag, self._input_size[1]),
+            #         3: AxisType(WidthTag, self._input_size[0]),
+            #     }
+            # ),
+            # "label": NeuralType({0: AxisType(BatchTag)}),
+            "latent": NeuralType(('B', 'C', 'H', 'W'), ChannelType()),
+            "image": NeuralType(('B', 'C', 'H', 'W'), ChannelType()),
+            "label": NeuralType(tuple('B'), LabelsType()),
         }
 
     def __init__(self, batch_size, root, train=True, shuffle=True):

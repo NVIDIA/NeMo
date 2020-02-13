@@ -70,12 +70,16 @@ To release a new version, please update the changelog as followed:
 ## [Unreleased]
 
 ### Added
+- New Neural Type System and its tests.
+([PR #307](https://github.com/NVIDIA/NeMo/pull/307)) - @okuchaiev
 - Named tensors tuple module's output for graph construction.
 ([PR #268](https://github.com/NVIDIA/NeMo/pull/268)) - @stasbel
 - Introduced the `deprecated` decorator.
 ([PR #298](https://github.com/NVIDIA/NeMo/pull/298)) - @tkornuta-nvidia
 
 ### Changed
+- All collections changed to use New Neural Type System.
+([PR #307](https://github.com/NVIDIA/NeMo/pull/307)) - @okuchaiev
 - Additional Collections Repositories merged into core `nemo_toolkit` package.
 ([PR #289](https://github.com/NVIDIA/NeMo/pull/289)) - @DEKHTIARJonathan
 - Refactor manifest files parsing and processing for re-using.
@@ -108,6 +112,8 @@ To release a new version, please update the changelog as followed:
 ### Removed
 - gradient_predivide_factor arg of train() now has no effect
 ([PR #336](https://github.com/NVIDIA/NeMo/pull/336)) - @blisc
+- Dropped support of the following ASR configs: jasper10x4.yaml, quartznet10x5.yaml, quartznet15x5_in.yaml, quartznet5x3.yaml, quartznet5x5.yaml, quartznet_an4.yaml. They are moved to experimental/configs and can still be used with v0.9 for use in replicating paper results
+([PR #354](https://github.com/NVIDIA/NeMo/pull/354)) - @blisc
 
 ### Security
 
