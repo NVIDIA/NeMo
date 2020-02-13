@@ -44,6 +44,21 @@ class JasperEncoder(TrainableNM):
                     'tied' (bool)  # Whether to use the same weights for all
                         # sub-blocks.
                         # Defaults to False
+                    'se' (bool)  # Whether to add Squeeze and Excitation
+                        # sub-blocks.
+                        # Defaults to False
+                    'se_reduction_ratio' (int)  # The reduction ratio of the Squeeze
+                        # sub-module.
+                        # Must be an integer > 1.
+                        # Defaults to 16
+                    'kernel_width' (float)  # Conv kernel size multiplier
+                        # Can be either an int or float
+                        # Kernel size is recomputed as below:
+                        # new_kernel_size = int(max(1, (kernel_size * kernel_width)))
+                        # to prevent kernel sizes than 1.
+                        # Note: If rescaled kernel size is an even integer,
+                        # adds 1 to the rescaled kernel size to allow "same"
+                        # padding.
                 }
 
         activation (str): Activation function used for each sub-blocks. Can be
@@ -125,6 +140,9 @@ class JasperEncoder(TrainableNM):
             groups = lcfg.get('groups', 1)
             separable = lcfg.get('separable', False)
             heads = lcfg.get('heads', -1)
+            se = lcfg.get('se', False)
+            se_reduction_ratio = lcfg.get('se_reduction_ratio', 16)
+            kernel_width = lcfg.get('kernel_width', 1)
             encoder_layers.append(
                 JasperBlock(
                     feat_in,
@@ -144,6 +162,9 @@ class JasperEncoder(TrainableNM):
                     activation=activation,
                     residual_panes=dense_res,
                     conv_mask=conv_mask,
+                    se=se,
+                    se_reduction_ratio=se_reduction_ratio,
+                    kernel_width=kernel_width,
                 )
             )
             feat_in = lcfg['filters']
@@ -207,3 +228,68 @@ class JasperDecoderForCTC(TrainableNM):
 
     def forward(self, encoder_output):
         return F.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
+
+
+class JasperDecoderForClassification(TrainableNM):
+    """
+        Jasper Decoder creates the final layer in Jasper that maps from the outputs
+        of Jasper Encoder to one class label.
+
+        Args:
+            feat_in (int): Number of channels being input to this module
+            num_classes (int): Number of characters in ASR model's vocab/labels.
+                This count should not include the CTC blank symbol.
+            init_mode (str): Describes how neural network parameters are
+                initialized. Options are ['xavier_uniform', 'xavier_normal',
+                'kaiming_uniform','kaiming_normal'].
+                Defaults to "xavier_uniform".
+        """
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+        """
+        return {
+            # "encoder_output": NeuralType(
+            #     {0: AxisType(BatchTag), 1: AxisType(EncodedRepresentationTag), 2: AxisType(ProcessedTimeTag)}
+            # )
+            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())
+        }
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+        """
+        # return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
+        return {"logits": NeuralType(('B', 'D'), LogitsType())}
+
+    def __init__(
+        self, *, feat_in, num_classes, init_mode="xavier_uniform", return_logits=True, pooling_type='avg', **kwargs
+    ):
+        TrainableNM.__init__(self, **kwargs)
+
+        self._feat_in = feat_in
+        self._return_logits = return_logits
+        self._num_classes = num_classes
+
+        if pooling_type == 'avg':
+            self.pooling = nn.AdaptiveAvgPool1d(1)
+        elif pooling_type == 'max':
+            self.pooling = nn.AdaptiveMaxPool1d(1)
+        else:
+            raise ValueError('Pooling type chosen is not valid. Must be either `avg` or `max`')
+
+        self.decoder_layers = nn.Sequential(nn.Linear(self._feat_in, self._num_classes, bias=True))
+        self.apply(lambda x: init_weights(x, mode=init_mode))
+        self.to(self._device)
+
+    def forward(self, encoder_output):
+        batch, in_channels, timesteps = encoder_output.size()
+
+        encoder_output = self.pooling(encoder_output).view(batch, in_channels)  # [B, C]
+        logits = self.decoder_layers(encoder_output)  # [B, num_classes]
+
+        if self._return_logits:
+            return logits
+
+        return F.softmax(logits, dim=-1)

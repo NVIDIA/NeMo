@@ -1109,7 +1109,7 @@ class PtActions(Actions):
             optimizer_class = None
             if isinstance(optimizer, str):
                 optimizer_class = optimizer
-            elif isinstance(optimizer, torch.optim.optimizer):
+            elif isinstance(optimizer, torch.optim.Optimizer):
                 optimizer_instance = optimizer
             else:
                 raise ValueError("optimizer was not understood")

@@ -58,3 +58,42 @@ class CTCLossNM(LossNM):
 
     def _loss_function(self, **kwargs):
         return self._loss(*(kwargs.values()))
+
+
+class CrossEntropyLossNM(LossNM):
+    """
+    Neural Module wrapper for pytorch's CrossEntropyLoss
+
+    Args:
+        num_classes (int): Number of target classes.
+    """
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+        """
+        return {
+            # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            # "targets": NeuralType({0: AxisType(BatchTag)}),
+            "logits": NeuralType(('B', 'D'), LogitsType()),
+            "targets": NeuralType(tuple('B'), LabelsType()),
+        }
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+        """
+        # return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(elements_type=LossType())}
+
+    def __init__(self):
+        LossNM.__init__(self)
+        self._criterion = nn.CrossEntropyLoss(reduction='mean')
+
+    def _loss(self, logits, targets):
+        targets = targets.long()
+        loss = self._criterion(logits, targets)
+        return loss
+
+    def _loss_function(self, **kwargs):
+        return self._loss(logits=kwargs['logits'], targets=kwargs['targets'])
