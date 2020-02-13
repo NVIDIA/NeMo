@@ -16,12 +16,12 @@
 import math
 
 import nemo
-from nemo.core import WeightShareTransform
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.lm_transformer_datalayer
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo.collections.nlp.callbacks.lm_transformer_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.lm_transformer_dataset import LanguageModelDataDesc
+from nemo.core import WeightShareTransform
 from nemo.utils.lr_policies import CosineAnnealing
 
 parser = nemo.utils.NemoArgParser(description='LM Transformer')

@@ -27,12 +27,12 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from nemo.collections.nlp.nm.trainables.common import TokenClassifier
+from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.collections.nlp.nm.losses import PaddedSmoothedCrossEntropyLossNM
+from nemo.collections.nlp.nm.trainables.common import TokenClassifier
 from nemo.core import WeightShareTransform
 from nemo.core.neural_types import *
 from tests.common_setup import NeMoUnitTest
-from nemo.backends.pytorch.nm import DataLayerNM
 
 logging = nemo.logging
 
