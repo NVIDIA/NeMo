@@ -211,7 +211,7 @@ pipeline {
       parallel {
         stage('Jasper AN4 2 GPUs') {
           steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 jasper_an4.py --num_epochs=40 --batch_size=24 --work_dir=multi_gpu --test_after_training'
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 jasper_an4.py --num_epochs=40 --batch_size=24 --work_dir=multi_gpu --test_after_training  --train_dataset=/home/mrjenkins/TestData/an4_dataset/an4_train.json --eval_datasets=/home/mrjenkins/TestData/an4_dataset/an4_val.json'
           }
         }
       }
