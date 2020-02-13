@@ -9,6 +9,10 @@ There are four pre-trained BERT models that we can select from using the argumen
 using the script for loading pre-trained models from `pytorch_transformers`. See the list of available pre-trained models
 `here <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__. 
 
+.. tip::
+
+    For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
+
 
 Preliminaries
 -------------
