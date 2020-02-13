@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import pickle
 import shutil
 
 from nemo import logging
@@ -379,3 +380,37 @@ def process_nlu(filename, uncased, modes=['train', 'test'], dataset_name='nlu-ub
     for mode in modes:
         outfiles[mode].close()
     return outfold
+
+
+def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
+    """
+    Reads dataset from file line by line, tokenizes each line with tokenizer,
+    and returns list of lists which corresponds to ids of tokenized strings.
+
+    Args:
+        dataset: path to dataset
+        tokenizer: tokenizer to convert text into ids
+        cache_ids: if True, ids are saved to disk as pickle file
+            with similar name (e.g., data.txt --> data.txt.pkl)
+        add_bos_eos: bool, whether to add <s> and </s> symbols (e.g., for NMT)
+    Returns:
+        ids: list of ids which correspond to tokenized strings of the dataset
+    """
+
+    cached_ids_dataset = dataset + str(".pkl")
+    if os.path.isfile(cached_ids_dataset):
+        logging.info("Loading cached tokenized dataset ...")
+        ids = pickle.load(open(cached_ids_dataset, "rb"))
+    else:
+        logging.info("Tokenizing dataset ...")
+        data = open(dataset, "rb").readlines()
+        ids = []
+        for sentence in data:
+            sent_ids = tokenizer.text_to_ids(sentence.decode("utf-8"))
+            if add_bos_eos:
+                sent_ids = [tokenizer.bos_id] + sent_ids + [tokenizer.eos_id]
+            ids.append(sent_ids)
+        if cache_ids:
+            logging.info("Caching tokenized dataset ...")
+            pickle.dump(ids, open(cached_ids_dataset, "wb"))
+    return ids

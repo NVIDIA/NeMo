@@ -15,8 +15,8 @@
 # =============================================================================
 
 from nemo.collections.nlp.data.datasets.datasets_utils import *
-from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import GLUEDataset
-from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import (
+from nemo.collections.nlp.data.datasets.glue_benchmark_dataset.glue_benchmark_dataset import GLUEDataset
+from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.joint_intent_slot_dataset import (
     BertJointIntentSlotDataset,
     BertJointIntentSlotInferDataset,
 )
@@ -31,7 +31,7 @@ from nemo.collections.nlp.data.datasets.punctuation_capitalization_dataset impor
     BertPunctuationCapitalizationDataset,
     BertPunctuationCapitalizationInferDataset,
 )
-from nemo.collections.nlp.data.datasets.qa_squad_dataset import SquadDataset
+from nemo.collections.nlp.data.datasets.qa_squad_dataset.qa_squad_dataset import SquadDataset
 from nemo.collections.nlp.data.datasets.text_classification_dataset import BertTextClassificationDataset
 from nemo.collections.nlp.data.datasets.token_classification_dataset import (
     BertTokenClassificationDataset,

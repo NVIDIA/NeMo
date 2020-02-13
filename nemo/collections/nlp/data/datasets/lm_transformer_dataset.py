@@ -15,18 +15,15 @@
 # =============================================================================
 
 """Pytorch Dataset for training Neural Machine Translation."""
-import glob
 import os
-import pickle
 import re
 
 import numpy as np
-from sentencepiece import SentencePieceTrainer as SPT
 from torch.utils.data import Dataset
-from tqdm import tqdm
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils import DATABASE_EXISTS_TMP, download_wkt2
+from nemo.collections.nlp.data.datasets.datasets_utils import download_wkt2
+from nemo.collections.nlp.data.datasets.datasets_utils.datasets_processing import dataset_to_ids
 from nemo.collections.nlp.utils.common_nlp_utils import if_exist
 
 __all__ = ['LanguageModelingDataset']
@@ -66,122 +63,33 @@ class LanguageModelDataDesc:
                 "you build the preprocessing method for it."
             )
 
+    def create_vocab_lm(data_dir, do_lower_case):
+        if if_exist(data_dir, ['train.txt', 'vocab.txt']):
+            logging.info("Vocabulary has been created.")
+            with open(os.path.join(data_dir, 'vocab.txt'), 'r') as f:
+                vocab_size = len(f.readlines())
+            return vocab_size
 
-def create_vocab_mlm(
-    data_dir, vocab_size, sample_size, special_tokens=['[PAD]', '[UNK]', '[CLS]', '[SEP]', '[MASK]'], train_file=''
-):
-    vocab = special_tokens[:]
-    bert_dir = f'{data_dir}/bert'
-    if if_exist(bert_dir, ['tokenizer.model']):
-        logging.info(DATABASE_EXISTS_TMP.format('WikiText_BERT', bert_dir))
-        return data_dir, f'{bert_dir}/tokenizer.model'
-    logging.info(f'Processing WikiText dataset and store at {bert_dir}')
-    os.makedirs(bert_dir, exist_ok=True)
+        logging.info(f'Creating vocabulary from training data at {data_dir}')
 
-    if not train_file:
-        files = glob.glob(f'{data_dir}/*.txt')
-        train_file = f'{bert_dir}/merged.txt'
-        logging.info(f"Merging {len(files)} txt files into {train_file}")
+        with open(f'{data_dir}/train.txt', 'r') as f:
+            txt = f.read()
+        if do_lower_case:
+            txt = txt.lower()
+        lines = re.split(r'[\n]', txt)
+        sentences = [line.strip().split() for line in lines if line.strip()]
 
-        with open(train_file, "w") as merged:
-            for file in tqdm(files):
-                with open(file, 'r') as inf:
-                    content = inf.read().strip()
-                merged.write(content + '\n\n\n')
-    else:
-        train_file = f'{data_dir}/{train_file}'
+        vocab = {"[PAD]": 0, "[SEP]": 1, "[CLS]": 2, "[MASK]": 3}
+        idx = 4
+        for sentence in sentences:
+            for word in sentence:
+                if word not in vocab:
+                    vocab[word] = idx
+                    idx += 1
 
-    cmd = (
-        f"--input={train_file} --model_prefix={bert_dir}/tokenizer "
-        f"--vocab_size={vocab_size - len(vocab)} "
-        f"--input_sentence_size={sample_size} "
-        f"--shuffle_input_sentence=true --hard_vocab_limit=false "
-        f"--bos_id=-1 --eos_id=-1"
-    )
-    SPT.Train(cmd)
+        with open(f'{data_dir}/vocab.txt', 'w') as f:
+            for word in sorted(vocab.keys()):
+                f.write(word + '\n')
+        logging.info(f"Created vocabulary of size {len(vocab)}")
 
-    # Add BERT control symbols
-    tokens = []
-
-    with open(f"{bert_dir}/tokenizer.vocab", "r") as f:
-        f.readline()  # skip first <unk> token
-
-        # Read tokens from each line and parse for vocab
-        for line in f:
-            piece = line.split("\t")[0]
-            token = piece[1:] if piece.startswith("▁") else f"##{piece}"
-            tokens.append(token)
-
-    vocab.extend(tokens)
-
-    # Save vocabulary to output file
-    with open(f'{bert_dir}/vocab.txt', "w") as f:
-        for token in vocab:
-            f.write(f"{token}\n".format())
-    return data_dir, f'{bert_dir}/tokenizer.model'
-
-
-def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
-    """
-    Reads dataset from file line by line, tokenizes each line with tokenizer,
-    and returns list of lists which corresponds to ids of tokenized strings.
-
-    Args:
-        dataset: path to dataset
-        tokenizer: tokenizer to convert text into ids
-        cache_ids: if True, ids are saved to disk as pickle file
-            with similar name (e.g., data.txt --> data.txt.pkl)
-        add_bos_eos: bool, whether to add <s> and </s> symbols (e.g., for NMT)
-    Returns:
-        ids: list of ids which correspond to tokenized strings of the dataset
-    """
-
-    cached_ids_dataset = dataset + str(".pkl")
-    if os.path.isfile(cached_ids_dataset):
-        logging.info("Loading cached tokenized dataset ...")
-        ids = pickle.load(open(cached_ids_dataset, "rb"))
-    else:
-        logging.info("Tokenizing dataset ...")
-        data = open(dataset, "rb").readlines()
-        ids = []
-        for sentence in data:
-            sent_ids = tokenizer.text_to_ids(sentence.decode("utf-8"))
-            if add_bos_eos:
-                sent_ids = [tokenizer.bos_id] + sent_ids + [tokenizer.eos_id]
-            ids.append(sent_ids)
-        if cache_ids:
-            logging.info("Caching tokenized dataset ...")
-            pickle.dump(ids, open(cached_ids_dataset, "wb"))
-    return ids
-
-
-def create_vocab_lm(data_dir, do_lower_case):
-    if if_exist(data_dir, ['train.txt', 'vocab.txt']):
-        logging.info("Vocabulary has been created.")
-        with open(os.path.join(data_dir, 'vocab.txt'), 'r') as f:
-            vocab_size = len(f.readlines())
-        return vocab_size
-
-    logging.info(f'Creating vocabulary from training data at {data_dir}')
-
-    with open(f'{data_dir}/train.txt', 'r') as f:
-        txt = f.read()
-    if do_lower_case:
-        txt = txt.lower()
-    lines = re.split(r'[\n]', txt)
-    sentences = [line.strip().split() for line in lines if line.strip()]
-
-    vocab = {"[PAD]": 0, "[SEP]": 1, "[CLS]": 2, "[MASK]": 3}
-    idx = 4
-    for sentence in sentences:
-        for word in sentence:
-            if word not in vocab:
-                vocab[word] = idx
-                idx += 1
-
-    with open(f'{data_dir}/vocab.txt', 'w') as f:
-        for word in sorted(vocab.keys()):
-            f.write(word + '\n')
-    logging.info(f"Created vocabulary of size {len(vocab)}")
-
-    return len(vocab)
+        return len(vocab)

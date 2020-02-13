@@ -70,7 +70,7 @@ from nemo import logging
 from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
 from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
-from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import output_modes, processors
+from nemo.collections.nlp.data.datasets.glue_benchmark_dataset.glue_benchmark_dataset import output_modes, processors
 from nemo.collections.nlp.nm.data_layers import GlueClassificationDataLayer, GlueRegressionDataLayer
 from nemo.collections.nlp.nm.trainables import SequenceClassifier, SequenceRegression
 from nemo.utils.lr_policies import get_lr_policy

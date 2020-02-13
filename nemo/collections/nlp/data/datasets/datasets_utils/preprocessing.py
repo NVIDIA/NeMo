@@ -43,6 +43,7 @@ __all__ = [
     'get_intent_labels',
     'normalize_answer',
     'get_tokens',
+    'get_stats'
 ]
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
