@@ -25,7 +25,7 @@ from torch.utils import data as pt_data
 from nemo.backends.pytorch import DataLayerNM
 from nemo.collections.nlp.data import BertPretrainingDataset, BertPretrainingPreprocessedDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
+from nemo.core import ChannelType, LabelsType, NeuralType
 
 __all__ = ['BertPretrainingDataLayer', 'BertPretrainingPreprocessedDataLayer']
 
@@ -48,45 +48,20 @@ class BertPretrainingDataLayer(TextDataLayer):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        input_ids: indices of tokens which constitute batches of text segments
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        input_type_ids: indices of token types (e.g., sentences A & B in BERT)
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        input_mask: bool tensor with 0s in place of tokens to be masked
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        output_ids: indices of output tokens which should be predicted
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        output_mask: bool tensor with 0s in place of tokens to be excluded
-            from loss calculation
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        labels: indices of classes to be predicted from [CLS] token of text
-            segments (e.g, 0 or 1 in next sentence prediction task)
-            0: AxisType(BatchTag)
-
         """
         return {
-            "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "output_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "labels": NeuralType({0: AxisType(BatchTag)}),
+            # "input_ids":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_mask":     NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "output_ids":     NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "output_mask":    NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "labels":         NeuralType({0: AxisType(BatchTag)}),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), ChannelType()),
+            "output_ids": NeuralType(('B', 'T'), ChannelType()),
+            "output_mask": NeuralType(('B', 'T'), ChannelType()),
+            "labels": NeuralType(tuple('B'), LabelsType()),
         }
 
     def __init__(self, tokenizer, dataset, max_seq_length, mask_probability, short_seq_prob=0.1, batch_size=64):
@@ -118,45 +93,20 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        input_ids: indices of tokens which constitute batches of text segments
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        input_type_ids: indices of token types (e.g., sentences A & B in BERT)
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        input_mask: bool tensor with 0s in place of tokens to be masked
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        output_ids: indices of output tokens which should be predicted
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        output_mask: bool tensor with 0s in place of tokens to be excluded
-            from loss calculation
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        labels: indices of classes to be predicted from [CLS] token of text
-            segments (e.g, 0 or 1 in next sentence prediction task)
-            0: AxisType(BatchTag)
-
         """
         return {
-            "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "output_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "labels": NeuralType({0: AxisType(BatchTag)}),
+            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "output_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "labels": NeuralType({0: AxisType(BatchTag)}),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), ChannelType()),
+            "output_ids": NeuralType(('B', 'T'), ChannelType()),
+            "output_mask": NeuralType(('B', 'T'), ChannelType()),
+            "labels": NeuralType(tuple('B'), LabelsType()),
         }
 
     def __init__(self, dataset, max_pred_length, batch_size=64, training=True):

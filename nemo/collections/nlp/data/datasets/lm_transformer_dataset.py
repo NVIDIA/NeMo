@@ -48,7 +48,7 @@ class LanguageModelingDataset(Dataset):
         right = left + self.max_seq_length
         src_ids = self.ids[left:right]
         labels = self.ids[left + 1 : right + 1]
-        src_mask = (src_ids != self.tokenizer.pad_id()).astype(np.float32)
+        src_mask = (src_ids != self.tokenizer.pad_id).astype(np.float32)
         return src_ids, src_mask, labels
 
 
@@ -147,7 +147,7 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
         for sentence in data:
             sent_ids = tokenizer.text_to_ids(sentence.decode("utf-8"))
             if add_bos_eos:
-                sent_ids = [tokenizer.bos_id()] + sent_ids + [tokenizer.eos_id()]
+                sent_ids = [tokenizer.bos_id] + sent_ids + [tokenizer.eos_id]
             ids.append(sent_ids)
         if cache_ids:
             logging.info("Caching tokenized dataset ...")

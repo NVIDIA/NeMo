@@ -18,7 +18,7 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch import LossNM
-from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core import ChannelType, LogitsType, LossType, NeuralType
 
 __all__ = ['JointIntentSlotLoss']
 
@@ -49,38 +49,18 @@ class JointIntentSlotLoss(LossNM):
     def input_ports(self):
         """Returns definitions of module input ports.
 
-        intent_logits:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
-
-        slot_logits:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
-
-        loss_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        intents:
-            0: AxisType(BatchTag)
-
-        slots:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
         """
         return {
-            "intent_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            "slot_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "intents": NeuralType({0: AxisType(BatchTag)}),
-            "slots": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "intent_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
+            # "slot_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            # "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "intents": NeuralType({0: AxisType(BatchTag)}),
+            # "slots": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "intent_logits": NeuralType(('B', 'D'), LogitsType()),
+            "slot_logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+            "loss_mask": NeuralType(('B', 'T'), ChannelType()),
+            "intents": NeuralType(tuple('B'), ChannelType()),
+            "slots": NeuralType(('B', 'T'), ChannelType()),
         }
 
     @property
@@ -90,7 +70,8 @@ class JointIntentSlotLoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(None)}
+        # return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(
         self, num_slots, slot_classes_loss_weights=None, intent_classes_loss_weights=None, intent_loss_weight=0.6,

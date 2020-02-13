@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.data import BertPunctuationCapitalizationDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import AxisType, BatchTag, NeuralType, TimeTag
+from nemo.core import ChannelType, LabelsType, NeuralType
 
 __all__ = ['PunctuationCapitalizationDataLayer']
 
@@ -25,51 +25,22 @@ class PunctuationCapitalizationDataLayer(TextDataLayer):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        input_ids:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        input_type_ids:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        input_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        loss_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        subtokens_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        punct_labels:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        capit_labels:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
         """
         return {
-            "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "punct_labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "capit_labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "punct_labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "capit_labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), ChannelType()),
+            "loss_mask": NeuralType(('B', 'T'), ChannelType()),
+            "subtokens_mask": NeuralType(('B', 'T'), ChannelType()),
+            "punct_labels": NeuralType(('B', 'T'), LabelsType()),
+            "capit_labels": NeuralType(('B', 'T'), LabelsType()),
         }
 
     def __init__(
