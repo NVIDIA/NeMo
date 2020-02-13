@@ -29,7 +29,7 @@ import numpy as np
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets import datasets_utils
+from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import get_stats, get_label_stats
 
 __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
 
@@ -113,7 +113,7 @@ def get_features(
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
     logging.info(f'Max length: {max_seq_length}')
-    datasets_utils.get_stats(sent_lengths)
+    get_stats(sent_lengths)
     too_long_count = 0
 
     for i, subtokens in enumerate(all_subtokens):
@@ -308,7 +308,7 @@ class BertTokenClassificationDataset(Dataset):
         infold = text_file[: text_file.rfind('/')]
         merged_labels = itertools.chain.from_iterable(self.all_labels)
         logging.info('Three most popular labels')
-        _, self.label_frequencies = datasets_utils.get_label_stats(merged_labels, infold + '/label_stats.tsv')
+        _, self.label_frequencies = get_label_stats(merged_labels, infold + '/label_stats.tsv')
 
         # save label_ids
         out = open(infold + '/label_ids.csv', 'w')

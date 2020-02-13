@@ -30,7 +30,7 @@ import nemo.core as nemo_core
 from nemo import logging
 from nemo.backends.pytorch.common import EncoderRNN
 from nemo.collections.nlp.callbacks.state_tracking_trade_callback import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data.datasets.state_tracking_trade_dataset import MultiWOZDataDesc
+from nemo.collections.nlp.data.datasets.multiWOZ_dataset import MultiWOZDataDesc
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description='Dialog state tracking with TRADE model on MultiWOZ dataset')

@@ -14,7 +14,7 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.data.datasets import datasets_utils
+from nemo.collections.nlp.data.datasets.datasets_utils import *
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import GLUEDataset
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import (
     BertJointIntentSlotDataset,
@@ -31,7 +31,7 @@ from nemo.collections.nlp.data.datasets.punctuation_capitalization_dataset impor
     BertPunctuationCapitalizationInferDataset,
 )
 from nemo.collections.nlp.data.datasets.qa_squad_dataset import SquadDataset
-from nemo.collections.nlp.data.datasets.state_tracking_trade_dataset import *
+from nemo.collections.nlp.data.datasets.multiWOZ_dataset import *
 from nemo.collections.nlp.data.datasets.text_classification_dataset import BertTextClassificationDataset
 from nemo.collections.nlp.data.datasets.token_classification_dataset import (
     BertTokenClassificationDataset,

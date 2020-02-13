@@ -28,7 +28,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils import download_wkt2
+from examples.nlp.scripts.download_wkt2 import download_wkt2
 from nemo.collections.nlp.data.datasets.lm_transformer_dataset import create_vocab_mlm
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataset']

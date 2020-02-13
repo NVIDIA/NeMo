@@ -19,22 +19,21 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 import itertools
+import os
 import random
 
 import numpy as np
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils import (
+from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import (
     get_label_stats,
     get_stats,
-    merge,
-    process_atis,
-    process_dialogflow,
-    process_jarvis_datasets,
-    process_mturk,
-    process_snips,
-)
+    DATABASE_EXISTS_TMP)
+from nemo.collections.nlp.data.datasets.datasets_utils.datasets_processing import process_atis, process_jarvis_datasets, process_snips
+from nemo.collections.nlp.data.datasets.datasets_utils.dialogflow_utils import process_dialogflow
+from nemo.collections.nlp.data.datasets.datasets_utils.mturk_utils import process_mturk
+from nemo.collections.nlp.utils import list2str, write_vocab_in_order
 from nemo.collections.nlp.utils.common_nlp_utils import calc_class_weights, get_vocab, if_exist, label2idx
 
 __all__ = ['BertJointIntentSlotDataset', 'BertJointIntentSlotInferDataset', 'JointIntentSlotDataDesc']
@@ -403,3 +402,75 @@ class JointIntentSlotDataDesc:
             if none_slot_label not in slots:
                 raise ValueError(f'none_slot_label {none_slot_label} not ' f'found in {self.slot_dict_file}.')
             self.pad_label = slots[none_slot_label]
+
+
+def merge(data_dir, subdirs, dataset_name, modes=['train', 'test']):
+    outfold = f'{data_dir}/{dataset_name}'
+    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
+        logging.info(DATABASE_EXISTS_TMP.format('SNIPS-ATIS', outfold))
+        slots = get_vocab(f'{outfold}/dict.slots.csv')
+        none_slot = 0
+        for key in slots:
+            if slots[key] == 'O':
+                none_slot = key
+                break
+        return outfold, int(none_slot)
+
+    os.makedirs(outfold, exist_ok=True)
+
+    data_files, slot_files = {}, {}
+    for mode in modes:
+        data_files[mode] = open(f'{outfold}/{mode}.tsv', 'w')
+        data_files[mode].write('sentence\tlabel\n')
+        slot_files[mode] = open(f'{outfold}/{mode}_slots.tsv', 'w')
+
+    intents, slots = {}, {}
+    intent_shift, slot_shift = 0, 0
+    none_intent, none_slot = -1, -1
+
+    for subdir in subdirs:
+        curr_intents = get_vocab(f'{data_dir}/{subdir}/dict.intents.csv')
+        curr_slots = get_vocab(f'{data_dir}/{subdir}/dict.slots.csv')
+
+        for key in curr_intents:
+            if intent_shift > 0 and curr_intents[key] == 'O':
+                continue
+            if curr_intents[key] == 'O' and intent_shift == 0:
+                none_intent = int(key)
+            intents[int(key) + intent_shift] = curr_intents[key]
+
+        for key in curr_slots:
+            if slot_shift > 0 and curr_slots[key] == 'O':
+                continue
+            if slot_shift == 0 and curr_slots[key] == 'O':
+                none_slot = int(key)
+            slots[int(key) + slot_shift] = curr_slots[key]
+
+        for mode in modes:
+            with open(f'{data_dir}/{subdir}/{mode}.tsv', 'r') as f:
+                for line in f.readlines()[1:]:
+                    text, label = line.strip().split('\t')
+                    label = int(label)
+                    if curr_intents[label] == 'O':
+                        label = none_intent
+                    else:
+                        label = label + intent_shift
+                    data_files[mode].write(f'{text}\t{label}\n')
+
+            with open(f'{data_dir}/{subdir}/{mode}_slots.tsv', 'r') as f:
+                for line in f.readlines():
+                    labels = [int(label) for label in line.strip().split()]
+                    shifted_labels = []
+                    for label in labels:
+                        if curr_slots[label] == 'O':
+                            shifted_labels.append(none_slot)
+                        else:
+                            shifted_labels.append(label + slot_shift)
+                    slot_files[mode].write(list2str(shifted_labels) + '\n')
+
+        intent_shift += len(curr_intents)
+        slot_shift += len(curr_slots)
+
+    write_vocab_in_order(intents, f'{outfold}/dict.intents.csv')
+    write_vocab_in_order(slots, f'{outfold}/dict.slots.csv')
+    return outfold, none_slot
