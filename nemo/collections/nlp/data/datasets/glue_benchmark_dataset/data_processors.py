@@ -2,7 +2,6 @@ import csv
 import os
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.glue_benchmark_dataset.glue_benchmark_dataset import InputExample
 
 __all__ = ['ColaProcessor',
     'MnliProcessor',
@@ -310,3 +309,24 @@ class WnliProcessor(DataProcessor):
             label = line[-1]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
+
+
+class InputExample(object):
+    """A single training/test example for simple sequence classification."""
+
+    def __init__(self, guid, text_a, text_b=None, label=None):
+        """Constructs a InputExample.
+
+        Args:
+            guid: Unique id for the example.
+            text_a: string. The untokenized text of the first sequence.
+            For single sequence tasks, only this sequence must be specified.
+            text_b: (Optional) string. The untokenized text of the second
+            sequence. Only must be specified for sequence pair tasks.
+            label: (Optional) string. The label of the example. This should be
+            specified for train and dev examples, but not for test examples.
+        """
+        self.guid = guid
+        self.text_a = text_a
+        self.text_b = text_b
+        self.label = label

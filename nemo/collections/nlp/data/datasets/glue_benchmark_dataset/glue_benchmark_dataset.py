@@ -22,7 +22,7 @@ https://github.com/huggingface/transformers
 
 import numpy as np
 from torch.utils.data import Dataset
-from data_processors import *
+from nemo.collections.nlp.data.datasets.glue_benchmark_dataset.data_processors import *
 from nemo import logging
 
 __all__ = ['GLUEDataset']
@@ -269,27 +269,6 @@ class InputFeatures(object):
         self.input_mask = input_mask
         self.segment_ids = segment_ids
         self.label_id = label_id
-
-
-class InputExample(object):
-    """A single training/test example for simple sequence classification."""
-
-    def __init__(self, guid, text_a, text_b=None, label=None):
-        """Constructs a InputExample.
-
-        Args:
-            guid: Unique id for the example.
-            text_a: string. The untokenized text of the first sequence.
-            For single sequence tasks, only this sequence must be specified.
-            text_b: (Optional) string. The untokenized text of the second
-            sequence. Only must be specified for sequence pair tasks.
-            label: (Optional) string. The label of the example. This should be
-            specified for train and dev examples, but not for test examples.
-        """
-        self.guid = guid
-        self.text_a = text_a
-        self.text_b = text_b
-        self.label = label
 
 
 

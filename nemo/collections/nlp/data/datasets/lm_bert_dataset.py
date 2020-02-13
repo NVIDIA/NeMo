@@ -32,7 +32,7 @@ from nemo import logging
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataset']
 
-from nemo.collections.nlp.data import DATABASE_EXISTS_TMP
+from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import DATABASE_EXISTS_TMP
 from nemo.collections.nlp.utils import if_exist
 
 
