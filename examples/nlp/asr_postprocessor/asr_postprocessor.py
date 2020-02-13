@@ -27,6 +27,7 @@ from nemo.collections.nlp.callbacks.machine_translation_callback import (
     eval_iter_callback,
 )
 from nemo.core.callbacks import CheckpointCallback
+from nemo.core import WeightShareTransform
 from nemo.utils.lr_policies import SquareAnnealing
 
 parser = nemo.utils.NemoArgParser(description='ASR postprocessor')
@@ -126,9 +127,33 @@ beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
 )
 
 # tie all embeddings weights
-t_log_softmax.mlp.layer0.weight = encoder.bert.embeddings.word_embeddings.weight
-decoder.embedding_layer.token_embedding.weight = encoder.bert.embeddings.word_embeddings.weight
-decoder.embedding_layer.position_embedding.weight = encoder.bert.embeddings.position_embeddings.weight
+# t_log_softmax.mlp.layer0.weight = encoder.bert.embeddings.word_embeddings.weight
+t_log_softmax.tie_weights_with(
+    encoder,
+    weight_names=["mlp.layer0.weight"],
+    name2name_and_transform={
+        "mlp.layer0.weight": ("bert.embeddings.word_embeddings.weight", WeightShareTransform.SAME)
+    },
+)
+# decoder.embedding_layer.token_embedding.weight = encoder.bert.embeddings.word_embeddings.weight
+decoder.tie_weights_with(
+    encoder,
+    weight_names=["embedding_layer.token_embedding.weight"],
+    name2name_and_transform={
+        "embedding_layer.token_embedding.weight": ("bert.embeddings.word_embeddings.weight", WeightShareTransform.SAME)
+    },
+)
+# decoder.embedding_layer.position_embedding.weight = encoder.bert.embeddings.position_embeddings.weight
+decoder.tie_weights_with(
+    encoder,
+    weight_names=["embedding_layer.position_embedding.weight"],
+    name2name_and_transform={
+        "embedding_layer.position_embedding.weight": (
+            "bert.embeddings.position_embeddings.weight",
+            WeightShareTransform.SAME,
+        )
+    },
+)
 
 
 def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):

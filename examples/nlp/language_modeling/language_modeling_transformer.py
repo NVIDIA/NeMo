@@ -14,6 +14,9 @@
 # limitations under the License.
 # =============================================================================
 
+# Todo: fix weight tying
+
+
 import math
 
 import nemo
