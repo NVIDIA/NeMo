@@ -108,12 +108,11 @@ class NoisePerturbation(Perturbation):
 
 
 class WhiteNoisePerturbation(Perturbation):
-
     def __init__(self, min_level=-90, max_level=-46, rng=None):
         self.min_level = int(min_level)
         self.max_level = int(max_level)
         self._rng = np.random.RandomState() if rng is None else rng
-    
+
     def perturb(self, data):
         noise_level_db = self._rng.randint(self.min_level, self.max_level, dtype='int32')
         noise_signal = self._rng.randn(data._samples.shape[0]) * (10.0 ** (noise_level_db / 20.0))

@@ -567,8 +567,10 @@ target_label_n}
             prob = augment_kwargs.get('prob', None)
 
             if prob is None:
-                nemo.logging.error(f'Augmentation "{augment_name}" will not be applied as '
-                                   f'keyword argument "prob" was not defined for this augmentation.')
+                nemo.logging.error(
+                    f'Augmentation "{augment_name}" will not be applied as '
+                    f'keyword argument "prob" was not defined for this augmentation.'
+                )
 
             else:
                 _ = augment_kwargs.pop('prob')

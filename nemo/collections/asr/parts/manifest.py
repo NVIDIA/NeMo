@@ -1,7 +1,7 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import json
 from os.path import expanduser
-from typing import Any, Dict, Iterator, List, Union, Callable, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 
 class ManifestBase:
@@ -18,8 +18,9 @@ class ManifestEN:
         )
 
 
-def item_iter(manifests_files: Union[str, List[str]],
-              parse_func: Callable[[str, Optional[str]], Dict[str, Any]] = None) -> Iterator[Dict[str, Any]]:
+def item_iter(
+    manifests_files: Union[str, List[str]], parse_func: Callable[[str, Optional[str]], Dict[str, Any]] = None
+) -> Iterator[Dict[str, Any]]:
     """Iterate through json lines of provided manifests.
 
     NeMo ASR pipelines often assume certain manifest files structure. In

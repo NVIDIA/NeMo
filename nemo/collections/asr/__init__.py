@@ -42,7 +42,7 @@ __all__ = [
     'JasperDecoderForClassification',
     'JasperRNNConnector',
     'CTCLossNM',
-    'CrossEntropyLossNM'
+    'CrossEntropyLossNM',
 ]
 
 backend = Backend.PyTorch
