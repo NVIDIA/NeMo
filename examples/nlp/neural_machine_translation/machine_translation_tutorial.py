@@ -27,8 +27,8 @@ import torch
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.callbacks.machine_translation_callback import eval_epochs_done_callback, eval_iter_callback
-from nemo.utils.lr_policies import get_lr_policy
 from nemo.core import WeightShareTransform
+from nemo.utils.lr_policies import get_lr_policy
 
 parser = nemo.utils.NemoArgParser(description='Transformer for Neural Machine Translation')
 parser.set_defaults(
