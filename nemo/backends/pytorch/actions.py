@@ -724,6 +724,8 @@ class PtActions(Actions):
                     for t in tensors_to_return:
                         if t.unique_name in registered_e_tensors:
                             del registered_e_tensors[t.unique_name]
+                        else:
+                            registered_e_tensors[t.unique_name] = t.cuda()
                     # Need to check for device type mismatch
                 else:
                     if isinstance(data, torch.Tensor):
@@ -751,7 +753,7 @@ class PtActions(Actions):
                 #         if isinstance(tensor, torch.Tensor):
                 #             registered_e_tensors[name] = tensor.cpu()
                 if cache:
-                    self.append_to_cache(registered_e_tensors)
+                    self.append_to_cache(registered_e_tensors, offload_to_cpu)
 
                 # If distributed. For the outer loop, we need to ensure that
                 # all processes loop through the elements in the same order
@@ -809,7 +811,7 @@ class PtActions(Actions):
             # For all other ranks
             return None
 
-    def append_to_cache(self, registered_tensors: dict):
+    def append_to_cache(self, registered_tensors: dict, offload_to_cpu):
         """Simpler helper function to add results of __nm_graph_forward_pass to
         current cache.
         """
