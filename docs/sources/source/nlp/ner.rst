@@ -4,6 +4,12 @@ Tutorial
 Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this
 tutorial. See the :ref:`installation` section for more details.
 
+.. tip::
+
+    For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
+
+
+
 Introduction
 ------------
 
