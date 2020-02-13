@@ -22,7 +22,7 @@ https://github.com/huggingface/transformers
 
 import numpy as np
 from torch.utils.data import Dataset
-
+from data_processors import *
 from nemo import logging
 
 __all__ = ['GLUEDataset']

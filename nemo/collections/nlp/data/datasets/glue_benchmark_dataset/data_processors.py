@@ -4,6 +4,16 @@ import os
 from nemo import logging
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset.glue_benchmark_dataset import InputExample
 
+__all__ = ['ColaProcessor',
+    'MnliProcessor',
+    'MnliMismatchedProcessor',
+    'MrpcProcessor',
+    'Sst2Processor',
+    'StsbProcessor',
+    'QqpProcessor',
+    'QnliProcessor',
+    'RteProcessor',
+    'WnliProcessor']
 
 class DataProcessor(object):
     """Base class for data converters for sequence classification data sets."""

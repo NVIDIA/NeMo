@@ -22,7 +22,7 @@ import numpy as np
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils import download_wkt2
+from examples.nlp.scripts.download_wkt2 import download_wkt2
 from nemo.collections.nlp.data.datasets.datasets_utils.datasets_processing import dataset_to_ids
 from nemo.collections.nlp.utils.common_nlp_utils import if_exist
 
