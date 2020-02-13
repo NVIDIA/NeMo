@@ -163,7 +163,7 @@ class TestWeightSharing(NeMoUnitTest):
             def output_ports(self):
                 return {
                     "model_inputs": NeuralType(('B', 'T')),
-                    "model_outputs": NeuralType(('B', 'T')),
+                    "model_outputs": NeuralType(('B', 'T'), LabelsType()),
                 }
 
             def __len__(self):
@@ -193,7 +193,7 @@ class TestWeightSharing(NeMoUnitTest):
         _in, _out = data()
         pred = embd(input_seq=_in)
         pred = proj(hidden_states=pred)
-        loss_t = loss(target_ids=_in, logits=pred)
+        loss_t = loss(target_ids=_out, logits=pred)
 
         self.nf.train(
             [loss_t], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.0003},

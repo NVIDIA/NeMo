@@ -27,7 +27,7 @@ class SequenceEmbedding(TrainableNM):
         """Returns definitions of module output ports.
         """
         # return {"outputs": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag), 2: AxisType(ChannelTag),})}
-        return {"outputs": NeuralType(('B', 'T', 'C'))}
+        return {"outputs": NeuralType(('B', 'T', 'C'), ChannelType())}
 
     def __init__(self, voc_size, hidden_size, dropout=0.0):
         super().__init__()
@@ -44,42 +44,6 @@ class SequenceEmbedding(TrainableNM):
         if self.dropout != 0.0:
             embedded = self.embedding_dropout(embedded)
         return embedded
-
-
-class SequenceProjection(TrainableNM):
-    @property
-    def input_ports(self):
-        """Returns definitions of module input ports.
-
-        input_seq:
-            Empty Type?!?
-        """
-        return {"input_seq": NeuralType({})}
-
-    @property
-    def output_ports(self):
-        """Returns definitions of module output ports.
-
-        outputs:
-            None
-        """
-        return {"outputs": None}
-
-    def __init__(self, from_dim, to_dim, dropout=0.0):
-        super().__init__()
-
-        self.from_dim = from_dim
-        self.to_dim = to_dim
-        self.dropout = dropout
-        self.projection = nn.Linear(self.from_dim, self.to_dim, bias=False)
-        if self.dropout != 0.0:
-            self.embedding_dropout = nn.Dropout(self.dropout)
-
-    def forward(self, input_seq):
-        p = self.projection(input_seq)
-        if self.dropout != 0.0:
-            p = self.dropout(p)
-        return p
 
 
 class ZerosLikeNM(NonTrainableNM):

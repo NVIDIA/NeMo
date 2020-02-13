@@ -13,13 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-
-# Todo: fix weight tying
-
-
 import math
 
 import nemo
+from nemo.core import WeightShareTransform
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.lm_transformer_datalayer
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
@@ -117,7 +114,14 @@ loss = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(
 )
 
 # tie weight of embedding and log_softmax layers
-log_softmax.mlp.last_linear_layer.weight = encoder.embedding_layer.token_embedding.weight
+# log_softmax.mlp.last_linear_layer.weight = encoder.embedding_layer.token_embedding.weight
+log_softmax.tie_weights_with(
+    encoder,
+    weight_names=["mlp.layer0.weight"],
+    name2name_and_transform={
+        "mlp.layer0.weight": ("embedding_layer.token_embedding.weight", WeightShareTransform.SAME)
+    },
+)
 
 
 def create_pipeline(
