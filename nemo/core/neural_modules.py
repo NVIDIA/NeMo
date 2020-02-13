@@ -314,8 +314,9 @@ class NeuralModule(ABC):
 
         # Get init parameters.
         init_params = loaded_config["init_params"]
-        # Update
+        # Update parameters with additional ones.
         init_params.update(overwrite_params)
+        print(spec_list[-1], ": ", init_params)
 
         # Create and return the object.
         obj = mod_obj(**init_params)

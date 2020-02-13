@@ -26,15 +26,7 @@ logging = nemo.logging
 def create_dags(jasper_params, model_config_file, model_config_path, args, nf):
     vocab = jasper_params['labels']
 
-    # build train and eval model
-    # train_dl_params = copy.deepcopy(jasper_params["AudioToTextDataLayer"])
-    # train_dl_params.update(jasper_params["AudioToTextDataLayer"]["train"])
-    # del train_dl_params["train"]
-    # del train_dl_params["eval"]
-
-    # data_layer = nemo_asr.AudioToTextDataLayer(
-    #    manifest_filepath=args.train_dataset, labels=vocab, batch_size=args.batch_size, **train_dl_params,
-    # )
+    # Create a data_layer for training.
     data_layer = nemo_asr.AudioToTextDataLayer.import_from_config(
         model_config_file,
         model_config_path,
@@ -47,22 +39,7 @@ def create_dags(jasper_params, model_config_file, model_config_path, args, nf):
     total_steps = steps_per_epoch * args.num_epochs
     logging.info("Train samples=", num_samples, "num_steps=", total_steps)
 
-    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
-        **jasper_params["AudioToMelSpectrogramPreprocessor"]
-    )
-
-    # data_augmentation = nemo_asr.SpectrogramAugmentation(
-    #     **jasper_params['SpectrogramAugmentation']
-    # )
-
-    # eval_dl_params = copy.deepcopy(jasper_params["AudioToTextDataLayer"])
-    # eval_dl_params.update(jasper_params["AudioToTextDataLayer"]["eval"])
-    # del eval_dl_params["train"]
-    # del eval_dl_params["eval"]
-
-    # data_layer_eval = nemo_asr.AudioToTextDataLayer(
-    #    manifest_filepath=args.eval_datasets, labels=vocab, batch_size=args.eval_batch_size, **eval_dl_params,
-    # )
+    # Create a data_layer for evaluation.
     data_layer_eval = nemo_asr.AudioToTextDataLayer.import_from_config(
         model_config_file,
         model_config_path,
@@ -73,15 +50,22 @@ def create_dags(jasper_params, model_config_file, model_config_path, args, nf):
     num_samples = len(data_layer_eval)
     logging.info(f"Eval samples={num_samples}")
 
-    jasper_encoder = nemo_asr.JasperEncoder(**jasper_params["JasperEncoder"])
+    # Instantiate data processor.
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor.import_from_config(
+        model_config_file, model_config_path, "AudioToMelSpectrogramPreprocessor"
+    )
 
-    jasper_decoder = nemo_asr.JasperDecoderForCTC(num_classes=len(vocab), **jasper_params["JasperDecoderForCTC"])
+    # Instantiate JASPER encoder-decoder modules.
+    jasper_encoder = nemo_asr.JasperEncoder.import_from_config(model_config_file, model_config_path, "JasperEncoder")
+    jasper_decoder = nemo_asr.JasperDecoderForCTC.import_from_config(
+        model_config_file, model_config_path, "JasperDecoderForCTC", overwrite_params={"num_classes": len(vocab)}
+    )
 
+    # Instantiate losses.
     ctc_loss = nemo_asr.CTCLossNM(num_classes=len(vocab))
-
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
-    # Training model
+    # Create a training graph.
     audio, audio_len, transcript, transcript_len = data_layer()
     processed, processed_len = data_preprocessor(input_signal=audio, length=audio_len)
     encoded, encoded_len = jasper_encoder(audio_signal=processed, length=processed_len)
@@ -89,7 +73,7 @@ def create_dags(jasper_params, model_config_file, model_config_path, args, nf):
     predictions = greedy_decoder(log_probs=log_probs)
     loss = ctc_loss(log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,)
 
-    # Evaluation model
+    # Create an evaluation graph.
     audio_e, audio_len_e, transcript_e, transcript_len_e = data_layer_eval()
     processed_e, processed_len_e = data_preprocessor(input_signal=audio_e, length=audio_len_e)
     encoded_e, encoded_len_e = jasper_encoder(audio_signal=processed_e, length=processed_len_e)
@@ -100,7 +84,7 @@ def create_dags(jasper_params, model_config_file, model_config_path, args, nf):
     )
     logging.info("Num of params in encoder: {0}".format(jasper_encoder.num_weights))
 
-    # Callbacks to print info to console and Tensorboard
+    # Callbacks to print info to console and Tensorboard.
     train_callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[loss, predictions, transcript, transcript_len],
         print_func=partial(monitor_asr_train_progress, labels=vocab),
@@ -120,6 +104,7 @@ def create_dags(jasper_params, model_config_file, model_config_path, args, nf):
     )
     callbacks = [train_callback, checkpointer_callback, eval_callback]
 
+    # Return entities required by the actual training.
     return (
         loss,
         eval_tensors,
