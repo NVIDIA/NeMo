@@ -1239,7 +1239,9 @@ class PtActions(Actions):
 
                         # By default, disable broadcast_buffers. This disables batch norm synchronization on forward
                         # pass
-                        pmodule = DDP(pmodule, device_ids=[self.local_rank], broadcast_buffers=False)
+                        pmodule = DDP(
+                            pmodule, device_ids=[self.local_rank], broadcast_buffers=False, find_unused_parameters=True
+                        )
 
                     # # Convert batchnorm modules to synced if applicable
                     # if synced_batchnorm and isinstance(pmodule, torch.nn.Module):
