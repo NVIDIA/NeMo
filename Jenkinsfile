@@ -169,12 +169,12 @@ pipeline {
       parallel {
         stage('Jasper AN4 O1') {
           steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0 python jasper_an4.py --amp_opt_level=O1 --num_epochs=35 --test_after_training --work_dir=O1'
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0 python jasper_an4.py --amp_opt_level=O1 --num_epochs=35 --test_after_training --work_dir=O1 --train_dataset=/home/mrjenkins/TestData/an4_dataset/an4_train.json --eval_datasets=/home/mrjenkins/TestData/an4_dataset/an4_val.json'
           }
         }
         stage('Jasper AN4 O2') {
           steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=1 python jasper_an4.py --amp_opt_level=O2 --num_epochs=35 --test_after_training --work_dir=O2'
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=1 python jasper_an4.py --amp_opt_level=O2 --num_epochs=35 --test_after_training --work_dir=O2 --train_dataset=/home/mrjenkins/TestData/an4_dataset/an4_train.json --eval_datasets=/home/mrjenkins/TestData/an4_dataset/an4_val.json'
           }
         }
       }
