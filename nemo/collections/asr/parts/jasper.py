@@ -152,7 +152,6 @@ class GroupShuffle(nn.Module):
 
 
 class SqueezeExcite(nn.Module):
-
     def __init__(self, channels, reduction_ratio):
         super(SqueezeExcite, self).__init__()
         self.pool = nn.AdaptiveAvgPool1d(1)
@@ -160,7 +159,7 @@ class SqueezeExcite(nn.Module):
             nn.Linear(channels, channels // reduction_ratio, bias=False),
             nn.ReLU(inplace=True),
             nn.Linear(channels // reduction_ratio, channels, bias=False),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
     def forward(self, x):
@@ -201,7 +200,7 @@ class JasperBlock(nn.Module):
 
         if padding != "same":
             raise ValueError("currently only 'same' padding is supported")
-        
+
         kernel_width = float(kernel_width)
         if type(kernel_size) in (list, tuple):
             kernel_size = [compute_new_kernel_size(k, kernel_width) for k in kernel_size]
@@ -256,12 +255,12 @@ class JasperBlock(nn.Module):
                 norm_groups=norm_groups,
             )
         )
-        
+
         if se and not residual:
             conv.append(SqueezeExcite(planes, reduction_ratio=se_reduction_ratio))
 
         self.mconv = conv
-        
+
         res_panes = residual_panes.copy()
         self.dense_residual = residual
 
@@ -272,10 +271,10 @@ class JasperBlock(nn.Module):
                 self.dense_residual = False
             for ip in res_panes:
                 res = nn.ModuleList(
-                        self._get_conv_bn_layer(
-                            ip, planes, kernel_size=1, normalization=normalization, norm_groups=norm_groups,
-                        )
+                    self._get_conv_bn_layer(
+                        ip, planes, kernel_size=1, normalization=normalization, norm_groups=norm_groups,
                     )
+                )
 
                 if se:
                     res.append(SqueezeExcite(planes, reduction_ratio=se_reduction_ratio))

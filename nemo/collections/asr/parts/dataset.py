@@ -358,19 +358,12 @@ class AudioLabelDataset(Dataset):
     """
 
     def __init__(
-        self,
-        manifest_filepath,
-        labels,
-        featurizer,
-        max_duration=None,
-        min_duration=None,
-        trim=False,
-        load_audio=True
+        self, manifest_filepath, labels, featurizer, max_duration=None, min_duration=None, trim=False, load_audio=True
     ):
         self.collection = collections.ASRSpeechLabel(
             manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
         )
-        
+
         self.featurizer = featurizer
         self.trim = trim
         self.load_audio = load_audio

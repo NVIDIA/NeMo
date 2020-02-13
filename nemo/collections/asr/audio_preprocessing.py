@@ -678,10 +678,10 @@ class CropOrPadSpectrogramAugmentation(NonTrainableNM):
         if image_len > audio_length:  # randomly slice
             cutout_images = []
             offset = torch.randint(low=0, high=image_len - audio_length + 1, size=[num_images])
-            
+
             # TODO: Look into advanced broadcasting to speed up section
             for idx, offset in enumerate(offset):
-                cutout_images.append(image[idx: idx + 1, :, offset: offset + audio_length])
+                cutout_images.append(image[idx : idx + 1, :, offset : offset + audio_length])
 
             image = torch.cat(cutout_images, dim=0)
             del cutout_images
@@ -692,14 +692,9 @@ class CropOrPadSpectrogramAugmentation(NonTrainableNM):
 
             if (audio_length - image_len) % 2 == 1:
                 pad_right += 1
-            
-            image = torch.nn.functional.pad(
-                image,
-                [pad_left, pad_right],
-                mode="constant",
-                value=0
-            )
-        
+
+            image = torch.nn.functional.pad(image, [pad_left, pad_right], mode="constant", value=0)
+
         # Replace dynamic length sequences with static number of timesteps
         length = (length * 0) + audio_length
 
