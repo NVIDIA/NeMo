@@ -25,7 +25,7 @@ from transformers import (
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_modules import PretrainedModelInfo
-from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core.neural_types import NeuralType, ChannelType
 
 __all__ = ['Albert']
 
@@ -54,40 +54,24 @@ class Albert(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        input_ids:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        token_type_ids:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        attention_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
         """
+        # return {
+        #     "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+        #     "token_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+        #     "attention_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+        # }
         return {
-            "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "token_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "attention_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "token_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('B', 'T'), ChannelType()),
         }
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        hidden_states:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
         """
-        return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
+        #return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
+        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(
         self,
