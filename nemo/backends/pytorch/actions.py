@@ -715,7 +715,7 @@ class PtActions(Actions):
                 loop_iterator = eval_dataloader
 
             for epoch_i, data in enumerate(loop_iterator, 0):
-                print(torch.cuda.memory_allocated())
+                logging.debug(torch.cuda.memory_allocated())
                 if verbose and (num_batches < 10 or (epoch_i % int(num_batches / 10) == 0)):
                     logging.info(f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
