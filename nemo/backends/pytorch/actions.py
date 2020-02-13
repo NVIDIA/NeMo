@@ -934,9 +934,8 @@ class PtActions(Actions):
         outputs_to_drop = set()
         if type(module).__name__ == "JasperEncoder":
             logging.info(
-                f"Module is JasperEncoder. We are removing"
-                f"input and output length ports since they "
-                f"are not needed for deployment"
+                "Module is JasperEncoder. We are removing input and output length ports since they are not needed for "
+                "deployment"
             )
             inputs_to_drop.add("length")
             outputs_to_drop.add("encoded_lengths")
