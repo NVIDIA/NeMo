@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from .parts.jasper import JasperBlock, init_weights, jasper_activations
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import *
+from nemo.utils.decorators import add_port_docs
 
 
 class JasperEncoder(TrainableNM):
@@ -71,6 +72,7 @@ class JasperEncoder(TrainableNM):
     length: Optional[torch.Tensor]
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -84,6 +86,7 @@ class JasperEncoder(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -177,6 +180,7 @@ class JasperDecoderForCTC(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -188,6 +192,7 @@ class JasperDecoderForCTC(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

@@ -7,6 +7,7 @@ from nemo import logging
 from nemo.backends.pytorch.nm import LossNM, TrainableNM
 from nemo.collections.tts.parts.waveglow import WaveGlow
 from nemo.core.neural_types import *
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ["WaveGlowNM", "WaveGlowInferNM", "WaveGlowLoss"]
 
@@ -39,6 +40,7 @@ class WaveGlowNM(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -52,6 +54,7 @@ class WaveGlowNM(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -136,6 +139,7 @@ class WaveGlowInferNM(WaveGlowNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -147,6 +151,7 @@ class WaveGlowInferNM(WaveGlowNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -225,6 +230,7 @@ class WaveGlowLoss(LossNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -239,6 +245,7 @@ class WaveGlowLoss(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

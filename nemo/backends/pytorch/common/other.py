@@ -5,25 +5,25 @@ __all__ = [
     'ZerosLikeNM',
 ]
 
-from typing import Dict, Iterable, Mapping, Optional, Set
-
 import torch
 import torch.nn as nn
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core import NeuralModule
 from nemo.core.neural_types import *
+from nemo.utils.decorators import add_port_docs
 
 
 class SequenceEmbedding(TrainableNM):
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
         # return {"input_seq": NeuralType({0: AxisType(TimeTag), 1: AxisType(BatchTag)})}
-        return {"input_seq": NeuralModule(ChannelType(), ('T', 'B'))}
+        return {"input_seq": NeuralType(elements_type=ChannelType(), axes=('T', 'B'))}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -49,6 +49,7 @@ class SequenceEmbedding(TrainableNM):
 
 class ZerosLikeNM(TrainableNM):
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -56,6 +57,7 @@ class ZerosLikeNM(TrainableNM):
         return {"input_type_ids": NeuralType(('B', 'T'), VoidType())}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

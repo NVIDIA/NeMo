@@ -22,18 +22,20 @@ import nemo
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core.neural_types import *
 from tests.common_setup import NeMoUnitTest
-
+from nemo.utils.decorators import add_port_docs
 
 class AddsTen(NonTrainableNM):
     def __init__(self):
         super().__init__()
 
     @property
+    @add_port_docs()
     def input_ports(self):
         # return {"mod_in": NeuralType({0: AxisType(BatchTag), 1: AxisType(BaseTag, dim=1)})}
         return {"mod_in": NeuralType((AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)), ChannelType())}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         # return {"mod_out": NeuralType({0: AxisType(BatchTag), 1: AxisType(BaseTag, dim=1)})}
         return {"mod_out": NeuralType((AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)), ChannelType())}
@@ -47,10 +49,12 @@ class SubtractsTen(NonTrainableNM):
         super().__init__()
 
     @property
+    @add_port_docs()
     def input_ports(self):
         return {"mod_in": NeuralType((AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)), ChannelType())}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         return {"mod_out": NeuralType((AxisType(AxisKind.Batch), AxisType(AxisKind.Dimension, 1)), ChannelType())}
 

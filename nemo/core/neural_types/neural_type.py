@@ -68,6 +68,19 @@ class NeuralType(object):
             self.axes = None
         self.optional = optional
 
+    def __repr__(self) -> str:
+        representation = "NeuralType: "
+        astr = "" if self.axes is None else str(self.axes)
+        # etype = "" if self.elements_type is None else str(self.elements_type)
+        etype = ""
+        if isinstance(self.elements_type, VoidType) and self.axes is None:
+            representation += "Big Void - anything"
+        elif isinstance(self.elements_type, VoidType) and self.axes is not None:
+            representation += "Void type - anything of shape: " + astr
+        else:
+            representation += f"Shape: {astr} Elements: {etype}"
+        return representation
+
     def compare(self, second) -> NeuralTypeComparisonResult:
         """Performs neural type comparison of self with second. When you chain two modules' inputs/outputs via
         __call__ method, this comparison will be called to ensure neural type compatibility."""
