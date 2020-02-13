@@ -16,8 +16,13 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.utils.lr_policies import (CosineAnnealing, SquareAnnealing, WarmupAnnealing,
-                                    PolynomialDecayAnnealing, PolynomialHoldDecayAnnealing)
+from nemo.utils.lr_policies import (
+    CosineAnnealing,
+    PolynomialDecayAnnealing,
+    PolynomialHoldDecayAnnealing,
+    SquareAnnealing,
+    WarmupAnnealing,
+)
 from tests.common_setup import NeMoUnitTest
 
 
@@ -31,8 +36,13 @@ class TestPolicies(NeMoUnitTest):
 
     def test_working(self):
         total_steps = 1000
-        lr_policy_cls = [SquareAnnealing, CosineAnnealing, WarmupAnnealing,
-                         PolynomialDecayAnnealing, PolynomialHoldDecayAnnealing]
+        lr_policy_cls = [
+            SquareAnnealing,
+            CosineAnnealing,
+            WarmupAnnealing,
+            PolynomialDecayAnnealing,
+            PolynomialHoldDecayAnnealing,
+        ]
         lr_policies = [p(total_steps=total_steps) for p in lr_policy_cls]
 
         for step in range(1000):
@@ -52,4 +62,4 @@ class TestPolicies(NeMoUnitTest):
         self.assertTrue(lr1 < lr2)
         self.assertTrue(lr2 == lr3)
         self.assertTrue(lr4 < lr3)
-        self.assertTrue(lr4 == 0.)
+        self.assertTrue(lr4 == 0.0)

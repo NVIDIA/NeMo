@@ -3,17 +3,16 @@
 # USAGE: python get_ljspeech_data.py --data_root=<where to put data>
 
 import argparse
+import glob
 import json
 import logging
 import os
-import glob
-import random
 import re
 import tarfile
 import urllib.request
-import numpy as np
-import librosa
 
+import librosa
+import numpy as np
 
 URL_v1 = "http://download.tensorflow.org/data/speech_commands_v0.01.tar.gz"
 URL_v2 = "http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz"

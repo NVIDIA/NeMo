@@ -39,8 +39,9 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
         "cat",
         "dog",
     ]
-    manifest_filepath = os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                                     "../data/speech_commands/train_manifest.json"))
+    manifest_filepath = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "../data/speech_commands/train_manifest.json")
+    )
     featurizer_config = {
         'window': 'hann',
         'dither': 1e-05,
@@ -61,7 +62,9 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
         data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
         logging.info("Looking up for test speech command data")
         if not os.path.exists(os.path.join(data_folder, "speech_commands")):
-            logging.info("Extracting speech commands data to: {0}".format(os.path.join(data_folder, "speech_commands")))
+            logging.info(
+                "Extracting speech commands data to: {0}".format(os.path.join(data_folder, "speech_commands"))
+            )
             tar = tarfile.open(os.path.join(data_folder, "speech_commands.tar.xz"), "r:xz")
             tar.extractall(path=data_folder)
             tar.close()
@@ -78,14 +81,8 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
 
     def test_pytorch_audio_dataset_with_perturbation(self):
         perturbations = [
-            perturb.WhiteNoisePerturbation(
-                min_level=-90,
-                max_level=-46
-            ),
-            perturb.ShiftPerturbation(
-                min_shift_ms=-5.0,
-                max_shift_ms=5.0
-            )
+            perturb.WhiteNoisePerturbation(min_level=-90, max_level=-46),
+            perturb.ShiftPerturbation(min_shift_ms=-5.0, max_shift_ms=5.0),
         ]
 
         # Execute perturbations with 100% probability
@@ -93,9 +90,11 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
 
         audio_augmentor = perturb.AudioAugmentor(prob_perturb)
 
-        featurizer = WaveformFeaturizer(sample_rate=self.featurizer_config['sample_rate'],
-                                        int_values=self.featurizer_config['int_values'],
-                                        augmentor=audio_augmentor)
+        featurizer = WaveformFeaturizer(
+            sample_rate=self.featurizer_config['sample_rate'],
+            int_values=self.featurizer_config['int_values'],
+            augmentor=audio_augmentor,
+        )
         ds = AudioLabelDataset(manifest_filepath=self.manifest_filepath, labels=self.labels, featurizer=featurizer,)
 
         for i in range(len(ds)):
@@ -111,7 +110,7 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
             labels=self.labels,
             batch_size=batch_size,
             # placement=DeviceType.GPU,
-            sample_rate=16000
+            sample_rate=16000,
         )
         for ind, data in enumerate(dl.data_iterator):
             # With num_workers update, this is no longer true
@@ -224,8 +223,9 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
 
     # @unittest.skip("Init parameters of nemo_asr.AudioToMelSpectrogramPreprocessor are invalid")
     def test_jasper_training(self):
-        with open(os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                               "../data/quartznet_speech_recognition.yaml"))) as file:
+        with open(
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_speech_recognition.yaml"))
+        ) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToSpeechLabelDataLayer(
             # featurizer_config=self.featurizer_config,
@@ -245,12 +245,9 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
             'window_stride': 0.01,
         }
         preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(**pre_process_params)
-        jasper_encoder = nemo_asr.JasperEncoder(
-            **jasper_model_definition['JasperEncoder'],
-        )
+        jasper_encoder = nemo_asr.JasperEncoder(**jasper_model_definition['JasperEncoder'],)
         jasper_decoder = nemo_asr.JasperDecoderForClassification(
-            feat_in=jasper_model_definition['JasperEncoder']['jasper'][-1]['filters'],
-            num_classes=len(self.labels)
+            feat_in=jasper_model_definition['JasperEncoder']['jasper'][-1]['filters'], num_classes=len(self.labels)
         )
         ce_loss = nemo_asr.CrossEntropyLossNM()
 
@@ -261,10 +258,7 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
         # logging.info(jasper_encoder)
         log_probs = jasper_decoder(encoder_output=encoded)
-        loss = ce_loss(
-            logits=log_probs,
-            targets=targets
-        )
+        loss = ce_loss(logits=log_probs, targets=targets)
 
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
@@ -277,7 +271,9 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
 
     # @unittest.skip("Init parameters of nemo_asr.AudioToMelSpectrogramPreprocessor are invalid")
     def test_double_jasper_training(self):
-        with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_speech_recognition.yaml"))) as file:
+        with open(
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_speech_recognition.yaml"))
+        ) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToSpeechLabelDataLayer(
             # featurizer_config=self.featurizer_config,
@@ -297,21 +293,15 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
             'window_stride': 0.01,
         }
         preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(**pre_process_params)
-        jasper_encoder1 = nemo_asr.JasperEncoder(
-            **jasper_model_definition['JasperEncoder'],
-        )
-        jasper_encoder2 = nemo_asr.JasperEncoder(
-            **jasper_model_definition['JasperEncoder'],
-        )
+        jasper_encoder1 = nemo_asr.JasperEncoder(**jasper_model_definition['JasperEncoder'],)
+        jasper_encoder2 = nemo_asr.JasperEncoder(**jasper_model_definition['JasperEncoder'],)
         # mx_max1 = nemo.backends.pytorch.common.other.SimpleCombiner(mode="max")
         # mx_max2 = nemo.backends.pytorch.common.other.SimpleCombiner(mode="max")
         jasper_decoder1 = nemo_asr.JasperDecoderForClassification(
-            feat_in=jasper_model_definition['JasperEncoder']['jasper'][-1]['filters'],
-            num_classes=len(self.labels)
+            feat_in=jasper_model_definition['JasperEncoder']['jasper'][-1]['filters'], num_classes=len(self.labels)
         )
         jasper_decoder2 = nemo_asr.JasperDecoderForClassification(
-            feat_in=jasper_model_definition['JasperEncoder']['jasper'][-1]['filters'],
-            num_classes=len(self.labels)
+            feat_in=jasper_model_definition['JasperEncoder']['jasper'][-1]['filters'], num_classes=len(self.labels)
         )
 
         ce_loss = nemo_asr.CrossEntropyLossNM()
@@ -324,9 +314,7 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
         encoded2, encoded_len2 = jasper_encoder2(audio_signal=processed_signal, length=p_length)
         logits1 = jasper_decoder1(encoder_output=encoded1)
         logits2 = jasper_decoder2(encoder_output=encoded2)
-        loss = ce_loss(
-            logits=logits1, targets=targets,
-        )
+        loss = ce_loss(logits=logits1, targets=targets,)
 
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss], print_func=lambda x: logging.info(str(x[0].item()))
@@ -338,10 +326,13 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
         )
 
     def test_stft_conv(self):
-        with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_speech_recognition.yaml"))) as file:
+        with open(
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_speech_recognition.yaml"))
+        ) as file:
             jasper_model_definition = self.yaml.load(file)
-        dl = nemo_asr.AudioToSpeechLabelDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels,
-                                                  batch_size=2,)
+        dl = nemo_asr.AudioToSpeechLabelDataLayer(
+            manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=2,
+        )
         pre_process_params = {
             'frame_splicing': 1,
             'features': 64,
@@ -355,12 +346,9 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
             'stft_conv': True,
         }
         preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(**pre_process_params)
-        jasper_encoder = nemo_asr.JasperEncoder(
-            **jasper_model_definition['JasperEncoder'],
-        )
+        jasper_encoder = nemo_asr.JasperEncoder(**jasper_model_definition['JasperEncoder'],)
         jasper_decoder = nemo_asr.JasperDecoderForClassification(
-            feat_in=jasper_model_definition['JasperEncoder']['jasper'][-1]['filters'],
-            num_classes=len(self.labels)
+            feat_in=jasper_model_definition['JasperEncoder']['jasper'][-1]['filters'], num_classes=len(self.labels)
         )
 
         ce_loss = nemo_asr.CrossEntropyLossNM()
@@ -372,9 +360,7 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
         # logging.info(jasper_encoder)
         logits = jasper_decoder(encoder_output=encoded)
-        loss = ce_loss(
-            logits=logits, targets=targets
-        )
+        loss = ce_loss(logits=logits, targets=targets)
 
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss], print_func=lambda x: logging.info(str(x[0].item()))
@@ -386,9 +372,13 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
         )
 
     def test_jasper_eval(self):
-        with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_speech_recognition.yaml"))) as file:
+        with open(
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_speech_recognition.yaml"))
+        ) as file:
             jasper_model_definition = self.yaml.load(file)
-        dl = nemo_asr.AudioToSpeechLabelDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=2,)
+        dl = nemo_asr.AudioToSpeechLabelDataLayer(
+            manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=2,
+        )
         pre_process_params = {
             'frame_splicing': 1,
             'features': 64,
@@ -401,12 +391,9 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
             'window_stride': 0.01,
         }
         preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(**pre_process_params)
-        jasper_encoder = nemo_asr.JasperEncoder(
-            **jasper_model_definition['JasperEncoder'],
-        )
+        jasper_encoder = nemo_asr.JasperEncoder(**jasper_model_definition['JasperEncoder'],)
         jasper_decoder = nemo_asr.JasperDecoderForClassification(
-            feat_in=jasper_model_definition['JasperEncoder']['jasper'][-1]['filters'],
-            num_classes=len(self.labels)
+            feat_in=jasper_model_definition['JasperEncoder']['jasper'][-1]['filters'], num_classes=len(self.labels)
         )
         ce_loss = nemo_asr.CrossEntropyLossNM()
 
@@ -417,9 +404,7 @@ class TestSpeechCommandsPytorch(NeMoUnitTest):
         encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
         # logging.info(jasper_encoder)
         logits = jasper_decoder(encoder_output=encoded)
-        loss = ce_loss(
-            logits=logits, targets=targets,
-        )
+        loss = ce_loss(logits=logits, targets=targets,)
 
         from nemo.collections.asr.helpers import (
             process_classification_evaluation_batch,
