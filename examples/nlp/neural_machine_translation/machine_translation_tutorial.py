@@ -19,9 +19,6 @@ See the tutorial and download the data here:
 https://nvidia.github.io/NeMo/nlp/
 neural-machine-translation.html#translation-with-pretrained-model
 """
-
-# Todo: fix weight tying
-
 import torch
 
 import nemo

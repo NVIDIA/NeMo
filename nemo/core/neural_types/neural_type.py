@@ -50,9 +50,6 @@ class NeuralType(object):
             f"axes: {[(c.kind, c.size, c.is_list) for c in self.axes]}\n"
             f"elements_type: {self.elements_type.__class__.__name__}"
         )
-        # return f"axes: {self.axes}"  # " elements_type: {self.elements_type}"
-        # return f" elements_type: {self.elements_type.__class__.__name__}"
-        # return "help"
 
     def __init__(self, axes: Optional[Tuple] = None, elements_type: ElementType = VoidType(), optional=False):
         if not isinstance(elements_type, ElementType):
@@ -95,8 +92,6 @@ class NeuralType(object):
 
         dimensions_pass = NeuralType.__compare_axes(axes_a, axes_b)
         element_comparison_result = self.elements_type.compare(second.elements_type)
-        if isinstance(second.elements_type, VoidType):
-            element_comparison_result = NeuralTypeComparisonResult.SAME
 
         # SAME DIMS
         if dimensions_pass == 0:
