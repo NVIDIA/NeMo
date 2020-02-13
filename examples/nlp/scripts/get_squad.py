@@ -62,7 +62,7 @@ if __name__ == '__main__':
         type=str,
         required=False,
         help='directory to store data',
-        default=os.path.split(os.path.abspath(__file__))[0] + '../../../../../../examples/data/lm',
+        default=os.path.split(os.path.abspath(__file__))[0],
     )
     args = parser.parse_args()
     logging.info(args.destDir)

@@ -715,6 +715,7 @@ class PtActions(Actions):
                 loop_iterator = eval_dataloader
 
             for epoch_i, data in enumerate(loop_iterator, 0):
+                logging.debug(torch.cuda.memory_allocated())
                 if verbose and (num_batches < 10 or (epoch_i % int(num_batches / 10) == 0)):
                     logging.info(f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
@@ -725,6 +726,8 @@ class PtActions(Actions):
                         if t.unique_name in registered_e_tensors:
                             del registered_e_tensors[t.unique_name]
                     # Need to check for device type mismatch
+                    for t in registered_e_tensors:
+                        registered_e_tensors[t].to(dl_device)
                 else:
                     if isinstance(data, torch.Tensor):
                         data = (data,)
@@ -751,7 +754,7 @@ class PtActions(Actions):
                 #         if isinstance(tensor, torch.Tensor):
                 #             registered_e_tensors[name] = tensor.cpu()
                 if cache:
-                    self.append_to_cache(registered_e_tensors)
+                    self.append_to_cache(registered_e_tensors, offload_to_cpu)
 
                 # If distributed. For the outer loop, we need to ensure that
                 # all processes loop through the elements in the same order
@@ -809,10 +812,13 @@ class PtActions(Actions):
             # For all other ranks
             return None
 
-    def append_to_cache(self, registered_tensors: dict):
+    def append_to_cache(self, registered_tensors: dict, offload_to_cpu):
         """Simpler helper function to add results of __nm_graph_forward_pass to
         current cache.
         """
+        if offload_to_cpu:
+            for t in registered_tensors:
+                registered_tensors[t] = registered_tensors[t].cpu()
         self.cache.append(registered_tensors)
 
     def clear_cache(self):
@@ -919,10 +925,10 @@ class PtActions(Actions):
         dynamic_axes = defaultdict(list)
 
         def __extract_dynamic_axes(port_name: str, ntype: NeuralType, dynamic_axes: defaultdict):
-            if ntype.axis2type:
-                for axis_id, axistype in ntype.axis2type.items():
-                    if issubclass(axistype.semantics, BatchTag) or issubclass(axistype.semantics, TimeTag):
-                        dynamic_axes[port_name].append(axis_id)
+            if ntype.axes:
+                for ind, axis in enumerate(ntype.axes):
+                    if axis.kind == AxisKind.Batch or axis.kind == AxisKind.Time:
+                        dynamic_axes[port_name].append(ind)
 
         # This is a hack for Jasper to Jarvis export -- need re-design for this
         inputs_to_drop = set()

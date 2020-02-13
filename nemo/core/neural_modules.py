@@ -1,4 +1,20 @@
-# Copyright (c) 2019 NVIDIA Corporation
+# ! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """This file contains NeuralModule and NmTensor classes."""
 __all__ = ['WeightShareTransform', 'NeuralModule']
 
@@ -134,7 +150,7 @@ class NeuralModule(ABC):
 
     def __is_of_allowed_type(self, var):
         """
-            A recursive function that checks if a given variable is allowed (in) 
+            A recursive function that checks if a given variable is allowed (in)
 
             Args:
                 pretrained_model_name (str): name of pretrained model to use in order.
@@ -211,10 +227,6 @@ class NeuralModule(ABC):
         Returns:
           NmTensor object or tuple of NmTensor objects
         """
-        # if self._assigned_top_order is not None:
-        #    raise ValueError("We currently do not support calling same NM"
-        #                     "more than once")
-
         # Get input and output ports definitions.
         input_port_defs = self.input_ports
         output_port_defs = self.output_ports
@@ -222,23 +234,15 @@ class NeuralModule(ABC):
         first_input_nmtensor_type = None
         input_nmtensors_are_of_same_type = True
         for port_name, tgv in kwargs.items():
+            # make sure that passed arguments correspond to input port names
             if port_name not in input_port_defs.keys():
                 raise NeuralPortNameMismatchError("Wrong input port name: {0}".format(port_name))
 
-            type_comatibility = input_port_defs[port_name].compare(tgv)
-
-            if first_input_nmtensor_type is None:
-                first_input_nmtensor_type = NeuralType(tgv._axis2type)
-            else:
-                if first_input_nmtensor_type._axis2type is None:
-                    input_nmtensors_are_of_same_type = True
-                else:
-                    input_nmtensors_are_of_same_type = first_input_nmtensor_type.compare(
-                        tgv
-                    ) == NeuralTypeComparisonResult.SAME and len(first_input_nmtensor_type._axis2type)
-            if not (
-                type_comatibility == NeuralTypeComparisonResult.SAME
-                or type_comatibility == NeuralTypeComparisonResult.GREATER
+            input_port = input_port_defs[port_name]
+            type_comatibility = input_port.compare(tgv)
+            if (
+                type_comatibility != NeuralTypeComparisonResult.SAME
+                and type_comatibility != NeuralTypeComparisonResult.GREATER
             ):
                 raise NeuralPortNmTensorMismatchError(
                     "\n\nIn {0}. \n"
@@ -248,8 +252,30 @@ class NeuralModule(ABC):
                         self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility,
                     )
                 )
-            if type_comatibility == NeuralTypeComparisonResult.LESS:
-                logging.info('Types were raised')
+
+            # if first_input_nmtensor_type is None:
+            #     first_input_nmtensor_type = NeuralType(tgv._axis2type)
+            # else:
+            #     if first_input_nmtensor_type._axis2type is None:
+            #         input_nmtensors_are_of_same_type = True
+            #     else:
+            #         input_nmtensors_are_of_same_type = first_input_nmtensor_type.compare(
+            #             tgv
+            #         ) == NeuralTypeComparisonResult.SAME and len(first_input_nmtensor_type._axis2type)
+            # if not (
+            #     type_comatibility == NeuralTypeComparisonResult.SAME
+            #     or type_comatibility == NeuralTypeComparisonResult.GREATER
+            # ):
+            #     raise NeuralPortNmTensorMismatchError(
+            #         "\n\nIn {0}. \n"
+            #         "Port: {1} and a NmTensor it was fed are \n"
+            #         "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
+            #         "\n\nType comparison result: {4}".format(
+            #             self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility,
+            #         )
+            #     )
+            # if type_comatibility == NeuralTypeComparisonResult.LESS:
+            #     print('Types were raised')
 
         if len(output_port_defs) == 1:
             out_name = list(output_port_defs)[0]

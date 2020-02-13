@@ -18,11 +18,11 @@ def neuralType2TensorShape(neural_type: NeuralType, default_dim=32, skip_batch_a
       torch.Size
     """
     dims = []
-    for axis_ind, axis_type in neural_type.axis2type.items():
-        if axis_type._semantics == BatchTag and skip_batch_axis:
+    for axis in neural_type.axes:
+        if axis.kind == AxisKind.Batch and skip_batch_axis:
             continue
-        if axis_type.dim is not None:
-            dims.append(axis_type.dim)
+        if axis.size is not None:
+            dims.append(axis.size)
         else:
             dims.append(default_dim)
     return torch.Size(dims)

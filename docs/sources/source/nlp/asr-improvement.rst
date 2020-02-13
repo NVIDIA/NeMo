@@ -66,18 +66,17 @@ Then we define tokenizer to convert tokens into indices. We will use ``bert-base
 
     .. code-block:: python
 
-        tokenizer = NemoBertTokenizer(pretrained_model="bert-base-uncased")
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model="bert-base-uncased")
 
 
 The encoder block is a neural module corresponding to BERT language model from
-``nemo_nlp.huggingface`` collection:
+``nemo_nlp.nm.trainables.huggingface`` collection:
 
     .. code-block:: python
 
         zeros_transform = nemo.backends.pytorch.common.ZerosLikeNM()
-        encoder = nemo_nlp.huggingface.BERT(
-            pretrained_model_name=args.pretrained_model,
-            local_rank=args.local_rank)
+        encoder = nemo_nlp.nm.trainables.huggingface.BERT(
+            pretrained_model_name=args.pretrained_model)
 
     .. tip::
         Making embedding size (as well as all other tensor dimensions) divisible
@@ -100,7 +99,7 @@ learn positional encodings ``"learn_positional_encodings": True``:
 
     .. code-block:: python
 
-        decoder = nemo_nlp.TransformerDecoderNM(
+        decoder = nemo_nlp.nm.trainables.TransformerDecoderNM(
             d_model=args.d_model,
             d_inner=args.d_inner,
             num_layers=args.num_layers,
@@ -123,7 +122,7 @@ To load the pretrained parameters into decoder, we use ``restore_from`` attribut
 Model training
 --------------
 
-To train the model run ``asr_postprocessor.py.py`` located in ``examples/nlp`` directory. We train with novograd optimizer :cite:`asr-imps-ginsburg2019stochastic`,
+To train the model run ``asr_postprocessor.py.py`` located in ``examples/nlp/asr_postprocessor`` directory. We train with novograd optimizer :cite:`asr-imps-ginsburg2019stochastic`,
 learning rate ``lr=0.001``, polynomial learning rate decay policy, ``1000`` warmup steps, per-gpu batch size of ``4096*8`` tokens, and ``0.25`` dropout probability.
 We trained on 8 GPUS. To launch the training in multi-gpu mode run the following command:
 

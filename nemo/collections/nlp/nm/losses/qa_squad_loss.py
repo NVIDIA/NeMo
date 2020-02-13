@@ -17,7 +17,7 @@
 from torch import nn
 
 from nemo.backends.pytorch import LossNM
-from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core import ChannelType, LogitsType, LossType, NeuralType
 
 __all__ = ['QuestionAnsweringLoss']
 
@@ -38,24 +38,14 @@ class QuestionAnsweringLoss(LossNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        logits:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
-
-        start_positions:
-            0: AxisType(BatchTag)
-
-        end_positions:
-            0: AxisType(BatchTag)
         """
         return {
-            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            "start_positions": NeuralType({0: AxisType(BatchTag)}),
-            "end_positions": NeuralType({0: AxisType(BatchTag)}),
+            # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            # "start_positions": NeuralType({0: AxisType(BatchTag)}),
+            # "end_positions": NeuralType({0: AxisType(BatchTag)}),
+            "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+            "start_positions": NeuralType(tuple('B'), ChannelType()),
+            "end_positions": NeuralType(tuple('B'), ChannelType()),
         }
 
     @property
@@ -76,9 +66,12 @@ class QuestionAnsweringLoss(LossNM):
             1: AxisType(TimeTag)
         """
         return {
-            "loss": NeuralType(None),
-            "start_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "end_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "loss": NeuralType(None),
+            # "start_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "end_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "loss": NeuralType(elements_type=LossType()),
+            "start_logits": NeuralType(('B', 'T'), ChannelType()),
+            "end_logits": NeuralType(('B', 'T'), ChannelType()),
         }
 
     def __init__(self):
