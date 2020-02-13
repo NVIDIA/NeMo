@@ -279,7 +279,7 @@ class KaldiFeatureDataset(Dataset):
         if id2dur:
             # utt2dur durations are in seconds
             logging.info(
-                f"Dataset loaded with {duration / 60 : .2f} hours. " f"Filtered {filtered_duration / 60 : .2f} hours."
+                f"Dataset loaded with {duration / 3600 : .2f} hours. " f"Filtered {filtered_duration / 3600 : .2f} hours."
             )
 
         self.data = data
