@@ -7,6 +7,8 @@ from ruamel.yaml import YAML
 import nemo
 import nemo.collections.asr as nemo_asr
 
+logging = nemo.logging
+
 
 def get_parser():
     parser = argparse.ArgumentParser(description="Convert Jasper NeMo checkpoint to ONNX")
@@ -58,10 +60,13 @@ def main(
     logging.info("  Num encoder input features: {}".format(num_encoder_input_features))
     logging.info("  Num decoder input features: {}".format(num_decoder_input_features))
 
+    nf = nemo.core.NeuralModuleFactory(create_tb_writer=False)
+
     logging.info("Initializing models...")
     jasper_encoder = nemo_asr.JasperEncoder(
         feat_in=num_encoder_input_features, **jasper_model_definition['JasperEncoder']
     )
+
     jasper_decoder = nemo_asr.JasperDecoderForCTC(
         feat_in=num_decoder_input_features, num_classes=len(jasper_model_definition['labels']),
     )
@@ -83,7 +88,6 @@ def main(
         jasper_encoder.restore_from(nn_encoder)
     jasper_decoder.restore_from(nn_decoder)
 
-    nf = nemo.core.NeuralModuleFactory(create_tb_writer=False)
     logging.info("Exporting encoder...")
     nf.deployment_export(
         jasper_encoder,
