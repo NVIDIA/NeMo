@@ -45,7 +45,7 @@ import torch.nn.functional as F
 from torch import nn as nn
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core.neural_types import ChannelType, LabelsType, LengthsType, LogitsType, NeuralType
 
 __all__ = ['TRADEGenerator']
 
@@ -56,41 +56,28 @@ class TRADEGenerator(TrainableNM):
         """Returns definitions of module input ports.
 
         encoder_hidden: hidden states of the encoder
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
 
         encoder_outputs: outputs of the encoder
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
 
         input_lens: lengths of the input sequences to encoder
-            0: AxisType(BatchTag)
 
         src_ids: input sequences to encoder
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
 
         targets: targets for the output of the generator
-            0: AxisType(BatchTag)
-
-            1: AxisType(BatchTag)
-
-            2: AxisType(TimeTag)
 
         """
         return {
-            'encoder_hidden': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            'encoder_outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            'input_lens': NeuralType({0: AxisType(BatchTag)}),
-            'src_ids': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
+            # 'encoder_hidden': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            # 'encoder_outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            # 'input_lens': NeuralType({0: AxisType(BatchTag)}),
+            # 'src_ids': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # 'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
+            'encoder_hidden': NeuralType(('B', 'T', 'C'), ChannelType()),
+            'encoder_outputs': NeuralType(('B', 'T', 'C'), ChannelType()),
+            'input_lens': NeuralType(tuple('B'), LengthsType()),
+            'src_ids': NeuralType(('B', 'T'), ChannelType()),
+            # 'targets': NeuralType(ChannelType(), ('B', 'D', 'T')),
+            'targets': NeuralType(('B', 'D', 'T'), LabelsType()),
         }
 
     @property
@@ -98,27 +85,19 @@ class TRADEGenerator(TrainableNM):
         """Returns definitions of module output ports.
 
         point_outputs: outputs of the generator
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
-
-            3: AxisType(ChannelTag)
 
         gate_outputs: outputs of gating heads
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
-
-            2: AxisType(ChannelTag)
 
         """
+        # return {
+        #     'point_outputs': NeuralType(
+        #         {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag), 3: AxisType(ChannelTag)}
+        #     ),
+        #     'gate_outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(ChannelTag)}),
+        # }
         return {
-            'point_outputs': NeuralType(
-                {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag), 3: AxisType(ChannelTag)}
-            ),
-            'gate_outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(ChannelTag)}),
+            'point_outputs': NeuralType(('B', 'T', 'D', 'D'), LogitsType()),
+            'gate_outputs': NeuralType(('B', 'D', 'D'), LogitsType()),
         }
 
     def __init__(self, vocab, embeddings, hid_size, dropout, slots, nb_gate, teacher_forcing=0.5):

@@ -1,9 +1,9 @@
-NeMo_TTS collection
+NeMo TTS collection
 ===================
 
 语音数据处理模块
 ------------------------------
-.. automodule:: nemo_tts.data_layers
+.. automodule:: nemo.collections.tts.data_layers
     :members:
     :undoc-members:
     :show-inheritance:
@@ -11,7 +11,7 @@ NeMo_TTS collection
 
 Tacotron 2 模块
 ------------------
-.. automodule:: nemo_tts.tacotron2_modules
+.. automodule:: nemo.collections.tts.tacotron2_modules
     :members:
     :undoc-members:
     :show-inheritance:
@@ -19,7 +19,7 @@ Tacotron 2 模块
 
 Waveglow 模块
 ------------------
-.. automodule:: nemo_tts.waveglow_modules
+.. automodule:: nemo.collections.tts.waveglow_modules
     :members:
     :undoc-members:
     :show-inheritance:

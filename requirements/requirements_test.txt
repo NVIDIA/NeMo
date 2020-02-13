@@ -4,3 +4,5 @@ pytest-runner
 black
 isort[requirements]
 wrapt
+wget
+onnxruntime

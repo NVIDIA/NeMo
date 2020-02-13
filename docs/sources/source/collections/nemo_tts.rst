@@ -1,9 +1,9 @@
-NeMo_TTS collection
+NeMo TTS collection
 ===================
 
 Speech data processing modules
 ------------------------------
-.. automodule:: nemo_tts.data_layers
+.. automodule:: nemo.collections.tts.data_layers
     :members:
     :undoc-members:
     :show-inheritance:
@@ -11,7 +11,7 @@ Speech data processing modules
 
 Tacotron 2 modules
 ------------------
-.. automodule:: nemo_tts.tacotron2_modules
+.. automodule:: nemo.collections.tts.tacotron2_modules
     :members:
     :undoc-members:
     :show-inheritance:
@@ -19,7 +19,7 @@ Tacotron 2 modules
 
 Waveglow modules
 ------------------
-.. automodule:: nemo_tts.waveglow_modules
+.. automodule:: nemo.collections.tts.waveglow_modules
     :members:
     :undoc-members:
     :show-inheritance:
