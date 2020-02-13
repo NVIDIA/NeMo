@@ -48,8 +48,8 @@ class TranslationDataset(Dataset):
         tgt = self.batches[idx]["tgt"]
         labels = tgt[:, 1:]
         tgt_ids = tgt[:, :-1]
-        src_mask = (src_ids != self.src_tokenizer.pad_id()).astype(np.int32)
-        tgt_mask = (tgt_ids != self.tgt_tokenizer.pad_id()).astype(np.int32)
+        src_mask = (src_ids != self.src_tokenizer.pad_id).astype(np.int32)
+        tgt_mask = (tgt_ids != self.tgt_tokenizer.pad_id).astype(np.int32)
         sent_ids = self.batch_indices[idx]
         return src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids
 
@@ -63,8 +63,8 @@ class TranslationDataset(Dataset):
         for batch_idx, b in enumerate(batch_indices):
             src_len = max([len(src_ids[i]) for i in b])
             tgt_len = max([len(tgt_ids[i]) for i in b])
-            src_ids_ = self.src_tokenizer.pad_id() * np.ones((len(b), src_len), dtype=np.int)
-            tgt_ids_ = self.tgt_tokenizer.pad_id() * np.ones((len(b), tgt_len), dtype=np.int)
+            src_ids_ = self.src_tokenizer.pad_id * np.ones((len(b), src_len), dtype=np.int)
+            tgt_ids_ = self.tgt_tokenizer.pad_id * np.ones((len(b), tgt_len), dtype=np.int)
             for i, sentence_idx in enumerate(b):
                 src_ids_[i][: len(src_ids[sentence_idx])] = src_ids[sentence_idx]
                 tgt_ids_[i][: len(tgt_ids[sentence_idx])] = tgt_ids[sentence_idx]
