@@ -23,21 +23,27 @@ from nemo.utils.lr_policies import CosineAnnealing
 logging = nemo.logging
 
 
-def create_dags(jasper_params, args, nf):
+def create_dags(jasper_params, model_config_file, model_config_path, args, nf):
     vocab = jasper_params['labels']
 
     # build train and eval model
-    train_dl_params = copy.deepcopy(jasper_params["AudioToTextDataLayer"])
-    train_dl_params.update(jasper_params["AudioToTextDataLayer"]["train"])
-    del train_dl_params["train"]
-    del train_dl_params["eval"]
+    # train_dl_params = copy.deepcopy(jasper_params["AudioToTextDataLayer"])
+    # train_dl_params.update(jasper_params["AudioToTextDataLayer"]["train"])
+    # del train_dl_params["train"]
+    # del train_dl_params["eval"]
 
-    data_layer = nemo_asr.AudioToTextDataLayer(
-        manifest_filepath=args.train_dataset, labels=vocab, batch_size=args.batch_size, **train_dl_params,
+    # data_layer = nemo_asr.AudioToTextDataLayer(
+    #    manifest_filepath=args.train_dataset, labels=vocab, batch_size=args.batch_size, **train_dl_params,
+    # )
+    data_layer = nemo_asr.AudioToTextDataLayer.import_from_config(
+        model_config_file,
+        model_config_path,
+        "AudioToTextDataLayer_train",
+        overwrite_params={"manifest_filepath": args.train_dataset},
     )
 
     num_samples = len(data_layer)
-    steps_per_epoch = math.ceil(num_samples / (args.batch_size * args.iter_per_step * nf.world_size))
+    steps_per_epoch = math.ceil(num_samples / (data_layer.batch_size * args.iter_per_step * nf.world_size))
     total_steps = steps_per_epoch * args.num_epochs
     logging.info("Train samples=", num_samples, "num_steps=", total_steps)
 
@@ -49,13 +55,19 @@ def create_dags(jasper_params, args, nf):
     #     **jasper_params['SpectrogramAugmentation']
     # )
 
-    eval_dl_params = copy.deepcopy(jasper_params["AudioToTextDataLayer"])
-    eval_dl_params.update(jasper_params["AudioToTextDataLayer"]["eval"])
-    del eval_dl_params["train"]
-    del eval_dl_params["eval"]
+    # eval_dl_params = copy.deepcopy(jasper_params["AudioToTextDataLayer"])
+    # eval_dl_params.update(jasper_params["AudioToTextDataLayer"]["eval"])
+    # del eval_dl_params["train"]
+    # del eval_dl_params["eval"]
 
-    data_layer_eval = nemo_asr.AudioToTextDataLayer(
-        manifest_filepath=args.eval_datasets, labels=vocab, batch_size=args.eval_batch_size, **eval_dl_params,
+    # data_layer_eval = nemo_asr.AudioToTextDataLayer(
+    #    manifest_filepath=args.eval_datasets, labels=vocab, batch_size=args.eval_batch_size, **eval_dl_params,
+    # )
+    data_layer_eval = nemo_asr.AudioToTextDataLayer.import_from_config(
+        model_config_file,
+        model_config_path,
+        "AudioToTextDataLayer_eval",
+        overwrite_params={"manifest_filepath": args.eval_datasets},
     )
 
     num_samples = len(data_layer_eval)
@@ -107,6 +119,7 @@ def create_dags(jasper_params, args, nf):
         tb_writer=nf.tb_writer,
     )
     callbacks = [train_callback, checkpointer_callback, eval_callback]
+
     return (
         loss,
         eval_tensors,
@@ -135,14 +148,13 @@ def main():
     parser.add_argument("--beta1", default=0.95, type=float)
     parser.add_argument("--beta2", default=0.25, type=float)
     parser.set_defaults(
-        model_config="./configs/jasper_an4.yaml",
+        model_config_path="./configs/",
+        model_config="jasper_an4.yaml",
         train_dataset="~/TestData/an4_dataset/an4_train.json",
         eval_datasets="~/TestData/an4_dataset/an4_val.json",
         work_dir="./tmp",
         optimizer="novograd",
         num_epochs=50,
-        batch_size=48,
-        eval_batch_size=64,
         lr=0.02,
         weight_decay=0.005,
         checkpoint_save_freq=1000,
@@ -170,11 +182,11 @@ def main():
 
     # Load model definition
     yaml = YAML(typ="safe")
-    with open(args.model_config) as f:
+    with open(args.model_config_path + args.model_config) as f:
         jasper_params = yaml.load(f)
 
     (loss, eval_tensors, callbacks, total_steps, vocab, log_probs_e, encoded_len_e,) = create_dags(
-        jasper_params, args, nf
+        jasper_params, args.model_config, args.model_config_path, args, nf
     )
 
     nf.train(
