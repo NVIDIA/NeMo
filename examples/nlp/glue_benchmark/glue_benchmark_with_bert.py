@@ -61,7 +61,6 @@ WNLI	Accuracy	                    43.66
 """
 
 import argparse
-import json
 import os
 
 from transformers import BertConfig
