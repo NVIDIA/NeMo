@@ -26,8 +26,8 @@ from nemo.collections.nlp.callbacks.machine_translation_callback import (
     eval_epochs_done_callback_wer,
     eval_iter_callback,
 )
-from nemo.core.callbacks import CheckpointCallback
 from nemo.core import WeightShareTransform
+from nemo.core.callbacks import CheckpointCallback
 from nemo.utils.lr_policies import SquareAnnealing
 
 parser = nemo.utils.NemoArgParser(description='ASR postprocessor')
