@@ -11,28 +11,56 @@ pipeline {
   }
   stages {
 
-    stage('PyTorch version') {
+    stage('L0: PyTorch version') {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
       }
     }
-    stage('Install test requirements') {
+    stage('L0: Install test requirements') {
       steps {
         sh 'apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt'
       }
     }
-    stage('Code formatting checks') {
+    stage('L0: Code formatting checks') {
       steps {
         sh 'python setup.py style'
       }
     }
-    stage('Unittests ALL') {
+    stage('L0: Unittests ALL') {
       steps {
         sh './reinstall.sh && python -m unittest'
       }
     }
 
-     stage('Parallel NLP-BERT pretraining') {
+    stage('L1: Parallel Stage1') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest()
+        }
+      }
+      failFast true
+      parallel {
+        stage('Simplest test') {
+          steps {
+            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=0 python simplest_example.py'
+          }
+        }
+        stage ('Chatbot test') {
+          steps {
+            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=1 python chatbot_example.py'
+          }
+        }
+      }
+    }
+
+    stage('L1: Parallel NLP-BERT pretraining') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest()
+        }
+      }
       failFast true
       parallel { 
         stage('BERT on the fly preprocessing') {
@@ -52,25 +80,13 @@ pipeline {
       }
     }
 
-    stage('Parallel Stage1') {
-      failFast true
-      parallel {
-        stage('Simplest test') {
-          steps {
-            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=0 python simplest_example.py'
-          }
-        }
-        stage ('Chatbot test') {
-          steps {
-            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=1 python chatbot_example.py'
-          }
+    stage('L1: Parallel NLP Examples 1') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest()
         }
       }
-    }
-
-   
-
-    stage('Parallel NLP Examples 1') {
       failFast true
       parallel {
         stage ('Text Classification with BERT Test') {
@@ -95,7 +111,13 @@ pipeline {
     }
 
 
-    stage('Parallel NLP Examples 2') {
+    stage('L1: Parallel NLP Examples 2') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest()
+        }
+      }
       failFast true
       parallel {
         stage('Token Classification Training/Inference Test') {
@@ -115,9 +137,15 @@ pipeline {
       }
     }
 
-    stage('Parallel NLP-Squad') {
+    stage('L1: Parallel NLP-Squad') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest()
+        }
+      }
       failFast true
-      parallel {       
+      parallel {
         stage('BERT Squad v1.1') {
           steps {
             sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --amp_opt_level O1 --train_file /home/mrjenkins/TestData/nlp/squad_mini/v1.1/train-v1.1.json --dev_file /home/mrjenkins/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case'
@@ -135,8 +163,13 @@ pipeline {
       }
     }
 
-
-    stage('Parallel NLP-Examples 3') {
+    stage('L1: Parallel NLP-Examples 3') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest()
+        }
+      }
       failFast true
       parallel { 
         stage('asr_processing') {
@@ -156,7 +189,13 @@ pipeline {
       }
     }
 
-    stage('NLP-Intent Detection/SLot Tagging Examples - Multi-GPU') {
+    stage('L1: NLP-Intent Detection/SLot Tagging Examples - Multi-GPU') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest()
+        }
+      }
       failFast true
         steps {
           sh 'cd examples/nlp/intent_detection_slot_tagging && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py --num_gpus=2 --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis-retail --data_dir=/home/mrjenkins/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --shuffle_data --work_dir=outputs'
@@ -166,15 +205,27 @@ pipeline {
         }
       }
 
-    stage('NLP-NMT Example') {
+    stage('L1: NLP-NMT Example') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest()
+        }
+      }
       failFast true
         steps {
-	      sh 'cd examples/nlp/neural_machine_translation/ && CUDA_VISIBLE_DEVICES=0 python machine_translation_tutorial.py --max_steps 100'
+          sh 'cd examples/nlp/neural_machine_translation/ && CUDA_VISIBLE_DEVICES=0 python machine_translation_tutorial.py --max_steps 100'
           sh 'rm -rf examples/nlp/neural_machine_translation/outputs'        
       }
     }
 
-    stage('Parallel Stage Jasper / GAN') {
+    stage('L1: Parallel Stage Jasper / GAN') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest()
+        }
+      }
       failFast true
       parallel {
         // stage('Jasper AN4 O1') {
@@ -206,7 +257,13 @@ pipeline {
     //   }
     // }
 
-    stage('Multi-GPU test') {
+    stage('L1: Multi-GPU Jasper test') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest()
+        }
+      }
       failFast true
       parallel {
         stage('Jasper AN4 2 GPUs') {
@@ -218,7 +275,13 @@ pipeline {
     }
     
 
-    stage('TTS Tests') {
+    stage('L1: TTS Tests') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest()
+        }
+      }
       failFast true
       steps {
         sh 'cd examples/tts && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 tacotron2.py --max_steps=51 --model_config=configs/tacotron2.yaml --train_dataset=/home/mrjenkins/TestData/an4_dataset/an4_train.json --amp_opt_level=O1 --eval_freq=50'
