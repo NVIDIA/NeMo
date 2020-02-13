@@ -18,7 +18,7 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch import LossNM
-from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core import ChannelType, LabelsType, LogitsType, LossType, NeuralType
 
 __all__ = ['TokenClassificationLoss']
 
@@ -38,28 +38,14 @@ class TokenClassificationLoss(LossNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        logits:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
-
-        labels:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        loss_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
         """
         return {
-            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            # "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+            "labels": NeuralType(('B', 'T'), LabelsType()),
+            "loss_mask": NeuralType(('B', 'T'), ChannelType()),
         }
 
     @property
@@ -69,7 +55,7 @@ class TokenClassificationLoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, num_classes, class_weights=None):
         LossNM.__init__(self)

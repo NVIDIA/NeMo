@@ -146,7 +146,7 @@ decoder = nemo_nlp.nm.trainables.TransformerDecoderNM(
     max_seq_length=args.max_seq_length,
 )
 
-log_softmax = nemo_nlp.nm.trainables.token_classification_nm.TokenClassifier(
+log_softmax = nemo_nlp.nm.trainables.TokenClassifier(
     args.d_model, num_classes=tgt_tokenizer.vocab_size, num_layers=1, log_softmax=True
 )
 
@@ -155,13 +155,13 @@ beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     log_softmax=log_softmax,
     max_seq_length=args.max_seq_length,
     beam_size=args.beam_size,
-    bos_token=tgt_tokenizer.bos_id(),
-    pad_token=tgt_tokenizer.pad_id(),
-    eos_token=tgt_tokenizer.eos_id(),
+    bos_token=tgt_tokenizer.bos_id,
+    pad_token=tgt_tokenizer.pad_id,
+    eos_token=tgt_tokenizer.eos_id,
 )
 
 loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(
-    pad_id=tgt_tokenizer.pad_id(), label_smoothing=args.label_smoothing
+    pad_id=tgt_tokenizer.pad_id, label_smoothing=args.label_smoothing
 )
 
 if tie_weight:
@@ -261,7 +261,7 @@ def translate_sentence(text):
     output its translation
     """
     ids = src_tokenizer.text_to_ids(text)
-    ids = [src_tokenizer.bos_id()] + ids + [src_tokenizer.eos_id()]
+    ids = [src_tokenizer.bos_id] + ids + [src_tokenizer.eos_id]
     ids_tensor = torch.Tensor(ids).long().to(encoder._device).unsqueeze(0)
     ids_mask = torch.ones_like(ids_tensor)
     encoder_states = encoder.forward(ids_tensor, ids_mask)

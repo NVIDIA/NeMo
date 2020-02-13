@@ -16,11 +16,13 @@
 
 import re
 
-from transformers import BertTokenizer
+from transformers import AlbertTokenizer, BertTokenizer, RobertaTokenizer
 
 from nemo.collections.nlp.data.tokenizers.tokenizer_spec import TokenizerSpec
 
-__all__ = ['NemoBertTokenizer']
+__all__ = [
+    'NemoBertTokenizer',
+]
 
 
 def handle_quotes(text):
@@ -64,19 +66,38 @@ class NemoBertTokenizer(TokenizerSpec):
         self,
         pretrained_model=None,
         vocab_file=None,
+        bert_derivate='bert',
+        special_tokens={
+            "unk_token": "[UNK]",
+            "sep_token": "[SEP]",
+            "eos_token": "[SEP]",
+            "pad_token": "[PAD]",
+            "cls_token": "[CLS]",
+            "bos_token": "[CLS]",
+            "mask_token": "[MASK]",
+        },
         do_lower_case=True,
-        max_len=None,
-        do_basic_tokenize=True,
-        never_split=("[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]"),
     ):
-        if pretrained_model:
-            self.tokenizer = BertTokenizer.from_pretrained(pretrained_model)
-            if "uncased" not in pretrained_model:
-                self.tokenizer.basic_tokenizer.do_lower_case = False
+
+        if bert_derivate == 'bert':
+            tokenizer_cls = BertTokenizer
+        elif bert_derivate == 'albert':
+            tokenizer_cls = AlbertTokenizer
+        elif bert_derivate == 'roberta':
+            tokenizer_cls = RobertaTokenizer
+        if pretrained_model is not None:
+            self.tokenizer = tokenizer_cls.from_pretrained(pretrained_model)
+        elif vocab_file is not None:
+            self.tokenizer = tokenizer_cls(vocab_file=vocab_file)
         else:
-            self.tokenizer = BertTokenizer(vocab_file, do_lower_case, do_basic_tokenize)
-        self.vocab_size = len(self.tokenizer.vocab)
-        self.never_split = never_split
+            raise ValueError("either 'vocab_file' or 'pretrained_model' has to be specified")
+
+        if hasattr(self.tokenizer, "vocab"):
+            self.vocab_size = len(self.tokenizer.vocab)
+        for k, v in special_tokens.items():
+            setattr(self, k, v)
+
+        self.never_split = tuple(special_tokens.values())
 
     def text_to_tokens(self, text):
         tokens = self.tokenizer.tokenize(text)
@@ -108,11 +129,22 @@ class NemoBertTokenizer(TokenizerSpec):
         text = self.tokens_to_text(tokens_clean)
         return text
 
+    @property
     def pad_id(self):
-        return self.tokens_to_ids(["[PAD]"])[0]
+        return self.tokens_to_ids([getattr(self, 'pad_token')])[0]
 
+    @property
     def bos_id(self):
-        return self.tokens_to_ids(["[CLS]"])[0]
+        return self.tokens_to_ids([getattr(self, 'bos_token')])[0]
 
+    @property
     def eos_id(self):
-        return self.tokens_to_ids(["[SEP]"])[0]
+        return self.tokens_to_ids([getattr(self, 'eos_token')])[0]
+
+    @property
+    def sep_id(self):
+        return self.tokens_to_ids([getattr(self, 'sep_token')])[0]
+
+    @property
+    def cls_id(self):
+        return self.tokens_to_ids([getattr(self, 'cls_token')])[0]

@@ -45,12 +45,12 @@ def item_iter(manifests_files: Union[str, List[str]]) -> Iterator[Dict[str, Any]
     for manifest_file in manifests_files:
         with open(expanduser(manifest_file), 'r') as f:
             for line in f:
-                item = __parse_item(line)
+                item = __parse_item(line, manifest_file)
 
                 yield item
 
 
-def __parse_item(line: str) -> Dict[str, Any]:
+def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     item = json.loads(line)
 
     # Audio file
@@ -62,6 +62,7 @@ def __parse_item(line: str) -> Dict[str, Any]:
         raise ValueError(
             f"Manifest file {manifest_file} has invalid json line " f"structure: {line} without proper audio file key."
         )
+    item['audio_file'] = expanduser(item['audio_file'])
 
     # Duration.
     if 'duration' not in item:
