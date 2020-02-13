@@ -7,6 +7,8 @@ An ASR system typically generates text with no punctuation and capitalization of
 .. tip::
 
     We recommend you to try this example in Jupyter notebook examples/nlp/token_classification/PunctuationWithBERT.ipynb.
+    For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
+
 
 Task Description
 ----------------
