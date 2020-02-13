@@ -1,13 +1,22 @@
 Tutorial
 ========
 
-In this tutorial, we are going to implement a Question Answering system using the SQuAD dataset with pretrained BERT model based on
+In this tutorial, we are going to implement a Question Answering system using the SQuAD dataset with pretrained BERT-like models based on
 `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`_ :cite:`nlp-qa-devlin2018bert`.
-All code used in this tutorial is based on ``examples/nlp/squad.py``.
+All code used in this tutorial is based on ``examples/nlp/question_answering/question_answering.py``.
 
-There are four pre-trained BERT models that we can select from using the argument `--pretrained_bert_model`. We're currently
-using the script for loading pre-trained models from `transformers`. See the list of available pre-trained models
+
+Currently, there are 3 pretrained back-bone models supported, on which the question answering task SQuAD can be fine-tuned:
+BERT, ALBERT and RoBERTa. These are pretrained model checkpoints from `transformers <https://huggingface.co/transformers>`__ . Apart from these, the user can also do fine-tuning
+on a custom BERT checkpoint, specified by the `--bert_checkpoint` argument.
+The pretrained back-bone models can be specified by `--model_type` and the specific model by `--pretrained_model_name`.
+See the list of available pre-trained models
 `here <https://huggingface.co/transformers/pretrained_models.html>`__. 
+
+.. tip::
+
+    For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
+
 
 
 Preliminaries
@@ -36,7 +45,7 @@ This model can work with any dataset that follows the format:
 Currently, the datasets that we provide pre-processing script for is SQuAD v1.1 and v2.0 
 which can be downloaded
 from `https://rajpurkar.github.io/SQuAD-explorer/ <https://rajpurkar.github.io/SQuAD-explorer/>`_.
-You can find the pre-processing script in ``examples/nemo_nlp/scripts/download_squad.py``.
+You can find the pre-processing script in ``examples/nlp/scripts/get_squad.py``.
 
 
 Code structure
@@ -46,7 +55,9 @@ First, we instantiate Neural Module Factory which defines 1) backend (PyTorch), 
 3) local rank of the GPU, and 4) an experiment manager that creates a timestamped folder to store checkpoints, relevant outputs, log files, and TensorBoard graphs.
 
     .. code-block:: python
-
+    
+        import nemo
+        import nemo.collections.nlp as nemo_nlp
         nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                                local_rank=args.local_rank,
                                                optimization_level=args.amp_opt_level,
@@ -60,36 +71,42 @@ This will tokenize text following the mapping of the original BERT model.
 
     .. code-block:: python
 
-        from nemo.collections.nlp import NemoBertTokenizer
-        hidden_size = pretrained_bert_model.hidden_size
-        tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
+        hidden_size = model.hidden_size
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(bert_derivate='bert', pretrained_model="bert-base-uncased")
+        # to use RoBERTa tokenizer, run e.g.
+        special_tokens_roberta = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['roberta']
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(bert_derivate='roberta', pretrained_model="roberta-base", special_tokens=special_tokens_roberta)
+        # to use Albert tokenizer, run e.g.
+        special_tokens_albert = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['albert']
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(bert_derivate='albert', pretrained_model="albert-base-v1", special_tokens=special_tokens_albert)
+
 
 Next, we define all Neural Modules participating in our question answering classification pipeline.
 
-    * Process data: the `BertQuestionAnsweringDataLayer` class in ``nemo_nlp/nemo_nlp/data/data_layers.py`` is supposed to do the preprocessing of raw data into the format data supported by `SquadDataset`.
+    * Process data: the `BertQuestionAnsweringDataLayer` is supposed to do the preprocessing of raw data into the format data supported by `SquadDataset`.
     
     Training and evaluation each require their own `BertQuestionAnsweringDataLayer`. 
     DataLayer is an extra layer to do the semantic checking for your dataset and convert it into DataLayerNM. 
 
     .. code-block:: python
 
-        data_layer = BertQuestionAnsweringDataLayer(
+        data_layer = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
+                                data_file=args.train_file,
+                                tokenizer=tokenizer,
+                                batch_size=args.batch_size,
                                 mode='train',
                                 version_2_with_negative=args.version_2_with_negative,
-                                batch_size=args.batch_size,
-                                tokenizer=tokenizer,
-                                data_dir=args.data_dir,
                                 max_query_length=args.max_query_length,
                                 max_seq_length=args.max_seq_length,
                                 doc_stride=args.doc_stride)
 
         
-        data_layer_eval = nemo_nlp.BertQuestionAnsweringDataLayer(
+        data_layer_eval = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
+                                data_file=args.dev_file,
+                                tokenizer=tokenizer,
+                                batch_size=args.batch_size,
                                 mode='dev',
                                 version_2_with_negative=args.version_2_with_negative,
-                                batch_size=args.batch_size,
-                                tokenizer=tokenizer,
-                                data_dir=args.data_dir,
                                 max_query_length=args.max_query_length,
                                 max_seq_length=args.max_seq_length,
                                 doc_stride=args.doc_stride)
@@ -97,14 +114,21 @@ Next, we define all Neural Modules participating in our question answering class
     * Load the pretrained model and get the hidden states for the corresponding inputs.
 
     .. code-block:: python
-
-        model = nemo_nlp.huggingface.BERT(args.pretrained_bert_model)
+        
+        args.pretrained_model_name = "bert-base-uncased"
+        model = nemo_nlp.nm.trainables.huggingface.BERT(args.pretrained_model_name)
+        # or for RoBERTa
+        args.pretrained_model_name = "roberta-base"
+        model = nemo_nlp.nm.trainables.huggingface.Roberta(args.pretrained_model_name)
+        # or for Albert
+        args.pretrained_model_name = "albert-base-v1"
+        model = nemo_nlp.nm.trainables.huggingface.Albert(args.pretrained_model_name)
 
     * Create the classifier head for our task.
 
     .. code-block:: python
 
-        qa_head = nemo_nlp.TokenClassifier(
+        qa_head = nemo_nlp.nm.trainables.TokenClassifier(
                                 hidden_size=hidden_size,
                                 num_classes=2,
                                 num_layers=1,
@@ -114,7 +138,7 @@ Next, we define all Neural Modules participating in our question answering class
 
     .. code-block:: python
 
-        loss_fn = nemo_nlp.QuestionAnsweringLoss()
+        loss_fn = nemo_nlp.nm.losses.QuestionAnsweringLoss()
 
     * Create the pipelines for the train and evaluation processes. 
 
@@ -201,24 +225,25 @@ Next, we define all Neural Modules participating in our question answering class
 Model training
 --------------
 
-To train a question answering model on SQuAD using multi-gpu, run ``squad.py`` located at ``nemo/examples/nlp``:
+To train a question answering model on SQuAD using multi-gpu, run ``question_answering_squad.py`` located at ``examples/nlp/question_answering``:
 
     .. code-block:: python
 
-        python -m torch.distributed.launch --nproc_per_node=8 squad.py 
-            --data_dir <path to data>
+        python -m torch.distributed.launch --nproc_per_node=8 question_answering_squad.py 
+            --train_file <path to train file in *.json format>
+            --dev_file <path to evaluation file in *.json format>
             --num_gpus 8
             --work_dir <where you want to log your experiment> 
             --amp_opt_level <amp optimization level> 
-            --pretrained_bert_model <type of BERT model to use, either large or base and cased or uncased> 
+            --pretrained_model_name <type of model to use> 
             ...
 
 To do inference, run:
 
     .. code-block:: python
 
-        python -m torch.distributed.launch --nproc_per_node=8 squad.py 
-            --data_dir <path to data> 
+        python -m torch.distributed.launch --nproc_per_node=8 question_answering_squad.py 
+            --dev_file <path to evaluation file in *.json format>
             --num_gpus 8
             --checkpoint_dir <path to checkpoint folder>
             --evaluation_only
@@ -230,7 +255,7 @@ To run on a single GPU, run:
     
     .. code-block:: python
 
-        python squad.py \
+        python question_answering_squad.py \
             ...
 
 

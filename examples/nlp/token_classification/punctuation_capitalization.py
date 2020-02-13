@@ -134,8 +134,8 @@ else:
     """ Use this if you're using a BERT model that you pre-trained yourself.
     """
     if args.tokenizer == "sentencepiece":
-        tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model)
-        tokenizer.add_special_tokens(["[MASK]", "[CLS]", "[SEP]"])
+        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
+        tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model, special_tokens=special_tokens)
     elif args.tokenizer == "nemobert":
         tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
     else:

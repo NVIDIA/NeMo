@@ -44,9 +44,7 @@ def parse_args():
     parser.add_argument("--beta1", default=0.95, type=float)
     parser.add_argument("--beta2", default=0.25, type=float)
     parser.add_argument("--warmup_steps", default=0, type=int)
-    parser.add_argument(
-        "--load_dir", default=None, type=str, help="directory with pre-trained checkpoint",
-    )
+    parser.add_argument("--load_dir", default=None, type=str, help="directory with pre-trained checkpoint")
 
     args = parser.parse_args()
 

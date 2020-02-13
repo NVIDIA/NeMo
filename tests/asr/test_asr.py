@@ -404,8 +404,8 @@ class TestASRPytorch(NeMoUnitTest):
             feat_in=jasper_model_definition['AudioToMelSpectrogramPreprocessor']['features'],
             **jasper_model_definition['JasperEncoder'],
         )
-        mx_max1 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
-        mx_max2 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
+        # mx_max1 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
+        # mx_max2 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
         jasper_decoder1 = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=len(self.labels))
         jasper_decoder2 = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=len(self.labels))
 
@@ -419,8 +419,10 @@ class TestASRPytorch(NeMoUnitTest):
         encoded2, encoded_len2 = jasper_encoder2(audio_signal=processed_signal, length=p_length)
         log_probs1 = jasper_decoder1(encoder_output=encoded1)
         log_probs2 = jasper_decoder2(encoder_output=encoded2)
-        log_probs = mx_max1(x1=log_probs1, x2=log_probs2)
-        encoded_len = mx_max2(x1=encoded_len1, x2=encoded_len2)
+        # log_probs = mx_max1(x1=log_probs1, x2=log_probs2)
+        # encoded_len = mx_max2(x1=encoded_len1, x2=encoded_len2)
+        log_probs = log_probs1
+        encoded_len = encoded_len1
         loss = ctc_loss(
             log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )

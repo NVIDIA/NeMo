@@ -2,7 +2,7 @@
 import torch
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core.neural_types import *
 
 
 class GreedyCTCDecoder(TrainableNM):
@@ -13,26 +13,16 @@ class GreedyCTCDecoder(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        log_probs:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
         """
-        return {"log_probs": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
+        # return {"log_probs": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
+        return {"log_probs": NeuralType(('B', 'T', 'D'), LogprobsType())}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        predictions:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
         """
-        return {"predictions": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
+        # return {"predictions": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
+        return {"predictions": NeuralType(('B', 'T'), PredictionsType())}
 
     def __init__(self):
         super().__init__()
