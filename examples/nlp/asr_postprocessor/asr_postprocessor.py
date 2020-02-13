@@ -128,6 +128,8 @@ beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
 
 # tie all embeddings weights
 # t_log_softmax.mlp.layer0.weight = encoder.bert.embeddings.word_embeddings.weight
+# decoder.embedding_layer.token_embedding.weight = encoder.bert.embeddings.word_embeddings.weight
+# decoder.embedding_layer.position_embedding.weight = encoder.bert.embeddings.position_embeddings.weight
 t_log_softmax.tie_weights_with(
     encoder,
     weight_names=["mlp.layer0.weight"],
@@ -135,7 +137,6 @@ t_log_softmax.tie_weights_with(
         "mlp.layer0.weight": ("bert.embeddings.word_embeddings.weight", WeightShareTransform.SAME)
     },
 )
-# decoder.embedding_layer.token_embedding.weight = encoder.bert.embeddings.word_embeddings.weight
 decoder.tie_weights_with(
     encoder,
     weight_names=["embedding_layer.token_embedding.weight"],
@@ -143,7 +144,6 @@ decoder.tie_weights_with(
         "embedding_layer.token_embedding.weight": ("bert.embeddings.word_embeddings.weight", WeightShareTransform.SAME)
     },
 )
-# decoder.embedding_layer.position_embedding.weight = encoder.bert.embeddings.position_embeddings.weight
 decoder.tie_weights_with(
     encoder,
     weight_names=["embedding_layer.position_embedding.weight"],

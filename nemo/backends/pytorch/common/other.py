@@ -38,6 +38,7 @@ class SequenceEmbedding(TrainableNM):
         self.embedding = nn.Embedding(self.voc_size, self.hidden_size)
         if self.dropout != 0.0:
             self.embedding_dropout = nn.Dropout(self.dropout)
+        self.to(self._device)
 
     def forward(self, input_seq):
         embedded = self.embedding(input_seq)

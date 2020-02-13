@@ -203,6 +203,70 @@ class TestWeightSharing(NeMoUnitTest):
             np.array_equal(embd.embedding.weight.detach().cpu().numpy(), proj.mlp.layer2.weight.detach().cpu().numpy())
         )
 
+    def test_untied_weights(self):
+        class DummyDataLayer(DataLayerNM):
+            def __init__(self, vocab_size):
+                super().__init__()
+                self.vocab_size = vocab_size
+
+                class DummyDS(torch.utils.data.Dataset):
+                    def __init__(self, vocab_size):
+                        super().__init__()
+
+                    def __getitem__(self, index):
+                        model_inputs = torch.randint(high=vocab_size, size=[10])
+                        model_outputs = torch.randint(high=vocab_size, size=[10])
+                        return (model_inputs, model_outputs)
+
+                    def __len__(self):
+                        return 10
+
+                self._dataset = DummyDS(vocab_size)
+
+            @property
+            def output_ports(self):
+                return {
+                    "model_inputs": NeuralType(('B', 'T')),
+                    "model_outputs": NeuralType(('B', 'T'), LabelsType()),
+                }
+
+            def __len__(self):
+                return len(self._dataset)
+
+            @property
+            def dataset(self):
+                return self._dataset
+
+            def data_iterator(self):
+                pass
+
+        voc_size = 10
+        dim = 10
+        embd = nemo.backends.pytorch.common.other.SequenceEmbedding(voc_size=voc_size, hidden_size=dim)
+        proj = TokenClassifier(hidden_size=dim, num_classes=voc_size)
+        data = DummyDataLayer(voc_size)
+        loss = PaddedSmoothedCrossEntropyLossNM(0)
+        # embd.tie_weights_with(
+        #     proj,
+        #     weight_names=["embedding.weight"],
+        #     name2name_and_transform={"embedding.weight": ("mlp.layer2.weight", WeightShareTransform.SAME)},
+        # )
+        self.assertFalse(
+            np.array_equal(embd.embedding.weight.detach().cpu().numpy(), proj.mlp.layer2.weight.detach().cpu().numpy())
+        )
+        _in, _out = data()
+        pred = embd(input_seq=_in)
+        pred = proj(hidden_states=pred)
+        loss_t = loss(target_ids=_out, logits=pred)
+
+        self.nf.train(
+            [loss_t], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.0003},
+        )
+
+        self.assertFalse(
+            np.array_equal(embd.embedding.weight.detach().cpu().numpy(), proj.mlp.layer2.weight.detach().cpu().numpy())
+        )
+
     def test_set_weights(self):
         voc_size = 3
         dim = 2
@@ -210,9 +274,9 @@ class TestWeightSharing(NeMoUnitTest):
         weights = torch.tensor(np.random.randint(0, 10, (3, 2)) * 1.0)
         name2weights = {"embedding.weight": (weights, True)}
         embd.set_weights(name2weight=name2weights)
-        self.assertTrue(np.array_equal(embd.embedding.weight.detach().numpy(), weights.detach().numpy(),))
+        self.assertTrue(np.array_equal(embd.embedding.weight.detach().cpu().numpy(), weights.detach().cpu().numpy()))
         weights = torch.tensor(np.random.randint(0, 10, (3, 2)) * 1.0)
-        self.assertFalse(np.array_equal(embd.embedding.weight.detach().numpy(), weights.detach().numpy(),))
+        self.assertFalse(np.array_equal(embd.embedding.weight.detach().cpu().numpy(), weights.detach().cpu().numpy()))
 
     def test_freeze_unfreeze_TrainableNM(self):
         path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))
