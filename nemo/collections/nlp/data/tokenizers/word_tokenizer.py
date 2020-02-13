@@ -57,11 +57,14 @@ class WordTokenizer(TokenizerSpec):
     def ids_to_tokens(self, ids):
         return [self.inv_vocab[id] for id in ids]
 
+    @property
     def pad_id(self):
         return self.vocab["<PAD>"]
 
+    @property
     def bos_id(self):
         return self.vocab["<BOS>"]
 
+    @property
     def eos_id(self):
         return self.vocab["<EOS>"]

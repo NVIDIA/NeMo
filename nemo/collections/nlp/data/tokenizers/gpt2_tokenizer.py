@@ -72,11 +72,14 @@ class NemoGPT2Tokenizer(TokenizerSpec):
         text = self.tokens_to_text(tokens)
         return text
 
+    @property
     def pad_id(self):
         return self.tokens_to_ids([self.tokenizer.pad_token])[0]
 
+    @property
     def bos_id(self):
         return self.tokens_to_ids([self.tokenizer.bos_token])[0]
 
+    @property
     def eos_id(self):
         return self.tokens_to_ids([self.tokenizer.eos_token])[0]

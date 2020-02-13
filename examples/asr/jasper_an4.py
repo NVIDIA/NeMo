@@ -123,7 +123,7 @@ def main():
 
     # Overwrite default args
     parser.add_argument("--train_dataset", type=str, help="training dataset path")
-    parser.add_argument("--eval_datasets", type=str, nargs=1, help="validation dataset path")
+    parser.add_argument("--eval_datasets", type=str, help="validation dataset path")
 
     # Create new args
     # parser.add_argument("--lm", default="./an4-lm.3gram.binary", type=str)

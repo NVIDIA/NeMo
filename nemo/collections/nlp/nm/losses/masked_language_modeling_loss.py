@@ -16,7 +16,7 @@
 
 from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.nm.losses.smoothed_cross_entropy_loss import SmoothedCrossEntropyLoss
-from nemo.core import AxisType, BatchTag, ChannelTag, NeuralType, TimeTag
+from nemo.core import ChannelType, LogitsType, LossType, NeuralType
 
 __all__ = ['MaskedLanguageModelingLossNM']
 
@@ -32,28 +32,14 @@ class MaskedLanguageModelingLossNM(LossNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        logits:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
-
-        output_ids:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        output_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
         """
         return {
-            "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            "output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            "output_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            # "output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # "output_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+            "output_ids": NeuralType(('B', 'T'), ChannelType()),
+            "output_mask": NeuralType(('B', 'T'), ChannelType()),
         }
 
     @property
@@ -63,7 +49,7 @@ class MaskedLanguageModelingLossNM(LossNM):
         loss:
             NeuralType(None)
         """
-        return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, label_smoothing=0.0):
         LossNM.__init__(self)
