@@ -14,7 +14,6 @@
 # =============================================================================
 """This package contains Neural Modules responsible for ASR data layers."""
 
-import os
 from functools import partial
 from typing import Any, Dict, List, Optional
 
@@ -22,7 +21,7 @@ import torch
 
 import nemo
 from .parts.dataset import AudioDataset, AudioLabelDataset, KaldiFeatureDataset, TranscriptDataset, seq_collate_fn
-from .parts.features import FilterbankFeatures, WaveformFeaturizer
+from .parts.features import WaveformFeaturizer
 from .parts.perturb import AudioAugmentor, perturbation_types
 from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
