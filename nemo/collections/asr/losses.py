@@ -63,5 +63,5 @@ class CTCLossNM(LossNM):
 
 class CrossEntropyLossNM(losses.CrossEntropyLoss):
     """
-    Neural Module wrapper for pytorch's CrossEntropyLoss
+    (Alias) Neural Module wrapper for pytorch's CrossEntropyLoss
     """
