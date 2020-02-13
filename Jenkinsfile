@@ -257,7 +257,7 @@ pipeline {
     //   }
     // }
 
-    stage('L1: Multi-GPU test') {
+    stage('L1: Multi-GPU Jasper test') {
       when {
         anyOf{
           branch 'master'
