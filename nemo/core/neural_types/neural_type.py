@@ -21,7 +21,6 @@ __all__ = [
     'NeuralTypeError',
     'NeuralPortNameMismatchError',
     'NeuralPortNmTensorMismatchError',
-    'NeuralPortNmTensorMismatchError',
     'CanNotInferResultNeuralType',
 ]
 import uuid
@@ -45,6 +44,12 @@ class NeuralType(object):
         optional (bool): By default, this is false. If set to True, it would means that input to the port of this
             type can be optional.
     """
+
+    def __str__(self):
+        return (
+            f"axes: {[(c.kind, c.size, c.is_list) for c in self.axes]}\n"
+            f"elements_type: {self.elements_type.__class__.__name__}"
+        )
 
     def __init__(self, axes: Optional[Tuple] = None, elements_type: ElementType = VoidType(), optional=False):
         if not isinstance(elements_type, ElementType):
