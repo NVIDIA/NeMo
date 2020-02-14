@@ -14,10 +14,11 @@
 # limitations under the License.
 # =============================================================================
 
+import torch
+
 from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.utils.loss_utils import mask_padded_tokens
 from nemo.core import LabelsType, LogitsType, LossType, NeuralType
-import torch
 
 __all__ = ['SmoothedCrossEntropyLossNM']
 

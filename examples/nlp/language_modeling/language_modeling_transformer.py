@@ -109,9 +109,7 @@ log_softmax = nemo.collections.nlp.nm.trainables.common.token_classification_nm.
     args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
 )
 
-loss = nemo_nlp.nm.losses.SmoothedCrossEntropyLossNM(
-    pad_id=tokenizer.pad_id, label_smoothing=args.label_smoothing
-)
+loss = nemo_nlp.nm.losses.SmoothedCrossEntropyLossNM(pad_id=tokenizer.pad_id, label_smoothing=args.label_smoothing)
 
 # tie weight of embedding and log_softmax layers
 # log_softmax.mlp.last_linear_layer.weight = encoder.embedding_layer.token_embedding.weight

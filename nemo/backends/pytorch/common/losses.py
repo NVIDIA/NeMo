@@ -137,8 +137,8 @@ class CrossEntropyLoss(LossNM):
         self._criterion = nn.CrossEntropyLoss(weight=weight, reduce=reduce)
 
     def _loss_function(self, logits, labels):
-        #logits_flatten = logits.view(-1, logits.size)
-        #labels_flatten = labels.view(-1)
+        # logits_flatten = logits.view(-1, logits.size)
+        # labels_flatten = labels.view(-1)
         logits_flatten = torch.flatten(logits, start_dim=0, end_dim=-2)
         labels_flatten = torch.flatten(labels, start_dim=0, end_dim=-1)
         loss = self._criterion(logits_flatten, labels_flatten)
