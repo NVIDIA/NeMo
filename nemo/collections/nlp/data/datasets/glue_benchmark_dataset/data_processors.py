@@ -3,7 +3,8 @@ import os
 
 from nemo import logging
 
-__all__ = ['ColaProcessor',
+__all__ = [
+    'ColaProcessor',
     'MnliProcessor',
     'MnliMismatchedProcessor',
     'MrpcProcessor',
@@ -12,7 +13,9 @@ __all__ = ['ColaProcessor',
     'QqpProcessor',
     'QnliProcessor',
     'RteProcessor',
-    'WnliProcessor']
+    'WnliProcessor',
+]
+
 
 class DataProcessor(object):
     """Base class for data converters for sequence classification data sets."""

@@ -37,9 +37,8 @@ from nemo.collections.nlp.metrics.squad_metrics import (
     get_final_text,
     make_eval_dict,
     merge_eval,
-    normalize_answer,
 )
-from nemo.collections.nlp.utils.common_nlp_utils import _is_whitespace
+from nemo.collections.nlp.utils.common_nlp_utils import _is_whitespace, normalize_answer
 from nemo.collections.nlp.utils.loss_utils import _compute_softmax
 
 __all__ = ['SquadDataset']
@@ -534,5 +533,3 @@ class SquadExample(object):
             self.end_position = char_to_word_offset[
                 min(start_position_character + len(answer_text) - 1, len(char_to_word_offset) - 1)
             ]
-
-

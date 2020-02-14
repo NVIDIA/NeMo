@@ -29,11 +29,10 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from nemo import logging
-
-__all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataset']
-
 from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import DATABASE_EXISTS_TMP
 from nemo.collections.nlp.utils import if_exist
+
+__all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataset']
 
 
 class BertPretrainingDataset(Dataset):
@@ -396,7 +395,6 @@ class BERTPretrainingDataDesc:
         self.train_file = f'{data_dir}/train.txt'
         self.eval_file = f'{data_dir}/valid.txt'
         self.test_file = f'{data_dir}/test.txt'
-
 
     def create_vocab_mlm(
         data_dir, vocab_size, sample_size, special_tokens=['[PAD]', '[UNK]', '[CLS]', '[SEP]', '[MASK]'], train_file=''

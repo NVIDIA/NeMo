@@ -22,8 +22,9 @@ https://github.com/huggingface/transformers
 
 import numpy as np
 from torch.utils.data import Dataset
-from nemo.collections.nlp.data.datasets.glue_benchmark_dataset.data_processors import *
+
 from nemo import logging
+from nemo.collections.nlp.data.datasets.glue_benchmark_dataset.data_processors import *
 
 __all__ = ['GLUEDataset']
 
@@ -63,6 +64,7 @@ GLUE_TASKS_NUM_LABELS = {
     "wnli": 2,
 }
 
+
 class GLUEDataset(Dataset):
     def __init__(self, data_dir, tokenizer, max_seq_length, processor, output_mode, evaluate, token_params):
         self.tokenizer = tokenizer
@@ -83,7 +85,6 @@ class GLUEDataset(Dataset):
             np.array(feature.input_mask, dtype=np.long),
             np.array(feature.label_id),
         )
-
 
     def convert_examples_to_features(
         examples,
@@ -235,7 +236,6 @@ class GLUEDataset(Dataset):
             )
         return features
 
-
     def _truncate_seq_pair(tokens_a, tokens_b, max_length):
         """Truncates a sequence pair in place to the maximum length.
 
@@ -253,7 +253,6 @@ class GLUEDataset(Dataset):
             else:
                 tokens_b.pop()
 
-
     """
     Utility functions for GLUE tasks
     This code was adapted from the HuggingFace library at
@@ -269,6 +268,3 @@ class InputFeatures(object):
         self.input_mask = input_mask
         self.segment_ids = segment_ids
         self.label_id = label_id
-
-
-

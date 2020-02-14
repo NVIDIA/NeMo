@@ -21,7 +21,7 @@ import collections
 from transformers.tokenization_bert import BasicTokenizer
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils import get_tokens, normalize_answer
+from nemo.collections.nlp.utils.common_nlp_utils import get_tokens, normalize_answer
 
 __all__ = [
     'f1_score',
@@ -31,7 +31,6 @@ __all__ = [
     'merge_eval',
     'find_all_best_thresh',
     'find_best_thresh',
-    'normalize_answer',
     '_get_best_indexes',
     'get_final_text',
 ]

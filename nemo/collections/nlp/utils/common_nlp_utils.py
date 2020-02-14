@@ -34,6 +34,8 @@ __all__ = [
     'remove_punctuation_from_sentence',
     'ids2text',
     'calc_class_weights',
+    'get_tokens',
+    'normalize_answer',
 ]
 
 
@@ -142,3 +144,28 @@ def calc_class_weights(label_freq):
     most_common_label_freq = label_freq[0]
     weighted_slots = sorted([(index, most_common_label_freq[1] / freq) for (index, freq) in label_freq])
     return [weight for (_, weight) in weighted_slots]
+
+
+def normalize_answer(s):
+    """Lower text and remove punctuation, articles and extra whitespace."""
+
+    def remove_articles(text):
+        return re.sub(r'\b(a|an|the)\b', ' ', text)
+
+    def white_space_fix(text):
+        return ' '.join(text.split())
+
+    def remove_punc(text):
+        exclude = set(string.punctuation)
+        return ''.join(ch for ch in text if ch not in exclude)
+
+    def lower(text):
+        return text.lower()
+
+    return white_space_fix(remove_articles(remove_punc(lower(s))))
+
+
+def get_tokens(s):
+    if not s:
+        return []
+    return normalize_answer(s).split()

@@ -156,7 +156,6 @@ class TranslationDataset(Dataset):
 
         return batches
 
-
     def clean_src_and_target(src_ids, tgt_ids, max_tokens=128, min_tokens=3, max_tokens_diff=25, max_tokens_ratio=2.5):
         """
         Cleans source and target sentences to get rid of noisy data.
