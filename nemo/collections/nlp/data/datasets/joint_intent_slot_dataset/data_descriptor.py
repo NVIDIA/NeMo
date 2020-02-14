@@ -3,7 +3,6 @@ import os
 
 from nemo import logging
 from nemo.collections.nlp.data import (
-    DATABASE_EXISTS_TMP,
     process_atis,
     process_dialogflow,
     process_jarvis_datasets,
@@ -12,6 +11,7 @@ from nemo.collections.nlp.data import (
 )
 from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import get_label_stats
 from nemo.collections.nlp.utils import (
+    DATABASE_EXISTS_TMP,
     calc_class_weights,
     get_vocab,
     if_exist,

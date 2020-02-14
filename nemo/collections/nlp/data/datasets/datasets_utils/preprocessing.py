@@ -39,7 +39,8 @@ __all__ = [
     'get_data',
     'reverse_dict',
     'get_intent_labels',
-    'get_stats' 'DATABASE_EXISTS_TMP',
+    'get_stats',
+    'DATABASE_EXISTS_TMP',
     'MODE_EXISTS_TMP',
     'is_whitespace',
 ]

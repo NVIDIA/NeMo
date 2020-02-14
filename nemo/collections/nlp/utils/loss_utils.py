@@ -16,7 +16,7 @@
 
 import math
 
-__all__ = ['_compute_softmax']
+__all__ = ['_compute_softmax', 'mask_padded_tokens']
 
 
 def _compute_softmax(scores):
@@ -40,3 +40,8 @@ def _compute_softmax(scores):
     for score in exp_scores:
         probs.append(score / total_sum)
     return probs
+
+
+def mask_padded_tokens(tokens, pad_id):
+    mask = tokens != pad_id
+    return mask

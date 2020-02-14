@@ -231,7 +231,7 @@ else:
     else:
         model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
     model.restore_from(args.bert_checkpoint)
-    logging.info(f"model resotred from {args.bert_checkpoint}")
+    logging.info(f"model restored from {args.bert_checkpoint}")
 
 hidden_size = model.hidden_size
 
