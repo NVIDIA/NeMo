@@ -70,7 +70,7 @@ class GLUEDataset(Dataset):
         self.tokenizer = tokenizer
         self.label_list = processor.get_labels()
         self.examples = processor.get_dev_examples(data_dir) if evaluate else processor.get_train_examples(data_dir)
-        self.features = convert_examples_to_features(
+        self.features = self.convert_examples_to_features(
             self.examples, self.label_list, max_seq_length, tokenizer, output_mode, **token_params
         )
 
@@ -87,6 +87,7 @@ class GLUEDataset(Dataset):
         )
 
     def convert_examples_to_features(
+        self,
         examples,
         label_list,
         max_seq_length,
@@ -153,7 +154,7 @@ class GLUEDataset(Dataset):
                 special_tokens_count += 1 if sep_token_extra else 0
                 special_tokens_count += 2 if bos_token else 0
                 special_tokens_count += 1 if cls_token else 0
-                _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - special_tokens_count)
+                self._truncate_seq_pair(tokens_a, tokens_b, max_seq_length - special_tokens_count)
             else:
                 special_tokens_count = 1 if eos_token else 0
                 special_tokens_count += 1 if sep_token_extra else 0
@@ -236,7 +237,7 @@ class GLUEDataset(Dataset):
             )
         return features
 
-    def _truncate_seq_pair(tokens_a, tokens_b, max_length):
+    def _truncate_seq_pair(self, tokens_a, tokens_b, max_length):
         """Truncates a sequence pair in place to the maximum length.
 
          This will always truncate the longer sequence one token at a time.
