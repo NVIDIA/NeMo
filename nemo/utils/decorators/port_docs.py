@@ -78,7 +78,7 @@ def add_port_docs(wrapped=None, instance=None, value=''):
     port_description = ""
     if port_2_ntype is not None:
         for port, ntype in port_2_ntype.items():
-            port_description += "* " + port + " : " + str(ntype)
+            port_description += "* *" + port + "* : " + str(ntype)
             port_description += "\n\n"
 
     __doc__ = _normalize_docstring(wrapped.__doc__) + '\n\n' + str(port_description)

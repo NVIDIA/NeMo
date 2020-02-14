@@ -33,9 +33,10 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
-import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from tests.common_setup import NeMoUnitTest
+
+logging = nemo.logging
 
 
 class TestDeployExport(NeMoUnitTest):
@@ -82,7 +83,7 @@ class TestDeployExport(NeMoUnitTest):
                 inputs[input_name] = (
                     input_example[i].cpu().numpy() if isinstance(input_example, tuple) else input_example.cpu().numpy()
                 )
-            print('Execution Providers: ', ort_session.get_providers())
+            logging.info('Execution Providers: ', ort_session.get_providers())
             outputs_scr = ort_session.run(None, inputs)
             outputs_scr = torch.from_numpy(outputs_scr[0]).cuda()
         elif mode == nemo.core.DeploymentFormat.TORCHSCRIPT:
@@ -106,6 +107,8 @@ class TestDeployExport(NeMoUnitTest):
 
         if out.exists():
             os.remove(out)
+        if mode == nemo.core.DeploymentFormat.PYTORCH and out.with_suffix(out.suffix + ".json").exists():
+            os.remove(out.with_suffix(out.suffix + ".json"))
 
     def __test_export_route_all(self, module, out_name, input_example=None):
         if input_example is not None:

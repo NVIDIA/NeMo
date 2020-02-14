@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-
 """
 
 To pretrain BERT on raw text dataset run
@@ -70,6 +69,15 @@ python -m torch.distributed.launch --nproc_per_node=8 bert_pretraining.py \
 
 350000 iterations on a DGX1 with 8 V100 32GB GPUs with AMP O1 optimization
 should finish under 5 days and yield an MRPC score of ACC/F1 85.05/89.35.
+
+More information about BERT pretraining can be found at 
+https://nvidia.github.io/NeMo/nlp/bert_pretraining.html
+
+Pretrained BERT models can be found at 
+https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo
+https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo
+https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo
+
 """
 import argparse
 import math
@@ -215,7 +223,14 @@ if not args.only_mlm_loss:
 # tie weights of MLM softmax layer and embedding layer of the encoder
 if mlm_classifier.mlp.last_linear_layer.weight.shape != bert_model.bert.embeddings.word_embeddings.weight.shape:
     raise ValueError("Final classification layer does not match embedding " "layer.")
-mlm_classifier.mlp.last_linear_layer.weight = bert_model.bert.embeddings.word_embeddings.weight
+# mlm_classifier.mlp.last_linear_layer.weight = bert_model.bert.embeddings.word_embeddings.weight
+mlm_classifier.tie_weights_with(
+    bert_model,
+    weight_names=["mlp.last_linear_layer.weight"],
+    name2name_and_transform={
+        "mlp.last_linear_layer.weight": ("bert.embeddings.word_embeddings.weight", nemo_core.WeightShareTransform.SAME)
+    },
+)
 
 
 def create_pipeline(data_file, batch_size, preprocessed_data=False, batches_per_step=1, **kwargs):

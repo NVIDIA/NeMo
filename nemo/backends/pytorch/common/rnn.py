@@ -127,7 +127,7 @@ class DecoderRNN(TrainableNM):
         )
         self.out = nn.Linear(hidden_size, voc_size)
         if tie_emb_out_weights:
-            self.out.weight = self.embedding.weight  # Weight tying
+            self.out.weight = nn.Parameter(self.embedding.weight)  # Weight tying
         self.attention = Attention(hidden_size, attention_method, dropout=attn_dropout)
 
         # self.apply(init_weights)
