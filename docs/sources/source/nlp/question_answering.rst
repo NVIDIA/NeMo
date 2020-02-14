@@ -13,6 +13,12 @@ The pretrained back-bone models can be specified by `--model_type` and the speci
 See the list of available pre-trained models
 `here <https://huggingface.co/transformers/pretrained_models.html>`__. 
 
+.. tip::
+
+    For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
+
+
+
 Preliminaries
 -------------
 
