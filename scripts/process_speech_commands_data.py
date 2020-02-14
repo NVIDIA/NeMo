@@ -105,7 +105,7 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False):
 
             sample = (label, entry)
 
-            if uid not in (valset, testset):
+            if uid not in valset and uid not in testset:
                 if label in label_count:
                     label_count[label] += 1
                 else:
