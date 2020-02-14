@@ -3,7 +3,7 @@
 import torch
 
 import nemo
-from .metrics import word_error_rate
+from .metrics import classification_accuracy, word_error_rate
 
 logging = nemo.logging
 
@@ -73,6 +73,49 @@ def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER', t
     logging.info(f'{tag}: {wer * 100 : 5.2f}%')
     logging.info(f'Prediction: {hypotheses[0]}')
     logging.info(f'Reference: {references[0]}')
+
+
+def monitor_classification_training_progress(tensors: list, eval_metric='TOP@1', tb_logger=None):
+    """
+    Computes the top k classification accuracy of the model being trained.
+    Prints sample to screen, computes and  and logs a list of top k accuracies
+    to console and (optionally) Tensorboard
+
+    Args:
+      tensors: A list of 2 tensors (logits, targets)
+      eval_metric: An optional string of the format "top{k}" where k is any
+        integer in the range [1, max_classes]. Computes either 1 or 2 top k
+        scores depending on k specified. If `k` > 1, both top_1 and top_`k`
+        will be logged. Defaults to 'top1'.
+      tb_logger: Tensorboard logging object
+
+    Returns:
+      None
+    """
+    eval_top = eval_metric.upper().replace('TOP@', '')
+    try:
+        top_k = int(eval_top)
+        top_k = [top_k]
+
+        # If top k is greater than 1, also register top@1 accuracy
+        if top_k[0] > 1:
+            top_k.insert(0, 1)
+
+    except ValueError:
+        raise ValueError('eval_metric must be a string in the format `TOP@{int}`.')
+
+    with torch.no_grad():
+        logits, targets = tensors[1:]
+        topk_acc = classification_accuracy(logits, targets, top_k=top_k)
+
+    tag = 'training_batch_top@{0}'
+    nemo.logging.info(f'Loss: {tensors[0]}')
+
+    for k, acc in zip(top_k, topk_acc):
+        if tb_logger is not None:
+            tb_logger.add_scalar(tag.format(k), acc)
+
+        nemo.logging.info(f"{tag.format(k)}: {acc * 100.: 3.4f}")
 
 
 def __gather_losses(losses_list: list) -> list:
@@ -165,3 +208,91 @@ def post_process_predictions(predictions, labels):
 
 def post_process_transcripts(transcript_list, transcript_len_list, labels):
     return __gather_transcripts(transcript_list, transcript_len_list, labels=labels)
+
+
+def process_classification_evaluation_batch(tensors: dict, global_vars: dict, top_k: list = 1):
+    """
+    Creates a dictionary holding the results from a batch of samples
+    """
+    if 'EvalLoss' not in global_vars.keys():
+        global_vars['EvalLoss'] = []
+    if 'batchsize' not in global_vars.keys():
+        global_vars['batchsize'] = []
+
+    if isinstance(top_k, int):
+        top_k = [top_k]
+
+    top_k = sorted(top_k)
+
+    for k in top_k:
+        if f'CorrectCount@{k}' not in global_vars.keys():
+            global_vars[f'CorrectCount@{k}'] = []
+
+    logits = None
+    labels = None
+
+    for kv, v in tensors.items():
+        if kv.startswith('loss'):
+            global_vars['EvalLoss'] += __gather_losses(v)
+        elif kv.startswith('logits'):
+            logits = torch.cat(v, 0)  # if len(v) > 1 else v
+        elif kv.startswith('label'):
+            labels = torch.cat(v, 0)  # if len(v) > 1 else v
+
+    batch_size = labels.size(0)
+    global_vars['batchsize'] += [batch_size]
+
+    with torch.no_grad():
+        topk_acc = classification_accuracy(logits, labels, top_k=top_k)
+
+    for k, acc in zip(top_k, topk_acc):
+        # Accuracy is provided as a percentage, we require the count of correct samples
+        # Therefore multiply by batch size to get count of correctly predicted samples
+        global_vars[f'CorrectCount@{k}'] += [acc * batch_size]
+
+
+def process_classification_evaluation_epoch(global_vars: dict, eval_metric='TOP@1', tag=None):
+    """
+    Calculates the aggregated loss and WER across the entire evaluation dataset
+    """
+    eval_top = eval_metric.upper().replace('TOP@', '')
+    try:
+        top_k = int(eval_top)
+        top_k = [top_k]
+
+        # If top k is greater than 1, also register top@1 accuracy
+        if top_k[0] > 1:
+            top_k.insert(0, 1)
+            top_k = sorted(top_k)
+
+    except ValueError:
+        raise ValueError('eval_metric must be a string in the format `TOP@{int}`.')
+
+    eloss = torch.mean(torch.stack(global_vars['EvalLoss'])).item()
+    batch_sizes = global_vars['batchsize']
+    total_num_samples = torch.tensor(batch_sizes).sum().float()
+
+    topk_accs = []
+    for k in top_k:
+        correct_counts = torch.tensor(global_vars[f'CorrectCount@{k}'])
+        topk_acc = correct_counts.sum() / total_num_samples
+        topk_accs.append(topk_acc)
+
+    if tag is None:
+        logs = {"Evaluation_Loss": eloss}
+
+        nemo.logging.info(f"==========>>>>>>Evaluation Loss: {eloss}")
+        for k, acc in zip(top_k, topk_accs):
+            nemo.logging.info(f"==========>>>>>>Evaluation Accuracy Top@{k}: {acc * 100.:3.4f}")
+            logs[f'Evaluation_Accuracy_Top@{k}'] = acc * 100.0
+
+        return logs
+    else:
+        logs = {f"Evaluation_Loss {tag}": eloss}
+
+        nemo.logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
+        for k, acc in zip(top_k, topk_accs):
+            nemo.logging.info(f"==========>>>>>>Evaluation Accuracy Top@{k} {tag}: {acc * 100.:3.4f}")
+            logs[f'Evaluation_Accuracy_Top@{k} {tag}'] = acc * 100.0
+
+        return logs
