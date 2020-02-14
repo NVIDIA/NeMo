@@ -15,14 +15,17 @@ These models are trained on Google Speech Commands dataset (V1 - all 30 classes)
 
 `QuartzNet paper <https://arxiv.org/abs/1910.10261>`_.
 
+These QuartzNet models were trained for 200 epochs using mixed precision on 2 GPUs with a batch size of 128 over 200 epochs.
+On 2 Quadro GV100 GPUs, training time is approximately 1 hour.
+
 =============================== ===================== ============
 Network                         Dataset               Results
 =============================== ===================== ============
-QuartzNet5x1 (1M params)        Speech Commands V1    98.52% Test
+QuartzNet5x1 (1M params)        Speech Commands V1    97.50% Test
 
-QuartzNet5x1 (0.48M params)     Speech Commands V1    98.41% Test
+QuartzNet5x1 (0.48M params)     Speech Commands V1    97.50% Test
 
-QuartzNet3x1 (0.077M params)    Speech Commands V1    97.65% Test
+QuartzNet3x1 (0.077M params)    Speech Commands V1    97.46% Test
 =============================== ===================== ============
 
 Squeeze-Excitation QuartzNet
@@ -39,15 +42,22 @@ The Temporal Squeeze and Excitation sub-module can be described as below :cite:`
         :align: center
         :alt: temporal squeeze excitation sub-module
 
+Squeeze and Excitation submodule increases the parameter count of the model by 5-8%, and does not add
+significant cost to training time.
+
+These SE-QuartzNet models were trained for 200 epochs using mixed precision on 2 GPUs with a batch size of 128 over 200 epochs.
+On 2 Quadro GV100 GPUs, training time is approximately 1 hour.
+
+
 
 =============================== ===================== ============
 Network                         Dataset               Results
 =============================== ===================== ============
-SE-QuartzNet5x1 (1M params)     Speech Commands V1    98.27% Test
+SE-QuartzNet5x1 (1M params)     Speech Commands V1    97.50% Test
 
-SE-QuartzNet5x1 (0.51M params)  Speech Commands V1    98.26% Test
+SE-QuartzNet5x1 (0.51M params)  Speech Commands V1    97.53% Test
 
-SE-QuartzNet3x1 (0.08M params)  Speech Commands V1    97.88% Test
+SE-QuartzNet3x1 (0.08M params)  Speech Commands V1    97.22% Test
 =============================== ===================== ============
 
 
