@@ -24,7 +24,7 @@ import nemo.collections.nlp.nm.data_layers.text_classification_datalayer
 import nemo.collections.nlp.nm.trainables.common.sequence_classification_nm
 from nemo import logging
 from nemo.collections.nlp.callbacks.text_classification_callback import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data.datasets.text_classification_dataset import SentenceClassificationDataDesc
+from nemo.collections.nlp.data.datasets.text_classification_dataset import TextClassificationDataDesc
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
@@ -93,7 +93,7 @@ else:
 hidden_size = pretrained_bert_model.hidden_size
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
-data_desc = SentenceClassificationDataDesc(args.dataset_name, args.data_dir, args.do_lower_case)
+data_desc = TextClassificationDataDesc(args.dataset_name, args.data_dir, args.do_lower_case)
 
 # Create sentence classification loss on top
 classifier = nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier(

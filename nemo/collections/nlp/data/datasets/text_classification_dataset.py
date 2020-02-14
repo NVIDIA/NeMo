@@ -27,17 +27,20 @@ from torch.utils.data import Dataset
 
 from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import (
-    get_intent_labels,
-    get_label_stats,
-    get_stats,
     process_imdb,
     process_jarvis_datasets,
     process_nlu,
     process_sst_2,
     process_thucnews,
 )
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import (
+    calc_class_weights,
+    get_intent_labels,
+    get_label_stats,
+    get_stats,
+    if_exist,
+)
 from nemo.collections.nlp.utils.callback_utils import list2str
-from nemo.collections.nlp.utils.common_nlp_utils import calc_class_weights, if_exist
 
 __all__ = ['BertTextClassificationDataset']
 
@@ -177,7 +180,7 @@ class InputFeatures(object):
         self.segment_ids = segment_ids
 
 
-class SentenceClassificationDataDesc:
+class TextClassificationDataDesc:
     def __init__(self, dataset_name, data_dir, do_lower_case):
         if dataset_name == 'sst-2':
             self.data_dir = process_sst_2(data_dir)

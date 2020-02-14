@@ -13,10 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-
-from nemo.collections.nlp.data.datasets import datasets_utils
-from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import GLUEDataset
-from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import (
+from nemo.collections.nlp.data.datasets.glue_benchmark_dataset.glue_benchmark_dataset import GLUEDataset
+from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.joint_intent_slot_dataset import (
     BertJointIntentSlotDataset,
     BertJointIntentSlotInferDataset,
 )
@@ -26,12 +24,12 @@ from nemo.collections.nlp.data.datasets.lm_bert_dataset import (
 )
 from nemo.collections.nlp.data.datasets.lm_transformer_dataset import LanguageModelingDataset
 from nemo.collections.nlp.data.datasets.machine_translation_dataset import TranslationDataset
+from nemo.collections.nlp.data.datasets.multiwoz_dataset import *
 from nemo.collections.nlp.data.datasets.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
     BertPunctuationCapitalizationInferDataset,
 )
-from nemo.collections.nlp.data.datasets.qa_squad_dataset import SquadDataset
-from nemo.collections.nlp.data.datasets.state_tracking_trade_dataset import *
+from nemo.collections.nlp.data.datasets.qa_squad_dataset.qa_squad_dataset import SquadDataset
 from nemo.collections.nlp.data.datasets.text_classification_dataset import BertTextClassificationDataset
 from nemo.collections.nlp.data.datasets.token_classification_dataset import (
     BertTokenClassificationDataset,
