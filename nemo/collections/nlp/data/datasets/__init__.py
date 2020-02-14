@@ -24,7 +24,7 @@ from nemo.collections.nlp.data.datasets.lm_bert_dataset import (
 )
 from nemo.collections.nlp.data.datasets.lm_transformer_dataset import LanguageModelingDataset
 from nemo.collections.nlp.data.datasets.machine_translation_dataset import TranslationDataset
-from nemo.collections.nlp.data.datasets.multiWOZ_dataset import *
+from nemo.collections.nlp.data.datasets.multiwoz_dataset import *
 from nemo.collections.nlp.data.datasets.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
     BertPunctuationCapitalizationInferDataset,
