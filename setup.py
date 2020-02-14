@@ -33,7 +33,7 @@ def is_build_action():
     if len(sys.argv) <= 1:
         return False
 
-    BUILD_TOKENS = ["egg_info", "dist", "bdist", "sdist", "install", "build", "develop"]
+    BUILD_TOKENS = ["egg_info", "dist", "bdist", "sdist", "install", "build", "develop", "style"]
 
     if any([sys.argv[1].startswith(x) for x in BUILD_TOKENS]):
         return True
