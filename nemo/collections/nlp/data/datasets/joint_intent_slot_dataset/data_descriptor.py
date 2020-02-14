@@ -9,16 +9,12 @@ from nemo.collections.nlp.data import (
     process_mturk,
     process_snips,
 )
-from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import get_label_stats
-from nemo.collections.nlp.utils import (
-    DATABASE_EXISTS_TMP,
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import (
     calc_class_weights,
-    get_vocab,
+    get_label_stats,
     if_exist,
-    label2idx,
-    list2str,
-    write_vocab_in_order,
 )
+from nemo.collections.nlp.utils import DATABASE_EXISTS_TMP, get_vocab, list2str
 
 
 class JointIntentSlotDataDesc:
@@ -226,3 +222,16 @@ class JointIntentSlotDataDesc:
         write_vocab_in_order(intents, f'{outfold}/dict.intents.csv')
         write_vocab_in_order(slots, f'{outfold}/dict.slots.csv')
         return outfold, none_slot
+
+
+def label2idx(file):
+    lines = open(file, 'r').readlines()
+    lines = [line.strip() for line in lines if line.strip()]
+    labels = {lines[i]: i for i in range(len(lines))}
+    return labels
+
+
+def write_vocab_in_order(vocab, outfile):
+    with open(outfile, 'w') as f:
+        for key in sorted(vocab.keys()):
+            f.write(f'{vocab[key]}\n')

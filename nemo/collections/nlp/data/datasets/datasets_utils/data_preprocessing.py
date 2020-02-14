@@ -17,13 +17,15 @@
 import csv
 import json
 import os
+import pickle
 import random
+import re
+import string
 from collections import Counter
 
 import numpy as np
 
 from nemo import logging
-from nemo.collections.nlp.utils.common_nlp_utils import write_vocab
 
 __all__ = [
     'get_label_stats',
@@ -43,6 +45,11 @@ __all__ = [
     'DATABASE_EXISTS_TMP',
     'MODE_EXISTS_TMP',
     'is_whitespace',
+    'write_vocab',
+    'if_exist',
+    'remove_punctuation_from_sentence',
+    'dataset_to_ids',
+    'calc_class_weights',
 ]
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
@@ -245,3 +252,81 @@ def is_whitespace(c):
     if c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F:
         return True
     return False
+
+
+def write_vocab(items, outfile):
+    vocab = {}
+    idx = 0
+    with open(outfile, 'w') as f:
+        for item in items:
+            f.write(item + '\n')
+            vocab[item] = idx
+            idx += 1
+    return vocab
+
+
+def if_exist(outfold, files):
+    if not os.path.exists(outfold):
+        return False
+    for file in files:
+        if not os.path.exists(f'{outfold}/{file}'):
+            return False
+    return True
+
+
+def remove_punctuation_from_sentence(sentence):
+    sentence = re.sub('[' + string.punctuation + ']', '', sentence)
+    sentence = sentence.lower()
+    return sentence
+
+
+def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
+    """
+    Reads dataset from file line by line, tokenizes each line with tokenizer,
+    and returns list of lists which corresponds to ids of tokenized strings.
+
+    Args:
+        dataset: path to dataset
+        tokenizer: tokenizer to convert text into ids
+        cache_ids: if True, ids are saved to disk as pickle file
+            with similar name (e.g., data.txt --> data.txt.pkl)
+        add_bos_eos: bool, whether to add <s> and </s> symbols (e.g., for NMT)
+    Returns:
+        ids: list of ids which correspond to tokenized strings of the dataset
+    """
+
+    cached_ids_dataset = dataset + str(".pkl")
+    if os.path.isfile(cached_ids_dataset):
+        logging.info("Loading cached tokenized dataset ...")
+        ids = pickle.load(open(cached_ids_dataset, "rb"))
+    else:
+        logging.info("Tokenizing dataset ...")
+        data = open(dataset, "rb").readlines()
+        ids = []
+        for sentence in data:
+            sent_ids = tokenizer.text_to_ids(sentence.decode("utf-8"))
+            if add_bos_eos:
+                sent_ids = [tokenizer.bos_id] + sent_ids + [tokenizer.eos_id]
+            ids.append(sent_ids)
+        if cache_ids:
+            logging.info("Caching tokenized dataset ...")
+            pickle.dump(ids, open(cached_ids_dataset, "wb"))
+    return ids
+
+
+def calc_class_weights(label_freq):
+    """
+    Goal is to give more weight to the classes with less samples
+    so as to match the one with the higest frequency. We achieve this by
+    dividing the highest frequency by the freq of each label.
+    Example -
+    [12, 5, 3] -> [12/12, 12/5, 12/3] -> [1, 2.4, 4]
+
+    Here label_freq is assumed to be sorted by the frequency. I.e.
+    label_freq[0] is the most frequent element.
+
+    """
+
+    most_common_label_freq = label_freq[0]
+    weighted_slots = sorted([(index, most_common_label_freq[1] / freq) for (index, freq) in label_freq])
+    return [weight for (_, weight) in weighted_slots]

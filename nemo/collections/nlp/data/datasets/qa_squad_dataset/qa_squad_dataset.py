@@ -26,7 +26,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import is_whitespace
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import is_whitespace
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset.data_processors import DataProcessor
 from nemo.collections.nlp.data.datasets.qa_squad_dataset.qa_squad_processing import convert_examples_to_features
 from nemo.collections.nlp.metrics.squad_metrics import (

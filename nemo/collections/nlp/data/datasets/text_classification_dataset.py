@@ -33,8 +33,12 @@ from nemo.collections.nlp.data.datasets.datasets_utils import (
     process_sst_2,
     process_thucnews,
 )
-from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import get_intent_labels, get_stats
-from nemo.collections.nlp.utils import calc_class_weights, if_exist
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import (
+    calc_class_weights,
+    get_intent_labels,
+    get_stats,
+    if_exist,
+)
 from nemo.collections.nlp.utils.callback_utils import list2str
 
 __all__ = ['BertTextClassificationDataset']

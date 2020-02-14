@@ -1,7 +1,7 @@
 import json
 import os
 
-from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import partition_data, write_files
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import partition_data, write_files
 
 __all__ = [
     'get_intent_query_files_dialogflow',

@@ -29,8 +29,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import DATABASE_EXISTS_TMP
-from nemo.collections.nlp.utils import if_exist
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import DATABASE_EXISTS_TMP, if_exist
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataset']
 

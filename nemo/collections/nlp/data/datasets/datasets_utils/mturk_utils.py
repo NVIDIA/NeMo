@@ -2,13 +2,13 @@ import json
 import os
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import (
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import (
     DATABASE_EXISTS_TMP,
+    if_exist,
     partition_data,
     read_csv,
     write_files,
 )
-from nemo.collections.nlp.utils import if_exist
 
 __all__ = ['process_mturk', 'process_intent_slot_mturk', 'get_intents_mturk', 'get_slot_labels']
 

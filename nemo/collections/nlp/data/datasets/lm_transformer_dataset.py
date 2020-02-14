@@ -23,8 +23,7 @@ from examples.nlp.scripts.download_wkt2 import download_wkt2
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils.datasets_processing import dataset_to_ids
-from nemo.collections.nlp.utils.common_nlp_utils import if_exist
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import dataset_to_ids, if_exist
 
 __all__ = ['LanguageModelingDataset']
 
