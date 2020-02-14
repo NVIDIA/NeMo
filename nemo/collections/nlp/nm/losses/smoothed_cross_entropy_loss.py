@@ -15,7 +15,7 @@
 # =============================================================================
 
 from nemo.backends.pytorch import LossNM
-from nemo.collections.nlp.utils.common_nlp_utils import mask_padded_tokens
+from nemo.collections.nlp.utils.loss_utils import mask_padded_tokens
 from nemo.core import LabelsType, LogitsType, LossType, NeuralType
 import torch
 
