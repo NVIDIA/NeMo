@@ -161,7 +161,7 @@ beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     eos_token=tgt_tokenizer.eos_id,
 )
 
-loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(
+loss_fn = nemo_nlp.nm.losses.SmoothedCrossEntropyLossNM(
     pad_id=tgt_tokenizer.pad_id, label_smoothing=args.label_smoothing
 )
 

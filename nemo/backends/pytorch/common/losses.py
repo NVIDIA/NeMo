@@ -99,7 +99,10 @@ class SequenceLoss(LossNM):
 class CrossEntropyLoss(LossNM):
     """
     CrossEntropyLoss
-
+    Args:
+        logits_dim (int): dimension size of the logits tensor
+        logits (float): output of the classifier
+        labels (long): ground truth labels
     """
 
     @property
@@ -107,8 +110,10 @@ class CrossEntropyLoss(LossNM):
         """Returns definitions of module input ports.
         """
         return {
-            "logits": NeuralType(axes=('B', 'D'), elements_type=LogitsType()),
-            "labels": NeuralType(axes=tuple('B'), elements_type=LabelsType()),
+            # "logits": NeuralType(axes=('B', 'D'), elements_type=LogitsType()),
+            # "labels": NeuralType(axes=tuple('B'), elements_type=LabelsType()),
+            "logits": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 1), LogitsType()),
+            "labels": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 2), LabelsType()),
         }
 
     @property
@@ -120,14 +125,23 @@ class CrossEntropyLoss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, weight=None):
+    def __init__(self, logits_dim=2, weight=None, reduce=True):
         super().__init__()
+
+        if logits_dim < 2:
+            raise ValueError("input logits_dim should be larger than 1")
+
         if weight:
             weight = torch.FloatTensor(weight).to(self._device)
-        self._criterion = nn.CrossEntropyLoss(weight=weight)
+        self._logits_dim = logits_dim
+        self._criterion = nn.CrossEntropyLoss(weight=weight, reduce=reduce)
 
     def _loss_function(self, logits, labels):
-        loss = self._criterion(logits, labels)
+        #logits_flatten = logits.view(-1, logits.size)
+        #labels_flatten = labels.view(-1)
+        logits_flatten = torch.flatten(logits, start_dim=0, end_dim=-2)
+        labels_flatten = torch.flatten(labels, start_dim=0, end_dim=-1)
+        loss = self._criterion(logits_flatten, labels_flatten)
         return loss
 
 

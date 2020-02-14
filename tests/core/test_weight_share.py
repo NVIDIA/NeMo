@@ -28,7 +28,7 @@ from ruamel.yaml import YAML
 import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.backends.pytorch.nm import DataLayerNM
-from nemo.collections.nlp.nm.losses import PaddedSmoothedCrossEntropyLossNM
+from nemo.collections.nlp.nm.losses import SmoothedCrossEntropyLossNM
 from nemo.collections.nlp.nm.trainables.common import TokenClassifier
 from nemo.core import WeightShareTransform
 from nemo.core.neural_types import *
@@ -181,7 +181,7 @@ class TestWeightSharing(NeMoUnitTest):
         embd = nemo.backends.pytorch.common.other.SequenceEmbedding(voc_size=voc_size, hidden_size=dim)
         proj = TokenClassifier(hidden_size=dim, num_classes=voc_size)
         data = DummyDataLayer(voc_size)
-        loss = PaddedSmoothedCrossEntropyLossNM(0)
+        loss = SmoothedCrossEntropyLossNM(pad_id=0)
         embd.tie_weights_with(
             proj,
             weight_names=["embedding.weight"],
@@ -245,7 +245,7 @@ class TestWeightSharing(NeMoUnitTest):
         embd = nemo.backends.pytorch.common.other.SequenceEmbedding(voc_size=voc_size, hidden_size=dim)
         proj = TokenClassifier(hidden_size=dim, num_classes=voc_size)
         data = DummyDataLayer(voc_size)
-        loss = PaddedSmoothedCrossEntropyLossNM(0)
+        loss = SmoothedCrossEntropyLossNM(pad_id=0)
         # embd.tie_weights_with(
         #     proj,
         #     weight_names=["embedding.weight"],

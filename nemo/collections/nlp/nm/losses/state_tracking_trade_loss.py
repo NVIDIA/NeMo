@@ -39,9 +39,9 @@
 import torch
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core.neural_types import ChannelType, LabelsType, LengthsType, LogitsType, LossType, NeuralType
+from nemo.core.neural_types import LabelsType, LengthsType, LogitsType, LossType, NeuralType
 
-__all__ = ['TRADEMaskedCrossEntropy', 'CrossEntropyLoss3D']
+__all__ = ['TRADEMaskedCrossEntropy']
 
 
 class TRADEMaskedCrossEntropy(LossNM):
@@ -106,45 +106,4 @@ class TRADEMaskedCrossEntropy(LossNM):
         mask_ = mask_.float()
         losses = losses * mask_
         loss = losses.sum() / mask_.sum()
-        return loss
-
-
-class CrossEntropyLoss3D(LossNM):
-    """
-    Neural module which implements a cross entropy loss for 3d logits.
-    Args:
-        num_classes (int): number of classes in a classifier, e.g. size
-            of the vocabulary in language modeling objective
-        logits (float): output of the classifier
-        labels (long): ground truth labels
-    """
-
-    @property
-    def input_ports(self):
-        """Returns definitions of module input ports.
-        """
-        return {
-            # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(ChannelTag)}),
-            # "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            "logits": NeuralType(('B', 'D', 'D'), LogitsType()),
-            "labels": NeuralType(('B', 'D'), LabelsType()),
-        }
-
-    @property
-    def output_ports(self):
-        """Returns definitions of module output ports.
-        """
-        # return {"loss": NeuralType(None)}
-        return {"loss": NeuralType(elements_type=LossType())}
-
-    def __init__(self, num_classes, **kwargs):
-        LossNM.__init__(self, **kwargs)
-        self._criterion = torch.nn.CrossEntropyLoss()
-        self.num_classes = num_classes
-
-    def _loss_function(self, logits, labels):
-        logits_flatten = logits.view(-1, self.num_classes)
-        labels_flatten = labels.view(-1)
-
-        loss = self._criterion(logits_flatten, labels_flatten)
         return loss

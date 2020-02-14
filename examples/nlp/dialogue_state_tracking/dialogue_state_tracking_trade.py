@@ -27,6 +27,7 @@ import numpy as np
 
 import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
+import nemo.backends.pytorch as nemo_backend
 from nemo import logging
 from nemo.backends.pytorch.common import EncoderRNN
 from nemo.collections.nlp.callbacks.state_tracking_trade_callback import eval_epochs_done_callback, eval_iter_callback
@@ -97,7 +98,8 @@ decoder = nemo_nlp.nm.trainables.TRADEGenerator(
     teacher_forcing=args.teacher_forcing,
 )
 
-gate_loss_fn = nemo_nlp.nm.losses.CrossEntropyLoss3D(num_classes=len(data_desc.gating_dict))
+#gate_loss_fn = nemo_nlp.nm.losses.CrossEntropyLoss3D(num_classes=len(data_desc.gating_dict), logits_dim=3)
+gate_loss_fn = nemo_backend.losses.CrossEntropyLoss(logits_dim=3)
 ptr_loss_fn = nemo_nlp.nm.losses.TRADEMaskedCrossEntropy()
 total_loss_fn = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 

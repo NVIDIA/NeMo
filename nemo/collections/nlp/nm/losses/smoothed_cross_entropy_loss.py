@@ -14,9 +14,56 @@
 # limitations under the License.
 # =============================================================================
 
+from nemo.backends.pytorch import LossNM
+from nemo.collections.nlp.utils.common_nlp_utils import mask_padded_tokens
+from nemo.core import LabelsType, LogitsType, LossType, NeuralType
 import torch
 
-__all__ = ['SmoothedCrossEntropyLoss']
+__all__ = ['SmoothedCrossEntropyLossNM']
+
+
+class SmoothedCrossEntropyLossNM(LossNM):
+    """
+    Neural module which calculates CrossEntropyLoss and
+    1) excludes padding tokens from loss calculation
+    2) allows to use label smoothing regularization
+    3) allows to calculate loss for the desired number of last tokens
+
+    Args:
+        label_smoothing (float): label smoothing regularization coefficient
+        predict_last_k (int): how many last tokens to use for the loss
+            calculation, important for fast evaluation of LM perplexity
+    """
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+        """
+        return {
+            # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
+            # "target_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+            "target_ids": NeuralType(('B', 'T'), LabelsType()),
+        }
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+        """
+        # return {"loss": NeuralType(None)}
+        return {"loss": NeuralType(elements_type=LossType())}
+
+    def __init__(self, pad_id=None, label_smoothing=0, predict_last_k=0):
+        LossNM.__init__(self)
+
+        self._loss_fn = SmoothedCrossEntropyLoss(label_smoothing, predict_last_k)
+        self._pad_id = pad_id
+
+    def _loss_function(self, logits, target_ids):
+        if self._pad_id is not None:
+            target_ids = mask_padded_tokens(target_ids, self._pad_id).to(logits.dtype)
+        loss = self._loss_fn(logits, target_ids, target_ids)
+        return loss
 
 
 class SmoothedCrossEntropyLoss(torch.nn.Module):
