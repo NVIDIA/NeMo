@@ -38,7 +38,8 @@ from nemo.collections.nlp.metrics.squad_metrics import (
     make_eval_dict,
     merge_eval,
 )
-from nemo.collections.nlp.utils.common_nlp_utils import _is_whitespace, normalize_answer
+from nemo.collections.nlp.utils.common_nlp_utils import normalize_answer
+from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import is_whitespace
 from nemo.collections.nlp.utils.loss_utils import _compute_softmax
 
 __all__ = ['SquadDataset']
@@ -513,7 +514,7 @@ class SquadExample(object):
         #     char_to_word_offset = [0, 0, 0, 1, 1]
         #     doc_tokens = ["hi", "yo"]
         for c in self.context_text:
-            if _is_whitespace(c):
+            if is_whitespace(c):
                 prev_is_whitespace = True
             else:
                 if prev_is_whitespace:

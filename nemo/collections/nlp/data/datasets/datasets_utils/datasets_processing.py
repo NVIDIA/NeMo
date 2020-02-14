@@ -414,3 +414,5 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
             logging.info("Caching tokenized dataset ...")
             pickle.dump(ids, open(cached_ids_dataset, "wb"))
     return ids
+
+

@@ -41,6 +41,7 @@ __all__ = [
     'get_intent_labels',
     'get_stats' 'DATABASE_EXISTS_TMP',
     'MODE_EXISTS_TMP',
+    'is_whitespace'
 ]
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
@@ -237,3 +238,9 @@ def get_stats(lengths):
     )
     logging.info(f'75 percentile: {np.percentile(lengths, 75)}')
     logging.info(f'99 percentile: {np.percentile(lengths, 99)}')
+
+
+def is_whitespace(c):
+    if c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F:
+        return True
+    return False

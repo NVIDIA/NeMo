@@ -23,7 +23,6 @@ import numpy as np
 from nemo import logging
 
 __all__ = [
-    '_is_whitespace',
     'mask_padded_tokens',
     'read_intent_slot_outputs',
     'get_vocab',
@@ -36,13 +35,7 @@ __all__ = [
     'calc_class_weights',
     'get_tokens',
     'normalize_answer',
-]
-
-
-def _is_whitespace(c):
-    if c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F:
-        return True
-    return False
+    ]
 
 
 def mask_padded_tokens(tokens, pad_id):
