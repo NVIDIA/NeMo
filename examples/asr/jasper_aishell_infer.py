@@ -10,6 +10,8 @@ import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.helpers import post_process_predictions, post_process_transcripts, word_error_rate
 
+logging = nemo.logging
+
 
 def load_vocab(vocab_file):
     """
@@ -62,7 +64,7 @@ def main():
     )
 
     if args.local_rank is not None:
-        nemo.logging.info('Doing ALL GPU')
+        logging.info('Doing ALL GPU')
 
     yaml = YAML(typ="safe")
     with open(args.model_config) as f:
@@ -88,7 +90,7 @@ def main():
     )
 
     n = len(data_layer)
-    nemo.logging.info('Evaluating {0} examples'.format(n))
+    logging.info('Evaluating {0} examples'.format(n))
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"],
@@ -118,13 +120,11 @@ def main():
             num_cpus=max(os.cpu_count(), 1),
         )
 
-    nemo.logging.info('================================')
-    nemo.logging.info(f"Number of parameters in encoder: {jasper_encoder.num_weights}")
-    nemo.logging.info(f"Number of parameters in decoder: {jasper_decoder.num_weights}")
-    nemo.logging.info(
-        f"Total number of parameters in model: " f"{jasper_decoder.num_weights + jasper_encoder.num_weights}"
-    )
-    nemo.logging.info('================================')
+    logging.info('================================')
+    logging.info(f"Number of parameters in encoder: {jasper_encoder.num_weights}")
+    logging.info(f"Number of parameters in decoder: {jasper_decoder.num_weights}")
+    logging.info(f"Total number of parameters in model: " f"{jasper_decoder.num_weights + jasper_encoder.num_weights}")
+    logging.info('================================')
 
     (audio_signal_e1, a_sig_length_e1, transcript_e1, transcript_len_e1,) = data_layer()
     processed_signal_e1, p_length_e1 = data_preprocessor(input_signal=audio_signal_e1, length=a_sig_length_e1)
@@ -149,7 +149,7 @@ def main():
     greedy_hypotheses = post_process_predictions(evaluated_tensors[1], vocab)
     references = post_process_transcripts(evaluated_tensors[2], evaluated_tensors[3], vocab)
     cer = word_error_rate(hypotheses=greedy_hypotheses, references=references, use_cer=True)
-    nemo.logging.info("Greedy CER {:.2f}%".format(cer * 100))
+    logging.info("Greedy CER {:.2f}%".format(cer * 100))
 
     if args.lm_path:
         beam_hypotheses = []
@@ -160,7 +160,7 @@ def main():
                 beam_hypotheses.append(j[0][1])
 
         cer = word_error_rate(hypotheses=beam_hypotheses, references=references, use_cer=True)
-        nemo.logging.info("Beam CER {:.2f}".format(cer * 100))
+        logging.info("Beam CER {:.2f}".format(cer * 100))
 
     if args.save_logprob:
         # Convert logits to list of numpy arrays

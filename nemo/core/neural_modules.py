@@ -38,6 +38,8 @@ from .neural_types import (
 from nemo.core import NeuralModuleFactory
 from nemo.utils.decorators.deprecated import deprecated
 
+logging = nemo.logging
+
 
 class WeightShareTransform(Enum):
     """When sharing parameters, what kind of transform to apply."""
@@ -138,7 +140,7 @@ class NeuralModule(ABC):
         # Iterate over parameters and check them one by one.
         for key, variable in params.items():
             if not self.__is_of_allowed_type(variable):
-                nemo.logging.warning(
+                logging.warning(
                     "{} contains variable {} is of type {} which is not of a allowed.".format(
                         key, variable, type(variable)
                     )

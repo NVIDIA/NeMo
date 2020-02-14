@@ -20,6 +20,9 @@
 import nemo
 from nemo.core import DeviceType
 
+logging = nemo.logging
+
+
 # Run on CPU.
 nf = nemo.core.NeuralModuleFactory(placement=DeviceType.CPU)
 
@@ -40,7 +43,7 @@ lss = loss(predictions=p, target=y)
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = nemo.core.SimpleLossLoggerCallback(
-    tensors=[lss], print_func=lambda x: nemo.logging.info(f'Train Loss: {str(x[0].item())}')
+    tensors=[lss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}')
 )
 
 

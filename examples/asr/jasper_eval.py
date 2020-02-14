@@ -13,6 +13,8 @@ import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.helpers import post_process_predictions, post_process_transcripts, word_error_rate
 
+logging = nemo.logging
+
 
 def main():
     parser = argparse.ArgumentParser(description='Jasper')
@@ -78,7 +80,7 @@ def main():
     )
 
     if args.local_rank is not None:
-        nemo.logging.info('Doing ALL GPU')
+        logging.info('Doing ALL GPU')
 
     yaml = YAML(typ="safe")
     with open(args.model_config) as f:
@@ -101,7 +103,7 @@ def main():
     )
 
     N = len(data_layer)
-    nemo.logging.info('Evaluating {0} examples'.format(N))
+    logging.info('Evaluating {0} examples'.format(N))
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"]
@@ -114,13 +116,11 @@ def main():
     )
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
-    nemo.logging.info('================================')
-    nemo.logging.info(f"Number of parameters in encoder: {jasper_encoder.num_weights}")
-    nemo.logging.info(f"Number of parameters in decoder: {jasper_decoder.num_weights}")
-    nemo.logging.info(
-        f"Total number of parameters in model: " f"{jasper_decoder.num_weights + jasper_encoder.num_weights}"
-    )
-    nemo.logging.info('================================')
+    logging.info('================================')
+    logging.info(f"Number of parameters in encoder: {jasper_encoder.num_weights}")
+    logging.info(f"Number of parameters in decoder: {jasper_decoder.num_weights}")
+    logging.info(f"Total number of parameters in model: " f"{jasper_decoder.num_weights + jasper_encoder.num_weights}")
+    logging.info('================================')
 
     # Define inference DAG
     audio_signal_e1, a_sig_length_e1, transcript_e1, transcript_len_e1 = data_layer()
@@ -132,13 +132,19 @@ def main():
     eval_tensors = [log_probs_e1, predictions_e1, transcript_e1, transcript_len_e1, encoded_len_e1]
 
     # inference
-    evaluated_tensors = neural_factory.infer(tensors=eval_tensors, checkpoint_dir=load_dir, cache=False)
+    cache = bool(args.lm_path)
+    if cache:
+        logging.warning(
+            "Caching is not reccomended for large datasets as they might not fit in cpu memory. To run beam search "
+            "decoding, it is recommended to dump log_probalities to disk and run a second script for beam search."
+        )
+    evaluated_tensors = neural_factory.infer(tensors=eval_tensors, checkpoint_dir=load_dir, cache=cache)
 
     greedy_hypotheses = post_process_predictions(evaluated_tensors[1], vocab)
     references = post_process_transcripts(evaluated_tensors[2], evaluated_tensors[3], vocab)
 
     wer = word_error_rate(hypotheses=greedy_hypotheses, references=references)
-    nemo.logging.info("Greedy WER {:.2f}%".format(wer * 100))
+    logging.info("Greedy WER {:.2f}%".format(wer * 100))
 
     # language model
     if args.lm_path:
@@ -156,8 +162,8 @@ def main():
 
         for alpha in np.arange(args.alpha, args.alpha_max, args.alpha_step):
             for beta in np.arange(args.beta, args.beta_max, args.beta_step):
-                nemo.logging.info('================================')
-                nemo.logging.info(f'Infering with (alpha, beta): ({alpha}, {beta})')
+                logging.info('================================')
+                logging.info(f'Infering with (alpha, beta): ({alpha}, {beta})')
                 beam_search_with_lm = nemo_asr.BeamSearchDecoderWithLM(
                     vocab=vocab,
                     beam_width=args.beam_width,
@@ -168,7 +174,7 @@ def main():
                 )
                 beam_predictions_e1 = beam_search_with_lm(log_probs=log_probs_e1, log_probs_length=encoded_len_e1)
 
-                evaluated_tensors = neural_factory.infer(tensors=[beam_predictions_e1], use_cache=False, verbose=False)
+                evaluated_tensors = neural_factory.infer(tensors=[beam_predictions_e1], use_cache=cache, verbose=False)
 
                 beam_hypotheses = []
                 # Over mini-batch
@@ -177,15 +183,15 @@ def main():
                     for j in i:
                         beam_hypotheses.append(j[0][1])
                 lm_wer = word_error_rate(hypotheses=beam_hypotheses, references=references)
-                nemo.logging.info("Beam WER {:.2f}%".format(lm_wer * 100))
+                logging.info("Beam WER {:.2f}%".format(lm_wer * 100))
                 beam_wers.append(((alpha, beta), lm_wer * 100))
 
-        nemo.logging.info('Beam WER for (alpha, beta)')
-        nemo.logging.info('================================')
-        nemo.logging.info('\n' + '\n'.join([str(e) for e in beam_wers]))
-        nemo.logging.info('================================')
+        logging.info('Beam WER for (alpha, beta)')
+        logging.info('================================')
+        logging.info('\n' + '\n'.join([str(e) for e in beam_wers]))
+        logging.info('================================')
         best_beam_wer = min(beam_wers, key=lambda x: x[1])
-        nemo.logging.info('Best (alpha, beta): ' f'{best_beam_wer[0]}, ' f'WER: {best_beam_wer[1]:.2f}%')
+        logging.info('Best (alpha, beta): ' f'{best_beam_wer[0]}, ' f'WER: {best_beam_wer[1]:.2f}%')
 
     if args.save_logprob:
         # Convert logits to list of numpy arrays

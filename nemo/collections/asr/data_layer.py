@@ -32,6 +32,8 @@ __all__ = [
     'TranscriptDataLayer',
 ]
 
+logging = nemo.logging
+
 
 class AudioToTextDataLayer(DataLayerNM):
     """Data Layer for general ASR tasks.
@@ -146,7 +148,7 @@ transcript_n}
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
-            nemo.logging.info("Parallelizing Datalayer.")
+            logging.info("Parallelizing Datalayer.")
             sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
         else:
             sampler = None
@@ -252,7 +254,7 @@ class KaldiFeatureDataLayer(DataLayerNM):
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
-            nemo.logging.info("Parallelizing DATALAYER")
+            logging.info("Parallelizing DATALAYER")
             sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
         else:
             sampler = None

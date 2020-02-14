@@ -1,5 +1,4 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import logging
 import os
 import subprocess
 import sys
@@ -8,6 +7,8 @@ from shutil import copyfile
 
 import nemo
 from nemo.utils.decorators import deprecated
+
+logging = nemo.logging
 
 
 @deprecated(version=0.11, explanation="Please use nemo.logging instead")
@@ -153,7 +154,7 @@ class ExpManager:
         if self.ckpt_dir:
             self.make_dir(self.ckpt_dir, exist_ok)
 
-    def create_logger(self, level=logging.INFO, log_file=True):
+    def create_logger(self, log_file=True):
         logger = nemo.logging
         # tmp = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
@@ -192,19 +193,19 @@ class ExpManager:
                 self.tb_writer = SummaryWriter(self.tb_dir)
             except ImportError:
                 self.tb_writer = None
-                nemo.logging.info('Not using TensorBoard.')
-                nemo.logging.info('Install tensorboardX to use TensorBoard')
+                logging.info('Not using TensorBoard.')
+                logging.info('Install tensorboardX to use TensorBoard')
         return self.tb_writer
 
     def log_exp_info(self, params, print_everywhere=False):
         if print_everywhere or self.global_rank == 0:
-            nemo.logging.info("NEMO MODEL'S PARAMETERS")
+            logging.info("NEMO MODEL'S PARAMETERS")
             for key in params:
-                nemo.logging.info(f'{key}\t{params[key]}')
-            nemo.logging.info(f'Experiment output is stored in {self.work_dir}')
+                logging.info(f'{key}\t{params[key]}')
+            logging.info(f'Experiment output is stored in {self.work_dir}')
 
     def reset_loggers(self):
-        nemo.logging.handlers = []
+        logging.remove_stream_handlers()
 
 
 def get_git_hash():

@@ -8,6 +8,8 @@ import pandas as pd
 import nemo
 from nemo.collections.asr.parts import manifest, parsers
 
+logging = nemo.logging
+
 
 class _Collection(collections.UserList):
     """List of parsed and preprocessed data."""
@@ -33,7 +35,7 @@ class Text(_Collection):
             tokens = parser(text)
 
             if tokens is None:
-                nemo.logging.warning("Fail to parse '%s' text line.", text)
+                logging.warning("Fail to parse '%s' text line.", text)
                 continue
 
             data.append(output_type(tokens))
@@ -128,7 +130,7 @@ class AudioText(_Collection):
         if do_sort_by_duration:
             data.sort(key=lambda entity: entity.duration)
 
-        nemo.logging.info(
+        logging.info(
             "Filtered duration for loading collection is %f.", duration_filtered,
         )
 

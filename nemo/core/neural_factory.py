@@ -38,6 +38,8 @@ from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *
 from nemo.utils.decorators import deprecated
 
+logging = nemo.logging
+
 
 class DeploymentFormat(Enum):
     """Which format to use when exporting a Neural Module for deployment"""
@@ -534,7 +536,7 @@ class NeuralModuleFactory(object):
         # TK: "optimization_level" is not passed as parameter anymore.
         # if params is not None and "optimization_level" in params:
         #    if params["optimization_level"] != self._optim_level:
-        #        nemo.logging.warning(
+        #        logging.warning(
         #            "Module's {0} requested optimization level {1} is"
         #            "different from the one specified by factory - {2}."
         #            "Using: {3} for this module".format(
@@ -612,7 +614,7 @@ class NeuralModuleFactory(object):
         # Custom hacks: These will be put into a proper place soon
         # We are checking type like this to avoid taking dependency on nemo_asr
         if type(module).__name__ == "JasperEncoder":
-            # nemo.logging.warning(f"Module is JasperEncoder. We are removing"
+            # logging.warning(f"Module is JasperEncoder. We are removing"
             #                     f"input and output length ports since they "
             #                     f"are not needed for deployment")
             # del module._input_ports['length']
@@ -624,7 +626,7 @@ class NeuralModuleFactory(object):
                 if type(m).__name__ == "MaskedConv1d":
                     m.use_mask = False
                     m_count += 1
-            nemo.logging.warning(f"Turned off {m_count} masked convolutions")
+            logging.warning(f"Turned off {m_count} masked convolutions")
 
         return self._trainer.deployment_export(
             module=module,
@@ -709,7 +711,7 @@ class NeuralModuleFactory(object):
     )
     def get_trainer(self, tb_writer=None):
         if self._trainer:
-            nemo.logging.warning(
+            logging.warning(
                 "The trainer instance was created during initialization of "
                 "Neural factory, using the already created instance."
             )
@@ -732,7 +734,7 @@ class NeuralModuleFactory(object):
                 message on its own and exit
         """
         if self._world_size == 1:
-            nemo.logging.info("sync_all_processes does nothing if there is " "one process")
+            logging.info("sync_all_processes does nothing if there is " "one process")
             return
         if self._backend == Backend.PyTorch:
             import torch
@@ -740,7 +742,7 @@ class NeuralModuleFactory(object):
             status_tensor = torch.cuda.IntTensor([status])
             torch.distributed.all_reduce(status_tensor, op=torch.distributed.ReduceOp.MIN)
             if status_tensor.item() == 0:
-                nemo.logging.error("At least one process had a failure")
+                logging.error("At least one process had a failure")
                 if status:
                     raise ValueError(
                         f"Process with global rank {self._global_rank} entered"
