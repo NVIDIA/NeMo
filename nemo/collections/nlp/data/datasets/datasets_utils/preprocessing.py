@@ -41,7 +41,7 @@ __all__ = [
     'get_intent_labels',
     'get_stats' 'DATABASE_EXISTS_TMP',
     'MODE_EXISTS_TMP',
-    'is_whitespace'
+    'is_whitespace',
 ]
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'

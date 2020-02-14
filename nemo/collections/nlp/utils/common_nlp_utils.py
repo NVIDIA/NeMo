@@ -35,7 +35,7 @@ __all__ = [
     'calc_class_weights',
     'get_tokens',
     'normalize_answer',
-    ]
+]
 
 
 def mask_padded_tokens(tokens, pad_id):
