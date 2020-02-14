@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-
 import math
 
 import nemo
@@ -22,6 +21,7 @@ import nemo.collections.nlp.nm.data_layers.lm_transformer_datalayer
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo.collections.nlp.callbacks.lm_transformer_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.lm_transformer_dataset import LanguageModelDataDesc
+from nemo.core import WeightShareTransform
 from nemo.utils.lr_policies import CosineAnnealing
 
 parser = nemo.utils.NemoArgParser(description='LM Transformer')
@@ -114,7 +114,14 @@ loss = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(
 )
 
 # tie weight of embedding and log_softmax layers
-log_softmax.mlp.last_linear_layer.weight = encoder.embedding_layer.token_embedding.weight
+# log_softmax.mlp.last_linear_layer.weight = encoder.embedding_layer.token_embedding.weight
+log_softmax.tie_weights_with(
+    encoder,
+    weight_names=["mlp.layer0.weight"],
+    name2name_and_transform={
+        "mlp.layer0.weight": ("embedding_layer.token_embedding.weight", WeightShareTransform.SAME)
+    },
+)
 
 
 def create_pipeline(

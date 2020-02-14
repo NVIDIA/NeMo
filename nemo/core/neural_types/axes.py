@@ -44,6 +44,9 @@ class AxisKind(AxisKindAbstract):
     Width = 3
     Height = 4
 
+    def __repr__(self):
+        return self.__str__()
+
     def __str__(self):
         return str(self.name).lower()
 

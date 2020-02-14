@@ -6,6 +6,12 @@ Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tuto
 
 The code used in this tutorial can be found at ``examples/nlp/language_modeling/bert_pretraining.py``.
 
+.. tip::
+    Pretrained BERT models can be found at 
+    `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo>`__
+    `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo>`__
+    `https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo>`__
+
 Introduction
 ------------
 
