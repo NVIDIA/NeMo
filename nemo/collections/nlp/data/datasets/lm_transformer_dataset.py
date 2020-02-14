@@ -54,7 +54,7 @@ class LanguageModelDataDesc:
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
                 data_dir = download_wkt2(data_dir)
-            self.vocab_size = create_vocab_lm(data_dir, do_lower_case)
+            self.vocab_size = self.create_vocab_lm(data_dir, do_lower_case)
             self.data_dir = data_dir
         else:
             logging.warning(
@@ -63,7 +63,7 @@ class LanguageModelDataDesc:
                 "you build the preprocessing method for it."
             )
 
-    def create_vocab_lm(data_dir, do_lower_case):
+    def create_vocab_lm(self, data_dir, do_lower_case):
         if if_exist(data_dir, ['train.txt', 'vocab.txt']):
             logging.info("Vocabulary has been created.")
             with open(os.path.join(data_dir, 'vocab.txt'), 'r') as f:

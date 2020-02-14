@@ -382,7 +382,7 @@ class BERTPretrainingDataDesc:
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
                 data_dir = download_wkt2(data_dir)
-            self.data_dir, self.tokenizer_model = create_vocab_mlm(
+            self.data_dir, self.tokenizer_model = self.create_vocab_mlm(
                 data_dir, vocab_size, sample_size, special_tokens, train_file
             )
         else:
@@ -397,7 +397,12 @@ class BERTPretrainingDataDesc:
         self.test_file = f'{data_dir}/test.txt'
 
     def create_vocab_mlm(
-        data_dir, vocab_size, sample_size, special_tokens=['[PAD]', '[UNK]', '[CLS]', '[SEP]', '[MASK]'], train_file=''
+        self,
+        data_dir,
+        vocab_size,
+        sample_size,
+        special_tokens=['[PAD]', '[UNK]', '[CLS]', '[SEP]', '[MASK]'],
+        train_file='',
     ):
         vocab = special_tokens[:]
         bert_dir = f'{data_dir}/bert'

@@ -3,6 +3,13 @@ import os
 
 from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import partition_data, write_files
 
+__all__ = [
+    'get_intent_query_files_dialogflow',
+    'get_intents_slots_dialogflow',
+    'get_slots_dialogflow',
+    'process_dialogflow',
+]
+
 
 def get_intent_query_files_dialogflow(path):
     fileslist = []

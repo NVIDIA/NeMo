@@ -10,6 +10,8 @@ from nemo.collections.nlp.data.datasets.datasets_utils.preprocessing import (
 )
 from nemo.collections.nlp.utils import if_exist
 
+__all__ = ['process_mturk', 'process_intent_slot_mturk', 'get_intents_mturk', 'get_slot_labels']
+
 
 def process_mturk(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
     if not os.path.exists(data_dir):
