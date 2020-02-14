@@ -86,7 +86,7 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
 
     def tie_weights_with(self, module, weight_names):
         for name in weight_names:
-            rsetattr(self._pt_module, name, rgetattr(module, name))
+            rsetattr(self._pt_module, name, nn.Parameter(rgetattr(module, name)))
 
     @property
     def num_weights(self):
