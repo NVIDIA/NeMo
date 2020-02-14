@@ -36,6 +36,7 @@ from nemo.collections.nlp.data.datasets.datasets_utils import (
 from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import (
     calc_class_weights,
     get_intent_labels,
+    get_label_stats,
     get_stats,
     if_exist,
 )

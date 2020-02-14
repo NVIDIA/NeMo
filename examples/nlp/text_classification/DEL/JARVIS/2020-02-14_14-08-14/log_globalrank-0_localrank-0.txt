@@ -1,0 +1,108 @@
+[NeMo W 2020-02-14 14:08:14 deprecated:66] Function ``_get_trainer`` is deprecated. It is going to be removed in the future version.
+[NeMo I 2020-02-14 14:08:21 datasets_processing:83] jarvis dataset has already been processed and stored at /home/ebakhturina/data/jenkins_test_data_nlp/retail//jarvis-nemo-processed-uncased
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:243] Three most popular classes during training
+[NeMo I 2020-02-14 14:08:21 data_preprocessing:78] 0 item: 2, 23 out of 36, 0.6388888888888888.
+[NeMo I 2020-02-14 14:08:21 data_preprocessing:78] 1 item: 0, 6 out of 36, 0.16666666666666666.
+[NeMo I 2020-02-14 14:08:21 data_preprocessing:78] 2 item: 1, 2 out of 36, 0.05555555555555555.
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:248] Class weights are - [3.8333333333333335, 11.5, 1.0, 23.0, 11.5, 11.5]
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:250] Total Sentences - 36
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:251] Sentence class frequencies - [(2, 23), (0, 6), (1, 2), (4, 2), (5, 2), (3, 1)]
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:228]  Stats calculation for test mode is skipped as test.tsv was not found.
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:243] Three most popular classes during evaling
+[NeMo I 2020-02-14 14:08:21 data_preprocessing:78] 0 item: 2, 23 out of 36, 0.6388888888888888.
+[NeMo I 2020-02-14 14:08:21 data_preprocessing:78] 1 item: 0, 6 out of 36, 0.16666666666666666.
+[NeMo I 2020-02-14 14:08:21 data_preprocessing:78] 2 item: 1, 2 out of 36, 0.05555555555555555.
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:250] Total Sentences - 36
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:251] Sentence class frequencies - [(2, 23), (0, 6), (1, 2), (4, 2), (5, 2), (3, 1)]
+[NeMo I 2020-02-14 14:08:21 text_classification_with_bert:111] Loading train data...
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:70] /home/ebakhturina/data/jenkins_test_data_nlp/retail//jarvis-nemo-processed-uncased/train.tsv: 36
+[NeMo I 2020-02-14 14:08:21 data_preprocessing:245] Min: 9 |                  Max: 23 |                  Mean: 13.13888888888889 |                  Median: 12.0
+[NeMo I 2020-02-14 14:08:21 data_preprocessing:247] 75 percentile: 14.5
+[NeMo I 2020-02-14 14:08:21 data_preprocessing:248] 99 percentile: 21.949999999999996
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:107] 0 out of 36                        sentencess with more than 50 subtokens.
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:154] *** Example ***
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:155] example_index: 0
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:156] subtokens: [CLS] intent _ none are the 20 oz bottles on sale too or regular price [SEP]
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:157] sent_label: 0
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:158] input_ids: 101 7848 1035 3904 2024 1996 2322 11472 11015 2006 5096 2205 2030 3180 3976 102 0 0 0 0 0 0 0
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:159] input_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0
+[NeMo I 2020-02-14 14:08:21 text_classification_with_bert:133] Steps_per_epoch = 4
+[NeMo I 2020-02-14 14:08:21 text_classification_with_bert:111] Loading eval data...
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:70] /home/ebakhturina/data/jenkins_test_data_nlp/retail//jarvis-nemo-processed-uncased/eval.tsv: 36
+[NeMo I 2020-02-14 14:08:21 data_preprocessing:245] Min: 9 |                  Max: 23 |                  Mean: 13.13888888888889 |                  Median: 12.0
+[NeMo I 2020-02-14 14:08:21 data_preprocessing:247] 75 percentile: 14.5
+[NeMo I 2020-02-14 14:08:21 data_preprocessing:248] 99 percentile: 21.949999999999996
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:107] 0 out of 36                        sentencess with more than 50 subtokens.
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:154] *** Example ***
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:155] example_index: 0
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:156] subtokens: [CLS] intent _ none are the 20 oz bottles on sale too or regular price [SEP]
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:157] sent_label: 0
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:158] input_ids: 101 7848 1035 3904 2024 1996 2322 11472 11015 2006 5096 2205 2030 3180 3976 102 0 0 0 0 0 0 0
+[NeMo I 2020-02-14 14:08:21 text_classification_dataset:159] input_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0
+[NeMo I 2020-02-14 14:08:21 text_classification_with_bert:133] Steps_per_epoch = 4
+[NeMo I 2020-02-14 14:08:21 callbacks:177] Starting .....
+[NeMo I 2020-02-14 14:08:21 callbacks:343] Found 2 modules with weights:
+[NeMo I 2020-02-14 14:08:21 callbacks:345] SequenceClassifier
+[NeMo I 2020-02-14 14:08:21 callbacks:345] BERT
+[NeMo I 2020-02-14 14:08:21 callbacks:346] Total model parameters: 110077446
+[NeMo I 2020-02-14 14:08:21 callbacks:301] Restoring checkpoint from folder DEL/JARVIS/2020-02-14_14-08-14/checkpoints ...
+[NeMo W 2020-02-14 14:08:21 callbacks:318] For module BERT, no file matches  in DEL/JARVIS/2020-02-14_14-08-14/checkpoints
+[NeMo W 2020-02-14 14:08:21 callbacks:319] Checkpoint folder DEL/JARVIS/2020-02-14_14-08-14/checkpoints present but did not restore
+[NeMo I 2020-02-14 14:08:21 callbacks:188] Starting epoch 0
+[NeMo I 2020-02-14 14:08:22 callbacks:212] Step: 0
+[NeMo I 2020-02-14 14:08:22 callbacks:227] Step time: 0.11771321296691895 seconds
+[NeMo I 2020-02-14 14:08:22 callbacks:422] Doing Evaluation ..............................
+[NeMo I 2020-02-14 14:08:24 text_classification_callback:57] Accuracy: 0.1111111111111111
+[NeMo I 2020-02-14 14:08:24 text_classification_callback:64] Sampled preds: [5 5 5 5 5 5 5 5 4 5 5 5 4 5 5 5 4 4 4 4]
+[NeMo I 2020-02-14 14:08:24 text_classification_callback:65] Sampled labels: [2 2 0 0 2 2 2 2 4 2 2 2 2 2 5 0 2 5 2 4]
+[NeMo I 2020-02-14 14:08:24 callback_utils:88] Confusion matrix:
+    [[ 0  0  0  0  1  5]
+     [ 0  0  0  0  0  2]
+     [ 0  0  0  0  3 20]
+     [ 0  0  0  1  0  0]
+     [ 0  0  0  0  2  0]
+     [ 0  0  0  0  1  1]]
+[NeMo I 2020-02-14 14:08:24 text_classification_callback:67]               precision    recall  f1-score   support
+    
+               0       0.00      0.00      0.00         6
+               1       0.00      0.00      0.00         2
+               2       0.00      0.00      0.00        23
+               3       1.00      1.00      1.00         1
+               4       0.29      1.00      0.44         2
+               5       0.04      0.50      0.07         2
+    
+        accuracy                           0.11        36
+       macro avg       0.22      0.42      0.25        36
+    weighted avg       0.05      0.11      0.06        36
+    
+[NeMo I 2020-02-14 14:08:24 callbacks:427] Evaluation time: 1.8699431419372559 seconds
+[NeMo I 2020-02-14 14:08:24 callbacks:195] Finished epoch 0 in 3.5616307258605957
+[NeMo I 2020-02-14 14:08:24 callbacks:365] Finished epoch 0 in 3.562302350997925
+[NeMo I 2020-02-14 14:08:25 callbacks:291] Saved checkpoint: DEL/JARVIS/2020-02-14_14-08-14/checkpoints/trainer-EPOCH-0.pt
+[NeMo I 2020-02-14 14:08:25 callbacks:184] Done in 4.39757776260376
+[NeMo I 2020-02-14 14:08:25 callbacks:432] Final Evaluation ..............................
+[NeMo I 2020-02-14 14:08:27 text_classification_callback:57] Accuracy: 0.6944444444444444
+[NeMo I 2020-02-14 14:08:27 text_classification_callback:64] Sampled preds: [2 2 2 2 2 2 2 2 2 2 2 2 2 2 4 2 2 2 2 2]
+[NeMo I 2020-02-14 14:08:27 text_classification_callback:65] Sampled labels: [0 2 2 2 2 2 2 2 0 0 2 2 2 2 4 2 2 2 2 2]
+[NeMo I 2020-02-14 14:08:27 callback_utils:88] Confusion matrix:
+    [[ 0  0  6  0  0  0]
+     [ 0  0  2  0  0  0]
+     [ 0  0 23  0  0  0]
+     [ 0  0  0  1  0  0]
+     [ 0  0  1  0  1  0]
+     [ 0  0  2  0  0  0]]
+[NeMo I 2020-02-14 14:08:27 text_classification_callback:67]               precision    recall  f1-score   support
+    
+               0       0.00      0.00      0.00         6
+               1       0.00      0.00      0.00         2
+               2       0.68      1.00      0.81        23
+               3       1.00      1.00      1.00         1
+               4       1.00      0.50      0.67         2
+               5       0.00      0.00      0.00         2
+    
+        accuracy                           0.69        36
+       macro avg       0.45      0.42      0.41        36
+    weighted avg       0.52      0.69      0.58        36
+    
+[NeMo I 2020-02-14 14:08:27 callbacks:437] Evaluation time: 1.6548891067504883 seconds
+[NeMo I 2020-02-14 14:08:28 callbacks:291] Saved checkpoint: DEL/JARVIS/2020-02-14_14-08-14/checkpoints/trainer-EPOCH-1.pt
