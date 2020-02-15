@@ -211,7 +211,7 @@ data layers, BERT encoder, and MLM and NSP loss functions
 mlm_classifier = nemo_nlp.nm.trainables.token_classification_nm.BertTokenClassifier(
     args.hidden_size, num_classes=args.vocab_size, activation=args.hidden_act, log_softmax=True
 )
-mlm_loss_fn = nemo_nlp.nm.losses.SmoothedCrossEntropyLossNM()
+mlm_loss_fn = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss()
 if not args.only_mlm_loss:
     nsp_classifier = nemo_nlp.nm.trainables.sequence_classification_nm.SequenceClassifier(
         args.hidden_size, num_classes=2, num_layers=2, activation='tanh', log_softmax=False

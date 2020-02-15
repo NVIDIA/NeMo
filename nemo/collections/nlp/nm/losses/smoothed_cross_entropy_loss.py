@@ -20,10 +20,10 @@ from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.utils.loss_utils import mask_padded_tokens
 from nemo.core import LabelsType, LogitsType, LossType, NeuralType
 
-__all__ = ['SmoothedCrossEntropyLossNM']
+__all__ = ['SmoothedCrossEntropyLoss']
 
 
-class SmoothedCrossEntropyLossNM(LossNM):
+class SmoothedCrossEntropyLoss(LossNM):
     """
     Neural module which calculates CrossEntropyLoss and
     1) excludes padding tokens from loss calculation
@@ -44,7 +44,7 @@ class SmoothedCrossEntropyLossNM(LossNM):
             # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             # "target_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
-            "target_ids": NeuralType(('B', 'T'), LabelsType()),
+            "labels": NeuralType(('B', 'T'), LabelsType()),
         }
 
     @property
@@ -57,17 +57,17 @@ class SmoothedCrossEntropyLossNM(LossNM):
     def __init__(self, pad_id=None, label_smoothing=0, predict_last_k=0):
         LossNM.__init__(self)
 
-        self._loss_fn = SmoothedCrossEntropyLoss(label_smoothing, predict_last_k)
+        self._loss_fn = SmoothedCrossEntropy(label_smoothing, predict_last_k)
         self._pad_id = pad_id
 
-    def _loss_function(self, logits, target_ids):
+    def _loss_function(self, logits, labels):
         if self._pad_id is not None:
-            target_ids = mask_padded_tokens(target_ids, self._pad_id).to(logits.dtype)
-        loss = self._loss_fn(logits, target_ids, target_ids)
+            labels = mask_padded_tokens(labels, self._pad_id).to(logits.dtype)
+        loss = self._loss_fn(logits, labels, labels)
         return loss
 
 
-class SmoothedCrossEntropyLoss(torch.nn.Module):
+class SmoothedCrossEntropy(torch.nn.Module):
     """
     Cross-entropy loss with label smoothing for a batch of sequences.
 
@@ -89,16 +89,16 @@ class SmoothedCrossEntropyLoss(torch.nn.Module):
         self._smoothing = label_smoothing
         self._predict_last_k = predict_last_k
 
-    def forward(self, logits, output_ids, output_mask, eps=1e-6):
+    def forward(self, logits, labels, output_mask, eps=1e-6):
         """
         Args:
             logits: float tensor of shape batch_size x seq_len x vocab_size
-            output_ids: int tensor of shape batch_size x seq_len
+            labels: int tensor of shape batch_size x seq_len
             output_mask: binary tensor of shape batch_size x seq_len
         """
         batch_size, seq_len, vocab_size = logits.size()
         smoothing = vocab_size * self._smoothing / (vocab_size - 1)
-        target_logits = logits.gather(2, output_ids.unsqueeze(2)).squeeze(2)
+        target_logits = logits.gather(2, labels.unsqueeze(2)).squeeze(2)
         smoothing_logits = logits.mean(dim=-1)
         neg_log_likelihood = (1.0 - smoothing) * target_logits + smoothing * smoothing_logits
         neg_log_likelihood = neg_log_likelihood[:, -self._predict_last_k :]

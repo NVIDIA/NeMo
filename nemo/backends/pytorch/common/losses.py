@@ -2,11 +2,9 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core.neural_types import LabelsType, LogitsType, LossType, NeuralType, RegressionValuesType
+from nemo.core.neural_types import LabelsType, LogitsType, LossType, NeuralType, RegressionValuesType, LengthsType
 
 __all__ = ['SequenceLoss', 'CrossEntropyLoss', 'MSELoss']
-
-EPS = 1e-5
 
 
 class SequenceLoss(LossNM):
@@ -48,7 +46,7 @@ class SequenceLoss(LossNM):
         return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(
-        self, pad_id=0, smoothing_coef=0.0, sample_wise=False, aux_ctc=False, ctc_initial_coef=0.1, ctc_blank_id=None
+        self, pad_id=0, smoothing_coef=0.0, sample_wise=False, aux_ctc=False, ctc_initial_coef=0.1, ctc_blank_id=None, eps=1e-5
     ):
         assert (not aux_ctc) or (ctc_blank_id is not None), "Should be a blank id if using CTC loss"
 
@@ -59,6 +57,7 @@ class SequenceLoss(LossNM):
         self.sample_wise = sample_wise
         self.aux_ctc = aux_ctc
         self.ctc_coef = ctc_initial_coef
+        self.eps = eps
 
         if aux_ctc:
             self.ctc = nn.CTCLoss(blank=ctc_blank_id, reduction='none', zero_infinity=True)
@@ -86,7 +85,7 @@ class SequenceLoss(LossNM):
         if self.sample_wise:
             loss /= target_log_probs.size(0)
         else:
-            loss /= pad_mask.sum() + EPS
+            loss /= pad_mask.sum() + self.eps
         return loss
 
     def _ctc_loss(self, log_probs, targets, pad_mask):
@@ -177,3 +176,35 @@ class MSELoss(LossNM):
     def _loss_function(self, preds, labels):
         loss = self._criterion(preds, labels)
         return loss
+
+#
+# class XEntropyLoss(LossNM):
+#     @property
+#     def input_ports(self):
+#         """Returns definitions of module input ports.
+#         """
+#         return {
+#             "logits": NeuralType(('B', 'T', 'D', 'D'), LogitsType()),
+#             "labels": NeuralType(('B', 'D', 'T'), LabelsType()),
+#             "length_mask": NeuralType(('B', 'D'), LengthsType()),
+#         }
+#
+#     @property
+#     def output_ports(self):
+#         """Returns definitions of module output ports.
+#
+#         loss:
+#             NeuralType(None)
+#         """
+#         return {"loss": NeuralType(axes=None, elements_type=LossType())}
+#
+#     def __init__(self):
+#         super().__init__()
+#
+#     def _loss_function(self, inp, target, mask):
+#         inp = inp.view(-1, inp.shape[2])
+#         mask = mask.view(-1, 1)
+#         crossEntropy = -torch.log(torch.gather(inp, 1, target.view(-1, 1)))
+#         loss = crossEntropy.masked_select(mask).mean()
+#         loss = loss.to(self._device)
+#         return loss
