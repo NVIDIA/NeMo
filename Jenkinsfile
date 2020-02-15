@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
             image 'nvcr.io/nvidia/pytorch:20.01-py3'
-            args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home:/home --shm-size=8g'
+            args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home:/home -v /home/mrjenkins/.cache/torch/transformers:/home/$USER/.cache/torch/transformers --shm-size=8g'
         }
   }
   options {
@@ -99,6 +99,7 @@ pipeline {
           steps {
             sh 'cd examples/nlp/dialogue_state_tracking && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 dialogue_state_tracking_trade.py --batch_size=10 --eval_batch_size=10 --num_train_samples=-1 --num_eval_samples=-1 --num_epochs=1 --dropout=0.2 --eval_file_prefix=test --shuffle_data --num_gpus=2 --lr=0.001 --grad_norm_clip=10 --work_dir=outputs --data_dir=/home/TestData/nlp/multiwoz2.1'
             sh 'rm -rf examples/nlp/dialogue_state_tracking/outputs'
+            sh 'rm -rf /home/TestData/nlp/multiwoz2.1/vocab.pkl'
           }
         }
         stage ('GLUE Benchmark Test') {
