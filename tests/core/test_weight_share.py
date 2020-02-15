@@ -193,7 +193,7 @@ class TestWeightSharing(NeMoUnitTest):
         _in, _out = data()
         pred = embd(input_seq=_in)
         pred = proj(hidden_states=pred)
-        loss_t = loss(target_ids=_out, logits=pred)
+        loss_t = loss(labels=_out, logits=pred)
 
         self.nf.train(
             [loss_t], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.0003},
@@ -257,7 +257,7 @@ class TestWeightSharing(NeMoUnitTest):
         _in, _out = data()
         pred = embd(input_seq=_in)
         pred = proj(hidden_states=pred)
-        loss_t = loss(target_ids=_out, logits=pred)
+        loss_t = loss(labels=_out, logits=pred)
 
         self.nf.train(
             [loss_t], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.0003},
