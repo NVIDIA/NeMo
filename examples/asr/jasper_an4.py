@@ -23,15 +23,11 @@ from nemo.utils.lr_policies import CosineAnnealing
 logging = nemo.logging
 
 
-def create_dags(jasper_params, model_config_file, model_config_path, args, nf):
-    vocab = jasper_params['labels']
+def create_dags(model_config_file, vocab, args, nf):
 
     # Create a data_layer for training.
     data_layer = nemo_asr.AudioToTextDataLayer.import_from_config(
-        model_config_file,
-        model_config_path,
-        "AudioToTextDataLayer_train",
-        overwrite_params={"manifest_filepath": args.train_dataset},
+        model_config_file, "AudioToTextDataLayer_train", overwrite_params={"manifest_filepath": args.train_dataset},
     )
 
     num_samples = len(data_layer)
@@ -41,10 +37,7 @@ def create_dags(jasper_params, model_config_file, model_config_path, args, nf):
 
     # Create a data_layer for evaluation.
     data_layer_eval = nemo_asr.AudioToTextDataLayer.import_from_config(
-        model_config_file,
-        model_config_path,
-        "AudioToTextDataLayer_eval",
-        overwrite_params={"manifest_filepath": args.eval_datasets},
+        model_config_file, "AudioToTextDataLayer_eval", overwrite_params={"manifest_filepath": args.eval_datasets},
     )
 
     num_samples = len(data_layer_eval)
@@ -52,13 +45,13 @@ def create_dags(jasper_params, model_config_file, model_config_path, args, nf):
 
     # Instantiate data processor.
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor.import_from_config(
-        model_config_file, model_config_path, "AudioToMelSpectrogramPreprocessor"
+        model_config_file, "AudioToMelSpectrogramPreprocessor"
     )
 
     # Instantiate JASPER encoder-decoder modules.
-    jasper_encoder = nemo_asr.JasperEncoder.import_from_config(model_config_file, model_config_path, "JasperEncoder")
+    jasper_encoder = nemo_asr.JasperEncoder.import_from_config(model_config_file, "JasperEncoder")
     jasper_decoder = nemo_asr.JasperDecoderForCTC.import_from_config(
-        model_config_file, model_config_path, "JasperDecoderForCTC", overwrite_params={"num_classes": len(vocab)}
+        model_config_file, "JasperDecoderForCTC", overwrite_params={"num_classes": len(vocab)}
     )
 
     # Instantiate losses.
@@ -110,7 +103,6 @@ def create_dags(jasper_params, model_config_file, model_config_path, args, nf):
         eval_tensors,
         callbacks,
         total_steps,
-        vocab,
         log_probs_e,
         encoded_len_e,
     )
@@ -133,8 +125,7 @@ def main():
     parser.add_argument("--beta1", default=0.95, type=float)
     parser.add_argument("--beta2", default=0.25, type=float)
     parser.set_defaults(
-        model_config_path="./configs/",
-        model_config="jasper_an4.yaml",
+        model_config="./configs/jasper_an4.yaml",
         train_dataset="~/TestData/an4_dataset/an4_train.json",
         eval_datasets="~/TestData/an4_dataset/an4_val.json",
         work_dir="./tmp",
@@ -167,11 +158,13 @@ def main():
 
     # Load model definition
     yaml = YAML(typ="safe")
-    with open(args.model_config_path + args.model_config) as f:
+    with open(args.model_config) as f:
         jasper_params = yaml.load(f)
+    # Get vocabulary.
+    vocab = jasper_params['labels']
 
-    (loss, eval_tensors, callbacks, total_steps, vocab, log_probs_e, encoded_len_e,) = create_dags(
-        jasper_params, args.model_config, args.model_config_path, args, nf
+    (loss, eval_tensors, callbacks, total_steps, log_probs_e, encoded_len_e,) = create_dags(
+        args.model_config, vocab, args, nf
     )
 
     nf.train(
@@ -240,7 +233,7 @@ def main():
         # to reinstantiate Encoder and Decoder
         args.num_epochs += 10
         previous_step_count = total_steps
-        loss, eval_tensors, callbacks, total_steps, vocab, _, _ = create_dags(jasper_params, args, nf)
+        loss, eval_tensors, callbacks, total_steps, _, _ = create_dags(args.model_config, vocab, args, nf)
 
         nf.reset_trainer()
         nf.train(

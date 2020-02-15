@@ -33,10 +33,10 @@ fx = nemo.tutorials.TaylorNet(dim=4)
 mse_loss = nemo.tutorials.MSELoss()
 
 # Export the model configuration.
-fx.export_to_config("taylor_net.yml", "/tmp/")
+fx.export_to_config("/tmp/taylor_net.yml")
 
 # Create a second instance, using the parameters loaded from the previously created configuration.
-fx2 = NeuralModule.import_from_config("taylor_net.yml", "/tmp/")
+fx2 = NeuralModule.import_from_config("/tmp/taylor_net.yml")
 
 # Create a graph by connecting the outputs with inputs of modules.
 x, y = dl()
