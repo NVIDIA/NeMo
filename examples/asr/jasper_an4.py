@@ -1,6 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import argparse
-import copy
 import math
 import os
 from functools import partial
