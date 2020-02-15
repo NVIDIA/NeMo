@@ -24,7 +24,6 @@ import random
 
 import h5py
 import numpy as np
-from examples.nlp.scripts.download_wkt2 import download_wkt2
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
@@ -380,14 +379,15 @@ class BERTPretrainingDataDesc:
     def __init__(self, dataset_name, data_dir, vocab_size, sample_size, special_tokens, train_file=''):
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
-                data_dir = download_wkt2(data_dir)
+                raise FileNotFoundError(
+                    "Dataset not found. Run python examples/nlp/scripts/download_wkt2.py --data_dir DATA_DIR"
+                )
             self.data_dir, self.tokenizer_model = self.create_vocab_mlm(
                 data_dir, vocab_size, sample_size, special_tokens, train_file
             )
         else:
             logging.warning(
-                "Looks like you passed a dataset name that isn't "
-                "already supported by NeMo. Please make sure that "
+                "Looks like you passed a dataset name that isn't already supported by NeMo. Please make sure that "
                 "you build the preprocessing method for it."
             )
 
