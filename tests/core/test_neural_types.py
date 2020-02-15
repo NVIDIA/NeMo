@@ -176,3 +176,13 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         t1 = NeuralType(('B', 'T', 'C'), SpectrogramType())
         self.assertEqual(t1.compare(t0), NeuralTypeComparisonResult.SAME)
         self.assertEqual(t0.compare(t1), NeuralTypeComparisonResult.DIM_INCOMPATIBLE)
+
+    def test_any_axis(self):
+        t0 = NeuralType(('B', 'Any', 'Any'), VoidType())
+        t1 = NeuralType(('B', 'Any', 'Any'), SpectrogramType())
+        t2 = NeuralType(('B', 'T', 'C'), SpectrogramType())
+        self.assertEqual(t0.compare(t1), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(t0.compare(t2), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(t1.compare(t2), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(t2.compare(t1), NeuralTypeComparisonResult.INCOMPATIBLE)
+        self.assertEqual(t1.compare(t0), NeuralTypeComparisonResult.INCOMPATIBLE)
