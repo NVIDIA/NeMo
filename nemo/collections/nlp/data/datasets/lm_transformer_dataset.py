@@ -19,7 +19,6 @@ import os
 import re
 
 import numpy as np
-from examples.nlp.scripts.download_wkt2 import download_wkt2
 from torch.utils.data import Dataset
 
 from nemo import logging
@@ -52,7 +51,10 @@ class LanguageModelDataDesc:
     def __init__(self, dataset_name, data_dir, do_lower_case):
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
-                data_dir = download_wkt2(data_dir)
+                raise
+                FileNotFoundError(
+                    "Dataset not found. Run python examples/nlp/scripts/download_wkt2.py --data_dir DATA_DIR"
+                )
             self.vocab_size = self.create_vocab_lm(data_dir, do_lower_case)
             self.data_dir = data_dir
         else:

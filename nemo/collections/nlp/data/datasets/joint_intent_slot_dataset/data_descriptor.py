@@ -10,11 +10,12 @@ from nemo.collections.nlp.data import (
     process_snips,
 )
 from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import (
+    DATABASE_EXISTS_TMP,
     calc_class_weights,
     get_label_stats,
     if_exist,
 )
-from nemo.collections.nlp.utils import DATABASE_EXISTS_TMP, get_vocab, list2str
+from nemo.collections.nlp.utils import get_vocab, list2str
 
 
 class JointIntentSlotDataDesc:
