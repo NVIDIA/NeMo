@@ -144,8 +144,8 @@ def _cosine_annealing(initial_lr, step, total_steps, min_lr):
 
 def _poly_decay(initial_lr, step, decay_steps, power, min_lr, cycle):
     if cycle:
-        multilier = 1.0 if step == 0 else math.ceil(step / decay_steps)
-        decay_steps *= multilier
+        multiplier = 1.0 if step == 0 else math.ceil(step / decay_steps)
+        decay_steps *= multiplier
     else:
         step = min(step, decay_steps)
     p = step / decay_steps
