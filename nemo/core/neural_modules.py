@@ -185,15 +185,13 @@ class NeuralModule(ABC):
         # Well, seems that everything is ok.
         return True
 
-    def export_to_config(self, config_file, config_dir="~/data/configs"):
+    def export_to_config(self, config_file):
         """
             A function that exports module "configuration" (i.e. init parameters) to a YAML file.
             Raises a ValueError exception in case then parameters coudn't be exported.
 
             Args:
-                config_file: yml file name
-
-                config_dir: directory where the file will be stored (DEFAULT: ~/data/configs)
+                config_file: path (absolute or relative) and name of the config file (YML)
         """
         # Check if generic export will work.
         if not self.__validate_params(self._init_params):
@@ -204,7 +202,7 @@ class NeuralModule(ABC):
             )
 
         # Greate an absolute path.
-        abs_path_file = path.join(path.expanduser(config_dir), config_file)
+        abs_path_file = path.expanduser(config_file)
 
         # Create the dictionary to be exported.
         to_export = {}
@@ -260,16 +258,14 @@ class NeuralModule(ABC):
         )
 
     @classmethod
-    def import_from_config(cls, config_file, config_dir="~/data/configs", section_name=None, overwrite_params={}):
+    def import_from_config(cls, config_file, section_name=None, overwrite_params={}):
         """
             Class method importing the configuration file.
             Raises an ImportError exception when config file is invalid or
             incompatible (when called from a particular class).
 
             Args:
-                config_file: yml file name
-
-                config_dir: directory where the file is be stored (DEFAULT: ~/data/configs)
+                config_file: path (absolute or relative) and name of the config file (YML)
 
                 section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
 
@@ -281,7 +277,7 @@ class NeuralModule(ABC):
         """
 
         # Greate an absolute path.
-        abs_path_file = path.join(path.expanduser(config_dir), config_file)
+        abs_path_file = path.expanduser(config_file)
 
         # Open the config file.
         with open(abs_path_file, 'r') as stream:
@@ -291,8 +287,8 @@ class NeuralModule(ABC):
         if section_name is not None:
             if section_name not in loaded_config:
                 raise ImportError(
-                    "The loaded config `{}` from `{}` doesn't contain the indicated `{}` section".format(
-                        config_file, config_dir, section_name
+                    "The loaded config `{}` doesn't contain the indicated `{}` section".format(
+                        config_file, section_name
                     )
                 )
             # Section exists - use only it for configuration.
@@ -300,23 +296,17 @@ class NeuralModule(ABC):
 
         # Make sure that the config is valid.
         if "header" not in loaded_config:
-            raise ImportError(
-                "The loaded config `{}` from `{}` doesn't contain the `header` section".format(config_file, config_dir)
-            )
+            raise ImportError("The loaded config `{}` doesn't contain the `header` section".format(config_file))
 
         if "init_params" not in loaded_config:
-            raise ImportError(
-                "The loaded config `{}` from `{}` doesn't contain the `init_params` section".format(
-                    config_file, config_dir
-                )
-            )
+            raise ImportError("The loaded config `{}` doesn't contain the `init_params` section".format(config_file))
 
         # Parse the "full specification".
         spec_list = loaded_config["header"]["full_spec"].split(".")
 
         # Check if config contains data of a compatible class.
         if cls.__name__ != "NeuralModule" and spec_list[-1] != cls.__name__:
-            txt = "The loaded file `{}` from `{}` contains configuration of ".format(config_file, config_dir)
+            txt = "The loaded file `{}` contains configuration of ".format(config_file)
             txt = txt + "`{}` thus cannot be used for instantiation of an object of type `{}`".format(
                 spec_list[-1], cls.__name__
             )
