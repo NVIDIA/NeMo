@@ -584,7 +584,7 @@ target_label_n}
                     augmentation = perturbation_types[augment_name](**augment_kwargs)
                     augmentations.append([prob, augmentation])
                 except KeyError:
-                    print(f"Invalid perturbation name. Allowed perturbations : {perturbation_types.keys()}")
+                    nemo.logging.error(f"Invalid perturbation name. Allowed values : {perturbation_types.keys()}")
 
         augmentor = AudioAugmentor(perturbations=augmentations)
         return augmentor
