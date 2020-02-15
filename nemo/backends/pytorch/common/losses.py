@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core.neural_types import LabelsType, LogitsType, LossType, NeuralType, RegressionValuesType, LengthsType
+from nemo.core.neural_types import LabelsType, LengthsType, LogitsType, LossType, NeuralType, RegressionValuesType
 
 __all__ = ['SequenceLoss', 'CrossEntropyLoss', 'MSELoss']
 
@@ -46,7 +46,14 @@ class SequenceLoss(LossNM):
         return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(
-        self, pad_id=0, smoothing_coef=0.0, sample_wise=False, aux_ctc=False, ctc_initial_coef=0.1, ctc_blank_id=None, eps=1e-5
+        self,
+        pad_id=0,
+        smoothing_coef=0.0,
+        sample_wise=False,
+        aux_ctc=False,
+        ctc_initial_coef=0.1,
+        ctc_blank_id=None,
+        eps=1e-5,
     ):
         assert (not aux_ctc) or (ctc_blank_id is not None), "Should be a blank id if using CTC loss"
 
@@ -176,6 +183,7 @@ class MSELoss(LossNM):
     def _loss_function(self, preds, labels):
         loss = self._criterion(preds, labels)
         return loss
+
 
 #
 # class XEntropyLoss(LossNM):
