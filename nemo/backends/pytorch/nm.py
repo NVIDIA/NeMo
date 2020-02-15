@@ -75,18 +75,18 @@ class TrainableNM(NeuralModule, nn.Module):
 
         if name2name_and_transform is None:
             for name in weight_names:
-                rsetattr(self, name, rgetattr(module, name))
+                rsetattr(self, name, nn.Parameter(rgetattr(module, name)))
         else:
             for self_w_name in weight_names:
                 if self_w_name in name2name_and_transform:
                     if name2name_and_transform[self_w_name][1] == WeightShareTransform.SAME:
                         rsetattr(
-                            self, self_w_name, rgetattr(module, name2name_and_transform[self_w_name][0]),
+                            self, self_w_name, nn.Parameter(rgetattr(module, name2name_and_transform[self_w_name][0])),
                         )
                     elif name2name_and_transform[self_w_name][1] == WeightShareTransform.TRANSPOSE:
                         raise NotImplementedError("Sorry, currently this is not implemented.")
                 else:
-                    rsetattr(self, self_w_name, rgetattr(module, self_w_name))
+                    rsetattr(self, self_w_name, nn.Parameter(rgetattr(module, self_w_name)))
 
     @t.jit.ignore
     def save_to(self, path):

@@ -78,13 +78,13 @@ class TestZeroDL(NeMoUnitTest):
         else:
             logging.info("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
 
-    @classmethod
-    def tearDownClass(cls) -> None:
-        super().tearDownClass()
-        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
-        logging.info("Looking up for test ASR data")
-        if os.path.exists(os.path.join(data_folder, "asr")):
-            shutil.rmtree(os.path.join(data_folder, "asr"))
+    # @classmethod
+    # def tearDownClass(cls) -> None:
+    #     super().tearDownClass()
+    #     data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
+    #     logging.info("Looking up for test ASR data")
+    #     if os.path.exists(os.path.join(data_folder, "asr")):
+    #         shutil.rmtree(os.path.join(data_folder, "asr"))
 
     def test_asr_with_zero_ds(self):
         logging.info("Testing ASR NMs with ZeroDS and without pre-processing")
