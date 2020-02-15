@@ -245,7 +245,7 @@ class DataLayerNM(NeuralModule):
         return None
 
     def restore_from(self, path):
-        raise NotImplementedError("Data Layer could not be restored from any saved " "state.")
+        raise NotImplementedError("Data Layer could not be restored from any saved state.")
         return None
 
     def freeze(self, weights: Set[str] = None):
@@ -357,7 +357,7 @@ class LossNM(NeuralModule):
         return None
 
     def restore_from(self, path):
-        raise NotImplementedError("Loss function module could not be restored from " "any saved " "state.")
+        raise NotImplementedError("Loss function module could not be restored from any saved state.")
         return None
 
     def freeze(self, weights: Set[str] = None):

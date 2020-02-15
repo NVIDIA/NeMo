@@ -304,7 +304,7 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
 
     def forward(self, char_phone_encoded, encoded_length):
         if self.training:
-            raise ValueError("You are using the Tacotron 2 Infer Neural Module" " in training mode.")
+            raise ValueError("You are using the Tacotron 2 Infer Neural Module in training mode.")
         with torch.no_grad():
             mel_output, gate_output, alignments, mel_len = self.decoder.infer(
                 char_phone_encoded, memory_lengths=encoded_length

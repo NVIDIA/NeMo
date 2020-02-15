@@ -67,7 +67,7 @@ class ActionCallback(ABC):
 
     @property
     def logger(self):
-        warnings.warn("This will be deprecated in future releases. Please use " "nemo.logging instead")
+        warnings.warn("This will be deprecated in future releases. Please use nemo.logging instead")
         return nemo.logging
 
     def on_action_start(self):
@@ -240,10 +240,10 @@ class CheckpointCallback(ActionCallback):
     ):
         super().__init__()
         if step_freq == -1 and epoch_freq == -1:
-            logging.warning("No checkpoints will be saved because step_freq and " "epoch_freq are both -1.")
+            logging.warning("No checkpoints will be saved because step_freq and epoch_freq are both -1.")
 
         if step_freq > -1 and epoch_freq > -1:
-            logging.warning("You config the model to save by both steps and epochs. " "Save by step_freq only")
+            logging.warning("You config the model to save by both steps and epochs. Save by step_freq only")
             epoch_freq = -1
 
         self._step_freq = step_freq
@@ -295,9 +295,7 @@ class CheckpointCallback(ActionCallback):
     def __restore_from(self, path):
         if not os.path.isdir(path):
             if self._force_load:
-                raise ValueError(
-                    "force_load was set to True for checkpoint " "callback but a checkpoint was not found."
-                )
+                raise ValueError("force_load was set to True for checkpoint callback but a checkpoint was not found.")
             logging.warning(f"Checkpoint folder {path} not found!")
         else:
             logging.info(f"Restoring checkpoint from folder {path} ...")
@@ -315,7 +313,7 @@ class CheckpointCallback(ActionCallback):
             except (BaseException, ValueError) as e:
                 if self._force_load:
                     raise ValueError(
-                        "force_load was set to True for checkpoint callback" "but a checkpoint was not found."
+                        "force_load was set to True for checkpoint callback but a checkpoint was not found."
                     )
                 logging.warning(e)
                 logging.warning(f"Checkpoint folder {path} present but did not restore")

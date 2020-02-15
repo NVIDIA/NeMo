@@ -65,7 +65,7 @@ def main():
     if args.local_rank is not None:
         if args.lm_path:
             raise NotImplementedError(
-                "Beam search decoder with LM does not currently support " "evaluation on multi-gpu."
+                "Beam search decoder with LM does not currently support evaluation on multi-gpu."
             )
         device = nemo.core.DeviceType.AllGpu
     else:
@@ -135,7 +135,7 @@ def main():
     cache = bool(args.lm_path)
     if cache:
         logging.warning(
-            "Caching is not reccomended for large datasets as they might not fit in cpu memory. To run beam search "
+            "Caching is not recommended for large datasets as they might not fit in cpu memory. To run beam search "
             "decoding, it is recommended to dump log_probalities to disk and run a second script for beam search."
         )
     evaluated_tensors = neural_factory.infer(tensors=eval_tensors, checkpoint_dir=load_dir, cache=cache)

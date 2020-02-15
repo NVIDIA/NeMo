@@ -330,7 +330,7 @@ class NeuralModuleFactory(object):
 
             torch.backends.cudnn.benchmark = cudnn_benchmark
             if random_seed is not None and cudnn_benchmark:
-                raise ValueError("cudnn_benchmark can not be set to True" "when random_seed is not None.")
+                raise ValueError("cudnn_benchmark can not be set to True when random_seed is not None.")
             if random_seed is not None:
                 torch.backends.cudnn.deterministic = True
                 torch.backends.cudnn.benchmark = False
@@ -734,7 +734,7 @@ class NeuralModuleFactory(object):
                 message on its own and exit
         """
         if self._world_size == 1:
-            logging.info("sync_all_processes does nothing if there is " "one process")
+            logging.info("sync_all_processes does nothing if there is one process")
             return
         if self._backend == Backend.PyTorch:
             import torch

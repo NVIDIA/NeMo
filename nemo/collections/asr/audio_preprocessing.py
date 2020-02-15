@@ -47,7 +47,7 @@ except ModuleNotFoundError:
 try:
     from apex import amp
 except (AttributeError, ModuleNotFoundError) as e:
-    warnings.warn("Unable to import APEX. Mixed precision and distributed training " "will not work.")
+    warnings.warn("Unable to import APEX. Mixed precision and distributed training will not work.")
 
 
 class AudioPreprocessor(NonTrainableNM):

@@ -147,7 +147,7 @@ class ExpManager:
         # Create loggers
         self.create_logger(log_file=bool(work_dir))
         if use_tb and not work_dir:
-            raise ValueError("ExpManager received use_tb as True but did not " "receive a work_dir")
+            raise ValueError("ExpManager received use_tb as True but did not receive a work_dir")
 
         if ckpt_dir:
             self.ckpt_dir = ckpt_dir

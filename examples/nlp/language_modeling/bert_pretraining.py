@@ -188,7 +188,7 @@ if not args.preprocessed_data:
         # To train on a Chinese dataset, use NemoBertTokenizer
         tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model="bert-base-uncased")
     else:
-        raise ValueError("Please add your tokenizer " "or use sentence-piece or nemo-bert.")
+        raise ValueError("Please add your tokenizer or use sentence-piece or nemo-bert.")
     args.vocab_size = tokenizer.vocab_size
 
 
@@ -223,7 +223,7 @@ if not args.only_mlm_loss:
 
 # tie weights of MLM softmax layer and embedding layer of the encoder
 if mlm_classifier.mlp.last_linear_layer.weight.shape != bert_model.bert.embeddings.word_embeddings.weight.shape:
-    raise ValueError("Final classification layer does not match embedding " "layer.")
+    raise ValueError("Final classification layer does not match embedding layer.")
 mlm_classifier.mlp.last_linear_layer.weight = bert_model.bert.embeddings.word_embeddings.weight
 
 

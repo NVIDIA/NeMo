@@ -49,7 +49,7 @@ def main():
     if args.local_rank is not None:
         if args.lm_path:
             raise NotImplementedError(
-                "Beam search decoder with LM does not currently support " "evaluation on multi-gpu."
+                "Beam search decoder with LM does not currently support evaluation on multi-gpu."
             )
         device = nemo.core.DeviceType.AllGpu
     else:

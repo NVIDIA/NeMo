@@ -193,10 +193,10 @@ class PtActions(Actions):
             top_sorted_modules.append((m[0], dict(m[1]), m[2]))
             # Ensure that there is only one dataset in callchain
             if i > 0 and isinstance(m[0], DataLayerNM):
-                raise ValueError("There were more than one DataLayer NeuralModule inside " "your DAG.")
+                raise ValueError("There were more than one DataLayer NeuralModule inside your DAG.")
 
         if not isinstance(top_sorted_modules[0][0], DataLayerNM):
-            raise ValueError("The first module in your DAG was not a DataLayer " "NeuralModule.")
+            raise ValueError("The first module in your DAG was not a DataLayer NeuralModule.")
 
         tdataset = top_sorted_modules[0][0].dataset
 
@@ -244,7 +244,7 @@ class PtActions(Actions):
         elif isinstance(optimizer, torch.optim.Optimizer):
             optimizer_instance = optimizer
         else:
-            raise ValueError("`optimizer` must be a string or an instance " "of torch.optim.Optimizer")
+            raise ValueError("`optimizer` must be a string or an instance of torch.optim.Optimizer")
 
         modules_to_optimize = []
         tensors_to_optimize = []
@@ -257,7 +257,7 @@ class PtActions(Actions):
                 tensors_to_optimize.append(thing)
             else:
                 raise ValueError(
-                    "{} passed to create_optimizer() was neither " "a neural module nor a neural module tensor"
+                    "{} passed to create_optimizer() was neither a neural module nor a neural module tensor"
                 )
 
         if tensors_to_optimize:
@@ -341,7 +341,7 @@ class PtActions(Actions):
         else:
             logging.info("Optimizer instance: {0} is provided.")
             if optimizer_class is not None and optimizer_class != "":
-                logging.warning("Ignoring `optimizer_class` parameter because" "`optimizer_instance` is provided")
+                logging.warning("Ignoring `optimizer_class` parameter because `optimizer_instance` is provided")
             if optimization_params is not None and optimization_params != {}:
                 logging.warning(
                     "Ignoring `optimization_params` parameter for "
@@ -354,7 +354,7 @@ class PtActions(Actions):
         self, optimizer, optim_level, amp_max_loss_scale=2.0 ** 24, amp_min_loss_scale=1.0,
     ):
         if optim_level not in AmpOptimizations:
-            raise ValueError(f"__initialize_amp() was called with unknown " "optim_level={optim_level}")
+            raise ValueError(f"__initialize_amp() was called with unknown optim_level={optim_level}")
         # in this case, nothing to do here
         if optim_level == Optimization.mxprO0:
             return optimizer
@@ -573,7 +573,7 @@ class PtActions(Actions):
                 for t2e in tensors_2_evaluate:
                     key = t2e.unique_name
                     if key not in registered_e_tensors.keys():
-                        logging.info("WARNING: Tensor {} was not found during " "eval".format(key))
+                        logging.info("WARNING: Tensor {} was not found during eval".format(key))
                         continue
                     if is_distributed:
                         # where we will all_gather results from all workers
@@ -636,7 +636,7 @@ class PtActions(Actions):
         # Checking that cache is used properly
         if cache and use_cache:
             raise ValueError(
-                "cache and use_cache were both set. However cache" " must first be created prior to using it."
+                "cache and use_cache were both set. However cache must first be created prior to using it."
             )
         if cache:
             if self.cache is not None:
@@ -761,7 +761,7 @@ class PtActions(Actions):
                 for t2e in tensors_to_return:
                     key = t2e.unique_name
                     if key not in registered_e_tensors.keys():
-                        logging.info("WARNING: Tensor {} was not found during " "eval".format(key))
+                        logging.info("WARNING: Tensor {} was not found during eval".format(key))
                         continue
                     if is_distributed:
                         # where we will all_gather results from all workers
@@ -1123,13 +1123,13 @@ class PtActions(Actions):
             training_loop = [(optimizer, tensors_to_optimize, opt_call_chain)]
 
             self.optimizers.append(optimizer)
-            assert len(self.optimizers) == 1, (
-                "There was more than one optimizer, was create_optimizer() " "called before train()?"
-            )
+            assert (
+                len(self.optimizers) == 1
+            ), "There was more than one optimizer, was create_optimizer() called before train()?"
 
         elif PtActions._check_tuples(tensors_to_optimize):
             if batches_per_step != 1:
-                raise ValueError("Gradient accumlation with multiple " "optimizers is not supported")
+                raise ValueError("Gradient accumlation with multiple optimizers is not supported")
             datasets = []
             training_loop = []
             for step in tensors_to_optimize:
@@ -1149,10 +1149,10 @@ class PtActions(Actions):
         if callbacks is not None:
             for callback in callbacks:
                 if not isinstance(callback, ActionCallback):
-                    raise ValueError("A callback was received that was not a " "child of ActionCallback")
+                    raise ValueError("A callback was received that was not a child of ActionCallback")
                 elif isinstance(callback, SimpleLossLoggerCallback):
                     if logging_callchain:
-                        raise ValueError("We only support one logger callback " "but more than one were found")
+                        raise ValueError("We only support one logger callback but more than one were found")
                     logger_step_freq = callback._step_freq
                     logging_tensors = callback.tensors
                     all_tensors = logging_tensors
@@ -1401,9 +1401,9 @@ class PtActions(Actions):
             modules_to_restore_name = []
             for mod in modules_to_restore:
                 if not isinstance(mod, NeuralModule):
-                    raise ValueError("Found something that was not a Neural " "Module inside modules_to_restore")
+                    raise ValueError("Found something that was not a Neural Module inside modules_to_restore")
                 elif mod.num_weights == 0:
-                    raise ValueError("Found a Neural Module with 0 weights " "inside modules_to_restore")
+                    raise ValueError("Found a Neural Module with 0 weights inside modules_to_restore")
                 modules_to_restore_name.append(str(mod))
 
             module_checkpoints = get_checkpoint_from_dir(modules_to_restore_name, checkpoint_dir, ckpt_pattern)

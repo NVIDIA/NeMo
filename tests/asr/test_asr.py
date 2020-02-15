@@ -139,7 +139,7 @@ class TestASRPytorch(NeMoUnitTest):
             "ten dollars ten point nine zero one eight hundred zero zero",
             "eighteen billion one thousand two thousand and twenty",
             # Two line string below
-            "one ten thousand one hundred one thousand ten thousand one " "hundred thousand one million",
+            "one ten thousand one hundred one thousand ten thousand one hundred thousand one million",
             "i loveeee aaa a ccnntts",
             "''",
             "it only costs one million dollars cheap right",
