@@ -19,10 +19,10 @@ from torch import nn
 from nemo.backends.pytorch import LossNM
 from nemo.core import ChannelType, LogitsType, LossType, NeuralType
 
-__all__ = ['QuestionAnsweringLoss']
+__all__ = ['SpanningLoss']
 
 
-class QuestionAnsweringLoss(LossNM):
+class SpanningLoss(LossNM):
     """
     Neural module which implements QuestionAnswering loss.
     Args:

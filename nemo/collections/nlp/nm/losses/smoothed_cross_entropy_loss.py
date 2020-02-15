@@ -62,8 +62,8 @@ class SmoothedCrossEntropyLoss(LossNM):
 
     def _loss_function(self, logits, labels):
         if self._pad_id is not None:
-            labels = mask_padded_tokens(labels, self._pad_id).to(logits.dtype)
-        loss = self._loss_fn(logits, labels, labels)
+            labels_mask = mask_padded_tokens(labels, self._pad_id).to(logits.dtype)
+        loss = self._loss_fn(logits, labels, labels_mask)
         return loss
 
 
