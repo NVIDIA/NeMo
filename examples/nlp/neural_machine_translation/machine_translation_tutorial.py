@@ -24,6 +24,7 @@ import torch
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.callbacks.machine_translation_callback import eval_epochs_done_callback, eval_iter_callback
+from nemo.core import WeightShareTransform
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = nemo.utils.NemoArgParser(description='Transformer for Neural Machine Translation')
@@ -165,8 +166,25 @@ loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(
 )
 
 if tie_weight:
-    log_softmax.mlp.last_linear_layer.weight = encoder.embedding_layer.token_embedding.weight
-    decoder.embedding_layer.token_embedding.weight = encoder.embedding_layer.token_embedding.weight
+    # log_softmax.mlp.last_linear_layer.weight = encoder.embedding_layer.token_embedding.weight
+    log_softmax.tie_weights_with(
+        encoder,
+        weight_names=["mlp.last_linear_layer.weight"],
+        name2name_and_transform={
+            "mlp.last_linear_layer.weight": ("embedding_layer.token_embedding.weight", WeightShareTransform.SAME)
+        },
+    )
+    # decoder.embedding_layer.token_embedding.weight = encoder.embedding_layer.token_embedding.weight
+    decoder.tie_weights_with(
+        encoder,
+        weight_names=["embedding_layer.token_embedding.weight"],
+        name2name_and_transform={
+            "embedding_layer.token_embedding.weight": (
+                "embedding_layer.token_embedding.weight",
+                WeightShareTransform.SAME,
+            )
+        },
+    )
 
 
 def create_pipeline(dataset_src, dataset_tgt, tokens_in_batch, clean=False, training=True):

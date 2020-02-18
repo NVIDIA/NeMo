@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-
 """
 
 To pretrain BERT on raw text dataset run
@@ -224,7 +223,14 @@ if not args.only_mlm_loss:
 # tie weights of MLM softmax layer and embedding layer of the encoder
 if mlm_classifier.mlp.last_linear_layer.weight.shape != bert_model.bert.embeddings.word_embeddings.weight.shape:
     raise ValueError("Final classification layer does not match embedding layer.")
-mlm_classifier.mlp.last_linear_layer.weight = bert_model.bert.embeddings.word_embeddings.weight
+# mlm_classifier.mlp.last_linear_layer.weight = bert_model.bert.embeddings.word_embeddings.weight
+mlm_classifier.tie_weights_with(
+    bert_model,
+    weight_names=["mlp.last_linear_layer.weight"],
+    name2name_and_transform={
+        "mlp.last_linear_layer.weight": ("bert.embeddings.word_embeddings.weight", nemo_core.WeightShareTransform.SAME)
+    },
+)
 
 
 def create_pipeline(data_file, batch_size, preprocessed_data=False, batches_per_step=1, **kwargs):
