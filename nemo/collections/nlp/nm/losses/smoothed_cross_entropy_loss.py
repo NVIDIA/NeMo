@@ -18,7 +18,7 @@ import torch
 
 from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.utils.loss_utils import mask_padded_tokens
-from nemo.core import LabelsType, LogitsType, LossType, NeuralType, BoolMaskType
+from nemo.core import BoolMaskType, LabelsType, LogitsType, LossType, NeuralType
 
 __all__ = ['SmoothedCrossEntropyLoss']
 
@@ -100,6 +100,7 @@ class SmoothedCrossEntropy(torch.nn.Module):
             logits: float tensor of shape batch_size x seq_len x vocab_size
             labels: int tensor of shape batch_size x seq_len
             output_mask: binary tensor of shape batch_size x seq_len
+            eps: epsilon param to avoid divide by zero in loss calculation
         """
         batch_size, seq_len, vocab_size = logits.size()
         smoothing = vocab_size * self._smoothing / (vocab_size - 1)
