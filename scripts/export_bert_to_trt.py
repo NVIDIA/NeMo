@@ -576,5 +576,5 @@ if __name__ == "__main__":
         max_batch=opt.max_batch_size,
         tok_class_prefix=opt.token_classifier,
         seq_class_prefix=opt.seq_classifier,
-        qa_prefix=opt.qa
+        qa_prefix=opt.qa,
     )
