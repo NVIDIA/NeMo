@@ -34,6 +34,7 @@ __all__ = [
     'LengthsType',
     'EmbeddedTextType',
     'EncodedRepresentation',
+    'BoolMaskType'
 ]
 import abc
 from abc import ABC, abstractmethod
@@ -185,3 +186,7 @@ class RegressionValuesType(PredictionsType):
 
 class CategoricalValuesType(PredictionsType):
     """Element type to represent labels for categorical classification task"""
+
+
+class BoolMaskType(PredictionsType):
+    """Element type to represent boolean mask"""
