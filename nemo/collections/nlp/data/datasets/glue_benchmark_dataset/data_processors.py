@@ -1,6 +1,7 @@
 import os
 
 from nemo import logging
+from nemo.collections.nlp.data.datasets.datasets_utils.datasets_processing import DataProcessor
 
 __all__ = [
     'ColaProcessor',
@@ -14,8 +15,6 @@ __all__ = [
     'RteProcessor',
     'WnliProcessor',
 ]
-
-from nemo.collections.nlp.data.datasets.datasets_utils.datasets_processing import DataProcessor
 
 
 class MrpcProcessor(DataProcessor):
