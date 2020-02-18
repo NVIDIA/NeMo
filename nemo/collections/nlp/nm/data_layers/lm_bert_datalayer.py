@@ -25,7 +25,7 @@ from torch.utils import data as pt_data
 from nemo.backends.pytorch import DataLayerNM
 from nemo.collections.nlp.data import BertPretrainingDataset, BertPretrainingPreprocessedDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import ChannelType, LabelsType, NeuralType
+from nemo.core import ChannelType, LabelsType, NeuralType, BoolMaskType
 
 __all__ = ['BertPretrainingDataLayer', 'BertPretrainingPreprocessedDataLayer']
 
@@ -60,7 +60,7 @@ class BertPretrainingDataLayer(TextDataLayer):
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
             "output_ids": NeuralType(('B', 'T'), LabelsType()),
-            "output_mask": NeuralType(('B', 'T'), ChannelType()),
+            "output_mask": NeuralType(('B', 'T'), BoolMaskType()),
             "labels": NeuralType(tuple('B'), LabelsType()),
         }
 
@@ -105,7 +105,7 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
             "output_ids": NeuralType(('B', 'T'), LabelsType()),
-            "output_mask": NeuralType(('B', 'T'), ChannelType()),
+            "output_mask": NeuralType(('B', 'T'), BoolMaskType()),
             "labels": NeuralType(tuple('B'), LabelsType()),
         }
 
