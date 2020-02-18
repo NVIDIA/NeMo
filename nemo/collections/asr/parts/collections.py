@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Union
 import pandas as pd
 
 import nemo
+from nemo import logging
 from nemo.collections.asr.parts import manifest, parsers
 
 logging = nemo.logging
@@ -211,7 +212,7 @@ class SpeechLabel(_Collection):
         if do_sort_by_duration:
             data.sort(key=lambda entity: entity.duration)
 
-        nemo.logging.info(
+        logging.info(
             "Filtered duration for loading collection is %f.", duration_filtered,
         )
 

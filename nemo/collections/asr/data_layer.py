@@ -19,10 +19,10 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
-import nemo
 from .parts.dataset import AudioDataset, AudioLabelDataset, KaldiFeatureDataset, TranscriptDataset, seq_collate_fn
 from .parts.features import WaveformFeaturizer
 from .parts.perturb import AudioAugmentor, perturbation_types
+from nemo import logging
 from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
@@ -548,7 +548,7 @@ target_label_n}
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
-            nemo.logging.info("Parallelizing Datalayer.")
+            logging.info("Parallelizing Datalayer.")
             sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
         else:
             sampler = None
@@ -572,7 +572,7 @@ target_label_n}
             prob = augment_kwargs.get('prob', None)
 
             if prob is None:
-                nemo.logging.error(
+                logging.error(
                     f'Augmentation "{augment_name}" will not be applied as '
                     f'keyword argument "prob" was not defined for this augmentation.'
                 )
@@ -584,7 +584,7 @@ target_label_n}
                     augmentation = perturbation_types[augment_name](**augment_kwargs)
                     augmentations.append([prob, augmentation])
                 except KeyError:
-                    nemo.logging.error(f"Invalid perturbation name. Allowed values : {perturbation_types.keys()}")
+                    logging.error(f"Invalid perturbation name. Allowed values : {perturbation_types.keys()}")
 
         augmentor = AudioAugmentor(perturbations=augmentations)
         return augmentor

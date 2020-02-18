@@ -4,6 +4,7 @@ import torch
 
 import nemo
 from .metrics import classification_accuracy, word_error_rate
+from nemo import logging
 
 logging = nemo.logging
 
@@ -101,13 +102,13 @@ def monitor_classification_training_progress(tensors: list, eval_metric=None, tb
         topk_acc = classification_accuracy(logits, targets, top_k=top_k)
 
     tag = 'training_batch_top@{0}'
-    nemo.logging.info(f'Loss: {tensors[0]}')
+    logging.info(f'Loss: {tensors[0]}')
 
     for k, acc in zip(top_k, topk_acc):
         if tb_logger is not None:
             tb_logger.add_scalar(tag.format(k), acc)
 
-        nemo.logging.info(f"{tag.format(k)}: {acc * 100.: 3.4f}")
+        logging.info(f"{tag.format(k)}: {acc * 100.: 3.4f}")
 
 
 def __gather_losses(losses_list: list) -> list:
@@ -268,18 +269,18 @@ def process_classification_evaluation_epoch(global_vars: dict, eval_metric=None,
     if tag is None:
         logs = {"Evaluation_Loss": eloss}
 
-        nemo.logging.info(f"==========>>>>>>Evaluation Loss: {eloss}")
+        logging.info(f"==========>>>>>>Evaluation Loss: {eloss}")
         for k, acc in zip(top_k, topk_accs):
-            nemo.logging.info(f"==========>>>>>>Evaluation Accuracy Top@{k}: {acc * 100.:3.4f}")
+            logging.info(f"==========>>>>>>Evaluation Accuracy Top@{k}: {acc * 100.:3.4f}")
             logs[f'Evaluation_Accuracy_Top@{k}'] = acc * 100.0
 
         return logs
     else:
         logs = {f"Evaluation_Loss {tag}": eloss}
 
-        nemo.logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
+        logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
         for k, acc in zip(top_k, topk_accs):
-            nemo.logging.info(f"==========>>>>>>Evaluation Accuracy Top@{k} {tag}: {acc * 100.:3.4f}")
+            logging.info(f"==========>>>>>>Evaluation Accuracy Top@{k} {tag}: {acc * 100.:3.4f}")
             logs[f'Evaluation_Accuracy_Top@{k} {tag}'] = acc * 100.0
 
         return logs
