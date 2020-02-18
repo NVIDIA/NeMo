@@ -1,3 +1,5 @@
+import numpy as np
+
 from nemo import logging
 from nemo.collections.nlp.utils import get_vocab
 
