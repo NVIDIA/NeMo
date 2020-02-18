@@ -75,34 +75,26 @@ def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER', t
     logging.info(f'Reference: {references[0]}')
 
 
-def monitor_classification_training_progress(tensors: list, eval_metric='TOP@1', tb_logger=None):
+def monitor_classification_training_progress(tensors: list, eval_metric=None, tb_logger=None):
     """
     Computes the top k classification accuracy of the model being trained.
     Prints sample to screen, computes and  and logs a list of top k accuracies
     to console and (optionally) Tensorboard
-
     Args:
-      tensors: A list of 2 tensors (logits, targets)
-      eval_metric: An optional string of the format "top{k}" where k is any
-        integer in the range [1, max_classes]. Computes either 1 or 2 top k
-        scores depending on k specified. If `k` > 1, both top_1 and top_`k`
-        will be logged. Defaults to 'top1'.
+      tensors: A list of 3 tensors (loss, logits, targets)
+      eval_metric: An optional list of integers detailing Top@`k`
+        in the range [1, max_classes]. Defaults to [1] if not set.
       tb_logger: Tensorboard logging object
-
     Returns:
       None
     """
-    eval_top = eval_metric.upper().replace('TOP@', '')
-    try:
-        top_k = int(eval_top)
-        top_k = [top_k]
+    if eval_metric is None:
+        eval_metric = [1]
 
-        # If top k is greater than 1, also register top@1 accuracy
-        if top_k[0] > 1:
-            top_k.insert(0, 1)
+    if type(eval_metric) not in (list, tuple):
+        eval_metric = [eval_metric]
 
-    except ValueError:
-        raise ValueError('eval_metric must be a string in the format `TOP@{int}`.')
+    top_k = eval_metric
 
     with torch.no_grad():
         logits, targets = tensors[1:]
@@ -251,22 +243,17 @@ def process_classification_evaluation_batch(tensors: dict, global_vars: dict, to
         global_vars[f'CorrectCount@{k}'] += [acc * batch_size]
 
 
-def process_classification_evaluation_epoch(global_vars: dict, eval_metric='TOP@1', tag=None):
+def process_classification_evaluation_epoch(global_vars: dict, eval_metric=None, tag=None):
     """
     Calculates the aggregated loss and WER across the entire evaluation dataset
     """
-    eval_top = eval_metric.upper().replace('TOP@', '')
-    try:
-        top_k = int(eval_top)
-        top_k = [top_k]
+    if eval_metric is None:
+        eval_metric = [1]
 
-        # If top k is greater than 1, also register top@1 accuracy
-        if top_k[0] > 1:
-            top_k.insert(0, 1)
-            top_k = sorted(top_k)
+    if type(eval_metric) not in (list, tuple):
+        eval_metric = [eval_metric]
 
-    except ValueError:
-        raise ValueError('eval_metric must be a string in the format `TOP@{int}`.')
+    top_k = eval_metric
 
     eloss = torch.mean(torch.stack(global_vars['EvalLoss'])).item()
     batch_sizes = global_vars['batchsize']

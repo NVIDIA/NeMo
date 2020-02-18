@@ -18,7 +18,8 @@ from .data_layer import AudioToSpeechLabelDataLayer, AudioToTextDataLayer, Kaldi
 from .greedy_ctc_decoder import GreedyCTCDecoder
 from .jasper import JasperDecoderForClassification, JasperDecoderForCTC, JasperEncoder
 from .las.misc import JasperRNNConnector
-from .losses import CrossEntropyLossNM, CTCLossNM
+from .losses import CTCLossNM
+from nemo.backends.pytorch.common.losses import CrossEntropyLoss as CrossEntropyLossNM
 from nemo.core import Backend
 
 __all__ = [
