@@ -1,6 +1,17 @@
-# Copyright (c) 2019 NVIDIA Corporation
-# some of the code taken from:
-# https://github.com/NVIDIA/OpenSeq2Seq/blob/master/scripts/decode.py
+# Copyright (C) NVIDIA CORPORATION. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.**
+""" some of the code taken from: https://github.com/NVIDIA/OpenSeq2Seq/blob/master/scripts/decode.py"""
 import argparse
 import copy
 import os
@@ -136,7 +147,7 @@ def main():
     if cache:
         logging.warning(
             "Caching is not recommended for large datasets as they might not fit in cpu memory. To run beam search "
-            "decoding, it is recommended to dump log_probalities to disk and run a second script for beam search."
+            "decoding, it is recommended to dump log_probalities to disk using the --save_logprob argument."
         )
     evaluated_tensors = neural_factory.infer(tensors=eval_tensors, checkpoint_dir=load_dir, cache=cache)
 
@@ -145,6 +156,15 @@ def main():
 
     wer = word_error_rate(hypotheses=greedy_hypotheses, references=references)
     logging.info("Greedy WER {:.2f}%".format(wer * 100))
+
+    if args.save_logprob:
+        # Convert logits to list of numpy arrays
+        logprob = []
+        for i, batch in enumerate(evaluated_tensors[0]):
+            for j in range(batch.shape[0]):
+                logprob.append(batch[j][: evaluated_tensors[4][i][j], :].cpu().numpy())
+        with open(args.save_logprob, 'wb') as f:
+            pickle.dump(logprob, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     # language model
     if args.lm_path:
@@ -192,15 +212,6 @@ def main():
         logging.info('================================')
         best_beam_wer = min(beam_wers, key=lambda x: x[1])
         logging.info('Best (alpha, beta): ' f'{best_beam_wer[0]}, ' f'WER: {best_beam_wer[1]:.2f}%')
-
-    if args.save_logprob:
-        # Convert logits to list of numpy arrays
-        logprob = []
-        for i, batch in enumerate(evaluated_tensors[0]):
-            for j in range(batch.shape[0]):
-                logprob.append(batch[j][: evaluated_tensors[4][i][j], :].cpu().numpy())
-        with open(args.save_logprob, 'wb') as f:
-            pickle.dump(logprob, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == "__main__":

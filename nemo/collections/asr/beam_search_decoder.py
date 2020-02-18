@@ -59,7 +59,9 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
         # return {"predictions": NeuralType(VoidType())}
         return {"predictions": NeuralType(('B', 'T'), PredictionsType())}
 
-    def __init__(self, vocab, beam_width, alpha, beta, lm_path, num_cpus, cutoff_prob=1.0, cutoff_top_n=40):
+    def __init__(
+        self, vocab, beam_width, alpha, beta, lm_path, num_cpus, cutoff_prob=1.0, cutoff_top_n=40, input_tensor=True
+    ):
 
         try:
             from ctc_decoders import Scorer
@@ -86,12 +88,15 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
         self.num_cpus = num_cpus
         self.cutoff_prob = cutoff_prob
         self.cutoff_top_n = cutoff_top_n
+        self.input_tensor = input_tensor
 
     def forward(self, log_probs, log_probs_length):
-        probs = torch.exp(log_probs)
-        probs_list = []
-        for i, prob in enumerate(probs):
-            probs_list.append(prob[: log_probs_length[i], :])
+        probs_list = log_probs
+        if self.input_tensor:
+            probs = torch.exp(log_probs)
+            probs_list = []
+            for i, prob in enumerate(probs):
+                probs_list.append(prob[: log_probs_length[i], :])
         res = self.beam_search_func(
             probs_list,
             self.vocab,

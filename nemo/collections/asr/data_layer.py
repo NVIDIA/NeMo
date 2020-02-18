@@ -153,6 +153,9 @@ transcript_n}
         else:
             sampler = None
 
+        if batch_size == -1:
+            batch_size = len(self._dataset)
+
         pad_id = 0 if pad_id is None else pad_id
         self._dataloader = torch.utils.data.DataLoader(
             dataset=self._dataset,

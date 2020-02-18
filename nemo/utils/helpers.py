@@ -12,7 +12,7 @@ import wget
 
 import nemo
 
-logging = nemo.logging
+# logging = nemo.logging
 
 
 def rgetattr(obj, attr, *args):
@@ -160,5 +160,6 @@ def maybe_download_from_cloud(url, filename) -> str:
         else:
             return ""
     except (FileNotFoundError, ConnectionError, OSError):
-        logging.info(f"Could not obtain {filename} from the cloud")
+        # logging.info(f"Could not obtain {filename} from the cloud")
+        nemo.logging.info(f"Could not obtain {filename} from the cloud")
         return ""
