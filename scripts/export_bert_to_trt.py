@@ -243,22 +243,6 @@ def bert_pooler(prefix, init_dict, network, input_tensor):
     return pooler.get_output(0)
 
 
-def squad_output(prefix, init_dict, network, input_tensor):
-    """
-    Create the squad output
-    """
-
-    idims = input_tensor.shape
-    assert len(idims) == 5
-
-    W_out = init_dict[prefix + "mlp.layer0." + SQD_W]
-    B_out = init_dict[prefix + "mlp.layer0." + SQD_B]
-
-    dense = network.add_fully_connected(input_tensor, 2, W_out, B_out)
-    set_layer_name(dense, prefix, "dense")
-    return dense
-
-
 def sequence_class_output(prefix, init_dict, network, input_tensor, softmax=True):
     logging.info(input_tensor.shape)
     seq_len = input_tensor.shape[1]
@@ -321,6 +305,22 @@ def token_class_output(prefix, init_dict, network, input_tensor, softmax=True):
 
     logging.info("tok class: ", classifier.get_output(0).shape)
     return classifier
+
+
+def squad_output(prefix, init_dict, network, input_tensor):
+    """
+    Create the squad output
+    """
+
+    idims = input_tensor.shape
+    assert len(idims) == 5
+
+    W_out = init_dict[prefix + "mlp.layer0." + SQD_W]
+    B_out = init_dict[prefix + "mlp.layer0." + SQD_B]
+
+    dense = network.add_fully_connected(input_tensor, 2, W_out, B_out)
+    set_layer_name(dense, prefix, "dense")
+    return dense
 
 
 def load_weights(inputbase):
@@ -485,7 +485,7 @@ def main(
                 network.mark_output(seq_class_logits_out)
 
             if qa_prefix is not None:
-                qa_logits = squad_output(seq_class_prefix, classifiers_dict, network, bert_out)
+                qa_logits = squad_output(qa_prefix, classifiers_dict, network, bert_out)
                 qa_logits_out = qa_logits.get_output(0)
                 qa_logits_out.name = "qa_logits"
                 qa_logits_out.dtype = trt.DataType.FLOAT
