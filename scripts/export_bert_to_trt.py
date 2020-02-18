@@ -406,6 +406,7 @@ def main(
     max_batch=None,
     seq_class_prefix=None,
     tok_class_prefix=None,
+    qa_prefix=None,
 ):
     bert_config_path = config_path
     TRT_LOGGER.log(TRT_LOGGER.INFO, bert_config_path)
@@ -483,6 +484,13 @@ def main(
                 seq_class_logits_out.dtype = trt.DataType.FLOAT
                 network.mark_output(seq_class_logits_out)
 
+            if qa_prefix is not None:
+                qa_logits = squad_output(seq_class_prefix, classifiers_dict, network, bert_out)
+                qa_logits_out = qa_logits.get_output(0)
+                qa_logits_out.name = "qa_logits"
+                qa_logits_out.dtype = trt.DataType.FLOAT
+                network.mark_output(qa_logits_out)
+
             with builder.build_engine(network, builder_config) as engine:
                 TRT_LOGGER.log(TRT_LOGGER.VERBOSE, "Serializing Engine...")
                 serialized_engine = engine.serialize()
@@ -505,7 +513,9 @@ if __name__ == "__main__":
     parser.add_argument(
         '-s', '--seq-classifier', required=False, default=None, help="Name of the sequence classifier",
     )
-
+    parser.add_argument(
+        '-qa', '--qa', required=False, default=None, help="Name of the Question Answering classifier",
+    )
     parser.add_argument(
         '-o', '--output', required=True, help='The bert engine file, ex bert.engine',
     )
@@ -554,6 +564,7 @@ if __name__ == "__main__":
     config_path = opt.config
     logging.info("token class:", opt.token_classifier)
     logging.info("seq class:  ", opt.seq_classifier)
+    logging.info("QA class:  ", opt.qa)
     main(
         opt.bert_weight,
         opt.class_weight,
@@ -565,4 +576,5 @@ if __name__ == "__main__":
         max_batch=opt.max_batch_size,
         tok_class_prefix=opt.token_classifier,
         seq_class_prefix=opt.seq_classifier,
+        qa_prefix=opt.qa
     )
