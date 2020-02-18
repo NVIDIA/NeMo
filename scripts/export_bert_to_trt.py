@@ -251,8 +251,8 @@ def squad_output(prefix, init_dict, network, input_tensor):
     idims = input_tensor.shape
     assert len(idims) == 5
 
-    W_out = init_dict[prefix + SQD_W]
-    B_out = init_dict[prefix + SQD_B]
+    W_out = init_dict[prefix + "mlp.layer0." + SQD_W]
+    B_out = init_dict[prefix + "mlp.layer0." + SQD_B]
 
     dense = network.add_fully_connected(input_tensor, 2, W_out, B_out)
     set_layer_name(dense, prefix, "dense")
