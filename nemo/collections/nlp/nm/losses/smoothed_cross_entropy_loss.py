@@ -45,7 +45,7 @@ class SmoothedCrossEntropyLoss(LossNM):
             # "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
-            "output_mask": NeuralType(('B', 'T'), BoolMaskType()),
+            "output_mask": NeuralType(('B', 'T'), BoolMaskType(), optional=True),
         }
 
     @property
