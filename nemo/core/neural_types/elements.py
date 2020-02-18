@@ -34,7 +34,7 @@ __all__ = [
     'LengthsType',
     'EmbeddedTextType',
     'EncodedRepresentation',
-    'BoolMaskType'
+    'BoolMaskType',
 ]
 import abc
 from abc import ABC, abstractmethod
