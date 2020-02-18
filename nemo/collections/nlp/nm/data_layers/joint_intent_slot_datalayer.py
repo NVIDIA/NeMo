@@ -18,6 +18,7 @@ from nemo.collections.nlp.data import BertJointIntentSlotDataset, BertJointInten
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, NeuralType
 from nemo.utils.decorators import add_port_docs
+
 __all__ = ['BertJointIntentSlotDataLayer', 'BertJointIntentSlotInferDataLayer']
 
 

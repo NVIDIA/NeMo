@@ -54,10 +54,7 @@ class NeuralType(object):
                 f" elements_type: {self.elements_type.__class__.__name__}"
             )
         else:
-            return (
-                f"axes: None; "
-                f" elements_type: {self.elements_type.__class__.__name__}"
-            )
+            return f"axes: None; " f" elements_type: {self.elements_type.__class__.__name__}"
 
     def __init__(self, axes: Optional[Tuple] = None, elements_type: ElementType = VoidType(), optional=False):
         if not isinstance(elements_type, ElementType):

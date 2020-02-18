@@ -7,6 +7,7 @@ from nemo.collections.asr.jasper import init_weights as jasper_init_weights
 from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
 
+
 class JasperRNNConnector(TrainableNM):
     """Connector between jasper encoder and some other module, that does
     change number of channels.
