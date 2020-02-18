@@ -60,9 +60,13 @@ class SmoothedCrossEntropyLoss(LossNM):
         self._loss_fn = SmoothedCrossEntropy(label_smoothing, predict_last_k)
         self._pad_id = pad_id
 
-    def _loss_function(self, logits, labels):
-        if self._pad_id is not None:
+    def _loss_function(self, logits, labels, output_mask=None):
+        if output_mask is not None:
+            labels_mask = output_mask
+        elif self._pad_id is not None:
             labels_mask = mask_padded_tokens(labels, self._pad_id).to(logits.dtype)
+        else:
+            raise ValueError("Both output_mask and pad_id are None")
         loss = self._loss_fn(logits, labels, labels_mask)
         return loss
 

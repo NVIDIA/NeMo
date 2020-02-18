@@ -59,7 +59,7 @@ class BertPretrainingDataLayer(TextDataLayer):
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
-            "output_ids": NeuralType(('B', 'T'), ChannelType()),
+            "output_ids": NeuralType(('B', 'T'), LabelsType()),
             "output_mask": NeuralType(('B', 'T'), ChannelType()),
             "labels": NeuralType(tuple('B'), LabelsType()),
         }
