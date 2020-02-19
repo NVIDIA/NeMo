@@ -26,7 +26,9 @@ def create_dags(model_config_file, vocab, args, nf):
 
     # Create a data_layer for training.
     data_layer = nemo_asr.AudioToTextDataLayer.import_from_config(
-        model_config_file, "AudioToTextDataLayer_train", overwrite_params={"manifest_filepath": args.train_dataset},
+        model_config_file,
+        "AudioToTextDataLayer_train",
+        overwrite_params={"manifest_filepath": args.train_dataset, "batch_size": args.batch_size},
     )
 
     num_samples = len(data_layer)
@@ -118,6 +120,7 @@ def main():
 
     # Create new args
     # parser.add_argument("--lm", default="./an4-lm.3gram.binary", type=str)
+    parser.add_argument("--batch_size", default=48, type=int, help="size of the training batch")
     parser.add_argument("--lm", default=None, type=str)
     parser.add_argument("--test_after_training", action='store_true')
     parser.add_argument("--momentum", type=float)
