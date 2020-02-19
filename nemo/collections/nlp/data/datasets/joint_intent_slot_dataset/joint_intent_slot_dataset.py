@@ -140,7 +140,6 @@ class BertJointIntentSlotDataset(Dataset):
         tokenizer (Tokenizer): such as BertTokenizer
         num_samples (int): number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
-        shuffle (bool): whether to shuffle your data.
         pad_label (int): pad value use for slot labels.
             by default, it's the neutral label.
 
@@ -153,7 +152,6 @@ class BertJointIntentSlotDataset(Dataset):
         max_seq_length,
         tokenizer,
         num_samples=-1,
-        shuffle=True,
         pad_label=128,
         ignore_extra_tokens=False,
         ignore_start_end=False,
@@ -171,8 +169,6 @@ class BertJointIntentSlotDataset(Dataset):
 
         dataset = list(zip(slot_lines, input_lines))
 
-        if shuffle or num_samples > 0:
-            random.shuffle(dataset)
         if num_samples > 0:
             dataset = dataset[:num_samples]
 

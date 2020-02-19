@@ -22,17 +22,51 @@ __all__ = ['BertTokenClassificationDataLayer', 'BertTokenClassificationInferData
 
 
 class BertTokenClassificationDataLayer(TextDataLayer):
+    """
+    Creates the data layer to use for the task of token classification
+    with pretrained model.
+
+    All the data processing is done BertTokenClassificationDataset.
+        text_file (str):
+            TODO
+        label_file (str):
+            TODO
+        pad_label (int):
+            TODO
+        tokenizer (TokenizerSpec): text tokenizer.
+        max_seq_length (int):
+            max sequence length minus 2 for [CLS] and [SEP]
+        label_ids:
+            TODO
+        num_samples (int): 
+            TODO
+        shuffle (bool): whether to shuffle data or not. Default: False.
+        batch_size (int): text segments batch size
+        ignore_extra_tokens (bool): whether or not to ignore extra tokens
+        ignore_start_end (bool): whether or not to ignore start and end
+        use_cache:
+            TODO
+        dataset_type (BertTokenClassificationDataset):
+            the dataset that needs to be converted to DataLayerNM
+    """
+
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
+        input_ids:
+            indices of tokens which constitute batches of text segments
+        input_type_ids:
+            tensor with 0's and 1's to denote the text segment type
+        input_mask:
+            bool tensor with 0s in place of tokens to be masked
+        loss_mask:
+            used to mask and ignore tokens in the loss function
+        subtokens_mask:
+            TODO
+        labels:
+            token target ids
         """
         return {
-            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
@@ -74,16 +108,24 @@ class BertTokenClassificationDataLayer(TextDataLayer):
 
 
 class BertTokenClassificationInferDataLayer(TextDataLayer):
+    """
+    All the data processing is done BertTokenClassificationInferDataset.
+        queries:
+            TODO
+        tokenizer (TokenizerSpec): text tokenizer.
+        max_seq_length (int):
+            max sequence length minus 2 for [CLS] and [SEP]
+        shuffle (bool): whether to shuffle data or not. Default: False.
+        batch_size: text segments batch size
+        dataset_type (BertTokenClassificationInferDataset):
+            the dataset that needs to be converted to DataLayerNM
+    """
+
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         return {
-            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
@@ -92,7 +134,13 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
         }
 
     def __init__(
-        self, queries, tokenizer, max_seq_length, batch_size=1, dataset_type=BertTokenClassificationInferDataset,
+        self,
+        queries,
+        tokenizer,
+        max_seq_length,
+        batch_size=1,
+        shuffle=False,
+        dataset_type=BertTokenClassificationInferDataset,
     ):
         dataset_params = {'queries': queries, 'tokenizer': tokenizer, 'max_seq_length': max_seq_length}
-        super().__init__(dataset_type, dataset_params, batch_size, shuffle=False)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)

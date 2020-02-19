@@ -57,10 +57,9 @@ class BertTextClassificationDataset(Dataset):
         tokenizer (Tokenizer): such as BertTokenizer
         num_samples (int): number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
-        shuffle (bool): whether to shuffle your data.
     """
 
-    def __init__(self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=True):
+    def __init__(self, input_file, max_seq_length, tokenizer, num_samples=-1):
         with open(input_file, "r") as f:
             sent_labels, all_sent_subtokens = [], []
             sent_lengths = []
@@ -69,11 +68,8 @@ class BertTextClassificationDataset(Dataset):
             lines = f.readlines()[1:]
             logging.info(f'{input_file}: {len(lines)}')
 
-            if shuffle or num_samples > -1:
-                random.seed(0)
-                random.shuffle(lines)
-                if num_samples > 0:
-                    lines = lines[:num_samples]
+            if num_samples > 0:
+                lines = lines[:num_samples]
 
             for index, line in enumerate(lines):
                 if index % 20000 == 0:

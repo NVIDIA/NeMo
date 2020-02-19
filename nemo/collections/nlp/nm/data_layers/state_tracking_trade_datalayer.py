@@ -49,31 +49,51 @@ __all__ = ['MultiWOZDataLayer']
 
 
 class MultiWOZDataLayer(TextDataLayer):
+    """
+    Creates the data layer to use for State Tracking dataset MultiWOZ.
+
+    Args:
+        data_dir (str): TODO
+        domains: TODO
+        all_domains: 
+            TODO
+        vocab:
+            TODO
+        slots:
+            TODO
+        gating_dict:
+            TODO 
+        num_samples:
+            TODO
+        batch_size:
+            TODO
+        mode:
+            TODO
+        shuffle:
+            TODO
+        num_workers:
+            TODO
+        input_dropout:
+            TODO
+        is_training:
+            TODO
+        dataset_type (Dataset):
+            TODO
+    """
+
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
-
         src_ids: ids of input sequences
-
         src_lens: lengths of input sequences
-
         tgt_ids: labels for the generator output
-
         tgt_lens: lengths of the generator targets
-
         gating_labels: labels for the gating head
-
         turn_domain: list of the domains
             NeuralType(None)
 
         """
         return {
-            # "src_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "src_lens": NeuralType({0: AxisType(BatchTag)}),
-            # "tgt_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
-            # "tgt_lens": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            # "gating_labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            # "turn_domain": NeuralType(None),
             "src_ids": NeuralType(('B', 'T'), ChannelType()),
             "src_lens": NeuralType(tuple('B'), LengthsType()),
             "tgt_ids": NeuralType(('B', 'D', 'T'), LabelsType()),

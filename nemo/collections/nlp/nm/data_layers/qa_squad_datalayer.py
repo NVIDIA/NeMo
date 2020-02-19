@@ -32,7 +32,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             unanswerable questions.
         doc_stride (int): When splitting up a long document into chunks,
             how much stride to take between chunks.
-        max_query_length (iny): All training files which have a duration less
+        max_query_length (int): All training files which have a duration less
             than min_duration are dropped. Can't be used if the `utt2dur` file
             does not exist. Defaults to None.
         max_seq_length (int): All training files which have a duration more
@@ -41,21 +41,24 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
         mode (str): Use "train" or "dev" to define between
             training and evaluation.
         batch_size (int): Batch size. Defaults to 64.
-        dataset_type (class): Question Answering class.
+        dataset_type (Dataset): Question Answering class.
             Defaults to SquadDataset.
     """
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
+        input_ids:
+            indices of tokens which constitute batches of masked text segments
+        input_type_ids:
+            tensor with 0's and 1's to denote the text segment type
+        input_mask:
+            bool tensor with 0s in place of tokens to be masked
+        start_positions: indices of tokens which constitute start position of answer
+        end_positions: indices of tokens which constitute end position of answer
+        unique_ids: id of the Question answer example this instance belongs to
         """
         return {
-            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "start_positions": NeuralType({0: AxisType(BatchTag)}),
-            # "end_positions": NeuralType({0: AxisType(BatchTag)}),
-            # "unique_ids": NeuralType({0: AxisType(BatchTag)}),
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),

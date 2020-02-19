@@ -49,7 +49,7 @@ def get_features(
     Args:
     queries (list of str): text sequences
     max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-    tokenizer (Tokenizer): such as NemoBertTokenizer
+    tokenizer (TokenizerSpec): such as NemoBertTokenizer
     pad_label (str): pad value use for labels.
         by default, it's the neutral label.
     punct_label_ids (dict): dict to map punctuation labels to label ids.
@@ -202,7 +202,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
         tokenizer (Tokenizer): such as NemoBertTokenizer
         num_samples (int): number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
-        shuffle (bool): whether to shuffle your data.
         pad_label (str): pad value use for labels.
             by default, it's the neutral label.
         punct_label_ids and capit_label_ids (dict):
@@ -275,17 +274,15 @@ class BertPunctuationCapitalizationDataset(Dataset):
             if len(punct_labels_lines) != len(text_lines):
                 raise ValueError("Labels file should contain labels for every word")
 
-            if shuffle or num_samples > 0:
-                dataset = list(zip(text_lines, punct_labels_lines, capit_labels_lines))
-                random.shuffle(dataset)
+            dataset = list(zip(text_lines, punct_labels_lines, capit_labels_lines))
 
-                if num_samples > 0:
-                    dataset = dataset[:num_samples]
+            if num_samples > 0:
+                dataset = dataset[:num_samples]
 
-                dataset = list(zip(*dataset))
-                text_lines = dataset[0]
-                punct_labels_lines = dataset[1]
-                capit_labels_lines = dataset[2]
+            dataset = list(zip(*dataset))
+            text_lines = dataset[0]
+            punct_labels_lines = dataset[1]
+            capit_labels_lines = dataset[2]
 
             # for dev/test sets use label mapping from training set
             if punct_label_ids:

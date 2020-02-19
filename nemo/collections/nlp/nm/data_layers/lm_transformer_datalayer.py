@@ -29,8 +29,12 @@ class LanguageModelingDataLayer(TextDataLayer):
         dataset (str): path to text document with data
         tokenizer (TokenizerSpec): tokenizer
         max_seq_length (int): maximum allowed length of the text segments
+        batch_size (int): batch size
         batch_step (int): how many tokens to skip between two successive
             segments of text when constructing batches
+        dataset_type (Dataset):
+                the underlying dataset. Default: LanguageModelingDataset
+        shuffle (bool): whether to shuffle data or not. Default: False.
     """
 
     @property
@@ -38,33 +42,26 @@ class LanguageModelingDataLayer(TextDataLayer):
         """Returns definitions of module output ports.
 
         input_ids: indices of tokens which constitute batches of text segments
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
         input_mask: bool tensor with 0s in place of tokens to be masked
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
         labels: indices of tokens which should be predicted from each of the
             corresponding tokens in input_ids; for left-to-right language
             modeling equals to input_ids shifted by 1 to the right
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
         """
         return {
-            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
         }
 
     def __init__(
-        self, dataset, tokenizer, max_seq_length, batch_size, batch_step=128, dataset_type=LanguageModelingDataset
+        self,
+        dataset,
+        tokenizer,
+        max_seq_length,
+        batch_size,
+        batch_step=128,
+        dataset_type=LanguageModelingDataset,
+        shuffle=False,
     ):
         dataset_params = {
             'dataset': dataset,
@@ -72,4 +69,4 @@ class LanguageModelingDataLayer(TextDataLayer):
             'max_seq_length': max_seq_length,
             'batch_step': batch_step,
         }
-        super().__init__(dataset_type, dataset_params, batch_size, shuffle=False)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)

@@ -260,8 +260,6 @@ def create_pipeline(
         processor=processor,
         evaluate=evaluate,
         batch_size=batch_size,
-        # num_workers=0,
-        # local_rank=local_rank,
         tokenizer=tokenizer,
         data_dir=args.data_dir,
         max_seq_length=max_seq_length,
