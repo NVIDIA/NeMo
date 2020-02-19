@@ -380,9 +380,7 @@ class BERTPretrainingDataDesc:
     def __init__(self, dataset_name, data_dir, vocab_size, sample_size, special_tokens, train_file=''):
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
-                raise FileNotFoundError(
-                    "Dataset not found. Run python examples/nlp/scripts/download_wkt2.py --data_dir DATA_DIR"
-                )
+                FileNotFoundError("Dataset not found. Run './get_wkt2.sh DATA_DIR' from examples/nlp/scripts")
             self.data_dir, self.tokenizer_model = self.create_vocab_mlm(
                 data_dir, vocab_size, sample_size, special_tokens, train_file
             )
@@ -432,6 +430,7 @@ class BERTPretrainingDataDesc:
             f"--shuffle_input_sentence=true --hard_vocab_limit=false "
             f"--bos_id=-1 --eos_id=-1"
         )
+
         SPT.Train(cmd)
 
         # Add BERT control symbols

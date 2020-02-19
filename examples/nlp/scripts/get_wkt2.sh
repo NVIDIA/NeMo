@@ -19,4 +19,4 @@ sed -i -e "s/<unk>/[UNK]/g" test.txt
 cd ..
 rm wikitext-2-v1.zip
 
-echo "- WikiText-2 saved at $DATA_DIR"
+echo "- WikiText-2 saved at $DATA_DIR/wikitext-2"
