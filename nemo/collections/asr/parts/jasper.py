@@ -177,7 +177,7 @@ class JasperBlock(nn.Module):
         planes,
         repeat=3,
         kernel_size=11,
-        kernel_width=1,
+        kernel_size_factor=1,
         stride=1,
         dilation=1,
         padding='same',
@@ -200,11 +200,11 @@ class JasperBlock(nn.Module):
         if padding != "same":
             raise ValueError("currently only 'same' padding is supported")
 
-        kernel_width = float(kernel_width)
+        kernel_size_factor = float(kernel_size_factor)
         if type(kernel_size) in (list, tuple):
-            kernel_size = [compute_new_kernel_size(k, kernel_width) for k in kernel_size]
+            kernel_size = [compute_new_kernel_size(k, kernel_size_factor) for k in kernel_size]
         else:
-            kernel_size = compute_new_kernel_size(kernel_size, kernel_width)
+            kernel_size = compute_new_kernel_size(kernel_size, kernel_size_factor)
 
         padding_val = get_same_padding(kernel_size[0], stride[0], dilation[0])
         self.conv_mask = conv_mask
