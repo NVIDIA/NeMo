@@ -156,8 +156,6 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False):
         for label, samples in label_filepaths.items():
             train.extend(samples)
 
-        print()
-
     manifests = [
         ('train_manifest.json', train),
         ('validation_manifest.json', val),
@@ -179,7 +177,7 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False):
                 fout.write('\n')
                 fout.flush()
 
-        print(f"Finished construction of manifest : {manifest_filename}")
+        logging.info(f"Finished construction of manifest : {manifest_filename}")
 
 
 def main():

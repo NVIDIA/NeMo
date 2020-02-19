@@ -58,7 +58,6 @@ class TestPolicies(NeMoUnitTest):
     def test_warmup_hold(self):
         policy = PolynomialHoldDecayAnnealing(1000, warmup_ratio=0.25, hold_ratio=0.25, power=2)
         lr1, lr2, lr3, lr4 = (policy(1e-3, x, 0) for x in (0, 250, 500, 1000))
-        print(lr1, lr2, lr3, lr4)
         self.assertTrue(lr1 < lr2)
         self.assertTrue(lr2 == lr3)
         self.assertTrue(lr4 < lr3)
