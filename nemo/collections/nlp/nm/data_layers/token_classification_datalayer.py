@@ -28,24 +28,31 @@ class BertTokenClassificationDataLayer(TextDataLayer):
 
     All the data processing is done BertTokenClassificationDataset.
         text_file (str):
-            TODO
+            file to sequences, each line should a sentence,
+            No header.
         label_file (str):
-            TODO
+            file to labels, each line corresponds to word labels for a sentence in the text_file. No header.
         pad_label (int):
-            TODO
+            d value use for labels.
+            by default, it's the neutral label.
         tokenizer (TokenizerSpec): text tokenizer.
         max_seq_length (int):
             max sequence length minus 2 for [CLS] and [SEP]
         label_ids:
-            TODO
+            dict to map labels to label ids.
+            Starts with pad_label->0 and then increases in alphabetical order
+            For dev set use label_ids generated during training to support
+            cases when not all labels are present in the dev set.
+            For training set label_ids should be None.
         num_samples (int): 
-            TODO
+            number of samples you want to use for the dataset.
+                If -1, use all dataset. Useful for testing.
         shuffle (bool): whether to shuffle data or not. Default: False.
         batch_size (int): text segments batch size
         ignore_extra_tokens (bool): whether or not to ignore extra tokens
         ignore_start_end (bool): whether or not to ignore start and end
         use_cache:
-            TODO
+            whether to use data cache
         dataset_type (BertTokenClassificationDataset):
             the dataset that needs to be converted to DataLayerNM
     """
