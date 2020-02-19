@@ -143,13 +143,7 @@ def main():
     eval_tensors = [log_probs_e1, predictions_e1, transcript_e1, transcript_len_e1, encoded_len_e1]
 
     # inference
-    cache = bool(args.lm_path)
-    if cache:
-        logging.warning(
-            "Caching is not recommended for large datasets as they might not fit in cpu memory. To run beam search "
-            "decoding, it is recommended to dump log_probalities to disk using the --save_logprob argument."
-        )
-    evaluated_tensors = neural_factory.infer(tensors=eval_tensors, checkpoint_dir=load_dir, cache=cache)
+    evaluated_tensors = neural_factory.infer(tensors=eval_tensors, checkpoint_dir=load_dir)
 
     greedy_hypotheses = post_process_predictions(evaluated_tensors[1], vocab)
     references = post_process_transcripts(evaluated_tensors[2], evaluated_tensors[3], vocab)
@@ -157,12 +151,12 @@ def main():
     wer = word_error_rate(hypotheses=greedy_hypotheses, references=references)
     logging.info("Greedy WER {:.2f}%".format(wer * 100))
 
+    # Convert logits to list of numpy arrays
+    logprob = []
+    for i, batch in enumerate(evaluated_tensors[0]):
+        for j in range(batch.shape[0]):
+            logprob.append(batch[j][: evaluated_tensors[4][i][j], :].cpu().numpy())
     if args.save_logprob:
-        # Convert logits to list of numpy arrays
-        logprob = []
-        for i, batch in enumerate(evaluated_tensors[0]):
-            for j in range(batch.shape[0]):
-                logprob.append(batch[j][: evaluated_tensors[4][i][j], :].cpu().numpy())
         with open(args.save_logprob, 'wb') as f:
             pickle.dump(logprob, f, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -191,18 +185,13 @@ def main():
                     beta=beta,
                     lm_path=args.lm_path,
                     num_cpus=max(os.cpu_count(), 1),
+                    input_tensor=False,
                 )
-                beam_predictions_e1 = beam_search_with_lm(log_probs=log_probs_e1, log_probs_length=encoded_len_e1)
+                logprob = [np.exp(p) for p in logprob]
+                beam_predictions = beam_search_with_lm(log_probs=logprob, log_probs_length=None, force_pt=True)
 
-                evaluated_tensors = neural_factory.infer(tensors=[beam_predictions_e1], use_cache=cache, verbose=False)
-
-                beam_hypotheses = []
-                # Over mini-batch
-                for i in evaluated_tensors[-1]:
-                    # Over samples
-                    for j in i:
-                        beam_hypotheses.append(j[0][1])
-                lm_wer = word_error_rate(hypotheses=beam_hypotheses, references=references)
+                beam_predictions = [b[0][1] for b in beam_predictions[0]]
+                lm_wer = word_error_rate(hypotheses=beam_predictions, references=references)
                 logging.info("Beam WER {:.2f}%".format(lm_wer * 100))
                 beam_wers.append(((alpha, beta), lm_wer * 100))
 
