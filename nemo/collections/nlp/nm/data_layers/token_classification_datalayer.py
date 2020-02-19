@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.data import BertTokenClassificationDataset, BertTokenClassificationInferDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import ChannelType, LabelsType, NeuralType
+from nemo.core import ChannelType, LabelsType, NeuralType, MaskType
 
 __all__ = ['BertTokenClassificationDataLayer', 'BertTokenClassificationInferDataLayer']
 
@@ -70,7 +70,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
-            "loss_mask": NeuralType(('B', 'T'), ChannelType()),
+            "loss_mask": NeuralType(('B', 'T'), MaskType()),
             "subtokens_mask": NeuralType(('B', 'T'), ChannelType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
         }
