@@ -228,13 +228,13 @@ def create_pipeline(
             name='Punctuation',
         )
 
-        punct_loss = CrossEntropyLoss(weight=class_weights)
+        punct_loss = CrossEntropyLoss(logits_dim=3, weight=class_weights)
 
         # Initialize capitalization loss
         capit_classifier = capit_classifier(
             hidden_size=hidden_size, num_classes=len(capit_label_ids), dropout=dropout, name='Capitalization'
         )
-        capit_loss = CrossEntropyLoss()
+        capit_loss = CrossEntropyLoss(logits_dim=3)
 
         task_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 

@@ -109,6 +109,7 @@ class CrossEntropyLoss(LossNM):
         logits_dim (int): dimension size of the logits tensor
         logits (float): output of the classifier
         labels (long): ground truth labels
+        loss_mask (bool/float/int): tensor to specify the masking
     """
 
     @property
