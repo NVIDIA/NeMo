@@ -21,9 +21,9 @@ On 2 Quadro GV100 GPUs, training time is approximately 1 hour.
 =============================== ===================== ============
 Network                         Dataset               Results
 =============================== ===================== ============
-QuartzNet3x1 (0.077M params)    Speech Commands V1    97.46% Test
+QuartzNet3x1 (77k params)       Speech Commands V1    97.46% Test
 
-QuartzNet3x2 (0.093M params)    Speech Commands V2    97.35% Test
+QuartzNet3x2 (93k params)       Speech Commands V2    97.35% Test
 =============================== ===================== ============
 
 
