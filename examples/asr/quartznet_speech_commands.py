@@ -181,9 +181,9 @@ def create_all_dags(args, neural_factory):
 
     # Callbacks needed to print info to console and Tensorboard
     train_callback = nemo.core.SimpleLossLoggerCallback(
-        # Notice that we pass in loss, predictions, and the transcript info.
+        # Notice that we pass in loss, predictions, and the labels (commands).
         # Of course we would like to see our training loss, but we need the
-        # other arguments to calculate the WER.
+        # other arguments to calculate the accuracy.
         tensors=[loss, decoded, commands],
         # The print_func defines what gets printed.
         print_func=partial(monitor_classification_training_progress, eval_metric=None),
