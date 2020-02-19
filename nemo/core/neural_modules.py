@@ -239,7 +239,7 @@ class NeuralModule(ABC):
         # Check if generic export will work.
         if not self.__validate_params(self._init_params):
             raise ValueError(
-                "Generic Module export cannot work as some of the values are not primitive types (string, int, float) "
+                "Generic configuration export enables to use of parameters of primitive types (string, int, float) "
                 F"or (lists of/dicts of) primitive types. Please implement your own custom `export_to_config()` and "
                 F"`import_from_config()` methods for your custom Module class."
             )

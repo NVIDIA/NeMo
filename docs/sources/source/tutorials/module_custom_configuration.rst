@@ -1,54 +1,74 @@
-Module Configuration
-====================
+Customizing the configuration
+-----------------------------
 
-Neural Modules have configuration that can be imported from/exported to YAML file. \
-A module configuration file stores all parameters required for creation of an instance.
+
+A generic configuration export enables to use of parameters of primitive types (string, int, float) \
+or nested lists of/dicts of primitive types.
+
+In order to extend that functionality by other, custom types one must overload the \
+generic :meth:`export_to_config()` and  :meth:`import_from_config()` methods for his/her Module class. \
+This tutorial explains how one can do it.
+
+
+In the following example we will derive a class from the :class:`TaylorNet` (used in the previous example) \
+and extend it by those methods. But first, let us define a simple :class:`Status` enum:
+
+.. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
+   :language: python
+   :lines: 31-33
+
+Now let us define the :class:`CustomTaylorNet` Neural Module class:
+
+.. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
+   :language: python
+   :lines: 36-41
+
+
+In order to properly handle the export of the :class:`Status` enum we must implement a custom function \
+:meth:`export_to_config()`:
+
+.. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
+   :language: python
+   :lines: 43-74
+
+Note that the configuration is actually a dictionary consisting of two sections: \
+ * ``header`` (storing class specification, NeMo version, NeMo collection name etc.) and
+ * ``init_params`` storing the parameters used for instantiation of the object.
+
+Those parameters are stored in the protected :meth:`self._init_params`  field of the base :class:`NeuralModule` class.
+
+Analogically, we must overload the :meth:`import_from_config()` method:
+
+.. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
+   :language: python
+   :lines: 77-117
+
+Please note that the base :class:`NeuralModule` class provides several protected methods that we used, \
+with most important: \
+ * :meth:`_create_config_header()` generating the appropriate header, and
+ * :meth:`_validate_config_file()` validating the loaded configuration file (checking the header content).
 
 .. note::
-    In the case of Trainable Neural Modules the `configuration` is complementary to checkpoint, i.e. \
-    configuration contains parameters (like e.g. number of layers, hidden size etc.), \
-    whereas checkpoint contains the actual module weights.
+    It is once again worth emphasizing that the :meth:`import_from_config()` is a class method, actually returning a \
+    new object instance - in this case of the hardcoded :class:`CustomTaylorNet` type.
 
 
-Example
-------------
-
-In the following example we will once again train a model to learn Taylor's coefficients for y=sin(x). \
-However, we will extend the example by showing how to export configuration of the module to a YAML file and \
-create a second instance having the same set of parameters.
-
-Let us start by creating the Neural Factory and instatiating the modules from the original example:
+Now we can simply create an instance and export its configuration by calling:
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 20-33
+   :lines: 126-127,132-133
 
-Now we can export the configuration of any of the existing modules by using  the `export_to_config()`, for \
-example let us export the configuration of the trainable `TaylorNet` like this:
-
-.. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
-   :language: python
-   :lines: 36
-
-There is an analogical function `import_from_config()` responsible for loading the configuration file:
+And instantiate a second by loading that configuration:
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 39
+   :lines: 135-137
 
-.. note::
-    The `import_from_config()` function actually creates a new instance of object of the class that was stored in the \
-    configuration. But it is important to understand that both instances do not share any trainable weights. \
-    NeMo offers a separate mechanism for weight tying.
+As a result we will see that the new object has set the status to the same value as the original one:
 
-Now we can use the newly imported module in the same way as every other module. \
-For example, we can build a graph and train it with a NeMo trainer:
+.. code-block:: bash
 
-.. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
-   :language: python
-   :lines: 41-
-
-
-
-.. note::
-    This and other examples can be found in the `nemo/examples` folder
+    [NeMo I 2020-02-18 20:15:50 module_custom_configuration:74] Configuration of module 3ec99d30-baba-4e4c-a62b-e91268762864 (CustomTaylorNet) exported to /tmp/custom_taylor_net.yml
+    [NeMo I 2020-02-18 20:15:50 module_custom_configuration:41] Status: Status.error
+    [NeMo I 2020-02-18 20:15:50 module_custom_configuration:114] Instantiated a new Neural Module of type `CustomTaylorNet` using configuration loaded from the `/tmp/custom_taylor_net.yml` file
