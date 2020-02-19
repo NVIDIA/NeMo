@@ -69,8 +69,8 @@ class SmoothedCrossEntropyLoss(LossNM):
         else:
             raise ValueError("Both output_mask and pad_id are None")
 
-        if labels_mask.dtype is not torch.bool:
-            labels_mask = labels_mask > 0.5
+        if labels_mask.dtype is not logits.dtype:
+            labels_mask = labels_mask.to(logits.dtype)
 
         loss = self._loss_fn(logits, labels, labels_mask)
         return loss
