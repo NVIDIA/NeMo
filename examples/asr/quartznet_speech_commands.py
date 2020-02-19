@@ -112,7 +112,7 @@ def create_all_dags(args, neural_factory):
 
     N = len(data_layer)
     steps_per_epoch = math.ceil(N / (args.batch_size * args.iter_per_step * args.num_gpus))
-    print("Steps per epoch :", steps_per_epoch)
+    logging.info('Steps per epoch : {0}'.format(steps_per_epoch))
     logging.info('Have {0} examples to train on.'.format(N))
 
     data_preprocessor = nemo_asr.AudioToMFCCPreprocessor(
