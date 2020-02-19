@@ -36,17 +36,9 @@ class Status(Enum):
 class CustomTaylorNet(nemo.tutorials.TaylorNet):
     """Module which learns Taylor's coefficients. Extends the original module by a custom status enum."""
 
-    @property
-    def input_ports(self):
-        return {"x": NeuralType(('B', 'D'), ChannelType())}
-
-    @property
-    def output_ports(self):
-        return {"y_pred": NeuralType(('B', 'D'), ChannelType())}
-
-    def __init__(self, dim, status):
+    def __init__(self, dim, status: Status):
         super().__init__(dim)
-        logging.info("Status: {}".format(status))
+        nemo.logging.info("Status: {}".format(status))
 
     def export_to_config(self, config_file):
         """
@@ -78,7 +70,7 @@ class CustomTaylorNet(nemo.tutorials.TaylorNet):
         with open(abs_path_file, 'w') as outfile:
             yaml.dump(to_export, outfile)
 
-        logging.info(
+        nemo.logging.info(
             "Configuration of module {} ({}) exported to {}".format(self._uuid, type(self).__name__, abs_path_file)
         )
 
@@ -117,7 +109,7 @@ class CustomTaylorNet(nemo.tutorials.TaylorNet):
 
         # Create and return the object.
         obj = CustomTaylorNet(**init_params)
-        logging.info(
+        nemo.logging.info(
             "Instantiated a new Neural Module of type `{}` using configuration loaded from the `{}` file".format(
                 "CustomTaylorNet", config_file
             )

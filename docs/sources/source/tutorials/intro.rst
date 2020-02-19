@@ -9,7 +9,6 @@ Getting started
    neuraltypes
    custommodules
    module_configuration
-   module_custom_configuration
    weightsharing
    callbacks
    complex_training
