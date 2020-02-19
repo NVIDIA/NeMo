@@ -28,8 +28,6 @@ class NeMoUnitTest(unittest.TestCase):
         """ Default setup - instantiates Neural Factory. """
         # Initialize the default Neural Factory - on GPU.
         self.nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.GPU)
-        # Reset loggers.
-        self.nf._exp_manager.reset_loggers()
 
         # Print standard header.
         logging.info("-" * 20 + " " + self._testMethodName + " " + "-" * 20)

@@ -215,10 +215,6 @@ class ExpManager:
             # logging.info(f'Experiment output is stored in {self.work_dir}')
             nemo.logging.info(f'Experiment output is stored in {self.work_dir}')
 
-    def reset_loggers(self):
-        # logging.remove_stream_handlers()
-        nemo.logging.remove_stream_handlers()
-
 
 def get_git_hash():
     try:
