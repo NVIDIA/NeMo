@@ -117,6 +117,9 @@ def parse_args():
     )
     parser.add_argument("--evaluation_only", action='store_true', help="Whether to only do evaluation.")
     parser.add_argument(
+        "--no_data_cache", action='store_true', help="When specified do not load and store cache preprocessed data.",
+    )
+    parser.add_argument(
         "--doc_stride",
         default=128,
         type=int,
@@ -215,6 +218,7 @@ def create_pipeline(
     num_gpus=1,
     batches_per_step=1,
     mode="train",
+    use_data_cache=True,
 ):
     data_layer = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
         mode=mode,
@@ -225,6 +229,7 @@ def create_pipeline(
         max_query_length=max_query_length,
         max_seq_length=max_seq_length,
         doc_stride=doc_stride,
+        use_cache=use_data_cache,
     )
 
     input_data = data_layer()
@@ -337,6 +342,7 @@ if __name__ == "__main__":
             num_gpus=args.num_gpus,
             batches_per_step=args.batches_per_step,
             mode="train",
+            use_data_cache=not args.no_data_cache,
         )
         logging.info(f"training step per epoch: {train_steps_per_epoch}")
     _, _, eval_output, eval_data_layer = create_pipeline(
@@ -352,6 +358,7 @@ if __name__ == "__main__":
         num_gpus=args.num_gpus,
         batches_per_step=args.batches_per_step,
         mode="dev",
+        use_data_cache=not args.no_data_cache,
     )
 
     if not args.evaluation_only:

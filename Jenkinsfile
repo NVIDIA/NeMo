@@ -150,14 +150,14 @@ pipeline {
       parallel {
         stage('BERT Squad v1.1') {
           steps {
-            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --dev_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case'
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --dev_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case'
             sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv1 && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
           }
         }
         stage('BERT Squad v2.0') {
           steps {
-            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json --dev_file /home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --work_dir outputs/squadv2 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case --version_2_with_negative'
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json --dev_file /home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --work_dir outputs/squadv2 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case --version_2_with_negative'
             sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv2/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv2 && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
           }
@@ -183,7 +183,7 @@ pipeline {
         }
         stage('Roberta Squad v1.1') {
           steps {
-            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --dev_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1_roberta --batch_size 2 --save_step_freq 500 --num_epochs 1 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case  --model_type roberta --pretrained_model_name roberta-base'
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --dev_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1_roberta --batch_size 2 --save_step_freq 500 --num_epochs 1 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case  --model_type roberta --pretrained_model_name roberta-base'
             sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1_roberta/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv1_roberta && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
           }
