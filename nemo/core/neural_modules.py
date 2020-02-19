@@ -1,7 +1,7 @@
 # ! /usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,9 +24,11 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 from enum import Enum
 from inspect import getargvalues, getfullargspec, stack
+from os import path
 from typing import Dict, List, Optional, Set, Tuple
 
-import nemo
+from ruamel import yaml
+
 from .neural_types import (
     CanNotInferResultNeuralType,
     NeuralPortNameMismatchError,
@@ -35,7 +37,9 @@ from .neural_types import (
     NeuralTypeComparisonResult,
     NmTensor,
 )
+from nemo import logging
 from nemo.core import NeuralModuleFactory
+from nemo.package_info import __version__ as nemo_version
 from nemo.utils.decorators.deprecated import deprecated
 
 logging = nemo.logging
@@ -123,8 +127,7 @@ class NeuralModule(ABC):
         # Return parameters.
         return init_params
 
-    # TODO: IF part of API, should not start with _, it hidden should start with __
-    def _validate_params(self, params):
+    def __validate_params(self, params):
         """
             Checks whether dictionary contains parameters being primitive types (string, int, float etc.)
             or (lists of)+ primitive types.
@@ -141,7 +144,7 @@ class NeuralModule(ABC):
         for key, variable in params.items():
             if not self.__is_of_allowed_type(variable):
                 logging.warning(
-                    "{} contains variable {} is of type {} which is not of a allowed.".format(
+                    "Parameter '{}' contains a variable '{}' of type '{}' which is not allowed.".format(
                         key, variable, type(variable)
                     )
                 )
@@ -152,7 +155,7 @@ class NeuralModule(ABC):
 
     def __is_of_allowed_type(self, var):
         """
-            A recursive function that checks if a given variable is allowed (in)
+            A recursive function that checks if a given variable is of allowed type.
 
             Args:
                 pretrained_model_name (str): name of pretrained model to use in order.
@@ -160,6 +163,10 @@ class NeuralModule(ABC):
             Returns:
                 True if all parameters were ok, False otherwise.
         """
+        # Special case: None is also allowed.
+        if var is None:
+            return True
+
         var_type = type(var)
 
         # If this is list - check its elements.
@@ -168,7 +175,7 @@ class NeuralModule(ABC):
                 if not self.__is_of_allowed_type(list_var):
                     return False
 
-        # If this is list - check its elements.
+        # If this is dict - check its elements.
         elif var_type == dict:
             for _, dict_var in var.items():
                 if not self.__is_of_allowed_type(dict_var):
@@ -179,6 +186,184 @@ class NeuralModule(ABC):
 
         # Well, seems that everything is ok.
         return True
+
+    def _create_config_header(self):
+        """ A protected method that create a header stored later in the configuration file. """
+
+        # Get module "full specification".
+        module_full_spec = str(self.__module__) + "." + str(self.__class__.__qualname__)
+        module_class_name = type(self).__name__
+        # print(module_full_spec)
+
+        # Check whether module belongs to a collection.
+        spec_list = module_full_spec.split(".")
+
+        # Do not check Neural Modules from unit tests.
+        if spec_list[0] == "tests":
+            # Set collection variables.
+            collection_type = "tests"
+            collection_version = None
+        else:
+            # Check if component belongs to any collection
+            if len(spec_list) < 3 or (spec_list[0] != "nemo" and spec_list[1] != "collection"):
+                logging.warning(
+                    "Module `{}` does not belong to any collection. This won't be allowed in the next release.".format(
+                        module_class_name
+                    )
+                )
+                collection_type = "unknown"
+                collection_version = None
+            else:
+                # Ok, set collection.
+                collection_type = spec_list[2]
+                collection_version = None
+                # TODO: to be SET!
+                # print(getattr("nemo.collections.nlp", __version__))
+
+        # Create a "header" with module "specification".
+        header = {
+            "nemo_core_version": nemo_version,
+            "collection_type": collection_type,
+            "collection_version": collection_version,
+            # "class": module_class_name, # Operating only on full_spec now.
+            "full_spec": module_full_spec,
+        }
+        return header
+
+    def export_to_config(self, config_file):
+        """
+            A function that exports module "configuration" (i.e. init parameters) to a YAML file.
+            Raises a ValueError exception in case then parameters coudn't be exported.
+
+            Args:
+                config_file: path (absolute or relative) and name of the config file (YML)
+        """
+        # Check if generic export will work.
+        if not self.__validate_params(self._init_params):
+            raise ValueError(
+                "Generic configuration export enables to use of parameters of primitive types (string, int, float) "
+                F"or (lists of/dicts of) primitive types. Please implement your own custom `export_to_config()` and "
+                F"`import_from_config()` methods for your custom Module class."
+            )
+
+        # Greate an absolute path.
+        abs_path_file = path.expanduser(config_file)
+
+        # Create the dictionary to be exported.
+        to_export = {}
+
+        # Add "header" with module "specification".
+        to_export["header"] = self._create_config_header()
+
+        # Add init parameters.
+        to_export["init_params"] = self._init_params
+        # print(to_export)
+
+        # All parameters are ok, let's export.
+        with open(abs_path_file, 'w') as outfile:
+            yaml.dump(to_export, outfile)
+
+        logging.info(
+            "Configuration of module {} ({}) exported to {}".format(self._uuid, type(self).__name__, abs_path_file)
+        )
+
+    @classmethod
+    def _validate_config_file(cls, config_file, section_name=None):
+        """
+            Class method validating whether the config file has a proper content (sections, specification etc.).
+            Raises an ImportError exception when config file is invalid or
+            incompatible (when called from a particular class).
+
+            Args:
+                config_file: path (absolute or relative) and name of the config file (YML)
+
+                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
+
+            Returns:
+                A loaded configuration file (dictionary).
+        """
+        # Greate an absolute path.
+        abs_path_file = path.expanduser(config_file)
+
+        # Open the config file.
+        with open(abs_path_file, 'r') as stream:
+            loaded_config = yaml.safe_load(stream)
+
+        # Check section.
+        if section_name is not None:
+            if section_name not in loaded_config:
+                raise ImportError(
+                    "The loaded config `{}` doesn't contain the indicated `{}` section".format(
+                        config_file, section_name
+                    )
+                )
+            # Section exists - use only it for configuration.
+            loaded_config = loaded_config[section_name]
+
+        # Make sure that the config is valid.
+        if "header" not in loaded_config:
+            raise ImportError("The loaded config `{}` doesn't contain the `header` section".format(config_file))
+
+        if "init_params" not in loaded_config:
+            raise ImportError("The loaded config `{}` doesn't contain the `init_params` section".format(config_file))
+
+        # Parse the "full specification".
+        spec_list = loaded_config["header"]["full_spec"].split(".")
+
+        # Check if config contains data of a compatible class.
+        if cls.__name__ != "NeuralModule" and spec_list[-1] != cls.__name__:
+            txt = "The loaded file `{}` contains configuration of ".format(config_file)
+            txt = txt + "`{}` thus cannot be used for instantiation of an object of type `{}`".format(
+                spec_list[-1], cls.__name__
+            )
+            raise ImportError(txt)
+
+        # Success - return configuration.
+        return loaded_config
+
+    @classmethod
+    def import_from_config(cls, config_file, section_name=None, overwrite_params={}):
+        """
+            Class method importing the configuration file.
+            Raises an ImportError exception when config file is invalid or
+            incompatible (when called from a particular class).
+
+            Args:
+                config_file: path (absolute or relative) and name of the config file (YML)
+
+                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
+
+                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default
+                parameters loaded from the configuration file
+
+            Returns:
+                Instance of the created NeuralModule object.
+        """
+        # Validate the content of the configuration file (its header).
+        loaded_config = cls._validate_config_file(config_file, section_name)
+
+        # Parse the "full specification".
+        spec_list = loaded_config["header"]["full_spec"].split(".")
+
+        # Get object class from "full specification".
+        mod_obj = __import__(spec_list[0])
+        for spec in spec_list[1:]:
+            mod_obj = getattr(mod_obj, spec)
+        # print(mod_obj)
+
+        # Get init parameters.
+        init_params = loaded_config["init_params"]
+        # Update parameters with additional ones.
+        init_params.update(overwrite_params)
+
+        # Create and return the object.
+        obj = mod_obj(**init_params)
+        logging.info(
+            "Instantiated a new Neural Module of type `{}` using configuration loaded from the `{}` file".format(
+                spec_list[-1], config_file
+            )
+        )
+        return obj
 
     @deprecated(version=0.11)
     @staticmethod

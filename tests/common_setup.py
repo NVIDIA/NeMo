@@ -30,4 +30,4 @@ class NeMoUnitTest(unittest.TestCase):
         self.nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.GPU)
 
         # Print standard header.
-        logging.info("-" * 20 + " " + self._testMethodName + " " + "-" * 20)
+        logging.info("-" * 20 + " " + type(self).__name__ + "." + self._testMethodName + " " + "-" * 20)
