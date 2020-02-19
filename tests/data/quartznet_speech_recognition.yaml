@@ -3,6 +3,8 @@ sample_rate: 16000
 dropout: &drop 0.0
 rep: &rep 1
 n_mels: &n_mels 64
+se: &se true
+kernel_size_factor: &kfactor 2.0
 
 AudioToTextDataLayer:
     train:
@@ -41,6 +43,8 @@ JasperEncoder:
           dropout: *drop
           residual: false
           separable: true
+          se: *se
+          kernel_size_factor: *kfactor
 
         - filters: 32
           repeat: *rep
@@ -50,6 +54,8 @@ JasperEncoder:
           dropout: *drop
           residual: true
           separable: true
+          se: *se
+          kernel_size_factor: *kfactor
 
         - filters: 32
           repeat: *rep
@@ -59,6 +65,8 @@ JasperEncoder:
           dropout: *drop
           residual: true
           separable: true
+          se: *se
+          kernel_size_factor: *kfactor
 
         - filters: 32
           repeat: *rep
@@ -68,6 +76,8 @@ JasperEncoder:
           dropout: *drop
           residual: true
           separable: true
+          se: *se
+          kernel_size_factor: *kfactor
 
         - filters: 32
           repeat: 1
@@ -77,6 +87,8 @@ JasperEncoder:
           dropout: *drop
           residual: false
           separable: true
+          se: *se
+          kernel_size_factor: *kfactor
 
         - filters: 32
           repeat: 1
