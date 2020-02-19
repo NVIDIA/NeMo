@@ -119,7 +119,7 @@ class CrossEntropyLoss(LossNM):
         return {
             "logits": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 1), LogitsType()),
             "labels": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 2), LabelsType()),
-            "loss_mask": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 2), MaskType(), optional=True),
+            "loss_mask": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 1), MaskType(), optional=True),
         }
 
     @property
