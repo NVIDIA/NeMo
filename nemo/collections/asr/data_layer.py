@@ -143,7 +143,6 @@ transcript_n}
             'load_audio': load_audio,
         }
         self._dataset = AudioDataset(**dataset_params)
-        self._batch_size = batch_size
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:

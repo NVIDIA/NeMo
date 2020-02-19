@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # =============================================================================
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,31 +22,28 @@ import nemo
 from tests.common_setup import NeMoUnitTest
 
 
+class MockupModule(nemo.core.NeuralModule):
+    """
+    Mockup component class.
+    """
+
+    def __init__(self):
+        nemo.core.NeuralModule.__init__(self)
+
+
 class NeuralModuleConfigTest(NeMoUnitTest):
     """
         Class testing methods related to Neural Module import/export.
     """
 
-    class MockupModule(nemo.core.NeuralModule):
-        """
-        Mockup component class.
-        """
-
-        def __init__(self):
-            nemo.core.NeuralModule.__init__(self)
-
-        def validate_params(self, params):
-            """ Method for accessing private method of NeuralModuce class """
-            return self._NeuralModule__validate_params(params)
-
     def setUp(self) -> None:
         super().setUp()
 
         # Mockup abstract methods.
-        NeuralModuleConfigTest.MockupModule.__abstractmethods__ = set()
+        MockupModule.__abstractmethods__ = set()
 
         # Create object.
-        self.module = NeuralModuleConfigTest.MockupModule()
+        self.module = MockupModule()
 
     def test_build_in_types(self):
         """ Tests whether build-in types are handled."""
@@ -54,7 +51,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
 
         # Check error output.
-        self.assertEqual(self.module.validate_params(params), True)
+        self.assertEqual(self.module._validate_params(params), True)
 
     def test_nested_dict(self):
         """ Tests whether (nested) dicts are handled."""
@@ -67,7 +64,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         }
 
         # Check error output.
-        self.assertEqual(self.module.validate_params(params), True)
+        self.assertEqual(self.module._validate_params(params), True)
 
     def test_nested_list(self):
         """ Tests whether (nested) lists are handled."""
@@ -75,7 +72,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         params = {"list_outer": [[1, 2, 3, 4]]}
 
         # Check error output.
-        self.assertEqual(self.module.validate_params(params), True)
+        self.assertEqual(self.module._validate_params(params), True)
 
     def test_nested_mix(self):
         """ Tests whether (nested) lists are handled."""
@@ -83,4 +80,4 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         params = {"list_outer": [{"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}]}
 
         # Check error output.
-        self.assertEqual(self.module.validate_params(params), True)
+        self.assertEqual(self.module._validate_params(params), True)

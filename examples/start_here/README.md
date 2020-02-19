@@ -21,17 +21,18 @@ previous example (and in a typical seq2seq model).
 ```python
 ...
 # Instance one on EncoderRNN
-encoder1 = nemo.tutorials.EncoderRNN(voc_size=6107, encoder_n_layers=2, hidden_size=512, dropout=0.1)
-
+encoder1 = neural_factory.get_module(
+  name="EncoderRNN", collection="tutorials",
+  params=config)
 # Instance two on EncoderRNN. It will have different weights from instance one
-encoder2 = nemo.tutorials.EncoderRNN(voc_size=6107, encoder_n_layers=2, hidden_size=512, dropout=0.1)
-
-# Create a simple combiner mixing the encodings.
-mixer = nemo.backends.pytorch.common.SimpleCombiner()
-
+encoder2 = neural_factory.get_module(
+  name="EncoderRNN", collection="tutorials",
+  params=config)
+mixer = neural_factory.get_module(
+  name="SimpleCombiner", collection="other",
+  params={}
+)
 ...
-
-# Create the graph by connecting input and output ports of the created modules.
 encoder_outputs1, encoder_hidden1 = encoder1(input_seq=src,
                                              input_lengths=src_lengths)
 encoder_outputs2, encoder_hidden2 = encoder2(input_seq=src,

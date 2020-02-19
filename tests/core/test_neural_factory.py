@@ -21,13 +21,17 @@ from tests.common_setup import NeMoUnitTest
 
 
 class TestNeuralFactory(NeMoUnitTest):
-    def test_create_simple_graph(self):
-        # Create modules.
-        dl = nemo.tutorials.RealFunctionDataLayer(n=100, batch_size=16)
-        fx = nemo.tutorials.TaylorNet(dim=4)
-        loss = nemo.tutorials.MSELoss()
+    def test_create_single_module(self):
+        instance = self.nf.get_module(name="TaylorNet", collection="toys", params={"dim": 4})
+        self.assertTrue(isinstance(instance, nemo.backends.pytorch.tutorials.TaylorNet))
 
-        # Create the graph by connnecting the modules.
+    def test_create_simple_graph(self):
+        dl = self.nf.get_module(
+            name="RealFunctionDataLayer", collection="toys", params={"n": 10000, "batch_size": 128},
+        )
+        fx = self.nf.get_module(name="TaylorNet", collection="toys", params={"dim": 4})
+        loss = self.nf.get_module(name="MSELoss", collection="toys", params={})
+
         x, y = dl()
         y_pred = fx(x=x)
         _ = loss(predictions=y_pred, target=y)

@@ -14,31 +14,40 @@ if not os.path.isfile(data_file):
         with open(data_file, 'wb') as f_out:
             shutil.copyfileobj(f_in, f_out)
 
+# Configuration
+config = {
+    "corpus_name": "cornell",
+    "datafile": data_file,
+    "attn_model": 'dot',
+    "hidden_size": 512,
+    "encoder_n_layers": 2,
+    "decoder_n_layers": 2,
+    "dropout": 0.1,
+    "voc_size": 6104 + 3,
+    "batch_size": 128,
+    "num_epochs": 15,
+    "optimizer_kind": "adam",
+    "learning_rate": 0.0003,
+    "tb_log_dir": "ChatBot",
+}
+
 # instantiate Neural Factory with supported backend
-neural_factory = nemo.core.NeuralModuleFactory()
+neural_factory = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, local_rank=None)
 
 # instantiate necessary neural modules
-dl = nemo.tutorials.DialogDataLayer(batch_size=128, corpus_name="cornell", datafile=data_file)
+dl = neural_factory.get_module(name="DialogDataLayer", collection="tutorials", params=config)
 
 # Instance one on EncoderRNN
-encoder1 = nemo.tutorials.EncoderRNN(voc_size=(6104 + 3), encoder_n_layers=2, hidden_size=512, dropout=0.1)
-
+encoder1 = neural_factory.get_module(name="EncoderRNN", collection="tutorials", params=config)
 # Instance two on EncoderRNN. It will have different weights from instance one
-encoder2 = nemo.tutorials.EncoderRNN(voc_size=(6104 + 3), encoder_n_layers=2, hidden_size=512, dropout=0.1)
+encoder2 = neural_factory.get_module(name="EncoderRNN", collection="tutorials", params=config)
+mixer = neural_factory.get_module(name="SimpleCombiner", collection="common", params={})
 
-# Create a simple combiner mixing the encodings.
-mixer = nemo.backends.pytorch.common.SimpleCombiner()
+decoder = neural_factory.get_module(name="LuongAttnDecoderRNN", collection="tutorials", params=config)
 
-decoder = nemo.tutorials.LuongAttnDecoderRNN(
-    attn_model="dot", hidden_size=512, voc_size=(6104 + 3), decoder_n_layers=2, dropout=0.1
-)
+L = neural_factory.get_module(name="MaskedXEntropyLoss", collection="tutorials", params={})
 
-L = nemo.tutorials.MaskedXEntropyLoss()
-
-decoderInfer = nemo.tutorials.GreedyLuongAttnDecoderRNN(
-    attn_model="dot", hidden_size=512, voc_size=(6104 + 3), decoder_n_layers=2, dropout=0.1, max_dec_steps=10
-)
-
+decoderInfer = neural_factory.get_module(name="GreedyLuongAttnDecoderRNN", collection="tutorials", params=config)
 # notice trainng and inference decoder share parameters
 decoderInfer.tie_weights_with(decoder, list(decoder.get_weights().keys()))
 
@@ -55,6 +64,8 @@ outputs_inf, _ = decoderInfer(encoder_outputs=encoder_outputs)
 
 
 # this function is necessary to print intermediate results to console
+
+
 def outputs2words(tensors, vocab):
     source_ids = tensors[1][:, 0].cpu().numpy().tolist()
     response_ids = tensors[2][:, 0].cpu().numpy().tolist()
@@ -81,5 +92,5 @@ optimizer.train(
     tensors_to_optimize=[loss],
     callbacks=[callback],
     optimizer="adam",
-    optimization_params={"num_epochs": 15, "lr": 0.001},
+    optimization_params={"num_epochs": config["num_epochs"], "lr": 0.001},
 )

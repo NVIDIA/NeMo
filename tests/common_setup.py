@@ -32,4 +32,4 @@ class NeMoUnitTest(unittest.TestCase):
         self.nf._exp_manager.reset_loggers()
 
         # Print standard header.
-        logging.info("-" * 20 + " " + type(self).__name__ + "." + self._testMethodName + " " + "-" * 20)
+        logging.info("-" * 20 + " " + self._testMethodName + " " + "-" * 20)
