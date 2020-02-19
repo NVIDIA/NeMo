@@ -39,7 +39,7 @@ try:
 except (AttributeError, ModuleNotFoundError):
     # this is lie - it isn't fused in this case
     logging.warning(
-        "Unable to import APEX. Mixed precision, distributed training and " "FusedLayerNorm are not available."
+        "Unable to import APEX. Mixed precision, distributed training and FusedLayerNorm are not available."
     )
     from torch.nn import LayerNorm as FusedLayerNorm
 
@@ -108,9 +108,7 @@ class TransformerEmbedding(nn.Module):
     def forward(self, input_ids, token_type_ids=None, start_pos=0):
         seq_length = input_ids.size(1)
         if seq_length > self.max_sequence_length:
-            raise ValueError(
-                "Input sequence is longer than maximum allowed" " sequence length for positional encoding"
-            )
+            raise ValueError("Input sequence is longer than maximum allowed sequence length for positional encoding")
         position_ids = torch.arange(
             start=start_pos, end=start_pos + seq_length, dtype=torch.long, device=input_ids.device
         )

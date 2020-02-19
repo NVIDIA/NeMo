@@ -139,7 +139,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", default="/raid/data/wiki_zh", type=str)
     parser.add_argument("--output_dir", default="./", type=str)
     parser.add_argument(
-        "--min_frequency", default=0, type=int, help="Characters occuring less frequently " "will be filtered out"
+        "--min_frequency", default=0, type=int, help="Characters occuring less frequently will be filtered out"
     )
     parser.add_argument("--max_files", default=-1, type=int, help="Max number of dirs to process")
     args = parser.parse_args()

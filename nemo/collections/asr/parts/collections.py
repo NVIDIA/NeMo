@@ -8,6 +8,8 @@ import pandas as pd
 import nemo
 from nemo.collections.asr.parts import manifest, parsers
 
+logging = nemo.logging
+
 
 class _Collection(collections.UserList):
     """List of parsed and preprocessed data."""
@@ -33,7 +35,7 @@ class Text(_Collection):
             tokens = parser(text)
 
             if tokens is None:
-                nemo.logging.warning("Fail to parse '%s' text line.", text)
+                logging.warning("Fail to parse '%s' text line.", text)
                 continue
 
             data.append(output_type(tokens))
@@ -103,22 +105,26 @@ class AudioText(_Collection):
         """
 
         output_type = self.OUTPUT_TYPE
-        data, duration_filtered = [], 0.0
+        data, duration_filtered, num_filtered, total_duration = [], 0.0, 0, 0.0
         for audio_file, duration, text in zip(audio_files, durations, texts):
             # Duration filters.
             if min_duration is not None and duration < min_duration:
                 duration_filtered += duration
+                num_filtered += 1
                 continue
 
             if max_duration is not None and duration > max_duration:
                 duration_filtered += duration
+                num_filtered += 1
                 continue
 
             text_tokens = parser(text)
             if text_tokens is None:
                 duration_filtered += duration
+                num_filtered += 1
                 continue
 
+            total_duration += duration
             data.append(output_type(audio_file, duration, text_tokens))
 
             # Max number of entities filter.
@@ -128,9 +134,8 @@ class AudioText(_Collection):
         if do_sort_by_duration:
             data.sort(key=lambda entity: entity.duration)
 
-        nemo.logging.info(
-            "Filtered duration for loading collection is %f.", duration_filtered,
-        )
+        logging.info("Dataset loaded with %d files totalling %.2f hours", len(data), total_duration / 3600)
+        logging.info("%d files were filtered totalling %.2f hours", num_filtered, duration_filtered / 3600)
 
         super().__init__(data)
 

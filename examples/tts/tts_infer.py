@@ -40,7 +40,7 @@ def parse_args():
     parser.add_argument(
         "--vocoder_model_config",
         type=str,
-        help=("vocoder model configuration file: model.yaml. Not required for " "griffin-lim."),
+        help=("vocoder model configuration file: model.yaml. Not required for griffin-lim."),
     )
     parser.add_argument(
         "--spec_model_load_dir", type=str, required=True, help="directory containing checkpoints for spec model",
@@ -48,7 +48,7 @@ def parse_args():
     parser.add_argument(
         "--vocoder_model_load_dir",
         type=str,
-        help=("directory containing checkpoints for vocoder model. Not " "required for griffin-lim"),
+        help=("directory containing checkpoints for vocoder model. Not required for griffin-lim"),
     )
     parser.add_argument("--eval_dataset", type=str, required=True)
     parser.add_argument("--save_dir", type=str, help="directory to save audio files to")
@@ -79,7 +79,7 @@ def parse_args():
         "--waveglow_denoiser_strength",
         type=float,
         default=0.0,
-        help=("denoiser strength for waveglow. Start with 0 and slowly " "increment"),
+        help=("denoiser strength for waveglow. Start with 0 and slowly increment"),
     )
     parser.add_argument("--waveglow_sigma", type=float, default=0.6)
 
