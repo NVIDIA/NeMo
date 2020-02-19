@@ -185,27 +185,8 @@ class NeuralModule(ABC):
         # Well, seems that everything is ok.
         return True
 
-    def export_to_config(self, config_file):
-        """
-            A function that exports module "configuration" (i.e. init parameters) to a YAML file.
-            Raises a ValueError exception in case then parameters coudn't be exported.
-
-            Args:
-                config_file: path (absolute or relative) and name of the config file (YML)
-        """
-        # Check if generic export will work.
-        if not self.__validate_params(self._init_params):
-            raise ValueError(
-                "Generic Module export cannot work as some of the values are not primitive types (string, int, float) "
-                F"or (lists of/dicts of) primitive types. Please implement your own custom `export_to_config()` and "
-                F"`import_from_config()` methods for your custom Module class."
-            )
-
-        # Greate an absolute path.
-        abs_path_file = path.expanduser(config_file)
-
-        # Create the dictionary to be exported.
-        to_export = {}
+    def _create_config_header(self):
+        """ A protected method that create a header stored later in the configuration file. """
 
         # Get module "full specification".
         module_full_spec = str(self.__module__) + "." + str(self.__class__.__qualname__)
@@ -237,14 +218,41 @@ class NeuralModule(ABC):
                 # TODO: to be SET!
                 # print(getattr("nemo.collections.nlp", __version__))
 
-        # Add "header" with module "specification".
-        to_export["header"] = {
+        # Create a "header" with module "specification".
+        header = {
             "nemo_core_version": nemo_version,
             "collection_type": collection_type,
             "collection_version": collection_version,
             # "class": module_class_name, # Operating only on full_spec now.
             "full_spec": module_full_spec,
         }
+        return header
+
+    def export_to_config(self, config_file):
+        """
+            A function that exports module "configuration" (i.e. init parameters) to a YAML file.
+            Raises a ValueError exception in case then parameters coudn't be exported.
+
+            Args:
+                config_file: path (absolute or relative) and name of the config file (YML)
+        """
+        # Check if generic export will work.
+        if not self.__validate_params(self._init_params):
+            raise ValueError(
+                "Generic Module export cannot work as some of the values are not primitive types (string, int, float) "
+                F"or (lists of/dicts of) primitive types. Please implement your own custom `export_to_config()` and "
+                F"`import_from_config()` methods for your custom Module class."
+            )
+
+        # Greate an absolute path.
+        abs_path_file = path.expanduser(config_file)
+
+        # Create the dictionary to be exported.
+        to_export = {}
+
+        # Add "header" with module "specification".
+        to_export["header"] = self._create_config_header()
+
         # Add init parameters.
         to_export["init_params"] = self._init_params
         # print(to_export)
@@ -258,9 +266,9 @@ class NeuralModule(ABC):
         )
 
     @classmethod
-    def import_from_config(cls, config_file, section_name=None, overwrite_params={}):
+    def _validate_config_file(cls, config_file, section_name=None):
         """
-            Class method importing the configuration file.
+            Class method validating whether the config file has a proper content (sections, specification etc.).
             Raises an ImportError exception when config file is invalid or
             incompatible (when called from a particular class).
 
@@ -269,13 +277,9 @@ class NeuralModule(ABC):
 
                 section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
 
-                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default
-                parameters loaded from the configuration file
-
             Returns:
-                Instance of the created NeuralModule object.
+                A loaded configuration file (dictionary).
         """
-
         # Greate an absolute path.
         abs_path_file = path.expanduser(config_file)
 
@@ -312,6 +316,33 @@ class NeuralModule(ABC):
             )
             raise ImportError(txt)
 
+        # Success - return configuration.
+        return loaded_config
+
+    @classmethod
+    def import_from_config(cls, config_file, section_name=None, overwrite_params={}):
+        """
+            Class method importing the configuration file.
+            Raises an ImportError exception when config file is invalid or
+            incompatible (when called from a particular class).
+
+            Args:
+                config_file: path (absolute or relative) and name of the config file (YML)
+
+                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
+
+                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default
+                parameters loaded from the configuration file
+
+            Returns:
+                Instance of the created NeuralModule object.
+        """
+        # Validate the content of the configuration file (its header).
+        loaded_config = cls._validate_config_file(config_file, section_name)
+
+        # Parse the "full specification".
+        spec_list = loaded_config["header"]["full_spec"].split(".")
+
         # Get object class from "full specification".
         mod_obj = __import__(spec_list[0])
         for spec in spec_list[1:]:
@@ -322,13 +353,12 @@ class NeuralModule(ABC):
         init_params = loaded_config["init_params"]
         # Update parameters with additional ones.
         init_params.update(overwrite_params)
-        print(spec_list[-1], ": ", init_params)
 
         # Create and return the object.
         obj = mod_obj(**init_params)
         logging.info(
             "Instantiated a new Neural Module of type `{}` using configuration loaded from the `{}` file".format(
-                spec_list[-1], abs_path_file
+                spec_list[-1], config_file
             )
         )
         return obj
