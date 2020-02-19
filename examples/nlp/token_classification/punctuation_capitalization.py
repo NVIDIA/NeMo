@@ -228,7 +228,7 @@ def create_pipeline(
             name='Punctuation',
         )
 
-        punct_loss = CrossEntropyLoss(logits_dim=2, weight=class_weights)
+        punct_loss = CrossEntropyLoss(logits_dim=3, weight=class_weights)
 
         # Initialize capitalization loss
         capit_classifier = capit_classifier(
