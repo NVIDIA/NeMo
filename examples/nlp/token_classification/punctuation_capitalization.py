@@ -28,7 +28,7 @@ from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
 )
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.nm.data_layers import PunctuationCapitalizationDataLayer
-from nemo.collections.nlp.nm.losses.token_classification_loss import TokenClassificationLoss
+from nemo.backends.pytorch.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
 
@@ -228,13 +228,13 @@ def create_pipeline(
             name='Punctuation',
         )
 
-        punct_loss = TokenClassificationLoss(num_classes=len(punct_label_ids), class_weights=class_weights)
+        punct_loss = CrossEntropyLoss(weight=class_weights)
 
         # Initialize capitalization loss
         capit_classifier = capit_classifier(
             hidden_size=hidden_size, num_classes=len(capit_label_ids), dropout=dropout, name='Capitalization'
         )
-        capit_loss = TokenClassificationLoss(num_classes=len(capit_label_ids))
+        capit_loss = CrossEntropyLoss()
 
         task_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 

@@ -25,7 +25,7 @@ from nemo import logging
 from nemo.collections.nlp.callbacks.token_classification_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.nm.data_layers import BertTokenClassificationDataLayer
-from nemo.collections.nlp.nm.losses import TokenClassificationLoss
+from nemo.backends.pytorch.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
 
@@ -208,7 +208,7 @@ def create_pipeline(
             hidden_size=hidden_size, num_classes=len(label_ids), dropout=dropout, num_layers=num_layers
         )
 
-        task_loss = TokenClassificationLoss(num_classes=len(label_ids), class_weights=class_weights)
+        task_loss = CrossEntropyLoss(weight=class_weights)
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
     logits = classifier(hidden_states=hidden_states)

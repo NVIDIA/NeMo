@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core.neural_types import LabelsType, LengthsType, LogitsType, LossType, NeuralType, RegressionValuesType
+from nemo.core.neural_types import LabelsType, LogitsType, LossType, NeuralType, RegressionValuesType, MaskType
 
 __all__ = ['SequenceLoss', 'CrossEntropyLoss', 'MSELoss']
 
@@ -116,10 +116,9 @@ class CrossEntropyLoss(LossNM):
         """Returns definitions of module input ports.
         """
         return {
-            # "logits": NeuralType(axes=('B', 'D'), elements_type=LogitsType()),
-            # "labels": NeuralType(axes=tuple('B'), elements_type=LabelsType()),
             "logits": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 1), LogitsType()),
             "labels": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 2), LabelsType()),
+            "loss_mask": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 2), MaskType(), optional=True),
         }
 
     @property
@@ -131,22 +130,22 @@ class CrossEntropyLoss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, logits_dim=2, weight=None, reduce=True):
+    def __init__(self, weight=None, reduce=True):
         super().__init__()
-
-        if logits_dim < 2:
-            raise ValueError("input logits_dim should be larger than 1")
 
         if weight:
             weight = torch.FloatTensor(weight).to(self._device)
-        self._logits_dim = logits_dim
         self._criterion = nn.CrossEntropyLoss(weight=weight, reduce=reduce)
 
-    def _loss_function(self, logits, labels):
-        # logits_flatten = logits.view(-1, logits.size)
-        # labels_flatten = labels.view(-1)
+    def _loss_function(self, logits, labels, loss_mask=None):
         logits_flatten = torch.flatten(logits, start_dim=0, end_dim=-2)
         labels_flatten = torch.flatten(labels, start_dim=0, end_dim=-1)
+
+        if loss_mask is not None:
+            loss_mask_flatten = torch.flatten(loss_mask, start_dim=0, end_dim=-2)
+            logits_flatten = logits_flatten[loss_mask_flatten]
+            labels_flatten = labels_flatten[loss_mask_flatten]
+
         loss = self._criterion(logits_flatten, labels_flatten)
         return loss
 
