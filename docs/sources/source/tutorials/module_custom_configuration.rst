@@ -31,11 +31,14 @@ In order to properly handle the export of the :class:`Status` enum we must imple
    :language: python
    :lines: 43-74
 
-Note that the configuration is actually a dictionary consisting of two sections: \
+
+Note that the configuration is actually a dictionary consisting of two sections:
+
  * ``header`` (storing class specification, NeMo version, NeMo collection name etc.) and
  * ``init_params`` storing the parameters used for instantiation of the object.
 
-Those parameters are stored in the protected :meth:`self._init_params`  field of the base :class:`NeuralModule` class.
+Those parameters are stored in the protected ``self._init_params``  field of the base :class:`NeuralModule` class.
+It is assumed that (aside of this use-case) the user won't access nor use them directly.
 
 Analogically, we must overload the :meth:`import_from_config()` method:
 
@@ -44,9 +47,11 @@ Analogically, we must overload the :meth:`import_from_config()` method:
    :lines: 77-117
 
 Please note that the base :class:`NeuralModule` class provides several protected methods that we used, \
-with most important: \
- * :meth:`_create_config_header()` generating the appropriate header, and
+with most important being:
+
+ * :meth:`_create_config_header()` generating the appropriate header, and \
  * :meth:`_validate_config_file()` validating the loaded configuration file (checking the header content).
+
 
 .. note::
     It is once again worth emphasizing that the :meth:`import_from_config()` is a class method, actually returning a \
