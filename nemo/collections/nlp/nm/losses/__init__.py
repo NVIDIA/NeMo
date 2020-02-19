@@ -19,4 +19,3 @@ from nemo.collections.nlp.nm.losses.joint_intent_slot_loss import *
 from nemo.collections.nlp.nm.losses.smoothed_cross_entropy_loss import *
 from nemo.collections.nlp.nm.losses.spanning_loss import *
 from nemo.collections.nlp.nm.losses.state_tracking_trade_loss import *
-from nemo.collections.nlp.nm.losses.token_classification_loss import *
