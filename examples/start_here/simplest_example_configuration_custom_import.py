@@ -20,14 +20,11 @@
 from enum import Enum
 from os import path
 
-import torch as t
-import torch.nn as nn
 from ruamel import yaml
 
 import nemo
 from nemo import logging
-from nemo.backends.pytorch import TrainableNM
-from nemo.core import DeviceType, NeuralModule, NeuralModuleFactory, SimpleLossLoggerCallback
+from nemo.core import DeviceType, NeuralModuleFactory, SimpleLossLoggerCallback
 from nemo.core.neural_types import ChannelType, NeuralType
 
 
