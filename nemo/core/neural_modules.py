@@ -42,8 +42,6 @@ from nemo.core import NeuralModuleFactory
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils.decorators.deprecated import deprecated
 
-logging = nemo.logging
-
 
 class WeightShareTransform(Enum):
     """When sharing parameters, what kind of transform to apply."""
