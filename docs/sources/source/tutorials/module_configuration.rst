@@ -19,20 +19,20 @@ create a second instance having the same set of parameters.
 
 Let us start by creating the Neural Factory and instatiating the modules from the original example:
 
-.. literalinclude:: ../../../../examples/start_here/simplest_example_configuration_import.py
+.. literalinclude:: ../../../../examples/start_here/module_configuration.py
    :language: python
    :lines: 20-33
 
 Now we can export the configuration of any of the existing modules by using  the `export_to_config()`, for \
 example let us export the configuration of the trainable `TaylorNet` like this:
 
-.. literalinclude:: ../../../../examples/start_here/simplest_example_configuration_import.py
+.. literalinclude:: ../../../../examples/start_here/module_configuration.py
    :language: python
    :lines: 36
 
 There is an analogical function `import_from_config()` responsible for loading the configuration file:
 
-.. literalinclude:: ../../../../examples/start_here/simplest_example_configuration_import.py
+.. literalinclude:: ../../../../examples/start_here/module_configuration.py
    :language: python
    :lines: 39
 
@@ -44,7 +44,7 @@ There is an analogical function `import_from_config()` responsible for loading t
 Now we can use the newly imported module in the same way as every other module. \
 For example, we can build a graph and train it with a NeMo trainer:
 
-.. literalinclude:: ../../../../examples/start_here/simplest_example_configuration_import.py
+.. literalinclude:: ../../../../examples/start_here/module_configuration.py
    :language: python
    :lines: 41-
 
