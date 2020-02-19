@@ -4,7 +4,8 @@ import torch
 
 import nemo
 from .metrics import classification_accuracy, word_error_rate
-from nemo import logging
+
+logging = nemo.logging
 
 logging = nemo.logging
 
