@@ -46,14 +46,25 @@ class NeuralModuleExportTest(NeMoUnitTest):
 
     def __extract_dict_from_handle_calls(self, handle):
         """ Helper method - extracts a ditionary from the handle containing several write calls. """
-        print(handle.write.mock_calls)
         # Put together the params - dict exported in several calls
         exported_dict = []
         for call in handle.write.mock_calls:
-            call_value = str(call)[6:-2]
-        print(exported_string)
-        exported_config = yaml.load(exported_string)
-        return exported_config
+            call_value = str(call)[6:-2].replace(" ", "")
+            # Drop '/n's.
+            if call_value == "\\n":
+                exported_dict.append(",")
+                continue
+            if call_value == "":
+                continue
+            if call_value in [",", ":", "{", "}", "[", "]"]:
+                exported_dict.append(call_value)
+            else:
+                exported_dict.append("\"" + call_value + "\"")
+        # "Preprocess" string.
+        exported_string = "{" + ''.join(exported_dict)[:-1] + "}"
+        exported_string = exported_string.replace(",,", ",")
+        # print(exported_string)
+        return eval(exported_string)
 
     @patch('__main__.__builtins__.open', new_callable=mock_open)
     def test_simple_export(self, mock_f):
@@ -92,8 +103,7 @@ class NeuralModuleExportTest(NeMoUnitTest):
         self.assertEqual(exported_init_params["c"], "ala_ma_kota")
         self.assertEqual(bool(exported_init_params["d"]), True)
 
-    @patch('__main__.__builtins__.open', new_callable=mock_open)
-    def test_nested_list_export(self, mock_f):
+    def test_nested_list_export(self):
         """ Tests whether (nested*) lists are properly exported."""
 
         # Params: list, list of lists, list of lists of lists, None type!
@@ -104,19 +114,9 @@ class NeuralModuleExportTest(NeMoUnitTest):
         # Export.
         module.export_to_config("/tmp/nested_list_export.yml")
 
-        # Assert that file that the file was "opened" in a write mode.
-        mock_f.assert_called_with("/tmp/nested_list_export.yml", 'w')
-
-        # Get handle to the call.
-        handle = mock_f()
-
-        # Get the exported dictionary.
-        exported_config = self.__extract_dict_from_handle_calls(handle)
-        # print("exported_config = ", exported_config)
-
         # Check the resulting config file.
-        # with open("/tmp/nested_list_export.yml", 'r') as stream:
-        #    exported_config = yaml.safe_load(stream)
+        with open("/tmp/nested_list_export.yml", 'r') as stream:
+            exported_config = yaml.safe_load(stream)
 
         # Assert that it contains main sections: header and init params.
         self.assertEqual("header" in exported_config, True)
