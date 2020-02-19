@@ -50,23 +50,10 @@ class NeuralModuleExportTest(NeMoUnitTest):
         # Put together the params - dict exported in several calls
         exported_dict = []
         for call in handle.write.mock_calls:
-            call_value = str(call)[6:-2].replace(" ", "")
-            # Drop '/n's.
-            if call_value == "\\n":
-                exported_dict.append(",")
-                continue
-            if call_value == "":
-                continue
-            if call_value in [",", ":", "{", "}", "[", "]"]:
-                exported_dict.append(call_value)
-            else:
-                exported_dict.append("\"" + call_value + "\"")
-        # "Preprocess" string.
-        exported_string = "{" + ''.join(exported_dict)[:-1] + "}"
-        exported_string = exported_string.replace(",,", ",")
-        exported_string = exported_string.replace(":,", ":")
-        # print(exported_string)
-        return eval(exported_string)
+            call_value = str(call)[6:-2]
+        print(exported_string)
+        exported_config = yaml.load(exported_string)
+        return exported_config
 
     @patch('__main__.__builtins__.open', new_callable=mock_open)
     def test_simple_export(self, mock_f):
