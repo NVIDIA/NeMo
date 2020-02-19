@@ -22,13 +22,13 @@ import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing
 import nemo.collections.nlp.utils.common_nlp_utils
 from nemo import logging
+from nemo.backends.pytorch.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
     eval_epochs_done_callback,
     eval_iter_callback,
 )
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.nm.data_layers import PunctuationCapitalizationDataLayer
-from nemo.backends.pytorch.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
 

@@ -18,7 +18,7 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch import LossNM
-from nemo.core import MaskType, LabelsType, LogitsType, LossType, NeuralType
+from nemo.core import LabelsType, LogitsType, LossType, MaskType, NeuralType
 
 __all__ = ['TokenClassificationLoss']
 
