@@ -53,7 +53,7 @@ class LanguageModelDataDesc:
             if not os.path.exists(data_dir):
                 raise
                 FileNotFoundError(
-                    "Dataset not found. Run python examples/nlp/scripts/download_wkt2.py --data_dir DATA_DIR"
+                    "Dataset not found. Run './get_wkt2.sh DATA_DIR' from examples/nlp/scripts"
                 )
             self.vocab_size = self.create_vocab_lm(data_dir, do_lower_case)
             self.data_dir = data_dir
