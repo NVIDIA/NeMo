@@ -22,7 +22,7 @@ import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing
 import nemo.collections.nlp.utils.common_nlp_utils
 from nemo import logging
-from nemo.backends.pytorch.common.losses import CrossEntropyLoss
+from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
 from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
     eval_epochs_done_callback,
     eval_iter_callback,
@@ -228,13 +228,13 @@ def create_pipeline(
             name='Punctuation',
         )
 
-        punct_loss = CrossEntropyLoss(logits_dim=3, weight=class_weights)
+        punct_loss = CrossEntropyLossNM(logits_dim=3, weight=class_weights)
 
         # Initialize capitalization loss
         capit_classifier = capit_classifier(
             hidden_size=hidden_size, num_classes=len(capit_label_ids), dropout=dropout, name='Capitalization'
         )
-        capit_loss = CrossEntropyLoss(logits_dim=3)
+        capit_loss = CrossEntropyLossNM(logits_dim=3)
 
         task_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 

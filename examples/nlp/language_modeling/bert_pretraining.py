@@ -216,7 +216,7 @@ if not args.only_mlm_loss:
     nsp_classifier = nemo_nlp.nm.trainables.sequence_classification_nm.SequenceClassifier(
         args.hidden_size, num_classes=2, num_layers=2, activation='tanh', log_softmax=False
     )
-    nsp_loss_fn = nemo_common.CrossEntropyLoss()
+    nsp_loss_fn = nemo_common.CrossEntropyLossNM()
 
     bert_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 

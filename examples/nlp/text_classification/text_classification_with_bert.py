@@ -102,9 +102,9 @@ classifier = nemo.collections.nlp.nm.trainables.common.sequence_classification_n
 
 if args.class_balancing == 'weighted_loss':
     # You may need to increase the number of epochs for convergence.
-    loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss(weight=data_desc.class_weights)
+    loss_fn = nemo.backends.pytorch.common.CrossEntropyLossNM(weight=data_desc.class_weights)
 else:
-    loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
+    loss_fn = nemo.backends.pytorch.common.CrossEntropyLossNM()
 
 
 def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mode='train'):

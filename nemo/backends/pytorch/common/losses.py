@@ -4,7 +4,7 @@ from torch import nn
 from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import LabelsType, LogitsType, LossType, MaskType, NeuralType, RegressionValuesType
 
-__all__ = ['SequenceLoss', 'CrossEntropyLoss', 'MSELoss']
+__all__ = ['SequenceLoss', 'CrossEntropyLossNM', 'MSELoss']
 
 
 class SequenceLoss(LossNM):
@@ -102,7 +102,7 @@ class SequenceLoss(LossNM):
         return loss
 
 
-class CrossEntropyLoss(LossNM):
+class CrossEntropyLossNM(LossNM):
     """
     CrossEntropyLoss
     Args:
