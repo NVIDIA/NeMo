@@ -5,6 +5,8 @@ import torch
 import nemo
 from .metrics import word_error_rate
 
+logging = nemo.logging
+
 
 def __ctc_decoder_predictions_tensor(tensor, labels):
     """
@@ -67,10 +69,10 @@ def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER', t
     wer = word_error_rate(hypotheses, references, use_cer=use_cer)
     if tb_logger is not None:
         tb_logger.add_scalar(tag, wer)
-    nemo.logging.info(f'Loss: {tensors[0]}')
-    nemo.logging.info(f'{tag}: {wer * 100 : 5.2f}%')
-    nemo.logging.info(f'Prediction: {hypotheses[0]}')
-    nemo.logging.info(f'Reference: {references[0]}')
+    logging.info(f'Loss: {tensors[0]}')
+    logging.info(f'{tag}: {wer * 100 : 5.2f}%')
+    logging.info(f'Prediction: {hypotheses[0]}')
+    logging.info(f'Reference: {references[0]}')
 
 
 def __gather_losses(losses_list: list) -> list:
@@ -145,12 +147,12 @@ def process_evaluation_epoch(global_vars: dict, eval_metric='WER', tag=None):
     wer = word_error_rate(hypotheses=hypotheses, references=references, use_cer=use_cer)
 
     if tag is None:
-        nemo.logging.info(f"==========>>>>>>Evaluation Loss: {eloss}")
-        nemo.logging.info(f"==========>>>>>>Evaluation {eval_metric}: " f"{wer * 100 : 5.2f}%")
+        logging.info(f"==========>>>>>>Evaluation Loss: {eloss}")
+        logging.info(f"==========>>>>>>Evaluation {eval_metric}: " f"{wer * 100 : 5.2f}%")
         return {"Evaluation_Loss": eloss, f"Evaluation_{eval_metric}": wer}
     else:
-        nemo.logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
-        nemo.logging.info(f"==========>>>>>>Evaluation {eval_metric} {tag}: " f"{wer * 100 : 5.2f}%")
+        logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
+        logging.info(f"==========>>>>>>Evaluation {eval_metric} {tag}: " f"{wer * 100 : 5.2f}%")
         return {
             f"Evaluation_Loss_{tag}": eloss,
             f"Evaluation_{eval_metric}_{tag}": wer,
