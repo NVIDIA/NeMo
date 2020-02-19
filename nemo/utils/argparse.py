@@ -83,13 +83,13 @@ class NemoArgParser(argparse.ArgumentParser):
             "--num_epochs",
             type=int,
             default=None,
-            help="number of epochs to train. You should specify" "either num_epochs or max_steps",
+            help="number of epochs to train. You should specify either num_epochs or max_steps",
         )
         self.add_argument(
             "--max_steps",
             type=int,
             default=None,
-            help="max number of steps to train. You should " "specify either num_epochs or max_steps",
+            help="max number of steps to train. You should specify either num_epochs or max_steps",
         )
         self.add_argument("--lr", type=float, default=1e-3, help="base learning rate")
         self.add_argument(
@@ -101,7 +101,7 @@ class NemoArgParser(argparse.ArgumentParser):
             "--iter_per_step",
             default=1,
             type=int,
-            help="number of gradients accumulation iterations " "per weights update step",
+            help="number of gradients accumulation iterations per weights update step",
         )
 
         # Logging arguments
