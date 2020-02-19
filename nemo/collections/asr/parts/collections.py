@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, Union
 import pandas as pd
 
 import nemo
-from nemo import logging
 from nemo.collections.asr.parts import manifest, parsers
 
 logging = nemo.logging

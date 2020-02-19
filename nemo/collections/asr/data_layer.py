@@ -19,10 +19,10 @@ from typing import Any, Dict, List, Optional
 
 import torch
 
+import nemo
 from .parts.dataset import AudioDataset, AudioLabelDataset, KaldiFeatureDataset, TranscriptDataset, seq_collate_fn
 from .parts.features import WaveformFeaturizer
 from .parts.perturb import AudioAugmentor, perturbation_types
-from nemo import logging
 from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
