@@ -23,7 +23,6 @@ from os import path
 from ruamel import yaml
 
 import nemo
-from nemo import logging
 from nemo.core import DeviceType, NeuralModuleFactory, SimpleLossLoggerCallback
 from nemo.core.neural_types import ChannelType, NeuralType
 
@@ -153,7 +152,7 @@ loss = mse_loss(predictions=p, target=y)
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = SimpleLossLoggerCallback(
-    tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}')
+    tensors=[loss], print_func=lambda x: nemo.logging.info(f'Train Loss: {str(x[0].item())}')
 )
 
 # Invoke the "train" action.
