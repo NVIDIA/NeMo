@@ -157,9 +157,7 @@ def create_all_dags(args, neural_factory):
     logging.info('================================')
     logging.info(f"Number of parameters in encoder: {jasper_encoder.num_weights}")
     logging.info(f"Number of parameters in decoder: {jasper_decoder.num_weights}")
-    logging.info(
-        f"Total number of parameters in model: " f"{jasper_decoder.num_weights + jasper_encoder.num_weights}"
-    )
+    logging.info(f"Total number of parameters in model: " f"{jasper_decoder.num_weights + jasper_encoder.num_weights}")
     logging.info('================================')
 
     # Train DAG
