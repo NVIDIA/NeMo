@@ -268,20 +268,13 @@ def process_classification_evaluation_epoch(global_vars: dict, eval_metric=None,
         topk_accs.append(topk_acc)
 
     if tag is None:
-        logs = {"Evaluation_Loss": eloss}
+        tag = ''
 
-        logging.info(f"==========>>>>>>Evaluation Loss: {eloss}")
-        for k, acc in zip(top_k, topk_accs):
-            logging.info(f"==========>>>>>>Evaluation Accuracy Top@{k}: {acc * 100.:3.4f}")
-            logs[f'Evaluation_Accuracy_Top@{k}'] = acc * 100.0
+    logs = {f"Evaluation_Loss {tag}": eloss}
 
-        return logs
-    else:
-        logs = {f"Evaluation_Loss {tag}": eloss}
+    logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
+    for k, acc in zip(top_k, topk_accs):
+        logging.info(f"==========>>>>>>Evaluation Accuracy Top@{k} {tag}: {acc * 100.:3.4f}")
+        logs[f'Evaluation_Accuracy_Top@{k} {tag}'] = acc * 100.0
 
-        logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
-        for k, acc in zip(top_k, topk_accs):
-            logging.info(f"==========>>>>>>Evaluation Accuracy Top@{k} {tag}: {acc * 100.:3.4f}")
-            logs[f'Evaluation_Accuracy_Top@{k} {tag}'] = acc * 100.0
-
-        return logs
+    return logs
