@@ -74,6 +74,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
         max_seq_length,
         mode="train",
         batch_size=64,
+        use_cache=True,
         dataset_type=SquadDataset,
     ):
         dataset_params = {
@@ -83,6 +84,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             'version_2_with_negative': version_2_with_negative,
             'max_query_length': max_query_length,
             'max_seq_length': max_seq_length,
+            'use_cache': use_cache,
             'doc_stride': doc_stride,
         }
 
