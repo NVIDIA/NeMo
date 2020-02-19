@@ -208,7 +208,7 @@ def create_pipeline(
             hidden_size=hidden_size, num_classes=len(label_ids), dropout=dropout, num_layers=num_layers
         )
 
-        task_loss = CrossEntropyLoss(weight=class_weights)
+        task_loss = CrossEntropyLoss(logits_dim=3, weight=class_weights)
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
     logits = classifier(hidden_states=hidden_states)

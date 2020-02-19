@@ -28,6 +28,8 @@ from nemo import logging
 from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.data_descriptor import JointIntentSlotDataDesc
 from nemo.utils.lr_policies import get_lr_policy
+import nemo.backends.pytorch as nemo_backend
+
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Joint intent slot filling system with pretrained BERT')
@@ -109,12 +111,17 @@ if args.class_balancing == 'weighted_loss':
     # Using weighted loss will enable weighted loss for both intents and slots
     # Use the intent_loss_weight hyperparameter to adjust intent loss to
     # prevent overfitting or underfitting.
-    loss_fn = nemo_nlp.nm.losses.JointIntentSlotLoss(
-        num_slots=data_desc.num_slots,
-        slot_classes_loss_weights=data_desc.slot_weights,
-        intent_classes_loss_weights=data_desc.intent_weights,
-        intent_loss_weight=args.intent_loss_weight,
-    )
+
+    intent_loss_fn = nemo_backend.losses.CrossEntropyLoss(logits_dim=2, weight=data_desc.intent_weights)
+    slot_loss_fn = nemo_backend.losses.CrossEntropyLoss(logits_dim=3, weight=data_desc.slot_weights)
+    total_loss_fn = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
+
+    # loss_fn = nemo_nlp.nm.losses.JointIntentSlotLoss(
+    #     num_slots=data_desc.num_slots,
+    #     slot_classes_loss_weights=data_desc.slot_weights,
+    #     intent_classes_loss_weights=data_desc.intent_weights,
+    #     intent_loss_weight=args.intent_loss_weight,
+    # )
 else:
     loss_fn = nemo_nlp.nm.losses.JointIntentSlotLoss(num_slots=data_desc.num_slots)
 
@@ -154,6 +161,10 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
     hidden_states = pretrained_bert_model(input_ids=ids, token_type_ids=type_ids, attention_mask=input_mask)
 
     intent_logits, slot_logits = classifier(hidden_states=hidden_states)
+
+    intent_loss_fn = nemo_backend.losses.CrossEntropyLoss(logits_dim=3)
+    total_loss_fn = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
+
 
     loss = loss_fn(
         intent_logits=intent_logits, slot_logits=slot_logits, loss_mask=loss_mask, intents=intents, slots=slots

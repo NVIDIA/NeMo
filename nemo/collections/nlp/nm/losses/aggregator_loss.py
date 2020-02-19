@@ -48,14 +48,17 @@ class LossAggregatorNM(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_inputs=2):
+    def __init__(self, num_inputs=2, weights=None):
         # Store number of inputs/losses.
-        self.num_losses = num_inputs
+        self._num_losses = num_inputs
+        if weights is not None:
+            self._weights = weights
         LossNM.__init__(self)
 
     def _loss_function(self, **kwargs):
         values = [kwargs[x] for x in sorted(kwargs.keys())]
+        loss = torch.zeros_like
         loss = values[0]
         for loss_i in values[1:]:
-            loss = loss.add(loss_i)
+            loss = loss.add(loss_i, alpha=weight)
         return loss
