@@ -73,7 +73,15 @@ class SquadDataset(Dataset):
     """
 
     def __init__(
-        self, data_file, tokenizer, doc_stride, max_query_length, max_seq_length, version_2_with_negative, mode
+        self,
+        data_file,
+        tokenizer,
+        doc_stride,
+        max_query_length,
+        max_seq_length,
+        version_2_with_negative,
+        mode,
+        use_cache,
     ):
         self.tokenizer = tokenizer
         self.version_2_with_negative = version_2_with_negative
@@ -83,31 +91,17 @@ class SquadDataset(Dataset):
             raise ValueError(f"mode should be either 'train' or 'dev' but got {mode}")
         self.examples = self.processor.get_examples()
 
-        if mode == "train":
-            cached_train_features_file = (
-                data_file
-                + '_cache'
-                + '_{0}_{1}_{2}_{3}'.format(mode, str(max_seq_length), str(doc_stride), str(max_query_length))
-            )
+        cached_features_file = (
+            data_file
+            + '_cache'
+            + '_{0}_{1}_{2}_{3}'.format(mode, str(max_seq_length), str(doc_stride), str(max_query_length))
+        )
 
-            if os.path.exists(cached_train_features_file):
-                with open(cached_train_features_file, "rb") as reader:
-                    self.features = pickle.load(reader)
-            else:
-                self.features = convert_examples_to_features(
-                    examples=self.examples,
-                    tokenizer=tokenizer,
-                    max_seq_length=max_seq_length,
-                    doc_stride=doc_stride,
-                    max_query_length=max_query_length,
-                    has_groundtruth=True,
-                )
-                master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-                if master_device:
-                    logging.info("  Saving train features into cached file %s", cached_train_features_file)
-                    with open(cached_train_features_file, "wb") as writer:
-                        pickle.dump(self.features, writer)
-        elif mode == "dev":
+        if use_cache and os.path.exists(cached_features_file):
+            logging.info(f"loading from {cached_features_file}")
+            with open(cached_features_file, "rb") as reader:
+                self.features = pickle.load(reader)
+        else:
             self.features = convert_examples_to_features(
                 examples=self.examples,
                 tokenizer=tokenizer,
@@ -116,8 +110,13 @@ class SquadDataset(Dataset):
                 max_query_length=max_query_length,
                 has_groundtruth=True,
             )
-        else:
-            raise Exception
+
+            if use_cache:
+                master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+                if master_device:
+                    logging.info("  Saving train features into cached file %s", cached_features_file)
+                    with open(cached_features_file, "wb") as writer:
+                        pickle.dump(self.features, writer)
 
     def __len__(self):
         return len(self.features)

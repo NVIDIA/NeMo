@@ -68,7 +68,7 @@ from transformers import BertConfig
 import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
 from nemo import logging
-from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
+from nemo.backends.pytorch.common import CrossEntropyLossNM, MSELoss
 from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset.glue_benchmark_dataset import output_modes, processors
@@ -241,7 +241,7 @@ if args.task_name == 'sts-b':
     glue_loss = MSELoss()
 else:
     pooler = SequenceClassifier(hidden_size=hidden_size, num_classes=num_labels, log_softmax=False)
-    glue_loss = CrossEntropyLoss()
+    glue_loss = CrossEntropyLossNM()
 
 
 def create_pipeline(

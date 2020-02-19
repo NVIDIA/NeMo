@@ -5,4 +5,5 @@ black
 isort[requirements]
 wrapt
 wget
+ruamel.yaml
 onnxruntime
