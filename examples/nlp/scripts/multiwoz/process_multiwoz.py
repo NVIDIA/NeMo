@@ -51,33 +51,9 @@ import json
 import os
 import re
 import shutil
+from os.path import exists, expanduser
 
 from nemo.collections.nlp.data.datasets.datasets_utils import if_exist
-
-parser = argparse.ArgumentParser(description='Process MultiWOZ dataset')
-parser.add_argument("--data_dir", default='../../data/statetracking/MULTIWOZ2.1', type=str)
-parser.add_argument("--out_dir", default='../../data/statetracking/multiwoz', type=str)
-args = parser.parse_args()
-
-if not os.path.exists(args.data_dir):
-    raise FileNotFoundError(f"{args.data_dir} doesn't exist.")
-
-DOMAINS = ['restaurant', 'hotel', 'attraction', 'train', 'taxi', 'hospital', 'police']
-PHONE_NUM_TMPL = '\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4,5})'
-POSTCODE_TMPL = (
-    '([a-z]{1}[\. ]?[a-z]{1}[\. ]?\d{1,2}[, ]+\d{1}[\. ]?' + '[a-z]{1}[\. ]?[a-z]{1}|[a-z]{2}\d{2}[a-z]{2})'
-)
-
-REPLACEMENTS = {}
-with open('replacements.txt', 'r') as f:
-    for line in f:
-        word1, word2 = line.strip().split('\t')
-        REPLACEMENTS[word1] = word2
-REPLACEMENTS['-'] = ' '
-REPLACEMENTS[';'] = ','
-REPLACEMENTS['/'] = ' and '
-
-DONT_CARES = set(['dont care', 'dontcare', "don't care", "do not care"])
 
 
 def is_ascii(text):
@@ -238,9 +214,9 @@ def fix_delex(curr_dialog_acts, act_idx, text):
     return text
 
 
-def create_data(data_dir):
-    data = json.load(open(f'{data_dir}/data.json', 'r'))
-    dialog_acts = json.load(open(f'{data_dir}/dialogue_acts.json', 'r'))
+def create_data(source_data_dir):
+    data = json.load(open(f'{source_data_dir}/data.json', 'r'))
+    dialog_acts = json.load(open(f'{source_data_dir}/dialogue_acts.json', 'r'))
 
     delex_data = {}
 
@@ -392,9 +368,37 @@ def partition_data(data, infold, outfold):
     train_list_files.close()
 
 
-def process_woz():
-    delex_data = create_data(args.data_dir)
-    partition_data(delex_data, args.data_dir, args.out_dir)
+if __name__ == "__main__":
+    # Parse the command-line arguments.
+    parser = argparse.ArgumentParser(description='Process MultiWOZ dataset')
+    parser.add_argument("--source_data_dir", default='~/data/state_tracking/MULTIWOZ2.1/MULTIWOZ2.1/', type=str)
+    parser.add_argument("--target_data_dir", default='~/data/state_tracking/multiwoz2.1', type=str)
+    args = parser.parse_args()
 
+    # Get absolute paths.
+    abs_source_data_dir = expanduser(args.source_data_dir)
+    abs_target_data_dir = expanduser(args.target_data_dir)
 
-process_woz()
+    if not exists(abs_source_data_dir):
+        raise FileNotFoundError(f"{abs_source_data_dir} doesn't exist.")
+
+    DOMAINS = ['restaurant', 'hotel', 'attraction', 'train', 'taxi', 'hospital', 'police']
+    PHONE_NUM_TMPL = '\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4,5})'
+    POSTCODE_TMPL = (
+        '([a-z]{1}[\. ]?[a-z]{1}[\. ]?\d{1,2}[, ]+\d{1}[\. ]?' + '[a-z]{1}[\. ]?[a-z]{1}|[a-z]{2}\d{2}[a-z]{2})'
+    )
+
+    REPLACEMENTS = {}
+    with open('replacements.txt', 'r') as f:
+        for line in f:
+            word1, word2 = line.strip().split('\t')
+            REPLACEMENTS[word1] = word2
+    REPLACEMENTS['-'] = ' '
+    REPLACEMENTS[';'] = ','
+    REPLACEMENTS['/'] = ' and '
+
+    DONT_CARES = set(['dont care', 'dontcare', "don't care", "do not care"])
+
+    # Process WOZ.
+    delex_data = create_data(abs_source_data_dir)
+    partition_data(delex_data, abs_source_data_dir, abs_target_data_dir)

@@ -21,7 +21,7 @@ Adopted from: https://github.com/jasonwu0731/trade-dst
 
 import argparse
 import math
-import os
+from os import path
 
 import numpy as np
 
@@ -49,7 +49,7 @@ parser.add_argument("--hid_dim", default=400, type=int)
 parser.add_argument("--n_layers", default=1, type=int)
 parser.add_argument("--dropout", default=0.2, type=float)
 parser.add_argument("--input_dropout", default=0.2, type=float)
-parser.add_argument("--data_dir", default='data/statetracking/multiwoz2.1', type=str)
+parser.add_argument("--data_dir", default='~/data/statetracking/multiwoz2.1', type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
@@ -67,12 +67,15 @@ args = parser.parse_args()
 # List of the domains to be considered
 domains = {"attraction": 0, "restaurant": 1, "taxi": 2, "train": 3, "hotel": 4}
 
-if not os.path.exists(args.data_dir):
-    raise ValueError(f'Data not found at {args.data_dir}')
+# Change path to the absolute.
+abs_data_dir = path.expanduser(args.data_dir)
+# Check if path exists.
+if not path.exists(abs_data_dir):
+    raise ValueError(f'Folder {abs_data_dir} not found')
 
 work_dir = f'{args.work_dir}/DST_TRADE'
 
-data_desc = MultiWOZDataDesc(args.data_dir, domains)
+data_desc = MultiWOZDataDesc(abs_data_dir, domains)
 
 nf = nemo_core.NeuralModuleFactory(
     backend=nemo_core.Backend.PyTorch,
