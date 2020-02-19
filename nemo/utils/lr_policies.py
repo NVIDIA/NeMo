@@ -1,11 +1,14 @@
 # Copyright (c) 2019 NVIDIA Corporation
 __all__ = [
     'WarmupPolicy',
+    'WarmupHoldPolicy',
     'SquareAnnealing',
     'CosineAnnealing',
     'WarmupAnnealing',
     'InverseSquareRootAnnealing',
     'SquareRootAnnealing',
+    'PolynomialDecayAnnealing',
+    'PolynomialHoldDecayAnnealing',
 ]
 
 import inspect
