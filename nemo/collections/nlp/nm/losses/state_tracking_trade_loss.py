@@ -68,11 +68,6 @@ class TRADEMaskedXEntropyLoss(LossNM):
 
         """
         return {
-            # "logits": NeuralType(
-            #     {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag), 3: AxisType(ChannelTag)}
-            # ),
-            # "targets": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
-            # "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             "logits": NeuralType(('B', 'T', 'D', 'D'), LogitsType()),
             "labels": NeuralType(('B', 'D', 'T'), LabelsType()),
             "length_mask": NeuralType(('B', 'D'), LengthsType()),
