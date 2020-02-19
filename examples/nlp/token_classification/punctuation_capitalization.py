@@ -20,7 +20,7 @@ import os
 
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing
-import nemo.collections.nlp.utils.common_nlp_utils
+import nemo.collections.nlp.utils.data_utils
 from nemo import logging
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
 from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (

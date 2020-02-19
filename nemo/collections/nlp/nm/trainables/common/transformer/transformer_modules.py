@@ -20,7 +20,7 @@ import torch
 from torch import nn
 
 from nemo import logging
-from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import gelu
+from nemo.collections.nlp.utils.functional_utils import gelu
 
 __all__ = []
 

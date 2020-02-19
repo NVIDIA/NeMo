@@ -1,4 +1,5 @@
 from nemo.collections.nlp.utils.callback_utils import *
-from nemo.collections.nlp.utils.common_nlp_utils import *
+from nemo.collections.nlp.utils.data_utils import *
+from nemo.collections.nlp.utils.functional_utils import *
 from nemo.collections.nlp.utils.huggingface_utils import *
-from nemo.collections.nlp.utils.loss_utils import *
+from nemo.collections.nlp.utils.transformer_utils import *

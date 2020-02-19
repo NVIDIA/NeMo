@@ -37,8 +37,8 @@ from nemo.collections.nlp.metrics.squad_metrics import (
     make_eval_dict,
     merge_eval,
 )
-from nemo.collections.nlp.utils.common_nlp_utils import normalize_answer
-from nemo.collections.nlp.utils.loss_utils import _compute_softmax
+from nemo.collections.nlp.utils.data_utils import normalize_answer
+from nemo.collections.nlp.utils.functional_utils import _compute_softmax
 
 __all__ = ['SquadDataset']
 

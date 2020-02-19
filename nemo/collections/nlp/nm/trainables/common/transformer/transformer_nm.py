@@ -25,7 +25,7 @@ from nemo.collections.nlp.nm.trainables.common.transformer.transformer_generator
     GreedySequenceGenerator,
 )
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_modules import TransformerEmbedding
-from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
+from nemo.collections.nlp.utils.transformer_utils import transformer_weights_init
 from nemo.core.neural_types import ChannelType, NeuralType
 
 __all__ = ['TransformerEncoderNM', 'TransformerDecoderNM', 'GreedyLanguageGeneratorNM', 'BeamSearchTranslatorNM']
@@ -147,6 +147,10 @@ class TransformerDecoderNM(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
+        input_ids_tgt: ids of target sequence
+        hidden_states_src: input hidden states 
+        input_mask_src: input token mask
+        input_mask_tgt: target token mask
         """
         return {
             "input_ids_tgt": NeuralType(('B', 'T'), ChannelType()),
@@ -158,6 +162,7 @@ class TransformerDecoderNM(TrainableNM):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
+        hidden_states: output hidden states
         """
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
@@ -224,12 +229,14 @@ class GreedyLanguageGeneratorNM(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
+        input_ids:  input ids
         """
         return {"input_ids": NeuralType(('B', 'T'), ChannelType())}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
+        output ids: output ids
         """
         return {"output_ids": NeuralType(('B', 'T'), ChannelType())}
 
@@ -278,6 +285,8 @@ class BeamSearchTranslatorNM(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
+        hidden_states_src: input hidden states
+        input_mask_src: input mask
         """
         return {
             "hidden_states_src": NeuralType(('B', 'T', 'C'), ChannelType()),
@@ -287,6 +296,7 @@ class BeamSearchTranslatorNM(TrainableNM):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
+        output_ids: output ids
         """
         return {"output_ids": NeuralType(('B', 'T'), ChannelType())}
 

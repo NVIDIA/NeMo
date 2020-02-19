@@ -23,7 +23,7 @@ from nemo.collections.nlp.nm.trainables.common.transformer.transformer_modules i
     MultiHeadAttention,
     PositionWiseFF,
 )
-from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import form_attention_mask
+from nemo.collections.nlp.utils.transformer_utils import form_attention_mask
 
 __all__ = []
 

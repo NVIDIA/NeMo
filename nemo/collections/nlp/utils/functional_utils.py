@@ -16,7 +16,7 @@
 
 import math
 
-__all__ = ['_compute_softmax', 'mask_padded_tokens']
+__all__ = ['_compute_softmax', 'gelu']
 
 
 def _compute_softmax(scores):
@@ -42,6 +42,5 @@ def _compute_softmax(scores):
     return probs
 
 
-def mask_padded_tokens(tokens, pad_id):
-    mask = tokens != pad_id
-    return mask
+def gelu(x):
+    return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
