@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.data import BertTokenClassificationDataset, BertTokenClassificationInferDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import ChannelType, LabelsType, NeuralType, MaskType
+from nemo.core import ChannelType, LabelsType, MaskType, NeuralType
 
 __all__ = ['BertTokenClassificationDataLayer', 'BertTokenClassificationInferDataLayer']
 
