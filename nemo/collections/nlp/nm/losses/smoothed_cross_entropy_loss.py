@@ -18,7 +18,7 @@ import torch
 
 from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.utils.loss_utils import mask_padded_tokens
-from nemo.core import BoolMaskType, LabelsType, LogitsType, LossType, NeuralType
+from nemo.core import MaskType, LabelsType, LogitsType, LossType, NeuralType
 
 __all__ = ['SmoothedCrossEntropyLoss']
 
@@ -45,7 +45,7 @@ class SmoothedCrossEntropyLoss(LossNM):
             # "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
-            "output_mask": NeuralType(('B', 'T'), BoolMaskType(), optional=True),
+            "output_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
         }
 
     @property
@@ -68,6 +68,10 @@ class SmoothedCrossEntropyLoss(LossNM):
             labels_mask = mask_padded_tokens(labels, self._pad_id).to(logits.dtype)
         else:
             raise ValueError("Both output_mask and pad_id are None")
+
+        if labels_mask.dtype is not torch.bool:
+            labels_mask = labels_mask > 0.5
+
         loss = self._loss_fn(logits, labels, labels_mask)
         return loss
 

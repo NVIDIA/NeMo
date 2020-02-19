@@ -18,7 +18,7 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch import LossNM
-from nemo.core import ChannelType, LabelsType, LogitsType, LossType, NeuralType
+from nemo.core import MaskType, LabelsType, LogitsType, LossType, NeuralType
 
 __all__ = ['TokenClassificationLoss']
 
@@ -45,7 +45,7 @@ class TokenClassificationLoss(LossNM):
             # "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
-            "loss_mask": NeuralType(('B', 'T'), ChannelType()),
+            "loss_mask": NeuralType(('B', 'T'), MaskType()),
         }
 
     @property
@@ -66,7 +66,10 @@ class TokenClassificationLoss(LossNM):
         self.num_classes = num_classes
 
     def _loss_function(self, logits, labels, loss_mask):
-        active_loss = loss_mask.view(-1) > 0.5
+        active_loss = loss_mask.view(-1)
+        if active_loss.dtype is not torch.bool:
+            active_loss = active_loss > 0.5
+
         active_logits = logits.view(-1, self.num_classes)[active_loss]
         active_labels = labels.view(-1)[active_loss]
 
