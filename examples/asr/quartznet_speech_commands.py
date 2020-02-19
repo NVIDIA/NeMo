@@ -280,7 +280,6 @@ def main():
     )
     args.num_gpus = neural_factory.world_size
 
-    checkpoint_dir = neural_factory.checkpoint_dir
     if args.local_rank is not None:
         logging.info('Doing ALL GPU')
 
