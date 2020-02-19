@@ -37,20 +37,22 @@ class BertTokenClassifier(TrainableNM):
         activation (str): activation function applied in classifier MLP layers
         log_softmax (bool): whether to apply log_softmax to MLP output
         dropout (float): dropout ratio applied to MLP
+        use_transformer_pretrained (bool):
+            TODO
     """
 
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
+        hidden_states: embedgging hidden states
         """
-        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
+        logits: logits before loss
         """
-        # return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
         return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
 
     def __init__(

@@ -1,6 +1,6 @@
 # =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
-#
+# Copyright 2018 The Google AI Language Team Authors and The HugginFace Inc. team.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -49,11 +49,11 @@ class BERT(TrainableNM):
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
+        input_ids: input token ids
+        token_type_ids: segment type ids
+        attention_mask: attention mask
         """
         return {
-            # "input_ids":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "token_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "attention_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "token_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "attention_mask": NeuralType(('B', 'T'), ChannelType()),
@@ -62,8 +62,8 @@ class BERT(TrainableNM):
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
+        hidden_states: output embedding 
         """
-        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(
@@ -124,12 +124,6 @@ class BERT(TrainableNM):
 
         self.add_module("bert", model)
         self.config = model.config
-
-        # TK: storing config name in init_params instead.
-        # for key, value in self.config.to_dict().items():
-        #    self._local_parameters[key] = value
-
-        # Store the only value that will be used externally - hidden_size.
         self._hidden_size = model.config.hidden_size
 
     @property

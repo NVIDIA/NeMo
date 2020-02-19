@@ -51,32 +51,43 @@ __all__ = ['TRADEGenerator']
 
 
 class TRADEGenerator(TrainableNM):
+    """
+    TODO
+
+    Args:
+        hidden_size (int): the size of the hidden state for the dense layer
+        num_intents (int): number of intents
+        num_slots (int): number of slots
+        dropout (float): dropout to be applied to the layer
+        use_transformer_pretrained (bool):
+            TODO
+    """
+
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
 
-        encoder_hidden: hidden states of the encoder
-
-        encoder_outputs: outputs of the encoder
-
-        input_lens: lengths of the input sequences to encoder
-
-        src_ids: input sequences to encoder
-
-        targets: targets for the output of the generator
+        vocab:
+            TODO
+        embeddings:
+            TODO
+        hid_size: 
+            TODO
+        dropout: 
+            TODO
+        slots:
+            TODO
+        nb_gate:
+            TODO
+        teacher_forcing:
+            TODO
 
         """
         return {
-            # 'encoder_hidden': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            # 'encoder_outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            # 'input_lens': NeuralType({0: AxisType(BatchTag)}),
-            # 'src_ids': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # 'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
             'encoder_hidden': NeuralType(('B', 'T', 'C'), ChannelType()),
             'encoder_outputs': NeuralType(('B', 'T', 'C'), ChannelType()),
             'input_lens': NeuralType(tuple('B'), LengthsType()),
             'src_ids': NeuralType(('B', 'T'), ChannelType()),
-            # 'targets': NeuralType(ChannelType(), ('B', 'D', 'T')),
             'targets': NeuralType(('B', 'D', 'T'), LabelsType()),
         }
 
@@ -85,16 +96,9 @@ class TRADEGenerator(TrainableNM):
         """Returns definitions of module output ports.
 
         point_outputs: outputs of the generator
-
         gate_outputs: outputs of gating heads
 
         """
-        # return {
-        #     'point_outputs': NeuralType(
-        #         {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag), 3: AxisType(ChannelTag)}
-        #     ),
-        #     'gate_outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(ChannelTag)}),
-        # }
         return {
             'point_outputs': NeuralType(('B', 'T', 'D', 'D'), LogitsType()),
             'gate_outputs': NeuralType(('B', 'D', 'D'), LogitsType()),
