@@ -57,8 +57,8 @@ class LossAggregatorNM(LossNM):
 
     def _loss_function(self, **kwargs):
         values = [kwargs[x] for x in sorted(kwargs.keys())]
-        loss = torch.zeros_like
+        # loss = torch.zeros_like
         loss = values[0]
         for loss_i in values[1:]:
-            loss = loss.add(loss_i, alpha=weight)
+            loss = loss.add(loss_i)  # , alpha=weight)
         return loss
