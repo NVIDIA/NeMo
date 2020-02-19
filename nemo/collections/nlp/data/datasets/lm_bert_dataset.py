@@ -24,6 +24,7 @@ import random
 
 import h5py
 import numpy as np
+from sentencepiece import SentencePieceTrainer as SPT
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
