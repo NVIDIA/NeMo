@@ -432,6 +432,8 @@ but they can similarly be used for v2 dataset.
     import nemo
     import nemo.collections.asr as nemo_asr
 
+    logging = nemo.logging
+
     # We add some
     data_dir = '<path to the data directory>'
     data_version = 1
@@ -445,7 +447,7 @@ but they can similarly be used for v2 dataset.
     yaml = YAML(typ='safe')
     with open(config_path) as f:
         params = yaml.load(f)
-        print("******\nLoaded config file.\n******")
+        logging.info("******\nLoaded config file.\n******")
 
     labels = params['labels']  # Vocab of tokens
     sample_rate = params['sample_rate']
@@ -543,8 +545,8 @@ but they can similarly be used for v2 dataset.
         correct_count += int(acc * logits.size(0))
         total_count += logits.size(0)
 
-    print("Total correct / Total count :", f"{correct_count} / {total_count}")
-    print("Final accuracy : ", correct_count / float(total_count))
+    logging.info(f"Total correct / Total count : {correct_count} / {total_count}")
+    logging.info(f"Final accuracy : {correct_count / float(total_count)}")
 
     # Let us now filter out the incorrectly labeled samples from the total set of samples in the test set
 
@@ -576,13 +578,13 @@ but they can similarly be used for v2 dataset.
 
         sample_idx += labels.size(0)
 
-    print("Num test samples :", total_count)
-    print("Num errors :", len(incorrect_preds))
+    logging.info(f"Num test samples : {total_count}")
+    logging.info(f"Num errors : {len(incorrect_preds)}")
 
     # Lets print out the (test id, predicted label, ground truth label) triple of first 20
     # incorrectly labeled samples
     for incorrect_sample in incorrect_preds[:20]:
-        print(incorrect_sample)
+        logging.info(str(incorrect_sample))
 
     # One interesting observation is to actually listen to these samples whose predicted labels were incorrect
     # Note: The following requires the use of a Notebook environment
@@ -610,12 +612,10 @@ but they can similarly be used for v2 dataset.
         filepath = test_samples[sample_id]['audio_filepath']
         audio, sample_rate = librosa.load(filepath)
 
-        print("Sample :", sample_id, end='')
-
         if pred is not None and label is not None:
-            print(" Prediction :", pred, "Label :", label)
+            logging.info(f"Sample : {sample_id} Prediction : {pred} Label : {label}")
         else:
-            print()
+            logging.info(f"Sample : {sample_id}")
 
         return ipd.Audio(audio, rate=sample_rate)
 
