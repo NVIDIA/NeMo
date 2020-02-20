@@ -41,10 +41,10 @@ import torch
 from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import LabelsType, LengthsType, LogitsType, LossType, NeuralType
 
-__all__ = ['TRADEMaskedXEntropyLoss']
+__all__ = ['MaskedXEntropyLoss']
 
 
-class TRADEMaskedXEntropyLoss(LossNM):
+class MaskedXEntropyLoss(LossNM):
     """
     Neural module which implements a cross entropy for trade model with masking feature.
 

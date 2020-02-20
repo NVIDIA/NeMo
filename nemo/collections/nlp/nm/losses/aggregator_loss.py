@@ -16,6 +16,7 @@
 
 from nemo.backends.pytorch import LossNM
 from nemo.core import LossType, NeuralType
+import torch
 
 __all__ = ['LossAggregatorNM']
 
@@ -51,14 +52,18 @@ class LossAggregatorNM(LossNM):
     def __init__(self, num_inputs=2, weights=None):
         # Store number of inputs/losses.
         self._num_losses = num_inputs
-        if weights is not None:
-            self._weights = weights
+        if weights is not None and len(weights) != num_inputs:
+            raise("Len of weights should be equal to the number of inputs (num_inputs)")
+
+        self._weights = weights
         LossNM.__init__(self)
 
     def _loss_function(self, **kwargs):
         values = [kwargs[x] for x in sorted(kwargs.keys())]
-        # loss = torch.zeros_like
-        loss = values[0]
-        for loss_i in values[1:]:
-            loss = loss.add(loss_i)  # , alpha=weight)
+        loss = torch.zeros_like(values[0])
+        for loss_idx, loss_value in enumerate(values):
+            if self._weights is not None:
+                loss = loss.add(loss_value, alpha=self._weight[loss_idx])
+            else:
+                loss = loss.add(loss_value)
         return loss

@@ -99,7 +99,7 @@ decoder = nemo_nlp.nm.trainables.TRADEGenerator(
 )
 
 gate_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=3)
-ptr_loss_fn = nemo_nlp.nm.losses.TRADEMaskedXEntropyLoss()
+ptr_loss_fn = nemo_nlp.nm.losses.MaskedXEntropyLoss()
 total_loss_fn = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 
 
