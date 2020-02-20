@@ -299,7 +299,7 @@ def partition_data(data, infold, outfold):
     based on the list of val and test specified in the dataset.
     """
     if if_exist(
-        outfold, ['trainListFile.json', 'val_dialogs.json', 'test_dialogs.json', 'train_dialogs.json', 'ontology.json']
+        outfold, ['trainListFile.json', 'val_dials.json', 'test_dials.json', 'train_dials.json', 'ontology.json']
     ):
         print(f'Data is already processed and stored at {outfold}')
         return
@@ -324,14 +324,14 @@ def partition_data(data, infold, outfold):
         dial = get_dialog(dialog)
         if dial:
             dialogue = {}
-            dialogue['dialog_idx'] = dialog_id
+            dialogue['dialogue_idx'] = dialog_id
             dialogue['domains'] = list(set(domains))
             last_bs = []
-            dialogue['dialog'] = []
+            dialogue['dialogue'] = []
 
             for idx, turn in enumerate(dial):
                 turn_dl = {
-                    'sys_transcript': dial[idx - 1]['sys'] if idx > 0 else "",
+                    'system_transcript': dial[idx - 1]['sys'] if idx > 0 else "",
                     'turn_idx': idx,
                     'transcript': turn['usr'],
                     'sys_acts': dial[idx - 1]['sys_a'] if idx > 0 else [],
@@ -340,7 +340,7 @@ def partition_data(data, infold, outfold):
                 turn_dl['belief_state'] = [{"slots": [s], "act": "inform"} for s in turn['bvs']]
                 turn_dl['turn_label'] = [bs["slots"][0] for bs in turn_dl['belief_state'] if bs not in last_bs]
                 last_bs = turn_dl['belief_state']
-                dialogue['dialog'].append(turn_dl)
+                dialogue['dialogue'].append(turn_dl)
 
             if dialog_id in test_files:
                 test_dialogs.append(dialogue)
@@ -356,13 +356,13 @@ def partition_data(data, infold, outfold):
     print(f"Dialogs: {count_train} train, {count_val} val, {count_test} test.")
 
     # save all dialogues
-    with open(f'{outfold}/val_dialogs.json', 'w') as fout:
+    with open(f'{outfold}/val_dials.json', 'w') as fout:
         json.dump(val_dialogs, fout, indent=4)
 
-    with open(f'{outfold}/test_dialogs.json', 'w') as fout:
+    with open(f'{outfold}/test_dials.json', 'w') as fout:
         json.dump(test_dialogs, fout, indent=4)
 
-    with open(f'{outfold}/train_dialogs.json', 'w') as fout:
+    with open(f'{outfold}/train_dials.json', 'w') as fout:
         json.dump(train_dialogs, fout, indent=4)
 
     train_list_files.close()

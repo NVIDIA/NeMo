@@ -25,9 +25,9 @@ For the purpose of this tutorial you must download the `MULTIWOZ2.1.zip`_ file f
 
 Next we need to preprocess and reformat the dataset, what will result in division of data into three splits:
 
- * traininig split (8242 dialogs)
- * validation split (1000 dialogs)
- * test split (999 dialogs)
+ * traininig split (8242 dialogs in the ``train_dials.json`` file)
+ * validation split (1000 dialogs in the ``val_dials.json`` file)
+ * test split (999 dialogs in the ``test_dials.json`` file)
 
 In order to preprocess the MultiWOZ dataset you can use the provided `script`_.
 
