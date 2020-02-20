@@ -48,10 +48,7 @@ class NeuralType(object):
     def __str__(self):
 
         if self.axes is not None:
-            return (
-                f"axes: {self.axes}; "
-                f" elements_type: {self.elements_type.__class__.__name__}"
-            )
+            return f"axes: {self.axes}; " f" elements_type: {self.elements_type.__class__.__name__}"
         else:
             return f"axes: None; " f" elements_type: {self.elements_type.__class__.__name__}"
 
