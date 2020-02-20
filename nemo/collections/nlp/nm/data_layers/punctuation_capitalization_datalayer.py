@@ -17,12 +17,14 @@
 from nemo.collections.nlp.data import BertPunctuationCapitalizationDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['PunctuationCapitalizationDataLayer']
 
 
 class PunctuationCapitalizationDataLayer(TextDataLayer):
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

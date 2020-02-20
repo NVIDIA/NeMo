@@ -17,6 +17,7 @@
 from nemo.collections.nlp.data import BertTextClassificationDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BertSentenceClassificationDataLayer']
 
@@ -34,6 +35,7 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
