@@ -222,7 +222,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
         max_seq_length,
         tokenizer,
         num_samples=-1,
-        shuffle=False,
         pad_label='O',
         punct_label_ids=None,
         capit_label_ids=None,
