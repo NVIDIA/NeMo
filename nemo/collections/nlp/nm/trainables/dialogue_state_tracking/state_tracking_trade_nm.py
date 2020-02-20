@@ -53,37 +53,21 @@ __all__ = ['TRADEGenerator']
 
 class TRADEGenerator(TrainableNM):
     """
-    TODO
-
+    The generator module for state tracking model TRADE
     Args:
-        hidden_size (int): the size of the hidden state for the dense layer
-        num_intents (int): number of intents
-        num_slots (int): number of slots
-        dropout (float): dropout to be applied to the layer
-        use_transformer_pretrained (bool):
-            TODO
+        vocab (Vocab): an instance of Vocab containing the vocabularey
+        embeddings (Tensor): word embedding matrix
+        hid_size (int): hidden size of the GRU decoder
+        dropout (float): dropout of the GRU
+        slots (list): list of slots
+        nb_gate (int): number of gates
+        teacher_forcing (float): 0.5
     """
 
     @property
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        vocab:
-            TODO
-        embeddings:
-            TODO
-        hid_size: 
-            TODO
-        dropout: 
-            TODO
-        slots:
-            TODO
-        nb_gate:
-            TODO
-        teacher_forcing:
-            TODO
-
         """
         return {
             'encoder_hidden': NeuralType(('B', 'T', 'C'), ChannelType()),
@@ -100,7 +84,6 @@ class TRADEGenerator(TrainableNM):
 
         point_outputs: outputs of the generator
         gate_outputs: outputs of gating heads
-
         """
         return {
             'point_outputs': NeuralType(('B', 'T', 'D', 'D'), LogitsType()),

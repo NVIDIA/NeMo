@@ -47,7 +47,7 @@ class BertTokenClassifier(TrainableNM):
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
-        hidden_states: embedgging hidden states
+        hidden_states: embedding hidden states
         """
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
