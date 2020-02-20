@@ -70,12 +70,19 @@ To release a new version, please update the changelog as followed:
 ## [Unreleased]
 
 ### Added
+- New Neural Type System documentation. Also added decorator to generate docs for input/output ports.
+([PR #370](https://github.com/NVIDIA/NeMo/pull/370)) - @okuchaiev
 - New Neural Type System and its tests.
 ([PR #307](https://github.com/NVIDIA/NeMo/pull/307)) - @okuchaiev
 - Named tensors tuple module's output for graph construction.
 ([PR #268](https://github.com/NVIDIA/NeMo/pull/268)) - @stasbel
 - Introduced the `deprecated` decorator.
 ([PR #298](https://github.com/NVIDIA/NeMo/pull/298)) - @tkornuta-nvidia
+- Implemented new mechanisms for importing and exporting of module configuration (init_params) to configuration (yml)
+files, along with unit tests, examples and tutorials
+([PR #339](https://github.com/NVIDIA/NeMo/pull/339)) - @tkornuta-nvidia
+- Speech Commands support.
+([PR #375](https://github.com/NVIDIA/NeMo/pull/375)) - @titu1994
 
 ### Changed
 - All collections changed to use New Neural Type System.
@@ -94,9 +101,15 @@ To release a new version, please update the changelog as followed:
     - Updated licenses
 - Updated nemo's use of the logging library. from nemo import logging is now the reccomended way of using the nemo logger. neural_factory.logger and all other instances of logger are now deprecated and planned for removal in the next version. Please see PR 267 for complete change information.
 ([PR #267](https://github.com/NVIDIA/NeMo/pull/267), [PR #283](https://github.com/NVIDIA/NeMo/pull/283), [PR #305](https://github.com/NVIDIA/NeMo/pull/305), [PR #311](https://github.com/NVIDIA/NeMo/pull/311)) - @blisc
+- Changed Distributed Data Parallel from Apex to Torch
+([PR #336](https://github.com/NVIDIA/NeMo/pull/336)) - @blisc
 
 - Added TRADE (dialogue state tracking model) on MultiWOZ dataset
 ([PR #322](https://github.com/NVIDIA/NeMo/pull/322)) - @chiphuyen, @VahidooX
+- Question answering: 
+([PR #390](https://github.com/NVIDIA/NeMo/pull/390)) - @yzhang123
+    - Changed question answering task to use Roberta and Albert as alternative backends to Bert
+    - Added inference mode that does not require ground truth labels
 
 ### Dependencies Update
 - Added dependency on `wrapt` (the new version of the `deprecated` warning) - @tkornuta-nvidia, @DEKHTIARJonathan
@@ -108,6 +121,8 @@ To release a new version, please update the changelog as followed:
 ([PR #308](https://github.com/NVIDIA/NeMo/pull/309)) - @tkornuta-nvidia
 
 ### Removed
+- gradient_predivide_factor arg of train() now has no effect
+([PR #336](https://github.com/NVIDIA/NeMo/pull/336)) - @blisc
 - Dropped support of the following ASR configs: jasper10x4.yaml, quartznet10x5.yaml, quartznet15x5_in.yaml, quartznet5x3.yaml, quartznet5x5.yaml, quartznet_an4.yaml. They are moved to experimental/configs and can still be used with v0.9 for use in replicating paper results
 ([PR #354](https://github.com/NVIDIA/NeMo/pull/354)) - @blisc
 

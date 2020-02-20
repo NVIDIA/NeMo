@@ -12,6 +12,8 @@ import nemo.utils.argparse as nm_argparse
 from nemo.collections.asr.helpers import monitor_asr_train_progress, process_evaluation_batch, process_evaluation_epoch
 from nemo.utils.lr_policies import CosineAnnealing
 
+logging = nemo.logging
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -34,7 +36,7 @@ def parse_args():
         type=int,
         default=None,
         required=True,
-        help="number of epochs to train. You should specify" "either num_epochs or max_steps",
+        help="number of epochs to train. You should specify either num_epochs or max_steps",
     )
     parser.add_argument(
         "--model_config", type=str, required=True, help="model configuration file: model.yaml",
@@ -120,7 +122,7 @@ def create_all_dags(args, neural_factory):
 
             data_layers_eval.append(data_layer_eval)
     else:
-        nemo.logging.warning("There were no val datasets passed")
+        logging.warning("There were no val datasets passed")
 
     # create shared modules
 
@@ -242,7 +244,7 @@ def main():
     args.checkpoint_dir = neural_factory.checkpoint_dir
 
     if args.local_rank is not None:
-        nemo.logging.info('Doing ALL GPU')
+        logging.info('Doing ALL GPU')
 
     # build dags
     train_loss, callbacks, steps_per_epoch = create_all_dags(args, neural_factory)

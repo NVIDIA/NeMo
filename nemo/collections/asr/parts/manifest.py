@@ -1,24 +1,26 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import json
 from os.path import expanduser
-from typing import Any, Dict, Iterator, List, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 
 class ManifestBase:
     def __init__(self, *args, **kwargs):
         raise ValueError(
-            "This class is deprecated, look at " "https://github.com/NVIDIA/NeMo/pull/284 for " "correct behaviour."
+            "This class is deprecated, look at https://github.com/NVIDIA/NeMo/pull/284 for correct behaviour."
         )
 
 
 class ManifestEN:
     def __init__(self, *args, **kwargs):
         raise ValueError(
-            "This class is deprecated, look at " "https://github.com/NVIDIA/NeMo/pull/284 for " "correct behaviour."
+            "This class is deprecated, look at https://github.com/NVIDIA/NeMo/pull/284 for correct behaviour."
         )
 
 
-def item_iter(manifests_files: Union[str, List[str]]) -> Iterator[Dict[str, Any]]:
+def item_iter(
+    manifests_files: Union[str, List[str]], parse_func: Callable[[str, Optional[str]], Dict[str, Any]] = None
+) -> Iterator[Dict[str, Any]]:
     """Iterate through json lines of provided manifests.
 
     NeMo ASR pipelines often assume certain manifest files structure. In
@@ -32,6 +34,10 @@ def item_iter(manifests_files: Union[str, List[str]]) -> Iterator[Dict[str, Any]
         manifests_files: Either single string file or list of such -
             manifests to yield items from.
 
+        parse_func: A callable function which accepts as input a single line
+            of a manifest and optionally the manifest file itself,
+            and parses it, returning a dictionary mapping from str -> Any.
+
     Yields:
         Parsed key to value item dicts.
 
@@ -42,10 +48,13 @@ def item_iter(manifests_files: Union[str, List[str]]) -> Iterator[Dict[str, Any]
     if isinstance(manifests_files, str):
         manifests_files = [manifests_files]
 
+    if parse_func is None:
+        parse_func = __parse_item
+
     for manifest_file in manifests_files:
         with open(expanduser(manifest_file), 'r') as f:
             for line in f:
-                item = __parse_item(line, manifest_file)
+                item = parse_func(line, manifest_file)
 
                 yield item
 

@@ -15,22 +15,28 @@
 """This package contains Neural Modules responsible for ASR data layers."""
 
 from functools import partial
+from typing import Any, Dict, List, Optional
 
 import torch
 
 import nemo
-from .parts.dataset import AudioDataset, KaldiFeatureDataset, TranscriptDataset, seq_collate_fn
+from .parts.dataset import AudioDataset, AudioLabelDataset, KaldiFeatureDataset, TranscriptDataset, seq_collate_fn
 from .parts.features import WaveformFeaturizer
+from .parts.perturb import AudioAugmentor, perturbation_types
 from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
+from nemo.utils.decorators import add_port_docs
 from nemo.utils.misc import pad_to
 
 __all__ = [
     'AudioToTextDataLayer',
     'KaldiFeatureDataLayer',
     'TranscriptDataLayer',
+    'AudioToSpeechLabelDataLayer',
 ]
+
+logging = nemo.logging
 
 
 class AudioToTextDataLayer(DataLayerNM):
@@ -92,6 +98,7 @@ transcript_n}
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -100,7 +107,12 @@ transcript_n}
             # 'a_sig_length': NeuralType({0: AxisType(BatchTag)}),
             # 'transcripts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # 'transcript_length': NeuralType({0: AxisType(BatchTag)}),
-            'audio_signal': NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
+            'audio_signal': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and self._sample_rate is not None
+                else AudioSignal(),
+            ),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
@@ -143,13 +155,17 @@ transcript_n}
             'load_audio': load_audio,
         }
         self._dataset = AudioDataset(**dataset_params)
+        self._batch_size = batch_size
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
-            nemo.logging.info("Parallelizing Datalayer.")
+            logging.info("Parallelizing Datalayer.")
             sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
         else:
             sampler = None
+
+        if batch_size == -1:
+            batch_size = len(self._dataset)
 
         pad_id = 0 if pad_id is None else pad_id
         self._dataloader = torch.utils.data.DataLoader(
@@ -209,6 +225,7 @@ class KaldiFeatureDataLayer(DataLayerNM):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
@@ -252,7 +269,7 @@ class KaldiFeatureDataLayer(DataLayerNM):
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
-            nemo.logging.info("Parallelizing DATALAYER")
+            logging.info("Parallelizing DATALAYER")
             sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
         else:
             sampler = None
@@ -335,6 +352,7 @@ class TranscriptDataLayer(DataLayerNM):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
@@ -417,6 +435,168 @@ class TranscriptDataLayer(DataLayerNM):
 
     def __len__(self):
         return len(self._dataset)
+
+    @property
+    def dataset(self):
+        return None
+
+    @property
+    def data_iterator(self):
+        return self._dataloader
+
+
+# Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq/data/speech2text/speech_commands.py
+class AudioToSpeechLabelDataLayer(DataLayerNM):
+    """Data Layer for general speech classification.
+
+    Module which reads speech recognition with target label. It accepts comma-separated
+    JSON manifest files describing the correspondence between wav audio files
+    and their target labels. JSON files should be of the following format::
+
+        {"audio_filepath": path_to_wav_0, "duration": time_in_sec_0, "label": \
+target_label_0}
+        ...
+        {"audio_filepath": path_to_wav_n, "duration": time_in_sec_n, "label": \
+target_label_n}
+
+    Args:
+        manifest_filepath (str): Dataset parameter.
+            Path to JSON containing data.
+        labels (list): Dataset parameter.
+            List of target classes that can be output by the speech recognition model.
+        batch_size (int): batch size
+        sample_rate (int): Target sampling rate for data. Audio files will be
+            resampled to sample_rate if it is not already.
+            Defaults to 16000.
+        int_values (bool): Bool indicating whether the audio file is saved as
+            int data or float data.
+            Defaults to False.
+        min_duration (float): Dataset parameter.
+            All training files which have a duration less than min_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to 0.1.
+        max_duration (float): Dataset parameter.
+            All training files which have a duration more than max_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to None.
+        trim_silence (bool): Whether to use trim silence from beginning and end
+            of audio signal using librosa.effects.trim().
+            Defaults to False.
+        load_audio (bool): Dataset parameter.
+            Controls whether the dataloader loads the audio signal and
+            transcript or just the transcript.
+            Defaults to True.
+        drop_last (bool): See PyTorch DataLoader.
+            Defaults to False.
+        shuffle (bool): See PyTorch DataLoader.
+            Defaults to True.
+        num_workers (int): See PyTorch DataLoader.
+            Defaults to 0.
+        augmentor (dict): Optional dictionary of str -> kwargs (dict)
+            which is parsed and used to initialize an AudioAugmentor.
+            Note: It is crucial that each individual augmentation has
+            a keyword `prob`, that defines a float probability in the
+            the range [0, 1] of this augmentation being applied.
+            If this keyword is not present, then the augmentation is
+            disabled and a warning is logged.
+    """
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+        """
+        return {
+            # 'audio_signal': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
+            # 'a_sig_length': NeuralType({0: AxisType(BatchTag)}),
+            # 'label': NeuralType({0: AxisType(BatchTag)}),
+            # 'label_length': NeuralType({0: AxisType(BatchTag)}),
+            'audio_signal': NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'label': NeuralType(tuple('B'), LabelsType()),
+            'label_length': NeuralType(tuple('B'), LengthsType()),
+        }
+
+    def __init__(
+        self,
+        *,
+        manifest_filepath: str,
+        labels: List[str],
+        batch_size: int,
+        sample_rate: int = 16000,
+        int_values: bool = False,
+        num_workers: int = 0,
+        shuffle: bool = True,
+        min_duration: Optional[float] = 0.1,
+        max_duration: Optional[float] = None,
+        trim_silence: bool = False,
+        drop_last: bool = False,
+        load_audio: bool = True,
+        augmentor: Optional[Dict[str, Dict[str, Any]]] = None,
+    ):
+        super(AudioToSpeechLabelDataLayer, self).__init__()
+
+        self._manifest_filepath = manifest_filepath
+        self._labels = labels
+        self._sample_rate = sample_rate
+
+        if augmentor is not None:
+            augmentor = self._process_augmentations(augmentor)
+
+        self._featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
+
+        dataset_params = {
+            'manifest_filepath': manifest_filepath,
+            'labels': labels,
+            'featurizer': self._featurizer,
+            'max_duration': max_duration,
+            'min_duration': min_duration,
+            'trim': trim_silence,
+            'load_audio': load_audio,
+        }
+        self._dataset = AudioLabelDataset(**dataset_params)
+
+        # Set up data loader
+        if self._placement == DeviceType.AllGpu:
+            logging.info("Parallelizing Datalayer.")
+            sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
+        else:
+            sampler = None
+
+        self._dataloader = torch.utils.data.DataLoader(
+            dataset=self._dataset,
+            batch_size=batch_size,
+            collate_fn=partial(seq_collate_fn, token_pad_value=0),
+            drop_last=drop_last,
+            shuffle=shuffle if sampler is None else False,
+            sampler=sampler,
+            num_workers=num_workers,
+        )
+
+    def __len__(self):
+        return len(self._dataset)
+
+    def _process_augmentations(self, augmentor) -> AudioAugmentor:
+        augmentations = []
+        for augment_name, augment_kwargs in augmentor.items():
+            prob = augment_kwargs.get('prob', None)
+
+            if prob is None:
+                logging.error(
+                    f'Augmentation "{augment_name}" will not be applied as '
+                    f'keyword argument "prob" was not defined for this augmentation.'
+                )
+
+            else:
+                _ = augment_kwargs.pop('prob')
+
+                try:
+                    augmentation = perturbation_types[augment_name](**augment_kwargs)
+                    augmentations.append([prob, augmentation])
+                except KeyError:
+                    logging.error(f"Invalid perturbation name. Allowed values : {perturbation_types.keys()}")
+
+        augmentor = AudioAugmentor(perturbations=augmentations)
+        return augmentor
 
     @property
     def dataset(self):

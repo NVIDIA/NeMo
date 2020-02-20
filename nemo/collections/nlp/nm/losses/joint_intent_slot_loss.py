@@ -19,6 +19,7 @@ from torch import nn
 
 from nemo.backends.pytorch import LossNM
 from nemo.core import ChannelType, LogitsType, LossType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['JointIntentSlotLoss']
 
@@ -46,6 +47,7 @@ class JointIntentSlotLoss(LossNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
 
@@ -64,6 +66,7 @@ class JointIntentSlotLoss(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
