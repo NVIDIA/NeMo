@@ -298,11 +298,7 @@ def partition_data(data, infold, outfold):
     """Partition the data into train, valid, and test sets
     based on the list of val and test specified in the dataset.
     """
-    if if_exist(
-        outfold, ['trainListFile.json', 'val_dials.json', 'test_dials.json', 'train_dials.json', 'ontology.json']
-    ):
-        print(f'Data is already processed and stored at {outfold}')
-        return
+
     os.makedirs(outfold, exist_ok=True)
     shutil.copyfile(f'{infold}/ontology.json', f'{outfold}/ontology.json')
 
@@ -352,8 +348,9 @@ def partition_data(data, infold, outfold):
                 train_list_files.write(dialog_id + '\n')
                 train_dialogs.append(dialogue)
                 count_train += 1
+    train_list_files.close()
 
-    print(f"Dialogs: {count_train} train, {count_val} val, {count_test} test.")
+    print(f"Processing done, saving to files, please wait...")
 
     # save all dialogues
     with open(f'{outfold}/val_dials.json', 'w') as fout:
@@ -365,7 +362,7 @@ def partition_data(data, infold, outfold):
     with open(f'{outfold}/train_dials.json', 'w') as fout:
         json.dump(train_dialogs, fout, indent=4)
 
-    train_list_files.close()
+    print(f"Saving done. Generated dialogs: {count_train} train, {count_val} val, {count_test} test.")
 
 
 if __name__ == "__main__":
@@ -382,6 +379,15 @@ if __name__ == "__main__":
     if not exists(abs_source_data_dir):
         raise FileNotFoundError(f"{abs_source_data_dir} doesn't exist.")
 
+    # Check if the files exist.
+    if if_exist(
+        abs_target_data_dir,
+        ['trainListFile.json', 'val_dials.json', 'test_dials.json', 'train_dials.json', 'ontology.json'],
+    ):
+        print(f'Data is already processed and stored at {abs_target_data_dir}, skipping preprocessing.')
+        exit(0)
+
+    # Set domain.
     DOMAINS = ['restaurant', 'hotel', 'attraction', 'train', 'taxi', 'hospital', 'police']
     PHONE_NUM_TMPL = '\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4,5})'
     POSTCODE_TMPL = (
