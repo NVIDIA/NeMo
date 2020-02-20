@@ -21,6 +21,7 @@ from transformers import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAINED_MOD
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_modules import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BERT']
 
@@ -47,6 +48,7 @@ class BERT(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         input_ids: input token ids
@@ -60,6 +62,7 @@ class BERT(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         hidden_states: output embedding 

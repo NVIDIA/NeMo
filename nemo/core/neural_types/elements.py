@@ -50,6 +50,9 @@ class ElementType(ABC):
     def __str__(self):
         self.__doc__
 
+    def __repr__(self):
+        return self.__class__.__name__
+
     @property
     def type_parameters(self) -> Dict:
         """Override this property to parametrize your type. For example, you can specify 'storage' type such as

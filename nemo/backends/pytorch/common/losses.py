@@ -2,7 +2,8 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core.neural_types import LabelsType, LogitsType, LossType, MaskType, NeuralType, RegressionValuesType
+from nemo.core.neural_types import LabelsType, LogitsType, LossType, NeuralType, RegressionValuesType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['SequenceLoss', 'CrossEntropyLossNM', 'MSELoss', 'LossAggregatorNM']
 
@@ -30,18 +31,16 @@ class SequenceLoss(LossNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
         return {'log_probs': NeuralType(axes=('B', 'T', 'D')), 'targets': NeuralType(axes=('B', 'T'))}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        loss:
-            NeuralType(None)
-
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
@@ -113,6 +112,7 @@ class CrossEntropyLossNM(LossNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -123,6 +123,7 @@ class CrossEntropyLossNM(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
@@ -154,6 +155,7 @@ class CrossEntropyLossNM(LossNM):
 
 class MSELoss(LossNM):
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
 
@@ -169,6 +171,7 @@ class MSELoss(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 

@@ -7,6 +7,7 @@ import torch
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
+from nemo.utils.decorators import add_port_docs
 from nemo.utils.helpers import get_cuda_device
 
 
@@ -36,6 +37,7 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -47,6 +49,7 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 

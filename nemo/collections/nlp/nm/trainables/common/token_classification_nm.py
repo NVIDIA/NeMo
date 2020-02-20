@@ -20,6 +20,7 @@ from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
 from nemo.collections.nlp.utils.functional_utils import gelu
 from nemo.collections.nlp.utils.transformer_utils import transformer_weights_init
 from nemo.core import ChannelType, LogitsType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BertTokenClassifier', 'TokenClassifier']
 
@@ -43,6 +44,7 @@ class BertTokenClassifier(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         hidden_states: embedgging hidden states
@@ -50,6 +52,7 @@ class BertTokenClassifier(TrainableNM):
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         logits: logits before loss
@@ -104,6 +107,7 @@ class TokenClassifier(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -111,6 +115,7 @@ class TokenClassifier(TrainableNM):
         return {"hidden_states": NeuralType(('B', 'T', 'C'), ChannelType())}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

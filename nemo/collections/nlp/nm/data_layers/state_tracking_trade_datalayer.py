@@ -44,6 +44,7 @@ import nemo
 from nemo.collections.nlp.data.datasets import MultiWOZDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core.neural_types import ChannelType, LabelsType, LengthsType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['MultiWOZDataLayer']
 
@@ -82,6 +83,7 @@ class MultiWOZDataLayer(TextDataLayer):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         src_ids: ids of input sequences

@@ -23,6 +23,7 @@ from torch import nn
 from nemo.backends.pytorch.common.parts import Attention
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core import *
+from nemo.utils.decorators import add_port_docs
 from nemo.utils.misc import pad_to
 
 __all__ = ['DecoderRNN', 'EncoderRNN']
@@ -65,6 +66,7 @@ class DecoderRNN(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -74,6 +76,7 @@ class DecoderRNN(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -195,6 +198,7 @@ class EncoderRNN(TrainableNM):
     """ Simple RNN-based encoder using GRU cells """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -204,6 +208,7 @@ class EncoderRNN(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

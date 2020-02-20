@@ -17,6 +17,7 @@
 from nemo.collections.nlp.data import BertTokenClassificationDataset, BertTokenClassificationInferDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, MaskType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BertTokenClassificationDataLayer', 'BertTokenClassificationInferDataLayer']
 
@@ -58,6 +59,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         input_ids:
@@ -128,6 +130,7 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

@@ -37,6 +37,7 @@ from .parts.spectr_augment import SpecAugment, SpecCutout
 from nemo.backends.pytorch import NonTrainableNM
 from nemo.core import Optimization
 from nemo.core.neural_types import *
+from nemo.utils.decorators import add_port_docs
 
 try:
     import torchaudio
@@ -120,6 +121,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -131,6 +133,7 @@ class AudioToSpectrogramPreprocessor(AudioPreprocessor):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -270,6 +273,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -281,6 +285,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
@@ -416,6 +421,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -427,6 +433,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -546,6 +553,7 @@ class SpectrogramAugmentation(NonTrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -556,6 +564,7 @@ class SpectrogramAugmentation(NonTrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -609,6 +618,7 @@ class MultiplyBatch(NonTrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -624,6 +634,7 @@ class MultiplyBatch(NonTrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
