@@ -21,6 +21,7 @@ import os
 import numpy as np
 from transformers import BertTokenizer
 
+import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo import logging
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
