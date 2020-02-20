@@ -19,6 +19,7 @@ from torch import nn as nn
 from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
 from nemo.core import ChannelType, LogitsType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['SequenceClassifier']
 
@@ -39,12 +40,14 @@ class SequenceClassifier(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

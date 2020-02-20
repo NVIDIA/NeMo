@@ -6,6 +6,7 @@ from .parts.datasets import AudioOnlyDataset
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 logging = nemo.logging
 
@@ -48,6 +49,7 @@ class AudioDataLayer(DataLayerNM):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

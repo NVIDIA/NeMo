@@ -26,6 +26,7 @@ from .parts.perturb import AudioAugmentor, perturbation_types
 from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
+from nemo.utils.decorators import add_port_docs
 from nemo.utils.misc import pad_to
 
 __all__ = [
@@ -97,6 +98,7 @@ transcript_n}
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -105,7 +107,12 @@ transcript_n}
             # 'a_sig_length': NeuralType({0: AxisType(BatchTag)}),
             # 'transcripts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # 'transcript_length': NeuralType({0: AxisType(BatchTag)}),
-            'audio_signal': NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
+            'audio_signal': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and self._sample_rate is not None
+                else AudioSignal(),
+            ),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
@@ -218,6 +225,7 @@ class KaldiFeatureDataLayer(DataLayerNM):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
@@ -344,6 +352,7 @@ class TranscriptDataLayer(DataLayerNM):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 

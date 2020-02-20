@@ -70,6 +70,8 @@ To release a new version, please update the changelog as followed:
 ## [Unreleased]
 
 ### Added
+- New Neural Type System documentation. Also added decorator to generate docs for input/output ports.
+([PR #370](https://github.com/NVIDIA/NeMo/pull/370)) - @okuchaiev
 - New Neural Type System and its tests.
 ([PR #307](https://github.com/NVIDIA/NeMo/pull/307)) - @okuchaiev
 - Named tensors tuple module's output for graph construction.

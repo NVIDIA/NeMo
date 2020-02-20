@@ -46,10 +46,11 @@ class NeuralType(object):
     """
 
     def __str__(self):
-        return (
-            f"axes: {[(c.kind, c.size, c.is_list) for c in self.axes]}\n"
-            f"elements_type: {self.elements_type.__class__.__name__}"
-        )
+
+        if self.axes is not None:
+            return f"axes: {self.axes}; " f" elements_type: {self.elements_type.__class__.__name__}"
+        else:
+            return f"axes: None; " f" elements_type: {self.elements_type.__class__.__name__}"
 
     def __init__(self, axes: Optional[Tuple] = None, elements_type: ElementType = VoidType(), optional=False):
         if not isinstance(elements_type, ElementType):
