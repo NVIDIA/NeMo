@@ -23,11 +23,11 @@ from transformers import BertTokenizer
 
 import nemo.collections.nlp as nemo_nlp
 from nemo import logging
-from nemo.core import SimpleLossLoggerCallback, CheckpointCallback
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
 from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.data_descriptor import JointIntentSlotDataDesc
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
+from nemo.core import CheckpointCallback, SimpleLossLoggerCallback
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
