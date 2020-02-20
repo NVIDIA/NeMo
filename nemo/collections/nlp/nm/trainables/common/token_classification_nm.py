@@ -111,7 +111,6 @@ class TokenClassifier(TrainableNM):
     def input_ports(self):
         """Returns definitions of module input ports.
         """
-        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
         return {"hidden_states": NeuralType(('B', 'T', 'C'), ChannelType())}
 
     @property
@@ -119,7 +118,6 @@ class TokenClassifier(TrainableNM):
     def output_ports(self):
         """Returns definitions of module output ports.
         """
-        # return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
         return {"logits": NeuralType(('B', 'T', 'D'), LogitsType())}
 
     def __init__(
