@@ -16,6 +16,79 @@ The MultiWOZ Dataset
 
 The Multi-Domain Wizard-of-Oz dataset (`MultiWOZ`_) is a collection of human-to-human conversations spanning over \
 7 distinct domains and containing over 10,000 dialogues.
+The original MultiWOZ 2.0 dataset was introduced in :cite:`nlp-dst-budzianowski2018multiwoz`.
+However, in this tutorial we will utilize MultiWOZ 2.1  :cite:`nlp-dst-eric2019multiwoz`, which aimed at fixing \
+several issues with the original dataset (state errors and corrections, utterance corrections, value 
+cannonicalization etc.).
+
+
+The MultiWOZ covers the following domains:
+1. restaurant
+2. hotel
+3. attraction
+4. taxi
+5. train
+6. hospital
+7. police.
+
+
+This division propagates further on the type of domain-specific actions:
+* inform (∗)
+* request (∗)
+* select (123)
+* recommend (123)
+* not found (123)
+* request booking info (123)
+* offer booking (1235)
+* inform booked (1235)
+* decline booking (1235)
+* welcome (∗)
+* greet (∗)
+* bye (∗)
+* reqmore (∗).
+
+
+As well as domain-specific slots:
+* inform (∗)
+* address (∗)
+* postcode (∗)
+* phone (∗)
+* name (1234)
+* no of choices (1235)
+* area (123)
+* pricerange (123)
+* type (123)
+* internet (2)
+* parking (2)
+* stars (2)
+* open hours (3)
+* departure (45)
+* destination (45)
+* leave after (45)
+* arrive by (45)
+* no of people (1235)
+* reference no. (1235)
+* trainID (5)
+* ticket price (5)
+* travel time (5)
+* department (7)
+* day (1235)
+* no of days (123).
+
+
+Please note that some of the actions and slots are associated with several domains, and some are universal, \
+i.e. domain independent. They are denoted with (∗).
+
+
+MultiWOZ offers a total of 10,438 dialogues, with 115,434 turns in total. \
+Dialogues are generally classified into single and multi domain dialogues. \
+Dialogue length distribution is varying from 1 to 31, with around 70%of dialogues have more than 10 turns. \
+The average number of turns are 8.93 and 15.39 for single and multi-domain dialogues. \
+
+Each dialogue consists of a goal, multiple user and system utterances as well as a belief state and set of dialogue \
+acts with slots per turn. Additionally, each dialog is supported with a task description.
+
+
 
 
 The TRADE model
@@ -63,3 +136,12 @@ Training and Results
 --------------------
 
 description how to train the model and what accuracies one might expect.
+
+
+References
+----------
+
+.. bibliography:: nlp_all.bib
+    :style: plain
+    :labelprefix: NLP-DST
+    :keyprefix: nlp-dst-
