@@ -83,6 +83,13 @@ files, along with unit tests, examples and tutorials
 ([PR #375](https://github.com/NVIDIA/NeMo/pull/375)) - @titu1994
 
 ### Changed
+- Refactoring of `nemo_nlp` collections: 
+([PR #368](https://github.com/NVIDIA/NeMo/pull/368)) - @VahidooX, @yzhang123, @ekmb
+    - renaming and restructuring of files, folder, and functions in `nemo_nlp`
+    - losses cleaned up. LossAggregatorNM moved to nemo/backends/pytorch/common/losses
+ ([PR #316](https://github.com/NVIDIA/NeMo/pull/316)) - @VahidooX, @yzhang123, @ekmb
+    - renaming and restructuring of files, folder, and functions in `nemo_nlp`
+    - Updated licenses
 - All collections changed to use New Neural Type System.
 ([PR #307](https://github.com/NVIDIA/NeMo/pull/307)) - @okuchaiev
 - Additional Collections Repositories merged into core `nemo_toolkit` package.
@@ -93,10 +100,6 @@ files, along with unit tests, examples and tutorials
 ([PR #286](https://github.com/NVIDIA/NeMo/pull/286)) - @stasbel
 - Major cleanup of Neural Module constructors (init), aiming at increasing the framework robustness: cleanup of NeuralModule initialization logic, refactor of trainer/actions (getting rid of local_params), fixes of several examples and unit tests, extraction and storing of intial parameters (init_params).  
 ([PR #309](https://github.com/NVIDIA/NeMo/pull/309)) - @tkornuta-nvidia
-- Refactoring of `nemo_nlp` collections: 
-([PR #316](https://github.com/NVIDIA/NeMo/pull/316)) - @VahidooX, @yzhang123, @ekmb
-    - renaming of files and restructuring of folder in `nemo_nlp`
-    - Updated licenses
 - Updated nemo's use of the logging library. from nemo import logging is now the reccomended way of using the nemo logger. neural_factory.logger and all other instances of logger are now deprecated and planned for removal in the next version. Please see PR 267 for complete change information.
 ([PR #267](https://github.com/NVIDIA/NeMo/pull/267), [PR #283](https://github.com/NVIDIA/NeMo/pull/283), [PR #305](https://github.com/NVIDIA/NeMo/pull/305), [PR #311](https://github.com/NVIDIA/NeMo/pull/311)) - @blisc
 - Changed Distributed Data Parallel from Apex to Torch
