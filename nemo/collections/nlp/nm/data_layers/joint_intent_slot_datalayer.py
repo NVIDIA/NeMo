@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.data import BertJointIntentSlotDataset, BertJointIntentSlotInferDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import ChannelType, NeuralType
+from nemo.core import ChannelType, LabelsType, MaskType, NeuralType
 
 __all__ = ['BertJointIntentSlotDataLayer', 'BertJointIntentSlotInferDataLayer']
 
@@ -70,10 +70,10 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
-            "loss_mask": NeuralType(('B', 'T'), ChannelType()),
+            "loss_mask": NeuralType(('B', 'T'), MaskType()),
             "subtokens_mask": NeuralType(('B', 'T'), ChannelType()),
-            "intents": NeuralType(tuple('B'), ChannelType()),
-            "slots": NeuralType(('B', 'T'), ChannelType()),
+            "intents": NeuralType(tuple('B'), LabelsType()),
+            "slots": NeuralType(('B', 'T'), LabelsType()),
         }
 
     def __init__(
