@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core.neural_types import LabelsType, LogitsType, LossType, NeuralType, RegressionValuesType
+from nemo.core.neural_types import LabelsType, LogitsType, LossType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['SequenceLoss', 'CrossEntropyLossNM', 'MSELoss', 'LossAggregatorNM']
