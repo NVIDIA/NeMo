@@ -1,6 +1,5 @@
-# Copyright 2018 The Google AI Language Team Authors and
-# The HuggingFace Inc. team.
-# Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Utility functions for Token Classification NLP tasks
-Some parts of this code were adapted from the HuggingFace library at
-https://github.com/huggingface/pytorch-pretrained-BERT
-"""
+# =============================================================================
 
 
 import numpy as np
