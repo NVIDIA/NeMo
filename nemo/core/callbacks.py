@@ -24,7 +24,7 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 
 import nemo
-from ..utils import get_checkpoint_from_dir
+from nemo.utils import get_checkpoint_from_dir
 
 
 class ActionCallback(ABC):
