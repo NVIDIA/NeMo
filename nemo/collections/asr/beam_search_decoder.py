@@ -20,23 +20,20 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
     in that list is a tuple of (final_log_prob, hyp_string).
 
     Args:
-        vocab (list): List of characters that can be output by the ASR model.
-            For Jasper, this is the 28 character set {a-z '}. The CTC blank
-            symbol is automatically added later for models using ctc.
-        beam_width (int): Size of beams to keep and expand upon. Larger beams
-            result in more accurate but slower predictions
-        alpha (float): The amount of importance to place on the n-gram language
-            model. Larger alpha means more importance on the LM and less
-            importance on the acoustic model (Jasper).
-        beta (float): A penalty term given to longer word sequences. Larger
-            beta will result in shorter sequences.
+        vocab (list): List of characters that can be output by the ASR model. For Jasper, this is the 28 character set
+            {a-z '}. The CTC blank symbol is automatically added later for models using ctc.
+        beam_width (int): Size of beams to keep and expand upon. Larger beams result in more accurate but slower
+            predictions
+        alpha (float): The amount of importance to place on the n-gram language model. Larger alpha means more
+            importance on the LM and less importance on the acoustic model (Jasper).
+        beta (float): A penalty term given to longer word sequences. Larger beta will result in shorter sequences.
         lm_path (str): Path to n-gram language model
         num_cpus (int): Number of cpus to use
-        cutoff_prob (float): Cutoff probability in vocabulary pruning,
-            default 1.0, no pruning
-        cutoff_top_n (int): Cutoff number in pruning, only top cutoff_top_n
-            characters with highest probs in vocabulary will be used in
-            beam search, default 40.
+        cutoff_prob (float): Cutoff probability in vocabulary pruning, default 1.0, no pruning
+        cutoff_top_n (int): Cutoff number in pruning, only top cutoff_top_n characters with highest probs in
+            vocabulary will be used in beam search, default 40.
+        input_tensor (bool): Set to True if you intend to pass pytorch Tensors, set to False if you intend to pass
+            numpy arrays.
     """
 
     @property
@@ -62,7 +59,9 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
         # return {"predictions": NeuralType(VoidType())}
         return {"predictions": NeuralType(('B', 'T'), PredictionsType())}
 
-    def __init__(self, vocab, beam_width, alpha, beta, lm_path, num_cpus, cutoff_prob=1.0, cutoff_top_n=40):
+    def __init__(
+        self, vocab, beam_width, alpha, beta, lm_path, num_cpus, cutoff_prob=1.0, cutoff_top_n=40, input_tensor=True
+    ):
 
         try:
             from ctc_decoders import Scorer
@@ -89,12 +88,15 @@ class BeamSearchDecoderWithLM(NonTrainableNM):
         self.num_cpus = num_cpus
         self.cutoff_prob = cutoff_prob
         self.cutoff_top_n = cutoff_top_n
+        self.input_tensor = input_tensor
 
     def forward(self, log_probs, log_probs_length):
-        probs = torch.exp(log_probs)
-        probs_list = []
-        for i, prob in enumerate(probs):
-            probs_list.append(prob[: log_probs_length[i], :])
+        probs_list = log_probs
+        if self.input_tensor:
+            probs = torch.exp(log_probs)
+            probs_list = []
+            for i, prob in enumerate(probs):
+                probs_list.append(prob[: log_probs_length[i], :])
         res = self.beam_search_func(
             probs_list,
             self.vocab,

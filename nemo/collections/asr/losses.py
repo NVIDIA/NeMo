@@ -10,7 +10,6 @@ from nemo.utils.decorators import add_port_docs
 class CTCLossNM(LossNM):
     """
     Neural Module wrapper for pytorch's ctcloss
-
     Args:
         num_classes (int): Number of characters in ASR model's vocab/labels.
             This count should not include the CTC blank symbol.
@@ -36,7 +35,6 @@ class CTCLossNM(LossNM):
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
-
         loss:
             NeuralType(None)
         """

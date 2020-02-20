@@ -1,18 +1,24 @@
 # Copyright (c) 2019 NVIDIA Corporation
-import logging
 import os
 import subprocess
 import sys
 import time
 from shutil import copyfile
 
-import nemo
+from nemo.utils import logging
 from nemo.utils.decorators import deprecated
 
 
-@deprecated(version=0.11, explanation="Please use nemo.logging instead")
+# logging = nemo.logging
+@deprecated(
+    version=0.11,
+    explanation=(
+        "Please use nemo.logging instead by using logging = nemo.logging and logging.info(), "
+        "logging.warning() , etc."
+    ),
+)
 def get_logger(unused):
-    return nemo.logging
+    return logging
 
 
 # class ContextFilter(logging.Filter):
@@ -92,7 +98,6 @@ class ExpManager:
     ):
         self.local_rank = local_rank if local_rank is not None else 0
         self.global_rank = global_rank if global_rank is not None else 0
-        self.logger = None
         self.log_file = None
         self.tb_writer = None
         self.work_dir = None
@@ -144,34 +149,19 @@ class ExpManager:
                         f.write(get_git_diff())
 
         # Create loggers
-        self.create_logger(log_file=bool(work_dir))
+        if bool(work_dir):
+            self.add_file_handler_to_logger()
         if use_tb and not work_dir:
-            raise ValueError("ExpManager received use_tb as True but did not " "receive a work_dir")
+            raise ValueError("ExpManager received use_tb as True but did not receive a work_dir")
 
         if ckpt_dir:
             self.ckpt_dir = ckpt_dir
         if self.ckpt_dir:
             self.make_dir(self.ckpt_dir, exist_ok)
 
-    def create_logger(self, level=logging.INFO, log_file=True):
-        logger = nemo.logging
-        # tmp = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-
-        # if self.global_rank == 0:
-        #     logger.setLevel(level)
-        #     ch = logging.StreamHandler()
-        #     ch.setLevel(level)
-        #     ch.setFormatter(tmp)
-        #     logger.addHandler(ch)
-
-        if log_file:
-            self.log_file = f'{self.work_dir}/log_globalrank-{self.global_rank}_' f'localrank-{self.local_rank}.txt'
-            logger.add_file_handler(self.log_file)
-            # fh = logging.FileHandler(self.log_file)
-            # fh.setLevel(level)
-            # fh.setFormatter(tmp)
-        self.logger = logger
-        return logger
+    def add_file_handler_to_logger(self):
+        self.log_file = f'{self.work_dir}/log_globalrank-{self.global_rank}_' f'localrank-{self.local_rank}.txt'
+        logging.add_file_handler(self.log_file)
 
     def make_dir(self, dir_, exist_ok):
         # We might want to limit folder creation to only global_rank 0
@@ -192,19 +182,16 @@ class ExpManager:
                 self.tb_writer = SummaryWriter(self.tb_dir)
             except ImportError:
                 self.tb_writer = None
-                nemo.logging.info('Not using TensorBoard.')
-                nemo.logging.info('Install tensorboardX to use TensorBoard')
+                logging.info('Not using TensorBoard.')
+                logging.info('Install tensorboardX to use TensorBoard')
         return self.tb_writer
 
     def log_exp_info(self, params, print_everywhere=False):
         if print_everywhere or self.global_rank == 0:
-            nemo.logging.info("NEMO MODEL'S PARAMETERS")
+            logging.info("NEMO MODEL'S PARAMETERS")
             for key in params:
-                nemo.logging.info(f'{key}\t{params[key]}')
-            nemo.logging.info(f'Experiment output is stored in {self.work_dir}')
-
-    def reset_loggers(self):
-        nemo.logging.handlers = []
+                logging.info(f'{key}\t{params[key]}')
+            logging.info(f'Experiment output is stored in {self.work_dir}')
 
 
 def get_git_hash():

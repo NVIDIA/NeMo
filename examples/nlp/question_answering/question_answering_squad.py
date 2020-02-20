@@ -113,14 +113,17 @@ def parse_args():
     parser.add_argument(
         "--do_lower_case",
         action='store_true',
-        help="Whether to lower case the input text. " "True for uncased models, False for cased models.",
+        help="Whether to lower case the input text. True for uncased models, False for cased models.",
     )
     parser.add_argument("--evaluation_only", action='store_true', help="Whether to only do evaluation.")
+    parser.add_argument(
+        "--no_data_cache", action='store_true', help="When specified do not load and store cache preprocessed data.",
+    )
     parser.add_argument(
         "--doc_stride",
         default=128,
         type=int,
-        help="When splitting up a long document into chunks, " "how much stride to take between chunks.",
+        help="When splitting up a long document into chunks, how much stride to take between chunks.",
     )
     parser.add_argument(
         "--max_query_length",
@@ -148,38 +151,38 @@ def parse_args():
         "--work_dir",
         default='output_squad',
         type=str,
-        help="The output directory where the " "model predictions and checkpoints " "will be written.",
+        help="The output directory where the model predictions and checkpoints will be written.",
     )
     parser.add_argument(
         "--save_epoch_freq",
         default=1,
         type=int,
-        help="Frequency of saving checkpoint " "'-1' - epoch checkpoint won't be saved",
+        help="Frequency of saving checkpoint '-1' - epoch checkpoint won't be saved",
     )
     parser.add_argument(
         "--save_step_freq",
         default=-1,
         type=int,
-        help="Frequency of saving checkpoint " "'-1' - step checkpoint won't be saved",
+        help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
     )
     parser.add_argument("--loss_step_freq", default=100, type=int, help="Frequency of printing loss")
     parser.add_argument("--eval_step_freq", default=500, type=int, help="Frequency of evaluation on dev data")
     parser.add_argument(
         "--version_2_with_negative",
         action="store_true",
-        help="If true, the SQuAD examples contain some that " "do not have an answer.",
+        help="If true, the SQuAD examples contain some that do not have an answer.",
     )
     parser.add_argument(
         '--null_score_diff_threshold',
         type=float,
         default=0.0,
-        help="If null_score - best_non_null is " "greater than the threshold predict null.",
+        help="If null_score - best_non_null is greater than the threshold predict null.",
     )
     parser.add_argument(
         "--n_best_size",
         default=20,
         type=int,
-        help="The total number of n-best predictions to " "generate in the nbest_predictions.json output file.",
+        help="The total number of n-best predictions to generate in the nbest_predictions.json output file.",
     )
     parser.add_argument("--batches_per_step", default=1, type=int, help="Number of iterations per step.")
     parser.add_argument(
@@ -196,7 +199,7 @@ def parse_args():
         type=str,
         required=False,
         default="predictions.json",
-        help="File to write predictions to. " "Only in evaluation mode.",
+        help="File to write predictions to. Only in evaluation mode.",
     )
     args = parser.parse_args()
     return args
@@ -215,6 +218,7 @@ def create_pipeline(
     num_gpus=1,
     batches_per_step=1,
     mode="train",
+    use_data_cache=True,
 ):
     data_layer = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
         mode=mode,
@@ -225,6 +229,7 @@ def create_pipeline(
         max_query_length=max_query_length,
         max_seq_length=max_seq_length,
         doc_stride=doc_stride,
+        use_cache=use_data_cache,
     )
 
     input_data = data_layer()
@@ -258,11 +263,11 @@ if __name__ == "__main__":
     args = parse_args()
     if not os.path.exists(args.dev_file):
         raise FileNotFoundError(
-            "eval data not found. Datasets can be " "obtained using examples/nlp/scripts/get_squad.py"
+            "eval data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
         )
     if not args.evaluation_only and not os.path.exists(args.train_file):
         raise FileNotFoundError(
-            "train data not found. Datasets can be " "obtained using examples/nlp/scripts/get_squad.py"
+            "train data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
         )
 
     # Instantiate neural factory with supported backend
@@ -337,6 +342,7 @@ if __name__ == "__main__":
             num_gpus=args.num_gpus,
             batches_per_step=args.batches_per_step,
             mode="train",
+            use_data_cache=not args.no_data_cache,
         )
         logging.info(f"training step per epoch: {train_steps_per_epoch}")
     _, _, eval_output, eval_data_layer = create_pipeline(
@@ -352,6 +358,7 @@ if __name__ == "__main__":
         num_gpus=args.num_gpus,
         batches_per_step=args.batches_per_step,
         mode="dev",
+        use_data_cache=not args.no_data_cache,
     )
 
     if not args.evaluation_only:

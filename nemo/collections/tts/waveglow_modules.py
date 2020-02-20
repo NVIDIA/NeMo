@@ -207,7 +207,7 @@ class WaveGlowInferNM(WaveGlowNM):
             self.waveglow = self.waveglow.remove_weightnorm(self.waveglow)
             self._removed_weight_norm = True
         if self.training:
-            raise ValueError("You are using the WaveGlow Infer Neural Module " "in training mode.")
+            raise ValueError("You are using the WaveGlow Infer Neural Module in training mode.")
         with torch.no_grad():
             audio = self.waveglow.infer(mel_spectrogram, sigma=self._sigma)
         return audio
