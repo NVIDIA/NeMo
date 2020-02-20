@@ -8,6 +8,7 @@ from shutil import copyfile
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated
 
+
 # logging = nemo.logging
 @deprecated(
     version=0.11,
