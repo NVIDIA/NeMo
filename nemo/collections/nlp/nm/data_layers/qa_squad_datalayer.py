@@ -17,6 +17,7 @@
 from nemo.collections.nlp.data import SquadDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BertQuestionAnsweringDataLayer']
 
@@ -46,6 +47,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -59,9 +61,9 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
-            "start_positions": NeuralType(tuple('B'), ChannelType()),
-            "end_positions": NeuralType(tuple('B'), ChannelType()),
             "unique_ids": NeuralType(tuple('B'), ChannelType()),
+            "start_positions": NeuralType(tuple('B'), ChannelType(), optional=True),
+            "end_positions": NeuralType(tuple('B'), ChannelType(), optional=True),
         }
 
     def __init__(

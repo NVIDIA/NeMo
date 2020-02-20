@@ -10,6 +10,7 @@ NVIDIA Neural Modules Developer Guide
    tutorials/intro
    training
    asr/intro
+   speech_command/intro
    nlp/intro
    tts/intro
    collections/modules

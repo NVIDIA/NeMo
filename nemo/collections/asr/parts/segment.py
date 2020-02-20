@@ -49,7 +49,7 @@ class AudioSegment(object):
 
     def __str__(self):
         """Return human-readable representation of segment."""
-        return "%s: num_samples=%d, sample_rate=%d, duration=%.2fsec, " "rms=%.2fdB" % (
+        return "%s: num_samples=%d, sample_rate=%d, duration=%.2fsec, rms=%.2fdB" % (
             type(self),
             self.num_samples,
             self.sample_rate,
@@ -168,15 +168,15 @@ class AudioSegment(object):
         if end_time < 0.0:
             end_time = self.duration + end_time
         if start_time < 0.0:
-            raise ValueError("The slice start position (%f s) is out of " "bounds." % start_time)
+            raise ValueError("The slice start position (%f s) is out of bounds." % start_time)
         if end_time < 0.0:
             raise ValueError("The slice end position (%f s) is out of bounds." % end_time)
         if start_time > end_time:
             raise ValueError(
-                "The slice start position (%f s) is later than " "the end position (%f s)." % (start_time, end_time)
+                "The slice start position (%f s) is later than the end position (%f s)." % (start_time, end_time)
             )
         if end_time > self.duration:
-            raise ValueError("The slice end position (%f s) is out of bounds " "(> %f s)" % (end_time, self.duration))
+            raise ValueError("The slice end position (%f s) is out of bounds (> %f s)" % (end_time, self.duration))
         start_sample = int(round(start_time * self._sample_rate))
         end_sample = int(round(end_time * self._sample_rate))
         self._samples = self._samples[start_sample:end_sample]

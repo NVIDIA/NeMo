@@ -3,6 +3,7 @@ from torch import nn
 
 from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import LabelsType, LogitsType, LossType, NeuralType, RegressionValuesType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['SequenceLoss', 'CrossEntropyLoss', 'MSELoss']
 
@@ -32,18 +33,16 @@ class SequenceLoss(LossNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
         return {'log_probs': NeuralType(axes=('B', 'T', 'D')), 'targets': NeuralType(axes=('B', 'T'))}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        loss:
-            NeuralType(None)
-
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
@@ -103,6 +102,7 @@ class CrossEntropyLoss(LossNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -112,6 +112,7 @@ class CrossEntropyLoss(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
@@ -120,11 +121,11 @@ class CrossEntropyLoss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, weight=None):
+    def __init__(self, reduction='mean', weight=None):
         super().__init__()
         if weight:
             weight = torch.FloatTensor(weight).to(self._device)
-        self._criterion = nn.CrossEntropyLoss(weight=weight)
+        self._criterion = nn.CrossEntropyLoss(weight=weight, reduction=reduction)
 
     def _loss_function(self, logits, labels):
         loss = self._criterion(logits, labels)
@@ -133,6 +134,7 @@ class CrossEntropyLoss(LossNM):
 
 class MSELoss(LossNM):
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
 
@@ -148,6 +150,7 @@ class MSELoss(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
@@ -156,9 +159,9 @@ class MSELoss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self):
+    def __init__(self, reduction='mean'):
         super().__init__()
-        self._criterion = nn.MSELoss()
+        self._criterion = nn.MSELoss(reduction=reduction)
 
     def _loss_function(self, preds, labels):
         loss = self._criterion(preds, labels)

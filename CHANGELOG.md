@@ -70,12 +70,19 @@ To release a new version, please update the changelog as followed:
 ## [Unreleased]
 
 ### Added
+- New Neural Type System documentation. Also added decorator to generate docs for input/output ports.
+([PR #370](https://github.com/NVIDIA/NeMo/pull/370)) - @okuchaiev
 - New Neural Type System and its tests.
 ([PR #307](https://github.com/NVIDIA/NeMo/pull/307)) - @okuchaiev
 - Named tensors tuple module's output for graph construction.
 ([PR #268](https://github.com/NVIDIA/NeMo/pull/268)) - @stasbel
 - Introduced the `deprecated` decorator.
 ([PR #298](https://github.com/NVIDIA/NeMo/pull/298)) - @tkornuta-nvidia
+- Implemented new mechanisms for importing and exporting of module configuration (init_params) to configuration (yml)
+files, along with unit tests, examples and tutorials
+([PR #339](https://github.com/NVIDIA/NeMo/pull/339)) - @tkornuta-nvidia
+- Speech Commands support.
+([PR #375](https://github.com/NVIDIA/NeMo/pull/375)) - @titu1994
 
 ### Changed
 - All collections changed to use New Neural Type System.
@@ -99,6 +106,10 @@ To release a new version, please update the changelog as followed:
 
 - Added TRADE (dialogue state tracking model) on MultiWOZ dataset
 ([PR #322](https://github.com/NVIDIA/NeMo/pull/322)) - @chiphuyen, @VahidooX
+- Question answering: 
+([PR #390](https://github.com/NVIDIA/NeMo/pull/390)) - @yzhang123
+    - Changed question answering task to use Roberta and Albert as alternative backends to Bert
+    - Added inference mode that does not require ground truth labels
 
 ### Dependencies Update
 - Added dependency on `wrapt` (the new version of the `deprecated` warning) - @tkornuta-nvidia, @DEKHTIARJonathan

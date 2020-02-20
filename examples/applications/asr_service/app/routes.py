@@ -86,7 +86,7 @@ def transcribe_file():
         greedy = True
         if request.form.get('beam'):
             if not ENABLE_NGRAM:
-                return "Error: Beam Search with ngram LM is not enabled " "on this server"
+                return "Error: Beam Search with ngram LM is not enabled on this server"
             greedy = False
         file_path = os.path.join(WORK_DIR, secure_filename(f.filename))
         f.save(file_path)
