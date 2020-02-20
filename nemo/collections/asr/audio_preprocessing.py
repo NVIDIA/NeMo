@@ -21,6 +21,7 @@ __all__ = [
     'AudioToMFCCPreprocessor',
     'AudioToMelSpectrogramPreprocessor',
     'AudioToSpectrogramPreprocessor',
+    'CropOrPadSpectrogramAugmentation',
     'MultiplyBatch',
     'SpectrogramAugmentation',
 ]
@@ -47,7 +48,7 @@ except ModuleNotFoundError:
 try:
     from apex import amp
 except (AttributeError, ModuleNotFoundError) as e:
-    warnings.warn("Unable to import APEX. Mixed precision and distributed training " "will not work.")
+    warnings.warn("Unable to import APEX. Mixed precision and distributed training will not work.")
 
 
 class AudioPreprocessor(NonTrainableNM):
@@ -649,6 +650,81 @@ class MultiplyBatch(NonTrainableNM):
         out_y_len = in_y_len.repeat(self.mult)
 
         return out_x, out_x_len, out_y, out_y_len
+
+
+class CropOrPadSpectrogramAugmentation(NonTrainableNM):
+    """
+    Pad or Crop the incoming Spectrogram to a certain shape.
+
+    Args:
+        audio_length (int): the final number of timesteps that is required.
+            The signal will be either padded or cropped temporally to this
+            size.
+    """
+
+    def __init__(self, audio_length, **kwargs):
+        super(CropOrPadSpectrogramAugmentation, self).__init__()
+        self.audio_length = audio_length
+
+    @torch.no_grad()
+    def forward(self, input_signal, length):
+        image = input_signal
+        num_images = image.shape[0]
+
+        audio_length = self.audio_length
+        image_len = image.shape[-1]
+
+        # Crop long signal
+        if image_len > audio_length:  # randomly slice
+            cutout_images = []
+            offset = torch.randint(low=0, high=image_len - audio_length + 1, size=[num_images])
+
+            # TODO: Look into advanced broadcasting to speed up section
+            for idx, offset in enumerate(offset):
+                cutout_images.append(image[idx : idx + 1, :, offset : offset + audio_length])
+
+            image = torch.cat(cutout_images, dim=0)
+            del cutout_images
+
+        else:  # symmetrically pad short signal with zeros
+            pad_left = (audio_length - image_len) // 2
+            pad_right = (audio_length - image_len) // 2
+
+            if (audio_length - image_len) % 2 == 1:
+                pad_right += 1
+
+            image = torch.nn.functional.pad(image, [pad_left, pad_right], mode="constant", value=0)
+
+        # Replace dynamic length sequences with static number of timesteps
+        length = (length * 0) + audio_length
+
+        return image, length
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module output ports.
+        """
+        return {
+            # "input_signal": NeuralType(
+            #     {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag), }
+            # ),
+            # "length": NeuralType({0: AxisType(BatchTag)}),
+            "input_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "length": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+        """
+        return {
+            # "processed_signal": NeuralType(
+            #     {0: AxisType(BatchTag), 1: AxisType(SpectrogramSignalTag), 2: AxisType(ProcessedTimeTag), }
+            # ),
+            # "processed_length": NeuralType({0: AxisType(BatchTag)}),
+            "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "processed_length": NeuralType(tuple('B'), LengthsType()),
+        }
 
 
 def AudioPreprocessing(*args, **kwargs):

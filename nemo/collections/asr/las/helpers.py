@@ -7,6 +7,7 @@ import nemo
 from nemo.backends.pytorch.common.metrics import char_lm_metrics
 from nemo.collections.asr.metrics import word_error_rate
 
+logging = nemo.logging
 ENG_MWN = 5.3
 
 
@@ -68,14 +69,14 @@ def process_evaluation_epoch(
         transcript_texts = list(chain(*global_vars['transcript_texts']))
         prediction_texts = list(chain(*global_vars['prediction_texts']))
 
-        nemo.logging.info(f'Ten examples (transcripts and predictions)')
-        nemo.logging.info(transcript_texts[:10])
-        nemo.logging.info(prediction_texts[:10])
+        logging.info(f'Ten examples (transcripts and predictions)')
+        logging.info(transcript_texts[:10])
+        logging.info(prediction_texts[:10])
 
         wer = word_error_rate(hypotheses=prediction_texts, references=transcript_texts)
         return_dict[f'metric/{mode}_wer_{tag}'] = wer
 
-    nemo.logging.info(pformat(return_dict))
+    logging.info(pformat(return_dict))
 
     return return_dict
 

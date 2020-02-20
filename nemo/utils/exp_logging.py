@@ -8,8 +8,14 @@ from shutil import copyfile
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated
 
-
-@deprecated(version=0.11, explanation="Please use logging instead")
+# logging = nemo.logging
+@deprecated(
+    version=0.11,
+    explanation=(
+        "Please use nemo.logging instead by using logging = nemo.logging and logging.info(), "
+        "logging.warning() , etc."
+    ),
+)
 def get_logger(unused):
     return logging
 
@@ -145,7 +151,7 @@ class ExpManager:
         if bool(work_dir):
             self.add_file_handler_to_logger()
         if use_tb and not work_dir:
-            raise ValueError("ExpManager received use_tb as True but did not " "receive a work_dir")
+            raise ValueError("ExpManager received use_tb as True but did not receive a work_dir")
 
         if ckpt_dir:
             self.ckpt_dir = ckpt_dir
@@ -185,9 +191,6 @@ class ExpManager:
             for key in params:
                 logging.info(f'{key}\t{params[key]}')
             logging.info(f'Experiment output is stored in {self.work_dir}')
-
-    def reset_loggers(self):
-        logging.handlers = []
 
 
 def get_git_hash():
