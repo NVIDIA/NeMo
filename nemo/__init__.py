@@ -33,9 +33,7 @@ from .package_info import (
 )
 
 if "NEMO_PACKAGE_BUILDING" not in os.environ:
-    from nemo.utils.nemo_logging import Logger as _Logger
-
-    logging = _Logger()
+    from nemo.utils import logging
 
     from nemo import backends
     from nemo import core
