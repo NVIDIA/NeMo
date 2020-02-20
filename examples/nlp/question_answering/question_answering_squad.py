@@ -37,6 +37,7 @@ python question_answering_squad.py
 --weight_decay 0.0
 --lr 3e-5
 --do_lower_case
+--mode train_eval
 
 If --bert_checkpoint is not specified, training starts from
 Huggingface pretrained checkpoints.
@@ -55,17 +56,33 @@ python -m torch.distributed.launch --nproc_per_node=8 question_answering_squad.p
 --optimizer adam_w
 --weight_decay 0.0
 --lr 3e-5
+--mode train_eval
 --do_lower_case
 
 On Huggingface the final Exact Match (EM) and F1 scores are as follows:
 Model	                EM      F1
 BERT Based uncased      80.59    88.34
 BERT Large uncased      83.88    90.65
+
+To run only evaluation on pretrained question answering checkpoints on 1 GPU with ground-truth data:
+python question_answering_squad.py
+--dev_file /path_to_data_dir/infer.json
+--checkpoint_dir /path_to_checkpoints
+--do_lower_case
+--mode eval
+
+To run only inference on pretrained question answering checkpoints on 1 GPU without ground-truth data:
+python question_answering_squad.py
+--infer_file /path_to_data_dir/infer.json
+--checkpoint_dir /path_to_checkpoints
+--do_lower_case
+--mode infer
 """
 import argparse
 import json
 import os
 
+import numpy as np
 import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
 from nemo import logging
@@ -79,7 +96,12 @@ def parse_args():
         "--train_file", type=str, help="The training data file. Should be *.json",
     )
     parser.add_argument(
-        "--dev_file", type=str, required=True, help="The evaluation data file. Should be *.json",
+        "--dev_file", type=str, help="The evaluation data file. Should be *.json",
+    )
+    parser.add_argument(
+        "--infer_file",
+        type=str,
+        help="The inference data file. Should be *.json. Does not need to contain ground truth",
     )
     parser.add_argument("--pretrained_model_name", type=str, help="Name of the pre-trained model")
     parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
@@ -115,7 +137,9 @@ def parse_args():
         action='store_true',
         help="Whether to lower case the input text. True for uncased models, False for cased models.",
     )
-    parser.add_argument("--evaluation_only", action='store_true', help="Whether to only do evaluation.")
+    parser.add_argument(
+        "--mode", default="train_eval", choices=["train_eval", "eval", "infer"], help="Mode of model usage."
+    )
     parser.add_argument(
         "--no_data_cache", action='store_true', help="When specified do not load and store cache preprocessed data.",
     )
@@ -209,15 +233,15 @@ def create_pipeline(
     data_file,
     model,
     head,
-    loss_fn,
     max_query_length,
     max_seq_length,
     doc_stride,
     batch_size,
     version_2_with_negative,
+    mode,
     num_gpus=1,
     batches_per_step=1,
-    mode="train",
+    loss_fn=None,
     use_data_cache=True,
 ):
     data_layer = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
@@ -239,17 +263,26 @@ def create_pipeline(
     )
 
     qa_output = head(hidden_states=hidden_states)
-    loss_output = loss_fn(
-        logits=qa_output, start_positions=input_data.start_positions, end_positions=input_data.end_positions
-    )
 
     steps_per_epoch = len(data_layer) // (batch_size * num_gpus * batches_per_step)
-    return (
-        loss_output.loss,
-        steps_per_epoch,
-        [loss_output.start_logits, loss_output.end_logits, input_data.unique_ids],
-        data_layer,
-    )
+
+    if mode == "infer":
+        return (
+            steps_per_epoch,
+            [input_data.unique_ids, qa_output],
+            data_layer,
+        )
+    else:
+        loss_output = loss_fn(
+            logits=qa_output, start_positions=input_data.start_positions, end_positions=input_data.end_positions
+        )
+
+        return (
+            loss_output.loss,
+            steps_per_epoch,
+            [input_data.unique_ids, loss_output.start_logits, loss_output.end_logits],
+            data_layer,
+        )
 
 
 MODEL_CLASSES = {
@@ -261,14 +294,24 @@ MODEL_CLASSES = {
 
 if __name__ == "__main__":
     args = parse_args()
-    if not os.path.exists(args.dev_file):
-        raise FileNotFoundError(
-            "eval data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
-        )
-    if not args.evaluation_only and not os.path.exists(args.train_file):
-        raise FileNotFoundError(
-            "train data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
-        )
+
+    if args.mode == "train_eval":
+        if not os.path.exists(args.train_file) or not os.path.exists(args.dev_file):
+            raise FileNotFoundError(
+                "train and dev data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
+            )
+    elif args.mode == "eval":
+        if not os.path.exists(args.dev_file):
+            raise FileNotFoundError(
+                "dev data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
+            )
+    elif args.mode == "infer":
+        if not os.path.exists(args.infer_file):
+            raise FileNotFoundError(
+                "infer data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
+            )
+    else:
+        raise ValueError(f"{args.mode} can only be one of [train_eval, eval, infer]")
 
     # Instantiate neural factory with supported backend
     nf = nemo_core.NeuralModuleFactory(
@@ -328,7 +371,7 @@ if __name__ == "__main__":
     if args.bert_checkpoint is not None:
         model.restore_from(args.bert_checkpoint)
 
-    if not args.evaluation_only:
+    if "train" in args.mode:
         train_loss, train_steps_per_epoch, _, _ = create_pipeline(
             data_file=args.train_file,
             model=model,
@@ -344,24 +387,39 @@ if __name__ == "__main__":
             mode="train",
             use_data_cache=not args.no_data_cache,
         )
-        logging.info(f"training step per epoch: {train_steps_per_epoch}")
-    _, _, eval_output, eval_data_layer = create_pipeline(
-        data_file=args.dev_file,
-        model=model,
-        head=qa_head,
-        loss_fn=squad_loss,
-        max_query_length=args.max_query_length,
-        max_seq_length=args.max_seq_length,
-        doc_stride=args.doc_stride,
-        batch_size=args.batch_size,
-        version_2_with_negative=args.version_2_with_negative,
-        num_gpus=args.num_gpus,
-        batches_per_step=args.batches_per_step,
-        mode="dev",
-        use_data_cache=not args.no_data_cache,
-    )
+    if "eval" in args.mode:
+        _, _, eval_output, eval_data_layer = create_pipeline(
+            data_file=args.dev_file,
+            model=model,
+            head=qa_head,
+            loss_fn=squad_loss,
+            max_query_length=args.max_query_length,
+            max_seq_length=args.max_seq_length,
+            doc_stride=args.doc_stride,
+            batch_size=args.batch_size,
+            version_2_with_negative=args.version_2_with_negative,
+            num_gpus=args.num_gpus,
+            batches_per_step=args.batches_per_step,
+            mode="dev",
+            use_data_cache=not args.no_data_cache,
+        )
+    if "infer" in args.mode:
+        _, eval_output, infer_data_layer = create_pipeline(
+            data_file=args.infer_file,
+            model=model,
+            head=qa_head,
+            max_query_length=args.max_query_length,
+            max_seq_length=args.max_seq_length,
+            doc_stride=args.doc_stride,
+            batch_size=args.batch_size,
+            version_2_with_negative=args.version_2_with_negative,
+            num_gpus=args.num_gpus,
+            batches_per_step=args.batches_per_step,
+            mode="infer",
+            use_data_cache=not args.no_data_cache,
+        )
 
-    if not args.evaluation_only:
+    if args.mode == "train_eval":
         logging.info(f"steps_per_epoch = {train_steps_per_epoch}")
         callback_train = nemo_core.SimpleLossLoggerCallback(
             tensors=[train_loss],
@@ -402,33 +460,52 @@ if __name__ == "__main__":
             batches_per_step=args.batches_per_step,
             optimization_params={"num_epochs": args.num_epochs, "lr": args.lr},
         )
+
     else:
         load_from_folder = None
         if args.checkpoint_dir is not None:
             load_from_folder = args.checkpoint_dir
+
         evaluated_tensors = nf.infer(tensors=eval_output, checkpoint_dir=load_from_folder, cache=True)
         unique_ids = []
-        start_logits = []
-        end_logits = []
-        for t in evaluated_tensors[2]:
-            unique_ids.extend(t.tolist())
         for t in evaluated_tensors[0]:
-            start_logits.extend(t.tolist())
-        for t in evaluated_tensors[1]:
-            end_logits.extend(t.tolist())
+            unique_ids.extend(t.tolist())
+        if "eval" in args.mode:
+            start_logits = []
+            end_logits = []
+            for t in evaluated_tensors[1]:
+                start_logits.extend(t.tolist())
+            for t in evaluated_tensors[2]:
+                end_logits.extend(t.tolist())
 
-        exact_match, f1, all_predictions = eval_data_layer.dataset.evaluate(
-            unique_ids=unique_ids,
-            start_logits=start_logits,
-            end_logits=end_logits,
-            n_best_size=args.n_best_size,
-            max_answer_length=args.max_answer_length,
-            version_2_with_negative=args.version_2_with_negative,
-            null_score_diff_threshold=args.null_score_diff_threshold,
-            do_lower_case=args.do_lower_case,
-        )
+            exact_match, f1, all_predictions = eval_data_layer.dataset.evaluate(
+                unique_ids=unique_ids,
+                start_logits=start_logits,
+                end_logits=end_logits,
+                n_best_size=args.n_best_size,
+                max_answer_length=args.max_answer_length,
+                version_2_with_negative=args.version_2_with_negative,
+                null_score_diff_threshold=args.null_score_diff_threshold,
+                do_lower_case=args.do_lower_case,
+            )
 
-        logging.info(f"exact_match: {exact_match}, f1: {f1}")
+            logging.info(f"exact_match: {exact_match}, f1: {f1}")
+
+        elif "infer" in args.mode:
+            logits = []
+            for t in evaluated_tensors[1]:
+                logits.extend(t.tolist())
+            start_logits, end_logits = np.split(np.asarray(logits), 2, axis=-1)
+            (all_predictions, all_nbest_json, scores_diff_json) = infer_data_layer.dataset.get_predictions(
+                unique_ids=unique_ids,
+                start_logits=start_logits,
+                end_logits=end_logits,
+                n_best_size=args.n_best_size,
+                max_answer_length=args.max_answer_length,
+                version_2_with_negative=args.version_2_with_negative,
+                null_score_diff_threshold=args.null_score_diff_threshold,
+                do_lower_case=args.do_lower_case,
+            )
         if args.output_prediction_file is not None:
             with open(args.output_prediction_file, "w") as writer:
                 writer.write(json.dumps(all_predictions, indent=4) + "\n")
