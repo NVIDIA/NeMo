@@ -157,7 +157,7 @@ but you may observe higher downstream accuracy by only pre-training with MLM los
                                                 activation='tanh',
                                                 log_softmax=False)
 
-        nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
+        nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLossNM()
 
         bert_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 
