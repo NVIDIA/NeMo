@@ -585,8 +585,8 @@ but they can similarly be used for v2 dataset.
     # First lets sort by confidence of prediction
     incorrect_preds = sorted(incorrect_preds, key=lambda x: x[-1], reverse=False)
 
-    # Lets print out the (test id, predicted label, ground truth label) triple of first 20
-    # incorrectly labeled samples
+    # Lets print out the (test id, predicted label, ground truth label, confidence)
+    # tuple of first 20 incorrectly labeled samples
     for incorrect_sample in incorrect_preds[:20]:
         logging.info(str(incorrect_sample))
 
@@ -622,7 +622,7 @@ but they can similarly be used for v2 dataset.
         audio, sample_rate = librosa.load(filepath)
 
         if pred is not None and label is not None and proba is not None:
-            logging.info(f"Sample : {sample_id} Prediction : {pred} Label : {label} Confidence = {proba: 0.4f} %")
+            logging.info(f"Sample : {sample_id} Prediction : {pred} Label : {label} Confidence = {proba: 0.4f}")
         else:
             logging.info(f"Sample : {sample_id}")
 
