@@ -83,6 +83,7 @@ import json
 import os
 
 import numpy as np
+
 import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
 from nemo import logging
