@@ -403,7 +403,7 @@ if __name__ == "__main__":
             optimization_params={"num_epochs": args.num_epochs, "lr": args.lr},
         )
     else:
-
+        load_from_folder = None
         if args.checkpoint_dir is not None:
             load_from_folder = args.checkpoint_dir
         evaluated_tensors = nf.infer(tensors=eval_output, checkpoint_dir=load_from_folder, cache=True)

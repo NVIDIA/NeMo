@@ -86,8 +86,8 @@ class SquadDataset(Dataset):
         self.version_2_with_negative = version_2_with_negative
         self.processor = SquadProcessor(data_file=data_file, mode=mode)
         self.mode = mode
-        if mode != "dev" and mode != "train":
-            raise ValueError(f"mode should be either 'train' or 'dev' but got {mode}")
+        if mode not in ["dev", "train", "infer"]:
+            raise ValueError(f"mode should be either 'train', 'dev', or 'infer' but got {mode}")
         self.examples = self.processor.get_examples()
 
         cached_features_file = (
@@ -107,7 +107,7 @@ class SquadDataset(Dataset):
                 max_seq_length=max_seq_length,
                 doc_stride=doc_stride,
                 max_query_length=max_query_length,
-                has_groundtruth=True,
+                has_groundtruth=mode != "infer",
             )
 
             if use_cache:
@@ -122,14 +122,22 @@ class SquadDataset(Dataset):
 
     def __getitem__(self, idx):
         feature = self.features[idx]
-        return (
-            np.array(feature.input_ids),
-            np.array(feature.segment_ids),
-            np.array(feature.input_mask),
-            np.array(feature.start_position),
-            np.array(feature.end_position),
-            np.array(feature.unique_id),
-        )
+        if self.mode == "infer":
+            return (
+                np.array(feature.input_ids),
+                np.array(feature.segment_ids),
+                np.array(feature.input_mask),
+                np.array(feature.unique_id),
+            )
+        else:
+            return (
+                np.array(feature.input_ids),
+                np.array(feature.segment_ids),
+                np.array(feature.input_mask),
+                np.array(feature.unique_id),
+                np.array(feature.start_position),
+                np.array(feature.end_position),
+            )
 
     def get_predictions(
         self,
