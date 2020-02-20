@@ -46,7 +46,7 @@ __all__ = ['MaskedXEntropyLoss']
 
 class MaskedXEntropyLoss(LossNM):
     """
-    Neural module which implements a cross entropy for trade model with masking feature.
+    Neural module which implements a cross entropy model with masking feature. It keeps just the target logit for cross entropy calculation
 
     Args:
         logits (float): output of the classifier
