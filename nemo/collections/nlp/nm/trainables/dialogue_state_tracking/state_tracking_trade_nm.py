@@ -46,12 +46,14 @@ from torch import nn as nn
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import ChannelType, LabelsType, LengthsType, LogitsType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['TRADEGenerator']
 
 
 class TRADEGenerator(TrainableNM):
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
 
@@ -81,6 +83,7 @@ class TRADEGenerator(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 

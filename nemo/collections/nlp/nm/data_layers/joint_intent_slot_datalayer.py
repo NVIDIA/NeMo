@@ -17,6 +17,7 @@
 from nemo.collections.nlp.data import BertJointIntentSlotDataset, BertJointIntentSlotInferDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BertJointIntentSlotDataLayer', 'BertJointIntentSlotInferDataLayer']
 
@@ -41,6 +42,7 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -109,6 +111,7 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

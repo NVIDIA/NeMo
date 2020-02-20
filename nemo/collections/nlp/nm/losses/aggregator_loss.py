@@ -16,6 +16,7 @@
 
 from nemo.backends.pytorch import LossNM
 from nemo.core import LossType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['LossAggregatorNM']
 
@@ -29,6 +30,7 @@ class LossAggregatorNM(LossNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
 
@@ -40,6 +42,7 @@ class LossAggregatorNM(LossNM):
         return input_ports
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 

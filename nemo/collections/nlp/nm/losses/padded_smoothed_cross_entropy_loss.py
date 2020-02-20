@@ -18,6 +18,7 @@ from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.nm.losses.smoothed_cross_entropy_loss import SmoothedCrossEntropyLoss
 from nemo.collections.nlp.utils.common_nlp_utils import mask_padded_tokens
 from nemo.core import LabelsType, LogitsType, LossType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['PaddedSmoothedCrossEntropyLossNM']
 
@@ -36,6 +37,7 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -47,6 +49,7 @@ class PaddedSmoothedCrossEntropyLossNM(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
