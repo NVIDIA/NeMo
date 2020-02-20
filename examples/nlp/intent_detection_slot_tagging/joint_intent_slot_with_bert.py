@@ -115,9 +115,9 @@ else:
     intent_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=2)
     slot_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=3)
 
-    total_loss_fn = nemo_nlp.nm.losses.LossAggregatorNM(
-        num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight]
-    )
+total_loss_fn = nemo_nlp.nm.losses.LossAggregatorNM(
+    num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight]
+)
 
 
 def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
