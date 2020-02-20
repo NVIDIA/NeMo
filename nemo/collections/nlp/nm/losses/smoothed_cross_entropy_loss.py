@@ -41,8 +41,6 @@ class SmoothedCrossEntropyLoss(LossNM):
         """Returns definitions of module input ports.
         """
         return {
-            # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            # "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
             "output_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
