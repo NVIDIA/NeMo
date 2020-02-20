@@ -23,16 +23,15 @@ from transformers import BertTokenizer
 
 import nemo.backends.pytorch as nemo_backend
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer
 import nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
 from nemo import logging
 from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.data_descriptor import JointIntentSlotDataDesc
-from nemo.utils.lr_policies import get_lr_policy
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
+from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description='Joint intent slot filling system with pretrained BERT')
+parser = argparse.ArgumentParser(description='Joint intent detection and slot filling with pre-trained BERT')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=128, type=int)
 parser.add_argument("--max_seq_length", default=50, type=int)
@@ -116,7 +115,9 @@ else:
     intent_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=2)
     slot_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=3)
 
-    total_loss_fn = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight])
+    total_loss_fn = nemo_nlp.nm.losses.LossAggregatorNM(
+        num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight]
+    )
 
 
 def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
@@ -168,16 +169,10 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
 
 
 train_tensors, train_loss, steps_per_epoch, _ = create_pipeline(
-    args.num_train_samples,
-    batch_size=args.batch_size,
-    num_gpus=args.num_gpus,
-    mode=args.train_file_prefix,
+    args.num_train_samples, batch_size=args.batch_size, num_gpus=args.num_gpus, mode=args.train_file_prefix,
 )
 eval_tensors, _, _, data_layer = create_pipeline(
-    args.num_eval_samples,
-    batch_size=args.batch_size,
-    num_gpus=args.num_gpus,
-    mode=args.eval_file_prefix,
+    args.num_eval_samples, batch_size=args.batch_size, num_gpus=args.num_gpus, mode=args.eval_file_prefix,
 )
 
 # Create callbacks for train and eval modes
