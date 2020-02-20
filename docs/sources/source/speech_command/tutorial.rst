@@ -566,25 +566,35 @@ but they can similarly be used for v2 dataset.
 
     for batch_idx, (logits, labels) in enumerate(zip(evaluated_tensors[1], evaluated_tensors[2])):
         probs = torch.softmax(logits, dim=-1)
-        _, preds = torch.max(probs, dim=-1)
+        probas, preds = torch.max(probs, dim=-1)
 
         incorrect_ids = (preds != labels).nonzero()
         for idx in incorrect_ids:
+            proba = float(probas[idx][0])
             pred = int(preds[idx][0])
             label = int(labels[idx][0])
             idx = int(idx[0]) + sample_idx
 
-            incorrect_preds.append((idx, *rev_map(pred, label)))
+            incorrect_preds.append((idx, *rev_map(pred, label), proba))
 
         sample_idx += labels.size(0)
 
     logging.info(f"Num test samples : {total_count}")
     logging.info(f"Num errors : {len(incorrect_preds)}")
 
-    # Lets print out the (test id, predicted label, ground truth label) triple of first 20
-    # incorrectly labeled samples
+    # First lets sort by confidence of prediction
+    incorrect_preds = sorted(incorrect_preds, key=lambda x: x[-1], reverse=False)
+
+    # Lets print out the (test id, predicted label, ground truth label, confidence)
+    # tuple of first 20 incorrectly labeled samples
     for incorrect_sample in incorrect_preds[:20]:
         logging.info(str(incorrect_sample))
+
+    # Lets define a threshold below which we designate a model's prediction as "low confidence"
+    # and then filter out how many such samples exist
+    low_confidence_threshold = 0.25
+    count_low_confidence = len(list(filter(lambda x: x[-1] <= low_confidence_threshold, incorrect_preds)))
+    logging.info(f"Number of low confidence predictions : {count_low_confidence}")
 
     # One interesting observation is to actually listen to these samples whose predicted labels were incorrect
     # Note: The following requires the use of a Notebook environment
@@ -605,15 +615,14 @@ but they can similarly be used for v2 dataset.
 
     test_samples = parse_manifest(test_samples)
 
-
     # Next, lets create a helper function to actually listen to certain samples
-    def listen_to_file(sample_id, pred=None, label=None):
+    def listen_to_file(sample_id, pred=None, label=None, proba=None):
         # Load the audio waveform using librosa
         filepath = test_samples[sample_id]['audio_filepath']
         audio, sample_rate = librosa.load(filepath)
 
-        if pred is not None and label is not None:
-            logging.info(f"Sample : {sample_id} Prediction : {pred} Label : {label}")
+        if pred is not None and label is not None and proba is not None:
+            logging.info(f"Sample : {sample_id} Prediction : {pred} Label : {label} Confidence = {proba: 0.4f}")
         else:
             logging.info(f"Sample : {sample_id}")
 
@@ -621,8 +630,8 @@ but they can similarly be used for v2 dataset.
 
     # Finally, lets listen to all the audio samples where the model made a mistake
     # Note: This list of incorrect samples may be quite large, so you may choose to subsample `incorrect_preds`
-    for sample_id, pred, label in incorrect_preds:
-        ipd.display(listen_to_file(sample_id, pred=pred, label=label))  # Needs to be run in a notebook environment
+    for sample_id, pred, label, proba in incorrect_preds:
+        ipd.display(listen_to_file(sample_id, pred=pred, label=label, proba=proba))  # Needs to be run in a notebook environment
 
 References
 ----------
