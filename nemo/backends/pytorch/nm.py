@@ -269,7 +269,6 @@ class DataLayerNM(NeuralModule):
     @abstractmethod
     def __len__(self):
         """Dataset size"""
-        """Dataset size"""
         pass
 
     @property
