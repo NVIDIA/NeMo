@@ -13,6 +13,8 @@ import wget
 import nemo
 from nemo.utils import logging
 
+# logging = nemo.logging
+
 
 def rgetattr(obj, attr, *args):
     def _getattr(obj, attr):
