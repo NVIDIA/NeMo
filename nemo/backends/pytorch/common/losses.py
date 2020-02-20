@@ -4,7 +4,7 @@ from torch import nn
 from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import LabelsType, LogitsType, LossType, MaskType, NeuralType, RegressionValuesType
 
-__all__ = ['SequenceLoss', 'CrossEntropyLossNM', 'MSELoss']
+__all__ = ['SequenceLoss', 'CrossEntropyLossNM', 'MSELoss', 'LossAggregatorNM']
 
 
 class SequenceLoss(LossNM):
@@ -186,34 +186,49 @@ class MSELoss(LossNM):
         return loss
 
 
-#
-# class XEntropyLoss(LossNM):
-#     @property
-#     def input_ports(self):
-#         """Returns definitions of module input ports.
-#         """
-#         return {
-#             "logits": NeuralType(('B', 'T', 'D', 'D'), LogitsType()),
-#             "labels": NeuralType(('B', 'D', 'T'), LabelsType()),
-#             "length_mask": NeuralType(('B', 'D'), LengthsType()),
-#         }
-#
-#     @property
-#     def output_ports(self):
-#         """Returns definitions of module output ports.
-#
-#         loss:
-#             NeuralType(None)
-#         """
-#         return {"loss": NeuralType(axes=None, elements_type=LossType())}
-#
-#     def __init__(self):
-#         super().__init__()
-#
-#     def _loss_function(self, inp, target, mask):
-#         inp = inp.view(-1, inp.shape[2])
-#         mask = mask.view(-1, 1)
-#         crossEntropy = -torch.log(torch.gather(inp, 1, target.view(-1, 1)))
-#         loss = crossEntropy.masked_select(mask).mean()
-#         loss = loss.to(self._device)
-#         return loss
+class LossAggregatorNM(LossNM):
+    """
+    Neural module which combines sums several losses into one.
+
+    Args:
+        num_inputs (int): number of input losses
+    """
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        """
+        input_ports = {}
+        for i in range(self._num_losses):
+            input_ports["loss_" + str(i + 1)] = NeuralType()
+
+        return input_ports
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {"loss": NeuralType(elements_type=LossType())}
+
+    def __init__(self, num_inputs=2, weights=None):
+        # Store number of inputs/losses.
+        self._num_losses = num_inputs
+        if weights is not None and len(weights) != num_inputs:
+            raise ValueError("Length of weights should be equal to the number of inputs (num_inputs)")
+
+        self._weights = weights
+        LossNM.__init__(self)
+
+    def _loss_function(self, **kwargs):
+        values = [kwargs[x] for x in sorted(kwargs.keys())]
+        loss = torch.zeros_like(values[0])
+        for loss_idx, loss_value in enumerate(values):
+            if self._weights is not None:
+                loss = loss.add(loss_value, alpha=self._weights[loss_idx])
+            else:
+                loss = loss.add(loss_value)
+        return loss

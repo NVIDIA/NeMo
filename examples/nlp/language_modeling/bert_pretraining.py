@@ -86,6 +86,7 @@ import os
 from transformers import BertConfig
 
 import nemo.backends.pytorch.common as nemo_common
+import nemo.backends.pytorch.common.losses
 import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
 from nemo import logging
@@ -218,7 +219,7 @@ if not args.only_mlm_loss:
     )
     nsp_loss_fn = nemo_common.CrossEntropyLossNM()
 
-    bert_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
+    bert_loss = nemo.backends.pytorch.common.losses.LossAggregatorNM(num_inputs=2)
 
 # tie weights of MLM softmax layer and embedding layer of the encoder
 if mlm_classifier.mlp.last_linear_layer.weight.shape != bert_model.bert.embeddings.word_embeddings.weight.shape:

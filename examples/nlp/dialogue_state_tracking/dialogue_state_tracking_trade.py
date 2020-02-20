@@ -26,6 +26,7 @@ import os
 import numpy as np
 
 import nemo.backends.pytorch as nemo_backend
+import nemo.backends.pytorch.common.losses
 import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
 from nemo import logging
@@ -100,7 +101,7 @@ decoder = nemo_nlp.nm.trainables.TRADEGenerator(
 
 gate_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=3)
 ptr_loss_fn = nemo_nlp.nm.losses.MaskedXEntropyLoss()
-total_loss_fn = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
+total_loss_fn = nemo.backends.pytorch.common.losses.LossAggregatorNM(num_inputs=2)
 
 
 def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefix, is_training):

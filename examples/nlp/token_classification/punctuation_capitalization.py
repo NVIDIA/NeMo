@@ -18,6 +18,7 @@ import argparse
 import json
 import os
 
+import nemo.backends.pytorch.common.losses
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing
 import nemo.collections.nlp.utils.data_utils
@@ -236,7 +237,7 @@ def create_pipeline(
         )
         capit_loss = CrossEntropyLossNM(logits_dim=3)
 
-        task_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
+        task_loss = nemo.backends.pytorch.common.losses.LossAggregatorNM(num_inputs=2)
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
