@@ -17,6 +17,8 @@ from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import
 )
 from nemo.collections.nlp.utils import get_vocab, list2str
 
+__all__ = ['JointIntentSlotDataDesc']
+
 
 class JointIntentSlotDataDesc:
     """ Convert the raw data to the standard format supported by

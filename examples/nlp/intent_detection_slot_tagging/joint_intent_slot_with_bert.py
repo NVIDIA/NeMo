@@ -21,11 +21,10 @@ import os
 import numpy as np
 from transformers import BertTokenizer
 
-import nemo.backends.pytorch as nemo_backend
-import nemo.backends.pytorch.common.losses
+import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
 from nemo import logging
+from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
 from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.data_descriptor import JointIntentSlotDataDesc
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
@@ -89,12 +88,10 @@ See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
 if args.bert_checkpoint and args.bert_config:
-    pretrained_bert_model = nemo.collections.nlp.nm.trainables.huggingface.BERT(config_filename=args.bert_config)
+    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(config_filename=args.bert_config)
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 else:
-    pretrained_bert_model = nemo.collections.nlp.nm.trainables.huggingface.BERT(
-        pretrained_model_name=args.pretrained_bert_model
-    )
+    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
 hidden_size = pretrained_bert_model.hidden_size
 
@@ -103,22 +100,20 @@ data_desc = JointIntentSlotDataDesc(
 )
 
 # Create sentence classification loss on top
-classifier = nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm.JointIntentSlotClassifier(
+classifier = nemo_nlp.nm.trainables.JointIntentSlotClassifier(
     hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
 )
 
 if args.class_balancing == 'weighted_loss':
     # To tackle imbalanced classes, you may use weighted loss
-    intent_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=2, weight=data_desc.intent_weights)
-    slot_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=3, weight=data_desc.intent_weights)
+    intent_loss_fn = CrossEntropyLossNM(logits_dim=2, weight=data_desc.intent_weights)
+    slot_loss_fn = CrossEntropyLossNM(logits_dim=3, weight=data_desc.intent_weights)
 
 else:
-    intent_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=2)
-    slot_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=3)
+    intent_loss_fn = CrossEntropyLossNM(logits_dim=2)
+    slot_loss_fn = CrossEntropyLossNM(logits_dim=3)
 
-total_loss_fn = nemo.backends.pytorch.common.losses.LossAggregatorNM(
-    num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight]
-)
+total_loss_fn = LossAggregatorNM(num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight])
 
 
 def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
