@@ -201,7 +201,7 @@ class LossAggregatorNM(LossNM):
         """
         input_ports = {}
         for i in range(self._num_losses):
-            input_ports["loss_" + str(i + 1)] = NeuralType()
+            input_ports["loss_" + str(i + 1)] = NeuralType(elements_type=LossType())
 
         return input_ports
 
