@@ -24,7 +24,7 @@ import nemo.collections.nlp as nemo_nlp
 from nemo import logging
 from nemo.collections.nlp.data import NemoBertTokenizer
 from nemo.collections.nlp.nm.trainables import TokenClassifier
-from nemo.collections.nlp.utils.common_nlp_utils import get_vocab
+from nemo.collections.nlp.utils.data_utils import get_vocab
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='NER with pretrained BERT')

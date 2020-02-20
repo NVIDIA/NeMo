@@ -21,16 +21,18 @@ import os
 import numpy as np
 from transformers import BertTokenizer
 
+import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer
-import nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
 from nemo import logging
+from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
 from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
+from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.data_descriptor import JointIntentSlotDataDesc
+from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
+from nemo.core import CheckpointCallback, SimpleLossLoggerCallback
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description='Joint intent slot filling system with pretrained BERT')
+parser = argparse.ArgumentParser(description='Joint intent detection and slot filling with pre-trained BERT')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=128, type=int)
 parser.add_argument("--max_seq_length", default=50, type=int)
@@ -87,12 +89,10 @@ See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
 if args.bert_checkpoint and args.bert_config:
-    pretrained_bert_model = nemo.collections.nlp.nm.trainables.huggingface.BERT(config_filename=args.bert_config)
+    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(config_filename=args.bert_config)
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 else:
-    pretrained_bert_model = nemo.collections.nlp.nm.trainables.huggingface.BERT(
-        pretrained_model_name=args.pretrained_bert_model
-    )
+    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
 hidden_size = pretrained_bert_model.hidden_size
 
@@ -101,31 +101,29 @@ data_desc = JointIntentSlotDataDesc(
 )
 
 # Create sentence classification loss on top
-classifier = nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm.JointIntentSlotClassifier(
+classifier = nemo_nlp.nm.trainables.JointIntentSlotClassifier(
     hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
 )
 
 if args.class_balancing == 'weighted_loss':
-    # Using weighted loss will enable weighted loss for both intents and slots
-    # Use the intent_loss_weight hyperparameter to adjust intent loss to
-    # prevent overfitting or underfitting.
-    loss_fn = nemo_nlp.nm.losses.JointIntentSlotLoss(
-        num_slots=data_desc.num_slots,
-        slot_classes_loss_weights=data_desc.slot_weights,
-        intent_classes_loss_weights=data_desc.intent_weights,
-        intent_loss_weight=args.intent_loss_weight,
-    )
+    # To tackle imbalanced classes, you may use weighted loss
+    intent_loss_fn = CrossEntropyLossNM(logits_dim=2, weight=data_desc.intent_weights)
+    slot_loss_fn = CrossEntropyLossNM(logits_dim=3, weight=data_desc.intent_weights)
+
 else:
-    loss_fn = nemo_nlp.nm.losses.JointIntentSlotLoss(num_slots=data_desc.num_slots)
+    intent_loss_fn = CrossEntropyLossNM(logits_dim=2)
+    slot_loss_fn = CrossEntropyLossNM(logits_dim=3)
+
+total_loss_fn = LossAggregatorNM(num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight])
 
 
-def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mode='train'):
+def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
     logging.info(f"Loading {mode} data...")
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
     slot_file = f'{data_desc.data_dir}/{mode}_slots.tsv'
     shuffle = args.shuffle_data if mode == 'train' else False
 
-    data_layer = nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer.BertJointIntentSlotDataLayer(
+    data_layer = BertJointIntentSlotDataLayer(
         input_file=data_file,
         slot_file=slot_file,
         pad_label=data_desc.pad_label,
@@ -155,35 +153,27 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
 
     intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
-    loss = loss_fn(
-        intent_logits=intent_logits, slot_logits=slot_logits, loss_mask=loss_mask, intents=intents, slots=slots
-    )
+    intent_loss = intent_loss_fn(logits=intent_logits, labels=intents)
+    slot_loss = slot_loss_fn(logits=slot_logits, labels=slots, loss_mask=loss_mask)
+    total_loss = total_loss_fn(loss_1=intent_loss, loss_2=slot_loss)
 
     if mode == 'train':
-        tensors_to_evaluate = [loss, intent_logits, slot_logits]
+        tensors_to_evaluate = [total_loss, intent_logits, slot_logits]
     else:
         tensors_to_evaluate = [intent_logits, slot_logits, intents, slots, subtokens_mask]
 
-    return tensors_to_evaluate, loss, steps_per_epoch, data_layer
+    return tensors_to_evaluate, total_loss, steps_per_epoch, data_layer
 
 
 train_tensors, train_loss, steps_per_epoch, _ = create_pipeline(
-    args.num_train_samples,
-    batch_size=args.batch_size,
-    num_gpus=args.num_gpus,
-    local_rank=args.local_rank,
-    mode=args.train_file_prefix,
+    args.num_train_samples, batch_size=args.batch_size, num_gpus=args.num_gpus, mode=args.train_file_prefix,
 )
 eval_tensors, _, _, data_layer = create_pipeline(
-    args.num_eval_samples,
-    batch_size=args.batch_size,
-    num_gpus=args.num_gpus,
-    local_rank=args.local_rank,
-    mode=args.eval_file_prefix,
+    args.num_eval_samples, batch_size=args.batch_size, num_gpus=args.num_gpus, mode=args.eval_file_prefix,
 )
 
 # Create callbacks for train and eval modes
-train_callback = nemo.core.SimpleLossLoggerCallback(
+train_callback = SimpleLossLoggerCallback(
     tensors=train_tensors,
     print_func=lambda x: str(np.round(x[0].item(), 3)),
     tb_writer=nf.tb_writer,
@@ -200,7 +190,7 @@ eval_callback = nemo.core.EvaluatorCallback(
 )
 
 # Create callback to save checkpoints
-ckpt_callback = nemo.core.CheckpointCallback(
+ckpt_callback = CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
 

@@ -27,9 +27,16 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
     Creates the data layer to use for the task of sentence classification
     with pretrained model.
 
-    All the data processing is done BertSentenceClassificationDataset.
+    All the data processing is done BertTextClassificationDataset.
 
     Args:
+        input_file (str): data file
+        tokenizer (TokenizerSpec): text tokenizer.
+        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
+        num_samples:
+            TODO
+        shuffle (bool): whether to shuffle data or not. Default: False.
+        batch_size: text segments batch size
         dataset (BertTextClassificationDataset):
                 the dataset that needs to be converted to DataLayerNM
     """
@@ -38,12 +45,15 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        input_ids:
+            indices of tokens which constitute batches of masked text segments
+        input_type_ids:
+            tensor with 0's and 1's to denote the text segment type
+        input_mask:
+            bool tensor with 0s in place of tokens to be masked
+        labels: sequence classification id
         """
         return {
-            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "labels": NeuralType({0: AxisType(BatchTag)}),
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
@@ -65,6 +75,5 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
             'tokenizer': tokenizer,
             'max_seq_length': max_seq_length,
             'num_samples': num_samples,
-            'shuffle': shuffle,
         }
-        super().__init__(dataset_type, dataset_params, batch_size, shuffle)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
