@@ -61,9 +61,9 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
-            "start_positions": NeuralType(tuple('B'), ChannelType()),
-            "end_positions": NeuralType(tuple('B'), ChannelType()),
             "unique_ids": NeuralType(tuple('B'), ChannelType()),
+            "start_positions": NeuralType(tuple('B'), ChannelType(), optional=True),
+            "end_positions": NeuralType(tuple('B'), ChannelType(), optional=True),
         }
 
     def __init__(
