@@ -3,6 +3,7 @@ from torchvision import datasets, transforms
 
 from .....core import *
 from ...nm import DataLayerNM
+from nemo.utils.decorators import add_port_docs
 
 
 class ImageFolderDataLayer(DataLayerNM):
@@ -10,32 +11,22 @@ class ImageFolderDataLayer(DataLayerNM):
     NeuralModule."""
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        image:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
-
-            2: AxisType(HeightTag, input_size)
-
-            3: AxisType(WidthTag, input_size)
-
-
-        label:
-            0: AxisType(BatchTag)
         """
         return {
-            "image": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag),
-                    2: AxisType(HeightTag, self._input_size),
-                    3: AxisType(WidthTag, self._input_size),
-                }
-            ),
-            "label": NeuralType({0: AxisType(BatchTag)}),
+            # "image": NeuralType(
+            #     {
+            #         0: AxisType(BatchTag),
+            #         1: AxisType(ChannelTag),
+            #         2: AxisType(HeightTag, self._input_size),
+            #         3: AxisType(WidthTag, self._input_size),
+            #     }
+            # ),
+            # "label": NeuralType({0: AxisType(BatchTag)}),
+            "image": NeuralType(elements_type=ChannelType(), axes=('B', 'C', 'H', 'W')),
+            "label": NeuralType(elements_type=LogitsType(), axes=tuple('B')),
         }
 
     def __init__(self, batch_size, path, input_size=32, shuffle=True, is_eval=False):

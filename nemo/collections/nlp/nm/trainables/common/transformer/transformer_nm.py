@@ -27,6 +27,7 @@ from nemo.collections.nlp.nm.trainables.common.transformer.transformer_generator
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_modules import TransformerEmbedding
 from nemo.collections.nlp.utils.transformer_utils import transformer_weights_init
 from nemo.core.neural_types import ChannelType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['TransformerEncoderNM', 'TransformerDecoderNM', 'GreedyLanguageGeneratorNM', 'BeamSearchTranslatorNM']
 
@@ -57,6 +58,7 @@ class TransformerEncoderNM(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         input_ids: ids of input tokens
@@ -68,6 +70,7 @@ class TransformerEncoderNM(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         hidden_states: outputs hidden states
@@ -145,6 +148,7 @@ class TransformerDecoderNM(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         input_ids_tgt: ids of target sequence
@@ -160,6 +164,7 @@ class TransformerDecoderNM(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         hidden_states: output hidden states
@@ -227,6 +232,7 @@ class GreedyLanguageGeneratorNM(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         input_ids:  input ids
@@ -234,6 +240,7 @@ class GreedyLanguageGeneratorNM(TrainableNM):
         return {"input_ids": NeuralType(('B', 'T'), ChannelType())}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         output ids: output ids
@@ -283,6 +290,7 @@ class BeamSearchTranslatorNM(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         hidden_states_src: input hidden states
@@ -294,6 +302,7 @@ class BeamSearchTranslatorNM(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         output_ids: output ids
