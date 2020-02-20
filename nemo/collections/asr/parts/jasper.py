@@ -28,7 +28,7 @@ jasper_activations = {
 def init_weights(m, mode='xavier_uniform'):
     if isinstance(m, MaskedConv1d):
         init_weights(m.conv, mode)
-    if isinstance(m, nn.Conv1d):
+    if isinstance(m, (nn.Conv1d, nn.Linear)):
         if mode == 'xavier_uniform':
             nn.init.xavier_uniform_(m.weight, gain=1.0)
         elif mode == 'xavier_normal':
@@ -47,6 +47,14 @@ def init_weights(m, mode='xavier_uniform'):
         if m.affine:
             nn.init.ones_(m.weight)
             nn.init.zeros_(m.bias)
+
+
+def compute_new_kernel_size(kernel_size, kernel_width):
+    new_kernel_size = max(int(kernel_size * kernel_width), 1)
+    # If kernel is even shape, round up to make it odd
+    if new_kernel_size % 2 == 0:
+        new_kernel_size += 1
+    return new_kernel_size
 
 
 def get_same_padding(kernel_size, stride, dilation):
@@ -142,6 +150,24 @@ class GroupShuffle(nn.Module):
         return x
 
 
+class SqueezeExcite(nn.Module):
+    def __init__(self, channels, reduction_ratio):
+        super(SqueezeExcite, self).__init__()
+        self.pool = nn.AdaptiveAvgPool1d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channels, channels // reduction_ratio, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channels // reduction_ratio, channels, bias=False),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x):
+        batch, channels, _ = x.size()
+        y = self.pool(x).view(batch, channels)
+        y = self.fc(y).view(batch, channels, 1)
+        return x * y.expand_as(x)
+
+
 class JasperBlock(nn.Module):
     __constants__ = ["conv_mask", "separable", "residual_mode", "res", "mconv"]
 
@@ -151,6 +177,7 @@ class JasperBlock(nn.Module):
         planes,
         repeat=3,
         kernel_size=11,
+        kernel_size_factor=1,
         stride=1,
         dilation=1,
         padding='same',
@@ -165,16 +192,25 @@ class JasperBlock(nn.Module):
         residual_mode='add',
         residual_panes=[],
         conv_mask=False,
+        se=False,
+        se_reduction_ratio=16,
     ):
         super(JasperBlock, self).__init__()
 
         if padding != "same":
             raise ValueError("currently only 'same' padding is supported")
 
+        kernel_size_factor = float(kernel_size_factor)
+        if type(kernel_size) in (list, tuple):
+            kernel_size = [compute_new_kernel_size(k, kernel_size_factor) for k in kernel_size]
+        else:
+            kernel_size = compute_new_kernel_size(kernel_size, kernel_size_factor)
+
         padding_val = get_same_padding(kernel_size[0], stride[0], dilation[0])
         self.conv_mask = conv_mask
         self.separable = separable
         self.residual_mode = residual_mode
+        self.se = se
 
         inplanes_loop = inplanes
         conv = nn.ModuleList()
@@ -198,6 +234,9 @@ class JasperBlock(nn.Module):
 
             conv.extend(self._get_act_dropout_layer(drop_prob=dropout, activation=activation))
 
+            if se and not residual:
+                conv.append(SqueezeExcite(planes, reduction_ratio=se_reduction_ratio))
+
             inplanes_loop = planes
 
         conv.extend(
@@ -216,6 +255,9 @@ class JasperBlock(nn.Module):
             )
         )
 
+        if se and not residual:
+            conv.append(SqueezeExcite(planes, reduction_ratio=se_reduction_ratio))
+
         self.mconv = conv
 
         res_panes = residual_panes.copy()
@@ -227,13 +269,17 @@ class JasperBlock(nn.Module):
                 res_panes = [inplanes]
                 self.dense_residual = False
             for ip in res_panes:
-                res_list.append(
-                    nn.ModuleList(
-                        self._get_conv_bn_layer(
-                            ip, planes, kernel_size=1, normalization=normalization, norm_groups=norm_groups,
-                        )
+                res = nn.ModuleList(
+                    self._get_conv_bn_layer(
+                        ip, planes, kernel_size=1, normalization=normalization, norm_groups=norm_groups,
                     )
                 )
+
+                if se:
+                    res.append(SqueezeExcite(planes, reduction_ratio=se_reduction_ratio))
+
+                res_list.append(res)
+
             self.res = res_list
         else:
             self.res = None

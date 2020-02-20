@@ -93,13 +93,13 @@ class TestASRPytorch(NeMoUnitTest):
         else:
             logging.info("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
 
-    @classmethod
-    def tearDownClass(cls) -> None:
-        super().tearDownClass()
-        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
-        logging.info("Looking up for test ASR data")
-        if os.path.exists(os.path.join(data_folder, "asr")):
-            shutil.rmtree(os.path.join(data_folder, "asr"))
+    # @classmethod
+    # def tearDownClass(cls) -> None:
+    #     super().tearDownClass()
+    #     data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
+    #     logging.info("Looking up for test ASR data")
+    #     if os.path.exists(os.path.join(data_folder, "asr")):
+    #         shutil.rmtree(os.path.join(data_folder, "asr"))
 
     def test_transcript_normalizers(self):
         # Create test json
@@ -139,7 +139,7 @@ class TestASRPytorch(NeMoUnitTest):
             "ten dollars ten point nine zero one eight hundred zero zero",
             "eighteen billion one thousand two thousand and twenty",
             # Two line string below
-            "one ten thousand one hundred one thousand ten thousand one " "hundred thousand one million",
+            "one ten thousand one hundred one thousand ten thousand one hundred thousand one million",
             "i loveeee aaa a ccnntts",
             "''",
             "it only costs one million dollars cheap right",

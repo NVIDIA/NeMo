@@ -17,6 +17,7 @@
 from nemo.collections.nlp.data import GLUEDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import CategoricalValuesType, ChannelType, NeuralType, RegressionValuesType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['GlueClassificationDataLayer', 'GlueRegressionDataLayer']
 
@@ -34,6 +35,7 @@ class GlueClassificationDataLayer(TextDataLayer):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -85,6 +87,7 @@ class GlueRegressionDataLayer(TextDataLayer):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

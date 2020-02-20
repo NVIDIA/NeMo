@@ -28,22 +28,6 @@ from itertools import chain
 
 import setuptools
 
-
-def is_build_action():
-    if len(sys.argv) <= 1:
-        return False
-
-    BUILD_TOKENS = ["egg_info", "dist", "bdist", "sdist", "install", "build", "develop"]
-
-    if any([sys.argv[1].startswith(x) for x in BUILD_TOKENS]):
-        return True
-    else:
-        return False
-
-
-if is_build_action():
-    os.environ['NEMO_PACKAGE_BUILDING'] = 'True'
-
 from nemo.package_info import (
     __contact_emails__,
     __contact_names__,
@@ -56,6 +40,23 @@ from nemo.package_info import (
     __repository_url__,
     __version__,
 )
+
+
+def is_build_action():
+    if len(sys.argv) <= 1:
+        return False
+
+    BUILD_TOKENS = ["egg_info", "dist", "bdist", "sdist", "install", "build", "develop", "style"]
+
+    if any([sys.argv[1].startswith(x) for x in BUILD_TOKENS]):
+        return True
+    else:
+        return False
+
+
+if is_build_action():
+    os.environ['NEMO_PACKAGE_BUILDING'] = 'True'
+
 
 if os.path.exists('README.rst'):
     # codec is used for consistent encoding

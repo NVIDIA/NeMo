@@ -17,6 +17,7 @@
 from nemo.collections.nlp.data import SquadDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BertQuestionAnsweringDataLayer']
 
@@ -46,6 +47,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -59,9 +61,9 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
-            "start_positions": NeuralType(tuple('B'), ChannelType()),
-            "end_positions": NeuralType(tuple('B'), ChannelType()),
             "unique_ids": NeuralType(tuple('B'), ChannelType()),
+            "start_positions": NeuralType(tuple('B'), ChannelType(), optional=True),
+            "end_positions": NeuralType(tuple('B'), ChannelType(), optional=True),
         }
 
     def __init__(
@@ -74,6 +76,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
         max_seq_length,
         mode="train",
         batch_size=64,
+        use_cache=True,
         dataset_type=SquadDataset,
     ):
         dataset_params = {
@@ -83,6 +86,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             'version_2_with_negative': version_2_with_negative,
             'max_query_length': max_query_length,
             'max_seq_length': max_seq_length,
+            'use_cache': use_cache,
             'doc_stride': doc_stride,
         }
 

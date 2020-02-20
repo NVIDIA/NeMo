@@ -72,65 +72,72 @@ class SquadDataset(Dataset):
     """
 
     def __init__(
-        self, data_file, tokenizer, doc_stride, max_query_length, max_seq_length, version_2_with_negative, mode
+        self,
+        data_file,
+        tokenizer,
+        doc_stride,
+        max_query_length,
+        max_seq_length,
+        version_2_with_negative,
+        mode,
+        use_cache,
     ):
         self.tokenizer = tokenizer
         self.version_2_with_negative = version_2_with_negative
         self.processor = SquadProcessor(data_file=data_file, mode=mode)
         self.mode = mode
-        if mode != "dev" and mode != "train":
-            raise ValueError(f"mode should be either 'train' or 'dev' but got {mode}")
+        if mode not in ["dev", "train", "infer"]:
+            raise ValueError(f"mode should be either 'train', 'dev', or 'infer' but got {mode}")
         self.examples = self.processor.get_examples()
 
-        if mode == "train":
-            cached_train_features_file = (
-                data_file
-                + '_cache'
-                + '_{0}_{1}_{2}_{3}'.format(mode, str(max_seq_length), str(doc_stride), str(max_query_length))
-            )
+        cached_features_file = (
+            data_file
+            + '_cache'
+            + '_{0}_{1}_{2}_{3}'.format(mode, str(max_seq_length), str(doc_stride), str(max_query_length))
+        )
 
-            if os.path.exists(cached_train_features_file):
-                with open(cached_train_features_file, "rb") as reader:
-                    self.features = pickle.load(reader)
-            else:
-                self.features = convert_examples_to_features(
-                    examples=self.examples,
-                    tokenizer=tokenizer,
-                    max_seq_length=max_seq_length,
-                    doc_stride=doc_stride,
-                    max_query_length=max_query_length,
-                    has_groundtruth=True,
-                )
-                master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-                if master_device:
-                    logging.info("  Saving train features into cached file %s", cached_train_features_file)
-                    with open(cached_train_features_file, "wb") as writer:
-                        pickle.dump(self.features, writer)
-        elif mode == "dev":
+        if use_cache and os.path.exists(cached_features_file):
+            logging.info(f"loading from {cached_features_file}")
+            with open(cached_features_file, "rb") as reader:
+                self.features = pickle.load(reader)
+        else:
             self.features = convert_examples_to_features(
                 examples=self.examples,
                 tokenizer=tokenizer,
                 max_seq_length=max_seq_length,
                 doc_stride=doc_stride,
                 max_query_length=max_query_length,
-                has_groundtruth=True,
+                has_groundtruth=mode != "infer",
             )
-        else:
-            raise Exception
+
+            if use_cache:
+                master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+                if master_device:
+                    logging.info("  Saving train features into cached file %s", cached_features_file)
+                    with open(cached_features_file, "wb") as writer:
+                        pickle.dump(self.features, writer)
 
     def __len__(self):
         return len(self.features)
 
     def __getitem__(self, idx):
         feature = self.features[idx]
-        return (
-            np.array(feature.input_ids),
-            np.array(feature.segment_ids),
-            np.array(feature.input_mask),
-            np.array(feature.start_position),
-            np.array(feature.end_position),
-            np.array(feature.unique_id),
-        )
+        if self.mode == "infer":
+            return (
+                np.array(feature.input_ids),
+                np.array(feature.segment_ids),
+                np.array(feature.input_mask),
+                np.array(feature.unique_id),
+            )
+        else:
+            return (
+                np.array(feature.input_ids),
+                np.array(feature.segment_ids),
+                np.array(feature.input_mask),
+                np.array(feature.unique_id),
+                np.array(feature.start_position),
+                np.array(feature.end_position),
+            )
 
     def get_predictions(
         self,
