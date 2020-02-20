@@ -22,6 +22,7 @@ import numpy as np
 from transformers import BertTokenizer
 
 import nemo.backends.pytorch as nemo_backend
+import nemo.backends.pytorch.common.losses
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
 from nemo import logging
@@ -115,7 +116,7 @@ else:
     intent_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=2)
     slot_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=3)
 
-total_loss_fn = nemo_nlp.nm.losses.LossAggregatorNM(
+total_loss_fn = nemo.backends.pytorch.common.losses.LossAggregatorNM(
     num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight]
 )
 
