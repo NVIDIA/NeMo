@@ -10,6 +10,9 @@ import nemo
 import nemo.collections.simple_gan as nemo_simple_gan
 from nemo.backends.pytorch.torchvision.helpers import compute_accuracy, eval_epochs_done_callback, eval_iter_callback
 
+logging = nemo.logging
+
+
 parser = argparse.ArgumentParser(description='MNIST')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=128, type=int)
@@ -106,10 +109,10 @@ eval_callback = nemo.core.EvaluatorCallback(
 
 def print_losses(tensors):
     g_loss, i_loss, r_loss, grad_p = tensors
-    nemo.logging.info(f"Generator Loss: {g_loss}")
-    nemo.logging.info(f"Interpolated Loss: {i_loss}")
-    nemo.logging.info(f"Real Loss: {r_loss}")
-    nemo.logging.info(f"Grad Penalty: {grad_p}")
+    logging.info(f"Generator Loss: {g_loss}")
+    logging.info(f"Interpolated Loss: {i_loss}")
+    logging.info(f"Real Loss: {r_loss}")
+    logging.info(f"Grad Penalty: {grad_p}")
 
 
 def get_tb_name_value(tensors):

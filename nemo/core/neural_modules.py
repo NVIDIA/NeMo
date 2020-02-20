@@ -470,7 +470,7 @@ class NeuralModule(ABC):
                     out_type = first_input_nmtensor_type
                 else:
                     raise CanNotInferResultNeuralType(
-                        "Can't infer output neural type." "Likely your inputs are of " "different type."
+                        "Can't infer output neural type. Likely your inputs are of different type."
                     )
             return NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
         else:
@@ -482,7 +482,7 @@ class NeuralModule(ABC):
                         out_type = first_input_nmtensor_type
                     else:
                         raise CanNotInferResultNeuralType(
-                            "Can't infer output neural type." "Likely your inputs are of " "different type."
+                            "Can't infer output neural type. Likely your inputs are of different type."
                         )
                 result.append(NmTensor(producer=self, producer_args=kwargs, name=out_port, ntype=out_type,))
 
