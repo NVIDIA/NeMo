@@ -104,7 +104,6 @@ class BertTokenClassificationDataLayer(TextDataLayer):
             'max_seq_length': max_seq_length,
             'tokenizer': tokenizer,
             'num_samples': num_samples,
-            'shuffle': shuffle,
             'pad_label': pad_label,
             'label_ids': label_ids,
             'ignore_extra_tokens': ignore_extra_tokens,
