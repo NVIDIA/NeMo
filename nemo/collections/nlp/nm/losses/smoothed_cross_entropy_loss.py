@@ -101,7 +101,7 @@ class SmoothedCrossEntropy(torch.nn.Module):
     def forward(self, logits, labels, output_mask, eps=1e-6):
         """
         Args:
-            logits: float tensor of shape batch_size x seq_len x vocab_size
+            logits: float tensor of shape batch_size x seq_len x vocab_size, values should be log probabilities
             labels: int tensor of shape batch_size x seq_len
             output_mask: binary tensor of shape batch_size x seq_len
             eps: epsilon param to avoid divide by zero in loss calculation

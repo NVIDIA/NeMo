@@ -177,9 +177,9 @@ class MSELoss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self):
+    def __init__(self, reduction='mean'):
         super().__init__()
-        self._criterion = nn.MSELoss()
+        self._criterion = nn.MSELoss(reduction=reduction)
 
     def _loss_function(self, preds, labels):
         loss = self._criterion(preds, labels)

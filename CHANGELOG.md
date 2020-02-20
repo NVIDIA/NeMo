@@ -76,6 +76,11 @@ To release a new version, please update the changelog as followed:
 ([PR #268](https://github.com/NVIDIA/NeMo/pull/268)) - @stasbel
 - Introduced the `deprecated` decorator.
 ([PR #298](https://github.com/NVIDIA/NeMo/pull/298)) - @tkornuta-nvidia
+- Implemented new mechanisms for importing and exporting of module configuration (init_params) to configuration (yml)
+files, along with unit tests, examples and tutorials
+([PR #339](https://github.com/NVIDIA/NeMo/pull/339)) - @tkornuta-nvidia
+- Speech Commands support.
+([PR #375](https://github.com/NVIDIA/NeMo/pull/375)) - @titu1994
 
 ### Changed
 - All collections changed to use New Neural Type System.
