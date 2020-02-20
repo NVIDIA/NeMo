@@ -26,6 +26,8 @@ import nemo
 from nemo.core import DeviceType, NeuralModuleFactory, SimpleLossLoggerCallback
 from nemo.core.neural_types import ChannelType, NeuralType
 
+logging = nemo.logging
+
 
 # A custom enum.
 class Status(Enum):
@@ -38,7 +40,7 @@ class CustomTaylorNet(nemo.tutorials.TaylorNet):
 
     def __init__(self, dim, status: Status):
         super().__init__(dim)
-        nemo.logging.info("Status: {}".format(status))
+        logging.info("Status: {}".format(status))
 
     def export_to_config(self, config_file):
         """
@@ -70,7 +72,7 @@ class CustomTaylorNet(nemo.tutorials.TaylorNet):
         with open(abs_path_file, 'w') as outfile:
             yaml.dump(to_export, outfile)
 
-        nemo.logging.info(
+        logging.info(
             "Configuration of module {} ({}) exported to {}".format(self._uuid, type(self).__name__, abs_path_file)
         )
 
@@ -109,7 +111,7 @@ class CustomTaylorNet(nemo.tutorials.TaylorNet):
 
         # Create and return the object.
         obj = CustomTaylorNet(**init_params)
-        nemo.logging.info(
+        logging.info(
             "Instantiated a new Neural Module of type `{}` using configuration loaded from the `{}` file".format(
                 "CustomTaylorNet", config_file
             )
@@ -144,7 +146,7 @@ loss = mse_loss(predictions=p, target=y)
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = SimpleLossLoggerCallback(
-    tensors=[loss], print_func=lambda x: nemo.logging.info(f'Train Loss: {str(x[0].item())}')
+    tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}')
 )
 
 # Invoke the "train" action.
