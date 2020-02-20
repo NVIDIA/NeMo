@@ -385,7 +385,7 @@ class BERTPretrainingDataDesc:
                 data_dir, vocab_size, sample_size, special_tokens, train_file
             )
         else:
-            logging.warning(
+            ValueError(
                 "Looks like you passed a dataset name that isn't already supported by NeMo. Please make sure that "
                 "you build the preprocessing method for it."
             )
