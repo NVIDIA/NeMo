@@ -26,7 +26,7 @@ from torch.utils.data import Dataset
 from nemo import logging
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset.data_processors import *
 
-__all__ = ['GLUEDataset']
+__all__ = ['GLUEDataset', 'output_modes', 'processors']
 
 processors = {
     "cola": ColaProcessor,

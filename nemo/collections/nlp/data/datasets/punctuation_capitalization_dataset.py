@@ -29,7 +29,7 @@ import numpy as np
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import get_label_stats, get_stats
+from nemo.collections.nlp.data.datasets.datasets_utils import get_label_stats, get_stats
 
 
 def get_features(
