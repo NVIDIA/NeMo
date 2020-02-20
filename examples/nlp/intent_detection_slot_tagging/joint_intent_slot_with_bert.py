@@ -21,9 +21,9 @@ import os
 import numpy as np
 from transformers import BertTokenizer
 
-import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo import logging
+from nemo.core import SimpleLossLoggerCallback, CheckpointCallback
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
 from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.data_descriptor import JointIntentSlotDataDesc
@@ -172,7 +172,7 @@ eval_tensors, _, _, data_layer = create_pipeline(
 )
 
 # Create callbacks for train and eval modes
-train_callback = nemo.core.SimpleLossLoggerCallback(
+train_callback = SimpleLossLoggerCallback(
     tensors=train_tensors,
     print_func=lambda x: str(np.round(x[0].item(), 3)),
     tb_writer=nf.tb_writer,
@@ -189,7 +189,7 @@ eval_callback = nemo.core.EvaluatorCallback(
 )
 
 # Create callback to save checkpoints
-ckpt_callback = nemo.core.CheckpointCallback(
+ckpt_callback = CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
 
