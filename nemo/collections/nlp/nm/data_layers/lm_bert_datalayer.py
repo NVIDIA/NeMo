@@ -25,7 +25,7 @@ from torch.utils import data as pt_data
 from nemo.backends.pytorch import DataLayerNM
 from nemo.collections.nlp.data import BertPretrainingDataset, BertPretrainingPreprocessedDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import ChannelType, LabelsType, NeuralType
+from nemo.core import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BertPretrainingDataLayer', 'BertPretrainingPreprocessedDataLayer']
@@ -33,7 +33,7 @@ __all__ = ['BertPretrainingDataLayer', 'BertPretrainingPreprocessedDataLayer']
 
 class BertPretrainingDataLayer(TextDataLayer):
     """
-    Data layer for masked language modeling task.
+    Data layer for masked language modeling task for text data.
 
     Args:
         tokenizer (TokenizerSpec): tokenizer
@@ -43,30 +43,36 @@ class BertPretrainingDataLayer(TextDataLayer):
         batch_size (int): batch size in segments
         short_seeq_prob (float): Probability of creating sequences which are
             shorter than the maximum length.
-            Defualts to 0.1.
+            Defaults to 0.1.
+        shuffle (bool): whether to shuffle data or not. Default: False.
     """
 
     @property
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        input_ids:
+            indices of tokens which constitute batches of masked text segments
+        input_type_ids:
+            tensor with 0's and 1's to denote the text segment type
+        input_mask:
+            bool tensor with 0s in place of tokens to be masked
+        output_ids: indices of tokens which constitute batches of unmasked text segments
+        output_mask: bool tensor with 0s in place of tokens to be masked
+        labels: 0 or 1 for next sentence prediction classification
         """
         return {
-            # "input_ids":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_mask":     NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "output_ids":     NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "output_mask":    NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "labels":         NeuralType({0: AxisType(BatchTag)}),
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
-            "output_ids": NeuralType(('B', 'T'), ChannelType()),
-            "output_mask": NeuralType(('B', 'T'), ChannelType()),
+            "output_ids": NeuralType(('B', 'T'), LabelsType()),
+            "output_mask": NeuralType(('B', 'T'), MaskType()),
             "labels": NeuralType(tuple('B'), LabelsType()),
         }
 
-    def __init__(self, tokenizer, dataset, max_seq_length, mask_probability, short_seq_prob=0.1, batch_size=64):
+    def __init__(
+        self, tokenizer, dataset, max_seq_length, mask_probability, short_seq_prob=0.1, batch_size=64, shuffle=False
+    ):
         dataset_params = {
             'tokenizer': tokenizer,
             'dataset': dataset,
@@ -74,41 +80,40 @@ class BertPretrainingDataLayer(TextDataLayer):
             'mask_probability': mask_probability,
             'short_seq_prob': short_seq_prob,
         }
-        super().__init__(BertPretrainingDataset, dataset_params, batch_size, shuffle=False)
+        super().__init__(BertPretrainingDataset, dataset_params, batch_size, shuffle=shuffle)
 
 
 class BertPretrainingPreprocessedDataLayer(DataLayerNM):
     """
-    Data layer for masked language modeling task.
+    Data layer for masked language modeling task for preprocessed data.
 
     Args:
-        tokenizer (TokenizerSpec): tokenizer
         dataset (str): directory or a single file with dataset documents
         max_seq_length (int): maximum allowed length of the text segments
-        mask_probability (float): probability of masking input sequence tokens
         batch_size (int): batch size in segments
-        short_seeq_prob (float): Probability of creating sequences which are
-            shorter than the maximum length.
-            Defualts to 0.1.
+        training (bool): true if in training mode
     """
 
     @property
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        input_ids:
+            indices of tokens which constitute batches of masked text segments
+        input_type_ids:
+            tensor with 0's and 1's to denote the text segment type
+        input_mask:
+            bool tensor with 0s in place of tokens to be masked
+        output_ids: indices of tokens which constitute batches of unmasked text segments
+        output_mask: bool tensor with 0s in place of tokens to be masked
+        labels: 0 or 1 for next sentence prediction classification
         """
         return {
-            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "output_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "labels": NeuralType({0: AxisType(BatchTag)}),
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
-            "output_ids": NeuralType(('B', 'T'), ChannelType()),
-            "output_mask": NeuralType(('B', 'T'), ChannelType()),
+            "output_ids": NeuralType(('B', 'T'), LabelsType()),
+            "output_mask": NeuralType(('B', 'T'), MaskType()),
             "labels": NeuralType(tuple('B'), LabelsType()),
         }
 

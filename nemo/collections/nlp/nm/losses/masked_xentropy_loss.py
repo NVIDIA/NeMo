@@ -42,16 +42,16 @@ from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import LabelsType, LengthsType, LogitsType, LossType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['TRADEMaskedCrossEntropy', 'CrossEntropyLoss3D']
+__all__ = ['MaskedXEntropyLoss']
 
 
-class TRADEMaskedCrossEntropy(LossNM):
+class MaskedXEntropyLoss(LossNM):
     """
-    Neural module which implements a cross entropy for trade model with masking feature.
+    Neural module which implements a cross entropy model with masking feature. It keeps just the target logit for cross entropy calculation
 
     Args:
         logits (float): output of the classifier
-        targets (long): ground truth targets
+        labels (long): ground truth targets
         loss_mask (long): specifies the ones to get ignored in loss calculation
 
 
@@ -64,20 +64,15 @@ class TRADEMaskedCrossEntropy(LossNM):
 
         logits: 4d tensor of logits
 
-        targets: 3d tensor of labels
+        labels: 3d tensor of labels
 
         loss_mask: specifies the words to be considered in the loss calculation
 
         """
         return {
-            # "logits": NeuralType(
-            #     {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag), 3: AxisType(ChannelTag)}
-            # ),
-            # "targets": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
-            # "loss_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
             "logits": NeuralType(('B', 'T', 'D', 'D'), LogitsType()),
-            "targets": NeuralType(('B', 'D', 'T'), LabelsType()),
-            "loss_mask": NeuralType(('B', 'D'), LengthsType()),
+            "labels": NeuralType(('B', 'D', 'T'), LabelsType()),
+            "length_mask": NeuralType(('B', 'D'), LengthsType()),
         }
 
     @property
@@ -91,65 +86,21 @@ class TRADEMaskedCrossEntropy(LossNM):
     def __init__(self):
         LossNM.__init__(self)
 
-    def _loss_function(self, logits, targets, loss_mask):
+    def _loss_function(self, logits, labels, length_mask, eps=1e-10):
         logits_flat = logits.view(-1, logits.size(-1))
-        eps = 1e-10
         log_probs_flat = torch.log(torch.clamp(logits_flat, min=eps))
-        target_flat = targets.view(-1, 1)
-        losses_flat = -torch.gather(log_probs_flat, dim=1, index=target_flat)
-        losses = losses_flat.view(*targets.size())
-        loss = self.masking(losses, loss_mask)
+        labels_flat = labels.view(-1, 1)
+        losses_flat = -torch.gather(log_probs_flat, dim=1, index=labels_flat)
+        losses = losses_flat.view(*labels.size())
+        loss = self.masking(losses, length_mask)
         return loss
 
     @staticmethod
-    def masking(losses, mask):
+    def masking(losses, length_mask):
         max_len = losses.size(2)
 
-        mask_ = torch.arange(max_len, device=mask.device)[None, None, :] < mask[:, :, None]
+        mask_ = torch.arange(max_len, device=length_mask.device)[None, None, :] < length_mask[:, :, None]
         mask_ = mask_.float()
         losses = losses * mask_
         loss = losses.sum() / mask_.sum()
-        return loss
-
-
-class CrossEntropyLoss3D(LossNM):
-    """
-    Neural module which implements a cross entropy loss for 3d logits.
-    Args:
-        num_classes (int): number of classes in a classifier, e.g. size
-            of the vocabulary in language modeling objective
-        logits (float): output of the classifier
-        labels (long): ground truth labels
-    """
-
-    @property
-    @add_port_docs()
-    def input_ports(self):
-        """Returns definitions of module input ports.
-        """
-        return {
-            # "logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(ChannelTag)}),
-            # "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            "logits": NeuralType(('B', 'D', 'D'), LogitsType()),
-            "labels": NeuralType(('B', 'D'), LabelsType()),
-        }
-
-    @property
-    @add_port_docs()
-    def output_ports(self):
-        """Returns definitions of module output ports.
-        """
-        # return {"loss": NeuralType(None)}
-        return {"loss": NeuralType(elements_type=LossType())}
-
-    def __init__(self, num_classes, **kwargs):
-        LossNM.__init__(self, **kwargs)
-        self._criterion = torch.nn.CrossEntropyLoss()
-        self.num_classes = num_classes
-
-    def _loss_function(self, logits, labels):
-        logits_flatten = logits.view(-1, self.num_classes)
-        labels_flatten = labels.view(-1)
-
-        loss = self._criterion(logits_flatten, labels_flatten)
         return loss

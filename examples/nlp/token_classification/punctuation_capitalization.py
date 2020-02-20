@@ -19,15 +19,16 @@ import json
 import os
 
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.utils.common_nlp_utils
+import nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing
+import nemo.collections.nlp.utils.data_utils
 from nemo import logging
+from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
 from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
     eval_epochs_done_callback,
     eval_iter_callback,
 )
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.nm.data_layers import PunctuationCapitalizationDataLayer
-from nemo.collections.nlp.nm.losses.token_classification_loss import TokenClassificationLoss
 from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
 
@@ -214,7 +215,9 @@ def create_pipeline(
         if args.use_weighted_loss_punct:
             logging.info(f"Using weighted loss for punctuation task")
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
-            class_weights = nemo.collections.nlp.utils.common_nlp_utils.calc_class_weights(punct_label_freqs)
+            class_weights = nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing.calc_class_weights(
+                punct_label_freqs
+            )
 
         # Initialize punctuation loss
         punct_classifier = punct_classifier(
@@ -225,15 +228,15 @@ def create_pipeline(
             name='Punctuation',
         )
 
-        punct_loss = TokenClassificationLoss(num_classes=len(punct_label_ids), class_weights=class_weights)
+        punct_loss = CrossEntropyLossNM(logits_dim=3, weight=class_weights)
 
         # Initialize capitalization loss
         capit_classifier = capit_classifier(
             hidden_size=hidden_size, num_classes=len(capit_label_ids), dropout=dropout, name='Capitalization'
         )
-        capit_loss = TokenClassificationLoss(num_classes=len(capit_label_ids))
+        capit_loss = CrossEntropyLossNM(logits_dim=3)
 
-        task_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
+        task_loss = nemo.backends.pytorch.common.losses.LossAggregatorNM(num_inputs=2)
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 

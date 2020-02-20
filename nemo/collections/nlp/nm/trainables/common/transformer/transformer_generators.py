@@ -1,13 +1,48 @@
-__all__ = []
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2018 The Google AI Language Team Authors and The HugginFace Inc. team.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
 
 import torch
 import torch.nn as nn
 
-from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import NEG_INF
-from nemo.collections.nlp.utils.common_nlp_utils import mask_padded_tokens
+from nemo.collections.nlp.utils.data_utils import mask_padded_tokens
+from nemo.collections.nlp.utils.transformer_utils import NEG_INF
+
+__all__ = []
 
 
 class GreedySequenceGenerator(nn.Module):
+    """
+    Greedy sequence generator based on the decoder followed by log_softmax.
+
+    Args:
+        embedding: nn.Module, transforms input_ids into vector embeddings
+        decoder: nn.Module, takes embeddings and produces hidden_states
+        log_softmax: nn.Module, takes hidden_states and produces log_probs
+            which correspond to probability distribution of tokens (ids)
+        pad: index of padding token in the vocabulary
+        bos: index of beginning of sequence token in the vocabulary
+        eos: index of end of sequence token in the vocabulary
+        max_sequence_length: maximum allowed length for generated sequences
+        max_delta_length: in case of encoder-decoder generation (e.g. NMT),
+            forbids generated sequences to be longer than the length of
+            source sequences plus max_delta_length
+        batch_size: size of the batch of generated sequences if neither
+            source nor target starting sequences are provided
+    """
+
     def __init__(
         self,
         embedding,
@@ -20,25 +55,6 @@ class GreedySequenceGenerator(nn.Module):
         max_delta_length=20,
         batch_size=1,
     ):
-        """
-        Greedy sequence generator based on the decoder followed by log_softmax.
-
-        Args:
-            embedding: nn.Module, transforms input_ids into vector embeddings
-            decoder: nn.Module, takes embeddings and produces hidden_states
-            log_softmax: nn.Module, takes hidden_states and produces log_probs
-                which correspond to probability distribution of tokens (ids)
-            pad: index of padding token in the vocabulary
-            bos: index of beginning of sequence token in the vocabulary
-            eos: index of end of sequence token in the vocabulary
-            max_sequence_length: maximum allowed length for generated sequences
-            max_delta_length: in case of encoder-decoder generation (e.g. NMT),
-                forbids generated sequences to be longer than the length of
-                source sequences plus max_delta_length
-            batch_size: size of the batch of generated sequences if neither
-                source nor target starting sequences are provided
-        """
-
         super().__init__()
         self.embedding = embedding
         self.decoder = decoder
@@ -148,20 +164,20 @@ class GreedySequenceGenerator(nn.Module):
 
 
 class TopKSequenceGenerator(GreedySequenceGenerator):
+    """
+    Top-k sequence generator based on the decoder followed by log_softmax.
+
+    Args:
+        *all args of GreedySequenceGenerator class
+        beam_size: size of the beam (parameter k in top-k)
+        temperature: temperature of top-k sampling, all logits are divided
+            by temperature before rescaling. High temperature leads to
+            uniform distribution, low leads to delta-like distribution.
+    Kwargs:
+        all remaining parameters of GreedySequenceGenerator class
+    """
+
     def __init__(self, embedding, decoder, log_softmax, beam_size=1, temperature=1.0, **kwargs):
-        """
-        Top-k sequence generator based on the decoder followed by log_softmax.
-
-        Args:
-            *all args of GreedySequenceGenerator class
-            beam_size: size of the beam (parameter k in top-k)
-            temperature: temperature of top-k sampling, all logits are divided
-                by temperature before rescaling. High temperature leads to
-                uniform distribution, low leads to delta-like distribution.
-        Kwargs:
-            all remaining parameters of GreedySequenceGenerator class
-        """
-
         super().__init__(embedding, decoder, log_softmax, **kwargs)
         self.beam_size = beam_size
         self.temp = temperature

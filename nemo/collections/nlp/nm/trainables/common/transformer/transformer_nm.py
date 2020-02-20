@@ -1,7 +1,19 @@
-# Copyright (c) 2019 NVIDIA Corporation
-"""
-This package contains Transformer for translation Neural Module
-"""
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2018 The Google AI Language Team Authors and The HugginFace Inc. team.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
 
 import math
 
@@ -13,7 +25,7 @@ from nemo.collections.nlp.nm.trainables.common.transformer.transformer_generator
     GreedySequenceGenerator,
 )
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_modules import TransformerEmbedding
-from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
+from nemo.collections.nlp.utils.transformer_utils import transformer_weights_init
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
@@ -49,10 +61,10 @@ class TransformerEncoderNM(TrainableNM):
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
+        input_ids: ids of input tokens
+        input_mask_src: input mask
         """
         return {
-            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_mask_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask_src": NeuralType(('B', 'T'), ChannelType()),
         }
@@ -61,9 +73,8 @@ class TransformerEncoderNM(TrainableNM):
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
-
+        hidden_states: outputs hidden states
         """
-        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(
@@ -140,12 +151,12 @@ class TransformerDecoderNM(TrainableNM):
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
+        input_ids_tgt: ids of target sequence
+        hidden_states_src: input hidden states 
+        input_mask_src: input token mask
+        input_mask_tgt: target token mask
         """
         return {
-            # "input_ids_tgt": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "hidden_states_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            # "input_mask_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_mask_tgt": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_ids_tgt": NeuralType(('B', 'T'), ChannelType()),
             "hidden_states_src": NeuralType(('B', 'T', 'D'), ChannelType()),
             "input_mask_src": NeuralType(('B', 'T'), ChannelType()),
@@ -156,8 +167,8 @@ class TransformerDecoderNM(TrainableNM):
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        hidden_states: output hidden states
         """
-        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(
@@ -224,16 +235,16 @@ class GreedyLanguageGeneratorNM(TrainableNM):
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
+        input_ids:  input ids
         """
-        # return {"input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
         return {"input_ids": NeuralType(('B', 'T'), ChannelType())}
 
     @property
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        output ids: output ids
         """
-        # return {"output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
         return {"output_ids": NeuralType(('B', 'T'), ChannelType())}
 
     def __init__(self, decoder, log_softmax, max_seq_length, pad_token, bos_token, eos_token, batch_size=1):
@@ -282,10 +293,10 @@ class BeamSearchTranslatorNM(TrainableNM):
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
+        hidden_states_src: input hidden states
+        input_mask_src: input mask
         """
         return {
-            # "hidden_states_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            # "input_mask_src": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "hidden_states_src": NeuralType(('B', 'T', 'C'), ChannelType()),
             "input_mask_src": NeuralType(('B', 'T'), ChannelType()),
         }
@@ -294,8 +305,8 @@ class BeamSearchTranslatorNM(TrainableNM):
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        output_ids: output ids
         """
-        # return {"output_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
         return {"output_ids": NeuralType(('B', 'T'), ChannelType())}
 
     @property
