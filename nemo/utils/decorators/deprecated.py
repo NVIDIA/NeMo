@@ -20,7 +20,7 @@ import functools
 
 import wrapt
 
-import nemo
+from nemo.utils import logging
 
 # logging = nemo.logging
 
@@ -65,8 +65,7 @@ def deprecated(wrapped=None, version=None, explanation=None):
                 msg = msg + " " + explanation
 
             # Display the deprecated warning.
-            # logging.warning(msg)
-            nemo.logging.warning(msg)
+            logging.warning(msg)
 
         # Call the function.
         return wrapped(*args, **kwargs)
