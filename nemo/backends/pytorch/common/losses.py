@@ -120,11 +120,11 @@ class CrossEntropyLoss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, weight=None):
+    def __init__(self, reduction='mean', weight=None):
         super().__init__()
         if weight:
             weight = torch.FloatTensor(weight).to(self._device)
-        self._criterion = nn.CrossEntropyLoss(weight=weight)
+        self._criterion = nn.CrossEntropyLoss(weight=weight, reduction=reduction)
 
     def _loss_function(self, logits, labels):
         loss = self._criterion(logits, labels)
@@ -156,9 +156,9 @@ class MSELoss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self):
+    def __init__(self, reduction='mean'):
         super().__init__()
-        self._criterion = nn.MSELoss()
+        self._criterion = nn.MSELoss(reduction=reduction)
 
     def _loss_function(self, preds, labels):
         loss = self._criterion(preds, labels)
