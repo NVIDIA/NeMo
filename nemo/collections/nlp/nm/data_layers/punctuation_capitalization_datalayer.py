@@ -70,7 +70,8 @@ class PunctuationCapitalizationDataLayer(TextDataLayer):
             bool tensor with 0s in place of tokens to be masked
         loss_mask:
             used to mask and ignore tokens in the loss function: indices of tokens which constitute batches of unmasked text segments
-        subtokens_mask: TODO
+        subtokens_mask:
+            used to mask all but the first subtoken of the work, could be useful during inference
         punct_labels: punctuation label ids
         capit_labels: capit_labels label ids
         """

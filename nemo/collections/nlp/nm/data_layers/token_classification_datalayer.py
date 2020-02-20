@@ -69,7 +69,7 @@ class BertTokenClassificationDataLayer(TextDataLayer):
         loss_mask:
             used to mask and ignore tokens in the loss function
         subtokens_mask:
-            TODO
+            used to mask all but the first subtoken of the work, could be useful during inference
         labels:
             token target ids
         """
@@ -118,7 +118,7 @@ class BertTokenClassificationInferDataLayer(TextDataLayer):
     """
     All the data processing is done BertTokenClassificationInferDataset.
         queries:
-            TODO
+            (list of str): quiries to run inference on
         tokenizer (TokenizerSpec): text tokenizer.
         max_seq_length (int):
             max sequence length minus 2 for [CLS] and [SEP]

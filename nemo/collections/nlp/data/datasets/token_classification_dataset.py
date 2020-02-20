@@ -23,7 +23,6 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 import itertools
 import os
 import pickle
-import random
 
 import numpy as np
 from torch.utils.data import Dataset
@@ -175,7 +174,6 @@ class BertTokenClassificationDataset(Dataset):
         tokenizer (Tokenizer): such as NemoBertTokenizer
         num_samples (int): number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
-        shuffle (bool): whether to shuffle your data.
         pad_label (str): pad value use for labels.
             by default, it's the neutral label.
         label_ids (dict): label_ids (dict): dict to map labels to label ids.
@@ -196,7 +194,6 @@ class BertTokenClassificationDataset(Dataset):
         max_seq_length,
         tokenizer,
         num_samples=-1,
-        shuffle=False,
         pad_label='O',
         label_ids=None,
         ignore_extra_tokens=False,
@@ -241,12 +238,9 @@ class BertTokenClassificationDataset(Dataset):
             if len(labels_lines) != len(text_lines):
                 raise ValueError("Labels file should contain labels for every word")
 
-            if shuffle or num_samples > 0:
+            if num_samples > 0:
                 dataset = list(zip(text_lines, labels_lines))
-                random.shuffle(dataset)
-
-                if num_samples > 0:
-                    dataset = dataset[:num_samples]
+                dataset = dataset[:num_samples]
 
                 dataset = list(zip(*dataset))
                 text_lines = dataset[0]

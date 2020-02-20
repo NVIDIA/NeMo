@@ -380,12 +380,12 @@ class BERTPretrainingDataDesc:
     def __init__(self, dataset_name, data_dir, vocab_size, sample_size, special_tokens, train_file=''):
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
-                FileNotFoundError("Dataset not found. Run './get_wkt2.sh DATA_DIR' from examples/nlp/scripts")
+                raise FileNotFoundError("Dataset not found. Run './get_wkt2.sh DATA_DIR' from examples/nlp/scripts")
             self.data_dir, self.tokenizer_model = self.create_vocab_mlm(
                 data_dir, vocab_size, sample_size, special_tokens, train_file
             )
         else:
-            ValueError(
+            raise ValueError(
                 "Looks like you passed a dataset name that isn't already supported by NeMo. Please make sure that "
                 "you build the preprocessing method for it."
             )
