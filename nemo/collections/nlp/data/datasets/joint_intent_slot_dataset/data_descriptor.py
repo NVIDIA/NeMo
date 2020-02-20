@@ -2,18 +2,16 @@ import itertools
 import os
 
 from nemo import logging
-from nemo.collections.nlp.data import (
+from nemo.collections.nlp.data.datasets.datasets_utils import (
+    DATABASE_EXISTS_TMP,
+    calc_class_weights,
+    get_label_stats,
+    if_exist,
     process_atis,
     process_dialogflow,
     process_jarvis_datasets,
     process_mturk,
     process_snips,
-)
-from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import (
-    DATABASE_EXISTS_TMP,
-    calc_class_weights,
-    get_label_stats,
-    if_exist,
 )
 from nemo.collections.nlp.utils import get_vocab, list2str
 

@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-from nemo.collections.nlp.data.datasets.datasets_utils import *
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset.glue_benchmark_dataset import GLUEDataset
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.joint_intent_slot_dataset import (
     BertJointIntentSlotDataset,
