@@ -8,6 +8,8 @@ from nemo.core import DeviceType
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
+logging = nemo.logging
+
 
 class AudioDataLayer(DataLayerNM):
     """
@@ -82,7 +84,7 @@ class AudioDataLayer(DataLayerNM):
 
         sampler = None
         if self._placement == DeviceType.AllGpu:
-            nemo.logging.info('Parallelizing DATALAYER')
+            logging.info('Parallelizing DATALAYER')
             sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
 
         self._dataloader = torch.utils.data.DataLoader(
