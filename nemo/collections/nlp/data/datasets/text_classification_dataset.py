@@ -20,7 +20,6 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-import random
 
 import numpy as np
 from torch.utils.data import Dataset

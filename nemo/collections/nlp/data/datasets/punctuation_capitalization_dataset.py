@@ -24,7 +24,6 @@ __all__ = ['BertPunctuationCapitalizationDataset', 'BertPunctuationCapitalizatio
 import itertools
 import os
 import pickle
-import random
 
 import numpy as np
 from torch.utils.data import Dataset
