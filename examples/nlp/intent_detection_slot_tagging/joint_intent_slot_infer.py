@@ -23,7 +23,7 @@ from transformers import BertTokenizer
 
 import nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
 from nemo import logging
-from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
+from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.data_descriptor import JointIntentSlotDataDesc
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Joint-intent BERT')

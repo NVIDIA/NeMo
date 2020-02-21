@@ -1,6 +1,5 @@
-# Copyright 2018 The Google AI Language Team Authors and
-# The HuggingFace Inc. team.
-# Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,24 +12,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-Utility functions for Token Classification NLP tasks
-Some parts of this code were adapted from the HuggingFace library at
-https://github.com/huggingface/pytorch-pretrained-BERT
-"""
+# =============================================================================
 
 __all__ = ['BertPunctuationCapitalizationDataset', 'BertPunctuationCapitalizationInferDataset']
 
 import itertools
 import os
 import pickle
-import random
 
 import numpy as np
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets import datasets_utils as utils
+from nemo.collections.nlp.data.datasets.datasets_utils import get_label_stats, get_stats
 
 
 def get_features(
@@ -49,7 +43,7 @@ def get_features(
     Args:
     queries (list of str): text sequences
     max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-    tokenizer (Tokenizer): such as NemoBertTokenizer
+    tokenizer (TokenizerSpec): such as NemoBertTokenizer
     pad_label (str): pad value use for labels.
         by default, it's the neutral label.
     punct_label_ids (dict): dict to map punctuation labels to label ids.
@@ -126,7 +120,7 @@ def get_features(
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
     logging.info(f'Max length: {max_seq_length}')
-    utils.get_stats(sent_lengths)
+    get_stats(sent_lengths)
     too_long_count = 0
 
     for i, subtokens in enumerate(all_subtokens):
@@ -202,7 +196,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
         tokenizer (Tokenizer): such as NemoBertTokenizer
         num_samples (int): number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
-        shuffle (bool): whether to shuffle your data.
         pad_label (str): pad value use for labels.
             by default, it's the neutral label.
         punct_label_ids and capit_label_ids (dict):
@@ -224,7 +217,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
         max_seq_length,
         tokenizer,
         num_samples=-1,
-        shuffle=False,
         pad_label='O',
         punct_label_ids=None,
         capit_label_ids=None,
@@ -275,17 +267,15 @@ class BertPunctuationCapitalizationDataset(Dataset):
             if len(punct_labels_lines) != len(text_lines):
                 raise ValueError("Labels file should contain labels for every word")
 
-            if shuffle or num_samples > 0:
-                dataset = list(zip(text_lines, punct_labels_lines, capit_labels_lines))
-                random.shuffle(dataset)
+            dataset = list(zip(text_lines, punct_labels_lines, capit_labels_lines))
 
-                if num_samples > 0:
-                    dataset = dataset[:num_samples]
+            if num_samples > 0:
+                dataset = dataset[:num_samples]
 
-                dataset = list(zip(*dataset))
-                text_lines = dataset[0]
-                punct_labels_lines = dataset[1]
-                capit_labels_lines = dataset[2]
+            dataset = list(zip(*dataset))
+            text_lines = dataset[0]
+            punct_labels_lines = dataset[1]
+            capit_labels_lines = dataset[2]
 
             # for dev/test sets use label mapping from training set
             if punct_label_ids:
@@ -351,7 +341,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             infold = text_file[: text_file.rfind('/')]
             merged_labels = itertools.chain.from_iterable(all_labels)
             logging.info('Three most popular labels')
-            _, label_frequencies = utils.get_label_stats(merged_labels, infold + '/label_count_' + name + '.tsv')
+            _, label_frequencies = get_label_stats(merged_labels, infold + '/label_count_' + name + '.tsv')
 
             out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
             labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))

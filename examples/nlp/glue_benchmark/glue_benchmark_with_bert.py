@@ -68,7 +68,7 @@ from transformers import BertConfig
 import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
 from nemo import logging
-from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
+from nemo.backends.pytorch.common import CrossEntropyLossNM, MSELoss
 from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import output_modes, processors
@@ -231,7 +231,7 @@ else:
     else:
         model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
     model.restore_from(args.bert_checkpoint)
-    logging.info(f"model resotred from {args.bert_checkpoint}")
+    logging.info(f"model restored from {args.bert_checkpoint}")
 
 hidden_size = model.hidden_size
 
@@ -241,7 +241,7 @@ if args.task_name == 'sts-b':
     glue_loss = MSELoss()
 else:
     pooler = SequenceClassifier(hidden_size=hidden_size, num_classes=num_labels, log_softmax=False)
-    glue_loss = CrossEntropyLoss()
+    glue_loss = CrossEntropyLossNM()
 
 
 def create_pipeline(
@@ -260,8 +260,6 @@ def create_pipeline(
         processor=processor,
         evaluate=evaluate,
         batch_size=batch_size,
-        # num_workers=0,
-        # local_rank=local_rank,
         tokenizer=tokenizer,
         data_dir=args.data_dir,
         max_seq_length=max_seq_length,

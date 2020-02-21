@@ -17,7 +17,7 @@
 from torch import nn as nn
 
 from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
-from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
+from nemo.collections.nlp.utils.transformer_utils import transformer_weights_init
 from nemo.core import ChannelType, LogitsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
@@ -35,14 +35,18 @@ class JointIntentSlotClassifier(TrainableNM):
         num_intents (int): number of intents
         num_slots (int): number of slots
         dropout (float): dropout to be applied to the layer
+        use_transformer_pretrained (bool):
+            TODO
     """
 
     @property
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
+
+        hidden_states:
+            TODO
         """
-        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
         return {"hidden_states": NeuralType(('B', 'T', 'C'), ChannelType())}
 
     @property
@@ -51,20 +55,11 @@ class JointIntentSlotClassifier(TrainableNM):
         """Returns definitions of module output ports.
 
         intent_logits:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
-
+            TODO
         slot_logits:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
+            TODO
         """
         return {
-            # "intent_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            # "slot_logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             "intent_logits": NeuralType(('B', 'D'), LogitsType()),
             "slot_logits": NeuralType(('B', 'T', 'D'), LogitsType()),
         }
@@ -85,7 +80,6 @@ class JointIntentSlotClassifier(TrainableNM):
         )
         if use_transformer_pretrained:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
-        # self.to(self._device)
 
     def forward(self, hidden_states):
         hidden_states = self.dropout(hidden_states)

@@ -28,7 +28,7 @@ from ruamel.yaml import YAML
 import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.backends.pytorch.nm import DataLayerNM
-from nemo.collections.nlp.nm.losses import PaddedSmoothedCrossEntropyLossNM
+from nemo.collections.nlp.nm.losses import SmoothedCrossEntropyLoss
 from nemo.collections.nlp.nm.trainables.common import TokenClassifier
 from nemo.core import WeightShareTransform
 from nemo.core.neural_types import *
@@ -181,7 +181,7 @@ class TestWeightSharing(NeMoUnitTest):
         embd = nemo.backends.pytorch.common.other.SequenceEmbedding(voc_size=voc_size, hidden_size=dim)
         proj = TokenClassifier(hidden_size=dim, num_classes=voc_size)
         data = DummyDataLayer(voc_size)
-        loss = PaddedSmoothedCrossEntropyLossNM(0)
+        loss = SmoothedCrossEntropyLoss(pad_id=0)
         embd.tie_weights_with(
             proj,
             weight_names=["embedding.weight"],
@@ -193,7 +193,7 @@ class TestWeightSharing(NeMoUnitTest):
         _in, _out = data()
         pred = embd(input_seq=_in)
         pred = proj(hidden_states=pred)
-        loss_t = loss(target_ids=_out, logits=pred)
+        loss_t = loss(labels=_out, logits=pred)
 
         self.nf.train(
             [loss_t], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.0003},
@@ -245,7 +245,7 @@ class TestWeightSharing(NeMoUnitTest):
         embd = nemo.backends.pytorch.common.other.SequenceEmbedding(voc_size=voc_size, hidden_size=dim)
         proj = TokenClassifier(hidden_size=dim, num_classes=voc_size)
         data = DummyDataLayer(voc_size)
-        loss = PaddedSmoothedCrossEntropyLossNM(0)
+        loss = SmoothedCrossEntropyLoss(pad_id=0)
         # embd.tie_weights_with(
         #     proj,
         #     weight_names=["embedding.weight"],
@@ -257,7 +257,7 @@ class TestWeightSharing(NeMoUnitTest):
         _in, _out = data()
         pred = embd(input_seq=_in)
         pred = proj(hidden_states=pred)
-        loss_t = loss(target_ids=_out, logits=pred)
+        loss_t = loss(labels=_out, logits=pred)
 
         self.nf.train(
             [loss_t], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.0003},

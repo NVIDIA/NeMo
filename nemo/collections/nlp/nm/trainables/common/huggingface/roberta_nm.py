@@ -14,6 +14,24 @@
 # limitations under the License.
 # =============================================================================
 
+# =============================================================================
+# Copyright 2018 The Google AI Language Team Authors and
+# The HuggingFace Inc. team.
+# Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
 from typing import List, Optional
 
 from transformers import (
@@ -56,12 +74,10 @@ class Roberta(TrainableNM):
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
+        input_ids: input token ids
+        token_type_ids: segment type ids
+        attention_mask: attention mask
         """
-        # return {
-        #     "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-        #     "token_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-        #     "attention_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-        # }
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "token_type_ids": NeuralType(('B', 'T'), ChannelType()),
@@ -72,8 +88,8 @@ class Roberta(TrainableNM):
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        hidden_states: output embedding 
         """
-        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(
@@ -134,12 +150,6 @@ class Roberta(TrainableNM):
 
         self.add_module("roberta", model)
         self.config = model.config
-
-        # TK: storing config name in init_params instead.
-        # for key, value in self.config.to_dict().items():
-        #    self._local_parameters[key] = value
-
-        # Store the only value that will be used externally - hidden_size.
         self._hidden_size = model.config.hidden_size
 
     @property
