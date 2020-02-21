@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
             image 'nvcr.io/nvidia/pytorch:20.01-py3'
-            args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home:/home --shm-size=8g'
+            args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/.cache:/home/.cache -v /home:/home --shm-size=8g'
         }
   }
   options {
