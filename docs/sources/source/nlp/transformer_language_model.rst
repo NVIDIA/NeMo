@@ -15,7 +15,7 @@ Download Corpus
 
 For demonstration purposes, we will be using the very small WikiText-2 dataset :cite:`nlp-lm-merity2016pointer`.
 
-To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
+To download the dataset, run the script ``examples/nlp/scripts/get_wkt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
 
     .. code-block:: bash
 
@@ -32,7 +32,7 @@ Create the tokenizer model
         data_desc = LanguageModelDataDesc(
             args.dataset_name, args.data_dir, args.do_lower_case)
 
-We need to define our tokenizer. We use `WordTokenizer` defined in ``nemo_nlp/data/tokenizers/word_tokenizer.py``:
+We need to define our tokenizer. We use `WordTokenizer` defined in ``nemo/collections/nlp/data/tokenizers/word_tokenizer.py``:
 
     .. code-block:: python
 
@@ -65,51 +65,66 @@ Next, we define all Neural Modules necessary for our model
 
     .. code-block:: python
 
-        encoder = nemo_nlp.TransformerEncoderNM(**params)
-        log_softmax = nemo_nlp.TokenClassifier(**params)
-        loss = nemo_nlp.PaddedSmoothedCrossEntropyLossNM(**params)
+        encoder = nemo_nlp.nm.trainables.TransformerEncoderNM(
+            d_model=args.d_model,
+            d_inner=args.d_inner,
+            num_layers=args.num_layers,
+            embedding_dropout=args.embedding_dropout,
+            num_attn_heads=args.num_attn_heads,
+            ffn_dropout=args.ffn_dropout,
+            vocab_size=vocab_size,
+            mask_future=True,
+            attn_score_dropout=args.attn_score_dropout,
+            attn_layer_dropout=args.attn_layer_dropout,
+            max_seq_length=args.max_seq_length,
+        )
 
+        log_softmax = nemo.collections.nlp.nm.trainables.TokenClassifier(
+            args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
+        )
+
+        loss = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss(pad_id=tokenizer.pad_id, label_smoothing=args.label_smoothing)
 
 Following `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`nlp-lm-press2016using`, we also tie the parameters of embedding and softmax layers:
 
     .. code-block:: python
 
-        log_softmax.mlp.layers[-1].weight = encoder.embedding_layer.token_embedding.weight
+        log_softmax.tie_weights_with(
+            encoder,
+            weight_names=["mlp.layer0.weight"],
+            name2name_and_transform={
+                "mlp.layer0.weight": ("embedding_layer.token_embedding.weight", WeightShareTransform.SAME)
+            },
+        )
 
-
-Next, we create datasets for training and evaluating:
-
-    .. code-block:: python
-
-        train_dataset = nemo_nlp.LanguageModelingDataset(
-            tokenizer,
-            dataset=f"{args.data_dir}/{args.train_dataset}",
-            max_sequence_length=args.max_sequence_length,
-            batch_step=args.max_sequence_length)
-
-        eval_dataset = nemo_nlp.LanguageModelingDataset(
-            tokenizer,
-            dataset=f"{args.data_dir}/{args.eval_datasets[0]}",
-            max_sequence_length=args.max_sequence_length,
-            batch_step=args.predict_last_k)
-
-
-Then, we create the pipeline gtom input to output that can be used for both training and evaluation:
+Then, we create the pipeline from input to output that can be used for both training and evaluation:
 
     .. code-block:: python
 
-        def create_pipeline(dataset, batch_size):
-            data_layer = nemo_nlp.LanguageModelingDataLayer(dataset,
-                                                            batch_size=batch_size)
+        def create_pipeline(
+            dataset, max_seq_length=args.max_seq_length, batch_step=args.max_seq_length, batch_size=args.batch_size
+        ):
+            data_layer = nemo.collections.nlp.nm.data_layers.LanguageModelingDataLayer(
+                dataset, tokenizer, max_seq_length, batch_size, batch_step
+            )
             src, src_mask, labels = data_layer()
             src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)
             logits = log_softmax(hidden_states=src_hiddens)
-            return loss(logits=logits, target_ids=labels)
+            return loss(logits=logits, labels=labels)
 
 
-        train_loss = create_pipeline(train_dataset, args.batch_size)
-        eval_loss = create_pipeline(eval_dataset, args.batch_size)
-    
+        train_loss = create_pipeline(
+            f"{args.data_dir}/{args.train_dataset}",
+            args.max_seq_length,
+            batch_step=args.max_seq_length,
+            batch_size=args.batch_size,
+        )
+        eval_loss = create_pipeline(
+            f"{args.data_dir}/{args.eval_dataset}",
+            args.max_seq_length,
+            batch_step=args.predict_last_k,
+            batch_size=args.eval_batch_size,
+        )
 
 Next, we define necessary callbacks:
 
@@ -119,29 +134,51 @@ Next, we define necessary callbacks:
 
     .. code-block:: python
 
-        train_callback = nemo.core.SimpleLossLoggerCallback(...)
-        eval_callback = nemo.core.EvaluatorCallback(...)
-        ckpt_callback = nemo.core.CheckpointCallback(...)
+        train_callback = SimpleLossLoggerCallback(
+            tensors=train_tensors,
+            print_func=lambda x: str(np.round(x[0].item(), 3)),
+            tb_writer=nf.tb_writer,
+            get_tb_values=lambda x: [["loss", x[0]]],
+            step_freq=steps_per_epoch,
+        )
 
+        eval_callback = nemo.core.EvaluatorCallback(
+            eval_tensors=eval_tensors,
+            user_iter_callback=lambda x, y: eval_iter_callback(x, y, data_layer),
+            user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, f'{nf.work_dir}/graphs'),
+            tb_writer=nf.tb_writer,
+            eval_step=steps_per_epoch,
+        )
+
+        # Create callback to save checkpoints
+        ckpt_callback = CheckpointCallback(
+            folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
+        )
 
 Finally, you should define your optimizer, and start training!
 
     .. code-block:: python
 
-        lr_policy_fn = get_lr_policy(args.lr_policy,
-                                     total_steps=args.num_epochs * steps_per_epoch,
-                                     warmup_ratio=args.lr_warmup_proportion)
+        lr_policy_fn = CosineAnnealing(args.max_steps, warmup_steps=args.warmup_steps)
+        max_num_epochs = 0 if args.interactive else args.num_epochs
 
-        nf.train(tensors_to_optimize=[train_loss],
-                 callbacks=callbacks,
-                 lr_policy=lr_policy_fn,
-                 batches_per_step=args.iter_per_step,
-                 optimizer=args.optimizer_kind,
-                 optimization_params={"num_epochs": args.num_epochs,
-                                      "lr": args.lr,
-                                      "weight_decay": args.weight_decay,
-                                      "betas": (args.beta1, args.beta2)})
+        callbacks = [callback_ckpt]
+        if not args.interactive:
+            callbacks.extend([train_callback, eval_callback])
 
+        nf.train(
+            tensors_to_optimize=[train_loss],
+            callbacks=callbacks,
+            lr_policy=lr_policy_fn,
+            batches_per_step=args.iter_per_step,
+            optimizer=args.optimizer_kind,
+            optimization_params={
+                "num_epochs": args.num_epochs,
+                "lr": args.lr,
+                "weight_decay": args.weight_decay,
+                "betas": (args.beta1, args.beta2),
+            },
+        )
 
 References
 ----------

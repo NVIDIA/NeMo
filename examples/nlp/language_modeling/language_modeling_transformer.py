@@ -105,7 +105,7 @@ encoder = nemo_nlp.nm.trainables.TransformerEncoderNM(
     max_seq_length=args.max_seq_length,
 )
 
-log_softmax = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
+log_softmax = nemo.collections.nlp.nm.trainables.TokenClassifier(
     args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
 )
 
@@ -125,7 +125,7 @@ log_softmax.tie_weights_with(
 def create_pipeline(
     dataset, max_seq_length=args.max_seq_length, batch_step=args.max_seq_length, batch_size=args.batch_size
 ):
-    data_layer = nemo.collections.nlp.nm.data_layers.lm_transformer_datalayer.LanguageModelingDataLayer(
+    data_layer = nemo.collections.nlp.nm.data_layers.LanguageModelingDataLayer(
         dataset, tokenizer, max_seq_length, batch_size, batch_step
     )
     src, src_mask, labels = data_layer()
