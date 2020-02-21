@@ -1,23 +1,7 @@
 # =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# =============================================================================
-
-# =============================================================================
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
-# Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -73,7 +57,7 @@ class SquadDataset(Dataset):
     Creates SQuAD dataset for Question Answering.
 
     Args:
-        data_file (str): train.*.json or dev.*.json.
+        data_file (str): train.*.json eval.*.json or infer.*.json.
         tokenizer (obj): Tokenizer object, e.g. NemoBertTokenizer.
         version_2_with_negative (bool): True if training should allow
             unanswerable questions.
@@ -85,7 +69,7 @@ class SquadDataset(Dataset):
         max_seq_length (int): All training files which have a duration more
             than max_duration are dropped. Can't be used if the `utt2dur` file
             does not exist. Defaults to None.
-        mode (str): Use "train" or "dev" to define between
+        mode (str): Use "train", "eval" or "infer" to define between
             training and evaluation.
     """
 
@@ -104,8 +88,8 @@ class SquadDataset(Dataset):
         self.version_2_with_negative = version_2_with_negative
         self.processor = SquadProcessor(data_file=data_file, mode=mode)
         self.mode = mode
-        if mode not in ["dev", "train", "infer"]:
-            raise ValueError(f"mode should be either 'train', 'dev', or 'infer' but got {mode}")
+        if mode not in ["eval", "train", "infer"]:
+            raise ValueError(f"mode should be either 'train', 'eval', or 'infer' but got {mode}")
         self.examples = self.processor.get_examples()
 
         cached_features_file = (
@@ -468,11 +452,11 @@ class SquadProcessor(DataProcessor):
                         is_impossible = False
 
                     if not is_impossible:
-                        if set_type == "train" or set_type == "dev":
+                        if set_type == "train" or set_type == "eval":
                             answer = qa["answers"][0]
                             answer_text = answer["text"]
                             start_position_character = answer["answer_start"]
-                        if set_type == "dev":
+                        if set_type == "eval":
                             answers = qa["answers"]
 
                     example = SquadExample(

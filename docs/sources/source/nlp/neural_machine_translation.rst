@@ -84,14 +84,29 @@ Next, we define all Neural Modules necessary for our model:
         decoder = nemo_nlp.nm.trainables.TransformerDecoderNM(**decoder_params)
         log_softmax = nemo_nlp.nm.trainables.TokenClassifier(**token_classifier_params)
         beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(**beam_search_params)
-        loss = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(**loss_params)
+        loss = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss(pad_id=tgt_tokenizer.pad_id, label_smoothing=args.label_smoothing)
 
 Following `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`nlp-nmt-press2016using`, we also tie the parameters of embedding and softmax layers:
 
     .. code-block:: python
 
-        log_softmax.log_softmax.dense.weight = encoder.embedding_layer.token_embedding.weight
-        decoder.embedding_layer.token_embedding.weight = encoder.embedding_layer.token_embedding.weight
+        log_softmax.tie_weights_with(
+                encoder,
+                weight_names=["mlp.last_linear_layer.weight"],
+                name2name_and_transform={
+                    "mlp.last_linear_layer.weight": ("embedding_layer.token_embedding.weight", WeightShareTransform.SAME)
+                },
+            ) 
+        decoder.tie_weights_with(
+            encoder,
+            weight_names=["embedding_layer.token_embedding.weight"],
+            name2name_and_transform={
+                "embedding_layer.token_embedding.weight": (
+                    "embedding_layer.token_embedding.weight",
+                    WeightShareTransform.SAME,
+                )
+            },
+        )
         
     .. note::
         You should not tie the parameters if you use different tokenizers for source and target.
@@ -102,9 +117,8 @@ in **source and target** tokens.
 
     .. code-block:: python
 
-        def create_pipeline(**args):
-            dataset = nemo_nlp.data.TranslationDataset(**translation_dataset_params)
-            data_layer = nemo_nlp.nm.data_layers.TranslationDataLayer(dataset)
+        def create_pipeline(**args):-
+            data_layer = nemo_nlp.nm.data_layers.TranslationDataLayer(**translation_datalayer_params)
             src, src_mask, tgt, tgt_mask, labels, sent_ids = data_layer()
             src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)
             tgt_hiddens = decoder(input_ids_tgt=tgt,
@@ -162,7 +176,7 @@ Finally, we define the optimization parameters and run the whole pipeline.
                                      warmup_steps=args.warmup_steps)
 
         nf.train(tensors_to_optimize=[train_loss],
-                 callbacks=callbacks,
+                 callbacks=[train_callback, eval_callback, ckpt_callback],
                  optimizer=args.optimizer,
                  lr_policy=lr_policy_fn,
                  optimization_params={"num_epochs": max_num_epochs,
