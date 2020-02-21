@@ -27,7 +27,8 @@ from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregat
 from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.data_descriptor import JointIntentSlotDataDesc
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
-from nemo.collections.nlp.nm.trainables import BERT, JointIntentSlotClassifier
+from nemo.collections.nlp.nm.trainables import JointIntentSlotClassifier
+from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
 from nemo.core import CheckpointCallback, SimpleLossLoggerCallback
 from nemo.utils.lr_policies import get_lr_policy
 

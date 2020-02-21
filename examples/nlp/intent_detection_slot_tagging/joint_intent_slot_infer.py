@@ -24,6 +24,9 @@ from transformers import BertTokenizer
 import nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
 from nemo import logging
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.data_descriptor import JointIntentSlotDataDesc
+from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
+from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
+from nemo.collections.nlp.nm.trainables.joint_intent_slot import JointIntentSlotClassifier
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Joint-intent BERT')
@@ -51,9 +54,7 @@ nf = nemo.core.NeuralModuleFactory(
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo.collections.nlp.nm.trainables.huggingface.BERT(
-    pretrained_model_name=args.pretrained_bert_model
-)
+pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
 hidden_size = pretrained_bert_model.hidden_size
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
@@ -61,7 +62,7 @@ data_desc = JointIntentSlotDataDesc(args.data_dir, args.do_lower_case, args.data
 
 # Evaluation pipeline
 logging.info("Loading eval data...")
-data_layer = nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer.BertJointIntentSlotDataLayer(
+data_layer = BertJointIntentSlotDataLayer(
     input_file=f'{data_desc.data_dir}/{args.eval_file_prefix}.tsv',
     slot_file=f'{data_desc.data_dir}/{args.eval_file_prefix}_slots.tsv',
     pad_label=data_desc.pad_label,
@@ -71,13 +72,15 @@ data_layer = nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer.Ber
     batch_size=args.batch_size,
 )
 
-classifier = nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm.JointIntentSlotClassifier(
+classifier = JointIntentSlotClassifier(
     hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots
 )
 
-(ids, type_ids, input_mask, loss_mask, subtokens_mask, intents, slots) = data_layer()
+input_data = data_layer()
 
-hidden_states = pretrained_bert_model(input_ids=ids, token_type_ids=type_ids, attention_mask=input_mask)
+hidden_states = pretrained_bert_model(
+    input_ids=input_data.input_ids, token_type_ids=input_data.input_type_ids, attention_mask=input_data.input_mask
+)
 intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
 ###########################################################################
@@ -85,7 +88,15 @@ intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
 # Instantiate an optimizer to perform `infer` action
 evaluated_tensors = nf.infer(
-    tensors=[intent_logits, slot_logits, loss_mask, subtokens_mask, intents, slots], checkpoint_dir=args.work_dir
+    tensors=[
+        intent_logits,
+        slot_logits,
+        input_data.loss_mask,
+        input_data.subtokens_mask,
+        input_data.intents,
+        input_data.slots,
+    ],
+    checkpoint_dir=args.work_dir,
 )
 
 

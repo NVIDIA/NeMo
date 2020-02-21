@@ -19,12 +19,12 @@ import argparse
 import numpy as np
 from transformers import BertTokenizer
 
-import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
+import nemo
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.data_descriptor import JointIntentSlotDataDesc
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.inference_utils import read_intent_slot_outputs
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotInferDataLayer
 from nemo.collections.nlp.nm.trainables import JointIntentSlotClassifier
+from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Joint-intent BERT')
@@ -48,7 +48,7 @@ nf = nemo.core.NeuralModuleFactory(
 See the list of pretrained models, call:
 nemo_nlp.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 hidden_size = pretrained_bert_model.hidden_size
 
