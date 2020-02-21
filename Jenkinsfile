@@ -28,7 +28,7 @@ pipeline {
     }
     stage('L0: Unittests ALL') {
       steps {
-        sh 'echo $HOME && ls $HOME && ./reinstall.sh'
+        sh 'echo "home $HOME" && ls "$HOME" && ./reinstall.sh'
       }
     }
 
