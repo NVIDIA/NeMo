@@ -1,27 +1,18 @@
-# coding=utf-8
-"""
-Copyright 2018 The Google AI Language Team Authors and The HuggingFace Inc.
-Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-Various parts of Transformer architecture implemented as Pytorch nn.Modules.
-Some parts of this code were adapted from the HuggingFace library at
-https://github.com/huggingface/pytorch-pretrained-BERT
-Some parts of this code were adapted from the Annotated Transformer at
-http://nlp.seas.harvard.edu/2018/04/03/attention.html
-Copyright by the HuggingFace and Annotated Transformer authors.
-"""
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2018 The Google AI Language Team Authors and The HugginFace Inc. team.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
 
 import math
 
@@ -29,7 +20,7 @@ import torch
 from torch import nn
 
 from nemo import logging
-from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import gelu
+from nemo.collections.nlp.utils.functional_utils import gelu
 
 __all__ = []
 

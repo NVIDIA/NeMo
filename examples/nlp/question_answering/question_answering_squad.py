@@ -368,7 +368,7 @@ if __name__ == "__main__":
     qa_head = nemo_nlp.nm.trainables.TokenClassifier(
         hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False
     )
-    squad_loss = nemo_nlp.nm.losses.QuestionAnsweringLoss()
+    squad_loss = nemo_nlp.nm.losses.SpanningLoss()
     if args.bert_checkpoint is not None:
         model.restore_from(args.bert_checkpoint)
 

@@ -191,7 +191,7 @@ For training from raw text use nemo_nlp.BertPretrainingDataLayer, for preprocess
 
             mlm_logits = mlm_classifier(hidden_states=hidden_states)
             mlm_loss = mlm_loss_fn(logits=mlm_logits,
-                                   output_ids=input_data.output_ids,
+                                   labels=input_data.output_ids,
                                    output_mask=input_data.output_mask)
 
             nsp_logits = nsp_classifier(hidden_states=hidden_states)

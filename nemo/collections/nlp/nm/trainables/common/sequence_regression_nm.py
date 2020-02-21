@@ -17,7 +17,7 @@
 from torch import nn as nn
 
 from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
-from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
+from nemo.collections.nlp.utils.transformer_utils import transformer_weights_init
 from nemo.core import ChannelType, NeuralType, RegressionValuesType
 from nemo.utils.decorators import add_port_docs
 
@@ -35,22 +35,24 @@ class SequenceRegression(TrainableNM):
         num_layers (int): number of layers in classifier MLP
         activation (str): activation function applied in classifier MLP layers
         dropout (float): dropout ratio applied to MLP
+        use_transformer_pretrained (bool):
+            TODO
     """
 
     @property
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
+        hidden_states: embedding hidden states
         """
-        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        preds: predictions before loss
         """
-        # return {"preds": NeuralType({0: AxisType(RegressionTag)})}
         return {"preds": NeuralType(tuple('B'), RegressionValuesType())}
 
     def __init__(self, hidden_size, num_layers=2, activation='relu', dropout=0.0, use_transformer_pretrained=True):
