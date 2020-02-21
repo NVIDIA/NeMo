@@ -28,116 +28,116 @@ pipeline {
     }
     stage('L0: Unittests ALL') {
       steps {
-        sh './reinstall.sh && python -m unittest'
+        sh './reinstall.sh'
       }
     }
 
-    stage('L1: Parallel Stage1') {
-      when {
-        anyOf{
-          branch 'master'
-          changeRequest()
-        }
-      }
-      failFast true
-      parallel {
-        stage('Simplest test') {
-          steps {
-            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=0 python simplest_example.py'
-          }
-        }
-        stage ('Chatbot test') {
-          steps {
-            sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=1 python chatbot_example.py'
-          }
-        }
-      }
-    }
+    // stage('L1: Parallel Stage1') {
+    //   when {
+    //     anyOf{
+    //       branch 'master'
+    //       changeRequest()
+    //     }
+    //   }
+    //   failFast true
+    //   parallel {
+    //     stage('Simplest test') {
+    //       steps {
+    //         sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=0 python simplest_example.py'
+    //       }
+    //     }
+    //     stage ('Chatbot test') {
+    //       steps {
+    //         sh 'cd examples/start_here && CUDA_VISIBLE_DEVICES=1 python chatbot_example.py'
+    //       }
+    //     }
+    //   }
+    // }
 
-    stage('L1: Parallel NLP-BERT pretraining') {
-      when {
-        anyOf{
-          branch 'master'
-          changeRequest()
-        }
-      }
-      failFast true
-      parallel { 
-        stage('BERT on the fly preprocessing') {
-          steps {
-            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=0 python bert_pretraining.py --amp_opt_level O1 --data_dir /home/TestData/nlp/wikitext-2 --dataset_name wikitext-2 --work_dir outputs/bert_lm/wikitext2 --batch_size 64 --lr 0.01 --lr_policy CosineAnnealing --lr_warmup_proportion 0.05 --tokenizer sentence-piece --vocab_size 3200 --hidden_size 768 --intermediate_size 3072 --num_hidden_layers 6 --num_attention_heads 12 --hidden_act "gelu" --save_step_freq 200 --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1 --max_steps=300'
-            sh 'cd examples/nlp/language_modeling && LOSS=$(cat outputs/bert_lm/wikitext2/log_globalrank-0_localrank-0.txt |   grep "Loss" |tail -n 1| awk \'{print \$7}\' | egrep -o "[0-9.]+" ) && echo $LOSS && if [ $(echo "$LOSS < 8.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
-            sh 'rm -rf examples/nlp/language_modeling/outputs/wikitext2'
-          }
-        }        
-        stage('BERT offline preprocessing') {
-          steps {
-            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=1 python bert_pretraining.py --amp_opt_level O1 --data_dir /home/TestData/nlp/wiki_book_mini  --work_dir outputs/bert_lm/wiki_book --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --save_step_freq 200 --max_steps 300  --num_gpus 1  --batches_per_step 1 --lr_policy SquareRootAnnealing --beta2 0.999 --beta1 0.9  --lr_warmup_proportion 0.01 --optimizer adam_w  --weight_decay 0.01  --lr 0.875e-4 --preprocessed_data '
-            sh 'cd examples/nlp/language_modeling && LOSS=$(cat outputs/bert_lm/wiki_book/log_globalrank-0_localrank-0.txt |  grep "Loss" |tail -n 1| awk \'{print \$7}\' | egrep -o "[0-9.]+" ) && echo $LOSS && if [ $(echo "$LOSS < 15.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
-            sh 'rm -rf examples/nlp/language_modeling/outputs/wiki_book'
-          }
-        }
-      }
-    }
+    // stage('L1: Parallel NLP-BERT pretraining') {
+    //   when {
+    //     anyOf{
+    //       branch 'master'
+    //       changeRequest()
+    //     }
+    //   }
+    //   failFast true
+    //   parallel { 
+    //     stage('BERT on the fly preprocessing') {
+    //       steps {
+    //         sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=0 python bert_pretraining.py --amp_opt_level O1 --data_dir /home/TestData/nlp/wikitext-2 --dataset_name wikitext-2 --work_dir outputs/bert_lm/wikitext2 --batch_size 64 --lr 0.01 --lr_policy CosineAnnealing --lr_warmup_proportion 0.05 --tokenizer sentence-piece --vocab_size 3200 --hidden_size 768 --intermediate_size 3072 --num_hidden_layers 6 --num_attention_heads 12 --hidden_act "gelu" --save_step_freq 200 --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1 --max_steps=300'
+    //         sh 'cd examples/nlp/language_modeling && LOSS=$(cat outputs/bert_lm/wikitext2/log_globalrank-0_localrank-0.txt |   grep "Loss" |tail -n 1| awk \'{print \$7}\' | egrep -o "[0-9.]+" ) && echo $LOSS && if [ $(echo "$LOSS < 8.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+    //         sh 'rm -rf examples/nlp/language_modeling/outputs/wikitext2'
+    //       }
+    //     }        
+    //     stage('BERT offline preprocessing') {
+    //       steps {
+    //         sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=1 python bert_pretraining.py --amp_opt_level O1 --data_dir /home/TestData/nlp/wiki_book_mini  --work_dir outputs/bert_lm/wiki_book --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --save_step_freq 200 --max_steps 300  --num_gpus 1  --batches_per_step 1 --lr_policy SquareRootAnnealing --beta2 0.999 --beta1 0.9  --lr_warmup_proportion 0.01 --optimizer adam_w  --weight_decay 0.01  --lr 0.875e-4 --preprocessed_data '
+    //         sh 'cd examples/nlp/language_modeling && LOSS=$(cat outputs/bert_lm/wiki_book/log_globalrank-0_localrank-0.txt |  grep "Loss" |tail -n 1| awk \'{print \$7}\' | egrep -o "[0-9.]+" ) && echo $LOSS && if [ $(echo "$LOSS < 15.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+    //         sh 'rm -rf examples/nlp/language_modeling/outputs/wiki_book'
+    //       }
+    //     }
+    //   }
+    // }
 
-    stage('L1: Parallel NLP Examples 1') {
-      when {
-        anyOf{
-          branch 'master'
-          changeRequest()
-        }
-      }
-      failFast true
-      parallel {
-        stage ('Text Classification with BERT Test') {
-          steps {
-            sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --pretrained_bert_model bert-base-uncased --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --shuffle_data --work_dir=outputs'
-            sh 'rm -rf examples/nlp/text_classification/outputs'
-          }
-        }
-        stage ('Dialogue State Tracking - TRADE - Multi-GPUs') {
-          steps {
-            sh 'rm -rf /home/TestData/nlp/multiwoz2.1/vocab.pkl'
-            sh 'cd examples/nlp/dialogue_state_tracking && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 dialogue_state_tracking_trade.py --batch_size=10 --eval_batch_size=10 --num_train_samples=-1 --num_eval_samples=-1 --num_epochs=1 --dropout=0.2 --eval_file_prefix=test --shuffle_data --num_gpus=2 --lr=0.001 --grad_norm_clip=10 --work_dir=outputs --data_dir=/home/TestData/nlp/multiwoz2.1'
-            sh 'rm -rf examples/nlp/dialogue_state_tracking/outputs'
-            sh 'rm -rf /home/TestData/nlp/multiwoz2.1/vocab.pkl'
-          }
-        }
-        stage ('GLUE Benchmark Test') {
-          steps {
-            sh 'cd examples/nlp/glue_benchmark && CUDA_VISIBLE_DEVICES=1 python glue_benchmark_with_bert.py --data_dir /home/TestData/nlp/glue_fake/MRPC --pretrained_bert_model bert-base-uncased --work_dir glue_output --save_step_freq -1 --num_epochs 1 --task_name mrpc --batch_size 2'
-            sh 'rm -rf examples/nlp/glue_benchmark/glue_output'
-          }
-        }
-      }
-    }
+    // stage('L1: Parallel NLP Examples 1') {
+    //   when {
+    //     anyOf{
+    //       branch 'master'
+    //       changeRequest()
+    //     }
+    //   }
+    //   failFast true
+    //   parallel {
+    //     stage ('Text Classification with BERT Test') {
+    //       steps {
+    //         sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --pretrained_bert_model bert-base-uncased --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --shuffle_data --work_dir=outputs'
+    //         sh 'rm -rf examples/nlp/text_classification/outputs'
+    //       }
+    //     }
+    //     stage ('Dialogue State Tracking - TRADE - Multi-GPUs') {
+    //       steps {
+    //         sh 'rm -rf /home/TestData/nlp/multiwoz2.1/vocab.pkl'
+    //         sh 'cd examples/nlp/dialogue_state_tracking && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 dialogue_state_tracking_trade.py --batch_size=10 --eval_batch_size=10 --num_train_samples=-1 --num_eval_samples=-1 --num_epochs=1 --dropout=0.2 --eval_file_prefix=test --shuffle_data --num_gpus=2 --lr=0.001 --grad_norm_clip=10 --work_dir=outputs --data_dir=/home/TestData/nlp/multiwoz2.1'
+    //         sh 'rm -rf examples/nlp/dialogue_state_tracking/outputs'
+    //         sh 'rm -rf /home/TestData/nlp/multiwoz2.1/vocab.pkl'
+    //       }
+    //     }
+    //     stage ('GLUE Benchmark Test') {
+    //       steps {
+    //         sh 'cd examples/nlp/glue_benchmark && CUDA_VISIBLE_DEVICES=1 python glue_benchmark_with_bert.py --data_dir /home/TestData/nlp/glue_fake/MRPC --pretrained_bert_model bert-base-uncased --work_dir glue_output --save_step_freq -1 --num_epochs 1 --task_name mrpc --batch_size 2'
+    //         sh 'rm -rf examples/nlp/glue_benchmark/glue_output'
+    //       }
+    //     }
+    //   }
+    // }
 
 
-    stage('L1: Parallel NLP Examples 2') {
-      when {
-        anyOf{
-          branch 'master'
-          changeRequest()
-        }
-      }
-      failFast true
-      parallel {
-        stage('Token Classification Training/Inference Test') {
-          steps {
-            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=0 python token_classification.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --batch_size 2 --num_epochs 1 --save_epoch_freq 1 --work_dir token_classification_output --pretrained_bert_model bert-base-uncased'
-            sh 'cd examples/nlp/token_classification && DATE_F=$(ls token_classification_output/) && CUDA_VISIBLE_DEVICES=0 python token_classification_infer.py --work_dir token_classification_output/$DATE_F/checkpoints/ --labels_dict /home/TestData/nlp/token_classification_punctuation/label_ids.csv --pretrained_bert_model bert-base-uncased'
-            sh 'rm -rf examples/nlp/token_classification/token_classification_output'
-          }
-        }
-        stage ('Punctuation and Classification Training/Inference Test') {
-          steps {
-            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=1 python punctuation_capitalization.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --work_dir punctuation_output --save_epoch_freq 1 --num_epochs 1 --save_step_freq -1 --batch_size 2'
-            sh 'cd examples/nlp/token_classification && DATE_F=$(ls punctuation_output/) && DATA_DIR="/home/TestData/nlp/token_classification_punctuation" && CUDA_VISIBLE_DEVICES=1 python punctuation_capitalization_infer.py --checkpoints_dir punctuation_output/$DATE_F/checkpoints/ --punct_labels_dict $DATA_DIR/punct_label_ids.csv --capit_labels_dict $DATA_DIR/capit_label_ids.csv'
-            sh 'rm -rf examples/nlp/token_classification/punctuation_output'
-          }
-        }
-      }
-    }
+    // stage('L1: Parallel NLP Examples 2') {
+    //   when {
+    //     anyOf{
+    //       branch 'master'
+    //       changeRequest()
+    //     }
+    //   }
+    //   failFast true
+    //   parallel {
+    //     stage('Token Classification Training/Inference Test') {
+    //       steps {
+    //         sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=0 python token_classification.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --batch_size 2 --num_epochs 1 --save_epoch_freq 1 --work_dir token_classification_output --pretrained_bert_model bert-base-uncased'
+    //         sh 'cd examples/nlp/token_classification && DATE_F=$(ls token_classification_output/) && CUDA_VISIBLE_DEVICES=0 python token_classification_infer.py --work_dir token_classification_output/$DATE_F/checkpoints/ --labels_dict /home/TestData/nlp/token_classification_punctuation/label_ids.csv --pretrained_bert_model bert-base-uncased'
+    //         sh 'rm -rf examples/nlp/token_classification/token_classification_output'
+    //       }
+    //     }
+    //     stage ('Punctuation and Classification Training/Inference Test') {
+    //       steps {
+    //         sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=1 python punctuation_capitalization.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --work_dir punctuation_output --save_epoch_freq 1 --num_epochs 1 --save_step_freq -1 --batch_size 2'
+    //         sh 'cd examples/nlp/token_classification && DATE_F=$(ls punctuation_output/) && DATA_DIR="/home/TestData/nlp/token_classification_punctuation" && CUDA_VISIBLE_DEVICES=1 python punctuation_capitalization_infer.py --checkpoints_dir punctuation_output/$DATE_F/checkpoints/ --punct_labels_dict $DATA_DIR/punct_label_ids.csv --capit_labels_dict $DATA_DIR/capit_label_ids.csv'
+    //         sh 'rm -rf examples/nlp/token_classification/punctuation_output'
+    //       }
+    //     }
+    //   }
+    // }
 
     stage('L1: Parallel NLP-Squad') {
       when {
