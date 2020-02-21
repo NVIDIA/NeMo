@@ -5,11 +5,29 @@ Tutorial
 Introduction
 ------------
 
-The goal of Dialog State Tracking  is to build a representation of the status of the ongoing conversation \
-being a sequence of utterances exchanged between dialog participants.
+The goal of **Dialog State Tracking (DST)** :cite:`nlp-dst-henderson2015machine` \
+is to build a representation of the status of the ongoing conversation \
+being a sequence of utterances exchanged between dialog participants. \
+In another words, the goal of DST system is to capture user goals and intentions and encode them as a set of \
+**slots** along with the corresponding **values**.
 
-In this tutorial we will focus on a multi-domain dialogue MultiWOZ dataset and show how one can train a TRADE model, \
-being one of the recent, state of the art models.
+
+.. figure:: dst_multi_woz_example.png
+
+   Fig. 1: An exemplary, multi-domain dialog along with the associated state tracking (source: \
+   :cite:`nlp-dst-wu2019transferable`)
+
+
+In this tutorial we will focus on a multi-domain dialogue MultiWOZ dataset :cite:`nlp-dst-budzianowski2018multiwoz` \
+and show how one can train a TRADE model :cite:`nlp-dst-wu2019transferable`, \
+being one of the recent, state of the art models. \
+**Multi-domain** setting introduces several challanges, with the most important coming from the need for \
+**multi-turn mapping**. In a **single-turn mapping** scenario the (**domain**, **slot**, **value**) triplet can be \
+inferred from a single turn. In multi-turn this assumption does not hold and the DST system must infer those from \
+multiple turns, possibly spanning over several different domains.
+
+
+
 
 The MultiWOZ Dataset
 --------------------
@@ -76,27 +94,38 @@ As well as domain-specific slots:
 * no of days (123).
 
 
-Please note that some of the actions and slots are associated with several domains, and some are universal, \
-i.e. domain independent. They are denoted with (∗).
+Please note that some of the actions and slots are associated with particular domain(s), whereas some are universal, \
+i.e. domain independent. The latter ones are denoted with (∗).
 
 
-MultiWOZ offers a total of 10,438 dialogues, with 115,434 turns in total. \
-Dialogues are generally classified into single and multi domain dialogues. \
+MultiWOZ offers 10,438 dialogues, with 115,434 turns in total. \
+Dialogues are generally classified into single and multi-domain dialogues. \
 Dialogue length distribution is varying from 1 to 31, with around 70%of dialogues have more than 10 turns. \
 The average number of turns are 8.93 and 15.39 for single and multi-domain dialogues. \
 
 Each dialogue consists of a goal, multiple user and system utterances as well as a belief state and set of dialogue \
-acts with slots per turn. Additionally, each dialog is supported with a task description.
-
-
+acts with slots per turn. Additionally, each dialog is supported with a task description. \
+Moreover, it contains both system and user dialogue act annotations (the latter introduced in MultiWOZ 2.1).
 
 
 The TRADE model
 ---------------
 
 
+.. figure:: dst_trade_model_architecture.png
+
+   Fig. 2: Architecture of the TRADE model (source: :cite:`nlp-dst-wu2019transferable`)
+
+
+Evaluation Metrics
+------------------
+hree  different  automaticmetrics are included to ensure the result is betterinterpreted.   Among  them,  the  first  two  metricsrelate  to  the  dialogue  task  completion  -  whetherthe system has provided an appropriate entity (In-form rate) and then answered all the requested at-tributes (Success rate)
+
+while fluency is measuredvia BLEU score 
+
+
 Data Preprocessing
-----------------------
+------------------
 
 First, we need to download the `MULTIWOZ2.1.zip`_ file from the `MultiWOZ`_ project website.
 
@@ -112,9 +141,15 @@ Next, we need to preprocess and reformat the dataset, what will result in divisi
  * validation split (1000 dialogs in the ``val_dials.json`` file)
  * test split (999 dialogs in the ``test_dials.json`` file)
 
-In order to preprocess the MultiWOZ dataset you can use the provided `script`_.
+In order to preprocess the MultiWOZ dataset you can use the provided `process_multiwoz`_ script:
 
-.. _script: https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/scripts/multiwoz/process_multiwoz.py
+.. _process_multiwoz: https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/scripts/multiwoz/process_multiwoz.py
+
+.. code-block:: bash
+
+    cd examples/nlp/scripts/multiwoz
+    python process_multiwoz.py
+
 
 .. note::
     By default, the script assumes that you will copy data from the unpacked archive into the \
