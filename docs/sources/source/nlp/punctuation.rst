@@ -7,6 +7,8 @@ An ASR system typically generates text with no punctuation and capitalization of
 .. tip::
 
     We recommend you to try this example in Jupyter notebook examples/nlp/token_classification/PunctuationWithBERT.ipynb.
+    
+    All code used in this tutorial is based on :ref:`punct_scripts`.
     For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
 
 
@@ -84,7 +86,7 @@ To download and preprocess a subset of the Tatoeba collection of sentences, run:
 
 .. code-block:: bash
         
-        python ../scripts/get_tatoeba_data.py --data_dir DATA_DIR --num_sample NUM_SAMPLES
+        python ../scripts/get_tatoeba.py --data_dir DATA_DIR --num_sample NUM_SAMPLES
 
 Then, we need to create our neural factory with the supported backend. This tutorial assumes that you're training on a single GPU, with mixed precision (``optimization_level="O1"``). If you don't want to use mixed precision, set ``optimization_level`` to ``O0``.
 
@@ -96,11 +98,11 @@ Then, we need to create our neural factory with the supported backend. This tuto
                                            log_dir=WORK_DIR,
                                            placement=nemo.core.DeviceType.GPU)
 
-Next, we'll need to define our tokenizer and our BERT model. If you're using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out ``nemo_nlp.huggingface.BERT.list_pretrained_models()``
+Next, we'll need to define our tokenizer and our BERT model. If you're using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out ``nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()``
 
     .. code-block:: python
 
-        tokenizer = NemoBertTokenizer(pretrained_model=PRETRAINED_BERT_MODEL)
+        tokenizer = nemo.collections.nlp.data.NemoBertTokenizer(pretrained_model=PRETRAINED_BERT_MODEL)
         bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
             pretrained_model_name=PRETRAINED_BERT_MODEL)
 
@@ -153,12 +155,11 @@ Now, create punctuation and capitalization classifiers to sit on top of the pret
 
       # If you don't want to use weighted loss for Punctuation task, use class_weights=None
       punct_label_freqs = train_data_layer.dataset.punct_label_frequencies
-      class_weights = utils.calc_class_weights(punct_label_freqs)
+      class_weights = nemo.collections.nlp.data.datasets.datasets_utils.calc_class_weights(punct_label_freqs)
 
       # define loss
-      punct_loss = TokenClassificationLoss(num_classes=len(punct_label_ids),
-                                                    class_weights=class_weights)
-      capit_loss = TokenClassificationLoss(num_classes=len(capit_label_ids))
+      punct_loss = CrossEntropyLossNM(logits_dim=3, weight=class_weights)
+      capit_loss = CrossEntropyLossNM(logits_dim=3)
       task_loss = LossAggregatorNM(num_inputs=2)
 
 
@@ -335,21 +336,22 @@ Inference results:
         Query: the more you buy the more you save
         Combined: The more you buy, the more you save.
 
+.. _punct_scripts:
 
-To train the model with the provided scripts
---------------------------------------------
+Training and inference scripts
+------------------------------
 
 To run the provided training script:
 
 .. code-block:: bash
 
-    python examples/nlp/token_classification/punctuation_capitalization.py --data_dir path/to/data --pretrained_bert_model=bert-base-uncased --work_dir output
+    python examples/nlp/token_classification/punctuation_capitalization.py --data_dir path_to_data --pretrained_bert_model=bert-base-uncased --work_dir path_to_output_dir
 
 To run inference:
 
 .. code-block:: bash
 
-    python examples/nlp/token_classification/punctuation_capitalization_infer.py --punct_labels_dict path/to/data/punct_label_ids.csv --capit_labels_dict path/to/data/capit_label_ids.csv --work_dir output/checkpoints/
+    python examples/nlp/token_classification/punctuation_capitalization_infer.py --punct_labels_dict path_to_data/punct_label_ids.csv --capit_labels_dict path_to_data/capit_label_ids.csv --work_dir path_to_output_dir/checkpoints/
 
 Note, punct_label_ids.csv and capit_label_ids.csv files will be generated during training and stored in the data_dir folder.
 
@@ -361,4 +363,4 @@ To run training on multiple GPUs, run
 .. code-block:: bash
 
     export NUM_GPUS=2
-    python -m torch.distributed.launch --nproc_per_node=$NUM_GPUS examples/nlp/token_classification/punctuation_capitalization.py --num_gpus $NUM_GPUS --data_dir path/to/data
+    python -m torch.distributed.launch --nproc_per_node=$NUM_GPUS examples/nlp/token_classification/punctuation_capitalization.py --num_gpus $NUM_GPUS --data_dir path_to_data
