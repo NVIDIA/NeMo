@@ -150,7 +150,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
     logging.info(f"Steps_per_epoch = {steps_per_epoch}")
 
     hidden_states = pretrained_bert_model(
-        input_ids=input_data.ids, token_type_ids=input_data.type_ids, attention_mask=input_data.input_mask
+        input_ids=input_data.input_ids, token_type_ids=input_data.input_type_ids, attention_mask=input_data.input_mask
     )
 
     intent_logits, slot_logits = classifier(hidden_states=hidden_states)

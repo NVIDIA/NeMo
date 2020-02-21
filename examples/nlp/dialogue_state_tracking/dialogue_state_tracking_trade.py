@@ -36,7 +36,7 @@ from nemo.collections.nlp.nm.losses import MaskedLogLoss
 from nemo.collections.nlp.nm.trainables import TRADEGenerator
 from nemo.utils.lr_policies import get_lr_policy
 
-parser = argparse.ArgumentParser(description='Dialog state tracking with TRADE model on MultiWOZ dataset')
+parser = argparse.ArgumentParser(description='Dialogue state tracking with TRADE model on MultiWOZ dataset')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=16, type=int)
 parser.add_argument("--eval_batch_size", default=16, type=int)
@@ -158,7 +158,7 @@ def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefi
             total_loss,
             point_outputs,
             gate_outputs,
-            input_data.gate_labels,
+            input_data.gating_labels,
             input_data.turn_domain,
             input_data.tgt_ids,
             input_data.tgt_lens,

@@ -80,7 +80,6 @@ class MultiWOZDataLayer(TextDataLayer):
         tgt_lens: lengths of the generator targets
         gating_labels: labels for the gating head
         turn_domain: list of the domains
-            NeuralType(None)
 
         """
         return {
