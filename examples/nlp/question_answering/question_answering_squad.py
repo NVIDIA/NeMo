@@ -353,9 +353,7 @@ if __name__ == "__main__":
         args.pretrained_model_name = model_name
 
     if args.bert_config is not None:
-        with open(args.bert_config) as json_file:
-            config = json.load(json_file)
-        model = model_cls(**config)
+        model = model_cls(config_filename=args.bert_config)
     else:
         """ Use this if you're using a standard BERT model.
         To see the list of pretrained models, call:
