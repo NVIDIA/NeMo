@@ -18,16 +18,16 @@ import argparse
 import json
 import os
 
+import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing
-import nemo.collections.nlp.utils.data_utils
 from nemo import logging
-from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
+from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
 from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
     eval_epochs_done_callback,
     eval_iter_callback,
 )
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
+from nemo.collections.nlp.data.datasets.datasets_utils import calc_class_weights
 from nemo.collections.nlp.nm.data_layers import PunctuationCapitalizationDataLayer
 from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
@@ -215,9 +215,7 @@ def create_pipeline(
         if args.use_weighted_loss_punct:
             logging.info(f"Using weighted loss for punctuation task")
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
-            class_weights = nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing.calc_class_weights(
-                punct_label_freqs
-            )
+            class_weights = calc_class_weights(punct_label_freqs)
 
         # Initialize punctuation loss
         punct_classifier = punct_classifier(
@@ -236,7 +234,7 @@ def create_pipeline(
         )
         capit_loss = CrossEntropyLossNM(logits_dim=3)
 
-        task_loss = nemo.backends.pytorch.common.losses.LossAggregatorNM(num_inputs=2)
+        task_loss = LossAggregatorNM(num_inputs=2)
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
