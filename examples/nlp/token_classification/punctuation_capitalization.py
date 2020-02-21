@@ -172,7 +172,7 @@ def create_pipeline(
 ):
 
     logging.info(f"Loading {mode} data...")
-    shuffle = args.shuffle_data if mode == 'train' else False
+    shuffle = args.do_not_shuffle_data if mode == 'train' else False
 
     text_file = f'{args.data_dir}/text_{mode}.txt'
     label_file = f'{args.data_dir}/labels_{mode}.txt'
