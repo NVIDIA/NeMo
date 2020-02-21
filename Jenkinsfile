@@ -172,6 +172,7 @@ pipeline {
       }
     }
 
+
     stage('L1: Parallel NLP-Examples 3') {
       when {
         anyOf{
@@ -181,113 +182,126 @@ pipeline {
       }
       failFast true
           steps {
-            sh 'cd examples/nlp/asr_postprocessor && CUDA_VISIBLE_DEVICES=0 python asr_postprocessor.py --data_dir=/home/TestData/nlp/asr_postprocessor/pred_real --restore_from=/home/TestData/nlp/asr_postprocessor/bert-base-uncased_decoder.pt --max_steps=25 --batch_size=64'
-            sh 'cd examples/nlp/asr_postprocessor && WER=$(cat outputs/asr_postprocessor/log_globalrank-0_localrank-0.txt | grep "Validation WER" | tail -n 1 | egrep -o "[0-9.]+" | tail -n 1) && echo $WER && if [ $(echo "$WER < 25.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
-            sh 'rm -rf examples/nlp/asr_postprocessor/outputs'
+            sh 'ls -la /root/'
           }
     }
 
-    stage('L1: NLP-Intent Detection/SLot Tagging Examples - Multi-GPU') {
-      when {
-        anyOf{
-          branch 'master'
-          changeRequest()
-        }
-      }
-      failFast true
-        steps {
-          sh 'cd examples/nlp/intent_detection_slot_tagging && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py --num_gpus=2 --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis-retail --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --shuffle_data --work_dir=outputs'
-          sh 'cd examples/nlp/intent_detection_slot_tagging && TASK_NAME=$(ls outputs/) && DATE_F=$(ls outputs/$TASK_NAME/) && CHECKPOINT_DIR=outputs/$TASK_NAME/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer.py --work_dir $CHECKPOINT_DIR --eval_file_prefix=eval --dataset_name=jarvis-retail --data_dir=/home/TestData/nlp/retail/ --batch_size=10'
-          sh 'cd examples/nlp/intent_detection_slot_tagging && TASK_NAME=$(ls outputs/) && DATE_F=$(ls outputs/$TASK_NAME/) && CHECKPOINT_DIR=outputs/$TASK_NAME/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer_b1.py --data_dir=/home/TestData/nlp/retail/ --work_dir $CHECKPOINT_DIR --dataset_name=jarvis-retail --query="how much is it?"'
-          sh 'rm -rf examples/nlp/intent_detection_slot_tagging/outputs'
-        }
-      }
+    // stage('L1: Parallel NLP-Examples 3') {
+    //   when {
+    //     anyOf{
+    //       branch 'master'
+    //       changeRequest()
+    //     }
+    //   }
+    //   failFast true
+    //       steps {
+    //         sh 'cd examples/nlp/asr_postprocessor && CUDA_VISIBLE_DEVICES=0 python asr_postprocessor.py --data_dir=/home/TestData/nlp/asr_postprocessor/pred_real --restore_from=/home/TestData/nlp/asr_postprocessor/bert-base-uncased_decoder.pt --max_steps=25 --batch_size=64'
+    //         sh 'cd examples/nlp/asr_postprocessor && WER=$(cat outputs/asr_postprocessor/log_globalrank-0_localrank-0.txt | grep "Validation WER" | tail -n 1 | egrep -o "[0-9.]+" | tail -n 1) && echo $WER && if [ $(echo "$WER < 25.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+    //         sh 'rm -rf examples/nlp/asr_postprocessor/outputs'
+    //       }
+    // }
 
-    stage('L1: NLP-NMT Example') {
-      when {
-        anyOf{
-          branch 'master'
-          changeRequest()
-        }
-      }
-      failFast true
-        steps {
-          sh 'cd examples/nlp/neural_machine_translation/ && CUDA_VISIBLE_DEVICES=0 python machine_translation_tutorial.py --max_steps 100'
-          sh 'rm -rf examples/nlp/neural_machine_translation/outputs'        
-      }
-    }
+    // stage('L1: NLP-Intent Detection/SLot Tagging Examples - Multi-GPU') {
+    //   when {
+    //     anyOf{
+    //       branch 'master'
+    //       changeRequest()
+    //     }
+    //   }
+    //   failFast true
+    //     steps {
+    //       sh 'cd examples/nlp/intent_detection_slot_tagging && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py --num_gpus=2 --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis-retail --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --shuffle_data --work_dir=outputs'
+    //       sh 'cd examples/nlp/intent_detection_slot_tagging && TASK_NAME=$(ls outputs/) && DATE_F=$(ls outputs/$TASK_NAME/) && CHECKPOINT_DIR=outputs/$TASK_NAME/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer.py --work_dir $CHECKPOINT_DIR --eval_file_prefix=eval --dataset_name=jarvis-retail --data_dir=/home/TestData/nlp/retail/ --batch_size=10'
+    //       sh 'cd examples/nlp/intent_detection_slot_tagging && TASK_NAME=$(ls outputs/) && DATE_F=$(ls outputs/$TASK_NAME/) && CHECKPOINT_DIR=outputs/$TASK_NAME/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer_b1.py --data_dir=/home/TestData/nlp/retail/ --work_dir $CHECKPOINT_DIR --dataset_name=jarvis-retail --query="how much is it?"'
+    //       sh 'rm -rf examples/nlp/intent_detection_slot_tagging/outputs'
+    //     }
+    //   }
 
-    stage('L1: Parallel Stage Jasper / GAN') {
-      when {
-        anyOf{
-          branch 'master'
-          changeRequest()
-        }
-      }
-      failFast true
-      parallel {
-        // stage('Jasper AN4 O1') {
-        //   steps {
-        //     sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0 python jasper_an4.py --amp_opt_level=O1 --num_epochs=35 --test_after_training --work_dir=O1'
-        //   }
-        // }
-        stage('GAN O2') {
-          steps {
-            sh 'cd examples/image && CUDA_VISIBLE_DEVICES=0 python gan.py --amp_opt_level=O2 --num_epochs=3 --train_dataset=/home/TestData/'
-          }
-        }
-        stage('Jasper AN4 O2') {
-          steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=1 python jasper_an4.py --amp_opt_level=O2 --num_epochs=35 --test_after_training --work_dir=O2 --train_dataset=/home/TestData/an4_dataset/an4_train.json --eval_datasets=/home/TestData/an4_dataset/an4_val.json'
-          }
-        }
-      }
-    }
+    // stage('L1: NLP-NMT Example') {
+    //   when {
+    //     anyOf{
+    //       branch 'master'
+    //       changeRequest()
+    //     }
+    //   }
+    //   failFast true
+    //     steps {
+    //       sh 'cd examples/nlp/neural_machine_translation/ && CUDA_VISIBLE_DEVICES=0 python machine_translation_tutorial.py --max_steps 100'
+    //       sh 'rm -rf examples/nlp/neural_machine_translation/outputs'        
+    //   }
+    // }
 
-    // stage('Parallel Stage GAN') {
+    // stage('L1: Parallel Stage Jasper / GAN') {
+    //   when {
+    //     anyOf{
+    //       branch 'master'
+    //       changeRequest()
+    //     }
+    //   }
     //   failFast true
     //   parallel {
-    //     stage('GAN O1') {
+    //     // stage('Jasper AN4 O1') {
+    //     //   steps {
+    //     //     sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0 python jasper_an4.py --amp_opt_level=O1 --num_epochs=35 --test_after_training --work_dir=O1'
+    //     //   }
+    //     // }
+    //     stage('GAN O2') {
     //       steps {
-    //         sh 'cd examples/image && CUDA_VISIBLE_DEVICES=0 python gan.py --amp_opt_level=O1 --num_epochs=3'
+    //         sh 'cd examples/image && CUDA_VISIBLE_DEVICES=0 python gan.py --amp_opt_level=O2 --num_epochs=3 --train_dataset=/home/TestData/'
+    //       }
+    //     }
+    //     stage('Jasper AN4 O2') {
+    //       steps {
+    //         sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=1 python jasper_an4.py --amp_opt_level=O2 --num_epochs=35 --test_after_training --work_dir=O2 --train_dataset=/home/TestData/an4_dataset/an4_train.json --eval_datasets=/home/TestData/an4_dataset/an4_val.json'
     //       }
     //     }
     //   }
     // }
 
-    stage('L1: Multi-GPU Jasper test') {
-      when {
-        anyOf{
-          branch 'master'
-          changeRequest()
-        }
-      }
-      failFast true
-      parallel {
-        stage('Jasper AN4 2 GPUs') {
-          steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 jasper_an4.py --num_epochs=40 --batch_size=24 --work_dir=multi_gpu --test_after_training  --train_dataset=/home/TestData/an4_dataset/an4_train.json --eval_datasets=/home/TestData/an4_dataset/an4_val.json'
-          }
-        }
-      }
-    }
+    // // stage('Parallel Stage GAN') {
+    // //   failFast true
+    // //   parallel {
+    // //     stage('GAN O1') {
+    // //       steps {
+    // //         sh 'cd examples/image && CUDA_VISIBLE_DEVICES=0 python gan.py --amp_opt_level=O1 --num_epochs=3'
+    // //       }
+    // //     }
+    // //   }
+    // // }
+
+    // stage('L1: Multi-GPU Jasper test') {
+    //   when {
+    //     anyOf{
+    //       branch 'master'
+    //       changeRequest()
+    //     }
+    //   }
+    //   failFast true
+    //   parallel {
+    //     stage('Jasper AN4 2 GPUs') {
+    //       steps {
+    //         sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 jasper_an4.py --num_epochs=40 --batch_size=24 --work_dir=multi_gpu --test_after_training  --train_dataset=/home/TestData/an4_dataset/an4_train.json --eval_datasets=/home/TestData/an4_dataset/an4_val.json'
+    //       }
+    //     }
+    //   }
+    // }
     
 
-    stage('L1: TTS Tests') {
-      when {
-        anyOf{
-          branch 'master'
-          changeRequest()
-        }
-      }
-      failFast true
-      steps {
-        sh 'cd examples/tts && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 tacotron2.py --max_steps=51 --model_config=configs/tacotron2.yaml --train_dataset=/home/TestData/an4_dataset/an4_train.json --amp_opt_level=O1 --eval_freq=50'
-        sh 'cd examples/tts && TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && echo $TTS_CHECKPOINT_DIR && LOSS=$(cat $TTS_CHECKPOINT_DIR/log_globalrank-0_localrank-0.txt | grep -o -E "Loss[ :0-9.]+" | grep -o -E "[0-9.]+" | tail -n 1) && echo $LOSS && if [ $(echo "$LOSS < 3.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
-        // sh 'cd examples/tts && TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && cp ../asr/multi_gpu/checkpoints/* $TTS_CHECKPOINT_DIR/checkpoints'
-        // sh 'CUDA_VISIBLE_DEVICES=0 python tacotron2_an4_test.py --model_config=configs/tacotron2.yaml --eval_dataset=/home/TestData/an4_dataset/an4_train.json --jasper_model_config=../asr/configs/jasper_an4.yaml --load_dir=$TTS_CHECKPOINT_DIR/checkpoints'
-      }
-    }
+    // stage('L1: TTS Tests') {
+    //   when {
+    //     anyOf{
+    //       branch 'master'
+    //       changeRequest()
+    //     }
+    //   }
+    //   failFast true
+    //   steps {
+    //     sh 'cd examples/tts && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 tacotron2.py --max_steps=51 --model_config=configs/tacotron2.yaml --train_dataset=/home/TestData/an4_dataset/an4_train.json --amp_opt_level=O1 --eval_freq=50'
+    //     sh 'cd examples/tts && TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && echo $TTS_CHECKPOINT_DIR && LOSS=$(cat $TTS_CHECKPOINT_DIR/log_globalrank-0_localrank-0.txt | grep -o -E "Loss[ :0-9.]+" | grep -o -E "[0-9.]+" | tail -n 1) && echo $LOSS && if [ $(echo "$LOSS < 3.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+    //     // sh 'cd examples/tts && TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && cp ../asr/multi_gpu/checkpoints/* $TTS_CHECKPOINT_DIR/checkpoints'
+    //     // sh 'CUDA_VISIBLE_DEVICES=0 python tacotron2_an4_test.py --model_config=configs/tacotron2.yaml --eval_dataset=/home/TestData/an4_dataset/an4_train.json --jasper_model_config=../asr/configs/jasper_an4.yaml --load_dir=$TTS_CHECKPOINT_DIR/checkpoints'
+    //   }
+    // }
 
   }
 
