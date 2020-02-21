@@ -133,7 +133,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
             (ids, type_ids, input_mask, loss_mask, subtokens_mask, intents, slots) = data_layer()
             data_size = len(data_layer)
 
-            print(f'The length of data layer is {data_size}')
+            logging.info(f'The length of data layer is {data_size}')
 
             if data_size < batch_size:
                 logging.warning("Batch_size is larger than the dataset size")

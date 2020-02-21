@@ -136,10 +136,10 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
         ignore_start_end=args.ignore_start_end,
     )
 
-    (ids, type_ids, input_mask, loss_mask, subtokens_mask, intents, slots) = data_layer()
+    input_data = data_layer()
     data_size = len(data_layer)
 
-    print(f'The length of data layer is {data_size}')
+    logging.info(f'The length of data layer is {data_size}')
 
     if data_size < batch_size:
         logging.warning("Batch_size is larger than the dataset size")
@@ -149,18 +149,18 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
     steps_per_epoch = math.ceil(data_size / (batch_size * num_gpus))
     logging.info(f"Steps_per_epoch = {steps_per_epoch}")
 
-    hidden_states = pretrained_bert_model(input_ids=ids, token_type_ids=type_ids, attention_mask=input_mask)
+    hidden_states = pretrained_bert_model(input_ids=input_data.ids, token_type_ids=input_data.type_ids, attention_mask=input_data.input_mask)
 
     intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
-    intent_loss = intent_loss_fn(logits=intent_logits, labels=intents)
-    slot_loss = slot_loss_fn(logits=slot_logits, labels=slots, loss_mask=loss_mask)
+    intent_loss = intent_loss_fn(logits=intent_logits, labels=input_data.intents)
+    slot_loss = slot_loss_fn(logits=slot_logits, labels=input_data.slots, loss_mask=input_data.loss_mask)
     total_loss = total_loss_fn(loss_1=intent_loss, loss_2=slot_loss)
 
     if mode == 'train':
         tensors_to_evaluate = [total_loss, intent_logits, slot_logits]
     else:
-        tensors_to_evaluate = [intent_logits, slot_logits, intents, slots, subtokens_mask]
+        tensors_to_evaluate = [intent_logits, slot_logits, input_data.intents, input_data.slots, input_data.subtokens_mask]
 
     return tensors_to_evaluate, total_loss, steps_per_epoch, data_layer
 

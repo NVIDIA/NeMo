@@ -124,7 +124,8 @@ def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefi
         input_dropout=input_dropout,
     )
 
-    src_ids, src_lens, tgt_ids, tgt_lens, gate_labels, turn_domain = data_layer()
+    #src_ids, src_lens, tgt_ids, tgt_lens, gate_labels, turn_domain = data_layer()
+    input_data = data_layer()
 
     data_size = len(data_layer)
     logging.info(f'The length of data layer is {data_size}')
@@ -137,20 +138,20 @@ def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefi
     steps_per_epoch = math.ceil(data_size / (batch_size * num_gpus))
     logging.info(f"Steps_per_epoch = {steps_per_epoch}")
 
-    outputs, hidden = encoder(inputs=src_ids, input_lens=src_lens)
+    outputs, hidden = encoder(inputs=input_data.src_ids, input_lens=input_data.src_lens)
 
     point_outputs, gate_outputs = decoder(
-        encoder_hidden=hidden, encoder_outputs=outputs, input_lens=src_lens, src_ids=src_ids, targets=tgt_ids
+        encoder_hidden=hidden, encoder_outputs=outputs, input_lens=input_data.src_lens, src_ids=input_data.src_ids, targets=input_data.tgt_ids
     )
 
-    gate_loss = gate_loss_fn(logits=gate_outputs, labels=gate_labels)
-    ptr_loss = ptr_loss_fn(logits=point_outputs, labels=tgt_ids, length_mask=tgt_lens)
+    gate_loss = gate_loss_fn(logits=gate_outputs, labels=input_data.gate_labels)
+    ptr_loss = ptr_loss_fn(logits=point_outputs, labels=input_data.tgt_ids, length_mask=input_data.tgt_lens)
     total_loss = total_loss_fn(loss_1=gate_loss, loss_2=ptr_loss)
 
     if is_training:
         tensors_to_evaluate = [total_loss, gate_loss, ptr_loss]
     else:
-        tensors_to_evaluate = [total_loss, point_outputs, gate_outputs, gate_labels, turn_domain, tgt_ids, tgt_lens]
+        tensors_to_evaluate = [total_loss, point_outputs, gate_outputs, input_data.gate_labels, input_data.turn_domain, input_data.tgt_ids, input_data.tgt_lens]
 
     return tensors_to_evaluate, total_loss, ptr_loss, gate_loss, steps_per_epoch, data_layer
 
