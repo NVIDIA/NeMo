@@ -19,10 +19,10 @@ from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['BertSentenceClassificationDataLayer']
+__all__ = ['BertTextClassificationDataLayer']
 
 
-class BertSentenceClassificationDataLayer(TextDataLayer):
+class BertTextClassificationDataLayer(TextDataLayer):
     """
     Creates the data layer to use for the task of sentence classification
     with pretrained model.

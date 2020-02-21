@@ -112,7 +112,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
     shuffle = args.shuffle_data if mode == 'train' else False
 
-    data_layer = nemo.collections.nlp.nm.data_layers.text_classification_datalayer.BertSentenceClassificationDataLayer(
+    data_layer = nemo.collections.nlp.nm.data_layers.text_classification_datalayer.BertTextClassificationDataLayer(
         input_file=data_file,
         tokenizer=tokenizer,
         max_seq_length=args.max_seq_length,
