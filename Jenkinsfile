@@ -28,7 +28,7 @@ pipeline {
     }
     stage('L0: Unittests ALL') {
       steps {
-        sh './reinstall.sh && python -m unittest'
+        sh 'ln -s /home/.cache ~/.cache && ./reinstall.sh && python -m unittest'
       }
     }
 
