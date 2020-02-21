@@ -42,10 +42,10 @@ from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import LabelsType, LengthsType, LogitsType, LossType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['MaskedXEntropyLoss']
+__all__ = ['MaskedLogLoss']
 
 
-class MaskedXEntropyLoss(LossNM):
+class MaskedLogLoss(LossNM):
     """
     Neural module which implements a cross entropy model with masking feature. It keeps just the target logit for cross entropy calculation
 
