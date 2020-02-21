@@ -39,7 +39,16 @@ NeMo consists of:
 
 * **NeMo Core**: fundamental building blocks for all neural models and type system.
 * **NeMo collections**: pre-built neural modules for particular domains such as automatic speech recognition (nemo_asr), natural language processing (nemo_nlp) and text synthesis (nemo_tts).
-
+* 1) **NLP Collection**
+* Intent Detection and Slot Filling
+* Text Classification
+* State Tracking for Task-oriented Dialogue Systems
+* Language Modelling
+* Machine Translation
+* Question Answering
+* Name Entity Recognition
+* Punctuation and Capitalization
+* GLUE Benchmark
 
 **Introduction**
 
