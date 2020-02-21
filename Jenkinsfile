@@ -191,7 +191,7 @@ pipeline {
       }
     }
 
-    stage('L1: NLP-Intent Detection/SLot Tagging Examples - Multi-GPU') {
+    stage('L1: NLP-Intent Detection/Slot Tagging Examples - Multi-GPU') {
       when {
         anyOf{
           branch 'master'

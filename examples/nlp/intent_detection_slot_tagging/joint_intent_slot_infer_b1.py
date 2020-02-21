@@ -70,7 +70,7 @@ classifier = JointIntentSlotClassifier(
 input_data = data_layer()
 
 hidden_states = pretrained_bert_model(
-    input_ids=input_data.ids, token_type_ids=input_data.type_ids, attention_mask=input_data.input_mask
+    input_ids=input_data.input_ids, token_type_ids=input_data.input_type_ids, attention_mask=input_data.input_mask
 )
 
 intent_logits, slot_logits = classifier(hidden_states=hidden_states)
