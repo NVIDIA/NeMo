@@ -147,7 +147,7 @@ def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefi
         targets=input_data.tgt_ids,
     )
 
-    gate_loss = gate_loss_fn(logits=gate_outputs, labels=input_data.gate_labels)
+    gate_loss = gate_loss_fn(logits=gate_outputs, labels=input_data.gating_labels)
     ptr_loss = ptr_loss_fn(logits=point_outputs, labels=input_data.tgt_ids, length_mask=input_data.tgt_lens)
     total_loss = total_loss_fn(loss_1=gate_loss, loss_2=ptr_loss)
 
