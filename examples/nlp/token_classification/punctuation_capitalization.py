@@ -54,7 +54,7 @@ parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
-parser.add_argument("--do_not_shuffle_data", action='store_false')
+parser.add_argument("--no_shuffle", action='store_false', dest="shuffle_data")
 parser.add_argument("--pretrained_bert_model", default="bert-base-uncased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
@@ -172,7 +172,7 @@ def create_pipeline(
 ):
 
     logging.info(f"Loading {mode} data...")
-    shuffle = args.do_not_shuffle_data if mode == 'train' else False
+    shuffle = args.shuffle_data if mode == 'train' else False
 
     text_file = f'{args.data_dir}/text_{mode}.txt'
     label_file = f'{args.data_dir}/labels_{mode}.txt'
