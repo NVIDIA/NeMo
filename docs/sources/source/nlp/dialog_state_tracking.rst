@@ -128,7 +128,15 @@ The model is composed of an three main components:
  * a **slot gate**, and
  * a **state generator**.  
 
+The **utterance encoder** is a bi-directional Gated Recurrent Unit (GRU), returning both \
+context words and and an aggregated context vector encoding the whole dialogue history.
 
+The **state generator** also uses GRU to predict the value for each(domain, slot) pair. Generator employ a soft-gated \
+pointer-generator copying to combine a **distribution over the vocabulary** and a **distribution over the dialogue \
+history** into a single output distribution.
+
+Finally, the **slot gate** is a simple classifier  that  maps  a  context  vector taken from the encoder \
+hidden states to a probability  distribution  over three classes: *ptr*, *none*,  and *dontcare*.
 
 Data Preprocessing
 ------------------
@@ -161,20 +169,26 @@ In order to preprocess the MultiWOZ dataset you can use the provided `process_mu
     By default, the script assumes that you will copy data from the unpacked archive into the \
     ``~/data/state_tracking/MULTIWOZ2.1/MULTIWOZ2.1/`` \
     folder and will store results in the ``~/data/state_tracking/multiwoz2.1`` folder. \
-    Both those can be overriden by passing the command line ``source_data_dir`` and ``target_data_dir`` argumnents \
+    Both those can be overriden by passing the command line ``source_data_dir`` and ``target_data_dir`` arguments \
     respectively.
-
 
 
 Building the NeMo Graph
 -----------------------
 
+The NeMo training graph consists of the following six modules:
 
-description of the graph and role of modules
+ * data_layer (:class:`nemo.collection.nlp.nm.data_layers.MultiWOZDataLayer`)
+ * encoder (:class:`nemo.backends.pytorch.common.EncoderRNN`)
+ * decoder (:class:`nemo.collection.nlp.nm.trainables.TRADEGenerator`)
+ * gate_loss_fn (:class:`nemo.collection.nlp.nm.losses.CrossEntropyLoss3D`)
+ * ptr_loss_fn (:class:`nemo.collection.nlp.nm.losses.TRADEMaskedCrossEntropy`)
+ * total_loss_fn (:class:`nemo.collection.nlp.nm.losses.LossAggregatorNM`)
 
+The TRADE model is actually composed of two Neural Modules: encoder and decoder.
 
-Training and Results
---------------------
+Training
+--------
 
 In order to train an instance of the TRADE model on the MultiWOZ 2.1 dataset simply run the \
 'dialogue_state_tracking_trade' script:
@@ -201,6 +215,12 @@ In the following table we compare the results achieved by our TRADE model implem
 in the original paper :cite:`nlp-dst-wu2019transferable`. Additionally, as the authors were relying on the MultiWOZ 2.0
 dataset, the table includes also results achieved by TRADE model on the MultiWOZ 2.1 dataset reported in the
 :cite:`nlp-dst-eric2019multiwoz` paper.
+Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evaluate the model performance:
+
+ * **Joint Goal Accuracy** compares the predicted dialogue states to the ground truth at each dialogue turn, and the
+   output is considered correct if and only if **all the predicted values exactly match** the ground truth values. 
+ * **Slot Accuracy** independently compares each (domain, slot, value) triplet to its ground truth label.
+
 
 +------------------------------------+--------+--------+--------+--------+
 | TRADE implementation               | MultiWOZ 2.0    | MultiWOZ 2.1    |
@@ -213,12 +233,6 @@ dataset, the table includes also results achieved by TRADE model on the MultiWOZ
 +------------------------------------+--------+--------+--------+--------+
 | NeMo (this tutorial)               | --     | --     | 42.03% | 96.21% |
 +------------------------------------+--------+--------+--------+--------+
-
-Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evaluate the model performance:
-
- * **Joint Goal Accuracy** compares the predicted dialogue states to the ground truth at each dialogue turn, and the
-   output is considered correct if and only if **all the predicted values exactly match** the ground truth values. 
- * **Slot Accuracy** independently compares each (domain, slot, value) triplet to its ground truth label.
 
 
 .. note::
