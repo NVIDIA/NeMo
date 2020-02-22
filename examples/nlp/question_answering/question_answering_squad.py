@@ -256,6 +256,7 @@ def create_pipeline(
         max_query_length=max_query_length,
         max_seq_length=max_seq_length,
         doc_stride=doc_stride,
+        shuffle="train" in mode,
         use_cache=use_data_cache,
     )
 
