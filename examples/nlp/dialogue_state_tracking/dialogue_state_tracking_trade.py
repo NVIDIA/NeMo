@@ -25,12 +25,14 @@ from os.path import exists, expanduser
 
 import numpy as np
 
+import nemo.backends.pytorch as nemo_backend
+import nemo.backends.pytorch.common.losses
 import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
 from nemo import logging
 from nemo.backends.pytorch.common import EncoderRNN
 from nemo.collections.nlp.callbacks.state_tracking_trade_callback import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data.datasets.state_tracking_trade_dataset import MultiWOZDataDesc
+from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description='Dialog state tracking with TRADE model on MultiWOZ dataset')
@@ -103,9 +105,9 @@ decoder = nemo_nlp.nm.trainables.TRADEGenerator(
     teacher_forcing=args.teacher_forcing,
 )
 
-gate_loss_fn = nemo_nlp.nm.losses.CrossEntropyLoss3D(num_classes=len(data_desc.gating_dict))
-ptr_loss_fn = nemo_nlp.nm.losses.TRADEMaskedCrossEntropy()
-total_loss_fn = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
+gate_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=3)
+ptr_loss_fn = nemo_nlp.nm.losses.MaskedXEntropyLoss()
+total_loss_fn = nemo.backends.pytorch.common.losses.LossAggregatorNM(num_inputs=2)
 
 
 def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefix, is_training):
@@ -148,7 +150,7 @@ def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefi
     )
 
     gate_loss = gate_loss_fn(logits=gate_outputs, labels=gate_labels)
-    ptr_loss = ptr_loss_fn(logits=point_outputs, targets=tgt_ids, loss_mask=tgt_lens)
+    ptr_loss = ptr_loss_fn(logits=point_outputs, labels=tgt_ids, length_mask=tgt_lens)
     total_loss = total_loss_fn(loss_1=gate_loss, loss_2=ptr_loss)
 
     if is_training:
