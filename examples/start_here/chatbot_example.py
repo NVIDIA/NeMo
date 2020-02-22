@@ -65,9 +65,9 @@ callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[loss, src, outputs_inf, tgt], print_func=lambda x: outputs2words(x, dl.voc.index2word),
 )
 
-# num_epochs = 1
+# num_epochs = 10
 max_steps = 50
-# logging.info(f"Training only for {num_epochs}. Train longer (~10-20) for convergence.")
+# logging.info(f"Training only for {num_epochs} epochs. 10-20 epochs recommended for convergence.")
 logging.info(f"Training only for {max_steps} steps. Train longer (~10-20) for convergence.")
 # Start training
 nf.train(
