@@ -132,6 +132,7 @@ def parse_args():
     parser.add_argument("--lr_warmup_proportion", default=0.0, type=float)
     parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight deay if we apply some.")
     parser.add_argument("--num_epochs", default=2, type=int, help="Total number of training epochs to perform.")
+    parser.add_argument("--max_steps", default=-1, type=int, help="If specified overrides --num_epochs.")
     parser.add_argument("--batch_size", default=8, type=int, help="Batch size per GPU/CPU for training/evaluation.")
     parser.add_argument(
         "--do_lower_case",
@@ -447,9 +448,22 @@ if __name__ == "__main__":
             eval_step=args.eval_step_freq,
         )
 
-        lr_policy_fn = get_lr_policy(
-            args.lr_policy, total_steps=args.num_epochs * train_steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
-        )
+        if args.max_steps < 0:
+            lr_policy_fn = get_lr_policy(
+                args.lr_policy,
+                total_steps=args.num_epochs * train_steps_per_epoch,
+                warmup_ratio=args.lr_warmup_proportion,
+            )
+        else:
+            lr_policy_fn = get_lr_policy(
+                args.lr_policy, total_steps=args.max_steps, warmup_ratio=args.lr_warmup_proportion
+            )
+
+        optimization_params = {"lr": args.lr}
+        if args.max_steps < 0:
+            optimization_params['num_epochs'] = args.num_epochs
+        else:
+            optimization_params['max_steps'] = args.max_steps
 
         nf.train(
             tensors_to_optimize=[train_loss],
@@ -457,7 +471,7 @@ if __name__ == "__main__":
             lr_policy=lr_policy_fn,
             optimizer=args.optimizer_kind,
             batches_per_step=args.batches_per_step,
-            optimization_params={"num_epochs": args.num_epochs, "lr": args.lr},
+            optimization_params=optimization_params,
         )
 
     else:
