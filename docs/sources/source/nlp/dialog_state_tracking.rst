@@ -111,17 +111,23 @@ Moreover, it contains both system and user dialogue act annotations (the latter 
 The TRADE model
 ---------------
 
+The **TRA**\nsferable **D**\ialogue stat\ **E** generator  (TRADE)  is a model designed specially for the multi-domain \
+task-oriented dialogue state tracking problem. \
+The model generates dialogue states from utterances using a copy mechanism, what facilitates knowledge transfer \
+between domains by predicting (**domain**, **slot**, **value**) triplets not encountered during training in a given \
+domain.
+
 
 .. figure:: dst_trade_model_architecture.png
 
    Fig. 2: Architecture of the TRADE model (source: :cite:`nlp-dst-wu2019transferable`)
 
+The model is composed of an three main components:
 
-Evaluation Metrics
-------------------
-hree  different  automaticmetrics are included to ensure the result is betterinterpreted.   Among  them,  the  first  two  metricsrelate  to  the  dialogue  task  completion  -  whetherthe system has provided an appropriate entity (In-form rate) and then answered all the requested at-tributes (Success rate)
+ * an **utterance encoder**,
+ * a **slot gate**, and
+ * a **state generator**.  
 
-while fluency is measuredvia BLEU score 
 
 
 Data Preprocessing
@@ -170,8 +176,55 @@ description of the graph and role of modules
 Training and Results
 --------------------
 
-description how to train the model and what accuracies one might expect.
+In order to train an instance of the TRADE model on the MultiWOZ 2.1 dataset simply run the \
+'dialogue_state_tracking_trade' script:
 
+.. _dialogue_state_tracking_trade: https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/dialogue_state_tracking_trade.py
+
+
+.. code-block:: bash
+
+    cd examples/nlp/dialogue_state_tracking
+    python dialogue_state_tracking_trade.py 
+
+
+.. note::
+    Analogically, the script reads that the ``~/data/state_tracking/multiwoz2.1`` folder by default.
+    This path can be overriden by passing the command line ``data_dir``.
+
+
+
+Metrics and Results
+-------------------
+
+In the following table we compare the results achieved by our TRADE model implementation with the results achieved \
+in the original paper :cite:`nlp-dst-wu2019transferable`. Additionally, as the authors were relying on the MultiWOZ 2.0
+dataset, the table includes also results achieved by TRADE model on the MultiWOZ 2.1 dataset reported in the
+:cite:`nlp-dst-eric2019multiwoz` paper.
+
++------------------------------------+--------+--------+--------+--------+
+| TRADE implementation               | MultiWOZ 2.0    | MultiWOZ 2.1    |
++------------------------------------+--------+--------+--------+--------+
+|                                    | Joint  | Slot   | Joint  | Slot   |
++====================================+========+========+========+========+
+| :cite:`nlp-dst-wu2019transferable` | 48.62% | 96.92% | --     | --     |
++------------------------------------+--------+--------+--------+--------+
+| :cite:`nlp-dst-eric2019multiwoz`   | 48.6%  | --     | 45.6%  | --     |
++------------------------------------+--------+--------+--------+--------+
+| NeMo (this tutorial)               | --     | --     | 42.03% | 96.21% |
++------------------------------------+--------+--------+--------+--------+
+
+Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evaluate the model performance:
+
+ * **Joint Goal Accuracy** compares the predicted dialogue states to the ground truth at each dialogue turn, and the
+   output is considered correct if and only if **all the predicted values exactly match** the ground truth values. 
+ * **Slot Accuracy** independently compares each (domain, slot, value) triplet to its ground truth label.
+
+
+.. note::
+    During training the TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly \
+    classify context vector. The `process_multiwoz`_ script extracts that additional information from the dataset,
+    and the `dialogue_state_tracking_trade`_ script report the **Gating Accuracy** as well.
 
 References
 ----------
