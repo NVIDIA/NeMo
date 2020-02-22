@@ -61,11 +61,11 @@ the dataset to create a vocab file and a tokenizer model.
 You can also use an available vocab or tokenizer model to skip this step. If you already have a pretrained tokenizer model,
 copy it to the ``[data_dir]/bert`` folder under the name ``tokenizer.model`` and the script will skip this step.
 
-If have an available vocab, say the ``vocab.txt`` file from any `pretrained BERT model`_, copy it to the ``[data_dir]/bert`` folder under the name ``vocab.txt``.
-
-.. _pretrained BERT model: https://github.com/google-research/bert#pre-trained-models
+If have an available vocab, such as``vocab.txt`` file from any pretrained BERT model, copy it to the ``[data_dir]/bert`` folder under the name ``vocab.txt``.
 
     .. code-block:: python
+      
+        import nemo.collections.nlp as nemo_nlp
 
         data_desc = nemo_nlp.data.BERTPretrainingDataDesc(args.dataset_name,
                                             args.data_dir,
@@ -148,7 +148,7 @@ but you may observe higher downstream accuracy by only pre-training with MLM los
                                     activation=ACT2FN[args.hidden_act],
                                     log_softmax=True)
 
-        mlm_loss_fn = nemo_nlp.nm.losses.MaskedLanguageModelingLossNM()
+        mlm_loss_fn = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss()
 
         nsp_classifier = nemo_nlp.nm.trainables.SequenceClassifier(
                                                 args.hidden_size,
@@ -159,11 +159,23 @@ but you may observe higher downstream accuracy by only pre-training with MLM los
 
         nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLossNM()
 
-        bert_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
+        bert_loss = nemo.backends.pytorch.common.losses.LossAggregatorNM(num_inputs=2)
+
+Finally we will tie the weights of the encoder embedding layer and the MLM output embedding:
+
+    .. code-block:: python
+
+        mlm_classifier.tie_weights_with(
+            bert_model,
+            weight_names=["mlp.last_linear_layer.weight"],
+            name2name_and_transform={
+                "mlp.last_linear_layer.weight": ("bert.embeddings.word_embeddings.weight", nemo.core.WeightShareTransform.SAME)
+            },
+        )
 
 Then, we create the pipeline from input to output that can be used for both training and evaluation:
 
-For training from raw text use nemo_nlp.BertPretrainingDataLayer, for preprocessed data use nemo_nlp.BertPretrainingPreprocessedDataLayer
+For training from raw text use nemo_nlp.nm.data_layers.BertPretrainingDataLayer, for preprocessed data use nemo_nlp.nm.data_layers.BertPretrainingPreprocessedDataLayer
 
     .. code-block:: python
 
@@ -220,10 +232,14 @@ For training from raw text use nemo_nlp.BertPretrainingDataLayer, for preprocess
         #                            batch_size=args.batch_size,
         #                            batches_per_step=args.batches_per_step)
 
-        eval_loss, eval_tensors, _ = create_pipeline(data_desc.eval_file,
-                                                     args.max_seq_length,
-                                                     args.mask_probability,
-                                                     args.eval_batch_size)
+        eval_loss, _, _, _ = create_pipeline(
+                                        data_file=data_desc.eval_file,
+                                        preprocessed_data=False,
+                                        max_seq_length=args.max_seq_length,
+                                        mask_probability=args.mask_probability,
+                                        short_seq_prob=args.short_seq_prob,
+                                        batch_size=args.batch_size,
+                                        batches_per_step=args.batches_per_step)
 
 
 Next, we define necessary callbacks:
@@ -234,9 +250,15 @@ Next, we define necessary callbacks:
 
     .. code-block:: python
 
-        train_callback = nemo.core.SimpleLossLoggerCallback(...)
-        eval_callback = nemo.core.EvaluatorCallback(...)
-        ckpt_callback = nemo.core.CheckpointCallback(...)
+        train_callback = nemo.core.SimpleLossLoggerCallback(tensors=[train_loss],
+            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item()))))
+        eval_callback = nemo.core.EvaluatorCallback(eval_tensors=[eval_loss],
+            user_iter_callback=nemo_nlp.callbacks.lm_bert_callback.eval_iter_callback,
+            user_epochs_done_callback=nemo_nlp.callbacks.lm_bert_callback.eval_epochs_done_callback)
+        ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir,
+            epoch_freq=args.save_epoch_freq,
+            load_from_folder=args.load_dir,
+            step_freq=args.save_step_freq)
 
 .. tip::
 
@@ -244,7 +266,7 @@ Next, we define necessary callbacks:
 
     .. code-block:: bash
 
-        tensorboard --logdir bert_pretraining_tb
+        tensorboard --logdir outputs/bert_lm/tensorboard
 
 .. _Tensorboard: https://www.tensorflow.org/tensorboard
 .. _tensorboardX: https://github.com/lanpa/tensorboardX

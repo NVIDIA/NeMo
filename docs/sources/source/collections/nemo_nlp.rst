@@ -86,7 +86,7 @@ NLP Neural Modules
    :undoc-members:
    :show-inheritance:
    :exclude-members: forward
-
+   
 .. automodule:: nemo.collections.nlp.nm.trainables.dialogue_state_tracking.state_tracking_trade_nm
    :members:
    :undoc-members:
@@ -103,6 +103,18 @@ NLP Hugging Face Neural Modules
 -------------------------------
 
 .. automodule:: nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :exclude-members: forward
+
+.. automodule:: nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :exclude-members: forward
+
+.. automodule:: nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm
    :members:
    :undoc-members:
    :show-inheritance:
