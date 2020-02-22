@@ -1,31 +1,32 @@
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2018 The Google AI Language Team Authors and
+# The HuggingFace Inc. team.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
 """
-Copyright 2018 The Google AI Language Team Authors and
-The HuggingFace Inc. team.
-Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
 Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
-"""
 
-"""
 Download the Squad data by running the script:
 examples/nlp/scripts/get_squad.py
 
 To finetune Squad v1.1 on pretrained BERT large uncased on 1 GPU:
 python question_answering_squad.py
 --train_file /path_to_data_dir/squad/v1.1/train-v1.1.json
---dev_file /path_to_data_dir/squad/v1.1/dev-v1.1.json
+--eval_file /path_to_data_dir/squad/v1.1/dev-v1.1.json
 --work_dir /path_to_output_folder
 --bert_checkpoint /path_to_bert_checkpoint
 --amp_opt_level "O1"
@@ -46,7 +47,7 @@ To finetune Squad v1.1 on pretrained BERT large uncased on 8 GPU:
 python -m torch.distributed.launch --nproc_per_node=8 question_answering_squad.py
 --amp_opt_level "O1"
 --train_file /path_to_data_dir/squad/v1.1/train-v1.1.json
---dev_file /path_to_data_dir/squad/v1.1/dev-v1.1.json
+--eval_file /path_to_data_dir/squad/v1.1/dev-v1.1.json
 --bert_checkpoint /path_to_bert_checkpoint
 --batch_size 3
 --num_gpus 8
@@ -66,7 +67,7 @@ BERT Large uncased      83.88    90.65
 
 To run only evaluation on pretrained question answering checkpoints on 1 GPU with ground-truth data:
 python question_answering_squad.py
---dev_file /path_to_data_dir/infer.json
+--eval_file /path_to_data_dir/infer.json
 --checkpoint_dir /path_to_checkpoints
 --do_lower_case
 --mode eval
@@ -97,7 +98,7 @@ def parse_args():
         "--train_file", type=str, help="The training data file. Should be *.json",
     )
     parser.add_argument(
-        "--dev_file", type=str, help="The evaluation data file. Should be *.json",
+        "--eval_file", type=str, help="The evaluation data file. Should be *.json",
     )
     parser.add_argument(
         "--infer_file",
@@ -111,7 +112,7 @@ def parse_args():
     )
     parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
     parser.add_argument(
-        "--model_type", default="bert", type=str, help="model type", choices=['bert', 'roberta', 'albert']
+        "--model_type", default="bert", type=str, help="model type", choices=["bert", "roberta", "albert"]
     )
     parser.add_argument(
         "--tokenizer_model",
@@ -192,7 +193,7 @@ def parse_args():
         help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
     )
     parser.add_argument("--loss_step_freq", default=100, type=int, help="Frequency of printing loss")
-    parser.add_argument("--eval_step_freq", default=500, type=int, help="Frequency of evaluation on dev data")
+    parser.add_argument("--eval_step_freq", default=500, type=int, help="Frequency of evaluation on eval data")
     parser.add_argument(
         "--version_2_with_negative",
         action="store_true",
@@ -288,9 +289,9 @@ def create_pipeline(
 
 
 MODEL_CLASSES = {
-    'bert': nemo_nlp.nm.trainables.huggingface.BERT,
-    'albert': nemo_nlp.nm.trainables.huggingface.Albert,
-    'roberta': nemo_nlp.nm.trainables.huggingface.Roberta,
+    "bert": nemo_nlp.nm.trainables.huggingface.BERT,
+    "albert": nemo_nlp.nm.trainables.huggingface.Albert,
+    "roberta": nemo_nlp.nm.trainables.huggingface.Roberta,
 }
 
 
@@ -298,14 +299,14 @@ if __name__ == "__main__":
     args = parse_args()
 
     if args.mode == "train_eval":
-        if not os.path.exists(args.train_file) or not os.path.exists(args.dev_file):
+        if not os.path.exists(args.train_file) or not os.path.exists(args.eval_file):
             raise FileNotFoundError(
-                "train and dev data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
+                "train and eval data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
             )
     elif args.mode == "eval":
-        if not os.path.exists(args.dev_file):
+        if not os.path.exists(args.eval_file):
             raise FileNotFoundError(
-                "dev data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
+                "eval data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
             )
     elif args.mode == "infer":
         if not os.path.exists(args.infer_file):
@@ -389,7 +390,7 @@ if __name__ == "__main__":
         )
     if "eval" in args.mode:
         _, _, eval_output, eval_data_layer = create_pipeline(
-            data_file=args.dev_file,
+            data_file=args.eval_file,
             model=model,
             head=qa_head,
             loss_fn=squad_loss,
@@ -400,7 +401,7 @@ if __name__ == "__main__":
             version_2_with_negative=args.version_2_with_negative,
             num_gpus=args.num_gpus,
             batches_per_step=args.batches_per_step,
-            mode="dev",
+            mode="eval",
             use_data_cache=not args.no_data_cache,
         )
     if "infer" in args.mode:
