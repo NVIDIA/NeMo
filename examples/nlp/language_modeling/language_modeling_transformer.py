@@ -17,10 +17,11 @@ import math
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.nm.data_layers.lm_transformer_datalayer
-import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo.collections.nlp.callbacks.lm_transformer_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.lm_transformer_dataset import LanguageModelDataDesc
+from nemo.collections.nlp.nm.data_layers import LanguageModelingDataLayer
+from nemo.collections.nlp.nm.losses import SmoothedCrossEntropyLoss
+from nemo.collections.nlp.nm.trainables.common import TokenClassifier
 from nemo.core import WeightShareTransform
 from nemo.utils.lr_policies import CosineAnnealing
 
@@ -105,11 +106,9 @@ encoder = nemo_nlp.nm.trainables.TransformerEncoderNM(
     max_seq_length=args.max_seq_length,
 )
 
-log_softmax = nemo.collections.nlp.nm.trainables.TokenClassifier(
-    args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
-)
+log_softmax = TokenClassifier(args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True)
 
-loss = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss(pad_id=tokenizer.pad_id, label_smoothing=args.label_smoothing)
+loss = SmoothedCrossEntropyLoss(pad_id=tokenizer.pad_id, label_smoothing=args.label_smoothing)
 
 # tie weight of embedding and log_softmax layers
 # log_softmax.mlp.last_linear_layer.weight = encoder.embedding_layer.token_embedding.weight
@@ -125,13 +124,11 @@ log_softmax.tie_weights_with(
 def create_pipeline(
     dataset, max_seq_length=args.max_seq_length, batch_step=args.max_seq_length, batch_size=args.batch_size
 ):
-    data_layer = nemo.collections.nlp.nm.data_layers.LanguageModelingDataLayer(
-        dataset, tokenizer, max_seq_length, batch_size, batch_step
-    )
-    src, src_mask, labels = data_layer()
-    src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)
+    data_layer = LanguageModelingDataLayer(dataset, tokenizer, max_seq_length, batch_size, batch_step)
+    input_data = data_layer()
+    src_hiddens = encoder(input_ids=input_data.input_ids, input_mask_src=input_data.input_mask)
     logits = log_softmax(hidden_states=src_hiddens)
-    return loss(logits=logits, labels=labels)
+    return loss(logits=logits, labels=input_data.labels)
 
 
 train_loss = create_pipeline(

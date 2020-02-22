@@ -29,6 +29,7 @@ Create the tokenizer model
 
     .. code-block:: python
 
+        from nemo.collections.nlp.data.datasets.lm_transformer_dataset import LanguageModelDataDesc
         data_desc = LanguageModelDataDesc(
             args.dataset_name, args.data_dir, args.do_lower_case)
 
@@ -36,6 +37,7 @@ We need to define our tokenizer. We use `WordTokenizer` defined in ``nemo/collec
 
     .. code-block:: python
 
+        import nemo.collections.nlp as nemo_nlp
         tokenizer = nemo_nlp.WordTokenizer(f"{args.data_dir}/{args.tokenizer_model}")
         vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 
@@ -65,6 +67,9 @@ Next, we define all Neural Modules necessary for our model
 
     .. code-block:: python
 
+        from nemo.collections.nlp.nm.trainables.common import TokenClassifier
+        from nemo.collections.nlp.nm.losses import SmoothedCrossEntropyLoss
+
         encoder = nemo_nlp.nm.trainables.TransformerEncoderNM(
             d_model=args.d_model,
             d_inner=args.d_inner,
@@ -79,16 +84,17 @@ Next, we define all Neural Modules necessary for our model
             max_seq_length=args.max_seq_length,
         )
 
-        log_softmax = nemo.collections.nlp.nm.trainables.TokenClassifier(
+        log_softmax = TokenClassifier(
             args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
         )
 
-        loss = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss(pad_id=tokenizer.pad_id, label_smoothing=args.label_smoothing)
+        loss = SmoothedCrossEntropyLoss(pad_id=tokenizer.pad_id, label_smoothing=args.label_smoothing)
 
 Following `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`nlp-lm-press2016using`, we also tie the parameters of embedding and softmax layers:
 
     .. code-block:: python
 
+        from nemo.core import WeightShareTransform
         log_softmax.tie_weights_with(
             encoder,
             weight_names=["mlp.layer0.weight"],
@@ -101,10 +107,12 @@ Then, we create the pipeline from input to output that can be used for both trai
 
     .. code-block:: python
 
+        from nemo.collections.nlp.nm.data_layers import LanguageModelingDataLayer
+
         def create_pipeline(
             dataset, max_seq_length=args.max_seq_length, batch_step=args.max_seq_length, batch_size=args.batch_size
         ):
-            data_layer = nemo.collections.nlp.nm.data_layers.LanguageModelingDataLayer(
+            data_layer = LanguageModelingDataLayer(
                 dataset, tokenizer, max_seq_length, batch_size, batch_step
             )
             src, src_mask, labels = data_layer()
@@ -134,6 +142,7 @@ Next, we define necessary callbacks:
 
     .. code-block:: python
 
+        from nemo.collections.nlp.callbacks.lm_transformer_callback import eval_epochs_done_callback, eval_iter_callback
         train_callback = SimpleLossLoggerCallback(
             tensors=train_tensors,
             print_func=lambda x: str(np.round(x[0].item(), 3)),
@@ -158,6 +167,8 @@ Next, we define necessary callbacks:
 Finally, you should define your optimizer, and start training!
 
     .. code-block:: python
+
+        from nemo.utils.lr_policies import CosineAnnealing
 
         lr_policy_fn = CosineAnnealing(args.max_steps, warmup_steps=args.warmup_steps)
         max_num_epochs = 0 if args.interactive else args.num_epochs
