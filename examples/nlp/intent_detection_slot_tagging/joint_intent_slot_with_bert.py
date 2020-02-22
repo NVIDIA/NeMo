@@ -63,7 +63,7 @@ parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--do_lower_case", action='store_true')
-parser.add_argument("--shuffle_data", action='store_true')
+parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
 parser.add_argument("--intent_loss_weight", default=0.6, type=float)
 parser.add_argument("--class_balancing", default="regular", type=str, choices=["regular", "weighted_loss"])
 
