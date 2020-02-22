@@ -74,6 +74,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
 
     .. code-block:: python
 
+        from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
         data_desc = JointIntentSlotDataDesc(
             args.data_dir, args.do_lower_case, args.dataset_name, args.none_slot_label, args.pad_label
         )
@@ -82,13 +83,14 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
     * Load the pretrained BERT model to encode the corresponding inputs.
 
     .. code-block:: python
-
+        from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
         pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
 
     * Create the classifier heads for our task.
 
     .. code-block:: python
 
+        from nemo.collections.nlp.nm.trainables import JointIntentSlotClassifier
         classifier = JointIntentSlotClassifier(
             hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
         )
@@ -97,15 +99,16 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
 
     .. code-block:: python
 
+        from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
         intent_loss_fn = CrossEntropyLossNM(logits_dim=2)
         slot_loss_fn = CrossEntropyLossNM(logits_dim=3)
-
         total_loss_fn = LossAggregatorNM(num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight])
 
     * Create the pipelines for the train and evaluation processes. Each pipeline creates its own data layer (BertJointIntentSlotDataLayer). DataLayer is an extra layer to do the semantic checking for your dataset and convert it into DataLayerNM. You have to define `input_ports` and `output_ports`.
 
     .. code-block:: python
 
+        from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
         def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
             logging.info(f"Loading {mode} data...")
             data_file = f'{data_desc.data_dir}/{mode}.tsv'
@@ -173,6 +176,8 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
 
     .. code-block:: python
 
+        from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
+        from nemo.core import CheckpointCallback, SimpleLossLoggerCallback
         train_callback = SimpleLossLoggerCallback(
             tensors=train_tensors,
             print_func=lambda x: str(np.round(x[0].item(), 3)),
@@ -197,6 +202,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
 
     .. code-block:: python
 
+        from nemo.utils.lr_policies import get_lr_policy
         lr_policy_fn = get_lr_policy(
             args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
         )

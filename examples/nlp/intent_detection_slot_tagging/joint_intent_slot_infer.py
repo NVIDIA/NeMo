@@ -21,9 +21,9 @@ import numpy as np
 from sklearn.metrics import classification_report
 from transformers import BertTokenizer
 
-import nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
+import nemo
 from nemo import logging
-from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.data_descriptor import JointIntentSlotDataDesc
+from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
 from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
 from nemo.collections.nlp.nm.trainables.joint_intent_slot import JointIntentSlotClassifier

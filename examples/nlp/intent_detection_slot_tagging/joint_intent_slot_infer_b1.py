@@ -20,8 +20,10 @@ import numpy as np
 from transformers import BertTokenizer
 
 import nemo
-from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.data_descriptor import JointIntentSlotDataDesc
-from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.inference_utils import read_intent_slot_outputs
+from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import (
+    JointIntentSlotDataDesc,
+    read_intent_slot_outputs,
+)
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotInferDataLayer
 from nemo.collections.nlp.nm.trainables import JointIntentSlotClassifier
 from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
