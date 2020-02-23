@@ -907,7 +907,7 @@ class PtActions(Actions):
 
     @staticmethod
     def __module_export(
-        module, output, d_format: DeploymentFormat, input_example=None, output_example=None,
+        module, output, d_format: DeploymentFormat, input_example=None, output_example=None, use_da=False
     ):
         # Check if output already exists
         destination = Path(output)
@@ -976,7 +976,7 @@ class PtActions(Actions):
                     # Route 2 - via tracing
                     traced_m = torch.jit.trace(module, input_example)
                     traced_m.save(output)
-            elif d_format == DeploymentFormat.ONNX:
+            elif d_format == DeploymentFormat.ONNX or d_format == DeploymentFormat.TRTONNX:
                 if input_example is None:
                     raise ValueError(f'Example input is None, but ONNX tracing was' f' attempted')
                 if output_example is None:
@@ -993,11 +993,11 @@ class PtActions(Actions):
                     output,
                     input_names=input_names,
                     output_names=output_names,
-                    verbose=True,
+                    verbose=False,
                     export_params=True,
                     do_constant_folding=True,
-                    dynamic_axes=dynamic_axes,
-                    opset_version=10,
+                    dynamic_axes=dynamic_axes if use_da else None,
+                    opset_version=11,
                     example_outputs=output_example,
                 )
                 # fn = output + ".readable"
@@ -1030,7 +1030,7 @@ class PtActions(Actions):
 
     @staticmethod
     def deployment_export(
-        module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None,
+        module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None, use_da=False
     ):
         """Exports Neural Module instance for deployment.
 
@@ -1050,6 +1050,7 @@ class PtActions(Actions):
                 d_format=d_format,
                 input_example=input_example,
                 output_example=output_example,
+                use_da=use_da,
             )
 
     def train(
