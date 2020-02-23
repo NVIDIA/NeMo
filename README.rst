@@ -35,22 +35,11 @@ Goal of the NeMo toolkit is to make it possible for researchers to easily and sa
 
 The toolkit comes with extendable collections of pre-built modules for automatic speech recognition (ASR), natural language processing (NLP) and text synthesis (TTS). Furthermore, NeMo provides built-in support for **distributed training** and **mixed precision** on the latest NVIDIA GPUs.
 
-NeMo consists of a core and some pre-built neural modules for particular domains such as automatic speech recognition, natural language processing and text synthesis:
+NeMo consists of: 
 
-* **NeMo Core**: fundamental building blocks for all neural models and type system
-* **ASR Collection**: collection of modules for speech recognition tasks
-* **TTS Collection**: collection of modules for text to speech
-* **NLP Collection**: collection of natural language processing
-   * Intent Detection and Slot Filling
-   * Text Classification
-   * State Tracking for Task-oriented Dialogue Systems
-   * Language Modelling
-   * Machine Translation
-   * Question Answering
-   * Name Entity Recognition (NER)
-   * Punctuation and Capitalization
-   * GLUE Benchmark
-   * ASR Postprocessing with BERT
+* **NeMo Core**: fundamental building blocks for all neural models and type system.
+* **NeMo collections**: pre-built neural modules for particular domains such as automatic speech recognition (nemo_asr), natural language processing (nemo_nlp) and text synthesis (nemo_tts).
+
 
 **Introduction**
 

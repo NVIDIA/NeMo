@@ -64,9 +64,9 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
             used to ignore the outputs of unwanted tokens in
             the inference and evaluation like the start and end tokens
         intents:
-            intents labels
+            TODO
         slots:
-            slots labels
+            TODO
         """
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
@@ -113,7 +113,8 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
     All the data processing is done in BertJointIntentSlotInferDataset.
 
     Args:
-        queries (list): list of queries for inference
+        queries:
+            TODO
         tokenizer (TokenizerSpec): text tokenizer.
         max_seq_length (int):
             max sequence length minus 2 for [CLS] and [SEP]

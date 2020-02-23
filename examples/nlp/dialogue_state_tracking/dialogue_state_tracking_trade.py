@@ -25,18 +25,17 @@ import os
 
 import numpy as np
 
+import nemo.backends.pytorch as nemo_backend
+import nemo.backends.pytorch.common.losses
+import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
 from nemo import logging
 from nemo.backends.pytorch.common import EncoderRNN
-from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
 from nemo.collections.nlp.callbacks.state_tracking_trade_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc
-from nemo.collections.nlp.nm.data_layers import MultiWOZDataLayer
-from nemo.collections.nlp.nm.losses import MaskedLogLoss
-from nemo.collections.nlp.nm.trainables import TRADEGenerator
 from nemo.utils.lr_policies import get_lr_policy
 
-parser = argparse.ArgumentParser(description='Dialogue state tracking with TRADE model on MultiWOZ dataset')
+parser = argparse.ArgumentParser(description='Dialog state tracking with TRADE model on MultiWOZ dataset')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=16, type=int)
 parser.add_argument("--eval_batch_size", default=16, type=int)
@@ -90,7 +89,7 @@ nf = nemo_core.NeuralModuleFactory(
 vocab_size = len(data_desc.vocab)
 encoder = EncoderRNN(vocab_size, args.emb_dim, args.hid_dim, args.dropout, args.n_layers)
 
-decoder = TRADEGenerator(
+decoder = nemo_nlp.nm.trainables.TRADEGenerator(
     data_desc.vocab,
     encoder.embedding,
     args.hid_dim,
@@ -100,16 +99,16 @@ decoder = TRADEGenerator(
     teacher_forcing=args.teacher_forcing,
 )
 
-gate_loss_fn = CrossEntropyLossNM(logits_dim=3)
-ptr_loss_fn = MaskedLogLoss()
-total_loss_fn = LossAggregatorNM(num_inputs=2)
+gate_loss_fn = nemo_backend.losses.CrossEntropyLossNM(logits_dim=3)
+ptr_loss_fn = nemo_nlp.nm.losses.MaskedXEntropyLoss()
+total_loss_fn = nemo.backends.pytorch.common.losses.LossAggregatorNM(num_inputs=2)
 
 
 def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefix, is_training):
     logging.info(f"Loading {data_prefix} data...")
     shuffle = args.shuffle_data if is_training else False
 
-    data_layer = MultiWOZDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.MultiWOZDataLayer(
         args.data_dir,
         data_desc.domains,
         all_domains=data_desc.all_domains,
@@ -125,7 +124,8 @@ def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefi
         input_dropout=input_dropout,
     )
 
-    input_data = data_layer()
+    src_ids, src_lens, tgt_ids, tgt_lens, gate_labels, turn_domain = data_layer()
+
     data_size = len(data_layer)
     logging.info(f'The length of data layer is {data_size}')
 
@@ -137,32 +137,20 @@ def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefi
     steps_per_epoch = math.ceil(data_size / (batch_size * num_gpus))
     logging.info(f"Steps_per_epoch = {steps_per_epoch}")
 
-    outputs, hidden = encoder(inputs=input_data.src_ids, input_lens=input_data.src_lens)
+    outputs, hidden = encoder(inputs=src_ids, input_lens=src_lens)
 
     point_outputs, gate_outputs = decoder(
-        encoder_hidden=hidden,
-        encoder_outputs=outputs,
-        input_lens=input_data.src_lens,
-        src_ids=input_data.src_ids,
-        targets=input_data.tgt_ids,
+        encoder_hidden=hidden, encoder_outputs=outputs, input_lens=src_lens, src_ids=src_ids, targets=tgt_ids
     )
 
-    gate_loss = gate_loss_fn(logits=gate_outputs, labels=input_data.gating_labels)
-    ptr_loss = ptr_loss_fn(logits=point_outputs, labels=input_data.tgt_ids, length_mask=input_data.tgt_lens)
+    gate_loss = gate_loss_fn(logits=gate_outputs, labels=gate_labels)
+    ptr_loss = ptr_loss_fn(logits=point_outputs, labels=tgt_ids, length_mask=tgt_lens)
     total_loss = total_loss_fn(loss_1=gate_loss, loss_2=ptr_loss)
 
     if is_training:
         tensors_to_evaluate = [total_loss, gate_loss, ptr_loss]
     else:
-        tensors_to_evaluate = [
-            total_loss,
-            point_outputs,
-            gate_outputs,
-            input_data.gating_labels,
-            input_data.turn_domain,
-            input_data.tgt_ids,
-            input_data.tgt_lens,
-        ]
+        tensors_to_evaluate = [total_loss, point_outputs, gate_outputs, gate_labels, turn_domain, tgt_ids, tgt_lens]
 
     return tensors_to_evaluate, total_loss, ptr_loss, gate_loss, steps_per_epoch, data_layer
 

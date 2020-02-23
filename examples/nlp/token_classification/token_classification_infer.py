@@ -55,7 +55,7 @@ parser.add_argument("--labels_dict", default='label_ids.csv', type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 
 args = parser.parse_args()
-logging.info(args)
+print(args)
 
 if not os.path.exists(args.work_dir):
     raise ValueError(f'Work directory not found at {args.work_dir}')

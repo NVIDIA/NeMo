@@ -117,7 +117,7 @@ BERT预训练
                                                      num_classes=2,
                                                      num_layers=2,
                                                      log_softmax=True)
-        nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLossNM()
+        nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
 
         bert_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
 

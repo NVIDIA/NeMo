@@ -54,20 +54,32 @@ class MultiWOZDataLayer(TextDataLayer):
     Creates the data layer to use for State Tracking dataset MultiWOZ.
 
     Args:
-        data_dir (str): path of the data folder
-        domains (dict): dictionary of the domains to include
-        all_domains (dict): dictionary of all the available domains
-        vocab (Vocab): Vocabulary
-        slots (list): list of the slots
-        gating_dict (dict): dictionary of the gates
-        num_samples (int): number of samples to include
-        batch_size (int): batch size
-        mode (str): mode of dataset, default='train'
-        dataset_type (Dataset): Dataset Type
-        shuffle (bool): enables shuffling, default=False
-        num_workers (int): number of workers
-        input_dropout (float): dropout applied to the input
-        is_training (bool): specifies if it is for training
+        data_dir (str): TODO
+        domains: TODO
+        all_domains: 
+            TODO
+        vocab:
+            TODO
+        slots:
+            TODO
+        gating_dict:
+            TODO 
+        num_samples:
+            TODO
+        batch_size:
+            TODO
+        mode:
+            TODO
+        shuffle:
+            TODO
+        num_workers:
+            TODO
+        input_dropout:
+            TODO
+        is_training:
+            TODO
+        dataset_type (Dataset):
+            TODO
     """
 
     @property
@@ -80,6 +92,7 @@ class MultiWOZDataLayer(TextDataLayer):
         tgt_lens: lengths of the generator targets
         gating_labels: labels for the gating head
         turn_domain: list of the domains
+            NeuralType(None)
 
         """
         return {

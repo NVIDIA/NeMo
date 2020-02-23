@@ -59,7 +59,7 @@ parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--do_lower_case", action='store_true')
-parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
+parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
 
 args = parser.parse_args()
@@ -112,7 +112,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
     shuffle = args.shuffle_data if mode == 'train' else False
 
-    data_layer = nemo.collections.nlp.nm.data_layers.text_classification_datalayer.BertTextClassificationDataLayer(
+    data_layer = nemo.collections.nlp.nm.data_layers.text_classification_datalayer.BertSentenceClassificationDataLayer(
         input_file=data_file,
         tokenizer=tokenizer,
         max_seq_length=args.max_seq_length,

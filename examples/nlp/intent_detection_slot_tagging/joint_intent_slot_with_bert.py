@@ -22,13 +22,12 @@ import numpy as np
 from transformers import BertTokenizer
 
 import nemo
+import nemo.collections.nlp as nemo_nlp
 from nemo import logging
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
 from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
+from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.data_descriptor import JointIntentSlotDataDesc
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
-from nemo.collections.nlp.nm.trainables import JointIntentSlotClassifier
-from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
 from nemo.core import CheckpointCallback, SimpleLossLoggerCallback
 from nemo.utils.lr_policies import get_lr_policy
 
@@ -63,7 +62,7 @@ parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--do_lower_case", action='store_true')
-parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
+parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--intent_loss_weight", default=0.6, type=float)
 parser.add_argument("--class_balancing", default="regular", type=str, choices=["regular", "weighted_loss"])
 
@@ -90,10 +89,10 @@ See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
 if args.bert_checkpoint and args.bert_config:
-    pretrained_bert_model = BERT(config_filename=args.bert_config)
+    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(config_filename=args.bert_config)
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 else:
-    pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
+    pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
 
 hidden_size = pretrained_bert_model.hidden_size
 
@@ -102,7 +101,7 @@ data_desc = JointIntentSlotDataDesc(
 )
 
 # Create sentence classification loss on top
-classifier = JointIntentSlotClassifier(
+classifier = nemo_nlp.nm.trainables.JointIntentSlotClassifier(
     hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
 )
 
@@ -137,10 +136,10 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
         ignore_start_end=args.ignore_start_end,
     )
 
-    input_data = data_layer()
+    (ids, type_ids, input_mask, loss_mask, subtokens_mask, intents, slots) = data_layer()
     data_size = len(data_layer)
 
-    logging.info(f'The length of data layer is {data_size}')
+    print(f'The length of data layer is {data_size}')
 
     if data_size < batch_size:
         logging.warning("Batch_size is larger than the dataset size")
@@ -150,26 +149,18 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
     steps_per_epoch = math.ceil(data_size / (batch_size * num_gpus))
     logging.info(f"Steps_per_epoch = {steps_per_epoch}")
 
-    hidden_states = pretrained_bert_model(
-        input_ids=input_data.input_ids, token_type_ids=input_data.input_type_ids, attention_mask=input_data.input_mask
-    )
+    hidden_states = pretrained_bert_model(input_ids=ids, token_type_ids=type_ids, attention_mask=input_mask)
 
     intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
-    intent_loss = intent_loss_fn(logits=intent_logits, labels=input_data.intents)
-    slot_loss = slot_loss_fn(logits=slot_logits, labels=input_data.slots, loss_mask=input_data.loss_mask)
+    intent_loss = intent_loss_fn(logits=intent_logits, labels=intents)
+    slot_loss = slot_loss_fn(logits=slot_logits, labels=slots, loss_mask=loss_mask)
     total_loss = total_loss_fn(loss_1=intent_loss, loss_2=slot_loss)
 
     if mode == 'train':
         tensors_to_evaluate = [total_loss, intent_logits, slot_logits]
     else:
-        tensors_to_evaluate = [
-            intent_logits,
-            slot_logits,
-            input_data.intents,
-            input_data.slots,
-            input_data.subtokens_mask,
-        ]
+        tensors_to_evaluate = [intent_logits, slot_logits, intents, slots, subtokens_mask]
 
     return tensors_to_evaluate, total_loss, steps_per_epoch, data_layer
 
