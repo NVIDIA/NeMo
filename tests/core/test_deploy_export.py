@@ -37,8 +37,20 @@ import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from tests.common_setup import NeMoUnitTest
 
+import pycuda.driver as cuda
+
+# This import causes pycuda to automatically manage CUDA context creation and cleanup.
+import pycuda.autoinit
+
+import tensorrt as trt
+
+TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
+
 
 class TestDeployExport(NeMoUnitTest):
+    def __enter__(self):
+        return self
+
     def setUp(self):
         """ Setups neural factory so it will use GPU instead of CPU. """
         NeMoUnitTest.setUp(self)
@@ -51,26 +63,40 @@ class TestDeployExport(NeMoUnitTest):
         if out.exists():
             os.remove(out)
 
+        outputs_scr = None
         outputs_fwd = (
             (module.forward(*input_example) if isinstance(input_example, tuple) else module.forward(input_example))
             if input_example is not None
             else None
         )
         self.nf.deployment_export(
-            module=module, output=out_name, input_example=input_example, d_format=mode, output_example=outputs_fwd
+            module=module,
+            output=out_name,
+            input_example=input_example,
+            d_format=mode,
+            output_example=outputs_fwd,
+            use_da=(mode != nemo.core.DeploymentFormat.TRTONNX),
         )
 
         tol = 5.0e-3
         out = Path(out_name)
         self.assertTrue(out.exists())
-        if mode == nemo.core.DeploymentFormat.ONNX:
-            # Must recompute beause *module* might be different now
+
+        if mode == nemo.core.DeploymentFormat.TRTONNX:
+            outputs_fwd = (
+                outputs_fwd[0] if isinstance(outputs_fwd, tuple) or isinstance(outputs_fwd, list) else outputs_fwd
+            )
+            outputs_scr = torch.zeros_like(outputs_fwd)
+            self.trt_onnx(out_name, module, input_example, outputs_scr, mode)
+        elif mode == nemo.core.DeploymentFormat.ONNX:
+            # Must recompute because *module* might be different now
             outputs_fwd = (
                 module.forward(*input_example) if isinstance(input_example, tuple) else module.forward(input_example)
             )
             sess_options = ort.SessionOptions()
-            sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
-            ort_session = ort.InferenceSession(out_name, sess_options, ['CPUExecutionProvider'])
+            sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
+            ort_session = ort.InferenceSession(out_name, sess_options, ['CUDAExecutionProvider'])
+            print('Execution Providers: ', ort_session.get_providers())
             inputs = dict()
             input_names = list(module.input_ports)
             for i in range(len(input_names)):
@@ -82,7 +108,6 @@ class TestDeployExport(NeMoUnitTest):
                 inputs[input_name] = (
                     input_example[i].cpu().numpy() if isinstance(input_example, tuple) else input_example.cpu().numpy()
                 )
-            print('Execution Providers: ', ort_session.get_providers())
             outputs_scr = ort_session.run(None, inputs)
             outputs_scr = torch.from_numpy(outputs_scr[0]).cuda()
         elif mode == nemo.core.DeploymentFormat.TORCHSCRIPT:
@@ -100,15 +125,21 @@ class TestDeployExport(NeMoUnitTest):
                 module.forward(*input_example) if isinstance(input_example, tuple) else module.forward(input_example)
             )
 
-        outputs_scr = outputs_scr[0] if isinstance(outputs_scr, tuple) else outputs_scr
-        outputs_fwd = outputs_fwd[0] if isinstance(outputs_fwd, tuple) else outputs_fwd
-        self.assertLess((outputs_scr - outputs_fwd).norm(p=2), tol)
+        outputs_scr = (
+            outputs_scr[0] if isinstance(outputs_scr, tuple) or isinstance(outputs_scr, list) else outputs_scr
+        )
+        outputs_fwd = (
+            outputs_fwd[0] if isinstance(outputs_fwd, tuple) or isinstance(outputs_fwd, list) else outputs_fwd
+        )
+        self.assertLess((outputs_scr - outputs_fwd.cuda()).norm(p=2), tol)
 
         if out.exists():
             os.remove(out)
 
     def __test_export_route_all(self, module, out_name, input_example=None):
         if input_example is not None:
+            # TODO
+            # self.__test_export_route(module, out_name + '.trt.onnx', nemo.core.DeploymentFormat.TRTONNX, input_example=input_example)
             self.__test_export_route(module, out_name + '.onnx', nemo.core.DeploymentFormat.ONNX, input_example)
             self.__test_export_route(module, out_name + '.pt', nemo.core.DeploymentFormat.PYTORCH, input_example)
         self.__test_export_route(module, out_name + '.ts', nemo.core.DeploymentFormat.TORCHSCRIPT, input_example)
@@ -174,3 +205,37 @@ class TestDeployExport(NeMoUnitTest):
             out_name="quartz_encoder",
             input_example=(torch.randn(16, 64, 256).cuda(), torch.randint(20, (16,)).cuda()),
         )
+
+    def trt_onnx(self, model_file, module, input_example, output_example, mode):
+        with trt.Builder(TRT_LOGGER) as builder, builder.create_network(
+            1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
+        ) as network, trt.OnnxParser(network, TRT_LOGGER) as parser:
+            builder.max_workspace_size = 1 << 30
+            builder.max_batch_size = 1
+            # Load the Onnx model and parse it in order to populate the TensorRT network.
+            with open(model_file, 'rb') as model:
+                if not parser.parse(model.read()):
+                    print('ERROR: Failed to parse the ONNX file.')
+                    for error in range(parser.num_errors):
+                        print(parser.get_error(error))
+                    return None
+            engine = builder.build_cuda_engine(network)
+            input_names = list(module.input_ports.keys())
+            output_names = list(module.output_ports.keys())
+            bindings = [0] * (len(input_names) + 1)
+
+            i = 0
+            for input_name in input_names:
+                inp_idx = engine.get_binding_index(input_name)
+                assert input_example[i].is_contiguous()
+                bindings[inp_idx] = input_example[i].data_ptr()
+                i += 1
+            for output_name in output_names:
+                out_idx = engine.get_binding_index(output_name)
+                assert output_example.is_contiguous()
+                bindings[out_idx] = output_example.data_ptr()
+                break
+            with engine.create_execution_context() as context:
+                stream = cuda.Stream()
+                context.execute_async_v2(bindings=bindings, stream_handle=stream.handle)
+                stream.synchronize()
