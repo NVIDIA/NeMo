@@ -1,19 +1,22 @@
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2018 The Google AI Language Team Authors and
+# The HuggingFace Inc. team.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
 """
-Copyright 2018 The Google AI Language Team Authors and
-The HuggingFace Inc. team.
-Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
 Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 
@@ -61,13 +64,14 @@ WNLI	Accuracy	                    43.66
 """
 
 import argparse
-import json
 import os
+
+from transformers import BertConfig
 
 import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
 from nemo import logging
-from nemo.backends.pytorch.common import CrossEntropyLoss, MSELoss
+from nemo.backends.pytorch.common import CrossEntropyLossNM, MSELoss
 from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import output_modes, processors
@@ -187,6 +191,7 @@ nf = nemo_core.NeuralModuleFactory(
     add_time_to_log_dir=True,
 )
 
+
 if args.bert_checkpoint is None:
     """ Use this if you're using a standard BERT model.
     To see the list of pretrained models, call:
@@ -205,14 +210,31 @@ else:
         tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
     else:
         raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
+
     if args.bert_config is not None:
-        with open(args.bert_config) as json_file:
-            config = json.load(json_file)
-        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
+        config = BertConfig.from_json_file(args.bert_config).to_dict()
+        args.vocab_size = config['vocab_size']
+        args.hidden_size = config['hidden_size']
+        args.num_hidden_layers = config['num_hidden_layers']
+        args.num_attention_heads = config['num_attention_heads']
+        args.intermediate_size = config['intermediate_size']
+        args.hidden_act = config['hidden_act']
+        args.max_seq_length = config['max_position_embeddings']
+
+        model = nemo_nlp.nm.trainables.huggingface.BERT(
+            vocab_size=args.vocab_size,
+            num_hidden_layers=args.num_hidden_layers,
+            hidden_size=args.hidden_size,
+            num_attention_heads=args.num_attention_heads,
+            intermediate_size=args.intermediate_size,
+            max_position_embeddings=args.max_seq_length,
+            hidden_act=args.hidden_act,
+        )
+        logging.info(f"using {args.bert_config}")
     else:
         model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
-
     model.restore_from(args.bert_checkpoint)
+    logging.info(f"model restored from {args.bert_checkpoint}")
 
 hidden_size = model.hidden_size
 
@@ -222,7 +244,7 @@ if args.task_name == 'sts-b':
     glue_loss = MSELoss()
 else:
     pooler = SequenceClassifier(hidden_size=hidden_size, num_classes=num_labels, log_softmax=False)
-    glue_loss = CrossEntropyLoss()
+    glue_loss = CrossEntropyLossNM()
 
 
 def create_pipeline(
@@ -241,8 +263,6 @@ def create_pipeline(
         processor=processor,
         evaluate=evaluate,
         batch_size=batch_size,
-        # num_workers=0,
-        # local_rank=local_rank,
         tokenizer=tokenizer,
         data_dir=args.data_dir,
         max_seq_length=max_seq_length,

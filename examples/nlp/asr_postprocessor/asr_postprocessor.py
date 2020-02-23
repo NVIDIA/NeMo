@@ -26,6 +26,7 @@ from nemo.collections.nlp.callbacks.machine_translation_callback import (
     eval_epochs_done_callback_wer,
     eval_iter_callback,
 )
+from nemo.core import WeightShareTransform
 from nemo.core.callbacks import CheckpointCallback
 from nemo.utils.lr_policies import SquareAnnealing
 
@@ -112,7 +113,7 @@ t_log_softmax = nemo_nlp.nm.trainables.TokenClassifier(
     args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
 )
 
-loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(pad_id=tokenizer.pad_id, label_smoothing=0.1)
+loss_fn = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss(pad_id=tokenizer.pad_id, label_smoothing=0.1)
 
 beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     decoder=decoder,
@@ -126,9 +127,33 @@ beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
 )
 
 # tie all embeddings weights
-t_log_softmax.mlp.layer0.weight = encoder.bert.embeddings.word_embeddings.weight
-decoder.embedding_layer.token_embedding.weight = encoder.bert.embeddings.word_embeddings.weight
-decoder.embedding_layer.position_embedding.weight = encoder.bert.embeddings.position_embeddings.weight
+# t_log_softmax.mlp.layer0.weight = encoder.bert.embeddings.word_embeddings.weight
+# decoder.embedding_layer.token_embedding.weight = encoder.bert.embeddings.word_embeddings.weight
+# decoder.embedding_layer.position_embedding.weight = encoder.bert.embeddings.position_embeddings.weight
+t_log_softmax.tie_weights_with(
+    encoder,
+    weight_names=["mlp.layer0.weight"],
+    name2name_and_transform={
+        "mlp.layer0.weight": ("bert.embeddings.word_embeddings.weight", WeightShareTransform.SAME)
+    },
+)
+decoder.tie_weights_with(
+    encoder,
+    weight_names=["embedding_layer.token_embedding.weight"],
+    name2name_and_transform={
+        "embedding_layer.token_embedding.weight": ("bert.embeddings.word_embeddings.weight", WeightShareTransform.SAME)
+    },
+)
+decoder.tie_weights_with(
+    encoder,
+    weight_names=["embedding_layer.position_embedding.weight"],
+    name2name_and_transform={
+        "embedding_layer.position_embedding.weight": (
+            "bert.embeddings.position_embeddings.weight",
+            WeightShareTransform.SAME,
+        )
+    },
+)
 
 
 def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):
@@ -149,7 +174,7 @@ def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):
         input_ids_tgt=tgt, hidden_states_src=src_hiddens, input_mask_src=src_mask, input_mask_tgt=tgt_mask
     )
     log_softmax = t_log_softmax(hidden_states=tgt_hiddens)
-    loss = loss_fn(logits=log_softmax, target_ids=labels)
+    loss = loss_fn(logits=log_softmax, labels=labels)
     beam_results = None
     if not training:
         beam_results = beam_search(hidden_states_src=src_hiddens, input_mask_src=src_mask)

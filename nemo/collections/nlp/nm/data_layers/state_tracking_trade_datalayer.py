@@ -44,36 +44,45 @@ import nemo
 from nemo.collections.nlp.data.datasets import MultiWOZDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core.neural_types import ChannelType, LabelsType, LengthsType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['MultiWOZDataLayer']
 
 
 class MultiWOZDataLayer(TextDataLayer):
+    """
+    Creates the data layer to use for State Tracking dataset MultiWOZ.
+
+    Args:
+        data_dir (str): path of the data folder
+        domains (dict): dictionary of the domains to include
+        all_domains (dict): dictionary of all the available domains
+        vocab (Vocab): Vocabulary
+        slots (list): list of the slots
+        gating_dict (dict): dictionary of the gates
+        num_samples (int): number of samples to include
+        batch_size (int): batch size
+        mode (str): mode of dataset, default='train'
+        dataset_type (Dataset): Dataset Type
+        shuffle (bool): enables shuffling, default=False
+        num_workers (int): number of workers
+        input_dropout (float): dropout applied to the input
+        is_training (bool): specifies if it is for training
+    """
+
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
-
         src_ids: ids of input sequences
-
         src_lens: lengths of input sequences
-
         tgt_ids: labels for the generator output
-
         tgt_lens: lengths of the generator targets
-
         gating_labels: labels for the gating head
-
         turn_domain: list of the domains
-            NeuralType(None)
 
         """
         return {
-            # "src_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "src_lens": NeuralType({0: AxisType(BatchTag)}),
-            # "tgt_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag), 2: AxisType(TimeTag)}),
-            # "tgt_lens": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            # "gating_labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)}),
-            # "turn_domain": NeuralType(None),
             "src_ids": NeuralType(('B', 'T'), ChannelType()),
             "src_lens": NeuralType(tuple('B'), LengthsType()),
             "tgt_ids": NeuralType(('B', 'D', 'T'), LabelsType()),

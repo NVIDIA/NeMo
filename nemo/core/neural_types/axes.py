@@ -34,7 +34,7 @@ class AxisKind(AxisKindAbstract):
     """This Enum represents what does varying axis dimension mean.
     For example, does this dimension correspond to width, batch, time, etc.
     The "Dimension" and "Channel" kinds are the same and used to represent
-    a general axis.
+    a general axis. "Any" axis will accept any axis kind fed to it.
     """
 
     Batch = 0
@@ -43,6 +43,10 @@ class AxisKind(AxisKindAbstract):
     Channel = 2
     Width = 3
     Height = 4
+    Any = 5
+
+    def __repr__(self):
+        return self.__str__()
 
     def __str__(self):
         return str(self.name).lower()
@@ -61,6 +65,8 @@ class AxisKind(AxisKindAbstract):
             return AxisKind.Width
         elif _label == "h" or _label == "height":
             return AxisKind.Height
+        elif _label == "any":
+            return AxisKind.Any
         else:
             raise ValueError(f"Can't create AxisKind from {label}")
 
@@ -80,3 +86,12 @@ class AxisType(object):
         self.kind = kind
         self.size = size
         self.is_list = is_list
+
+    def __repr__(self):
+        if self.size is None:
+            representation = str(self.kind)
+        else:
+            representation = f"{str(self.kind)}:{self.size}"
+        if self.is_list:
+            representation += "_listdim"
+        return representation

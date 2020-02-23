@@ -17,6 +17,7 @@
 from nemo.collections.nlp.data import SquadDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BertQuestionAnsweringDataLayer']
 
@@ -32,36 +33,40 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             unanswerable questions.
         doc_stride (int): When splitting up a long document into chunks,
             how much stride to take between chunks.
-        max_query_length (iny): All training files which have a duration less
+        max_query_length (int): All training files which have a duration less
             than min_duration are dropped. Can't be used if the `utt2dur` file
             does not exist. Defaults to None.
         max_seq_length (int): All training files which have a duration more
             than max_duration are dropped. Can't be used if the `utt2dur` file
             does not exist. Defaults to None.
-        mode (str): Use "train" or "dev" to define between
-            training and evaluation.
+        mode (str): Use "train", "eval", or "infer" to define between
+            training and evaluation and inference.
         batch_size (int): Batch size. Defaults to 64.
-        dataset_type (class): Question Answering class.
+        dataset_type (Dataset): Question Answering class.
             Defaults to SquadDataset.
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        input_ids:
+            indices of tokens which constitute batches of masked text segments
+        input_type_ids:
+            tensor with 0's and 1's to denote the text segment type
+        input_mask:
+            bool tensor with 0s in place of tokens to be masked
+        start_positions: indices of tokens which constitute start position of answer
+        end_positions: indices of tokens which constitute end position of answer
+        unique_ids: id of the Question answer example this instance belongs to
         """
         return {
-            # "input_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "start_positions": NeuralType({0: AxisType(BatchTag)}),
-            # "end_positions": NeuralType({0: AxisType(BatchTag)}),
-            # "unique_ids": NeuralType({0: AxisType(BatchTag)}),
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
-            "start_positions": NeuralType(tuple('B'), ChannelType()),
-            "end_positions": NeuralType(tuple('B'), ChannelType()),
             "unique_ids": NeuralType(tuple('B'), ChannelType()),
+            "start_positions": NeuralType(tuple('B'), ChannelType(), optional=True),
+            "end_positions": NeuralType(tuple('B'), ChannelType(), optional=True),
         }
 
     def __init__(
@@ -72,8 +77,9 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
         doc_stride,
         max_query_length,
         max_seq_length,
-        mode="train",
+        mode,
         batch_size=64,
+        use_cache=True,
         dataset_type=SquadDataset,
     ):
         dataset_params = {
@@ -83,6 +89,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             'version_2_with_negative': version_2_with_negative,
             'max_query_length': max_query_length,
             'max_seq_length': max_seq_length,
+            'use_cache': use_cache,
             'doc_stride': doc_stride,
         }
 

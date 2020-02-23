@@ -25,8 +25,10 @@ class TextDataLayer(DataLayerNM):
     Generic Text Data Layer NM which wraps PyTorch's dataset
 
     Args:
-        dataset_type: type of dataset used for this datalayer
+        dataset_type (Dataset): type of dataset used for this datalayer
         dataset_params (dict): all the params for the dataset
+        batch_size (int): sequence batch size
+        shuffle (bool): whether to shuffle data
     """
 
     def __init__(self, dataset_type, dataset_params, batch_size, shuffle=False):

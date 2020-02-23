@@ -12,6 +12,8 @@ import nemo.utils.argparse as nm_argparse
 from nemo.collections.asr.helpers import monitor_asr_train_progress, process_evaluation_batch, process_evaluation_epoch
 from nemo.utils.lr_policies import SquareAnnealing
 
+logging = nemo.logging
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -96,7 +98,7 @@ def create_all_dags(args, neural_factory):
 
     N = len(data_layer)
     steps_per_epoch = int(N / (args.batch_size * args.num_gpus))
-    nemo.logging.info('Have {0} examples to train on.'.format(N))
+    logging.info('Have {0} examples to train on.'.format(N))
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"],
@@ -130,7 +132,7 @@ def create_all_dags(args, neural_factory):
 
             data_layers_eval.append(data_layer_eval)
     else:
-        nemo.logging.warning("There were no val datasets passed")
+        logging.warning("There were no val datasets passed")
 
     jasper_encoder = nemo_asr.JasperEncoder(
         feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"], **jasper_params["JasperEncoder"],
@@ -144,13 +146,11 @@ def create_all_dags(args, neural_factory):
 
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
-    nemo.logging.info('================================')
-    nemo.logging.info(f"Number of parameters in encoder: {jasper_encoder.num_weights}")
-    nemo.logging.info(f"Number of parameters in decoder: {jasper_decoder.num_weights}")
-    nemo.logging.info(
-        f"Total number of parameters in model: " f"{jasper_decoder.num_weights + jasper_encoder.num_weights}"
-    )
-    nemo.logging.info('================================')
+    logging.info('================================')
+    logging.info(f"Number of parameters in encoder: {jasper_encoder.num_weights}")
+    logging.info(f"Number of parameters in decoder: {jasper_decoder.num_weights}")
+    logging.info(f"Total number of parameters in model: " f"{jasper_decoder.num_weights + jasper_encoder.num_weights}")
+    logging.info('================================')
 
     # Train DAG
     (audio_signal_t, a_sig_length_t, transcript_t, transcript_len_t,) = data_layer()
@@ -242,7 +242,7 @@ def main():
 
     checkpoint_dir = neural_factory.checkpoint_dir
     if args.local_rank is not None:
-        nemo.logging.info('Doing ALL GPU')
+        logging.info('Doing ALL GPU')
 
     # build dags
     train_loss, callbacks, steps_per_epoch = create_all_dags(args, neural_factory)

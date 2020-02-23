@@ -279,7 +279,8 @@ class KaldiFeatureDataset(Dataset):
         if id2dur:
             # utt2dur durations are in seconds
             logging.info(
-                f"Dataset loaded with {duration / 60 : .2f} hours. " f"Filtered {filtered_duration / 60 : .2f} hours."
+                f"Dataset loaded with {duration / 3600 : .2f} hours. "
+                f"Filtered {filtered_duration / 3600 : .2f} hours."
             )
 
         self.data = data
@@ -329,3 +330,64 @@ class TranscriptDataset(Dataset):
             torch.tensor(tokenized_text, dtype=torch.long),
             torch.tensor(len(tokenized_text), dtype=torch.long),
         )
+
+
+class AudioLabelDataset(Dataset):
+    """
+    Dataset that loads tensors via a json file containing paths to audio
+    files, command class, and durations (in seconds). Each new line is a
+    different sample. Example below:
+
+    {"audio_filepath": "/path/to/audio.wav", "label":
+    "label", "duration": 23.147}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "label": "label",
+    "offset": 301.75, "duration": 0.82}
+
+    Args:
+        manifest_filepath: Path to manifest json as described above. Can
+            be comma-separated paths.
+        labels: String containing all the possible labels to map to
+        featurizer: Initialized featurizer class that converts paths of
+            audio to feature tensors
+        max_duration: If audio exceeds this length, do not include in dataset
+        min_duration: If audio is less than this length, do not include
+            in dataset
+        trim: Boolean flag whether to trim the audio
+        load_audio: Boolean flag indicate whether do or not load audio
+    """
+
+    def __init__(
+        self, manifest_filepath, labels, featurizer, max_duration=None, min_duration=None, trim=False, load_audio=True
+    ):
+        self.collection = collections.ASRSpeechLabel(
+            manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
+        )
+
+        self.featurizer = featurizer
+        self.trim = trim
+        self.load_audio = load_audio
+
+        self.labels = labels
+        self.num_commands = len(labels)
+
+        self.label2id, self.id2label = {}, {}
+        for label_id, label in enumerate(labels):
+            self.label2id[label] = label_id
+            self.id2label[label_id] = label
+
+    def __getitem__(self, index):
+        sample = self.collection[index]
+        if self.load_audio:
+            features = self.featurizer.process(sample.audio_file, offset=0, duration=sample.duration, trim=self.trim)
+            f, fl = features, torch.tensor(features.shape[0]).long()
+        else:
+            f, fl = None, None
+
+        t = self.label2id[sample.label]
+        tl = 1  # For compatibility with collate_fn used later
+
+        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+
+    def __len__(self):
+        return len(self.collection)
