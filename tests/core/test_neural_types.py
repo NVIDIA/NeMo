@@ -20,8 +20,10 @@ from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     AudioSignal,
     AxisKind,
+    AxisKindAbstract,
     AxisType,
     ChannelType,
+    ElementType,
     MelSpectrogramType,
     MFCCSpectrogramType,
     NeuralPortNmTensorMismatchError,
@@ -176,3 +178,49 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         t1 = NeuralType(('B', 'T', 'C'), SpectrogramType())
         self.assertEqual(t1.compare(t0), NeuralTypeComparisonResult.SAME)
         self.assertEqual(t0.compare(t1), NeuralTypeComparisonResult.DIM_INCOMPATIBLE)
+
+    def test_any_axis(self):
+        t0 = NeuralType(('B', 'Any', 'Any'), VoidType())
+        t1 = NeuralType(('B', 'Any', 'Any'), SpectrogramType())
+        t2 = NeuralType(('B', 'T', 'C'), SpectrogramType())
+        self.assertEqual(t0.compare(t1), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(t0.compare(t2), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(t1.compare(t2), NeuralTypeComparisonResult.SAME)
+        self.assertEqual(t2.compare(t1), NeuralTypeComparisonResult.INCOMPATIBLE)
+        self.assertEqual(t1.compare(t0), NeuralTypeComparisonResult.INCOMPATIBLE)
+
+    def test_struct(self):
+        class BoundingBox(ElementType):
+            def __str__(self):
+                return "bounding box from detection model"
+
+            def fields(self):
+                return ("X", "Y", "W", "H")
+
+        # ALSO ADD new, user-defined, axis kind
+        class AxisKind2(AxisKindAbstract):
+            Image = 0
+
+        T1 = NeuralType(
+            elements_type=BoundingBox(),
+            axes=(
+                AxisType(kind=AxisKind.Batch, size=None, is_list=True),
+                AxisType(kind=AxisKind2.Image, size=None, is_list=True),
+            ),
+        )
+
+        class BadBoundingBox(ElementType):
+            def __str__(self):
+                return "bad bounding box from detection model"
+
+            def fields(self):
+                return ("X", "Y", "H")
+
+        T2 = NeuralType(
+            elements_type=BadBoundingBox(),
+            axes=(
+                AxisType(kind=AxisKind.Batch, size=None, is_list=True),
+                AxisType(kind=AxisKind2.Image, size=None, is_list=True),
+            ),
+        )
+        self.assertEqual(T2.compare(T1), NeuralTypeComparisonResult.INCOMPATIBLE)

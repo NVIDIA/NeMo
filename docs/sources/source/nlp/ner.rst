@@ -4,10 +4,21 @@ Tutorial
 Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this
 tutorial. See the :ref:`installation` section for more details.
 
+.. tip::
+
+    For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
+
+
 Introduction
 ------------
 
 This tutorial explains how to implement named entity recognition (NER) in NeMo. We'll show how to do this with a pre-trained BERT model, or with one that you trained yourself! For more details, check out our BERT pretraining tutorial.
+
+.. tip::
+
+    We recommend you try this out in a Jupyter notebook. It'll make debugging much easier!
+    See examples/nlp/token_classification/NERWithBERT.ipynb.
+    All code used in this tutorial is based on :ref:`ner_scripts`.
 
 Download Dataset
 ----------------
@@ -41,16 +52,11 @@ You can use `this`_ to convert CoNLL-2003 dataset to the format required for tra
 Training
 --------
 
-.. tip::
-
-    We recommend you try this out in a Jupyter notebook. It'll make debugging much easier!
-    See examples/nlp/NERWithBERT.ipynb
-
 First, we need to create our neural factory with the supported backend. How you should define it depends on whether you'd like to multi-GPU or mixed-precision training. This tutorial assumes that you're training on one GPU, without mixed precision (``optimization_level="O0"``). If you want to use mixed precision, set ``optimization_level`` to ``O1`` or ``O2``.
 
     .. code-block:: python
 
-        WORK_DIR = "output_ner"
+        WORK_DIR = "path_to_output_dir"
         nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
                                            local_rank=None,
                                            optimization_level="O0",
@@ -59,12 +65,12 @@ First, we need to create our neural factory with the supported backend. How you 
 
 Next, we'll need to define our tokenizer and our BERT model. There are a couple of different ways you can do this. Keep in mind that NER benefits from casing ("New York City" is easier to identify than "new york city"), so we recommend you use cased models.
 
-If you're using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out ``nemo_nlp.huggingface.BERT.list_pretrained_models()``
+If you're using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out ``nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()``
 
     .. code-block:: python
 
-        tokenizer = NemoBertTokenizer(pretrained_model="bert-base-cased")
-        bert_model = nemo_nlp.huggingface.BERT(
+        tokenizer = nemo.collections.nlp.data.NemoBertTokenizer(pretrained_model="bert-base-cased")
+        bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
             pretrained_model_name="bert-base-cased")
 
 See examples/nlp/token_classification.py on how to use a BERT model that you pre-trained yourself.
@@ -72,7 +78,7 @@ Now, create the train and evaluation data layers:
 
     .. code-block:: python
     
-        train_data_layer = nemo_nlp.BertTokenClassificationDataLayer(
+        train_data_layer = nemo_nlp.nm.data_layers.BertTokenClassificationDataLayer(
             tokenizer=tokenizer,
             text_file=os.path.join(DATA_DIR, 'text_train.txt'),
             label_file=os.path.join(DATA_DIR, 'labels_train.txt'),
@@ -82,7 +88,7 @@ Now, create the train and evaluation data layers:
         label_ids = train_data_layer.dataset.label_ids
         num_classes = len(label_ids)
 
-        eval_data_layer = nemo_nlp.BertTokenClassificationDataLayer(
+        eval_data_layer = nemo_nlp.nm.data_layers.BertTokenClassificationDataLayer(
             tokenizer=tokenizer,
             text_file=os.path.join(DATA_DIR, 'text_dev.txt'),
             label_file=os.path.join(DATA_DIR, 'labels_dev.txt'),
@@ -95,13 +101,11 @@ We need to create the classifier to sit on top of the pretrained model and defin
     .. code-block:: python
 
         hidden_size = bert_model.hidden_size
-        ner_classifier = nemo_nlp.TokenClassifier(hidden_size=hidden_size,
+        ner_classifier = nemo.collections.nlp.nm.trainables.TokenClassifier(hidden_size=hidden_size,
                                               num_classes=num_classes,
                                               dropout=CLASSIFICATION_DROPOUT)
 
-        ner_loss = nemo_nlp.TokenClassificationLoss(d_model=hidden_size,
-                                                num_classes=num_classes,
-                                                dropout=CLASSIFICATION_DROPOUT)
+        ner_loss = CrossEntropyLossNM(logits_dim=3)
 
 Now, create the train and evaluation datasets:
 
@@ -182,21 +186,23 @@ Finally, we will define our learning rate policy and our optimizer, and start tr
 .. _Tensorboard: https://www.tensorflow.org/tensorboard
 .. _tensorboardX: https://github.com/lanpa/tensorboardX
 
-To train NER with BERT using the provided scripts
--------------------------------------------------
+.. _ner_scripts:
+
+Training and inference scripts
+------------------------------
 
 To run the provided training script:
 
 .. code-block:: bash
 
-    python token_classification.py --data_dir /data/ner/ --work_dir output_ner
+    python examples/nlp/token_classification/token_classification.py --data_dir path_to_data --work_dir path_to_output_dir
 
 To run inference:
 
 .. code-block:: bash
 
-    python token_classification_infer.py --labels_dict /data/ner/label_ids.csv
-    --work_dir output_ner/checkpoints/
+    python examples/nlp/token_classification/token_classification_infer.py --labels_dict path_to_data/label_ids.csv
+    --work_dir path_to_output_dir/checkpoints/
 
 Note, label_ids.csv file will be generated during training and stored in the data_dir folder.
 
@@ -221,5 +227,5 @@ And then, when you load your BERT model, you should specify the name of the dire
 .. code-block:: python
 
     tokenizer = NemoBertTokenizer(pretrained_model="scibert_scivocab_cased")
-    bert_model = nemo_nlp.huggingface.BERT(
+    bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
         pretrained_model_name="scibert_scivocab_cased")

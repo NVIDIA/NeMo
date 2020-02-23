@@ -27,33 +27,57 @@
 NVIDIA Neural Modules: NeMo
 ===========================
 
-NeMo (Neural Modules) is a toolkit for creating AI applications using **neural modules** - conceptual blocks of neural networks that take *typed* inputs and produce *typed* outputs. Such modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
+NeMo is a toolkit for defining and building new state of the art deep learning models for `Conversational AI <https://developer.nvidia.com/conversational-ai#started>`_ applications
 
-NeMo makes it easy to combine and re-use these building blocks while providing a level of semantic correctness checking via its neural type system. As long as two modules have compatible inputs and outputs, it is legal to chain them together.
+Goal of the NeMo toolkit is to make it possible for researchers to easily and safely compose complex neural network architectures for conversational AI using reusable components. Built for speed, NeMo can scale out training to multiple GPUs and multiple nodes.
 
-NeMo's API is designed to be **framework-agnostic**, but currently only PyTorch is supported.
+**Neural Modules** are conceptual blocks of neural networks that take *typed* inputs and produce *typed* outputs. Such modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
 
 The toolkit comes with extendable collections of pre-built modules for automatic speech recognition (ASR), natural language processing (NLP) and text synthesis (TTS). Furthermore, NeMo provides built-in support for **distributed training** and **mixed precision** on the latest NVIDIA GPUs.
 
-NeMo consists of: 
+NeMo consists of a core and some pre-built neural modules for particular domains such as automatic speech recognition, natural language processing and text synthesis:
 
-* **NeMo Core**: fundamental building blocks for all neural models and type system.
-* **NeMo collections**: pre-built neural modules for particular domains such as automatic speech recognition (nemo_asr), natural language processing (nemo_nlp) and text synthesis (nemo_tts).
-
+* **NeMo Core**: fundamental building blocks for all neural models and type system
+* **ASR Collection**: collection of modules for speech recognition tasks
+* **TTS Collection**: collection of modules for text to speech
+* **NLP Collection**: collection of natural language processing
+   * Intent Detection and Slot Filling
+   * Text Classification
+   * State Tracking for Task-oriented Dialogue Systems
+   * Language Modelling
+   * Machine Translation
+   * Question Answering
+   * Name Entity Recognition (NER)
+   * Punctuation and Capitalization
+   * GLUE Benchmark
+   * ASR Postprocessing with BERT
 
 **Introduction**
 
-See `this video <https://nvidia.github.io/NeMo/>`_ for a quick walk-through.
+* Watch `this video <https://nvidia.github.io/NeMo/>`_ for a quick walk-through.
+
+* Documentation: https://nvidia.github.io/NeMo/
+
+* Read NVIDIA `Developer Blog for example applications <https://devblogs.nvidia.com/how-to-build-domain-specific-automatic-speech-recognition-models-on-gpus/>`_
+
+* Read NVIDIA `Developer Blog for Quartznet ASR model <https://devblogs.nvidia.com/develop-smaller-speech-recognition-models-with-nvidias-nemo-framework/>`_
+
+* Recommended version to install is **0.9.0** via pip install nemo-toolkit
+
+* Recommended NVIDIA `NGC NeMo Toolkit container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_
+
+* Pretrained models are available on NVIDIA `NGC Model repository <https://ngc.nvidia.com/catalog/models?orderBy=modifiedDESC&query=nemo&quickFilter=models&filters=>`_
+
+
+**Getting started**
+
+THE LATEST STABLE VERSION OF NeMo is **0.9.0** (which is available via PIP).
 
 **Requirements**
 
 1) Python 3.6 or 3.7
 2) PyTorch 1.2.* or 1.3.* with GPU support
 3) (optional for best performance) NVIDIA APEX. Install from here: https://github.com/NVIDIA/apex
-
-**Getting started**
-
-THE LATEST STABLE VERSION OF NeMo is **0.9.0** (which is available via PIP).
 
 **Docker Container**
  NVIDIA `NGC NeMo Toolkit container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_ is now available.

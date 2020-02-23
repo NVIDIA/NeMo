@@ -1,23 +1,26 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import json
-from typing import Any, Dict, Iterator, List, Union
+from os.path import expanduser
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 
 class ManifestBase:
     def __init__(self, *args, **kwargs):
         raise ValueError(
-            "This class is deprecated, look at " "https://github.com/NVIDIA/NeMo/pull/284 for " "correct behaviour."
+            "This class is deprecated, look at https://github.com/NVIDIA/NeMo/pull/284 for correct behaviour."
         )
 
 
 class ManifestEN:
     def __init__(self, *args, **kwargs):
         raise ValueError(
-            "This class is deprecated, look at " "https://github.com/NVIDIA/NeMo/pull/284 for " "correct behaviour."
+            "This class is deprecated, look at https://github.com/NVIDIA/NeMo/pull/284 for correct behaviour."
         )
 
 
-def item_iter(manifests_files: Union[str, List[str]]) -> Iterator[Dict[str, Any]]:
+def item_iter(
+    manifests_files: Union[str, List[str]], parse_func: Callable[[str, Optional[str]], Dict[str, Any]] = None
+) -> Iterator[Dict[str, Any]]:
     """Iterate through json lines of provided manifests.
 
     NeMo ASR pipelines often assume certain manifest files structure. In
@@ -31,6 +34,10 @@ def item_iter(manifests_files: Union[str, List[str]]) -> Iterator[Dict[str, Any]
         manifests_files: Either single string file or list of such -
             manifests to yield items from.
 
+        parse_func: A callable function which accepts as input a single line
+            of a manifest and optionally the manifest file itself,
+            and parses it, returning a dictionary mapping from str -> Any.
+
     Yields:
         Parsed key to value item dicts.
 
@@ -41,15 +48,18 @@ def item_iter(manifests_files: Union[str, List[str]]) -> Iterator[Dict[str, Any]
     if isinstance(manifests_files, str):
         manifests_files = [manifests_files]
 
+    if parse_func is None:
+        parse_func = __parse_item
+
     for manifest_file in manifests_files:
-        with open(manifest_file, 'r') as f:
+        with open(expanduser(manifest_file), 'r') as f:
             for line in f:
-                item = __parse_item(line)
+                item = parse_func(line, manifest_file)
 
                 yield item
 
 
-def __parse_item(line: str) -> Dict[str, Any]:
+def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     item = json.loads(line)
 
     # Audio file
@@ -61,6 +71,7 @@ def __parse_item(line: str) -> Dict[str, Any]:
         raise ValueError(
             f"Manifest file {manifest_file} has invalid json line " f"structure: {line} without proper audio file key."
         )
+    item['audio_file'] = expanduser(item['audio_file'])
 
     # Duration.
     if 'duration' not in item:

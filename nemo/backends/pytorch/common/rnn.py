@@ -23,6 +23,7 @@ from torch import nn
 from nemo.backends.pytorch.common.parts import Attention
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core import *
+from nemo.utils.decorators import add_port_docs
 from nemo.utils.misc import pad_to
 
 __all__ = ['DecoderRNN', 'EncoderRNN']
@@ -65,28 +66,22 @@ class DecoderRNN(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
         return {
-            # 'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             'targets': NeuralType(('B', 'T'), LabelsType()),
-            # 'encoder_outputs': NeuralType(
-            #   {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
-            # ),
             'encoder_outputs': NeuralType(('B', 'T', 'D'), ChannelType(), True),
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         return {
-            # 'log_probs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
             'log_probs': NeuralType(('B', 'T', 'D'), LogprobsType()),
-            # 'attention_weights': NeuralType(
-            #    {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}, optional=True,
-            # ),
             'attention_weights': NeuralType(('B', 'T', 'T'), ChannelType(), True),
         }
 
@@ -124,7 +119,7 @@ class DecoderRNN(TrainableNM):
         )
         self.out = nn.Linear(hidden_size, voc_size)
         if tie_emb_out_weights:
-            self.out.weight = self.embedding.weight  # Weight tying
+            self.out.weight = nn.Parameter(self.embedding.weight)  # Weight tying
         self.attention = Attention(hidden_size, attention_method, dropout=attn_dropout)
 
         # self.apply(init_weights)
@@ -203,23 +198,21 @@ class EncoderRNN(TrainableNM):
     """ Simple RNN-based encoder using GRU cells """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
         return {
-            # 'inputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # 'input_lens': NeuralType({0: AxisType(BatchTag),}, optional=True),
             'inputs': NeuralType(('B', 'T'), ChannelType()),
             'input_lens': NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         return {
-            # 'outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            # 'hidden': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             'outputs': NeuralType(('B', 'T', 'D'), ChannelType()),
             'hidden': NeuralType(('B', 'T', 'D'), ChannelType()),
         }

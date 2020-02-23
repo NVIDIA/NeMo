@@ -3,7 +3,7 @@ Tutorial
 
 In this tutorial, we are going to implement a Question Answering system using the SQuAD dataset with pretrained BERT-like models based on
 `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`_ :cite:`nlp-qa-devlin2018bert`.
-All code used in this tutorial is based on ``examples/nlp/question_answering/question_answering.py``.
+All code used in this tutorial is based on ``examples/nlp/question_answering/question_answering_squad.py``.
 
 
 Currently, there are 3 pretrained back-bone models supported, on which the question answering task SQuAD can be fine-tuned:
@@ -12,6 +12,12 @@ on a custom BERT checkpoint, specified by the `--bert_checkpoint` argument.
 The pretrained back-bone models can be specified by `--model_type` and the specific model by `--pretrained_model_name`.
 See the list of available pre-trained models
 `here <https://huggingface.co/transformers/pretrained_models.html>`__. 
+
+.. tip::
+
+    For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
+
+
 
 Preliminaries
 -------------
@@ -30,11 +36,14 @@ This model can work with any dataset that follows the format:
 
     * training file: a `json` file of this structure
 
-    {"data":[{"title": "string", "paragraphs": [{"context": "string", "qas": [{"question": "string", "id": "number", "answers": [{"answer_start": "number", "text": "string", }]}]}]}]}
+    {"data":[{"title": "string", "paragraphs": [{"context": "string", "qas": [{"question": "string", "is_impossible": "bool", "id": "number", "answers": [{"answer_start": "number", "text": "string", }]}]}]}]}
+    "answers" can also be empty if the model should also learn questions with impossible answers. In this case pass `--version_2_with_negative`
 
     * evaluation file: a `json` file that follows the training file format
-      only that it can provide more than one answer to the same question
+      only that it can provide more than one entry for "answers" to the same question
 
+    * inference file: a `json` file that follows the training file format
+      only that it does not require the "answers" keyword. 
 
 Currently, the datasets that we provide pre-processing script for is SQuAD v1.1 and v2.0 
 which can be downloaded
@@ -85,25 +94,27 @@ Next, we define all Neural Modules participating in our question answering class
     .. code-block:: python
 
         data_layer = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
+                                mode="train",
                                 data_file=args.train_file,
                                 tokenizer=tokenizer,
                                 batch_size=args.batch_size,
-                                mode='train',
                                 version_2_with_negative=args.version_2_with_negative,
                                 max_query_length=args.max_query_length,
                                 max_seq_length=args.max_seq_length,
-                                doc_stride=args.doc_stride)
+                                doc_stride=args.doc_stride,
+                                use_cache=args.use_data_cache)
 
         
         data_layer_eval = nemo_nlp.nm.data_layers.BertQuestionAnsweringDataLayer(
-                                data_file=args.dev_file,
+                                mode='eval',
+                                data_file=args.eval_file,
                                 tokenizer=tokenizer,
                                 batch_size=args.batch_size,
-                                mode='dev',
                                 version_2_with_negative=args.version_2_with_negative,
                                 max_query_length=args.max_query_length,
                                 max_seq_length=args.max_seq_length,
-                                doc_stride=args.doc_stride)
+                                doc_stride=args.doc_stride,
+                                use_cache=args.use_data_cache)
 
     * Load the pretrained model and get the hidden states for the corresponding inputs.
 
@@ -132,7 +143,7 @@ Next, we define all Neural Modules participating in our question answering class
 
     .. code-block:: python
 
-        loss_fn = nemo_nlp.nm.losses.QuestionAnsweringLoss()
+        loss_fn = nemo_nlp.nm.losses.SpanningLoss()
 
     * Create the pipelines for the train and evaluation processes. 
 
@@ -164,8 +175,7 @@ Next, we define all Neural Modules participating in our question answering class
             logits=qa_logits_eval,
             start_positions=input_data_eval.start_positions,
             end_positions=input_data_eval.end_positions)
-        eval_tensors = [loss_outputs_eval.start_logits, loss_outputs_eval.end_logits, 
-                        input_data_eval.unique_ids]
+        eval_tensors = [input_data_eval.unique_ids, loss_outputs_eval.start_logits, loss_outputs_eval.end_logits]
 
 
 
@@ -219,37 +229,48 @@ Next, we define all Neural Modules participating in our question answering class
 Model training
 --------------
 
+To run on a single GPU, run:
+    
+    .. code-block:: python
+
+        python question_answering_squad.py \
+            ...
+            
 To train a question answering model on SQuAD using multi-gpu, run ``question_answering_squad.py`` located at ``examples/nlp/question_answering``:
 
     .. code-block:: python
 
         python -m torch.distributed.launch --nproc_per_node=8 question_answering_squad.py 
             --train_file <path to train file in *.json format>
-            --dev_file <path to evaluation file in *.json format>
+            --eval_file <path to evaluation file in *.json format>
             --num_gpus 8
             --work_dir <where you want to log your experiment> 
             --amp_opt_level <amp optimization level> 
             --pretrained_model_name <type of model to use> 
+            --bert_checkpoint <pretrained bert checkpoint>
+            --mode "train_eval"
             ...
 
-To do inference, run:
+To run evaluation:
 
     .. code-block:: python
 
-        python -m torch.distributed.launch --nproc_per_node=8 question_answering_squad.py 
-            --dev_file <path to evaluation file in *.json format>
-            --num_gpus 8
-            --checkpoint_dir <path to checkpoint folder>
-            --evaluation_only
+        python question_answering_squad.py 
+            --eval_file <path to evaluation file in *.json format>
+            --checkpoint_dir <path to trained SQuAD checkpoint folder>
+            --mode "eval"
             --output_prediction_file <path to output file where predictions are written into>
             ...
 
+To run inference:
 
-To run on a single GPU, run:
-    
     .. code-block:: python
 
-        python question_answering_squad.py \
+        python question_answering_squad.py 
+            --infer_file <path to evaluation file in *.json format>
+            --checkpoint_dir <path to trained SQuAD checkpoint folder>
+            --mode "infer"
+            --output_prediction_file <path to output file where predictions are written into>
             ...
 
 
