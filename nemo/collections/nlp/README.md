@@ -13,4 +13,4 @@ NeMo NLP Collection: Neural Modules for Natural Language Processing
   * GLUE Benchmark
   * ASR Postprocessing with BERT
 
-See the documentation and tutorials for ``nemo_nlp`` [here](https://nvidia.github.io/NeMo/nlp/intro.html).
+See the documentation and tutorials for NLP collection [here](https://nvidia.github.io/NeMo/nlp/intro.html).
