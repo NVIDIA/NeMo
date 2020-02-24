@@ -57,7 +57,7 @@ class SquadDataset(Dataset):
     Creates SQuAD dataset for Question Answering.
 
     Args:
-        data_file (str): train.*.json eval.*.json or infer.*.json.
+        data_file (str): train.*.json eval.*.json or test.*.json.
         tokenizer (obj): Tokenizer object, e.g. NemoBertTokenizer.
         version_2_with_negative (bool): True if training should allow
             unanswerable questions.
@@ -69,7 +69,7 @@ class SquadDataset(Dataset):
         max_seq_length (int): All training files which have a duration more
             than max_duration are dropped. Can't be used if the `utt2dur` file
             does not exist. Defaults to None.
-        mode (str): Use "train", "eval" or "infer" to define between
+        mode (str): Use "train", "eval" or "test" to define between
             training and evaluation.
     """
 
@@ -88,8 +88,8 @@ class SquadDataset(Dataset):
         self.version_2_with_negative = version_2_with_negative
         self.processor = SquadProcessor(data_file=data_file, mode=mode)
         self.mode = mode
-        if mode not in ["eval", "train", "infer"]:
-            raise ValueError(f"mode should be either 'train', 'eval', or 'infer' but got {mode}")
+        if mode not in ["eval", "train", "test"]:
+            raise ValueError(f"mode should be either 'train', 'eval', or 'test' but got {mode}")
         self.examples = self.processor.get_examples()
 
         cached_features_file = (
@@ -109,7 +109,7 @@ class SquadDataset(Dataset):
                 max_seq_length=max_seq_length,
                 doc_stride=doc_stride,
                 max_query_length=max_query_length,
-                has_groundtruth=mode != "infer",
+                has_groundtruth=mode != "test",
             )
 
             if use_cache:
@@ -124,7 +124,7 @@ class SquadDataset(Dataset):
 
     def __getitem__(self, idx):
         feature = self.features[idx]
-        if self.mode == "infer":
+        if self.mode == "test":
             return (
                 np.array(feature.input_ids),
                 np.array(feature.segment_ids),
