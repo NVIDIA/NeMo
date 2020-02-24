@@ -86,6 +86,7 @@ import os
 from transformers import BertConfig
 
 import nemo.backends.pytorch.common as nemo_common
+import nemo.backends.pytorch.common.losses
 import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
 from nemo import logging
@@ -208,17 +209,17 @@ if args.bert_checkpoint is not None:
 data layers, BERT encoder, and MLM and NSP loss functions
 """
 
-mlm_classifier = nemo_nlp.nm.trainables.token_classification_nm.BertTokenClassifier(
+mlm_classifier = nemo_nlp.nm.trainables.BertTokenClassifier(
     args.hidden_size, num_classes=args.vocab_size, activation=args.hidden_act, log_softmax=True
 )
-mlm_loss_fn = nemo_nlp.nm.losses.MaskedLanguageModelingLossNM()
+mlm_loss_fn = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss()
 if not args.only_mlm_loss:
-    nsp_classifier = nemo_nlp.nm.trainables.sequence_classification_nm.SequenceClassifier(
+    nsp_classifier = nemo_nlp.nm.trainables.SequenceClassifier(
         args.hidden_size, num_classes=2, num_layers=2, activation='tanh', log_softmax=False
     )
-    nsp_loss_fn = nemo_common.CrossEntropyLoss()
+    nsp_loss_fn = nemo_common.CrossEntropyLossNM()
 
-    bert_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
+    bert_loss = nemo.backends.pytorch.common.losses.LossAggregatorNM(num_inputs=2)
 
 # tie weights of MLM softmax layer and embedding layer of the encoder
 if mlm_classifier.mlp.last_linear_layer.weight.shape != bert_model.bert.embeddings.word_embeddings.weight.shape:
@@ -256,7 +257,7 @@ def create_pipeline(data_file, batch_size, preprocessed_data=False, batches_per_
         input_ids=input_data.input_ids, token_type_ids=input_data.input_type_ids, attention_mask=input_data.input_mask
     )
     mlm_logits = mlm_classifier(hidden_states=hidden_states)
-    mlm_loss = mlm_loss_fn(logits=mlm_logits, output_ids=input_data.output_ids, output_mask=input_data.output_mask)
+    mlm_loss = mlm_loss_fn(logits=mlm_logits, labels=input_data.output_ids, output_mask=input_data.output_mask)
     if not args.only_mlm_loss:
         nsp_logits = nsp_classifier(hidden_states=hidden_states)
         nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=input_data.labels)

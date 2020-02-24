@@ -1,6 +1,5 @@
-# Copyright 2018 The Google AI Language Team Authors and
-# The HuggingFace Inc. team.
-# Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,31 +12,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# =============================================================================
 
-"""
-Utility functions for Token Classification NLP tasks
-Some parts of this code were adapted from the HuggingFace library at
-https://github.com/huggingface/pytorch-pretrained-BERT
-"""
-
-import random
 
 import numpy as np
 from torch.utils.data import Dataset
 
 from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import (
-    get_intent_labels,
-    get_label_stats,
-    get_stats,
     process_imdb,
     process_jarvis_datasets,
     process_nlu,
     process_sst_2,
     process_thucnews,
 )
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import (
+    calc_class_weights,
+    get_intent_labels,
+    get_label_stats,
+    get_stats,
+    if_exist,
+)
 from nemo.collections.nlp.utils.callback_utils import list2str
-from nemo.collections.nlp.utils.common_nlp_utils import calc_class_weights, if_exist
 
 __all__ = ['BertTextClassificationDataset']
 
@@ -54,10 +50,9 @@ class BertTextClassificationDataset(Dataset):
         tokenizer (Tokenizer): such as BertTokenizer
         num_samples (int): number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
-        shuffle (bool): whether to shuffle your data.
     """
 
-    def __init__(self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=True):
+    def __init__(self, input_file, max_seq_length, tokenizer, num_samples=-1):
         with open(input_file, "r") as f:
             sent_labels, all_sent_subtokens = [], []
             sent_lengths = []
@@ -66,11 +61,8 @@ class BertTextClassificationDataset(Dataset):
             lines = f.readlines()[1:]
             logging.info(f'{input_file}: {len(lines)}')
 
-            if shuffle or num_samples > -1:
-                random.seed(0)
-                random.shuffle(lines)
-                if num_samples > 0:
-                    lines = lines[:num_samples]
+            if num_samples > 0:
+                lines = lines[:num_samples]
 
             for index, line in enumerate(lines):
                 if index % 20000 == 0:
@@ -177,7 +169,7 @@ class InputFeatures(object):
         self.segment_ids = segment_ids
 
 
-class SentenceClassificationDataDesc:
+class TextClassificationDataDesc:
     def __init__(self, dataset_name, data_dir, do_lower_case):
         if dataset_name == 'sst-2':
             self.data_dir = process_sst_2(data_dir)

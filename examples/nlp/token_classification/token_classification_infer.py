@@ -24,7 +24,7 @@ import nemo.collections.nlp as nemo_nlp
 from nemo import logging
 from nemo.collections.nlp.data import NemoBertTokenizer
 from nemo.collections.nlp.nm.trainables import TokenClassifier
-from nemo.collections.nlp.utils.common_nlp_utils import get_vocab
+from nemo.collections.nlp.utils.data_utils import get_vocab
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='NER with pretrained BERT')
@@ -55,7 +55,7 @@ parser.add_argument("--labels_dict", default='label_ids.csv', type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 
 args = parser.parse_args()
-print(args)
+logging.info(args)
 
 if not os.path.exists(args.work_dir):
     raise ValueError(f'Work directory not found at {args.work_dir}')

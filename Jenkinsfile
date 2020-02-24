@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
             image 'nvcr.io/nvidia/pytorch:20.01-py3'
-            args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home:/home --shm-size=8g'
+            args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home:/home -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
   options {
@@ -91,19 +91,21 @@ pipeline {
       parallel {
         stage ('Text Classification with BERT Test') {
           steps {
-            sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --shuffle_data --work_dir=outputs'
+            sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --pretrained_bert_model bert-base-uncased --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs'
             sh 'rm -rf examples/nlp/text_classification/outputs'
           }
         }
         stage ('Dialogue State Tracking - TRADE - Multi-GPUs') {
           steps {
-            sh 'cd examples/nlp/dialogue_state_tracking && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 dialogue_state_tracking_trade.py --batch_size=10 --eval_batch_size=10 --num_train_samples=-1 --num_eval_samples=-1 --num_epochs=1 --dropout=0.2 --eval_file_prefix=test --shuffle_data --num_gpus=2 --lr=0.001 --grad_norm_clip=10 --work_dir=outputs --data_dir=/home/TestData/nlp/multiwoz2.1'
+            sh 'rm -rf /home/TestData/nlp/multiwoz2.1/vocab.pkl'
+            sh 'cd examples/nlp/dialogue_state_tracking && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 dialogue_state_tracking_trade.py --batch_size=10 --eval_batch_size=10 --num_train_samples=-1 --num_eval_samples=-1 --num_epochs=1 --dropout=0.2 --eval_file_prefix=test --num_gpus=2 --lr=0.001 --grad_norm_clip=10 --work_dir=outputs --data_dir=/home/TestData/nlp/multiwoz2.1'
             sh 'rm -rf examples/nlp/dialogue_state_tracking/outputs'
+            sh 'rm -rf /home/TestData/nlp/multiwoz2.1/vocab.pkl'
           }
         }
         stage ('GLUE Benchmark Test') {
           steps {
-            sh 'cd examples/nlp/glue_benchmark && CUDA_VISIBLE_DEVICES=1 python glue_benchmark_with_bert.py --data_dir /home/TestData/nlp/glue_fake/MRPC --work_dir glue_output --save_step_freq -1 --num_epochs 1 --task_name mrpc --batch_size 2'
+            sh 'cd examples/nlp/glue_benchmark && CUDA_VISIBLE_DEVICES=1 python glue_benchmark_with_bert.py --data_dir /home/TestData/nlp/glue_fake/MRPC --pretrained_bert_model bert-base-uncased --work_dir glue_output --save_step_freq -1 --num_epochs 1 --task_name mrpc --batch_size 2'
             sh 'rm -rf examples/nlp/glue_benchmark/glue_output'
           }
         }
@@ -122,8 +124,8 @@ pipeline {
       parallel {
         stage('Token Classification Training/Inference Test') {
           steps {
-            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=0 python token_classification.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --batch_size 2 --num_epochs 1 --save_epoch_freq 1 --work_dir token_classification_output --pretrained_bert_model bert-base-cased'
-            sh 'cd examples/nlp/token_classification && DATE_F=$(ls token_classification_output/) && CUDA_VISIBLE_DEVICES=0 python token_classification_infer.py --work_dir token_classification_output/$DATE_F/checkpoints/ --labels_dict /home/TestData/nlp/token_classification_punctuation/label_ids.csv --pretrained_bert_model bert-base-cased'
+            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=0 python token_classification.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --batch_size 2 --num_epochs 1 --save_epoch_freq 1 --work_dir token_classification_output --pretrained_bert_model bert-base-uncased'
+            sh 'cd examples/nlp/token_classification && DATE_F=$(ls token_classification_output/) && CUDA_VISIBLE_DEVICES=0 python token_classification_infer.py --work_dir token_classification_output/$DATE_F/checkpoints/ --labels_dict /home/TestData/nlp/token_classification_punctuation/label_ids.csv --pretrained_bert_model bert-base-uncased'
             sh 'rm -rf examples/nlp/token_classification/token_classification_output'
           }
         }
@@ -148,14 +150,14 @@ pipeline {
       parallel {
         stage('BERT Squad v1.1') {
           steps {
-            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --dev_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case'
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case'
             sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv1 && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
           }
         }
         stage('BERT Squad v2.0') {
           steps {
-            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json --dev_file /home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --work_dir outputs/squadv2 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case --version_2_with_negative'
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json --eval_file /home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --work_dir outputs/squadv2 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case --version_2_with_negative'
             sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv2/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv2 && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
           }
@@ -181,7 +183,7 @@ pipeline {
         }
         stage('Roberta Squad v1.1') {
           steps {
-            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --dev_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1_roberta --batch_size 2 --save_step_freq 500 --num_epochs 1 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case  --model_type roberta --pretrained_model_name roberta-base'
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1_roberta --batch_size 2 --save_step_freq 500 --num_epochs 1 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case  --model_type roberta --pretrained_model_name roberta-base'
             sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1_roberta/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv1_roberta && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
           }
@@ -189,7 +191,7 @@ pipeline {
       }
     }
 
-    stage('L1: NLP-Intent Detection/SLot Tagging Examples - Multi-GPU') {
+    stage('L1: NLP-Intent Detection/Slot Tagging Examples - Multi-GPU') {
       when {
         anyOf{
           branch 'master'
@@ -198,7 +200,7 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp/intent_detection_slot_tagging && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py --num_gpus=2 --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis-retail --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --shuffle_data --work_dir=outputs'
+          sh 'cd examples/nlp/intent_detection_slot_tagging && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py --num_gpus=2 --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis-retail --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs'
           sh 'cd examples/nlp/intent_detection_slot_tagging && TASK_NAME=$(ls outputs/) && DATE_F=$(ls outputs/$TASK_NAME/) && CHECKPOINT_DIR=outputs/$TASK_NAME/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer.py --work_dir $CHECKPOINT_DIR --eval_file_prefix=eval --dataset_name=jarvis-retail --data_dir=/home/TestData/nlp/retail/ --batch_size=10'
           sh 'cd examples/nlp/intent_detection_slot_tagging && TASK_NAME=$(ls outputs/) && DATE_F=$(ls outputs/$TASK_NAME/) && CHECKPOINT_DIR=outputs/$TASK_NAME/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer_b1.py --data_dir=/home/TestData/nlp/retail/ --work_dir $CHECKPOINT_DIR --dataset_name=jarvis-retail --query="how much is it?"'
           sh 'rm -rf examples/nlp/intent_detection_slot_tagging/outputs'
