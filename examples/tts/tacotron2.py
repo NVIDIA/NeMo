@@ -39,19 +39,11 @@ def parse_args():
     )
 
     # Overwrite default args
-    parser.add_argument(
-        "--max_steps", type=int, default=None, required=False, help="max number of steps to train",
-    )
-    parser.add_argument(
-        "--num_epochs", type=int, default=None, required=False, help="number of epochs to train",
-    )
-    parser.add_argument(
-        "--model_config", type=str, required=True, help="model configuration file: model.yaml",
-    )
+    parser.add_argument("--max_steps", type=int, default=None, help="max number of steps to train")
+    parser.add_argument("--num_epochs", type=int, default=None, help="number of epochs to train")
+    parser.add_argument("--model_config", type=str, required=True, help="model configuration file: model.yaml")
     parser.add_argument("--grad_norm_clip", type=float, default=1.0, help="gradient clipping")
-    parser.add_argument(
-        "--min_lr", type=float, default=1e-5, help="minimum learning rate to decay to",
-    )
+    parser.add_argument("--min_lr", type=float, default=1e-5, help="minimum learning rate to decay to")
 
     # Create new args
     parser.add_argument("--exp_name", default="Tacotron2", type=str)
@@ -68,7 +60,7 @@ def parse_args():
     exp_directory = [
         f"{args.exp_name}-lr_{args.lr}-bs_{args.batch_size}",
         "",
-        (f"-wd_{args.weight_decay}-opt_{args.optimizer}" f"-ips_{args.iter_per_step}"),
+        f"-wd_{args.weight_decay}-opt_{args.optimizer}-ips_{args.iter_per_step}",
     ]
     if args.max_steps:
         exp_directory[1] = f"-s_{args.max_steps}"
@@ -121,7 +113,7 @@ def create_train_dag(
     checkpoint_save_freq,
     cpu_per_dl=1,
 ):
-    (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget,) = neural_modules
+    (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget) = neural_modules
 
     train_dl_params = copy.deepcopy(tacotron2_params["AudioToTextDataLayer"])
     train_dl_params.update(tacotron2_params["AudioToTextDataLayer"]["train"])
@@ -148,7 +140,7 @@ def create_train_dag(
     spec_target, spec_target_len = data_preprocessor(input_signal=audio, length=audio_len)
 
     transcript_embedded = text_embedding(char_phone=transcript)
-    transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len,)
+    transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len)
     mel_decoder, gate, alignments = t2_dec(
         char_phone_encoded=transcript_encoded, encoded_length=transcript_len, mel_target=spec_target,
     )
@@ -181,7 +173,7 @@ def create_train_dag(
 def create_eval_dags(
     neural_factory, neural_modules, tacotron2_params, eval_datasets, eval_batch_size, eval_freq, cpu_per_dl=1,
 ):
-    (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget,) = neural_modules
+    (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget) = neural_modules
 
     eval_dl_params = copy.deepcopy(tacotron2_params["AudioToTextDataLayer"])
     eval_dl_params.update(tacotron2_params["AudioToTextDataLayer"]["eval"])
@@ -206,7 +198,7 @@ def create_eval_dags(
         spec_target, spec_target_len = data_preprocessor(input_signal=audio, length=audio_len)
 
         transcript_embedded = text_embedding(char_phone=transcript)
-        transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len,)
+        transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len)
         mel_decoder, gate, alignments = t2_dec(
             char_phone_encoded=transcript_encoded, encoded_length=transcript_len, mel_target=spec_target,
         )
