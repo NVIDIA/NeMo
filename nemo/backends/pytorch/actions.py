@@ -523,6 +523,7 @@ class PtActions(Actions):
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
+
                 if hasattr(eval_dataloader, 'sampler'):
                     eval_dataloader.sampler.set_epoch(0)
             else:  # Not distributed
@@ -545,9 +546,15 @@ class PtActions(Actions):
             dl_device = dl_nm._device
 
             # Evaluation mini-batch for loop
-            num_batches = len(eval_dataloader)
+            num_batches = None
+            if hasattr(eval_dataloader, "__len__"):
+                num_batches = len(eval_dataloader)
             for epoch_i, data in enumerate(eval_dataloader, 0):
-                if verbose and (num_batches < 10 or (epoch_i % int(num_batches / 10) == 0)):
+                if (
+                    verbose
+                    and num_batches is not None
+                    and (num_batches < 10 or (epoch_i % int(num_batches / 10) == 0))
+                ):
                     logging.info(f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
                 if isinstance(data, torch.Tensor):
