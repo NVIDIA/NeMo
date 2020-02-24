@@ -19,10 +19,14 @@ import argparse
 import numpy as np
 from transformers import BertTokenizer
 
-import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
-from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
-from nemo.collections.nlp.utils.common_nlp_utils import read_intent_slot_outputs
+import nemo
+from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import (
+    JointIntentSlotDataDesc,
+    read_intent_slot_outputs,
+)
+from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotInferDataLayer
+from nemo.collections.nlp.nm.trainables import JointIntentSlotClassifier
+from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Joint-intent BERT')
@@ -46,7 +50,7 @@ nf = nemo.core.NeuralModuleFactory(
 See the list of pretrained models, call:
 nemo_nlp.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 hidden_size = pretrained_bert_model.hidden_size
 
@@ -56,25 +60,29 @@ query = args.query
 if args.do_lower_case:
     query = query.lower()
 
-data_layer = nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer.BertJointIntentSlotInferDataLayer(
+data_layer = BertJointIntentSlotInferDataLayer(
     queries=[query], tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
 )
 
 # Create sentence classification loss on top
-classifier = nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm.JointIntentSlotClassifier(
+classifier = JointIntentSlotClassifier(
     hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
 )
 
-ids, type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
+input_data = data_layer()
 
-hidden_states = pretrained_bert_model(input_ids=ids, token_type_ids=type_ids, attention_mask=input_mask)
+hidden_states = pretrained_bert_model(
+    input_ids=input_data.input_ids, token_type_ids=input_data.input_type_ids, attention_mask=input_data.input_mask
+)
 
 intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
 ###########################################################################
 
 
-evaluated_tensors = nf.infer(tensors=[intent_logits, slot_logits, subtokens_mask], checkpoint_dir=args.work_dir)
+evaluated_tensors = nf.infer(
+    tensors=[intent_logits, slot_logits, input_data.subtokens_mask], checkpoint_dir=args.work_dir
+)
 
 
 def concatenate(lists):

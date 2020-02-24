@@ -170,7 +170,7 @@ class MultiWOZDataset(Dataset):
 
 class Vocab:
     """
-    Vocab class for TRADE model
+    Vocab class for MultiWOZ dataset
     UNK_token = 0
     PAD_token = 1
     SOS_token = 3

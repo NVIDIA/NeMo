@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.data import BertJointIntentSlotDataset, BertJointIntentSlotInferDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import ChannelType, NeuralType
+from nemo.core import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BertJointIntentSlotDataLayer', 'BertJointIntentSlotInferDataLayer']
@@ -29,38 +29,53 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
 
     All the data processing is done in BertJointIntentSlotDataset.
 
-    input_mask: used to ignore some of the input tokens like paddings
-
-    loss_mask: used to mask and ignore tokens in the loss function
-
-    subtokens_mask: used to ignore the outputs of unwanted tokens in
-    the inference and evaluation like the start and end tokens
-
     Args:
-        dataset (BertJointIntentSlotDataset):
+        input_file (str):
+            data file
+        slot_file (str):
+            file to slot labels, each line corresponding to
+            slot labels for a sentence in input_file. No header.
+        pad_label (int): pad value use for slot labels
+        tokenizer (TokenizerSpec): text tokenizer.
+        max_seq_length (int):
+            max sequence length minus 2 for [CLS] and [SEP]
+        dataset_type (BertJointIntentSlotDataset):
             the dataset that needs to be converted to DataLayerNM
+        shuffle (bool): whether to shuffle data or not. Default: False.
+        batch_size: text segments batch size
+        ignore_extra_tokens (bool): whether or not to ignore extra tokens
+        ignore_start_end (bool)": whether or not to ignore start and end
     """
 
     @property
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+
+        input_ids:
+            indices of tokens which constitute batches of text segments
+        input_type_ids:
+            tensor with 0's and 1's to denote the text segment type
+        input_mask:
+            bool tensor with 0s in place of tokens to be masked
+        loss_mask:
+            used to mask and ignore tokens in the loss function
+        subtokens_mask:
+            used to ignore the outputs of unwanted tokens in
+            the inference and evaluation like the start and end tokens
+        intents:
+            intents labels
+        slots:
+            slots labels
         """
         return {
-            # "input_ids":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_mask":     NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "loss_mask":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "intents": NeuralType({0: AxisType(BatchTag)}),
-            # "slots":          NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
-            "loss_mask": NeuralType(('B', 'T'), ChannelType()),
+            "loss_mask": NeuralType(('B', 'T'), MaskType()),
             "subtokens_mask": NeuralType(('B', 'T'), ChannelType()),
-            "intents": NeuralType(tuple('B'), ChannelType()),
-            "slots": NeuralType(('B', 'T'), ChannelType()),
+            "intents": NeuralType(tuple('B'), LabelsType()),
+            "slots": NeuralType(('B', 'T'), LabelsType()),
         }
 
     def __init__(
@@ -84,11 +99,10 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
             'tokenizer': tokenizer,
             'max_seq_length': max_seq_length,
             'num_samples': num_samples,
-            'shuffle': shuffle,
             'ignore_extra_tokens': ignore_extra_tokens,
             'ignore_start_end': ignore_start_end,
         }
-        super().__init__(dataset_type, dataset_params, batch_size, shuffle)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
 
 
 class BertJointIntentSlotInferDataLayer(TextDataLayer):
@@ -98,29 +112,35 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
 
     All the data processing is done in BertJointIntentSlotInferDataset.
 
-    input_mask: used to ignore some of the input tokens like paddings
-
-    loss_mask: used to mask and ignore tokens in the loss function
-
-    subtokens_mask: used to ignore the outputs of unwanted tokens in
-    the inference and evaluation like the start and end tokens
-
     Args:
-        dataset (BertJointIntentSlotInferDataset):
+        queries (list): list of queries for inference
+        tokenizer (TokenizerSpec): text tokenizer.
+        max_seq_length (int):
+            max sequence length minus 2 for [CLS] and [SEP]
+        dataset_type (BertJointIntentSlotDataset):
             the dataset that needs to be converted to DataLayerNM
+        shuffle (bool): whether to shuffle data or not. Default: False.
+        batch_size: text segments batch size
     """
 
     @property
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        
+        input_ids:
+            indices of tokens which constitute batches of text segments
+        input_type_ids:
+            tensor with 0's and 1's to denote the text segment type
+        input_mask:
+            bool tensor with 0s in place of tokens to be masked
+        loss_mask:
+            used to mask and ignore tokens in the loss function
+        subtokens_mask:
+            used to ignore the outputs of unwanted tokens in
+            the inference and evaluation like the start and end tokens
         """
         return {
-            # "input_ids":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "input_mask":     NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "loss_mask":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "subtokens_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
@@ -128,6 +148,14 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
             "subtokens_mask": NeuralType(('B', 'T'), ChannelType()),
         }
 
-    def __init__(self, queries, tokenizer, max_seq_length, batch_size=1, dataset_type=BertJointIntentSlotInferDataset):
+    def __init__(
+        self,
+        queries,
+        tokenizer,
+        max_seq_length,
+        batch_size=1,
+        shuffle=False,
+        dataset_type=BertJointIntentSlotInferDataset,
+    ):
         dataset_params = {'queries': queries, 'tokenizer': tokenizer, 'max_seq_length': max_seq_length}
-        super().__init__(dataset_type, dataset_params, batch_size, shuffle=False)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)

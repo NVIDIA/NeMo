@@ -24,12 +24,12 @@ import random
 
 import h5py
 import numpy as np
+from sentencepiece import SentencePieceTrainer as SPT
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils import download_wkt2
-from nemo.collections.nlp.data.datasets.lm_transformer_dataset import create_vocab_mlm
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import DATABASE_EXISTS_TMP, if_exist
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataset']
 
@@ -380,17 +380,75 @@ class BERTPretrainingDataDesc:
     def __init__(self, dataset_name, data_dir, vocab_size, sample_size, special_tokens, train_file=''):
         if dataset_name == 'wikitext-2':
             if not os.path.exists(data_dir):
-                data_dir = download_wkt2(data_dir)
-            self.data_dir, self.tokenizer_model = create_vocab_mlm(
+                raise FileNotFoundError("Dataset not found. Run './get_wkt2.sh DATA_DIR' from examples/nlp/scripts")
+            self.data_dir, self.tokenizer_model = self.create_vocab_mlm(
                 data_dir, vocab_size, sample_size, special_tokens, train_file
             )
         else:
-            logging.warning(
-                "Looks like you passed a dataset name that isn't "
-                "already supported by NeMo. Please make sure that "
+            raise ValueError(
+                "Looks like you passed a dataset name that isn't already supported by NeMo. Please make sure that "
                 "you build the preprocessing method for it."
             )
 
         self.train_file = f'{data_dir}/train.txt'
         self.eval_file = f'{data_dir}/valid.txt'
         self.test_file = f'{data_dir}/test.txt'
+
+    def create_vocab_mlm(
+        self,
+        data_dir,
+        vocab_size,
+        sample_size,
+        special_tokens=['[PAD]', '[UNK]', '[CLS]', '[SEP]', '[MASK]'],
+        train_file='',
+    ):
+        vocab = special_tokens[:]
+        bert_dir = f'{data_dir}/bert'
+        if if_exist(bert_dir, ['tokenizer.model']):
+            logging.info(DATABASE_EXISTS_TMP.format('WikiText_BERT', bert_dir))
+            return data_dir, f'{bert_dir}/tokenizer.model'
+        logging.info(f'Processing WikiText dataset and store at {bert_dir}')
+        os.makedirs(bert_dir, exist_ok=True)
+
+        if not train_file:
+            files = glob.glob(f'{data_dir}/*.txt')
+            train_file = f'{bert_dir}/merged.txt'
+            logging.info(f"Merging {len(files)} txt files into {train_file}")
+
+            with open(train_file, "w") as merged:
+                for file in tqdm(files):
+                    with open(file, 'r') as inf:
+                        content = inf.read().strip()
+                    merged.write(content + '\n\n\n')
+        else:
+            train_file = f'{data_dir}/{train_file}'
+
+        cmd = (
+            f"--input={train_file} --model_prefix={bert_dir}/tokenizer "
+            f"--vocab_size={vocab_size - len(vocab)} "
+            f"--input_sentence_size={sample_size} "
+            f"--shuffle_input_sentence=true --hard_vocab_limit=false "
+            f"--bos_id=-1 --eos_id=-1"
+        )
+
+        SPT.Train(cmd)
+
+        # Add BERT control symbols
+        tokens = []
+
+        with open(f"{bert_dir}/tokenizer.vocab", "r") as f:
+            f.readline()  # skip first <unk> token
+
+            # Read tokens from each line and parse for vocab
+            for line in f:
+                piece = line.split("\t")[0]
+                token = piece[1:] if piece.startswith("▁") else f"##{piece}"
+                tokens.append(token)
+
+        vocab.extend(tokens)
+
+        # Save vocabulary to output file
+        with open(f'{bert_dir}/vocab.txt', "w") as f:
+            for token in vocab:
+                f.write(f"{token}\n".format())
+        return data_dir, f'{bert_dir}/tokenizer.model'

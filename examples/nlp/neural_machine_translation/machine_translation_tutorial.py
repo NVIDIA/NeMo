@@ -161,7 +161,7 @@ beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     eos_token=tgt_tokenizer.eos_id,
 )
 
-loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(
+loss_fn = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss(
     pad_id=tgt_tokenizer.pad_id, label_smoothing=args.label_smoothing
 )
 
@@ -202,7 +202,7 @@ def create_pipeline(dataset_src, dataset_tgt, tokens_in_batch, clean=False, trai
         input_ids_tgt=tgt, hidden_states_src=src_hiddens, input_mask_src=src_mask, input_mask_tgt=tgt_mask
     )
     logits = log_softmax(hidden_states=tgt_hiddens)
-    loss = loss_fn(logits=logits, target_ids=labels)
+    loss = loss_fn(logits=logits, labels=labels)
     beam_results = None
     if not training:
         beam_results = beam_search(hidden_states_src=src_hiddens, input_mask_src=src_mask)
