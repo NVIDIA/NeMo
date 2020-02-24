@@ -18,8 +18,8 @@
 To pretrain BERT on raw text dataset run
 python bert_pretraining.py \
 --amp_opt_level "O0" \
---train_data data/lm/wikitext-2/train.txt \
---eval_data data/lm/wikitext-2/valid.txt \
+--train_data path_to/wikitext-2/train.txt \
+--eval_data path_to/wikitext-2/valid.txt \
 --dataset_name wikitext-2 \
 --work_dir outputs/bert_lm \
 --batch_size 64 \
@@ -53,8 +53,8 @@ Then run BERT large on the 512 sequence length dataset
 python -m torch.distributed.launch --nproc_per_node=8 bert_pretraining.py \
 --batch_size 8 \
 --config_file bert_config.json
---train_data train_data_dir \
---eval_data eval_data_dir \
+--train_data train_data \
+--eval_data eval_data \
 --save_step_freq 200 \
 --max_steps 1142857 \
 --num_gpus 8 \
@@ -128,7 +128,7 @@ parser.add_argument(
                     needed when --preprocessed_data is specified",
 )
 parser.add_argument("--train_data", required=True, type=str, help="path to training dataset.")
-parser.add_argument("--eval_data", type=str, help="path to evaluation dataset.")
+parser.add_argument("--eval_data", required=True, type=str, help="path to evaluation dataset.")
 parser.add_argument(
     "--preprocessed_data", action="store_true", default=False, help="specify if using preprocessed data"
 )
