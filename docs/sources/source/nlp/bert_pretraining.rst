@@ -25,7 +25,7 @@ Download Corpus
 The training corpus can be either raw text where data preprocessing is done on the fly or an already preprocessed data set. In the following we will give examples for both.
 To showcase how to train on raw text data, we will be using the very small WikiText-2 dataset :cite:`nlp-bert-merity2016pointer`.
 
-To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
+To download the dataset, run the script ``examples/nlp/scripts/get_wkt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
 
     .. code-block:: bash
 
@@ -67,12 +67,13 @@ If have an available vocab, such as``vocab.txt`` file from any pretrained BERT m
       
         import nemo.collections.nlp as nemo_nlp
 
-        data_desc = nemo_nlp.data.BERTPretrainingDataDesc(args.dataset_name,
-                                            args.data_dir,
-                                            args.vocab_size,
-                                            args.sample_size,
-                                            special_tokens,
-                                            'train.txt')
+        data_desc = nemo_nlp.data.BERTPretrainingDataDesc(
+                        dataset_name=args.dataset_name,
+                        train_data=args.train_data,
+                        eval_data=args.eval_data,
+                        vocab_size=args.vocab_size,
+                        sample_size=args.sample_size,
+                        special_tokens=special_tokens)
 
 We need to define our tokenizer. If you'd like to use a custom vocabulary file, we strongly recommend you use our `SentencePieceTokenizer`.
 Otherwise, if you'll be using a vocabulary file from another pre-trained BERT model, you should use `NemoBertTokenizer`.
@@ -191,7 +192,8 @@ For training from raw text use nemo_nlp.nm.data_layers.BertPretrainingDataLayer,
             # data_layer = nemo_nlp.BertPretrainingPreprocessedDataLayer(
             #        data_file,
             #        max_predictions_per_seq,
-            #        batch_size, is_training)
+            #        batch_size,
+            #        mode)
 
             steps_per_epoch = len(data_layer) // (batch_size * args.num_gpus * args.batches_per_step)
 
@@ -221,16 +223,17 @@ For training from raw text use nemo_nlp.nm.data_layers.BertPretrainingDataLayer,
                                     mask_probability=args.mask_probability,
                                     short_seq_prob=args.short_seq_prob,
                                     batch_size=args.batch_size,
-                                    batches_per_step=args.batches_per_step)
+                                    batches_per_step=args.batches_per_step,
+                                    mode="train")
 
         # for preprocessed data 
         # train_loss, _, _, steps_per_epoch = create_pipeline(
-        #                            data_file=args.data_dir,
+        #                            data_file=args.train_data,
         #                            preprocessed_data=True,
         #                            max_predictions_per_seq=args.max_predictions_per_seq,
-        #                            training=True,
         #                            batch_size=args.batch_size,
-        #                            batches_per_step=args.batches_per_step)
+        #                            batches_per_step=args.batches_per_step,
+        #                            mode="train")
 
         eval_loss, _, _, _ = create_pipeline(
                                         data_file=data_desc.eval_file,
@@ -239,7 +242,17 @@ For training from raw text use nemo_nlp.nm.data_layers.BertPretrainingDataLayer,
                                         mask_probability=args.mask_probability,
                                         short_seq_prob=args.short_seq_prob,
                                         batch_size=args.batch_size,
-                                        batches_per_step=args.batches_per_step)
+                                        batches_per_step=args.batches_per_step,
+                                        mode="eval")
+        
+        # for preprocessed data 
+        # eval_loss, eval_mlm_loss, eval_nsp_loss, _ = create_pipeline(
+        #                            data_file=args.eval_data,
+        #                            preprocessed_data=True,
+        #                            max_predictions_per_seq=args.max_predictions_per_seq,
+        #                            batch_size=args.batch_size,
+        #                            batches_per_step=args.batches_per_step,
+        #                            mode="eval")
 
 
 Next, we define necessary callbacks:
@@ -251,10 +264,12 @@ Next, we define necessary callbacks:
     .. code-block:: python
 
         train_callback = nemo.core.SimpleLossLoggerCallback(tensors=[train_loss],
-            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item()))))
+            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())))),
+            step_freq=args.train_step_freq,
         eval_callback = nemo.core.EvaluatorCallback(eval_tensors=[eval_loss],
             user_iter_callback=nemo_nlp.callbacks.lm_bert_callback.eval_iter_callback,
-            user_epochs_done_callback=nemo_nlp.callbacks.lm_bert_callback.eval_epochs_done_callback)
+            user_epochs_done_callback=nemo_nlp.callbacks.lm_bert_callback.eval_epochs_done_callback
+            eval_step=args.eval_step_freq)
         ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir,
             epoch_freq=args.save_epoch_freq,
             load_from_folder=args.load_dir,
