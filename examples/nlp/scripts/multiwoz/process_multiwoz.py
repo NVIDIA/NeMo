@@ -330,7 +330,7 @@ def partition_data(data, infold, outfold):
                     'system_transcript': dial[idx - 1]['sys'] if idx > 0 else "",
                     'turn_idx': idx,
                     'transcript': turn['usr'],
-                    'sys_acts': dial[idx - 1]['sys_a'] if idx > 0 else [],
+                    'system_acts': dial[idx - 1]['sys_a'] if idx > 0 else [],
                     'domain': turn['domain'],
                 }
                 turn_dl['belief_state'] = [{"slots": [s], "act": "inform"} for s in turn['bvs']]
