@@ -20,11 +20,11 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-import random
 import os
+import random
 
-import numpy as np
 import h5py
+import numpy as np
 from torch.utils.data import Dataset
 
 from nemo import logging
@@ -62,14 +62,8 @@ class BertTextClassificationDataset(Dataset):
     """
 
     def __init__(
-        self,
-        input_file,
-        max_seq_length,
-        tokenizer,
-        num_samples=-1,
-        shuffle=True,
-        use_cache=False,
-        ):
+        self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=True, use_cache=False,
+    ):
 
         self.input_file = input_file
         self.max_seq_length = max_seq_length
@@ -143,7 +137,6 @@ class BertTextClassificationDataset(Dataset):
                 # update self.features to use features from hdf5
                 self.load_cached_features(hdf5_path)
 
-
     def __len__(self):
         if self.use_cache:
             return len(self.features[0])
@@ -153,12 +146,7 @@ class BertTextClassificationDataset(Dataset):
 
     def __getitem__(self, idx):
         if self.use_cache:
-            return (
-                self.features[0][idx],
-                self.features[1][idx],
-                self.features[2][idx],
-                self.features[3][idx]
-                )
+            return (self.features[0][idx], self.features[1][idx], self.features[2][idx], self.features[3][idx])
 
         else:
             feature = self.features[idx]
@@ -211,7 +199,6 @@ class BertTextClassificationDataset(Dataset):
                     segment_ids=segment_ids,
                 )
             )
-            
 
     def cache_features(self, hdf5_path, features):
         len_features = len(features)
@@ -221,7 +208,7 @@ class BertTextClassificationDataset(Dataset):
         sent_labels_array = np.zeros((len_features,))
 
         for idx in range(len_features):
-            input_ids_array[idx] = features[idx].input_ids 
+            input_ids_array[idx] = features[idx].input_ids
             segment_ids_array[idx] = features[idx].segment_ids
             input_mask_array[idx] = features[idx].input_mask
             sent_labels_array[idx] = features[idx].sent_label
@@ -233,7 +220,6 @@ class BertTextClassificationDataset(Dataset):
         f.create_dataset('sent_labels', data=sent_labels_array)
         f.close()
 
-
     def load_cached_features(self, hdf5_path):
         f = h5py.File(hdf5_path, 'r')
         keys = ['input_ids', 'segment_ids', 'input_mask', 'sent_labels']
@@ -244,12 +230,12 @@ class BertTextClassificationDataset(Dataset):
         if self.shuffle:
             np.random.seed(123)
             idx = np.arange(len(self))
-            np.random.shuffle(idx) # shuffle idx in place
+            np.random.shuffle(idx)  # shuffle idx in place
             shuffled_features = [arr[idx] for arr in self.features]
             self.features = shuffled_features
-        
+
         if self.num_samples > 0:
-            truncated_features = [arr[0:self.num_samples] for arr in self.features]
+            truncated_features = [arr[0 : self.num_samples] for arr in self.features]
             self.features = truncated_features
 
 
