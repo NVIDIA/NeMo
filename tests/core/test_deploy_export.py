@@ -24,10 +24,14 @@ from pathlib import Path
 #
 # ./build.sh --update --build --config RelWithDebInfo  --build_shared_lib --parallel \
 #     --cudnn_home /usr/lib/x86_64-linux-gnu --cuda_home /usr/local/cuda \
-#     --tensorrt_home /home/snikolaev/CODE/TensorRT.BIN --use_tensorrt --enable_pybind --build_wheel
+#     --tensorrt_home .../TensorRT --use_tensorrt --enable_pybind --build_wheel
 #
 # pip install --upgrade ./build/Linux/RelWithDebInfo/dist/*.whl
 import onnxruntime as ort
+# This import causes pycuda to automatically manage CUDA context creation and cleanup.
+import pycuda.autoinit
+import pycuda.driver as cuda
+import tensorrt as trt
 import torch
 from ruamel.yaml import YAML
 
@@ -36,13 +40,6 @@ import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from tests.common_setup import NeMoUnitTest
-
-import pycuda.driver as cuda
-
-# This import causes pycuda to automatically manage CUDA context creation and cleanup.
-import pycuda.autoinit
-
-import tensorrt as trt
 
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 
