@@ -15,7 +15,7 @@ For example:
     train_dataloader = nemo.TrainDataLayer(**train_config)
     eval_dataloader = nemo.EvalDataLayer(**eval_config)
 
-    L = nemo.MaskedXEntropyLoss()
+    L = nemo.tutorials.MaskedXEntropyLoss()
 
     # training model
 
