@@ -42,7 +42,7 @@ This model can work with any dataset that follows the format:
     * evaluation file: a `json` file that follows the training file format
       only that it can provide more than one entry for "answers" to the same question
 
-    * inference file: a `json` file that follows the training file format
+    * test file: a `json` file that follows the training file format
       only that it does not require the "answers" keyword. 
 
 Currently, the datasets that we provide pre-processing script for is SQuAD v1.1 and v2.0 
@@ -267,9 +267,9 @@ To run inference:
     .. code-block:: python
 
         python question_answering_squad.py 
-            --infer_file <path to evaluation file in *.json format>
+            --test_file <path to evaluation file in *.json format>
             --checkpoint_dir <path to trained SQuAD checkpoint folder>
-            --mode "infer"
+            --mode "test"
             --output_prediction_file <path to output file where predictions are written into>
             ...
 
