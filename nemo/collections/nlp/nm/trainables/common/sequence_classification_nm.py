@@ -17,7 +17,7 @@
 from torch import nn as nn
 
 from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
-from nemo.collections.nlp.nm.trainables.common.transformer.transformer_utils import transformer_weights_init
+from nemo.collections.nlp.utils.transformer_utils import transformer_weights_init
 from nemo.core import ChannelType, LogitsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
@@ -37,12 +37,15 @@ class SequenceClassifier(TrainableNM):
         activation (str): activation function applied in classifier MLP layers
         log_softmax (bool): whether to apply log_softmax to MLP output
         dropout (float): dropout ratio applied to MLP
+        use_transformer_pretrained (bool):
+            TODO
     """
 
     @property
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
+        hidden_states: embedding hidden states
         """
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
@@ -50,8 +53,8 @@ class SequenceClassifier(TrainableNM):
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        logits: logits before loss
         """
-        # return {"logits": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
         return {"logits": NeuralType(('B', 'D'), LogitsType())}
 
     def __init__(

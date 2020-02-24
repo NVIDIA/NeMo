@@ -19,12 +19,13 @@ import json
 import os
 
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.utils.common_nlp_utils
+import nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing
+import nemo.collections.nlp.utils.data_utils
 from nemo import logging
+from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
 from nemo.collections.nlp.callbacks.token_classification_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.nm.data_layers import BertTokenClassificationDataLayer
-from nemo.collections.nlp.nm.losses import TokenClassificationLoss
 from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
 
@@ -47,7 +48,7 @@ parser.add_argument("--num_fc_layers", default=2, type=int)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
-parser.add_argument("--shuffle_data", action='store_false')
+parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
 parser.add_argument("--pretrained_bert_model", default="bert-base-cased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
@@ -197,7 +198,9 @@ def create_pipeline(
         if args.use_weighted_loss:
             logging.info(f"Using weighted loss")
             label_freqs = data_layer.dataset.label_frequencies
-            class_weights = nemo.collections.nlp.utils.common_nlp_utils.calc_class_weights(label_freqs)
+            class_weights = nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing.calc_class_weights(
+                label_freqs
+            )
 
             logging.info(f"class_weights: {class_weights}")
 
@@ -205,7 +208,7 @@ def create_pipeline(
             hidden_size=hidden_size, num_classes=len(label_ids), dropout=dropout, num_layers=num_layers
         )
 
-        task_loss = TokenClassificationLoss(num_classes=len(label_ids), class_weights=class_weights)
+        task_loss = CrossEntropyLossNM(logits_dim=3, weight=class_weights)
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
     logits = classifier(hidden_states=hidden_states)

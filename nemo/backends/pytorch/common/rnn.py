@@ -71,11 +71,7 @@ class DecoderRNN(TrainableNM):
         """Returns definitions of module input ports.
         """
         return {
-            # 'targets': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             'targets': NeuralType(('B', 'T'), LabelsType()),
-            # 'encoder_outputs': NeuralType(
-            #   {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}, optional=True,
-            # ),
             'encoder_outputs': NeuralType(('B', 'T', 'D'), ChannelType(), True),
         }
 
@@ -85,11 +81,7 @@ class DecoderRNN(TrainableNM):
         """Returns definitions of module output ports.
         """
         return {
-            # 'log_probs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),}),
             'log_probs': NeuralType(('B', 'T', 'D'), LogprobsType()),
-            # 'attention_weights': NeuralType(
-            #    {0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(TimeTag),}, optional=True,
-            # ),
             'attention_weights': NeuralType(('B', 'T', 'T'), ChannelType(), True),
         }
 
@@ -211,8 +203,6 @@ class EncoderRNN(TrainableNM):
         """Returns definitions of module input ports.
         """
         return {
-            # 'inputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # 'input_lens': NeuralType({0: AxisType(BatchTag),}, optional=True),
             'inputs': NeuralType(('B', 'T'), ChannelType()),
             'input_lens': NeuralType(tuple('B'), LengthsType()),
         }
@@ -223,8 +213,6 @@ class EncoderRNN(TrainableNM):
         """Returns definitions of module output ports.
         """
         return {
-            # 'outputs': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
-            # 'hidden': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)}),
             'outputs': NeuralType(('B', 'T', 'D'), ChannelType()),
             'hidden': NeuralType(('B', 'T', 'D'), ChannelType()),
         }
