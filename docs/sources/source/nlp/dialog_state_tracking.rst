@@ -157,11 +157,11 @@ Next, we need to preprocess and reformat the dataset, what will result in divisi
 
 In order to preprocess the MultiWOZ dataset you can use the provided `process_multiwoz`_ script:
 
-.. _process_multiwoz: https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/scripts/multiwoz/process_multiwoz.py
+.. _process_multiwoz: https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/multiwoz/process_multiwoz.py
 
 .. code-block:: bash
 
-    cd examples/nlp/scripts/multiwoz
+    cd examples/nlp/dialogue_state_tracking/multiwoz
     python process_multiwoz.py
 
 

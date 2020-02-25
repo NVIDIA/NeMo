@@ -15,7 +15,7 @@ Download Corpus
 
 For demonstration purposes, we will be using the very small WikiText-2 dataset :cite:`nlp-lm-merity2016pointer`.
 
-To download the dataset, run the script ``examples/nlp/scripts/get_wkt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
+To download the dataset, run the script ``examples/nlp/language_modeling/get_wkt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
 
     .. code-block:: bash
 
