@@ -1,9 +1,11 @@
+black
+isort[requirements]
+onnxruntime
 parameterized
 pytest
 pytest-runner
-black
-isort[requirements]
+ruamel.yaml
+sphinx
+sphinxcontrib.bibtex
 wrapt
 wget
-ruamel.yaml
-onnxruntime
