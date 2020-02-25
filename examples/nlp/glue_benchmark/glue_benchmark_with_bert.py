@@ -32,7 +32,6 @@ python glue_benchmark_with_bert.py  \
 --task_name mrpc \
 --work_dir /path_to_output_folder \
 --pretrained_model_name bert-base-uncased \
---model_type bert
 
 To run this example on 4 GPUs with mixed precision:
 python -m torch.distributed.launch \
@@ -43,12 +42,6 @@ python -m torch.distributed.launch \
 --num_gpus=4 \
 --amp_opt_level=O1 \
 --pretrained_model_name bert-base-uncased \
---model_type bert
-
-BERT, ALBERT and RoBERTa models can be used with this script.
-To use them, specify pretrained_model_name and model_type, for example:
---pretrained_model_name roberta-base \
---model_type roberta
 
 The generated predictions and associated labels will be stored in the
 word_dir in {task_name}.txt along with the checkpoints and tensorboard files.
@@ -82,7 +75,6 @@ import nemo.core as nemo_core
 from nemo import logging
 from nemo.backends.pytorch.common import CrossEntropyLossNM, MSELoss
 from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import output_modes, processors
 from nemo.collections.nlp.nm.data_layers import GlueClassificationDataLayer, GlueRegressionDataLayer
 from nemo.collections.nlp.nm.trainables import SequenceClassifier, SequenceRegression
@@ -118,7 +110,6 @@ parser.add_argument(
         + nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
     ],
 )
-parser.add_argument("--model_type", default="bert", type=str, help="model type", choices=["bert", "roberta", "albert"])
 parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to model checkpoint")
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
 parser.add_argument(
@@ -177,9 +168,6 @@ parser.add_argument(
     "--no_data_cache", action='store_true', help="When specified do not load and store cache preprocessed data.",
 )
 parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
-parser.add_argument(
-    "--do_lower_case", action="store_true", help="Set this flag if you are using an uncased model.",
-)
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
@@ -218,36 +206,8 @@ nf = nemo_core.NeuralModuleFactory(
 )
 
 logging.info(f'{args}')
-
-if args.tokenizer == 'sentencepiece':
-    try:
-        tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
-    except Exception:
-        raise ValueError('Using --tokenizer=sentencepiece requires valid --tokenizer_model')
-    special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[args.model_type]
-    tokenizer.add_special_tokens(special_tokens)
-else:
-    tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
-    tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[args.model_type]
-    tokenizer_name = nemo_nlp.utils.MODEL_NAMES[args.model_type]['tokenizer_name']
-    tokenizer = tokenizer_cls(
-        do_lower_case=args.do_lower_case,
-        pretrained_model=tokenizer_name,
-        special_tokens=tokenizer_special_tokens,
-        bert_derivate=args.model_type,
-    )
-
-MODEL_CLASSES = {
-    'bert': nemo_nlp.nm.trainables.huggingface.BERT,
-    'albert': nemo_nlp.nm.trainables.huggingface.Albert,
-    'roberta': nemo_nlp.nm.trainables.huggingface.Roberta,
-}
-
-model_cls = MODEL_CLASSES[args.model_type]
-model_name = nemo_nlp.utils.MODEL_NAMES[args.model_type]['model_name']
-
-if args.pretrained_model_name is None:
-    args.pretrained_model_name = model_name
+model_type = args.pretrained_model_name.split('-')[0]
+model_cls = nemo_nlp.utils.DEFAULT_MODELS[model_type]['class']
 
 if args.bert_config is not None:
     model = model_cls(config_filename=args.bert_config)
@@ -263,6 +223,20 @@ else:
 if args.bert_checkpoint is not None:
     model.restore_from(args.bert_checkpoint)
     logging.info(f"model restored from {args.bert_checkpoint}")
+
+if args.tokenizer == 'sentencepiece':
+    try:
+        tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
+    except Exception:
+        raise ValueError('Using --tokenizer=sentencepiece requires valid --tokenizer_model')
+    special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
+    tokenizer.add_special_tokens(special_tokens)
+else:
+    tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
+    tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
+    tokenizer = tokenizer_cls(
+        pretrained_model=args.pretrained_model_name, special_tokens=tokenizer_special_tokens, bert_derivate=model_type,
+    )
 
 hidden_size = model.hidden_size
 
