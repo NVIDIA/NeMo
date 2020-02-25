@@ -1,6 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import argparse
-import copy
 import os
 
 import librosa
@@ -59,8 +58,8 @@ def parse_args():
         type=float,
         default=2048,
         help=(
-            "This is multiplied with the linear spectrogram. This is "
-            "to avoid audio sounding muted due to mel filter normalization"
+            "This is multiplied with the linear spectrogram. This is to avoid audio sounding muted due to mel "
+            "filter normalization"
         ),
     )
     parser.add_argument(
@@ -68,9 +67,8 @@ def parse_args():
         type=float,
         default=1.2,
         help=(
-            "The linear spectrogram is raised to this power prior to running"
-            "the Griffin Lim algorithm. A power of greater than 1 has been "
-            "shown to improve audio quality."
+            "The linear spectrogram is raised to this power prior to running the Griffin Lim algorithm. A power of "
+            "greater than 1 has been shown to improve audio quality."
         ),
     )
 
@@ -79,7 +77,7 @@ def parse_args():
         "--waveglow_denoiser_strength",
         type=float,
         default=0.0,
-        help=("denoiser strength for waveglow. Start with 0 and slowly increment"),
+        help="denoiser strength for waveglow. Start with 0 and slowly increment",
     )
     parser.add_argument("--waveglow_sigma", type=float, default=0.6)
 
@@ -89,8 +87,8 @@ def parse_args():
     args = parser.parse_args()
     if args.vocoder == "griffin-lim" and (args.vocoder_model_config or args.vocoder_model_load_dir):
         raise ValueError(
-            "Griffin-Lim was specified as the vocoder but the a value for "
-            "vocoder_model_config or vocoder_model_load_dir was passed."
+            "Griffin-Lim was specified as the vocoder but the a value for vocoder_model_config or "
+            "vocoder_model_load_dir was passed."
         )
     return args
 
@@ -128,19 +126,19 @@ def plot_and_save_spec(spectrogram, i, save_dir=None):
 
 
 def create_infer_dags(
-    neural_factory, neural_modules, tacotron2_params, infer_dataset, infer_batch_size, cpu_per_dl=1,
+    neural_factory, neural_modules, labels, infer_dataset, infer_batch_size, cpu_per_dl=1,
 ):
     (_, text_embedding, t2_enc, t2_dec, t2_postnet, _, _) = neural_modules
 
     data_layer = nemo_asr.TranscriptDataLayer(
         path=infer_dataset,
-        labels=tacotron2_params['labels'],
+        labels=labels,
         batch_size=infer_batch_size,
         num_workers=cpu_per_dl,
         # load_audio=False,
-        bos_id=len(tacotron2_params['labels']),
-        eos_id=len(tacotron2_params['labels']) + 1,
-        pad_id=len(tacotron2_params['labels']) + 2,
+        bos_id=len(labels),
+        eos_id=len(labels) + 1,
+        pad_id=len(labels) + 2,
         shuffle=False,
     )
     transcript, transcript_len = data_layer()
@@ -174,11 +172,12 @@ def main():
         yaml = YAML(typ="safe")
         with open(args.spec_model_config) as file:
             tacotron2_params = yaml.load(file)
-        spec_neural_modules = create_NMs(tacotron2_params, decoder_infer=True)
+            labels = tacotron2_params["labels"]
+        spec_neural_modules = create_NMs(args.spec_model_config, labels=labels, decoder_infer=True)
         infer_tensors = create_infer_dags(
             neural_factory=neural_factory,
             neural_modules=spec_neural_modules,
-            tacotron2_params=tacotron2_params,
+            labels=labels,
             infer_dataset=args.eval_dataset,
             infer_batch_size=args.batch_size,
         )

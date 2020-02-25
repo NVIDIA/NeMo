@@ -80,7 +80,7 @@ def create_NMs(tacotron2_config_file, labels, decoder_infer=False):
     )
     t2_enc = nemo_tts.Tacotron2Encoder.import_from_config(tacotron2_config_file, "Tacotron2Encoder")
     if decoder_infer:
-        t2_dec = nemo_tts.Tacotron2DecoderInfer.import_from_config(tacotron2_config_file, "Tacotron2Decoder")
+        t2_dec = nemo_tts.Tacotron2DecoderInfer.import_from_config(tacotron2_config_file, "Tacotron2DecoderInfer")
     else:
         t2_dec = nemo_tts.Tacotron2Decoder.import_from_config(tacotron2_config_file, "Tacotron2Decoder")
     t2_postnet = nemo_tts.Tacotron2Postnet.import_from_config(tacotron2_config_file, "Tacotron2Postnet")

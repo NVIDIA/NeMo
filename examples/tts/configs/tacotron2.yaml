@@ -98,7 +98,7 @@ TextEmbedding:
 Tacotron2Decoder:
     header: {full_spec: nemo.collections.tts.tacotron2_modules.Tacotron2Decoder,
         collection_type: tts, collection_version: null, nemo_core_version: 0.9.5}
-    init_params:
+    init_params: &decoder_params
         decoder_rnn_dim: 1024
         encoder_embedding_dim: *enc_emb_dim
         gate_threshold: 0.5
@@ -115,6 +115,11 @@ Tacotron2Decoder:
         # AttentionLocation Layer parameters
         attention_location_kernel_size: 31
         attention_location_n_filters: 32
+
+Tacotron2DecoderInfer:
+    header: {full_spec: nemo.collections.tts.tacotron2_modules.Tacotron2DecoderInfer,
+        collection_type: tts, collection_version: null, nemo_core_version: 0.9.5}
+    init_params: *decoder_params
 
 Tacotron2Postnet:
     header: {full_spec: nemo.collections.tts.tacotron2_modules.Tacotron2Postnet,
