@@ -571,27 +571,46 @@ class WandbCallback(ActionCallback):
     Log metrics to [Weights & Biases](https://docs.wandb.com/)
     """
 
-    def __init__(self, tensors, name=None, project=None):
+    def __init__(self, train_tensors=[], eval_tensors=[], name=None, project=None,
+                 user_iter_callback=None, user_epochs_done_callback=None):
         super().__init__()
         try:
             import wandb
         except:
             raise ImportError('Could not import wandb. Run "pip install wandb" to use WandbCallback')
-        self._tensors = tensors
+        self._train_tensors = train_tensors
+        self._eval_tensors = eval_tensors
         self._name = name
         self._project = project
 
-    @property
-    def tensors(self):
-        return self._tensors
+        if self._eval_tensors:
+            # will be passed to callbacks below
+            self._global_var_dict = {}
+            # Callbacks
+            self.user_iter_callback = user_iter_callback
+            self.user_done_callback = user_epochs_done_callback
         
     def on_action_start(self):
+        # initialize W&B run
         if self.global_rank is None or self.global_rank == 0:
             import wandb
             wandb.init(name=self._name, project=self._project)
 
     def on_iteration_end(self):
+        # log training metrics
         if self.global_rank is None or self.global_rank == 0:
-            import wandb
-            tensors_logged = {t.name:self.registered_tensors[t.unique_name] for t in self.tensors}
-            wandb.log(tensors_logged)
+            tensors_logged = {t.name:self.registered_tensors[t.unique_name] for t in self._train_tensors}
+            self.wandb_log(tensors_logged)
+
+    def on_epoch_end(self):
+        # log validation metrics
+        if self.global_rank is None or self.global_rank == 0:
+            self.action._eval(self._eval_tensors, self, self.step)
+
+    def wandb_log(self, tensors_logged):
+        import wandb
+        wandb.log(tensors_logged, step=self.step)
+
+    def clear_global_var_dict(self):
+        self._global_var_dict = {}
+        
