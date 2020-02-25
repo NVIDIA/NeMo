@@ -50,6 +50,6 @@ MODEL_SPECIAL_TOKENS = {
 
 DEFAULT_MODELS = {
     "bert": {"model_name": "bert-base-uncased", "class": BERT},
-    "roberta": {"model_name": "roberta-base", "albert": Roberta},
+    "roberta": {"model_name": "roberta-base", "class": Roberta},
     "albert": {"model_name": "albert-base-v2", "class": Albert},
 }
