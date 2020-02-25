@@ -1,0 +1,9 @@
+recursive-include nemo/ *.py
+include *.py
+include *.md
+include LICENSE
+include nemo/README.md
+exclude README.rst
+exclude setup.cfg
+exclude MANIFEST.in
+exclude Dockerfile

@@ -136,11 +136,14 @@ Citation
 
 If you are using NeMo please cite the following publication
 
-@misc{nemo2019,
-    title={NeMo: a toolkit for building AI applications using Neural Modules},
-    author={Oleksii Kuchaiev and Jason Li and Huyen Nguyen and Oleksii Hrinchuk and Ryan Leary and Boris Ginsburg and Samuel Kriman and Stanislav Beliaev and Vitaly Lavrukhin and Jack Cook and Patrice Castonguay and Mariya Popova and Jocelyn Huang and Jonathan M. Cohen},
-    year={2019},
-    eprint={1909.09577},
-    archivePrefix={arXiv},
-    primaryClass={cs.LG}
-}
+.. code-block:: tex
+
+    @misc{nemo2019,
+        title={NeMo: a toolkit for building AI applications using Neural Modules},
+        author={Oleksii Kuchaiev and Jason Li and Huyen Nguyen and Oleksii Hrinchuk and Ryan Leary and Boris Ginsburg and Samuel Kriman and Stanislav Beliaev and Vitaly Lavrukhin and Jack Cook and Patrice Castonguay and Mariya Popova and Jocelyn Huang and Jonathan M. Cohen},
+        year={2019},
+        eprint={1909.09577},
+        archivePrefix={arXiv},
+        primaryClass={cs.LG}
+    }
+
