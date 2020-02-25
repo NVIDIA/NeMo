@@ -571,8 +571,15 @@ class WandbCallback(ActionCallback):
     Log metrics to [Weights & Biases](https://docs.wandb.com/)
     """
 
-    def __init__(self, train_tensors=[], eval_tensors=[], name=None, project=None,
-                 user_iter_callback=None, user_epochs_done_callback=None):
+    def __init__(
+        self,
+        train_tensors=[],
+        eval_tensors=[],
+        name=None,
+        project=None,
+        user_iter_callback=None,
+        user_epochs_done_callback=None,
+    ):
         super().__init__()
         try:
             import wandb
@@ -589,17 +596,18 @@ class WandbCallback(ActionCallback):
             # Callbacks
             self.user_iter_callback = user_iter_callback
             self.user_done_callback = user_epochs_done_callback
-        
+
     def on_action_start(self):
         # initialize W&B run
         if self.global_rank is None or self.global_rank == 0:
             import wandb
+
             wandb.init(name=self._name, project=self._project)
 
     def on_iteration_end(self):
         # log training metrics
         if self.global_rank is None or self.global_rank == 0:
-            tensors_logged = {t.name:self.registered_tensors[t.unique_name] for t in self._train_tensors}
+            tensors_logged = {t.name: self.registered_tensors[t.unique_name] for t in self._train_tensors}
             self.wandb_log(tensors_logged)
 
     def on_epoch_end(self):
@@ -609,8 +617,8 @@ class WandbCallback(ActionCallback):
 
     def wandb_log(self, tensors_logged):
         import wandb
+
         wandb.log(tensors_logged, step=self.step)
 
     def clear_global_var_dict(self):
         self._global_var_dict = {}
-        
