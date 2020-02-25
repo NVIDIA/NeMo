@@ -91,9 +91,7 @@ class SquadDataset(Dataset):
         if mode not in ["eval", "train", "test"]:
             raise ValueError(f"mode should be either 'train', 'eval', or 'test' but got {mode}")
         self.examples = self.processor.get_examples()
-        import pdb
 
-        pdb.set_trace()
         cached_features_file = (
             data_file
             + '_cache'

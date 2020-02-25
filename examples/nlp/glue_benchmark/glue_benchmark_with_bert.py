@@ -176,9 +176,6 @@ parser.add_argument(
     "--no_data_cache", action='store_true', help="When specified do not load and store cache preprocessed data.",
 )
 parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
-parser.add_argument(
-    "--do_lower_case", action="store_true", help="Set this flag if you are using an uncased model.",
-)
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
@@ -250,7 +247,6 @@ else:
     tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
     tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[args.model_type]
     tokenizer = tokenizer_cls(
-        do_lower_case=args.do_lower_case,
         pretrained_model=args.pretrained_model_name,
         special_tokens=tokenizer_special_tokens,
         bert_derivate=args.model_type,
