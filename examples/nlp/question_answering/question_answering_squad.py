@@ -297,13 +297,6 @@ def create_pipeline(
         )
 
 
-MODEL_CLASSES = {
-    "bert": nemo_nlp.nm.trainables.huggingface.BERT,
-    "albert": nemo_nlp.nm.trainables.huggingface.Albert,
-    "roberta": nemo_nlp.nm.trainables.huggingface.Roberta,
-}
-
-
 if __name__ == "__main__":
     args = parse_args()
 
@@ -336,29 +329,8 @@ if __name__ == "__main__":
         add_time_to_log_dir=False,
     )
 
-    if args.tokenizer == "sentencepiece":
-        try:
-            tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
-        except Exception:
-            raise ValueError(
-                "Using --tokenizer=sentencepiece \
-                        requires valid --tokenizer_model"
-            )
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[args.model_type]
-        tokenizer.add_special_tokens(special_tokens)
-    else:
-        tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
-        tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[args.model_type]
-        tokenizer_name = nemo_nlp.utils.MODEL_NAMES[args.model_type]["tokenizer_name"]
-        tokenizer = tokenizer_cls(
-            do_lower_case=args.do_lower_case,
-            pretrained_model=tokenizer_name,
-            special_tokens=tokenizer_special_tokens,
-            bert_derivate=args.model_type,
-        )
-
-    model_cls = MODEL_CLASSES[args.model_type]
-    model_name = nemo_nlp.utils.MODEL_NAMES[args.model_type]["model_name"]
+    model_cls = nemo_nlp.utils.DEFAULT_MODELS[args.model_type]["class"]
+    model_name = nemo_nlp.utils.DEFAULT_MODELS[args.model_type]["model_name"]
 
     if args.pretrained_model_name is None:
         args.pretrained_model_name = model_name
@@ -373,6 +345,26 @@ if __name__ == "__main__":
         model = model_cls(pretrained_model_name=args.pretrained_model_name)
 
     hidden_size = model.hidden_size
+
+    if args.tokenizer == "sentencepiece":
+        try:
+            tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
+        except Exception:
+            raise ValueError(
+                "Using --tokenizer=sentencepiece \
+                        requires valid --tokenizer_model"
+            )
+        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[args.model_type]
+        tokenizer.add_special_tokens(special_tokens)
+    else:
+        tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
+        tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[args.model_type]
+        tokenizer = tokenizer_cls(
+            do_lower_case=args.do_lower_case,
+            pretrained_model=args.pretrained_model_name,
+            special_tokens=tokenizer_special_tokens,
+            bert_derivate=args.model_type,
+        )
 
     qa_head = nemo_nlp.nm.trainables.TokenClassifier(
         hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False

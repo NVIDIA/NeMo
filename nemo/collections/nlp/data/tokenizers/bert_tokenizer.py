@@ -85,8 +85,11 @@ class NemoBertTokenizer(TokenizerSpec):
             tokenizer_cls = AlbertTokenizer
         elif bert_derivate == 'roberta':
             tokenizer_cls = RobertaTokenizer
+
         if pretrained_model is not None:
             self.tokenizer = tokenizer_cls.from_pretrained(pretrained_model)
+            if "uncased" not in pretrained_model:
+                self.tokenizer.basic_tokenizer.do_lower_case = False
         elif vocab_file is not None:
             self.tokenizer = tokenizer_cls(vocab_file=vocab_file)
         else:
