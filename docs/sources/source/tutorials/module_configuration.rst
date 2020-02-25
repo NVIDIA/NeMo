@@ -21,14 +21,14 @@ Let us start by creating the :class:`NeuralFactory` object and instatiating the 
 
 .. literalinclude:: ../../../../examples/start_here/module_configuration.py
    :language: python
-   :lines: 20-33
+   :lines: 25-35
 
 Now we can export the configuration of any of the existing modules by using  the :meth:`export_to_config()`, for \
 example we can export the configuration of the trainable :class:`TaylorNet` by calling:
 
 .. literalinclude:: ../../../../examples/start_here/module_configuration.py
    :language: python
-   :lines: 36
+   :lines: 38
 
 Importing the configuration
 ---------------------------
@@ -37,7 +37,7 @@ There is an analogical function :meth:`import_from_config()` responsible for loa
 
 .. literalinclude:: ../../../../examples/start_here/module_configuration.py
    :language: python
-   :lines: 39
+   :lines: 41
 
 .. note::
     The :meth:`import_from_config()` function actually creates a new instance of object of the class that was stored \
@@ -49,7 +49,7 @@ For example, we can build a graph and train it with a NeMo trainer:
 
 .. literalinclude:: ../../../../examples/start_here/module_configuration.py
    :language: python
-   :lines: 41-
+   :lines: 43-
 
 
 .. include:: module_custom_configuration.rst

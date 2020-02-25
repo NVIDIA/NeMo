@@ -25,7 +25,7 @@ Download Corpus
 The training corpus can be either raw text where data preprocessing is done on the fly or an already preprocessed data set. In the following we will give examples for both.
 To showcase how to train on raw text data, we will be using the very small WikiText-2 dataset :cite:`nlp-bert-merity2016pointer`.
 
-To download the dataset, run the script ``examples/nlp/scripts/get_wt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
+To download the dataset, run the script ``examples/nlp/scripts/get_wkt2.sh download_dir``. After downloading and unzipping, the folder is located at `download_dir` and should include 3 files that look like this:
 
     .. code-block:: bash
 
@@ -61,18 +61,19 @@ the dataset to create a vocab file and a tokenizer model.
 You can also use an available vocab or tokenizer model to skip this step. If you already have a pretrained tokenizer model,
 copy it to the ``[data_dir]/bert`` folder under the name ``tokenizer.model`` and the script will skip this step.
 
-If have an available vocab, say the ``vocab.txt`` file from any `pretrained BERT model`_, copy it to the ``[data_dir]/bert`` folder under the name ``vocab.txt``.
-
-.. _pretrained BERT model: https://github.com/google-research/bert#pre-trained-models
+If have an available vocab, such as``vocab.txt`` file from any pretrained BERT model, copy it to the ``[data_dir]/bert`` folder under the name ``vocab.txt``.
 
     .. code-block:: python
+      
+        import nemo.collections.nlp as nemo_nlp
 
-        data_desc = nemo_nlp.data.BERTPretrainingDataDesc(args.dataset_name,
-                                            args.data_dir,
-                                            args.vocab_size,
-                                            args.sample_size,
-                                            special_tokens,
-                                            'train.txt')
+        data_desc = nemo_nlp.data.BERTPretrainingDataDesc(
+                        dataset_name=args.dataset_name,
+                        train_data=args.train_data,
+                        eval_data=args.eval_data,
+                        vocab_size=args.vocab_size,
+                        sample_size=args.sample_size,
+                        special_tokens=special_tokens)
 
 We need to define our tokenizer. If you'd like to use a custom vocabulary file, we strongly recommend you use our `SentencePieceTokenizer`.
 Otherwise, if you'll be using a vocabulary file from another pre-trained BERT model, you should use `NemoBertTokenizer`.
@@ -148,7 +149,7 @@ but you may observe higher downstream accuracy by only pre-training with MLM los
                                     activation=ACT2FN[args.hidden_act],
                                     log_softmax=True)
 
-        mlm_loss_fn = nemo_nlp.nm.losses.MaskedLanguageModelingLossNM()
+        mlm_loss_fn = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss()
 
         nsp_classifier = nemo_nlp.nm.trainables.SequenceClassifier(
                                                 args.hidden_size,
@@ -157,13 +158,25 @@ but you may observe higher downstream accuracy by only pre-training with MLM los
                                                 activation='tanh',
                                                 log_softmax=False)
 
-        nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLoss()
+        nsp_loss_fn = nemo.backends.pytorch.common.CrossEntropyLossNM()
 
-        bert_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
+        bert_loss = nemo.backends.pytorch.common.losses.LossAggregatorNM(num_inputs=2)
+
+Finally we will tie the weights of the encoder embedding layer and the MLM output embedding:
+
+    .. code-block:: python
+
+        mlm_classifier.tie_weights_with(
+            bert_model,
+            weight_names=["mlp.last_linear_layer.weight"],
+            name2name_and_transform={
+                "mlp.last_linear_layer.weight": ("bert.embeddings.word_embeddings.weight", nemo.core.WeightShareTransform.SAME)
+            },
+        )
 
 Then, we create the pipeline from input to output that can be used for both training and evaluation:
 
-For training from raw text use nemo_nlp.BertPretrainingDataLayer, for preprocessed data use nemo_nlp.BertPretrainingPreprocessedDataLayer
+For training from raw text use nemo_nlp.nm.data_layers.BertPretrainingDataLayer, for preprocessed data use nemo_nlp.nm.data_layers.BertPretrainingPreprocessedDataLayer
 
     .. code-block:: python
 
@@ -179,7 +192,8 @@ For training from raw text use nemo_nlp.BertPretrainingDataLayer, for preprocess
             # data_layer = nemo_nlp.BertPretrainingPreprocessedDataLayer(
             #        data_file,
             #        max_predictions_per_seq,
-            #        batch_size, is_training)
+            #        batch_size,
+            #        mode)
 
             steps_per_epoch = len(data_layer) // (batch_size * args.num_gpus * args.batches_per_step)
 
@@ -191,7 +205,7 @@ For training from raw text use nemo_nlp.BertPretrainingDataLayer, for preprocess
 
             mlm_logits = mlm_classifier(hidden_states=hidden_states)
             mlm_loss = mlm_loss_fn(logits=mlm_logits,
-                                   output_ids=input_data.output_ids,
+                                   labels=input_data.output_ids,
                                    output_mask=input_data.output_mask)
 
             nsp_logits = nsp_classifier(hidden_states=hidden_states)
@@ -209,21 +223,36 @@ For training from raw text use nemo_nlp.BertPretrainingDataLayer, for preprocess
                                     mask_probability=args.mask_probability,
                                     short_seq_prob=args.short_seq_prob,
                                     batch_size=args.batch_size,
-                                    batches_per_step=args.batches_per_step)
+                                    batches_per_step=args.batches_per_step,
+                                    mode="train")
 
         # for preprocessed data 
         # train_loss, _, _, steps_per_epoch = create_pipeline(
-        #                            data_file=args.data_dir,
+        #                            data_file=args.train_data,
         #                            preprocessed_data=True,
         #                            max_predictions_per_seq=args.max_predictions_per_seq,
-        #                            training=True,
         #                            batch_size=args.batch_size,
-        #                            batches_per_step=args.batches_per_step)
+        #                            batches_per_step=args.batches_per_step,
+        #                            mode="train")
 
-        eval_loss, eval_tensors, _ = create_pipeline(data_desc.eval_file,
-                                                     args.max_seq_length,
-                                                     args.mask_probability,
-                                                     args.eval_batch_size)
+        eval_loss, _, _, _ = create_pipeline(
+                                        data_file=data_desc.eval_file,
+                                        preprocessed_data=False,
+                                        max_seq_length=args.max_seq_length,
+                                        mask_probability=args.mask_probability,
+                                        short_seq_prob=args.short_seq_prob,
+                                        batch_size=args.batch_size,
+                                        batches_per_step=args.batches_per_step,
+                                        mode="eval")
+        
+        # for preprocessed data 
+        # eval_loss, eval_mlm_loss, eval_nsp_loss, _ = create_pipeline(
+        #                            data_file=args.eval_data,
+        #                            preprocessed_data=True,
+        #                            max_predictions_per_seq=args.max_predictions_per_seq,
+        #                            batch_size=args.batch_size,
+        #                            batches_per_step=args.batches_per_step,
+        #                            mode="eval")
 
 
 Next, we define necessary callbacks:
@@ -234,9 +263,17 @@ Next, we define necessary callbacks:
 
     .. code-block:: python
 
-        train_callback = nemo.core.SimpleLossLoggerCallback(...)
-        eval_callback = nemo.core.EvaluatorCallback(...)
-        ckpt_callback = nemo.core.CheckpointCallback(...)
+        train_callback = nemo.core.SimpleLossLoggerCallback(tensors=[train_loss],
+            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())))),
+            step_freq=args.train_step_freq,
+        eval_callback = nemo.core.EvaluatorCallback(eval_tensors=[eval_loss],
+            user_iter_callback=nemo_nlp.callbacks.lm_bert_callback.eval_iter_callback,
+            user_epochs_done_callback=nemo_nlp.callbacks.lm_bert_callback.eval_epochs_done_callback
+            eval_step=args.eval_step_freq)
+        ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir,
+            epoch_freq=args.save_epoch_freq,
+            load_from_folder=args.load_dir,
+            step_freq=args.save_step_freq)
 
 .. tip::
 
@@ -244,7 +281,7 @@ Next, we define necessary callbacks:
 
     .. code-block:: bash
 
-        tensorboard --logdir bert_pretraining_tb
+        tensorboard --logdir outputs/bert_lm/tensorboard
 
 .. _Tensorboard: https://www.tensorflow.org/tensorboard
 .. _tensorboardX: https://github.com/lanpa/tensorboardX

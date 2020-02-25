@@ -35,11 +35,10 @@ Goal of the NeMo toolkit is to make it possible for researchers to easily and sa
 
 The toolkit comes with extendable collections of pre-built modules for automatic speech recognition (ASR), natural language processing (NLP) and text synthesis (TTS). Furthermore, NeMo provides built-in support for **distributed training** and **mixed precision** on the latest NVIDIA GPUs.
 
-NeMo consists of: 
+NeMo consists of a core and some pre-built neural modules for particular domains such as automatic speech recognition, natural language processing and text synthesis:
 
-* **NeMo Core**: fundamental building blocks for all neural models and type system.
+* **NeMo Core**: fundamental building blocks for all neural models and type system
 * **NeMo collections**: pre-built neural modules for particular domains such as automatic speech recognition (nemo_asr), natural language processing (nemo_nlp) and text synthesis (nemo_tts).
-
 
 **Introduction**
 
@@ -48,6 +47,8 @@ NeMo consists of:
 * Documentation: https://nvidia.github.io/NeMo/
 
 * Read NVIDIA `Developer Blog for example applications <https://devblogs.nvidia.com/how-to-build-domain-specific-automatic-speech-recognition-models-on-gpus/>`_
+
+* Read NVIDIA `Developer Blog for Quartznet ASR model <https://devblogs.nvidia.com/develop-smaller-speech-recognition-models-with-nvidias-nemo-framework/>`_
 
 * Recommended version to install is **0.9.0** via pip install nemo-toolkit
 
@@ -135,11 +136,14 @@ Citation
 
 If you are using NeMo please cite the following publication
 
-@misc{nemo2019,
-    title={NeMo: a toolkit for building AI applications using Neural Modules},
-    author={Oleksii Kuchaiev and Jason Li and Huyen Nguyen and Oleksii Hrinchuk and Ryan Leary and Boris Ginsburg and Samuel Kriman and Stanislav Beliaev and Vitaly Lavrukhin and Jack Cook and Patrice Castonguay and Mariya Popova and Jocelyn Huang and Jonathan M. Cohen},
-    year={2019},
-    eprint={1909.09577},
-    archivePrefix={arXiv},
-    primaryClass={cs.LG}
-}
+.. code-block:: tex
+
+    @misc{nemo2019,
+        title={NeMo: a toolkit for building AI applications using Neural Modules},
+        author={Oleksii Kuchaiev and Jason Li and Huyen Nguyen and Oleksii Hrinchuk and Ryan Leary and Boris Ginsburg and Samuel Kriman and Stanislav Beliaev and Vitaly Lavrukhin and Jack Cook and Patrice Castonguay and Mariya Popova and Jocelyn Huang and Jonathan M. Cohen},
+        year={2019},
+        eprint={1909.09577},
+        archivePrefix={arXiv},
+        primaryClass={cs.LG}
+    }
+

@@ -1,6 +1,7 @@
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
-# Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# =============================================================================
 
 """
 Utility functions for Token Classification NLP tasks
@@ -23,13 +25,12 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 import itertools
 import os
 import pickle
-import random
 
 import numpy as np
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets import datasets_utils
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import get_label_stats, get_stats
 
 __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
 
@@ -113,7 +114,7 @@ def get_features(
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
     logging.info(f'Max length: {max_seq_length}')
-    datasets_utils.get_stats(sent_lengths)
+    get_stats(sent_lengths)
     too_long_count = 0
 
     for i, subtokens in enumerate(all_subtokens):
@@ -175,7 +176,6 @@ class BertTokenClassificationDataset(Dataset):
         tokenizer (Tokenizer): such as NemoBertTokenizer
         num_samples (int): number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
-        shuffle (bool): whether to shuffle your data.
         pad_label (str): pad value use for labels.
             by default, it's the neutral label.
         label_ids (dict): label_ids (dict): dict to map labels to label ids.
@@ -196,7 +196,6 @@ class BertTokenClassificationDataset(Dataset):
         max_seq_length,
         tokenizer,
         num_samples=-1,
-        shuffle=False,
         pad_label='O',
         label_ids=None,
         ignore_extra_tokens=False,
@@ -241,12 +240,9 @@ class BertTokenClassificationDataset(Dataset):
             if len(labels_lines) != len(text_lines):
                 raise ValueError("Labels file should contain labels for every word")
 
-            if shuffle or num_samples > 0:
+            if num_samples > 0:
                 dataset = list(zip(text_lines, labels_lines))
-                random.shuffle(dataset)
-
-                if num_samples > 0:
-                    dataset = dataset[:num_samples]
+                dataset = dataset[:num_samples]
 
                 dataset = list(zip(*dataset))
                 text_lines = dataset[0]
@@ -308,7 +304,7 @@ class BertTokenClassificationDataset(Dataset):
         infold = text_file[: text_file.rfind('/')]
         merged_labels = itertools.chain.from_iterable(self.all_labels)
         logging.info('Three most popular labels')
-        _, self.label_frequencies = datasets_utils.get_label_stats(merged_labels, infold + '/label_stats.tsv')
+        _, self.label_frequencies = get_label_stats(merged_labels, infold + '/label_stats.tsv')
 
         # save label_ids
         out = open(infold + '/label_ids.csv', 'w')

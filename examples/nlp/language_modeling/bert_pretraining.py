@@ -18,7 +18,8 @@
 To pretrain BERT on raw text dataset run
 python bert_pretraining.py \
 --amp_opt_level "O0" \
---data_dir data/lm/wikitext-2 \
+--train_data path_to/wikitext-2/train.txt \
+--eval_data path_to/wikitext-2/valid.txt \
 --dataset_name wikitext-2 \
 --work_dir outputs/bert_lm \
 --batch_size 64 \
@@ -46,13 +47,14 @@ download and preprocess dataset from here:
 https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/LanguageModeling/BERT/
 Run the script:
 ./data/create_datasets_from_start.sh
-and extract data into data_dir
+and extract data into train_data and eval_data
 
 Then run BERT large on the 512 sequence length dataset
 python -m torch.distributed.launch --nproc_per_node=8 bert_pretraining.py \
 --batch_size 8 \
 --config_file bert_config.json
---data_dir data_dir \
+--train_data train_data \
+--eval_data eval_data \
 --save_step_freq 200 \
 --max_steps 1142857 \
 --num_gpus 8 \
@@ -86,6 +88,7 @@ import os
 from transformers import BertConfig
 
 import nemo.backends.pytorch.common as nemo_common
+import nemo.backends.pytorch.common.losses
 import nemo.collections.nlp as nemo_nlp
 import nemo.core as nemo_core
 from nemo import logging
@@ -121,21 +124,17 @@ parser.add_argument(
     "--max_predictions_per_seq",
     default=20,
     type=int,
-    help="maximum number of masked tokens to predict,\
-                    needed when --preprocessed_data is specified",
+    help="maximum number of masked tokens to predict, needed when --preprocessed_data is specified",
 )
-parser.add_argument("--data_dir", default="data/lm/wikitext-2", type=str)
+parser.add_argument("--train_data", required=True, type=str, help="path to training dataset.")
+parser.add_argument("--eval_data", required=True, type=str, help="path to evaluation dataset.")
 parser.add_argument(
     "--preprocessed_data", action="store_true", default=False, help="specify if using preprocessed data"
 )
 parser.add_argument("--gradient_predivide", action="store_true", default=False, help="use gradient predivide")
 parser.add_argument("--only_mlm_loss", action="store_true", default=False, help="use only masked language model loss")
 parser.add_argument(
-    "--max_steps",
-    default=-1,
-    type=int,
-    help="if specified overrides --num_epochs.\
-                        Used for preprocessed data",
+    "--max_steps", default=-1, type=int, help="if specified overrides --num_epochs. Used for preprocessed data",
 )
 parser.add_argument("--dataset_name", default="wikitext-2", type=str)
 parser.add_argument("--load_dir", default=None, type=str)
@@ -143,7 +142,8 @@ parser.add_argument("--bert_checkpoint", default=None, type=str, help="specify p
 parser.add_argument("--work_dir", default="outputs/bert_lm", type=str)
 parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=100, type=int)
-parser.add_argument("--print_step_freq", default=25, type=int)
+parser.add_argument("--train_step_freq", default=25, type=int)
+parser.add_argument("--eval_step_freq", default=25, type=int)
 parser.add_argument("--config_file", default=None, type=str, help="The BERT model config")
 args = parser.parse_args()
 
@@ -171,11 +171,11 @@ if not args.preprocessed_data:
     special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
     data_desc = BERTPretrainingDataDesc(
         args.dataset_name,
-        args.data_dir,
-        args.vocab_size,
-        args.sample_size,
-        list(set(special_tokens.values())),
-        'train.txt',
+        train_data=args.train_data,
+        eval_data=args.eval_data,
+        vocab_size=args.vocab_size,
+        sample_size=args.sample_size,
+        special_tokens=list(set(special_tokens.values())),
     )
     if args.tokenizer == "sentence-piece":
         logging.info("To use SentencePieceTokenizer.")
@@ -208,17 +208,17 @@ if args.bert_checkpoint is not None:
 data layers, BERT encoder, and MLM and NSP loss functions
 """
 
-mlm_classifier = nemo_nlp.nm.trainables.token_classification_nm.BertTokenClassifier(
+mlm_classifier = nemo_nlp.nm.trainables.BertTokenClassifier(
     args.hidden_size, num_classes=args.vocab_size, activation=args.hidden_act, log_softmax=True
 )
-mlm_loss_fn = nemo_nlp.nm.losses.MaskedLanguageModelingLossNM()
+mlm_loss_fn = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss()
 if not args.only_mlm_loss:
-    nsp_classifier = nemo_nlp.nm.trainables.sequence_classification_nm.SequenceClassifier(
+    nsp_classifier = nemo_nlp.nm.trainables.SequenceClassifier(
         args.hidden_size, num_classes=2, num_layers=2, activation='tanh', log_softmax=False
     )
-    nsp_loss_fn = nemo_common.CrossEntropyLoss()
+    nsp_loss_fn = nemo_common.CrossEntropyLossNM()
 
-    bert_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
+    bert_loss = nemo.backends.pytorch.common.losses.LossAggregatorNM(num_inputs=2)
 
 # tie weights of MLM softmax layer and embedding layer of the encoder
 if mlm_classifier.mlp.last_linear_layer.weight.shape != bert_model.bert.embeddings.word_embeddings.weight.shape:
@@ -241,12 +241,18 @@ def create_pipeline(data_file, batch_size, preprocessed_data=False, batches_per_
             kwargs['short_seq_prob'],
         )
         data_layer = nemo_nlp.nm.data_layers.BertPretrainingDataLayer(
-            tokenizer, data_file, max_seq_length, mask_probability, short_seq_prob, batch_size=batch_size
+            tokenizer,
+            data_file,
+            max_seq_length,
+            mask_probability,
+            short_seq_prob,
+            batch_size=batch_size,
+            shuffle=kwargs['mode'] == "train",
         )
     else:
-        training, max_predictions_per_seq = (kwargs['training'], kwargs['max_predictions_per_seq'])
+        mode, max_predictions_per_seq = (kwargs['mode'], kwargs['max_predictions_per_seq'])
         data_layer = nemo_nlp.nm.data_layers.BertPretrainingPreprocessedDataLayer(
-            data_file, max_predictions_per_seq, batch_size=batch_size, training=training
+            data_file, max_predictions_per_seq, batch_size=batch_size, mode=mode,
         )
 
     steps_per_epoch = math.ceil(len(data_layer) / (batch_size * args.num_gpus * batches_per_step))
@@ -256,7 +262,7 @@ def create_pipeline(data_file, batch_size, preprocessed_data=False, batches_per_
         input_ids=input_data.input_ids, token_type_ids=input_data.input_type_ids, attention_mask=input_data.input_mask
     )
     mlm_logits = mlm_classifier(hidden_states=hidden_states)
-    mlm_loss = mlm_loss_fn(logits=mlm_logits, output_ids=input_data.output_ids, output_mask=input_data.output_mask)
+    mlm_loss = mlm_loss_fn(logits=mlm_logits, labels=input_data.output_ids, output_mask=input_data.output_mask)
     if not args.only_mlm_loss:
         nsp_logits = nsp_classifier(hidden_states=hidden_states)
         nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=input_data.labels)
@@ -276,14 +282,33 @@ if not args.preprocessed_data:
         short_seq_prob=args.short_seq_prob,
         batch_size=args.batch_size,
         batches_per_step=args.batches_per_step,
+        mode="train",
+    )
+    eval_loss, eval_mlm_loss, eval_nsp_loss, eval_steps_per_epoch = create_pipeline(
+        data_file=data_desc.eval_file,
+        preprocessed_data=False,
+        max_seq_length=args.max_seq_length,
+        mask_probability=args.mask_probability,
+        short_seq_prob=args.short_seq_prob,
+        batch_size=args.batch_size,
+        batches_per_step=args.batches_per_step,
+        mode="eval",
     )
 else:
     max_pred_len = args.max_predictions_per_seq
     train_loss, mlm_loss, nsp_loss, steps_per_epoch = create_pipeline(
-        data_file=args.data_dir,
+        data_file=args.train_data,
         preprocessed_data=True,
         max_predictions_per_seq=max_pred_len,
-        training=True,
+        mode="train",
+        batch_size=args.batch_size,
+        batches_per_step=args.batches_per_step,
+    )
+    eval_loss, eval_mlm_loss, eval_nsp_loss, eval_steps_per_epoch = create_pipeline(
+        data_file=args.eval_data,
+        preprocessed_data=True,
+        max_predictions_per_seq=max_pred_len,
+        mode="eval",
         batch_size=args.batch_size,
         batches_per_step=args.batches_per_step,
     )
@@ -298,7 +323,7 @@ else:
     print_msg = "Loss: {:.3f}"
 train_callback = nemo_core.SimpleLossLoggerCallback(
     tensors=log_tensors,
-    step_freq=args.print_step_freq,
+    step_freq=args.train_step_freq,
     print_func=lambda x: logging.info(print_msg.format(*[y.item() for y in x])),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer,
@@ -309,6 +334,13 @@ ckpt_callback = nemo_core.CheckpointCallback(
     epoch_freq=args.save_epoch_freq,
     load_from_folder=args.load_dir,
     step_freq=args.save_step_freq,
+)
+
+ckpt_eval = nemo.core.EvaluatorCallback(
+    eval_tensors=[eval_mlm_loss, eval_nsp_loss],
+    user_iter_callback=nemo_nlp.callbacks.lm_bert_callback.eval_iter_callback,
+    user_epochs_done_callback=nemo_nlp.callbacks.lm_bert_callback.eval_epochs_done_callback,
+    eval_step=args.eval_step_freq,
 )
 
 # define learning rate decay policy
@@ -343,7 +375,7 @@ else:
 nf.train(
     tensors_to_optimize=[train_loss],
     lr_policy=lr_policy_fn,
-    callbacks=[train_callback, ckpt_callback],
+    callbacks=[train_callback, ckpt_callback, ckpt_eval],
     optimizer=args.optimizer,
     batches_per_step=args.batches_per_step,
     gradient_predivide=args.gradient_predivide,
