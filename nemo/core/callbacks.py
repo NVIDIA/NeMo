@@ -564,3 +564,34 @@ class UnfreezeCallback(ActionCallback):
         if self.epoch_num == self.start_epoch:
             for m in self.modules:
                 m.unfreeze()
+
+
+class WandbCallback(ActionCallback):
+    """
+    Log metrics to [Weights & Biases](https://docs.wandb.com/)
+    """
+
+    def __init__(self, tensors, name=None, project=None):
+        super().__init__()
+        try:
+            import wandb
+        except:
+            raise ImportError('Could not import wandb. Run "pip install wandb" to use WandbCallback')
+        self._tensors = tensors
+        self._name = name
+        self._project = project
+
+    @property
+    def tensors(self):
+        return self._tensors
+        
+    def on_action_start(self):
+        if self.global_rank is None or self.global_rank == 0:
+            import wandb
+            wandb.init(name=self._name, project=self._project)
+
+    def on_iteration_end(self):
+        if self.global_rank is None or self.global_rank == 0:
+            import wandb
+            tensors_logged = {t.name:self.registered_tensors[t.unique_name] for t in self.tensors}
+            wandb.log(tensors_logged)
