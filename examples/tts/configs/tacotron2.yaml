@@ -54,7 +54,6 @@ AudioToTextDataLayer_eval:
         # eos_id: 67
         # pad_id: 68
 
-
 AudioToMelSpectrogramPreprocessor:
     header: {full_spec: nemo.collections.asr.audio_preprocessing.AudioToMelSpectrogramPreprocessor,
         collection_type: asr, collection_version: null, nemo_core_version: 0.9.5}
@@ -88,7 +87,6 @@ Tacotron2Encoder:
         encoder_kernel_size: 5
         encoder_n_convolutions: 3
         encoder_embedding_dim: &enc_emb_dim 512
-
 
 TextEmbedding:
     header: {full_spec: nemo.collections.tts.tacotron2_modules.TextEmbedding,
@@ -132,4 +130,4 @@ Tacotron2Loss:
     header: {full_spec: nemo.collections.tts.tacotron2_modules.Tacotron2Loss,
         collection_type: tts, collection_version: null, nemo_core_version: 0.9.5}
     init_params:
-        pad_value: -11.52
+        pad_value: *pad_value

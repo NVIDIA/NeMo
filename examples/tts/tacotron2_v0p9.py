@@ -132,8 +132,6 @@ def create_train_dag(
         **train_dl_params,
     )
 
-    data_layer.export_to_config("train.yaml")
-
     N = len(data_layer)
     steps_per_epoch = math.ceil(N / (batch_size * neural_factory.world_size))
     logging.info(f'Have {N} examples to train on.')
@@ -196,7 +194,6 @@ def create_eval_dags(
             num_workers=cpu_per_dl,
             **eval_dl_params,
         )
-        data_layer_eval.export_to_config("eval.yaml")
 
         audio, audio_len, transcript, transcript_len = data_layer_eval()
         spec_target, spec_target_len = data_preprocessor(input_signal=audio, length=audio_len)
