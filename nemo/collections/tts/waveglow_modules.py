@@ -165,6 +165,7 @@ class WaveGlowInferNM(WaveGlowNM):
 
     def __init__(
         self,
+        *,
         sample_rate: int,
         n_mel_channels: int = 80,
         n_flows: int = 12,
@@ -177,8 +178,9 @@ class WaveGlowInferNM(WaveGlowNM):
         sigma: float = 0.6,
     ):
         self._sigma = sigma
-        self.sample_rate = sample_rate
+        # self.sample_rate = sample_rate  # Done in parent class
         super().__init__(
+            sample_rate=sample_rate,
             n_mel_channels=n_mel_channels,
             n_flows=n_flows,
             n_group=n_group,

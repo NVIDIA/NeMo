@@ -1,4 +1,16 @@
-# Copyright (c) 2019 NVIDIA Corporation
+# Copyright 2020 NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import argparse
 import os
 
@@ -219,11 +231,12 @@ def main():
                 "Using waveglow as the vocoder requires the "
                 "--vocoder_model_config and --vocoder_model_load_dir args"
             )
-
         yaml = YAML(typ="safe")
         with open(args.vocoder_model_config) as file:
             waveglow_params = yaml.load(file)
-        waveglow = nemo_tts.WaveGlowInferNM(sigma=args.waveglow_sigma, **waveglow_params["WaveGlowNM"])
+        waveglow = nemo_tts.WaveGlowInferNM.import_from_config(
+            args.vocoder_model_config, "WaveGlowInferNM", overwrite_params={"sigma": args.waveglow_sigma}
+        )
         audio_pred = waveglow(mel_spectrogram=mel_pred)
         # waveglow.restore_from(args.vocoder_model_load_dir)
 

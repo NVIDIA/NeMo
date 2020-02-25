@@ -66,7 +66,7 @@ AudioToMelSpectrogramPreprocessor:
 WaveGlowNM:
     header: {full_spec: nemo.collections.tts.waveglow_modules.WaveGlowNM,
         collection_type: tts, collection_version: null, nemo_core_version: 0.9.5}
-    init_params:
+    init_params: &WaveGlowParams
         n_early_every: 4
         n_early_size: 2
         n_flows: 12
@@ -76,6 +76,11 @@ WaveGlowNM:
         n_wn_layers: 8
         sample_rate: *sr
         wn_kernel_size: 3
+
+WaveGlowInferNM:
+    header: {full_spec: nemo.collections.tts.waveglow_modules.WaveGlowInferNM,
+        collection_type: tts, collection_version: null, nemo_core_version: 0.9.5}
+    init_params: *WaveGlowParams
 
 WaveGlowLoss:
     header: {full_spec: nemo.collections.tts.waveglow_modules.WaveGlowLoss,
