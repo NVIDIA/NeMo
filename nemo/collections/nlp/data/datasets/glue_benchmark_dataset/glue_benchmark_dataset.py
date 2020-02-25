@@ -22,7 +22,11 @@ Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 """
 
+import os
+import pickle
+
 import numpy as np
+import torch
 from torch.utils.data import Dataset
 
 from nemo import logging
@@ -68,13 +72,43 @@ GLUE_TASKS_NUM_LABELS = {
 
 
 class GLUEDataset(Dataset):
-    def __init__(self, data_dir, tokenizer, max_seq_length, processor, output_mode, evaluate, token_params):
+    def __init__(
+        self, data_dir, tokenizer, max_seq_length, processor, output_mode, evaluate, model_name, use_data_cache
+    ):
+
         self.tokenizer = tokenizer
         self.label_list = processor.get_labels()
         self.examples = processor.get_dev_examples(data_dir) if evaluate else processor.get_train_examples(data_dir)
-        self.features = self.convert_examples_to_features(
-            self.examples, self.label_list, max_seq_length, tokenizer, output_mode, **token_params
+
+        cached_features_file = os.path.join(
+            data_dir,
+            "cached_{}_{}_{}".format(
+                "dev" if evaluate else "train", list(filter(None, model_name.split("/"))).pop(), str(max_seq_length)
+            ),
         )
+
+        if use_data_cache and os.path.exists(cached_features_file):
+            logging.info(f"loading from {cached_features_file}")
+            with open(cached_features_file, "rb") as reader:
+                self.features = pickle.load(reader)
+        else:
+            token_params = {
+                'bos_token': None,
+                'eos_token': tokenizer.eos_token,
+                'pad_token': tokenizer.pad_token,
+                'cls_token': tokenizer.cls_token,
+                'sep_token_extra': tokenizer.eos_token if 'roberta' in model_name.lower() else None,
+            }
+
+            self.features = self.convert_examples_to_features(
+                self.examples, self.label_list, max_seq_length, tokenizer, output_mode, **token_params
+            )
+            if use_data_cache:
+                master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+                if master_device:
+                    logging.info(f'Saving train features into {cached_features_file}')
+                    with open(cached_features_file, "wb") as writer:
+                        pickle.dump(self.features, writer)
 
     def __len__(self):
         return len(self.features)

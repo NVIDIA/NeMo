@@ -103,7 +103,18 @@ def parse_args():
     parser.add_argument(
         "--test_file", type=str, help="The test data file. Should be *.json. Does not need to contain ground truth",
     )
-    parser.add_argument("--pretrained_model_name", type=str, help="Name of the pre-trained model")
+    parser.add_argument(
+        "--pretrained_model_name",
+        default="bert-base-cased",
+        type=str,
+        help="Name of the pre-trained model",
+        choices=[
+            _.pretrained_model_name
+            for _ in nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
+            + nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
+            + nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
+        ],
+    )
     parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
     parser.add_argument(
         "--bert_checkpoint", default=None, type=str, help="Path to BERT model checkpoint for finetuning."
