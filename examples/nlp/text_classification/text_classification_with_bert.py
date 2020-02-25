@@ -51,6 +51,7 @@ parser.add_argument(
     type=str,
     choices=["sst-2", "imdb", "thucnews", "jarvis", "nlu-ubuntu", "nlu-web", "nlu-chat"],
 )
+parser.add_argument("--use_cache", action='store_true')
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
@@ -119,6 +120,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
         num_samples=num_samples,
         shuffle=shuffle,
         batch_size=batch_size,
+        use_cache=args.use_cache,
     )
 
     ids, type_ids, input_mask, labels = data_layer()
