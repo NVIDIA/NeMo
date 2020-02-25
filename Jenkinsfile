@@ -105,7 +105,7 @@ pipeline {
         }
         stage ('GLUE Benchmark Test') {
           steps {
-            sh 'cd examples/nlp/glue_benchmark && CUDA_VISIBLE_DEVICES=1 python glue_benchmark_with_bert.py --data_dir /home/TestData/nlp/glue_fake/MRPC --pretrained_bert_model bert-base-uncased --work_dir glue_output --save_step_freq -1 --num_epochs 1 --task_name mrpc --batch_size 2'
+            sh 'cd examples/nlp/glue_benchmark && CUDA_VISIBLE_DEVICES=1 python glue_benchmark_with_bert.py --data_dir /home/TestData/nlp/glue_fake/MRPC --pretrained_model_name bert-base-uncased --work_dir glue_output --save_step_freq -1 --num_epochs 1 --task_name mrpc --batch_size 2 --no_data_cache'
             sh 'rm -rf examples/nlp/glue_benchmark/glue_output'
           }
         }
@@ -183,7 +183,7 @@ pipeline {
         }
         stage('Roberta Squad v1.1') {
           steps {
-            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1_roberta --batch_size 2 --save_step_freq 500 --num_epochs 1 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case  --model_type roberta --pretrained_model_name roberta-base'
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1_roberta --batch_size 2 --save_step_freq 500 --num_epochs 1 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case  --pretrained_model_name roberta-base'
             sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1_roberta/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv1_roberta && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
           }

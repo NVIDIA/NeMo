@@ -31,6 +31,7 @@ python glue_benchmark_with_bert.py  \
 --data_dir /path_to_data_dir/MRPC \
 --task_name mrpc \
 --work_dir /path_to_output_folder \
+--pretrained_model_name bert-base-uncased \
 
 To run this example on 4 GPUs with mixed precision:
 python -m torch.distributed.launch \
@@ -40,6 +41,7 @@ python -m torch.distributed.launch \
 --work_dir /path_to_output_folder \
 --num_gpus=4 \
 --amp_opt_level=O1 \
+--pretrained_model_name bert-base-uncased \
 
 The generated predictions and associated labels will be stored in the
 word_dir in {task_name}.txt along with the checkpoints and tensorboard files.
@@ -73,7 +75,6 @@ import nemo.core as nemo_core
 from nemo import logging
 from nemo.backends.pytorch.common import CrossEntropyLossNM, MSELoss
 from nemo.collections.nlp.callbacks.glue_benchmark_callback import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset import output_modes, processors
 from nemo.collections.nlp.nm.data_layers import GlueClassificationDataLayer, GlueRegressionDataLayer
 from nemo.collections.nlp.nm.trainables import SequenceClassifier, SequenceRegression
@@ -98,7 +99,16 @@ parser.add_argument(
     help="GLUE task name, MNLI includes both matched and mismatched tasks",
 )
 parser.add_argument(
-    "--pretrained_bert_model", default="bert-base-cased", type=str, help="Name of the pre-trained model"
+    "--pretrained_model_name",
+    default="bert-base-uncased",
+    type=str,
+    help="Name of the pre-trained model",
+    choices=[
+        _.pretrained_model_name
+        for _ in nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
+        + nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
+        + nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
+    ],
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to model checkpoint")
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
@@ -154,7 +164,10 @@ parser.add_argument(
     help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
 )
 parser.add_argument("--loss_step_freq", default=25, type=int, help="Frequency of printing loss")
-
+parser.add_argument(
+    "--no_data_cache", action='store_true', help="When specified do not load and store cache preprocessed data.",
+)
+parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
@@ -164,6 +177,7 @@ if not os.path.exists(args.data_dir):
     )
 
 args.work_dir = f'{args.work_dir}/{args.task_name.upper()}'
+
 
 """
 Prepare GLUE task
@@ -191,50 +205,38 @@ nf = nemo_core.NeuralModuleFactory(
     add_time_to_log_dir=True,
 )
 
+logging.info(f'{args}')
+model_type = args.pretrained_model_name.split('-')[0]
+model_cls = nemo_nlp.utils.DEFAULT_MODELS[model_type]['class']
 
-if args.bert_checkpoint is None:
+if args.bert_config is not None:
+    model = model_cls(config_filename=args.bert_config)
+else:
     """ Use this if you're using a standard BERT model.
     To see the list of pretrained models, call:
     nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
+    nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
+    nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
     """
-    tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
-else:
-    """ Use this if you're using a BERT model that you pre-trained yourself.
-    Replace BERT-STEP-150000.pt with the path to your checkpoint.
-    """
-    if args.tokenizer == "sentencepiece":
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
-        tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model, special_tokens=special_tokens)
-    elif args.tokenizer == "nemobert":
-        tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    else:
-        raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
+    model = model_cls(pretrained_model_name=args.pretrained_model_name)
 
-    if args.bert_config is not None:
-        config = BertConfig.from_json_file(args.bert_config).to_dict()
-        args.vocab_size = config['vocab_size']
-        args.hidden_size = config['hidden_size']
-        args.num_hidden_layers = config['num_hidden_layers']
-        args.num_attention_heads = config['num_attention_heads']
-        args.intermediate_size = config['intermediate_size']
-        args.hidden_act = config['hidden_act']
-        args.max_seq_length = config['max_position_embeddings']
-
-        model = nemo_nlp.nm.trainables.huggingface.BERT(
-            vocab_size=args.vocab_size,
-            num_hidden_layers=args.num_hidden_layers,
-            hidden_size=args.hidden_size,
-            num_attention_heads=args.num_attention_heads,
-            intermediate_size=args.intermediate_size,
-            max_position_embeddings=args.max_seq_length,
-            hidden_act=args.hidden_act,
-        )
-        logging.info(f"using {args.bert_config}")
-    else:
-        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+if args.bert_checkpoint is not None:
     model.restore_from(args.bert_checkpoint)
     logging.info(f"model restored from {args.bert_checkpoint}")
+
+if args.tokenizer == 'sentencepiece':
+    try:
+        tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
+    except Exception:
+        raise ValueError('Using --tokenizer=sentencepiece requires valid --tokenizer_model')
+    special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
+    tokenizer.add_special_tokens(special_tokens)
+else:
+    tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
+    tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
+    tokenizer = tokenizer_cls(
+        pretrained_model=args.pretrained_model_name, special_tokens=tokenizer_special_tokens, bert_derivate=model_type,
+    )
 
 hidden_size = model.hidden_size
 
@@ -266,7 +268,9 @@ def create_pipeline(
         tokenizer=tokenizer,
         data_dir=args.data_dir,
         max_seq_length=max_seq_length,
-        token_params=token_params,
+        model_name=args.pretrained_model_name,
+        use_data_cache=not args.no_data_cache,
+        shuffle=False if evaluate else args.shuffle_data,
     )
 
     input_ids, input_type_ids, input_mask, labels = data_layer()
