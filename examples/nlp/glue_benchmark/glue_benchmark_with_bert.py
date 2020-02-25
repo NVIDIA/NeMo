@@ -31,8 +31,8 @@ python glue_benchmark_with_bert.py  \
 --data_dir /path_to_data_dir/MRPC \
 --task_name mrpc \
 --work_dir /path_to_output_folder \
---pretrained_model_name roberta-base \
---model_type roberta
+--pretrained_model_name bert-base-uncased \
+--model_type bert
 
 To run this example on 4 GPUs with mixed precision:
 python -m torch.distributed.launch \
@@ -44,6 +44,11 @@ python -m torch.distributed.launch \
 --amp_opt_level=O1 \
 --pretrained_model_name bert-base-uncased \
 --model_type bert
+
+BERT, ALBERT and RoBERTa models can be used with this script.
+To use them, specify pretrained_model_name and model_type, for example:
+--pretrained_model_name roberta-base \
+--model_type roberta
 
 The generated predictions and associated labels will be stored in the
 word_dir in {task_name}.txt along with the checkpoints and tensorboard files.
@@ -103,7 +108,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--pretrained_model_name",
-    default="bert-base-cased",
+    default="bert-base-uncased",
     type=str,
     help="Name of the pre-trained model",
     choices=[
