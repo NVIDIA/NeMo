@@ -4,9 +4,7 @@ import torch
 
 import nemo
 from .metrics import classification_accuracy, word_error_rate
-
 logging = nemo.logging
-
 
 def __ctc_decoder_predictions_tensor(tensor, labels):
     """
@@ -108,6 +106,41 @@ def monitor_classification_training_progress(tensors: list, eval_metric=None, tb
             tb_logger.add_scalar(tag.format(k), acc)
 
         logging.info(f"{tag.format(k)}: {acc * 100.: 3.4f}")
+
+
+def monitor_classification_training_progress(tensors: list, eval_metric=None, tb_logger=None):
+    """
+    Computes the top k classification accuracy of the model being trained.
+    Prints sample to screen, computes and  and logs a list of top k accuracies
+    to console and (optionally) Tensorboard
+    Args:
+      tensors: A list of 3 tensors (loss, logits, targets)
+      eval_metric: An optional list of integers detailing Top@`k`
+        in the range [1, max_classes]. Defaults to [1] if not set.
+      tb_logger: Tensorboard logging object
+    Returns:
+      None
+    """
+    if eval_metric is None:
+        eval_metric = [1]
+
+    if type(eval_metric) not in (list, tuple):
+        eval_metric = [eval_metric]
+
+    top_k = eval_metric
+
+    with torch.no_grad():
+        logits, targets = tensors[1:]
+        topk_acc = classification_accuracy(logits, targets, top_k=top_k)
+
+    tag = 'training_batch_top@{0}'
+    nemo.logging.info(f'Loss: {tensors[0]}')
+
+    for k, acc in zip(top_k, topk_acc):
+        if tb_logger is not None:
+            tb_logger.add_scalar(tag.format(k), acc)
+
+        nemo.logging.info(f"{tag.format(k)}: {acc * 100.: 3.4f}")
 
 
 def __gather_losses(losses_list: list) -> list:

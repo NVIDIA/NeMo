@@ -65,6 +65,24 @@ def get_same_padding(kernel_size, stride, dilation):
     return kernel_size // 2
 
 
+class StatsPoolLayer(nn.Module):
+
+    def __init__(self,covr=False):
+        super().__init__()
+        self.covr = covr
+    def forward(self, encoder_output):
+        mean = encoder_output.mean(dim=-1) #Time Axis
+        std = encoder_output.std(dim=-1)
+
+        pooled = torch.cat([mean,std],dim=-1)
+        if self.covr:
+            time_len = encoder_output.shape[-1]
+            cov = encoder_output.bmm(encoder_output.transpose(2,1)) #cov matrix
+            cov = cov.view(cov.shape[0],-1) / (time_len)
+            
+            pooled = torch.cat([pooled,cov],dim=-1)
+        return pooled
+
 class MaskedConv1d(nn.Module):
     __constants__ = ["use_conv_mask", "real_out_channels", "heads"]
 

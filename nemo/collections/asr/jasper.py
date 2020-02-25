@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .parts.jasper import JasperBlock, init_weights, jasper_activations
+from .parts.jasper import JasperBlock, init_weights, jasper_activations, StatsPoolLayer
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
@@ -298,3 +298,73 @@ class JasperDecoderForClassification(TrainableNM):
             return logits
 
         return F.softmax(logits, dim=-1)
+
+class JasperDecoderForSpkrClass(TrainableNM):
+    """
+    Jasper Decoder creates the final layer in Jasper that maps from the outputs
+    of Jasper Encoder to the vocabulary of interest.
+
+    Args:
+        feat_in (int): Number of channels being input to this module
+        num_classes (int): Number of characters in ASR model's vocab/labels.
+            This count should not include the CTC blank symbol.
+        init_mode (str): Describes how neural network parameters are
+            initialized. Options are ['xavier_uniform', 'xavier_normal',
+            'kaiming_uniform','kaiming_normal'].
+            Defaults to "xavier_uniform".
+    """
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+
+        encoder_output:
+            0: AxisType(BatchTag)
+
+            1: AxisType(EncodedRepresentationTag)
+
+            2: AxisType(ProcessedTimeTag)
+        """
+        return {
+            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())
+        }
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        output:
+            0: AxisType(BatchTag)
+
+            1: AxisType(ChannelTag)
+        """
+        return {
+            "logits": NeuralType(('B', 'D'), LogitsType())
+            }
+
+    def __init__(self, feat_in, num_classes,emb_size = 256, covr=False,init_mode="xavier_uniform"):
+        super().__init__()
+        if covr:
+            self._feat_in = 2*feat_in+feat_in**2
+        else:
+            self._feat_in = 2*feat_in
+
+        self._midEmbd1 = emb_size # Spkr Vector Embedding Shape
+        self._midEmbd2 = 256 # Spkr Vector Embedding Shape
+        # Add 1 for blank char
+        self._num_classes = num_classes 
+        self._pooling = StatsPoolLayer(covr=covr)
+        self.decoder_layers = nn.Sequential(
+                nn.Linear(self._feat_in,self._midEmbd1),
+                nn.BatchNorm1d(self._midEmbd1),
+                nn.ReLU(),
+                nn.Linear(self._midEmbd1,self._num_classes)
+                # nn.Linear(self._midEmbd1,self._midEmbd2),
+                # nn.BatchNorm1d(self._midEmbd2),
+                # nn.ReLU(),
+                # nn.Linear(self._midEmbd2,self._num_classes)
+                )
+        self.apply(lambda x: init_weights(x, mode=init_mode))
+        self.to(self._device)
+
+    def forward(self, encoder_output):
+        pool = self._pooling(encoder_output)
+        return self.decoder_layers(pool)

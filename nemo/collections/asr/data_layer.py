@@ -33,7 +33,7 @@ __all__ = [
     'AudioToTextDataLayer',
     'KaldiFeatureDataLayer',
     'TranscriptDataLayer',
-    'AudioToSpeechLabelDataLayer',
+    'AudioToLabelDataLayer',
 ]
 
 logging = nemo.logging
@@ -446,7 +446,7 @@ class TranscriptDataLayer(DataLayerNM):
 
 
 # Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq/data/speech2text/speech_commands.py
-class AudioToSpeechLabelDataLayer(DataLayerNM):
+class AudioToLabelDataLayer(DataLayerNM):
     """Data Layer for general speech classification.
 
     Module which reads speech recognition with target label. It accepts comma-separated
@@ -533,7 +533,7 @@ target_label_n}
         load_audio: bool = True,
         augmentor: Optional[Dict[str, Dict[str, Any]]] = None,
     ):
-        super(AudioToSpeechLabelDataLayer, self).__init__()
+        super(AudioToLabelDataLayer, self).__init__()
 
         self._manifest_filepath = manifest_filepath
         self._labels = labels
