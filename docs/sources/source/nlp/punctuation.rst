@@ -28,7 +28,7 @@ Dataset
 This model can work with any dataset as long as it follows the format specified below. For this tutorial, we're going to use the `Tatoeba collection of sentences`_. `This`_ script downloads and preprocesses the dataset. 
 
 .. _Tatoeba collection of sentences: https://tatoeba.org/eng
-.. _This: https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/scripts/get_tatoeba.py
+.. _This: https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/token_classification/get_tatoeba_data.py
 
 
 The training and evaluation data is divided into 2 files: text.txt and labels.txt. Each line of the text.txt file contains text sequences, where words are separated with spaces:
@@ -86,7 +86,7 @@ To download and preprocess a subset of the Tatoeba collection of sentences, run:
 
 .. code-block:: bash
         
-        python ../scripts/get_tatoeba.py --data_dir DATA_DIR --num_sample NUM_SAMPLES
+        python get_tatoeba_data.py --data_dir DATA_DIR --num_sample NUM_SAMPLES
 
 Then, we need to create our neural factory with the supported backend. This tutorial assumes that you're training on a single GPU, with mixed precision (``optimization_level="O1"``). If you don't want to use mixed precision, set ``optimization_level`` to ``O0``.
 
