@@ -21,7 +21,7 @@ Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 
 Download the Squad data by running the script:
-examples/nlp/scripts/get_squad.py
+examples/nlp/question_answering/get_squad.py
 
 To finetune Squad v1.1 on pretrained BERT large uncased on 1 GPU:
 python question_answering_squad.py
@@ -300,17 +300,17 @@ if __name__ == "__main__":
     if args.mode == "train_eval":
         if not os.path.exists(args.train_file) or not os.path.exists(args.eval_file):
             raise FileNotFoundError(
-                "train and eval data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
+                "train and eval data not found. Datasets can be obtained using examples/nlp/question_answering/get_squad.py"
             )
     elif args.mode == "eval":
         if not os.path.exists(args.eval_file):
             raise FileNotFoundError(
-                "eval data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
+                "eval data not found. Datasets can be obtained using examples/nlp/question_answering/get_squad.py"
             )
     elif args.mode == "test":
         if not os.path.exists(args.test_file):
             raise FileNotFoundError(
-                "test data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
+                "test data not found. Datasets can be obtained using examples/nlp/question_answering/get_squad.py"
             )
     else:
         raise ValueError(f"{args.mode} can only be one of [train_eval, eval, test]")
