@@ -57,17 +57,18 @@ from nemo.package_info import (
     __version__,
 )
 
-if os.path.exists('README.rst'):
+
+if os.path.exists('nemo/README.md'):
+    with open("nemo/README.md", "r") as fh:
+        long_description = fh.read()
+    long_description_content_type = "text/markdown"
+
+elif os.path.exists('README.rst'):
     # codec is used for consistent encoding
     long_description = codecs.open(
         os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'), 'r', 'utf-8',
     ).read()
     long_description_content_type = "text/x-rst"
-
-elif os.path.exists('README.md'):
-    with open("README.md", "r") as fh:
-        long_description = fh.read()
-    long_description_content_type = "text/markdown"
 
 else:
     long_description = 'See ' + __homepage__
@@ -186,6 +187,7 @@ setuptools.setup(
     version=__version__,
     description=__description__,
     long_description=long_description,
+    long_description_content_type=long_description_content_type,
     # The project's main homepage.
     url=__repository_url__,
     download_url=__download_url__,
