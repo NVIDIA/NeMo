@@ -68,7 +68,7 @@ class TestWeightSharing(NeMoUnitTest):
         "z",
         " ",
     ]
-    manifest_filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/asr/an4_train.json"))
+    manifest_filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/asr/an4_train.json"))
     featurizer_config = {
         'window': 'hann',
         'dither': 1e-05,
@@ -86,7 +86,7 @@ class TestWeightSharing(NeMoUnitTest):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
+        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/"))
         logging.info("Looking up for test ASR data")
         if not os.path.exists(os.path.join(data_folder, "asr")):
             logging.info("Extracting ASR data to: {0}".format(os.path.join(data_folder, "asr")))
@@ -279,7 +279,7 @@ class TestWeightSharing(NeMoUnitTest):
         self.assertFalse(np.array_equal(embd.embedding.weight.detach().cpu().numpy(), weights.detach().cpu().numpy()))
 
     def test_freeze_unfreeze_TrainableNM(self):
-        path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))
+        path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/jasper_smaller.yaml"))
         with open(path) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(
