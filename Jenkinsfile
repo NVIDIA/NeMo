@@ -72,7 +72,7 @@ pipeline {
         }        
         stage('BERT offline preprocessing') {
           steps {
-            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=1 python bert_pretraining.py --amp_opt_level O1 --train_data /home/TestData/nlp/wiki_book_mini/training --eval_data /home/TestData/nlp/wiki_book_mini/evaluation --work_dir outputs/bert_lm/wiki_book --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --save_step_freq 200 --max_steps 300  --num_gpus 1  --batches_per_step 1 --lr_policy SquareRootAnnealing --beta2 0.999 --beta1 0.9  --lr_warmup_proportion 0.01 --optimizer adam_w  --weight_decay 0.01  --lr 0.875e-4 --preprocessed_data '
+            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=1 python bert_pretraining.py --amp_opt_level O1 --train_data /home/TestData/nlp/wiki_book_mini/training/training_0.hdf5 --eval_data /home/TestData/nlp/wiki_book_mini/training/evaluation_0.hdf5 --work_dir outputs/bert_lm/wiki_book --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --save_step_freq 200 --max_steps 300  --num_gpus 1  --batches_per_step 1 --lr_policy SquareRootAnnealing --beta2 0.999 --beta1 0.9  --lr_warmup_proportion 0.01 --optimizer adam_w  --weight_decay 0.01  --lr 0.875e-4 --preprocessed_data '
             sh 'cd examples/nlp/language_modeling && LOSS=$(cat outputs/bert_lm/wiki_book/log_globalrank-0_localrank-0.txt |  grep "Loss" |tail -n 1| awk \'{print \$7}\' | egrep -o "[0-9.]+" ) && echo $LOSS && if [ $(echo "$LOSS < 15.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/language_modeling/outputs/wiki_book'
           }
