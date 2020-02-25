@@ -76,7 +76,7 @@ class NemoBertTokenizer(TokenizerSpec):
             "bos_token": "[CLS]",
             "mask_token": "[MASK]",
         },
-        do_lower_case=True,
+        do_lower_case=False,
     ):
 
         if bert_derivate == 'bert':
@@ -88,9 +88,6 @@ class NemoBertTokenizer(TokenizerSpec):
 
         if pretrained_model is not None:
             self.tokenizer = tokenizer_cls.from_pretrained(pretrained_model)
-            # for bert-#-cased models
-            if "cased" in pretrained_model:
-                self.tokenizer.basic_tokenizer.do_lower_case = False
         elif vocab_file is not None:
             self.tokenizer = tokenizer_cls(vocab_file=vocab_file, do_lower_case=do_lower_case)
         else:

@@ -32,7 +32,6 @@ python glue_benchmark_with_bert.py  \
 --task_name mrpc \
 --work_dir /path_to_output_folder \
 --pretrained_model_name bert-base-uncased \
---model_type bert
 
 To run this example on 4 GPUs with mixed precision:
 python -m torch.distributed.launch \
@@ -43,12 +42,6 @@ python -m torch.distributed.launch \
 --num_gpus=4 \
 --amp_opt_level=O1 \
 --pretrained_model_name bert-base-uncased \
---model_type bert
-
-BERT, ALBERT and RoBERTa models can be used with this script.
-To use them, specify pretrained_model_name and model_type, for example:
---pretrained_model_name roberta-base \
---model_type roberta
 
 The generated predictions and associated labels will be stored in the
 word_dir in {task_name}.txt along with the checkpoints and tensorboard files.
@@ -117,7 +110,6 @@ parser.add_argument(
         + nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
     ],
 )
-parser.add_argument("--model_type", default="bert", type=str, help="model type", choices=["bert", "roberta", "albert"])
 parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to model checkpoint")
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
 parser.add_argument(
@@ -214,12 +206,8 @@ nf = nemo_core.NeuralModuleFactory(
 )
 
 logging.info(f'{args}')
-
-model_cls = nemo_nlp.utils.DEFAULT_MODELS[args.model_type]['class']
-model_name = nemo_nlp.utils.DEFAULT_MODELS[args.model_type]['model_name']
-
-if args.pretrained_model_name is None:
-    args.pretrained_model_name = model_name
+model_type = args.pretrained_model_name.split('-')[0]
+model_cls = nemo_nlp.utils.DEFAULT_MODELS[model_type]['class']
 
 if args.bert_config is not None:
     model = model_cls(config_filename=args.bert_config)
@@ -241,15 +229,13 @@ if args.tokenizer == 'sentencepiece':
         tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
     except Exception:
         raise ValueError('Using --tokenizer=sentencepiece requires valid --tokenizer_model')
-    special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[args.model_type]
+    special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
     tokenizer.add_special_tokens(special_tokens)
 else:
     tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
-    tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[args.model_type]
+    tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
     tokenizer = tokenizer_cls(
-        pretrained_model=args.pretrained_model_name,
-        special_tokens=tokenizer_special_tokens,
-        bert_derivate=args.model_type,
+        pretrained_model=args.pretrained_model_name, special_tokens=tokenizer_special_tokens, bert_derivate=model_type,
     )
 
 hidden_size = model.hidden_size
