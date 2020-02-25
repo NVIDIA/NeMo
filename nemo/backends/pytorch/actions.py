@@ -629,7 +629,7 @@ class PtActions(Actions):
                 if vals_to_log is not None:
                     if hasattr(callback, 'swriter') and callback.swriter is not None:
                         if hasattr(callback, 'tb_writer_func') and callback.tb_writer_func is not None:
-                            callback.tb_writer_func(callback.swriter, vals_to_log, step) 
+                            callback.tb_writer_func(callback.swriter, vals_to_log, step)
                         else:
                             for key, val in vals_to_log.items():
                                 callback.swriter.add_scalar(key, val, step)
