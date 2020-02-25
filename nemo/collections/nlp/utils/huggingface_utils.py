@@ -38,11 +38,11 @@ MODEL_SPECIAL_TOKENS = {
     "albert": {
         "unk_token": "<unk>",
         "sep_token": "[SEP]",
-        "eos_token": "[SEP]",
         "pad_token": "<pad>",
-        "cls_token": "[CLS]",
         "bos_token": "[CLS]",
         "mask_token": "[MASK]",
+        "eos_token": "[SEP]",
+        "cls_token": "[CLS]",
     },
 }
 
