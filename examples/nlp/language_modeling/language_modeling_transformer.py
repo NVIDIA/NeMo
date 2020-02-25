@@ -128,7 +128,7 @@ def create_pipeline(
     input_data = data_layer()
     src_hiddens = encoder(input_ids=input_data.input_ids, input_mask_src=input_data.input_mask)
     logits = log_softmax(hidden_states=src_hiddens)
-    return loss(logits=logits, labels=input_data.labels)
+    return loss(log_probs=logits, labels=input_data.labels)
 
 
 train_loss = create_pipeline(

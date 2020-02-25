@@ -18,7 +18,7 @@ import torch
 
 from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.utils.data_utils import mask_padded_tokens
-from nemo.core import LabelsType, LogitsType, LossType, MaskType, NeuralType
+from nemo.core import LabelsType, LogprobsType, LossType, MaskType, NeuralType
 
 __all__ = ['SmoothedCrossEntropyLoss']
 
@@ -41,7 +41,7 @@ class SmoothedCrossEntropyLoss(LossNM):
         """Returns definitions of module input ports.
         """
         return {
-            "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+            "log_probs": NeuralType(('B', 'T', 'D'), LogprobsType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
             "output_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
         }
@@ -59,18 +59,18 @@ class SmoothedCrossEntropyLoss(LossNM):
         self._loss_fn = SmoothedCrossEntropy(label_smoothing, predict_last_k)
         self._pad_id = pad_id
 
-    def _loss_function(self, logits, labels, output_mask=None):
+    def _loss_function(self, log_probs, labels, output_mask=None):
         if output_mask is not None:
             labels_mask = output_mask
         elif self._pad_id is not None:
-            labels_mask = mask_padded_tokens(labels, self._pad_id).to(logits.dtype)
+            labels_mask = mask_padded_tokens(labels, self._pad_id).to(log_probs.dtype)
         else:
             raise ValueError("Both output_mask and pad_id are None")
 
-        if labels_mask.dtype is not logits.dtype:
-            labels_mask = labels_mask.to(logits.dtype)
+        if labels_mask.dtype is not log_probs.dtype:
+            labels_mask = labels_mask.to(log_probs.dtype)
 
-        loss = self._loss_fn(logits, labels, labels_mask)
+        loss = self._loss_fn(log_probs, labels, labels_mask)
         return loss
 
 
@@ -96,19 +96,19 @@ class SmoothedCrossEntropy(torch.nn.Module):
         self._smoothing = label_smoothing
         self._predict_last_k = predict_last_k
 
-    def forward(self, logits, labels, output_mask, eps=1e-6):
+    def forward(self, log_probs, labels, output_mask, eps=1e-6):
         """
         Args:
-            logits: float tensor of shape batch_size x seq_len x vocab_size, values should be log probabilities
+            log_probs: float tensor of shape batch_size x seq_len x vocab_size, values should be log probabilities
             labels: int tensor of shape batch_size x seq_len
             output_mask: binary tensor of shape batch_size x seq_len
             eps: epsilon param to avoid divide by zero in loss calculation
         """
-        batch_size, seq_len, vocab_size = logits.size()
+        batch_size, seq_len, vocab_size = log_probs.size()
         smoothing = vocab_size * self._smoothing / (vocab_size - 1)
-        target_logits = logits.gather(2, labels.unsqueeze(2)).squeeze(2)
-        smoothing_logits = logits.mean(dim=-1)
-        neg_log_likelihood = (1.0 - smoothing) * target_logits + smoothing * smoothing_logits
+        target_logprobs = log_probs.gather(2, labels.unsqueeze(2)).squeeze(2)
+        smoothing_logprobs = log_probs.mean(dim=-1)
+        neg_log_likelihood = (1.0 - smoothing) * target_logprobs + smoothing * smoothing_logprobs
         neg_log_likelihood = neg_log_likelihood[:, -self._predict_last_k :]
         output_mask = output_mask[:, -self._predict_last_k :]
         neg_log_likelihood = -torch.sum(neg_log_likelihood * output_mask)

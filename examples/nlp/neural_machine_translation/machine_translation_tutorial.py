@@ -202,7 +202,7 @@ def create_pipeline(dataset_src, dataset_tgt, tokens_in_batch, clean=False, trai
         input_ids_tgt=tgt, hidden_states_src=src_hiddens, input_mask_src=src_mask, input_mask_tgt=tgt_mask
     )
     logits = log_softmax(hidden_states=tgt_hiddens)
-    loss = loss_fn(logits=logits, labels=labels)
+    loss = loss_fn(log_probs=logits, labels=labels)
     beam_results = None
     if not training:
         beam_results = beam_search(hidden_states_src=src_hiddens, input_mask_src=src_mask)

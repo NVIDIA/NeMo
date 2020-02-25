@@ -118,7 +118,7 @@ Then, we create the pipeline from input to output that can be used for both trai
             src, src_mask, labels = data_layer()
             src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)
             logits = log_softmax(hidden_states=src_hiddens)
-            return loss(logits=logits, labels=labels)
+            return loss(log_probs=logits, labels=labels)
 
 
         train_loss = create_pipeline(

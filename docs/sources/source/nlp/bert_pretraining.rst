@@ -204,7 +204,7 @@ For training from raw text use nemo_nlp.nm.data_layers.BertPretrainingDataLayer,
                                        attention_mask=input_data.input_mask)
 
             mlm_logits = mlm_classifier(hidden_states=hidden_states)
-            mlm_loss = mlm_loss_fn(logits=mlm_logits,
+            mlm_loss = mlm_loss_fn(log_probs=mlm_logits,
                                    labels=input_data.output_ids,
                                    output_mask=input_data.output_mask)
 

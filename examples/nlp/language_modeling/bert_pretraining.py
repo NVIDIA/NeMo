@@ -267,7 +267,7 @@ def create_pipeline(data_file, batch_size, preprocessed_data=False, batches_per_
         input_ids=input_data.input_ids, token_type_ids=input_data.input_type_ids, attention_mask=input_data.input_mask
     )
     mlm_logits = mlm_classifier(hidden_states=hidden_states)
-    mlm_loss = mlm_loss_fn(logits=mlm_logits, labels=input_data.output_ids, output_mask=input_data.output_mask)
+    mlm_loss = mlm_loss_fn(log_probs=mlm_logits, labels=input_data.output_ids, output_mask=input_data.output_mask)
     if not args.only_mlm_loss:
         nsp_logits = nsp_classifier(hidden_states=hidden_states)
         nsp_loss = nsp_loss_fn(logits=nsp_logits, labels=input_data.labels)
