@@ -382,7 +382,7 @@ class BERTPretrainingDataDesc:
     ):
         if dataset_name == 'wikitext-2':
             if not os.path.exists(train_data):
-                raise FileNotFoundError("Dataset not found. Run './get_wkt2.sh DATA_DIR' from examples/nlp/scripts")
+                raise FileNotFoundError("Dataset not found. Run 'get_wkt2.sh DATA_DIR' from examples/nlp/language_modeling")
             self.data_dir, self.tokenizer_model = self.create_vocab_mlm(
                 train_data, vocab_size, sample_size, special_tokens
             )
