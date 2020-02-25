@@ -35,7 +35,6 @@ class GlueClassificationDataLayer(TextDataLayer):
         max_seq_length (int): maximum allowed length of the text segments .
         processor (DataProcessor): data processor.
         evaluate (bool): true if data layer is used for evaluation. Default: False.
-        token_params (dict): dictionary that specifies special tokens.
         batch_size (int): batch size in segments
         shuffle (bool): whether to shuffle data or not. Default: False.
         dataset_type (GLUEDataset):
@@ -69,20 +68,22 @@ class GlueClassificationDataLayer(TextDataLayer):
         tokenizer,
         max_seq_length,
         processor,
+        model_name,
         evaluate=False,
-        token_params={},
         shuffle=False,
         batch_size=64,
         dataset_type=GLUEDataset,
+        use_data_cache=False,
     ):
         dataset_params = {
             'data_dir': data_dir,
             'output_mode': 'classification',
             'processor': processor,
             'evaluate': evaluate,
-            'token_params': token_params,
             'tokenizer': tokenizer,
             'max_seq_length': max_seq_length,
+            'model_name': model_name,
+            'use_data_cache': use_data_cache,
         }
         super().__init__(dataset_type, dataset_params, batch_size, shuffle)
 
@@ -100,7 +101,6 @@ class GlueRegressionDataLayer(TextDataLayer):
         max_seq_length (int): maximum allowed length of the text segments .
         processor (DataProcessor): data processor.
         evaluate (bool): true if data layer is used for evaluation. Default: False.
-        token_params (dict): dictionary that specifies special tokens.
         batch_size (int): batch size in segments
         shuffle (bool): whether to shuffle data or not. Default: False.
         dataset_type (GLUEDataset):
@@ -134,20 +134,22 @@ class GlueRegressionDataLayer(TextDataLayer):
         tokenizer,
         max_seq_length,
         processor,
+        model_name,
         evaluate=False,
-        token_params={},
         shuffle=False,
         batch_size=64,
         dataset_type=GLUEDataset,
+        use_data_cache=False,
     ):
         dataset_params = {
             'data_dir': data_dir,
             'output_mode': 'regression',
             'processor': processor,
             'evaluate': evaluate,
-            'token_params': token_params,
             'tokenizer': tokenizer,
             'max_seq_length': max_seq_length,
+            'model_name': model_name,
+            'use_data_cache': use_data_cache,
         }
 
         super().__init__(dataset_type, dataset_params, batch_size, shuffle)

@@ -14,15 +14,15 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.data import BertTextClassificationDataset
+from nemo.collections.nlp.data.datasets.text_classification_dataset import BertTextClassificationDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['BertSentenceClassificationDataLayer']
+__all__ = ['BertTextClassificationDataLayer']
 
 
-class BertSentenceClassificationDataLayer(TextDataLayer):
+class BertTextClassificationDataLayer(TextDataLayer):
     """
     Creates the data layer to use for the task of sentence classification
     with pretrained model.
@@ -68,6 +68,7 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
         num_samples=-1,
         shuffle=False,
         batch_size=64,
+        use_cache=False,
         dataset_type=BertTextClassificationDataset,
     ):
         dataset_params = {
@@ -75,5 +76,7 @@ class BertSentenceClassificationDataLayer(TextDataLayer):
             'tokenizer': tokenizer,
             'max_seq_length': max_seq_length,
             'num_samples': num_samples,
+            'shuffle': shuffle,
+            'use_cache': use_cache,
         }
         super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)

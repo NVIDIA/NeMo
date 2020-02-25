@@ -67,17 +67,17 @@ BERT Large uncased      83.88    90.65
 
 To run only evaluation on pretrained question answering checkpoints on 1 GPU with ground-truth data:
 python question_answering_squad.py
---eval_file /path_to_data_dir/infer.json
+--eval_file /path_to_data_dir/test.json
 --checkpoint_dir /path_to_checkpoints
 --do_lower_case
 --mode eval
 
 To run only inference on pretrained question answering checkpoints on 1 GPU without ground-truth data:
 python question_answering_squad.py
---infer_file /path_to_data_dir/infer.json
+--test_file /path_to_data_dir/test.json
 --checkpoint_dir /path_to_checkpoints
 --do_lower_case
---mode infer
+--mode test
 """
 import argparse
 import json
@@ -101,11 +101,19 @@ def parse_args():
         "--eval_file", type=str, help="The evaluation data file. Should be *.json",
     )
     parser.add_argument(
-        "--infer_file",
-        type=str,
-        help="The inference data file. Should be *.json. Does not need to contain ground truth",
+        "--test_file", type=str, help="The test data file. Should be *.json. Does not need to contain ground truth",
     )
-    parser.add_argument("--pretrained_model_name", type=str, help="Name of the pre-trained model")
+    parser.add_argument(
+        "--pretrained_model_name",
+        type=str,
+        help="Name of the pre-trained model",
+        choices=[
+            _.pretrained_model_name
+            for _ in nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
+            + nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
+            + nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
+        ],
+    )
     parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
     parser.add_argument(
         "--bert_checkpoint", default=None, type=str, help="Path to BERT model checkpoint for finetuning."
@@ -141,7 +149,7 @@ def parse_args():
         help="Whether to lower case the input text. True for uncased models, False for cased models.",
     )
     parser.add_argument(
-        "--mode", default="train_eval", choices=["train_eval", "eval", "infer"], help="Mode of model usage."
+        "--mode", default="train_eval", choices=["train_eval", "eval", "test"], help="Mode of model usage."
     )
     parser.add_argument(
         "--no_data_cache", action='store_true', help="When specified do not load and store cache preprocessed data.",
@@ -192,12 +200,14 @@ def parse_args():
         type=int,
         help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
     )
-    parser.add_argument("--loss_step_freq", default=100, type=int, help="Frequency of printing loss")
-    parser.add_argument("--eval_step_freq", default=500, type=int, help="Frequency of evaluation on eval data")
+    parser.add_argument("--train_step_freq", default=100, type=int, help="Frequency of printing training loss")
+    parser.add_argument(
+        "--eval_step_freq", default=500, type=int, help="Frequency of evaluation during training on evaluation data"
+    )
     parser.add_argument(
         "--version_2_with_negative",
         action="store_true",
-        help="If true, the SQuAD examples contain some that do not have an answer.",
+        help="If true, the examples contain some that do not have an answer.",
     )
     parser.add_argument(
         '--null_score_diff_threshold',
@@ -270,7 +280,7 @@ def create_pipeline(
 
     steps_per_epoch = len(data_layer) // (batch_size * num_gpus * batches_per_step)
 
-    if mode == "infer":
+    if mode == "test":
         return (
             steps_per_epoch,
             [input_data.unique_ids, qa_output],
@@ -309,13 +319,13 @@ if __name__ == "__main__":
             raise FileNotFoundError(
                 "eval data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
             )
-    elif args.mode == "infer":
-        if not os.path.exists(args.infer_file):
+    elif args.mode == "test":
+        if not os.path.exists(args.test_file):
             raise FileNotFoundError(
-                "infer data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
+                "test data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
             )
     else:
-        raise ValueError(f"{args.mode} can only be one of [train_eval, eval, infer]")
+        raise ValueError(f"{args.mode} can only be one of [train_eval, eval, test]")
 
     # Instantiate neural factory with supported backend
     nf = nemo_core.NeuralModuleFactory(
@@ -405,9 +415,9 @@ if __name__ == "__main__":
             mode="eval",
             use_data_cache=not args.no_data_cache,
         )
-    if "infer" in args.mode:
-        _, eval_output, infer_data_layer = create_pipeline(
-            data_file=args.infer_file,
+    if "test" in args.mode:
+        _, eval_output, test_data_layer = create_pipeline(
+            data_file=args.test_file,
             model=model,
             head=qa_head,
             max_query_length=args.max_query_length,
@@ -417,7 +427,7 @@ if __name__ == "__main__":
             version_2_with_negative=args.version_2_with_negative,
             num_gpus=args.num_gpus,
             batches_per_step=args.batches_per_step,
-            mode="infer",
+            mode="test",
             use_data_cache=not args.no_data_cache,
         )
 
@@ -427,7 +437,7 @@ if __name__ == "__main__":
             tensors=[train_loss],
             print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
             get_tb_values=lambda x: [["loss", x[0]]],
-            step_freq=args.loss_step_freq,
+            step_freq=args.train_step_freq,
             tb_writer=nf.tb_writer,
         )
 
@@ -506,12 +516,12 @@ if __name__ == "__main__":
 
             logging.info(f"exact_match: {exact_match}, f1: {f1}")
 
-        elif "infer" in args.mode:
+        elif "test" in args.mode:
             logits = []
             for t in evaluated_tensors[1]:
                 logits.extend(t.tolist())
             start_logits, end_logits = np.split(np.asarray(logits), 2, axis=-1)
-            (all_predictions, all_nbest_json, scores_diff_json) = infer_data_layer.dataset.get_predictions(
+            (all_predictions, all_nbest_json, scores_diff_json) = test_data_layer.dataset.get_predictions(
                 unique_ids=unique_ids,
                 start_logits=start_logits,
                 end_logits=end_logits,

@@ -51,33 +51,9 @@ import json
 import os
 import re
 import shutil
+from os.path import exists, expanduser
 
 from nemo.collections.nlp.data.datasets.datasets_utils import if_exist
-
-parser = argparse.ArgumentParser(description='Process MultiWOZ dataset')
-parser.add_argument("--data_dir", default='../../data/statetracking/MULTIWOZ2.1', type=str)
-parser.add_argument("--out_dir", default='../../data/statetracking/multiwoz', type=str)
-args = parser.parse_args()
-
-if not os.path.exists(args.data_dir):
-    raise FileNotFoundError(f"{args.data_dir} doesn't exist.")
-
-DOMAINS = ['restaurant', 'hotel', 'attraction', 'train', 'taxi', 'hospital', 'police']
-PHONE_NUM_TMPL = '\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4,5})'
-POSTCODE_TMPL = (
-    '([a-z]{1}[\. ]?[a-z]{1}[\. ]?\d{1,2}[, ]+\d{1}[\. ]?' + '[a-z]{1}[\. ]?[a-z]{1}|[a-z]{2}\d{2}[a-z]{2})'
-)
-
-REPLACEMENTS = {}
-with open('replacements.txt', 'r') as f:
-    for line in f:
-        word1, word2 = line.strip().split('\t')
-        REPLACEMENTS[word1] = word2
-REPLACEMENTS['-'] = ' '
-REPLACEMENTS[';'] = ','
-REPLACEMENTS['/'] = ' and '
-
-DONT_CARES = set(['dont care', 'dontcare', "don't care", "do not care"])
 
 
 def is_ascii(text):
@@ -238,9 +214,9 @@ def fix_delex(curr_dialog_acts, act_idx, text):
     return text
 
 
-def create_data(data_dir):
-    data = json.load(open(f'{data_dir}/data.json', 'r'))
-    dialog_acts = json.load(open(f'{data_dir}/dialogue_acts.json', 'r'))
+def create_data(source_data_dir):
+    data = json.load(open(f'{source_data_dir}/data.json', 'r'))
+    dialog_acts = json.load(open(f'{source_data_dir}/dialogue_acts.json', 'r'))
 
     delex_data = {}
 
@@ -322,11 +298,7 @@ def partition_data(data, infold, outfold):
     """Partition the data into train, valid, and test sets
     based on the list of val and test specified in the dataset.
     """
-    if if_exist(
-        outfold, ['trainListFile.json', 'val_dialogs.json', 'test_dialogs.json', 'train_dialogs.json', 'ontology.json']
-    ):
-        print(f'Data is already processed and stored at {outfold}')
-        return
+
     os.makedirs(outfold, exist_ok=True)
     shutil.copyfile(f'{infold}/ontology.json', f'{outfold}/ontology.json')
 
@@ -348,23 +320,23 @@ def partition_data(data, infold, outfold):
         dial = get_dialog(dialog)
         if dial:
             dialogue = {}
-            dialogue['dialog_idx'] = dialog_id
+            dialogue['dialogue_idx'] = dialog_id
             dialogue['domains'] = list(set(domains))
             last_bs = []
-            dialogue['dialog'] = []
+            dialogue['dialogue'] = []
 
             for idx, turn in enumerate(dial):
                 turn_dl = {
-                    'sys_transcript': dial[idx - 1]['sys'] if idx > 0 else "",
+                    'system_transcript': dial[idx - 1]['sys'] if idx > 0 else "",
                     'turn_idx': idx,
                     'transcript': turn['usr'],
-                    'sys_acts': dial[idx - 1]['sys_a'] if idx > 0 else [],
+                    'system_acts': dial[idx - 1]['sys_a'] if idx > 0 else [],
                     'domain': turn['domain'],
                 }
                 turn_dl['belief_state'] = [{"slots": [s], "act": "inform"} for s in turn['bvs']]
                 turn_dl['turn_label'] = [bs["slots"][0] for bs in turn_dl['belief_state'] if bs not in last_bs]
                 last_bs = turn_dl['belief_state']
-                dialogue['dialog'].append(turn_dl)
+                dialogue['dialogue'].append(turn_dl)
 
             if dialog_id in test_files:
                 test_dialogs.append(dialogue)
@@ -376,25 +348,63 @@ def partition_data(data, infold, outfold):
                 train_list_files.write(dialog_id + '\n')
                 train_dialogs.append(dialogue)
                 count_train += 1
-
-    print(f"Dialogs: {count_train} train, {count_val} val, {count_test} test.")
-
-    # save all dialogues
-    with open(f'{outfold}/val_dialogs.json', 'w') as fout:
-        json.dump(val_dialogs, fout, indent=4)
-
-    with open(f'{outfold}/test_dialogs.json', 'w') as fout:
-        json.dump(test_dialogs, fout, indent=4)
-
-    with open(f'{outfold}/train_dialogs.json', 'w') as fout:
-        json.dump(train_dialogs, fout, indent=4)
-
     train_list_files.close()
 
+    print(f"Processing done, saving to files, please wait...")
 
-def process_woz():
-    delex_data = create_data(args.data_dir)
-    partition_data(delex_data, args.data_dir, args.out_dir)
+    # save all dialogues
+    with open(f'{outfold}/val_dials.json', 'w') as fout:
+        json.dump(val_dialogs, fout, indent=4)
+
+    with open(f'{outfold}/test_dials.json', 'w') as fout:
+        json.dump(test_dialogs, fout, indent=4)
+
+    with open(f'{outfold}/train_dials.json', 'w') as fout:
+        json.dump(train_dialogs, fout, indent=4)
+
+    print(f"Saving done. Generated dialogs: {count_train} train, {count_val} val, {count_test} test.")
 
 
-process_woz()
+if __name__ == "__main__":
+    # Parse the command-line arguments.
+    parser = argparse.ArgumentParser(description='Process MultiWOZ dataset')
+    parser.add_argument("--source_data_dir", default='~/data/state_tracking/MULTIWOZ2.1/MULTIWOZ2.1/', type=str)
+    parser.add_argument("--target_data_dir", default='~/data/state_tracking/multiwoz2.1', type=str)
+    args = parser.parse_args()
+
+    # Get absolute paths.
+    abs_source_data_dir = expanduser(args.source_data_dir)
+    abs_target_data_dir = expanduser(args.target_data_dir)
+
+    if not exists(abs_source_data_dir):
+        raise FileNotFoundError(f"{abs_source_data_dir} doesn't exist.")
+
+    # Check if the files exist.
+    if if_exist(
+        abs_target_data_dir,
+        ['trainListFile.json', 'val_dials.json', 'test_dials.json', 'train_dials.json', 'ontology.json'],
+    ):
+        print(f'Data is already processed and stored at {abs_target_data_dir}, skipping preprocessing.')
+        exit(0)
+
+    # Set domain.
+    DOMAINS = ['restaurant', 'hotel', 'attraction', 'train', 'taxi', 'hospital', 'police']
+    PHONE_NUM_TMPL = '\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4,5})'
+    POSTCODE_TMPL = (
+        '([a-z]{1}[\. ]?[a-z]{1}[\. ]?\d{1,2}[, ]+\d{1}[\. ]?' + '[a-z]{1}[\. ]?[a-z]{1}|[a-z]{2}\d{2}[a-z]{2})'
+    )
+
+    REPLACEMENTS = {}
+    with open('replacements.txt', 'r') as f:
+        for line in f:
+            word1, word2 = line.strip().split('\t')
+            REPLACEMENTS[word1] = word2
+    REPLACEMENTS['-'] = ' '
+    REPLACEMENTS[';'] = ','
+    REPLACEMENTS['/'] = ' and '
+
+    DONT_CARES = set(['dont care', 'dontcare', "don't care", "do not care"])
+
+    # Process WOZ.
+    delex_data = create_data(abs_source_data_dir)
+    partition_data(delex_data, abs_source_data_dir, abs_target_data_dir)
