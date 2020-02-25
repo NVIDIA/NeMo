@@ -23,7 +23,7 @@ AudioToMelSpectrogramPreprocessor:
     n_fft: *n_fft
     frame_splicing: 1
     dither: 0.
-    feat_type: "logfbank"
+    # feat_type: "logfbank"
     stft_conv: true
     sample_rate: *sr
     highfreq: 8000

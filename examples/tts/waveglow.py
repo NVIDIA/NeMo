@@ -32,15 +32,9 @@ def parse_args():
     )
 
     # Overwrite default args
-    parser.add_argument(
-        "--max_steps", type=int, default=None, required=False, help="max number of steps to train",
-    )
-    parser.add_argument(
-        "--num_epochs", type=int, default=None, required=False, help="number of epochs to train",
-    )
-    parser.add_argument(
-        "--model_config", type=str, required=True, help="model configuration file: model.yaml",
-    )
+    parser.add_argument("--max_steps", type=int, default=None, help="max number of steps to train")
+    parser.add_argument("--num_epochs", type=int, default=None, help="number of epochs to train")
+    parser.add_argument("--model_config", type=str, required=True, help="model configuration file: model.yaml")
 
     # Create new args
     parser.add_argument("--exp_name", default="Waveglow", type=str)
@@ -57,7 +51,7 @@ def parse_args():
     exp_directory = [
         f"{args.exp_name}-lr_{args.lr}-bs_{args.batch_size}",
         "",
-        (f"-wd_{args.weight_decay}-opt_{args.optimizer}" f"-ips_{args.iter_per_step}"),
+        (f"-wd_{args.weight_decay}-opt_{args.optimizer}-ips_{args.iter_per_step}"),
     ]
     if args.max_steps:
         exp_directory[1] = f"-s_{args.max_steps}"
@@ -72,8 +66,12 @@ def create_NMs(waveglow_params):
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         **waveglow_params["AudioToMelSpectrogramPreprocessor"]
     )
-    waveglow = nemo_tts.WaveGlowNM(**waveglow_params["WaveGlowNM"])
-    waveglow_loss = nemo_tts.WaveGlowLoss()
+    waveglow = nemo_tts.WaveGlowNM(22050, **waveglow_params["WaveGlowNM"])
+    waveglow_loss = nemo_tts.WaveGlowLoss(sample_rate=22050)
+
+    data_preprocessor.export_to_config("preproc.yaml")
+    waveglow.export_to_config("waveglow.yaml")
+    waveglow_loss.export_to_config("loss.yaml")
 
     logging.info('================================')
     logging.info(f"Total number of parameters: {waveglow.num_weights}")
@@ -94,6 +92,8 @@ def create_train_dag(
     data_layer = nemo_tts.AudioDataLayer(
         manifest_filepath=train_dataset, batch_size=batch_size, num_workers=cpu_per_dl, **train_dl_params,
     )
+
+    data_layer.export_to_config("train.yaml")
 
     N = len(data_layer)
     steps_per_epoch = int(N / (batch_size * neural_factory.world_size))
@@ -136,6 +136,8 @@ def create_eval_dags(
         data_layer_eval = nemo_tts.AudioDataLayer(
             manifest_filepath=eval_dataset, batch_size=eval_batch_size, num_workers=cpu_per_dl, **eval_dl_params,
         )
+
+        data_layer_eval.export_to_config("eval.yaml")
 
         audio, audio_len, = data_layer_eval()
         spec_target, spec_target_len = data_preprocessor(input_signal=audio, length=audio_len)

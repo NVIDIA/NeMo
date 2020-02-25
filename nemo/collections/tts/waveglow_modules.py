@@ -50,7 +50,7 @@ class WaveGlowNM(TrainableNM):
             # ),
             # "audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "mel_spectrogram": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "audio": NeuralType(('B', 'T'), AudioSignal()),
+            "audio": NeuralType(('B', 'T'), AudioSignal(self.sample_rate)),
         }
 
     @property
@@ -63,13 +63,14 @@ class WaveGlowNM(TrainableNM):
             # "audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "log_s_list": NeuralType(),
             # "log_det_W_list": NeuralType(),
-            "audio": NeuralType(('B', 'T'), AudioSignal()),
+            "audio": NeuralType(('B', 'T'), AudioSignal(self.sample_rate)),
             "log_s_list": NeuralType(elements_type=ChannelType()),
             "log_det_W_list": NeuralType(elements_type=ChannelType()),
         }
 
     def __init__(
         self,
+        sample_rate: int,
         n_mel_channels: int = 80,
         n_flows: int = 12,
         n_group: int = 8,
@@ -79,6 +80,7 @@ class WaveGlowNM(TrainableNM):
         n_wn_channels: int = 512,
         wn_kernel_size: int = 3,
     ):
+        self.sample_rate = sample_rate
         super().__init__()
         wavenet_config = {
             "n_layers": n_wn_layers,
@@ -156,13 +158,14 @@ class WaveGlowInferNM(WaveGlowNM):
         """Returns definitions of module output ports.
         """
         # return {"audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
-        return {"audio": NeuralType(('B', 'T'), AudioSignal())}
+        return {"audio": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate))}
 
     def __str__(self):
         return "WaveGlowNM"
 
     def __init__(
         self,
+        sample_rate: int,
         n_mel_channels: int = 80,
         n_flows: int = 12,
         n_group: int = 8,
@@ -174,6 +177,7 @@ class WaveGlowInferNM(WaveGlowNM):
         sigma: float = 0.6,
     ):
         self._sigma = sigma
+        self.sample_rate = sample_rate
         super().__init__(
             n_mel_channels=n_mel_channels,
             n_flows=n_flows,
@@ -239,7 +243,7 @@ class WaveGlowLoss(LossNM):
             # "z": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "log_s_list": NeuralType(),
             # "log_det_W_list": NeuralType(),
-            "z": NeuralType(('B', 'T'), AudioSignal()),
+            "z": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate)),
             "log_s_list": NeuralType(elements_type=ChannelType()),
             "log_det_W_list": NeuralType(elements_type=ChannelType()),
         }
@@ -251,9 +255,10 @@ class WaveGlowLoss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, sigma: float = 1.0):
+    def __init__(self, sample_rate: int, sigma: float = 1.0):
         super().__init__()
         self.sigma = sigma
+        self.sample_rate = sample_rate
 
     def _loss_function(self, **kwargs):
         return self._loss(*(kwargs.values()))
