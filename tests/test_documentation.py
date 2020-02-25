@@ -15,10 +15,6 @@ class DocTest(unittest.TestCase):
 
     all_files = True
 
-    @classmethod
-    def setUpClass(cls):
-        os.environ["SPHINXBUILD"] = "1"
-
     def test_html_documentation(self):
         app = Sphinx(
             self.source_dir,
