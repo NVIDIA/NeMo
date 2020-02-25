@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+from nemo.collections.nlp.nm.trainables.common.huggingface import *
 
-__all__ = ['MODEL_SPECIAL_TOKENS', 'MODEL_NAMES']
+__all__ = ['MODEL_SPECIAL_TOKENS', 'DEFAULT_MODELS']
 
 MODEL_SPECIAL_TOKENS = {
     "bert": {
@@ -38,17 +39,17 @@ MODEL_SPECIAL_TOKENS = {
     "albert": {
         "unk_token": "<unk>",
         "sep_token": "[SEP]",
-        "eos_token": "[SEP]",
         "pad_token": "<pad>",
-        "cls_token": "[CLS]",
         "bos_token": "[CLS]",
         "mask_token": "[MASK]",
+        "eos_token": "[SEP]",
+        "cls_token": "[CLS]",
     },
 }
 
 
-MODEL_NAMES = {
-    "bert": {"model_name": "bert-base-uncased", "tokenizer_name": "bert-base-uncased",},
-    "roberta": {"model_name": "roberta-base", "tokenizer_name": "roberta-base",},
-    "albert": {"model_name": "albert-base-v2", "tokenizer_name": "albert-base-v2",},
+DEFAULT_MODELS = {
+    "bert": {"model_name": "bert-base-uncased", "class": BERT},
+    "roberta": {"model_name": "roberta-base", "class": Roberta},
+    "albert": {"model_name": "albert-base-v2", "class": Albert},
 }
