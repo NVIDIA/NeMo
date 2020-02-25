@@ -105,7 +105,6 @@ def parse_args():
     )
     parser.add_argument(
         "--pretrained_model_name",
-        default="bert-base-cased",
         type=str,
         help="Name of the pre-trained model",
         choices=[
