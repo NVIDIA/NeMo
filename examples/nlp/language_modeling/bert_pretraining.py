@@ -124,8 +124,7 @@ parser.add_argument(
     "--max_predictions_per_seq",
     default=20,
     type=int,
-    help="maximum number of masked tokens to predict,\
-                    needed when --preprocessed_data is specified",
+    help="maximum number of masked tokens to predict, needed when --preprocessed_data is specified",
 )
 parser.add_argument("--train_data", required=True, type=str, help="path to training dataset.")
 parser.add_argument("--eval_data", required=True, type=str, help="path to evaluation dataset.")
@@ -135,11 +134,7 @@ parser.add_argument(
 parser.add_argument("--gradient_predivide", action="store_true", default=False, help="use gradient predivide")
 parser.add_argument("--only_mlm_loss", action="store_true", default=False, help="use only masked language model loss")
 parser.add_argument(
-    "--max_steps",
-    default=-1,
-    type=int,
-    help="if specified overrides --num_epochs.\
-                        Used for preprocessed data",
+    "--max_steps", default=-1, type=int, help="if specified overrides --num_epochs. Used for preprocessed data",
 )
 parser.add_argument("--dataset_name", default="wikitext-2", type=str)
 parser.add_argument("--load_dir", default=None, type=str)
