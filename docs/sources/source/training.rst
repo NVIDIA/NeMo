@@ -38,10 +38,6 @@ Use `torch.distributed.launch` package to run your script like this (assuming 8 
 
     python -m torch.distributed.launch --nproc_per_node=8 <nemo_git_repo_root>/examples/asr/jasper.py ...
 
-.. tip::
-    To help with multi-processing, neural_factory contains two attributes: local
-
-
 Example
 ~~~~~~~
 
@@ -61,4 +57,35 @@ The command above should trigger 8-GPU training with mixed precision. In the com
 
 This example would train on 3 data sets: LibriSpeech, Mozilla Common Voice and LibriSpeech speed perturbed.
 
+Multi-Node Training
+~~~~~~~~~~~~~~~~~~~
+We highly recommend reading pytorch's distributed documentation prior to trying multi-node, but here is a quick start
+guide on how to setup multi-node training using TCP initialization. Assume that we have 2 machines each with 4 gpus
+each. Let's call machine 1 the master node. We need the IP address of the master node and a free port on the master
+node. On machine 1, we run
 
+.. code-block:: bash
+
+    python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=0 --master_addr=<MASTER_IP_ADDRESS> --master_port=<FREE_PORT> jasper.py ...
+
+On machine 2, we run
+
+.. code-block:: bash
+
+    python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=1 --master_addr=<MASTER_IP_ADDRESS> --master_port=<FREE_PORT> jasper.py ...
+
+.. tip::
+    Setting the environment variable NCCL_DEBUG to INFO can help identify setup issues
+
+.. tip::
+    We recommend reading the following pytorch documentation
+    https://pytorch.org/docs/stable/distributed.html#launch-utility
+    https://github.com/pytorch/pytorch/blob/master/torch/distributed/launch.py
+
+.. tip::
+    To help with multi-processing, neural_factory contains two attributes: ``local_rank`` and ``global_rank``.
+    ``local_rank`` refers to the rank on the current machine whereas ``global_rank`` refers to the rank across all
+    machines. For example, assume you have 2 machines each with 4 gpus. global_rank 0 will have local_rank 0 and have
+    the 1st gpu on machine 1, whereas global_rank 5 COULD have local_rank 0 and have the 1st gpu on machine 2. In other
+    words local_rank == 0 and global_rank == 0 ensures that it has the 1st GPU on the master node, and local_rank == 0
+    and global_rank != 0 ensures that it has the 1st GPU on slave nodes.
