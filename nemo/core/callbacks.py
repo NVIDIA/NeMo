@@ -243,7 +243,7 @@ class CheckpointCallback(ActionCallback):
             logging.warning("No checkpoints will be saved because step_freq and epoch_freq are both -1.")
 
         if step_freq > -1 and epoch_freq > -1:
-            logging.warning("You config the model to save by both steps and epochs. Save by step_freq only")
+            logging.warning("You config the model to save by both steps and epochs. Please use one or the other")
             epoch_freq = -1
 
         self._step_freq = step_freq
@@ -266,8 +266,8 @@ class CheckpointCallback(ActionCallback):
             if module.num_weights > 0:
                 if str(module) in unique_mod_names:
                     raise NotImplementedError(
-                        "There were two instances of the same module. Please "
-                        "overwrite __str__() of one of the modules."
+                        "There were two instances of the same module. Please overwrite __str__() of one of the "
+                        "modules."
                     )
                 unique_mod_names.add(str(module))
                 if self._step_freq > -1:
@@ -298,7 +298,7 @@ class CheckpointCallback(ActionCallback):
                 raise ValueError("force_load was set to True for checkpoint callback but a checkpoint was not found.")
             logging.warning(f"Checkpoint folder {path} not found!")
         else:
-            logging.info(f"Restoring checkpoint from folder {path} ...")
+            logging.info(f"Found checkpoint folder {path}. Will attempt to restore checkpoints from it.")
             modules_to_restore = []
             modules_to_restore_name = []
             for module in self.action.modules:
@@ -316,7 +316,10 @@ class CheckpointCallback(ActionCallback):
                         "force_load was set to True for checkpoint callback but a checkpoint was not found."
                     )
                 logging.warning(e)
-                logging.warning(f"Checkpoint folder {path} present but did not restore")
+                logging.warning(
+                    f"Checkpoint folder {path} was present but nothing was restored. Continuing training from random "
+                    "initialization."
+                )
                 return
 
             try:
@@ -325,7 +328,10 @@ class CheckpointCallback(ActionCallback):
                     tr.restore_state_from(checkpoint)
             except (BaseException, ValueError) as e:
                 logging.warning(e)
-                logging.warning("Trainer state wasn't restored")
+                logging.warning(
+                    "Trainer state such as optimizer state and current step/epoch was not restored. Pretrained weights"
+                    " have still been restore and fine-tuning should continue fine."
+                )
                 return
 
     def on_action_start(self):
@@ -335,8 +341,8 @@ class CheckpointCallback(ActionCallback):
             if module.num_weights > 0:
                 if str(module) in unique_mod_names:
                     raise NotImplementedError(
-                        "There were two instances of the same module. Please "
-                        "overwrite __str__() of one of the modules."
+                        "There were two instances of the same module. Please overwrite __str__() of one of the "
+                        "modules."
                     )
                 unique_mod_names.add(str(module))
                 num_parameters += module.num_weights
