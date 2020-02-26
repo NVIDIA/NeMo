@@ -17,7 +17,7 @@ To enable mixed-precision in NeMo all you need to do is to set `optimization_lev
 .. important::
     Mixed precision requires Tensor Cores, so it works only on NVIDIA Volta and Turing GPUs.
 
-Multi-GPU training
+Multi-GPU Training
 ~~~~~~~~~~~~~~~~~~
 
 For multi-GPU training:
@@ -36,7 +36,10 @@ Use `torch.distributed.launch` package to run your script like this (assuming 8 
 
 .. code-block:: bash
 
-    python -m torch.distributed.launch --nproc_per_node=8 <nemo_git_repo_root>/examples/asr/jasper.py --num_gpus=8 ...
+    python -m torch.distributed.launch --nproc_per_node=8 <nemo_git_repo_root>/examples/asr/jasper.py ...
+
+.. tip::
+    To help with multi-processing, neural_factory contains two attributes: local
 
 
 Example
@@ -49,7 +52,7 @@ If you are working with a Volta-based DGX, you can run training like this:
 
 .. code-block:: bash
 
-    python -m torch.distributed.launch --nproc_per_node=8 <nemo_git_repo_root>/examples/asr/jasper.py --batch_size=64 --num_gpus=8 --num_epochs=100 --lr=0.015 --warmup_steps=8000 --weight_decay=0.001 --train_manifest=/manifests/librivox-train-all.json --val_manifest1=/manifests/librivox-dev-clean.json --val_manifest2=/manifests/librivox-dev-other.json --model_config=<nemo_git_repo_root>/nemo/examples/asr/configs/jasper15x5SEP.yaml --exp_name=MyLARGE-ASR-EXPERIMENT
+    python -m torch.distributed.launch --nproc_per_node=8 <nemo_git_repo_root>/examples/asr/jasper.py --batch_size=64 --num_epochs=100 --lr=0.015 --warmup_steps=8000 --weight_decay=0.001 --train_manifest=/manifests/librivox-train-all.json --val_manifest1=/manifests/librivox-dev-clean.json --val_manifest2=/manifests/librivox-dev-other.json --model_config=<nemo_git_repo_root>/nemo/examples/asr/configs/jasper15x5SEP.yaml --exp_name=MyLARGE-ASR-EXPERIMENT
 
 The command above should trigger 8-GPU training with mixed precision. In the command above various manifests (.json) files are various datasets. Substitute them with the ones containing your data.
 
