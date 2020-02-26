@@ -20,11 +20,11 @@ import math
 import numpy as np
 from transformers import BertTokenizer
 
-import nemo.collections.nlp.nm.data_layers.text_classification_datalayer
-import nemo.collections.nlp.nm.trainables.common.sequence_classification_nm
+import nemo
+import nemo.collections.nlp as nemo_nlp
 from nemo import logging
 from nemo.collections.nlp.callbacks.text_classification_callback import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data.datasets.text_classification_dataset import TextClassificationDataDesc
+from nemo.collections.nlp.data.datasets import TextClassificationDataDesc
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
@@ -78,26 +78,24 @@ nf = nemo.core.NeuralModuleFactory(
 
 """ Load the pretrained BERT parameters
 See the list of pretrained models, call:
-nemo_nlp.huggingface.BERT.list_pretrained_models()
+nemo.collections.nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
 """
 
 if args.bert_checkpoint and args.bert_config:
-    pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
-        config_filename=args.bert_config
-    )
+    pretrained_bert_model = nemo.collections.nlp.nm.trainables.huggingface.BERT(config_filename=args.bert_config)
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 else:
-    pretrained_bert_model = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(
+    pretrained_bert_model = nemo.collections.nlp.nm.trainables.huggingface.BERT(
         pretrained_model_name=args.pretrained_bert_model
     )
 
 hidden_size = pretrained_bert_model.hidden_size
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
-data_desc = TextClassificationDataDesc(args.dataset_name, args.data_dir, args.do_lower_case)
+data_desc = TextClassificationDataDesc(args.dataset_name, args.data_dir, args.do_lower_case, args.eval_file_prefix)
 
 # Create sentence classification loss on top
-classifier = nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier(
+classifier = nemo_nlp.nm.trainables.sequence_classification_nm.SequenceClassifier(
     hidden_size=hidden_size, num_classes=data_desc.num_labels, dropout=args.fc_dropout
 )
 
@@ -113,7 +111,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
     shuffle = args.shuffle_data if mode == 'train' else False
 
-    data_layer = nemo.collections.nlp.nm.data_layers.text_classification_datalayer.BertTextClassificationDataLayer(
+    data_layer = nemo_nlp.nm.data_layers.text_classification_datalayer.BertTextClassificationDataLayer(
         input_file=data_file,
         tokenizer=tokenizer,
         max_seq_length=args.max_seq_length,

@@ -14,7 +14,9 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.data.datasets.text_classification_dataset import BertTextClassificationDataset
+from nemo.collections.nlp.data.datasets.text_classification.text_classification_dataset import (
+    BertTextClassificationDataset,
+)
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
 from nemo.utils.decorators import add_port_docs
@@ -76,7 +78,6 @@ class BertTextClassificationDataLayer(TextDataLayer):
             'tokenizer': tokenizer,
             'max_seq_length': max_seq_length,
             'num_samples': num_samples,
-            'shuffle': shuffle,
             'use_cache': use_cache,
         }
         super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
