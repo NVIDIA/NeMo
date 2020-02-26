@@ -48,7 +48,7 @@ This model can work with any dataset that follows the format:
 Currently, the datasets that we provide pre-processing script for is SQuAD v1.1 and v2.0 
 which can be downloaded
 from `https://rajpurkar.github.io/SQuAD-explorer/ <https://rajpurkar.github.io/SQuAD-explorer/>`_.
-You can find the pre-processing script in ``examples/nlp/scripts/get_squad.py``.
+You can find the pre-processing script in ``examples/nlp/question_answering/get_squad.py``.
 
 
 Code structure

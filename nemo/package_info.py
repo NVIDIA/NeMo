@@ -16,9 +16,9 @@
 # limitations under the License.
 
 MAJOR = 0
-MINOR = 9
-PATCH = 5
-PRE_RELEASE = ''
+MINOR = 10
+PATCH = 0
+PRE_RELEASE = 'b0'
 
 # Use the following formatting: (major, minor, patch, pre-release)
 VERSION = (MAJOR, MINOR, PATCH, PRE_RELEASE)
@@ -34,4 +34,4 @@ __repository_url__ = 'https://github.com/nvidia/nemo'
 __download_url__ = 'https://github.com/NVIDIA/NeMo/releases'
 __description__ = 'NEMO core package. Necessary for all collections'
 __license__ = 'Apache2'
-__keywords__ = 'deep learning, machine learning, gpu, NLP, NeMo, nvidia, ' 'pytorch, torch, tts, speech, language '
+__keywords__ = 'deep learning, machine learning, gpu, NLP, NeMo, nvidia, pytorch, torch, tts, speech, language'
