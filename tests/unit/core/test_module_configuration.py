@@ -22,7 +22,7 @@ from unittest import TestCase
 
 import pytest
 
-import nemo
+from nemo.core import NeuralModule
 
 
 @pytest.mark.usefixtures("neural_factory")
@@ -31,13 +31,13 @@ class NeuralModuleConfigTest(TestCase):
         Class testing methods related to Neural Module import/export.
     """
 
-    class MockupModule(nemo.core.NeuralModule):
+    class MockupModule(NeuralModule):
         """
         Mockup component class.
         """
 
         def __init__(self):
-            nemo.core.NeuralModule.__init__(self)
+            NeuralModule.__init__(self)
 
         def validate_params(self, params):
             """ Method for accessing private method of NeuralModuce class """

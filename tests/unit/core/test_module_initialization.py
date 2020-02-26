@@ -17,9 +17,9 @@
 # limitations under the License.
 # =============================================================================
 
-# TODO: These test look bad/useless - redo
+from unittest import TestCase
 
-import unittest
+import pytest
 
 import nemo
 from nemo.backends.pytorch.nm import TrainableNM
@@ -27,40 +27,38 @@ from nemo.core.neural_types import ChannelType, NeuralType
 from tests.common_setup import NeMoUnitTest
 
 
-class TestNM1(TrainableNM):
-    def __init__(self, var1=1, var2=2, var3=3):
-        super(TestNM1, self).__init__()
+class ModuleInitializationTestCase(NeMoUnitTest):
+    class TestNM1(TrainableNM):
+        def __init__(self, var1=1, var2=2, var3=3):
+            super(TestNM1, self).__init__()
 
+    class TestNM2(TestNM1):
+        def __init__(self, var2):
+            super(TestNM2, self).__init__(var2=var2)
 
-class TestNM2(TestNM1):
-    def __init__(self, var2):
-        super(TestNM2, self).__init__(var2=var2)
-
-
-class TestNeuralModulesPT(NeMoUnitTest):
     def setUp(self) -> None:
         super().setUp()
 
         # Mockup abstract methods.
-        TestNM1.__abstractmethods__ = set()
-        TestNM2.__abstractmethods__ = set()
+        ModuleInitializationTestCase.TestNM1.__abstractmethods__ = set()
+        ModuleInitializationTestCase.TestNM2.__abstractmethods__ = set()
 
     def test_default_init_params(self):
-        simple_nm = TestNM1(var1=1)
+        simple_nm = ModuleInitializationTestCase.TestNM1(var1=1)
         init_params = simple_nm.init_params
         self.assertEqual(init_params["var1"], 1)
         self.assertEqual(init_params["var2"], 2)
         self.assertEqual(init_params["var3"], 3)
 
     def test_simple_init_params(self):
-        simple_nm = TestNM1(var1=10, var3=30)
+        simple_nm = ModuleInitializationTestCase.TestNM1(var1=10, var3=30)
         init_params = simple_nm.init_params
         self.assertEqual(init_params["var1"], 10)
         self.assertEqual(init_params["var2"], 2)
         self.assertEqual(init_params["var3"], 30)
 
     def test_nested_init_params(self):
-        simple_nm = TestNM2(var2="hello")
+        simple_nm = ModuleInitializationTestCase.TestNM2(var2="hello")
         init_params = simple_nm.init_params
         self.assertEqual(init_params["var2"], "hello")
 
@@ -81,21 +79,3 @@ class TestNeuralModulesPT(NeMoUnitTest):
         y_pred = tn(x=x_tg)
         self.assertEqual(y_pred.producer, tn)
         self.assertEqual(y_pred.producer_args.get("x"), x_tg)
-
-    def test_simple_chain(self):
-        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=1)
-        trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
-        loss = nemo.backends.pytorch.tutorials.MSELoss()
-        x, y = data_source()
-        y_pred = trainable_module(x=x)
-        loss_tensor = loss(predictions=y_pred, target=y)
-
-        # check producers' bookkeeping
-        self.assertEqual(loss_tensor.producer, loss)
-        self.assertEqual(loss_tensor.producer_args, {"predictions": y_pred, "target": y})
-        self.assertEqual(y_pred.producer, trainable_module)
-        self.assertEqual(y_pred.producer_args, {"x": x})
-        self.assertEqual(y.producer, data_source)
-        self.assertEqual(y.producer_args, {})
-        self.assertEqual(x.producer, data_source)
-        self.assertEqual(x.producer_args, {})

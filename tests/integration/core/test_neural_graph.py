@@ -1,7 +1,8 @@
 # ! /usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright 2019 NVIDIA. All Rights Reserved.
+# =============================================================================
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,24 +17,29 @@
 # limitations under the License.
 # =============================================================================
 
+from unittest import TestCase
+
+import pytest
+
 import nemo
-from nemo.core.neural_types import ChannelType, NeuralType
-from tests.common_setup import NeMoUnitTest
 
 
-class NeuralModulesTests(NeMoUnitTest):
-    def test_call_TaylorNet(self):
-        x_tg = nemo.core.neural_modules.NmTensor(
-            producer=None, producer_args=None, name=None, ntype=NeuralType(('B', 'D'), ChannelType())
-        )
+@pytest.mark.usefixtures("neural_factory")
+class TestNeuralGraph(TestCase):
+    @pytest.mark.integration
+    def test_create_simple_graph(self):
+        # Create modules.
+        dl = nemo.tutorials.RealFunctionDataLayer(n=100, batch_size=16)
+        fx = nemo.tutorials.TaylorNet(dim=4)
+        loss = nemo.tutorials.MSELoss()
 
-        tn = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
-        # note that real port's name: x was used
-        y_pred = tn(x=x_tg)
-        self.assertEqual(y_pred.producer, tn)
-        self.assertEqual(y_pred.producer_args.get("x"), x_tg)
+        # Create the graph by connnecting the modules.
+        x, y = dl()
+        y_pred = fx(x=x)
+        _ = loss(predictions=y_pred, target=y)
 
-    def test_simplest_example_chain(self):
+    @pytest.mark.integration
+    def test_simple_chain(self):
         data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=1)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         loss = nemo.backends.pytorch.tutorials.MSELoss()
