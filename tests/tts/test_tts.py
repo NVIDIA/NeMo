@@ -144,7 +144,9 @@ class TestTTSPytorch(NeMoUnitTest):
         )
 
     def test_waveglow_training(self):
-        data_layer = nemo_tts.AudioDataLayer(manifest_filepath=self.manifest_filepath, n_segments=4000, batch_size=4,)
+        data_layer = nemo_tts.AudioDataLayer(
+            manifest_filepath=self.manifest_filepath, n_segments=4000, batch_size=4, sample_rate=16000
+        )
         preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             window_size=None,
             window_stride=None,
@@ -165,8 +167,9 @@ class TestTTSPytorch(NeMoUnitTest):
             n_wn_layers=4,
             n_wn_channels=256,
             wn_kernel_size=3,
+            sample_rate=16000,
         )
-        waveglow_loss = nemo_tts.WaveGlowLoss()
+        waveglow_loss = nemo_tts.WaveGlowLoss(sample_rate=16000)
 
         # DAG
         audio, audio_len, = data_layer()

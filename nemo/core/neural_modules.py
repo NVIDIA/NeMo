@@ -27,7 +27,7 @@ from inspect import getargvalues, getfullargspec, stack
 from os import path
 from typing import Dict, List, Optional, Set, Tuple
 
-from ruamel import yaml
+from ruamel.yaml import YAML
 
 from .neural_types import (
     CanNotInferResultNeuralType,
@@ -41,6 +41,8 @@ from nemo import logging
 from nemo.core import NeuralModuleFactory
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils.decorators.deprecated import deprecated
+
+YAML = YAML(typ='safe')
 
 
 class WeightShareTransform(Enum):
@@ -259,7 +261,7 @@ class NeuralModule(ABC):
 
         # All parameters are ok, let's export.
         with open(abs_path_file, 'w') as outfile:
-            yaml.dump(to_export, outfile)
+            YAML.dump(to_export, outfile)
 
         logging.info(
             "Configuration of module {} ({}) exported to {}".format(self._uuid, type(self).__name__, abs_path_file)
@@ -285,7 +287,7 @@ class NeuralModule(ABC):
 
         # Open the config file.
         with open(abs_path_file, 'r') as stream:
-            loaded_config = yaml.safe_load(stream)
+            loaded_config = YAML.load(stream)
 
         # Check section.
         if section_name is not None:

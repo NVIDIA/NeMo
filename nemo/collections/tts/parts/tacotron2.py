@@ -6,7 +6,8 @@ from torch import nn
 from torch.autograd import Variable
 from torch.nn import functional as F
 
-from .layers import ConvNorm, LinearNorm, get_mask_from_lengths
+from nemo import logging
+from nemo.collections.tts.parts.layers import ConvNorm, LinearNorm, get_mask_from_lengths
 
 
 class LocationLayer(nn.Module):

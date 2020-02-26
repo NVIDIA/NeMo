@@ -7,7 +7,7 @@ All code used in this tutorial is based on ``examples/nlp/intent_detection_slot_
 
 There are a variety pre-trained BERT models that we can select from using the argument `--pretrained_bert_model`. We're currently
 using the script for loading pre-trained models from `pytorch_transformers`. See the list of available pre-trained models
-`here <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__. 
+`here <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__.
 
 .. tip::
 
@@ -28,7 +28,7 @@ When `intent_loss_weight = 0.5`, this loss jointly maximizes:
 
 with x being the sequence of n tokens (x1, x2, ..., xn), y being the predicted intent for x, and s1, s2, ..., sn being the predicted slots corresponding to x1, x2, ..., xn.
 
-**Datasets.** 
+**Datasets.**
 
 This model can work with any dataset that follows the format:
     * input file: a `tsv` file with the first line as a header [sentence][tab][label]
@@ -69,8 +69,7 @@ This will tokenize text following the mapping of the original BERT model.
 
 Next, we define all Neural Modules participating in our joint intent slot filling classification pipeline.
 
-    * Process data: the `JointIntentSlotDataDesc` class in `nemo/collections/nlp/data/datasets/joint_intent_slot_dataset/data_descriptor.py` is supposed to do the preprocessing of raw data into the format data supported by `BertJointIntentSlotDataset`.
-    Currently, it supports SNIPS and ATIS raw datasets, but you can also write your own preprocessing scripts for any dataset.
+    * Process data: the `JointIntentSlotDataDesc` class in `nemo/collections/nlp/data/datasets/joint_intent_slot_dataset/data_descriptor.py` is supposed to do the preprocessing of raw data into the format data supported by `BertJointIntentSlotDataset`. Currently, it supports SNIPS and ATIS raw datasets, but you can also write your own preprocessing scripts for any dataset.
 
     .. code-block:: python
 
@@ -83,6 +82,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
     * Load the pretrained BERT model to encode the corresponding inputs.
 
     .. code-block:: python
+
         from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
         pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
 
@@ -235,7 +235,7 @@ To do inference, run:
             --work_dir <path to checkpoint folder>
 
 To do inference on a single query, run:
-    
+
     .. code-block:: python
 
         python joint_intent_slot_infer.py \
