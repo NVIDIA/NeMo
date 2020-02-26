@@ -11,7 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Tacotron2_v0p9.py is functionally the same as tacotron2.py but with support for older model yaml configs. This file
+will be removed in future versions
+"""
 import argparse
+import copy
 import math
 import os
 from functools import partial
@@ -82,20 +87,20 @@ def parse_args():
     return args, "".join(exp_directory)
 
 
-def create_NMs(tacotron2_config_file, labels, decoder_infer=False):
-    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor.import_from_config(
-        tacotron2_config_file, "AudioToMelSpectrogramPreprocessor"
+def create_NMs(tacotron2_params, decoder_infer=False):
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+        **tacotron2_params["AudioToMelSpectrogramPreprocessor"]
     )
-    text_embedding = nemo_tts.TextEmbedding.import_from_config(
-        tacotron2_config_file, "TextEmbedding", overwrite_params={"n_symbols": len(labels) + 3}
+    text_embedding = nemo_tts.TextEmbedding(
+        len(tacotron2_params["labels"]) + 3, **tacotron2_params["TextEmbedding"],  # + 3 special chars
     )
-    t2_enc = nemo_tts.Tacotron2Encoder.import_from_config(tacotron2_config_file, "Tacotron2Encoder")
+    t2_enc = nemo_tts.Tacotron2Encoder(**tacotron2_params["Tacotron2Encoder"])
     if decoder_infer:
-        t2_dec = nemo_tts.Tacotron2DecoderInfer.import_from_config(tacotron2_config_file, "Tacotron2DecoderInfer")
+        t2_dec = nemo_tts.Tacotron2DecoderInfer(**tacotron2_params["Tacotron2Decoder"])
     else:
-        t2_dec = nemo_tts.Tacotron2Decoder.import_from_config(tacotron2_config_file, "Tacotron2Decoder")
-    t2_postnet = nemo_tts.Tacotron2Postnet.import_from_config(tacotron2_config_file, "Tacotron2Postnet")
-    t2_loss = nemo_tts.Tacotron2Loss.import_from_config(tacotron2_config_file, "Tacotron2Loss")
+        t2_dec = nemo_tts.Tacotron2Decoder(**tacotron2_params["Tacotron2Decoder"])
+    t2_postnet = nemo_tts.Tacotron2Postnet(**tacotron2_params["Tacotron2Postnet"])
+    t2_loss = nemo_tts.Tacotron2Loss(**tacotron2_params["Tacotron2Loss"])
     makegatetarget = nemo_tts.MakeGate()
 
     total_weights = text_embedding.num_weights + t2_enc.num_weights + t2_dec.num_weights + t2_postnet.num_weights
@@ -118,27 +123,29 @@ def create_NMs(tacotron2_config_file, labels, decoder_infer=False):
 def create_train_dag(
     neural_factory,
     neural_modules,
-    tacotron2_config_file,
+    tacotron2_params,
     train_dataset,
     batch_size,
     log_freq,
     checkpoint_save_freq,
-    labels,
     cpu_per_dl=1,
 ):
     (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget) = neural_modules
 
-    data_layer = nemo_asr.AudioToTextDataLayer.import_from_config(
-        tacotron2_config_file,
-        "AudioToTextDataLayer_train",
-        overwrite_params={
-            "manifest_filepath": train_dataset,
-            "batch_size": batch_size,
-            "num_workers": cpu_per_dl,
-            "bos_id": len(labels),
-            "eos_id": len(labels) + 1,
-            "pad_id": len(labels) + 2,
-        },
+    train_dl_params = copy.deepcopy(tacotron2_params["AudioToTextDataLayer"])
+    train_dl_params.update(tacotron2_params["AudioToTextDataLayer"]["train"])
+    del train_dl_params["train"]
+    del train_dl_params["eval"]
+
+    data_layer = nemo_asr.AudioToTextDataLayer(
+        manifest_filepath=train_dataset,
+        labels=tacotron2_params['labels'],
+        bos_id=len(tacotron2_params['labels']),
+        eos_id=len(tacotron2_params['labels']) + 1,
+        pad_id=len(tacotron2_params['labels']) + 2,
+        batch_size=batch_size,
+        num_workers=cpu_per_dl,
+        **train_dl_params,
     )
 
     N = len(data_layer)
@@ -181,31 +188,27 @@ def create_train_dag(
 
 
 def create_eval_dags(
-    neural_factory,
-    neural_modules,
-    tacotron2_config_file,
-    eval_datasets,
-    eval_batch_size,
-    eval_freq,
-    labels,
-    cpu_per_dl=1,
+    neural_factory, neural_modules, tacotron2_params, eval_datasets, eval_batch_size, eval_freq, cpu_per_dl=1,
 ):
     (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget) = neural_modules
+
+    eval_dl_params = copy.deepcopy(tacotron2_params["AudioToTextDataLayer"])
+    eval_dl_params.update(tacotron2_params["AudioToTextDataLayer"]["eval"])
+    del eval_dl_params["train"]
+    del eval_dl_params["eval"]
 
     callbacks = []
     # assemble eval DAGs
     for eval_dataset in eval_datasets:
-        data_layer_eval = nemo_asr.AudioToTextDataLayer.import_from_config(
-            tacotron2_config_file,
-            "AudioToTextDataLayer_eval",
-            overwrite_params={
-                "manifest_filepath": eval_dataset,
-                "batch_size": eval_batch_size,
-                "num_workers": cpu_per_dl,
-                "bos_id": len(labels),
-                "eos_id": len(labels) + 1,
-                "pad_id": len(labels) + 2,
-            },
+        data_layer_eval = nemo_asr.AudioToTextDataLayer(
+            manifest_filepath=eval_dataset,
+            labels=tacotron2_params['labels'],
+            bos_id=len(tacotron2_params['labels']),
+            eos_id=len(tacotron2_params['labels']) + 1,
+            pad_id=len(tacotron2_params['labels']) + 2,
+            batch_size=eval_batch_size,
+            num_workers=cpu_per_dl,
+            **eval_dl_params,
         )
 
         audio, audio_len, transcript, transcript_len = data_layer_eval()
@@ -254,11 +257,10 @@ def create_eval_dags(
 def create_all_dags(
     neural_factory,
     neural_modules,
-    tacotron2_config_file,
+    tacotron2_params,
     train_dataset,
     batch_size,
     eval_freq,
-    labels,
     checkpoint_save_freq=None,
     eval_datasets=None,
     eval_batch_size=None,
@@ -269,13 +271,12 @@ def create_all_dags(
     training_loss, training_callbacks, steps_per_epoch = create_train_dag(
         neural_factory=neural_factory,
         neural_modules=neural_modules,
-        tacotron2_config_file=tacotron2_config_file,
+        tacotron2_params=tacotron2_params,
         train_dataset=train_dataset,
         batch_size=batch_size,
         log_freq=eval_freq,
         checkpoint_save_freq=checkpoint_save_freq,
         cpu_per_dl=cpu_per_dl,
-        labels=labels,
     )
 
     eval_callbacks = []
@@ -283,12 +284,11 @@ def create_all_dags(
         eval_callbacks = create_eval_dags(
             neural_factory=neural_factory,
             neural_modules=neural_modules,
-            tacotron2_config_file=tacotron2_config_file,
+            tacotron2_params=tacotron2_params,
             eval_datasets=eval_datasets,
             eval_batch_size=eval_batch_size,
             eval_freq=eval_freq,
             cpu_per_dl=cpu_per_dl,
-            labels=labels,
         )
     else:
         logging.info("There were no val datasets passed")
@@ -323,22 +323,20 @@ def main():
     yaml = YAML(typ="safe")
     with open(args.model_config) as file:
         tacotron2_params = yaml.load(file)
-        labels = tacotron2_params["labels"]
     # instantiate neural modules
-    neural_modules = create_NMs(args.model_config, labels)
+    neural_modules = create_NMs(tacotron2_params)
 
     # build dags
     train_loss, callbacks, steps_per_epoch = create_all_dags(
         neural_factory=neural_factory,
         neural_modules=neural_modules,
-        tacotron2_config_file=args.model_config,
+        tacotron2_params=tacotron2_params,
         train_dataset=args.train_dataset,
         batch_size=args.batch_size,
         eval_freq=args.eval_freq,
         checkpoint_save_freq=args.checkpoint_save_freq,
         eval_datasets=args.eval_datasets,
         eval_batch_size=args.eval_batch_size,
-        labels=labels,
     )
 
     # train model
