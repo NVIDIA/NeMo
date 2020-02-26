@@ -25,7 +25,7 @@ Download Corpus
 The training corpus can be either raw text where data preprocessing is done on the fly or an already preprocessed data set. In the following we will give examples for both.
 To showcase how to train on raw text data, we will be using the very small WikiText-2 dataset :cite:`nlp-bert-merity2016pointer`.
 
-To download the dataset, run the script ``examples/nlp/scripts/get_wkt2.sh download_dir``. After downloading and unzipping, the folder is located at `download_dir` and should include 3 files that look like this:
+To download the dataset, run the script ``examples/nlp/language_modeling/get_wkt2.sh download_dir``. After downloading and unzipping, the folder is located at `download_dir` and should include 3 files that look like this:
 
     .. code-block:: bash
 
@@ -34,13 +34,13 @@ To download the dataset, run the script ``examples/nlp/scripts/get_wkt2.sh downl
         valid.txt
 
 To train BERT on a Chinese dataset, you may download the Chinese Wikipedia corpus wiki2019zh_. After downloading, you may unzip and
-use the script ``examples/nlp/scripts/process_wiki_zh.py`` for preprocessing the raw text.
+use the script ``examples/nlp/language_modeling/process_wiki_zh.py`` for preprocessing the raw text.
 
 .. _wiki2019zh: https://github.com/brightmart/nlp_chinese_corpus
 
     .. code-block:: bash
 
-        python examples/nlp/scripts/process_wiki_zh.py --data_dir=./wiki_zh --output_dir=./wiki_zh --min_frequency=3
+        python examples/nlp/language_modeling/process_wiki_zh.py --data_dir=./wiki_zh --output_dir=./wiki_zh --min_frequency=3
 
 For already preprocessed data, we will be using a large dataset composed of Wikipedia and BookCorpus as in the original BERT paper.
 
