@@ -18,11 +18,15 @@
 # =============================================================================
 
 
+from unittest import TestCase
+
+import pytest
+
 import nemo
-from tests.common_setup import NeMoUnitTest
 
 
-class NeuralModuleConfigTest(NeMoUnitTest):
+@pytest.mark.usefixtures("neural_factory")
+class NeuralModuleConfigTest(TestCase):
     """
         Class testing methods related to Neural Module import/export.
     """
@@ -48,6 +52,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         # Create object.
         self.module = NeuralModuleConfigTest.MockupModule()
 
+    @pytest.mark.unit
     def test_build_in_types(self):
         """ Tests whether build-in types are handled."""
 
@@ -56,6 +61,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         # Check error output.
         self.assertEqual(self.module.validate_params(params), True)
 
+    @pytest.mark.unit
     def test_nested_dict(self):
         """ Tests whether (nested) dicts are handled."""
 
@@ -69,6 +75,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         # Check error output.
         self.assertEqual(self.module.validate_params(params), True)
 
+    @pytest.mark.unit
     def test_nested_list(self):
         """ Tests whether (nested) lists are handled."""
 
@@ -77,6 +84,7 @@ class NeuralModuleConfigTest(NeMoUnitTest):
         # Check error output.
         self.assertEqual(self.module.validate_params(params), True)
 
+    @pytest.mark.unit
     def test_nested_mix(self):
         """ Tests whether (nested) lists are handled."""
 
