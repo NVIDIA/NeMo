@@ -16,12 +16,14 @@
 # limitations under the License.
 # =============================================================================
 
+import unittest
+
+import pytest
 from sphinx.application import Sphinx
 
-from tests.common_setup import NeMoUnitTest
 
-
-class DocTest(NeMoUnitTest):
+@pytest.mark.docs
+class DocTest(unittest.TestCase):
     source_dir = u'docs/sources/source/'
     config_dir = u'docs/sources/source/'
     output_dir = u'docs/sources/source/test_build'
