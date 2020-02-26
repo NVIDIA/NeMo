@@ -625,13 +625,16 @@ class PtActions(Actions):
             # should happend only on one worker
             if callback.user_done_callback and (self.global_rank is None or self.global_rank == 0):
                 vals_to_log = callback.user_done_callback(callback._global_var_dict)
-                # log results to Tensorboard
-                if vals_to_log is not None and callback.swriter is not None:
-                    if callback.tb_writer_func is not None:
-                        callback.tb_writer_func(callback.swriter, vals_to_log, step)
-                    else:
-                        for key, val in vals_to_log.items():
-                            callback.swriter.add_scalar(key, val, step)
+                # log results to Tensorboard or Weights & Biases
+                if vals_to_log is not None:
+                    if hasattr(callback, 'swriter') and callback.swriter is not None:
+                        if hasattr(callback, 'tb_writer_func') and callback.tb_writer_func is not None:
+                            callback.tb_writer_func(callback.swriter, vals_to_log, step)
+                        else:
+                            for key, val in vals_to_log.items():
+                                callback.swriter.add_scalar(key, val, step)
+                    if hasattr(callback, 'wandb_log'):
+                        callback.wandb_log(vals_to_log)
 
     def _infer(
         self, tensors_to_return, verbose=False, cache=False, use_cache=False, offload_to_cpu=True,
