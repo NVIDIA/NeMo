@@ -6,6 +6,6 @@ pytest
 pytest-runner
 ruamel.yaml
 sphinx
-sphinxcontrib.bibtex
+sphinxcontrib-bibtex
 wrapt
 wget
