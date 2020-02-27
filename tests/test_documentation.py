@@ -16,14 +16,14 @@
 # limitations under the License.
 # =============================================================================
 
-import unittest
+from unittest import TestCase
 
 import pytest
 from sphinx.application import Sphinx
 
 
 @pytest.mark.docs
-class DocTest(unittest.TestCase):
+class DocTest(TestCase):
     source_dir = u'docs/sources/source/'
     config_dir = u'docs/sources/source/'
     output_dir = u'docs/sources/source/test_build'
