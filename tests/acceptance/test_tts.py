@@ -18,16 +18,19 @@
 
 import os
 import tarfile
+from unittest import TestCase
+
+import pytest
 
 import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
-from tests.common_setup import NeMoUnitTest
 
 logging = nemo.logging
 
 
-class TestTTSPytorch(NeMoUnitTest):
+@pytest.mark.usefixtures("neural_factory")
+class TestTTSPytorch(TestCase):
     labels = [
         " ",
         "a",
@@ -72,6 +75,8 @@ class TestTTSPytorch(NeMoUnitTest):
         else:
             logging.info("speech data found in: {0}".format(data_folder + "asr"))
 
+    @pytest.mark.acceptance
+    @pytest.mark.skip_on_device('CPU')
     def test_tacotron2_training(self):
         data_layer = nemo_asr.AudioToTextDataLayer(
             manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4,
@@ -135,14 +140,12 @@ class TestTTSPytorch(NeMoUnitTest):
             tensors=[loss_t], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
         # Instantiate an optimizer to perform `train` action
-        neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
-        )
-        optimizer = neural_factory.get_trainer()
+        optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
             [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
+    @pytest.mark.acceptance
     def test_waveglow_training(self):
         data_layer = nemo_tts.AudioDataLayer(
             manifest_filepath=self.manifest_filepath, n_segments=4000, batch_size=4, sample_rate=16000
@@ -182,10 +185,7 @@ class TestTTSPytorch(NeMoUnitTest):
             tensors=[loss_t], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
         # Instantiate an optimizer to perform `train` action
-        neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
-        )
-        optimizer = neural_factory.get_trainer()
+        optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
             [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
