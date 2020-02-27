@@ -1,4 +1,3 @@
-
 """
 coding=utf-8
 Copyright 2019 The Google Research Authors.
@@ -23,18 +22,28 @@ https://github.com/google-research/google-research/tree/master/schema_guided_dst
 """Dataset reader and tokenization-related utilities for baseline model."""
 
 
-import os
 import json
+import os
 import re
 
-from nemo import logging
 import nemo.collections.nlp.data.datasets.sgd_dataset.schema as schema
+from nemo import logging
 
-__all__ = ['EMBEDDING_DIMENSION', 'MAX_NUM_CAT_SLOT', 'MAX_NUM_NONCAT_SLOT', 'MAX_NUM_VALUE_PER_CAT_SLOT',
-           'MAX_NUM_INTENT', 'STATUS_DONTCARE', 'DEFAULT_MAX_SEQ_LENGTH',
-           'STATUS_OFF', 'STR_DONTCARE', 'STATUS_ACTIVE',
-           'FILE_RANGES', 'PER_FRAME_OUTPUT_FILENAME',
-           'Dstc8DataProcessor']
+__all__ = [
+    'EMBEDDING_DIMENSION',
+    'MAX_NUM_CAT_SLOT',
+    'MAX_NUM_NONCAT_SLOT',
+    'MAX_NUM_VALUE_PER_CAT_SLOT',
+    'MAX_NUM_INTENT',
+    'STATUS_DONTCARE',
+    'DEFAULT_MAX_SEQ_LENGTH',
+    'STATUS_OFF',
+    'STR_DONTCARE',
+    'STATUS_ACTIVE',
+    'FILE_RANGES',
+    'PER_FRAME_OUTPUT_FILENAME',
+    'Dstc8DataProcessor',
+]
 
 # Dimension of the embedding for intents, slots and categorical slot values in
 # the schema. Should be equal to BERT's hidden_size.
@@ -58,26 +67,10 @@ STATUS_ACTIVE = 1
 STATUS_DONTCARE = 2
 
 FILE_RANGES = {
-    "DEBUG": {
-        "train": range(1, 2),
-        "dev": range(1, 2),
-        "test": range(1, 2)
-    },
-    "dstc8_single_domain": {
-        "train": range(1, 44),
-        "dev": range(1, 8),
-        "test": range(1, 12)
-    },
-    "dstc8_multi_domain": {
-        "train": range(44, 128),
-        "dev": range(8, 21),
-        "test": range(12, 35)
-    },
-    "dstc8_all": {
-        "train": range(1, 3),
-        "dev": range(1, 3),
-        "test": range(1, 3)
-    }
+    "DEBUG": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 2)},
+    "dstc8_single_domain": {"train": range(1, 44), "dev": range(1, 8), "test": range(1, 12)},
+    "dstc8_multi_domain": {"train": range(44, 128), "dev": range(8, 21), "test": range(12, 35)},
+    "dstc8_all": {"train": range(1, 3), "dev": range(1, 3), "test": range(1, 3)},
 }
 
 # Name of the file containing all predictions and their corresponding frame metrics.
@@ -87,14 +80,8 @@ PER_FRAME_OUTPUT_FILENAME = "dialogues_and_metrics.json"
 class Dstc8DataProcessor(object):
     """Data generator for dstc8 dialogues."""
 
-    def __init__(self,
-                 task_name,
-                 dstc8_data_dir,
-                 tokenizer,
-                 max_seq_length,
-                 log_data_warnings
-                 ):
-        
+    def __init__(self, task_name, dstc8_data_dir, tokenizer, max_seq_length, log_data_warnings):
+
         self.dstc8_data_dir = dstc8_data_dir
         self._log_data_warnings = log_data_warnings
 
@@ -107,7 +94,7 @@ class Dstc8DataProcessor(object):
             "dev": dev_file_range,
             "test": test_file_range,
         }
-        
+
         self._tokenizer = tokenizer
         self._max_seq_length = max_seq_length
 
@@ -121,8 +108,7 @@ class Dstc8DataProcessor(object):
           examples: a list of `InputExample`s.
         """
         dialog_paths = [
-            os.path.join(self.dstc8_data_dir, dataset,
-                         "dialogues_{:03d}.json".format(i))
+            os.path.join(self.dstc8_data_dir, dataset, "dialogues_{:03d}.json".format(i))
             for i in self._file_ranges[dataset]
         ]
         dialogs = load_dialogues(dialog_paths)
@@ -133,8 +119,7 @@ class Dstc8DataProcessor(object):
         for dialog_idx, dialog in enumerate(dialogs):
             if dialog_idx % 1000 == 0:
                 logging.info(f'Processed {dialog_idx} dialogs.')
-            examples.extend(
-                self._create_examples_from_dialog(dialog, schemas, dataset))
+            examples.extend(self._create_examples_from_dialog(dialog, schemas, dataset))
         return examples
 
     def _create_examples_from_dialog(self, dialog, schemas, dataset):
@@ -156,8 +141,8 @@ class Dstc8DataProcessor(object):
                     system_frames = {}
                 turn_id = "{}-{}-{:02d}".format(dataset, dialog_id, turn_idx)
                 turn_examples, prev_states = self._create_examples_from_turn(
-                    turn_id, system_utterance, user_utterance, system_frames,
-                    user_frames, prev_states, schemas)
+                    turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas
+                )
                 examples.extend(turn_examples)
         return examples
 
@@ -169,32 +154,23 @@ class Dstc8DataProcessor(object):
                 state_update.pop(slot)
         return state_update
 
-    def _create_examples_from_turn(self,
-                                   turn_id,
-                                   system_utterance,
-                                   user_utterance,
-                                   system_frames,
-                                   user_frames,
-                                   prev_states,
-                                   schemas):
+    def _create_examples_from_turn(
+        self, turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas
+    ):
         """Creates an example for each frame in the user turn."""
-        system_tokens, system_alignments, system_inv_alignments = (
-            self._tokenize(system_utterance))
-        user_tokens, user_alignments, user_inv_alignments = (
-            self._tokenize(user_utterance))
+        system_tokens, system_alignments, system_inv_alignments = self._tokenize(system_utterance)
+        user_tokens, user_alignments, user_inv_alignments = self._tokenize(user_utterance)
         states = {}
         base_example = InputExample(
             max_seq_length=self._max_seq_length,
             is_real_example=True,
             tokenizer=self._tokenizer,
-            log_data_warnings=self._log_data_warnings)
+            log_data_warnings=self._log_data_warnings,
+        )
         base_example.example_id = turn_id
-        base_example.add_utterance_features(system_tokens,
-                                            system_inv_alignments,
-                                            user_tokens,
-                                            user_inv_alignments,
-                                            user_utterance,
-                                            system_utterance)
+        base_example.add_utterance_features(
+            system_tokens, system_inv_alignments, user_tokens, user_inv_alignments, user_utterance, system_utterance
+        )
         examples = []
         for service, user_frame in user_frames.items():
             # Create an example for this service.
@@ -213,23 +189,21 @@ class Dstc8DataProcessor(object):
             # len(system_tokens) is added to account for [CLS], system tokens and
             # [SEP].
             user_span_boundaries = self._find_subword_indices(
-                state_update, user_utterance, user_frame["slots"], user_alignments,
-                user_tokens, 2 + len(system_tokens))
+                state_update, user_utterance, user_frame["slots"], user_alignments, user_tokens, 2 + len(system_tokens)
+            )
             if system_frame is not None:
                 system_span_boundaries = self._find_subword_indices(
-                    state_update, system_utterance, system_frame["slots"],
-                    system_alignments, system_tokens, 1)
+                    state_update, system_utterance, system_frame["slots"], system_alignments, system_tokens, 1
+                )
             else:
                 system_span_boundaries = {}
-            example.add_noncategorical_slots(state_update, user_span_boundaries,
-                                             system_span_boundaries)
+            example.add_noncategorical_slots(state_update, user_span_boundaries, system_span_boundaries)
             example.add_requested_slots(user_frame)
             example.add_intents(user_frame)
             examples.append(example)
         return examples, states
 
-    def _find_subword_indices(self, slot_values, utterance, char_slot_spans,
-                              alignments, subwords, bias):
+    def _find_subword_indices(self, slot_values, utterance, char_slot_spans, alignments, subwords, bias):
         """Find indices for subwords corresponding to slot values."""
         span_boundaries = {}
         for slot, values in slot_values.items():
@@ -237,7 +211,7 @@ class Dstc8DataProcessor(object):
             value_char_spans = {}
             for slot_span in char_slot_spans:
                 if slot_span["slot"] == slot:
-                    value = utterance[slot_span["start"]:slot_span["exclusive_end"]]
+                    value = utterance[slot_span["start"] : slot_span["exclusive_end"]]
                     start_tok_idx = alignments[slot_span["start"]]
                     end_tok_idx = alignments[slot_span["exclusive_end"] - 1]
                     if 0 <= start_tok_idx < len(subwords):
@@ -293,8 +267,7 @@ class Dstc8DataProcessor(object):
                 alignments[inclusive_char_end] = len(bert_tokens) - 1
                 bert_tokens_end_chars.extend([inclusive_char_end] * len(subwords))
             char_index += len(token)
-        inverse_alignments = list(
-            zip(bert_tokens_start_chars, bert_tokens_end_chars))
+        inverse_alignments = list(zip(bert_tokens_start_chars, bert_tokens_end_chars))
         return bert_tokens, alignments, inverse_alignments
 
     def get_num_dialog_examples(self, dataset):
@@ -308,8 +281,7 @@ class Dstc8DataProcessor(object):
         """
         example_count = 0
         dialog_paths = [
-            os.path.join(self.dstc8_data_dir, dataset,
-                         "dialogues_{:03d}.json".format(i))
+            os.path.join(self.dstc8_data_dir, dataset, "dialogues_{:03d}.json".format(i))
             for i in self._file_ranges[dataset]
         ]
         dst_set = load_dialogues(dialog_paths)
@@ -320,17 +292,18 @@ class Dstc8DataProcessor(object):
         return example_count
 
 
-
 class InputExample(object):
     """An example for training/inference."""
 
-    def __init__(self,
-                 max_seq_length=DEFAULT_MAX_SEQ_LENGTH,
-                 service_schema=None,
-                 example_id="NONE",
-                 is_real_example=False,
-                 tokenizer=None,
-                 log_data_warnings=False):
+    def __init__(
+        self,
+        max_seq_length=DEFAULT_MAX_SEQ_LENGTH,
+        service_schema=None,
+        example_id="NONE",
+        is_real_example=False,
+        tokenizer=None,
+        log_data_warnings=False,
+    ):
         """Constructs an InputExample.
 
         Args:
@@ -400,8 +373,7 @@ class InputExample(object):
         # since every slot can be requested.
         self.num_slots = 0
         # Takes value 1 if the corresponding slot is requested, 0 otherwise.
-        self.requested_slot_status = [STATUS_OFF] * (
-                MAX_NUM_CAT_SLOT + MAX_NUM_NONCAT_SLOT)
+        self.requested_slot_status = [STATUS_OFF] * (MAX_NUM_CAT_SLOT + MAX_NUM_NONCAT_SLOT)
 
         # Total number of intents present in the service.
         self.num_intents = 0
@@ -412,29 +384,25 @@ class InputExample(object):
     def readable_summary(self):
         """Get a readable dict that summarizes the attributes of an InputExample."""
         seq_length = sum(self.utterance_mask)
-        utt_toks = self._tokenizer.convert_ids_to_tokens(
-            self.utterance_ids[:seq_length])
-        utt_tok_mask_pairs = list(
-            zip(utt_toks, self.utterance_segment[:seq_length]))
+        utt_toks = self._tokenizer.convert_ids_to_tokens(self.utterance_ids[:seq_length])
+        utt_tok_mask_pairs = list(zip(utt_toks, self.utterance_segment[:seq_length]))
         active_intents = [
             self.service_schema.get_intent_from_id(idx)
             for idx, s in enumerate(self.intent_status)
             if s == STATUS_ACTIVE
         ]
         if len(active_intents) > 1:
-            raise ValueError(
-                "Should not have multiple active intents in a single service.")
+            raise ValueError("Should not have multiple active intents in a single service.")
         active_intent = active_intents[0] if active_intents else ""
         slot_values_in_state = {}
         for idx, s in enumerate(self.categorical_slot_status):
             if s == STATUS_ACTIVE:
                 value_id = self.categorical_slot_values[idx]
-                slot_values_in_state[self.service_schema.get_categorical_slot_from_id(
-                    idx)] = self.service_schema.get_categorical_slot_value_from_id(
-                    idx, value_id)
+                slot_values_in_state[
+                    self.service_schema.get_categorical_slot_from_id(idx)
+                ] = self.service_schema.get_categorical_slot_value_from_id(idx, value_id)
             elif s == STATUS_DONTCARE:
-                slot_values_in_state[self.service_schema.get_categorical_slot_from_id(
-                    idx)] = STR_DONTCARE
+                slot_values_in_state[self.service_schema.get_categorical_slot_from_id(idx)] = STR_DONTCARE
         for idx, s in enumerate(self.noncategorical_slot_status):
             if s == STATUS_ACTIVE:
                 slot = self.service_schema.get_non_categorical_slot_from_id(idx)
@@ -445,8 +413,7 @@ class InputExample(object):
                 # strict restoration of the original string. It's primarily used for
                 # debugging.
                 # ex. ["san", "j", "##ose"] --> "san jose"
-                readable_value = " ".join(utt_toks[start_id:end_id + 1]).replace(
-                    " ##", "")
+                readable_value = " ".join(utt_toks[start_id : end_id + 1]).replace(" ##", "")
                 slot_values_in_state[slot] = readable_value
             elif s == STATUS_DONTCARE:
                 slot = self.service_schema.get_non_categorical_slot_from_id(idx)
@@ -460,12 +427,13 @@ class InputExample(object):
             "num_noncategorical_slots": self.num_noncategorical_slots,
             "service_name": self.service_schema.service_name,
             "active_intent": active_intent,
-            "slot_values_in_state": slot_values_in_state
+            "slot_values_in_state": slot_values_in_state,
         }
         return summary_dict
 
-    def add_utterance_features(self, system_tokens, system_inv_alignments,
-                               user_tokens, user_inv_alignments, system_utterance, user_utterance):
+    def add_utterance_features(
+        self, system_tokens, system_inv_alignments, user_tokens, user_inv_alignments, system_utterance, user_utterance
+    ):
         """Add utterance related features input to bert.
 
         Note: this method modifies the system tokens and user_tokens in place to
@@ -535,7 +503,7 @@ class InputExample(object):
         end_char_idx.append(0)
 
         utterance_ids = self._tokenizer.tokens_to_ids(utt_subword)
-       
+
         # Zero-pad up to the BERT input sequence length.
         while len(utterance_ids) < max_utt_len:
             utterance_ids.append(0)
@@ -560,7 +528,8 @@ class InputExample(object):
             example_id=self.example_id,
             is_real_example=self.is_real_example,
             tokenizer=self._tokenizer,
-            log_data_warnings=self._log_data_warnings)
+            log_data_warnings=self._log_data_warnings,
+        )
         new_example.utterance_ids = list(self.utterance_ids)
         new_example.utterance_segment = list(self.utterance_segment)
         new_example.utterance_mask = list(self.utterance_mask)
@@ -585,11 +554,11 @@ class InputExample(object):
                 self.categorical_slot_status[slot_idx] = STATUS_DONTCARE
             else:
                 self.categorical_slot_status[slot_idx] = STATUS_ACTIVE
-                self.categorical_slot_values[slot_idx] = (
-                    self.service_schema.get_categorical_slot_value_id(slot, values[0]))
+                self.categorical_slot_values[slot_idx] = self.service_schema.get_categorical_slot_value_id(
+                    slot, values[0]
+                )
 
-    def add_noncategorical_slots(self, state_update, system_span_boundaries,
-                                 user_span_boundaries):
+    def add_noncategorical_slots(self, state_update, system_span_boundaries, user_span_boundaries):
         """Add features for non-categorical slots."""
         noncategorical_slots = self.service_schema.non_categorical_slots
         self.num_noncategorical_slots = len(noncategorical_slots)
@@ -614,7 +583,9 @@ class InputExample(object):
                     # only makes use of the last two utterances to predict state updates,
                     # it will fail in such cases.
                     if self._log_data_warnings:
-                        logging.info(f'"Slot values {str(values)} not found in user or system utterance in example with id - {self.example_id}.')
+                        logging.info(
+                            f'"Slot values {str(values)} not found in user or system utterance in example with id - {self.example_id}.'
+                        )
 
                     continue
                 self.noncategorical_slot_value_start[slot_idx] = start

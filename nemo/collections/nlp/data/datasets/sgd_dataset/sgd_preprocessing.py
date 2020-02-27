@@ -3,22 +3,24 @@ Some parts of this code were adapted from
 https://github.com/google-research/google-research/tree/master/schema_guided_dst
 """
 
+import collections
 import os
 
-import collections
 import numpy as np
 
 import nemo
-from nemo.collections.nlp.nm.data_layers.bert_inference_datalayer import BertInferDataLayer
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema_embedding_dataset import SchemaEmbeddingDataset
+from nemo.collections.nlp.nm.data_layers.bert_inference_datalayer import BertInferDataLayer
 
 __all__ = ['SchemaPreprocessor']
+
 
 def concatenate(lists):
     """
     Helper function for inference
     """
     return np.concatenate([t.cpu() for t in lists])
+
 
 class SchemaPreprocessor:
     """ 
@@ -47,16 +49,19 @@ class SchemaPreprocessor:
         bert_ckpt_dir (str) - Directory containing pre-trained BERT checkpoint
         nf - NeuralModuleFactory
     """
-    def __init__(self,
-                 data_dir,
-                 schema_embedding_dir,
-                 max_seq_length,
-                 tokenizer,
-                 bert_model,
-                 datasets,
-                 overwrite_schema_emb_files,
-                 bert_ckpt_dir,
-                 nf):
+
+    def __init__(
+        self,
+        data_dir,
+        schema_embedding_dir,
+        max_seq_length,
+        tokenizer,
+        bert_model,
+        datasets,
+        overwrite_schema_emb_files,
+        bert_ckpt_dir,
+        nf,
+    ):
 
         # processor = data_utils.Dstc8DataProcessor(
         #       data_dir,
@@ -85,38 +90,35 @@ class SchemaPreprocessor:
 
         self._schema_embedding_dir = schema_embedding_dir
         for dataset_split in datasets:
-          schema_embedding_file = self._get_schema_embedding_file_name(dataset_split)
+            schema_embedding_file = self._get_schema_embedding_file_name(dataset_split)
 
-          # Generate the schema embeddings if needed or specified.
-          if not os.path.exists(schema_embedding_file) or overwrite_schema_emb_files:
-              nemo.logging.info(f"Start generating the schema embeddings for {dataset_split} dataset.")
-              # create schema embedding if no file exists
-              schema_json_path = os.path.join(data_dir, 
-                                              dataset_split,
-                                              "schema.json")
+            # Generate the schema embeddings if needed or specified.
+            if not os.path.exists(schema_embedding_file) or overwrite_schema_emb_files:
+                nemo.logging.info(f"Start generating the schema embeddings for {dataset_split} dataset.")
+                # create schema embedding if no file exists
+                schema_json_path = os.path.join(data_dir, dataset_split, "schema.json")
 
-              emb_datalayer = BertInferDataLayer(dataset_type=SchemaEmbeddingDataset,
-                                                          tokenizer=tokenizer,
-                                                          max_seq_length=max_seq_length,
-                                                          input_file=schema_json_path)
-              
-              input_ids, input_mask, input_type_ids = emb_datalayer()
-              hidden_states = bert_model(input_ids=input_ids,
-                                         token_type_ids=input_type_ids,
-                                         attention_mask=input_mask)
+                emb_datalayer = BertInferDataLayer(
+                    dataset_type=SchemaEmbeddingDataset,
+                    tokenizer=tokenizer,
+                    max_seq_length=max_seq_length,
+                    input_file=schema_json_path,
+                )
 
-              evaluated_tensors = nf.infer(tensors=[hidden_states],
-                                           checkpoint_dir=bert_ckpt_dir)
+                input_ids, input_mask, input_type_ids = emb_datalayer()
+                hidden_states = bert_model(
+                    input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
+                )
 
-              hidden_states = [concatenate(tensors) for tensors in evaluated_tensors]
-              emb_datalayer.dataset.save_embeddings(hidden_states,
-                                                    schema_embedding_file)
+                evaluated_tensors = nf.infer(tensors=[hidden_states], checkpoint_dir=bert_ckpt_dir)
 
-              nemo.logging.info(f"The schema embeddings saved at {schema_embedding_file}")
-              nemo.logging.info("Finish generating the schema embeddings.")
+                hidden_states = [concatenate(tensors) for tensors in evaluated_tensors]
+                emb_datalayer.dataset.save_embeddings(hidden_states, schema_embedding_file)
 
-    def get_schema_embeddings(self,
-                              dataset_split):
+                nemo.logging.info(f"The schema embeddings saved at {schema_embedding_file}")
+                nemo.logging.info("Finish generating the schema embeddings.")
+
+    def get_schema_embeddings(self, dataset_split):
         schema_embedding_file = self._get_schema_embedding_file_name(dataset_split)
 
         if not os.path.exists(schema_embedding_file):
@@ -133,37 +135,35 @@ class SchemaPreprocessor:
             schema_data_dict["noncat_slot_emb"].append(service["noncat_slot_emb"])
             schema_data_dict["req_slot_emb"].append(service["req_slot_emb"])
             schema_data_dict["intent_emb"].append(service["intent_emb"])
-        
+
         return schema_data_dict
 
-    def _get_schema_embedding_file_name(self,
-                                        dataset_split):
+    def _get_schema_embedding_file_name(self, dataset_split):
         return os.path.join(self._schema_embedding_dir, f"{dataset_split}_pretrained_schema_embedding.npy")
 
+    # def _decode_record(record, name_to_features, schema_tensors):
+    #   """Decodes a record to a TensorFlow example."""
 
-      # def _decode_record(record, name_to_features, schema_tensors):
-      #   """Decodes a record to a TensorFlow example."""
+    #   example = tf.parse_single_example(record, name_to_features)
 
-      #   example = tf.parse_single_example(record, name_to_features)
+    #   # tf.Example only supports tf.int64, but the TPU only supports tf.int32.
+    #   # So cast all int64 to int32.
+    #   for name in list(example.keys()):
+    #     t = example[name]
+    #     if t.dtype == tf.int64:
+    #       t = tf.cast(t, tf.int32)
+    #     example[name] = t
 
-      #   # tf.Example only supports tf.int64, but the TPU only supports tf.int32.
-      #   # So cast all int64 to int32.
-      #   for name in list(example.keys()):
-      #     t = example[name]
-      #     if t.dtype == tf.int64:
-      #       t = tf.cast(t, tf.int32)
-      #     example[name] = t
+    #   # Here we need to insert schema's entity embedding to each example.
 
-      #   # Here we need to insert schema's entity embedding to each example.
+    #   # Shapes for reference: (all have type tf.float32)
+    #   # "cat_slot_emb": [max_num_cat_slot, hidden_dim]
+    #   # "cat_slot_value_emb": [max_num_cat_slot, max_num_value, hidden_dim]
+    #   # "noncat_slot_emb": [max_num_noncat_slot, hidden_dim]
+    #   # "req_slot_emb": [max_num_total_slot, hidden_dim]
+    #   # "intent_emb": [max_num_intent, hidden_dim]
 
-      #   # Shapes for reference: (all have type tf.float32)
-      #   # "cat_slot_emb": [max_num_cat_slot, hidden_dim]
-      #   # "cat_slot_value_emb": [max_num_cat_slot, max_num_value, hidden_dim]
-      #   # "noncat_slot_emb": [max_num_noncat_slot, hidden_dim]
-      #   # "req_slot_emb": [max_num_total_slot, hidden_dim]
-      #   # "intent_emb": [max_num_intent, hidden_dim]
-
-      #   service_id = example["service_id"]
-      #   for key, value in schema_tensors.items():
-      #     example[key] = value[service_id]
-      #   return example
+    #   service_id = example["service_id"]
+    #   for key, value in schema_tensors.items():
+    #     example[key] = value[service_id]
+    #   return example

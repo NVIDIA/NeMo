@@ -1,9 +1,8 @@
-
 from torch import nn
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core import NeuralType, ChannelType, EmbeddedTextType
 from nemo.collections.nlp.utils.transformer_utils import transformer_weights_init
+from nemo.core import ChannelType, EmbeddedTextType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['Encoder']
@@ -12,6 +11,7 @@ ACTIVATIONS_F = {
     "tanh": nn.Tanh,
     "relu": nn.ReLU,
 }
+
 
 class Encoder(TrainableNM):
     """
@@ -34,9 +34,7 @@ class Encoder(TrainableNM):
         """
         Returns definitions of module input ports.
         """
-        return {
-            "hidden_states":NeuralType(('B', 'T', 'C'), ChannelType())
-        }
+        return {"hidden_states": NeuralType(('B', 'T', 'C'), ChannelType())}
 
     @property
     @add_port_docs
@@ -48,28 +46,20 @@ class Encoder(TrainableNM):
 
             1: AxisType(ChannelTag)
         """
-        return {
-            "logits": NeuralType(('B', 'T'), EmbeddedTextType())
-        }
+        return {"logits": NeuralType(('B', 'T'), EmbeddedTextType())}
 
-    def __init__(self,
-                 hidden_size,
-                 activation='tanh',
-                 dropout=0.0,
-                 use_transformer_pretrained=True):
+    def __init__(self, hidden_size, activation='tanh', dropout=0.0, use_transformer_pretrained=True):
         super().__init__()
         self.fc = nn.Linear(hidden_size, hidden_size).to(self._device)
 
         if activation not in ACTIVATIONS_F:
-            raise ValueError(f'{activation} is not in supported ' +
-                             '{ACTIVATIONS_F.keys()}')
+            raise ValueError(f'{activation} is not in supported ' + '{ACTIVATIONS_F.keys()}')
 
-        self.activation = ACTIVATIONS_F[activation]() 
+        self.activation = ACTIVATIONS_F[activation]()
         self.dropout = nn.Dropout(dropout)
 
         if use_transformer_pretrained:
-            self.apply(
-                lambda module: transformer_weights_init(module, xavier=False))
+            self.apply(lambda module: transformer_weights_init(module, xavier=False))
         # self.to(self._device) # sometimes this is necessary
 
     def forward(self, hidden_states):

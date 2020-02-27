@@ -17,10 +17,10 @@
 import torch
 from torch import nn
 
-from nemo.backends.pytorch import LossNM
-from nemo.core import ChannelType, LogitsType, LossType, NeuralType, LabelsType, LengthsType
-from nemo.utils.decorators import add_port_docs
 import nemo.collections.nlp.data.datasets.sgd_dataset.data_utils as data_utils
+from nemo.backends.pytorch import LossNM
+from nemo.core import ChannelType, LabelsType, LengthsType, LogitsType, LossType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['SGDDialogueStateLoss']
 
@@ -76,7 +76,7 @@ class SGDDialogueStateLoss(LossNM):
             "noncategorical_slot_status": NeuralType(('B', 'T'), LabelsType()),
             "num_noncategorical_slots": NeuralType(('B'), LengthsType()),
             "noncategorical_slot_value_start": NeuralType(('B', 'T'), LabelsType()),
-            "noncategorical_slot_value_end": NeuralType(('B', 'T'), LabelsType())
+            "noncategorical_slot_value_end": NeuralType(('B', 'T'), LabelsType()),
         }
 
     @property
@@ -86,9 +86,7 @@ class SGDDialogueStateLoss(LossNM):
         loss:
             NeuralType(None)
         """
-        return {
-            "loss": NeuralType(None)
-        }
+        return {"loss": NeuralType(None)}
 
     def __init__(self, **kwargs):
         LossNM.__init__(self, **kwargs)
@@ -96,32 +94,32 @@ class SGDDialogueStateLoss(LossNM):
         self._cross_entropy = nn.CrossEntropyLoss()
         self._criterion_req_slots = nn.BCEWithLogitsLoss()
 
-    def _get_mask(self,
-                  max_number,
-                  values):
+    def _get_mask(self, max_number, values):
 
         mask = torch.arange(0, max_number, 1).to(self._device) < torch.unsqueeze(values, dim=-1)
         return mask.view(-1)
 
-    def _loss_function(self,
-                       logit_intent_status,
-                       logit_req_slot_status,
-                       logit_cat_slot_status,
-                       logit_cat_slot_value,
-                       logit_noncat_slot_status,
-                       logit_noncat_slot_start,
-                       logit_noncat_slot_end,
-                       intent_status,
-                       requested_slot_status,
-                       req_slot_mask,
-                       categorical_slot_status,
-                       num_categorical_slots,
-                       categorical_slot_values,
-                       cat_slot_values_mask,
-                       noncategorical_slot_status,
-                       num_noncategorical_slots,
-                       noncategorical_slot_value_start,
-                       noncategorical_slot_value_end):
+    def _loss_function(
+        self,
+        logit_intent_status,
+        logit_req_slot_status,
+        logit_cat_slot_status,
+        logit_cat_slot_value,
+        logit_noncat_slot_status,
+        logit_noncat_slot_start,
+        logit_noncat_slot_end,
+        intent_status,
+        requested_slot_status,
+        req_slot_mask,
+        categorical_slot_status,
+        num_categorical_slots,
+        categorical_slot_values,
+        cat_slot_values_mask,
+        noncategorical_slot_status,
+        num_noncategorical_slots,
+        noncategorical_slot_value_start,
+        noncategorical_slot_value_end,
+    ):
         """
         Obtain the loss of the model
         """
@@ -135,8 +133,9 @@ class SGDDialogueStateLoss(LossNM):
         # Intent loss
         # Add label corresponding to NONE intent.
         num_active_intents = torch.sum(intent_status, axis=1).unsqueeze(1)
-        none_intent_label = torch.ones(num_active_intents.size(), dtype=torch.long).to(
-            self._device) - num_active_intents
+        none_intent_label = (
+            torch.ones(num_active_intents.size(), dtype=torch.long).to(self._device) - num_active_intents
+        )
         # Shape: (batch_size, max_num_intents + 1).
         onehot_intent_labels = torch.cat([none_intent_label, intent_status], axis=1)
         # use indices for intent labels - tf uses one_hot_encoding
@@ -147,8 +146,9 @@ class SGDDialogueStateLoss(LossNM):
         # Shape: (batch_size, max_num_slots)
         # mask unused slots
         # Sigmoid cross entropy is used because more than one slots can be requested in a single utterance
-        requested_slot_loss = self._criterion_req_slots(logit_req_slot_status.view(-1)[req_slot_mask],
-                                                        requested_slot_status.view(-1)[req_slot_mask])
+        requested_slot_loss = self._criterion_req_slots(
+            logit_req_slot_status.view(-1)[req_slot_mask], requested_slot_status.view(-1)[req_slot_mask]
+        )
 
         # Categorical slot status
         # Shape of logit_cat_slot_status: (batch_size, max_num_cat_slots, 3)
@@ -159,8 +159,10 @@ class SGDDialogueStateLoss(LossNM):
         if sum(cat_slot_status_mask) == 0:
             cat_slot_status_loss = 0
         else:
-            cat_slot_status_loss = self._cross_entropy(logit_cat_slot_status.view(-1, 3)[cat_slot_status_mask],
-                                                       categorical_slot_status.view(-1)[cat_slot_status_mask])
+            cat_slot_status_loss = self._cross_entropy(
+                logit_cat_slot_status.view(-1, 3)[cat_slot_status_mask],
+                categorical_slot_status.view(-1)[cat_slot_status_mask],
+            )
 
         # Categorical slot values.
         # Shape: (batch_size, max_num_cat_slots, max_num_slot_values).
@@ -180,8 +182,10 @@ class SGDDialogueStateLoss(LossNM):
         # Shape: (batch_size, max_num_noncat_slots, 3).
         max_num_noncat_slots = noncategorical_slot_status.size()[-1]
         non_cat_slot_status_mask = self._get_mask(max_num_noncat_slots, num_noncategorical_slots)
-        noncat_slot_status_loss = self._cross_entropy(logit_noncat_slot_status.view(-1, 3)[non_cat_slot_status_mask],
-                                                      noncategorical_slot_status.view(-1)[non_cat_slot_status_mask])
+        noncat_slot_status_loss = self._cross_entropy(
+            logit_noncat_slot_status.view(-1, 3)[non_cat_slot_status_mask],
+            noncategorical_slot_status.view(-1)[non_cat_slot_status_mask],
+        )
 
         # Non-categorical slot spans.
         # Shape: (batch_size, max_num_noncat_slots, max_num_tokens).n
@@ -213,5 +217,3 @@ class SGDDialogueStateLoss(LossNM):
         # for loss_name, loss in losses.items():
         #     print (f'loss_name: {loss_name}, {loss}')
         return sum(losses.values()) / len(losses), intent_labels
-
-

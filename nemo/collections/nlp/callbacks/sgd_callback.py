@@ -1,13 +1,14 @@
 # Copyright (c) 2019 NVIDIA Corporation
 
-from nemo import logging
-import nemo.collections.nlp.data.datasets.sgd_dataset.prediction_utils as pred_utils
-from nemo.collections.nlp.data.datasets.sgd_dataset import *
+import os
 
 import numpy as np
 import torch
 from fuzzywuzzy import fuzz
-import os
+
+import nemo.collections.nlp.data.datasets.sgd_dataset.prediction_utils as pred_utils
+from nemo import logging
+from nemo.collections.nlp.data.datasets.sgd_dataset import *
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
@@ -40,11 +41,14 @@ ALL_SERVICES = "#ALL_SERVICES"
 SEEN_SERVICES = "#SEEN_SERVICES"
 UNSEEN_SERVICES = "#UNSEEN_SERVICES"
 
+
 def tensor2list(tensor):
     return tensor.detach().cpu().tolist()
 
+
 def tensor2numpy(tensor):
     return tensor.cpu().numpy()
+
 
 def eval_iter_callback(tensors, global_vars):
     # global_vars_keys = ['example_id',
@@ -70,7 +74,7 @@ def eval_iter_callback(tensors, global_vars):
         ind = k.find('~~~')
         if ind != -1:
             output[k[:ind]] = v[0]
-    
+
     '''
     ['example_id', 'service_id', 'is_real_example', 'user_utterance', 'start_char_idx', 'end_char_idx',
     'logit_intent_status', 'logit_req_slot_status', 'logit_cat_slot_status', 'logit_cat_slot_value',
@@ -83,7 +87,6 @@ def eval_iter_callback(tensors, global_vars):
     predictions['example_id'] = output['example_id']
     predictions['service_id'] = output['service_id']
     predictions['is_real_example'] = output['is_real_example']
-    
 
     # Scores are output for each intent.
     # Note that the intent indices are shifted by 1 to account for NONE intent.
@@ -111,10 +114,10 @@ def eval_iter_callback(tensors, global_vars):
     end_idx = torch.arange(max_num_tokens).view(1, 1, 1, -1).to(device)
     invalid_index_mask = (start_idx > end_idx).repeat(batch_size, max_num_noncat_slots, 1, 1)
     total_scores = torch.where(invalid_index_mask, torch.zeros(total_scores.size()).to(device), total_scores)
-    max_span_index = torch.argmax(total_scores.view(-1, max_num_noncat_slots, max_num_tokens**2), axis=-1)
+    max_span_index = torch.argmax(total_scores.view(-1, max_num_noncat_slots, max_num_tokens ** 2), axis=-1)
     span_start_index = torch.div(max_span_index, max_num_tokens)
     span_end_index = torch.fmod(max_span_index, max_num_tokens)
-    
+
     predictions['noncat_slot_start'] = span_start_index
     predictions['noncat_slot_end'] = span_end_index
 
@@ -124,8 +127,8 @@ def eval_iter_callback(tensors, global_vars):
 
     global_vars['predictions'].extend(combine_predictions_in_example(predictions, batch_size))
 
-def combine_predictions_in_example(predictions,
-                                   batch_size):
+
+def combine_predictions_in_example(predictions, batch_size):
     '''
     Combines predicted values to a single example.
     '''
@@ -142,35 +145,23 @@ def combine_predictions_in_example(predictions,
     return examples_preds
 
 
-def eval_epochs_done_callback(global_vars,
-                              input_json_files,
-                              schema_json_file,
-                              prediction_dir,
-                              data_dir,
-                              eval_dataset,
-                              output_metric_file):
-    
-    pred_utils.write_predictions_to_file(global_vars['predictions'],
-                                         input_json_files,
-                                         schema_json_file,
-                                         prediction_dir)
+def eval_epochs_done_callback(
+    global_vars, input_json_files, schema_json_file, prediction_dir, data_dir, eval_dataset, output_metric_file
+):
 
-    metrics = evaluate(prediction_dir,
-                       data_dir,
-                       eval_dataset,
-                       output_metric_file)
+    pred_utils.write_predictions_to_file(
+        global_vars['predictions'], input_json_files, schema_json_file, prediction_dir
+    )
+
+    metrics = evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file)
     return metrics
 
 
-def evaluate(prediction_dir,
-             data_dir,
-             eval_dataset,
-             output_metric_file):
-
+def evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file):
 
     in_domain_services = get_in_domain_services(
-        os.path.join(data_dir, eval_dataset, "schema.json"),
-        os.path.join(data_dir, "train", "schema.json"))
+        os.path.join(data_dir, eval_dataset, "schema.json"), os.path.join(data_dir, "train", "schema.json")
+    )
 
     with open(os.path.join(data_dir, eval_dataset, "schema.json")) as f:
         eval_services = {}
@@ -180,7 +171,7 @@ def evaluate(prediction_dir,
 
     dataset_ref = get_dataset_as_dict(os.path.join(data_dir, eval_dataset, "dialogues_*.json"))
     dataset_hyp = get_dataset_as_dict(os.path.join(prediction_dir, "*.json"))
-    
+
     all_metric_aggregate, _ = get_metrics(dataset_ref, dataset_hyp, eval_services, in_domain_services)
     logging.info(f'Dialog metrics: {all_metric_aggregate[ALL_SERVICES]}')
 
@@ -193,14 +184,14 @@ def evaluate(prediction_dir,
     return all_metric_aggregate
 
 
-
-
-def get_average_and_joint_goal_accuracy(cat_slot_correctness,
-                             noncat_slot_correctness,
-                             cat_batch_ids,
-                             noncat_batch_ids,
-                             active_cat_slots,
-                             active_noncat_slots):
+def get_average_and_joint_goal_accuracy(
+    cat_slot_correctness,
+    noncat_slot_correctness,
+    cat_batch_ids,
+    noncat_batch_ids,
+    active_cat_slots,
+    active_noncat_slots,
+):
 
     cat_batch = collections.Counter(cat_batch_ids)
     noncat_batch = collections.Counter(noncat_batch_ids)
@@ -219,7 +210,7 @@ def get_average_and_joint_goal_accuracy(cat_slot_correctness,
             num_cat_slots_in_frame = cat_batch[id]
             cat_end_ind = cat_start_ind + num_cat_slots_in_frame
             frame_slots_correctness.extend(cat_slot_correctness[cat_start_ind:cat_end_ind])
-            
+
             is_active.extend(active_cat_slots[cat_start_ind:cat_end_ind])
             is_cat.extend([True] * num_cat_slots_in_frame)
             cat_start_ind = cat_end_ind
@@ -227,16 +218,15 @@ def get_average_and_joint_goal_accuracy(cat_slot_correctness,
             num_noncat_slots_in_frame = noncat_batch[id]
             noncat_end_ind = noncat_start_ind + num_noncat_slots_in_frame
             frame_slots_correctness.extend(noncat_slot_correctness[noncat_start_ind:noncat_end_ind])
-            
+
             is_active.extend(active_noncat_slots[noncat_start_ind:noncat_end_ind])
             is_cat.extend([False] * num_noncat_slots_in_frame)
             noncat_start_ind = noncat_end_ind
- 
+
         frame_metrics_dict = _get_average_and_joint_goal_accuracy(frame_slots_correctness, is_active, is_cat)
         metrics.append(frame_metrics_dict)
-        
-    return metrics
 
+    return metrics
 
 
 def get_noncat_slot_value_match_score(
@@ -249,8 +239,9 @@ def get_noncat_slot_value_match_score(
     end_char_idxs,
     batch_ids,
     user_utterances,
-    system_utterances):
-    
+    system_utterances,
+):
+
     str_true = _get_noncat_slot_value(
         slot_idx,
         noncat_slot_value_start_labels,
@@ -259,7 +250,8 @@ def get_noncat_slot_value_match_score(
         end_char_idxs,
         batch_ids,
         user_utterances,
-        system_utterances)
+        system_utterances,
+    )
 
     str_pred = _get_noncat_slot_value(
         slot_idx,
@@ -269,7 +261,8 @@ def get_noncat_slot_value_match_score(
         end_char_idxs,
         batch_ids,
         user_utterances,
-        system_utterances)
+        system_utterances,
+    )
 
     if str_true is None:
         if str_pred is None:
@@ -284,7 +277,6 @@ def get_noncat_slot_value_match_score(
     return score
 
 
-
 def _get_noncat_slot_value(
     slot_idx,
     noncat_slot_value_start,
@@ -293,7 +285,8 @@ def _get_noncat_slot_value(
     end_char_idxs,
     batch_ids,
     user_utterances,
-    system_utterances):
+    system_utterances,
+):
     tok_start_idx = noncat_slot_value_start[slot_idx]
     tok_end_idx = noncat_slot_value_end[slot_idx]
     ch_start_idx = start_char_idxs[batch_ids[slot_idx]][tok_start_idx]
@@ -311,6 +304,7 @@ def _get_noncat_slot_value(
     else:
         slot_value = None
     return slot_value
+
 
 def get_batch_ids(slot_status_mask):
     # determine batch_id slot active slot is associated with
@@ -333,12 +327,7 @@ def get_batch_ids(slot_status_mask):
 #     return joint_accuracy
 
 
-
-
-def OLD_eval_epochs_done_callback(global_vars,
-                              input_json_files,
-                              schema_json_file,
-                              prediction_dir):
+def OLD_eval_epochs_done_callback(global_vars, input_json_files, schema_json_file, prediction_dir):
 
     active_intent_labels = np.asarray(global_vars['active_intent_labels'])
     active_intent_preds = np.asarray(global_vars['active_intent_preds'])
@@ -347,7 +336,7 @@ def OLD_eval_epochs_done_callback(global_vars,
         active_intent_accuracy = sum(active_intent_labels == active_intent_preds) / len(active_intent_labels)
     else:
         active_intent_accuracy = 0
-        
+
     req_slot_predictions = np.asarray(global_vars['req_slot_predictions'], dtype=int)
     requested_slot_status = np.asarray(global_vars['requested_slot_status'], dtype=int)
     req_slot_metrics = compute_f1(req_slot_predictions, requested_slot_status)
@@ -358,8 +347,6 @@ def OLD_eval_epochs_done_callback(global_vars,
         for metric_key, metric_value in frame_metric.items():
             if metric_value != NAN_VAL:
                 metric_collections[ALL_SERVICES][metric_key].append(metric_value)
-
-
 
     all_metric_aggregate = {}
     for domain_key, domain_metric_vals in metric_collections.items():
@@ -376,7 +363,6 @@ def OLD_eval_epochs_done_callback(global_vars,
     all_metric_aggregate[ALL_SERVICES][REQUESTED_SLOTS_RECALL] = req_slot_metrics.recall
     all_metric_aggregate[ALL_SERVICES][REQUESTED_SLOTS_PRECISION] = req_slot_metrics.precision
     all_metric_aggregate[ALL_SERVICES][REQUESTED_SLOTS_F1] = req_slot_metrics.f1
-
 
     # correctness_cat_slots = np.asarray(global_vars['cat_slot_correctness'], dtype=int)
     # joint_acc, turn_acc = \
