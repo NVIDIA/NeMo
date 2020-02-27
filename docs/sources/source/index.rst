@@ -87,9 +87,9 @@ then you can simply use pip to install the latest released version (**currently 
 Tutorials
 ---------
 
-* `Speech recognition <https://nvidia.github.io/NeMo/asr/intro.html>`_
-* `Natural language processing <https://nvidia.github.io/NeMo/nlp/intro.html>`_
-* `Speech synthesis <https://nvidia.github.io/NeMo/tts/intro.html>`_
+* :ref:`Speech recognition <asr-docs>`
+* :ref:`Natural language processing <nlp-docs>`
+* :ref:`Speech synthesis <tts-docs>`
 
 Installing From Github
 ----------------------

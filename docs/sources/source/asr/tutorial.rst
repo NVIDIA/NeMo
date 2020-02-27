@@ -273,7 +273,9 @@ Enabling multi-GPU training with NeMo is easy:
 Large Training Example
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Please refer to the `<nemo_git_repo_root>/examples/asr/quartznet.py` for comprehensive example. It builds one train DAG and up to three validation DAGs to evaluate on different datasets.
+Please refer to the `<nemo_git_repo_root>/examples/asr/quartznet.py` for comprehensive example. It builds one train DAG
+and multiple validation DAGs. Each validation DAG shares the same model and parameters as the training DAG and can
+be used to evaluate a different evaluation dataset.
 
 Assuming, you are working with Volta-based DGX, you can run training like this:
 
