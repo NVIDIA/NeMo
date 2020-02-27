@@ -14,5 +14,10 @@
 # limitations under the License.
 # =============================================================================
 
+<<<<<<< HEAD
 from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm import *
 from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.sgd import *
+=======
+from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.sgd import *
+from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.state_tracking_trade_nm import *
+>>>>>>> black
