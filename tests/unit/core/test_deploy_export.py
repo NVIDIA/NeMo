@@ -18,6 +18,16 @@
 
 import os
 from pathlib import Path
+from unittest import TestCase
+
+import onnxruntime as ort
+import pytest
+import torch
+from ruamel.yaml import YAML
+
+import nemo
+import nemo.collections.asr as nemo_asr
+import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 
 # git clone git@github.com:microsoft/onnxruntime.git
 # cd onnxruntime
@@ -27,26 +37,13 @@ from pathlib import Path
 #     --tensorrt_home /home/snikolaev/CODE/TensorRT.BIN --use_tensorrt --enable_pybind --build_wheel
 #
 # pip install --upgrade ./build/Linux/RelWithDebInfo/dist/*.whl
-import onnxruntime as ort
-import torch
-from ruamel.yaml import YAML
 
-import nemo
-import nemo.collections.asr as nemo_asr
-import nemo.collections.nlp.nm.trainables.common.token_classification_nm
-from tests.common_setup import NeMoUnitTest
 
 logging = nemo.logging
 
 
-class TestDeployExport(NeMoUnitTest):
-    def setUp(self):
-        """ Setups neural factory so it will use GPU instead of CPU. """
-        NeMoUnitTest.setUp(self)
-
-        # Perform computations on GPU.
-        self.nf._placement = nemo.core.DeviceType.GPU
-
+@pytest.mark.usefixtures("neural_factory")
+class TestDeployExport(TestCase):
     def __test_export_route(self, module, out_name, mode, input_example=None):
         out = Path(out_name)
         if out.exists():
@@ -116,12 +113,16 @@ class TestDeployExport(NeMoUnitTest):
             self.__test_export_route(module, out_name + '.pt', nemo.core.DeploymentFormat.PYTORCH, input_example)
         self.__test_export_route(module, out_name + '.ts', nemo.core.DeploymentFormat.TORCHSCRIPT, input_example)
 
+    @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.unit
     def test_simple_module_export(self):
         simplest_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         self.__test_export_route_all(
             module=simplest_module, out_name="simple", input_example=None,
         )
 
+    @pytest.mark.unit
+    @pytest.mark.skip_on_device('CPU')
     def test_TokenClassifier_module_export(self):
         t_class = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
             hidden_size=512, num_classes=16, use_transformer_pretrained=False
@@ -130,12 +131,16 @@ class TestDeployExport(NeMoUnitTest):
             module=t_class, out_name="t_class", input_example=torch.randn(16, 16, 512).cuda(),
         )
 
+    @pytest.mark.unit
+    @pytest.mark.skip_on_device('CPU')
     def test_jasper_decoder(self):
         j_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=33)
         self.__test_export_route_all(
             module=j_decoder, out_name="j_decoder", input_example=torch.randn(34, 1024, 1).cuda(),
         )
 
+    @pytest.mark.unit
+    @pytest.mark.skip_on_device('CPU')
     def test_hf_bert(self):
         bert = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name="bert-base-uncased")
         input_example = (
@@ -145,6 +150,8 @@ class TestDeployExport(NeMoUnitTest):
         )
         self.__test_export_route_all(module=bert, out_name="bert", input_example=input_example)
 
+    @pytest.mark.unit
+    @pytest.mark.skip_on_device('CPU')
     def test_jasper_encoder(self):
         with open("tests/data/jasper_smaller.yaml") as file:
             yaml = YAML(typ="safe")
@@ -162,6 +169,8 @@ class TestDeployExport(NeMoUnitTest):
             input_example=(torch.randn(16, 64, 256).cuda(), torch.randn(256).cuda()),
         )
 
+    @pytest.mark.unit
+    @pytest.mark.skip_on_device('CPU')
     def test_quartz_encoder(self):
         with open("tests/data/quartznet_test.yaml") as file:
             yaml = YAML(typ="safe")

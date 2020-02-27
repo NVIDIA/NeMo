@@ -25,9 +25,18 @@ def pytest_addoption(parser):
     parser.addoption('--cpu', action='store_true', help="pass that argument to use CPU during testing (default: GPU)")
 
 
+@pytest.fixture
+def device(request):
+    """ Simple fixture returning string denoting the device [CPU | GPU] """
+    if request.config.getoption("--cpu"):
+        return "CPU"
+    else:
+        return "GPU"
+
+
 @pytest.fixture(scope="class")
 def neural_factory(request):
-    """ Fixture creating a Neural Factory object parametrized by the command line --cpu argument. """
+    """ Fixture creating a Neural Factory object parametrized by the command line --cpu argument """
     # Get flag.
     if request.config.getoption("--cpu"):
         device = DeviceType.CPU
@@ -38,3 +47,16 @@ def neural_factory(request):
 
     # Print standard header.
     logging.info("Using {} during testing".format(request.cls.nf.placement))
+
+
+@pytest.fixture(autouse=True)
+def skip_by_device(request, device):
+    if request.node.get_closest_marker('skip_on_device'):
+        if request.node.get_closest_marker('skip_on_device').args[0] == device:
+            pytest.skip('skipped on this device: {}'.format(device))
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "skip_on_device(device): skip test for the given device [CPU | GPU]",
+    )
