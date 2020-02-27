@@ -470,7 +470,8 @@ class Tacotron2Loss(LossNM):
         mask = mask.permute(1, 0, 2)
         mel_out.data.masked_fill_(mask, self.pad_value)
         mel_out_postnet.data.masked_fill_(mask, self.pad_value)
-        gate_out.data.masked_fill_(mask[:, 0, :], 1e3)
+        gate_out.squeeze_()
+        gate_out.data.masked_fill_(mask[:, 0, :].squeeze(), 1e3)
 
         gate_out = gate_out.view(-1, 1)
         mel_loss = nn.MSELoss()(mel_out, mel_target) + nn.MSELoss()(mel_out_postnet, mel_target)
