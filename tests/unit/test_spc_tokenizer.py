@@ -16,18 +16,23 @@
 # limitations under the License.
 # =============================================================================
 
+from unittest import TestCase
+
+import pytest
+
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.data import SentencePieceTokenizer
-from tests.common_setup import NeMoUnitTest
 
 
-class TestSPCTokenizer(NeMoUnitTest):
+class TestSPCTokenizer(TestCase):
+    @pytest.mark.unit
     def test_add_special_tokens(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
         special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
         self.assertTrue(tokenizer.vocab_size == tokenizer.original_vocab_size + len(set(special_tokens.values())))
 
+    @pytest.mark.unit
     def test_text_to_tokens(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
         special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
@@ -41,6 +46,7 @@ class TestSPCTokenizer(NeMoUnitTest):
         self.assertTrue(tokens.count("[MASK]") == 1)
         self.assertTrue(tokens.count("[SEP]") == 2)
 
+    @pytest.mark.unit
     def test_tokens_to_text(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
 
@@ -50,6 +56,7 @@ class TestSPCTokenizer(NeMoUnitTest):
 
         self.assertTrue(text == result)
 
+    @pytest.mark.unit
     def test_text_to_ids(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
         special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
@@ -63,6 +70,7 @@ class TestSPCTokenizer(NeMoUnitTest):
         self.assertTrue(ids.count(tokenizer.token_to_id("[MASK]")) == 1)
         self.assertTrue(ids.count(tokenizer.token_to_id("[SEP]")) == 2)
 
+    @pytest.mark.unit
     def test_ids_to_text(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
         special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
@@ -74,6 +82,7 @@ class TestSPCTokenizer(NeMoUnitTest):
 
         self.assertTrue(text == result)
 
+    @pytest.mark.unit
     def test_tokens_to_ids(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
         special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
@@ -88,6 +97,7 @@ class TestSPCTokenizer(NeMoUnitTest):
         self.assertTrue(ids.count(tokenizer.token_to_id("[MASK]")) == 1)
         self.assertTrue(ids.count(tokenizer.token_to_id("[SEP]")) == 2)
 
+    @pytest.mark.unit
     def test_ids_to_tokens(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
         special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']

@@ -11,28 +11,53 @@ pipeline {
   }
   stages {
 
-    stage('L0: PyTorch version') {
+    stage('PyTorch version') {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
       }
     }
-    stage('L0: Install test requirements') {
+    stage('Install test requirements') {
       steps {
         sh 'apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt'
       }
     }
-    stage('L0: Code formatting checks') {
+    stage('Code formatting checks') {
       steps {
         sh 'python setup.py style'
       }
     }
-    stage('L0: Unittests ALL') {
+    stage('Documentation check') {
       steps {
-        sh './reinstall.sh && python -m unittest'
+        sh './reinstall.sh && pytest -m docs'
       }
     }
 
-    stage('L1: Parallel Stage1') {
+
+    stage('L0: Unit Tests') {
+      steps {
+        sh 'pytest -m unit'
+      }
+    }
+
+    stage('L0: Integration Tests') {
+      steps {
+        sh 'pytest -m integration'
+      }
+    }
+
+    stage('L1: System Tests') {
+      steps {
+        sh 'pytest -m system'
+      }
+    }
+
+    stage('L2: Acceptance Tests') {
+      steps {
+        sh 'pytest -m acceptance'
+      }
+    }
+
+    stage('L2: Parallel Stage1') {
       when {
         anyOf{
           branch 'master'
@@ -54,7 +79,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel NLP-BERT pretraining') {
+    stage('L2: Parallel NLP-BERT pretraining') {
       when {
         anyOf{
           branch 'master'
@@ -67,7 +92,7 @@ pipeline {
           steps {
             sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=0 python bert_pretraining.py --amp_opt_level O1 --train_data /home/TestData/nlp/wikitext-2/train.txt --eval_data /home/TestData/nlp/wikitext-2/valid.txt --dataset_name wikitext-2 --work_dir outputs/bert_lm/wikitext2 --batch_size 64 --lr 0.01 --lr_policy CosineAnnealing --lr_warmup_proportion 0.05 --tokenizer sentence-piece --vocab_size 3200 --hidden_size 768 --intermediate_size 3072 --num_hidden_layers 6 --num_attention_heads 12 --hidden_act "gelu" --save_step_freq 200 --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1 --max_steps=300'
             sh 'cd examples/nlp/language_modeling && LOSS=$(cat outputs/bert_lm/wikitext2/log_globalrank-0_localrank-0.txt |   grep "Loss" |tail -n 1| awk \'{print \$7}\' | egrep -o "[0-9.]+" ) && echo $LOSS && if [ $(echo "$LOSS < 8.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
-            sh 'rm -rf examples/nlp/language_modeling/outputs/wikitext2'
+            sh 'rm -rf examples/nlp/language_modeling/outputs/wikitext2 && rm -rf /home/TestData/nlp/wikitext-2/*.pkl && rm -rf /home/TestData/nlp/wikitext-2/bert'
           }
         }        
         stage('BERT offline preprocessing') {
@@ -80,7 +105,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel NLP Examples 1') {
+    stage('L2: Parallel NLP Examples 1') {
       when {
         anyOf{
           branch 'master'
@@ -113,7 +138,7 @@ pipeline {
     }
 
 
-    stage('L1: Parallel NLP Examples 2') {
+    stage('L2: Parallel NLP Examples 2') {
       when {
         anyOf{
           branch 'master'
@@ -139,7 +164,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel NLP-Squad') {
+    stage('L2: Parallel NLP-Squad') {
       when {
         anyOf{
           branch 'master'
@@ -150,22 +175,22 @@ pipeline {
       parallel {
         stage('BERT Squad v1.1') {
           steps {
-            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case'
-            sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1 --batch_size 8 --save_step_freq 200 --max_steps 50 --train_step_freq 5 --lr_policy WarmupAnnealing  --lr 5e-5 --do_lower_case --pretrained_model_name bert-base-uncased'
+            sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 10.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv1 && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
           }
         }
         stage('BERT Squad v2.0') {
           steps {
-            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json --eval_file /home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --work_dir outputs/squadv2 --batch_size 8 --save_step_freq 300 --num_epochs 3 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case --version_2_with_negative'
-            sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv2/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json --eval_file /home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --work_dir outputs/squadv2 --batch_size 8 --save_step_freq 200 --train_step_freq 2 --max_steps 10 --lr_policy WarmupAnnealing  --lr 1e-5 --do_lower_case --version_2_with_negative --pretrained_model_name bert-base-uncased'
+            sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv2/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 40.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv2 && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
           }
         }
       }
     }
 
-    stage('L1: Parallel NLP-Examples 3') {
+    stage('L2: Parallel NLP-Examples 3') {
       when {
         anyOf{
           branch 'master'
@@ -183,15 +208,15 @@ pipeline {
         }
         stage('Roberta Squad v1.1') {
           steps {
-            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1_roberta --batch_size 2 --save_step_freq 500 --num_epochs 1 --lr_policy WarmupAnnealing  --lr 3e-5 --do_lower_case  --pretrained_model_name roberta-base'
-            sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1_roberta/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 50.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1_roberta --batch_size 5 --save_step_freq 200 --max_steps 50 --train_step_freq 5  --lr_policy WarmupAnnealing  --lr 1e-5 --pretrained_model_name roberta-base'
+            sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1_roberta/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 7.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv1_roberta && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
           }
         }
       }
     }
 
-    stage('L1: NLP-Intent Detection/Slot Tagging Examples - Multi-GPU') {
+    stage('L2: NLP-Intent Detection/Slot Tagging Examples - Multi-GPU') {
       when {
         anyOf{
           branch 'master'
@@ -207,7 +232,7 @@ pipeline {
         }
       }
 
-    stage('L1: NLP-NMT Example') {
+    stage('L2: NLP-NMT Example') {
       when {
         anyOf{
           branch 'master'
@@ -221,7 +246,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel Stage Jasper / GAN') {
+    stage('L2: Parallel Stage Jasper / GAN') {
       when {
         anyOf{
           branch 'master'
@@ -259,7 +284,7 @@ pipeline {
     //   }
     // }
 
-    stage('L1: Multi-GPU Jasper test') {
+    stage('L2: Multi-GPU Jasper test') {
       when {
         anyOf{
           branch 'master'
@@ -277,7 +302,7 @@ pipeline {
     }
     
 
-    stage('L1: TTS Tests') {
+    stage('L2: TTS Tests') {
       when {
         anyOf{
           branch 'master'

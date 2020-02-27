@@ -17,15 +17,20 @@
 # =============================================================================
 
 import os
+from unittest import TestCase
 
-import nemo
-from tests.common_setup import NeMoUnitTest
+import pytest
+
+from nemo.backends.pytorch.actions import PtActions
+from nemo.backends.pytorch.common import SequenceEmbedding
 
 
-class TestTrainers(NeMoUnitTest):
+@pytest.mark.usefixtures("neural_factory")
+class TestTrainers(TestCase):
+    @pytest.mark.unit
     def test_checkpointing(self):
         path = 'optimizer.pt'
-        optimizer = nemo.backends.pytorch.actions.PtActions()
+        optimizer = PtActions()
         optimizer.save_state_to(path)
         optimizer.step = 123
         optimizer.epoch_num = 324
@@ -35,10 +40,11 @@ class TestTrainers(NeMoUnitTest):
         self.assertEqual(len(optimizer.optimizers), 0)
         os.remove(path)
 
+    @pytest.mark.unit
     def test_multi_optimizer(self):
         path = 'optimizer.pt'
-        module = nemo.backends.pytorch.common.SequenceEmbedding(voc_size=8, hidden_size=16)
-        optimizer = nemo.backends.pytorch.actions.PtActions()
+        module = SequenceEmbedding(voc_size=8, hidden_size=16)
+        optimizer = PtActions()
         optimizer.create_optimizer("sgd", module, optimizer_params={"lr": 1.0})
         optimizer.create_optimizer("sgd", [module], optimizer_params={"lr": 2.0})
         optimizer.create_optimizer("novograd", [module], optimizer_params={"lr": 3.0})

@@ -16,18 +16,15 @@
 # limitations under the License.
 # =============================================================================
 
-import unittest
+from unittest import TestCase
 
-import nemo
+import pytest
 
-logging = nemo.logging
+import nemo.collections.nlp as nemo_nlp
 
 
-class NeMoUnitTest(unittest.TestCase):
-    def setUp(self) -> None:
-        """ Default setup - instantiates Neural Factory. """
-        # Initialize the default Neural Factory - on GPU.
-        self.nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.GPU)
-
-        # Print standard header.
-        logging.info("-" * 20 + " " + type(self).__name__ + "." + self._testMethodName + " " + "-" * 20)
+class TestHuggingFace(TestCase):
+    @pytest.mark.unit
+    def test_list_pretrained_models(self):
+        pretrained_models = nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
+        self.assertTrue(len(pretrained_models) > 0)

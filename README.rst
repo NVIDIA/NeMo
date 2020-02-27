@@ -80,10 +80,22 @@ If you are using the NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catal
 
 .. code-block:: bash
 
-    pip install nemo-toolkit  # installs NeMo Core
-    pip install nemo-asr # installs NeMo ASR collection
-    pip install nemo-nlp # installs NeMo NLP collection
-    pip install nemo-tts # installs NeMo TTS collection
+    pip install nemo_toolkit # Installs NeMo Core Only
+    pip install nemo_toolkit[asr] # Installs Core and ASR Collection
+    pip install nemo_toolkit[nlp] # Installs Core and NLP Collection
+    pip install nemo_toolkit[tts] # Installs Core and TTS Collection
+
+You can also install everything (NeMo Core with all collections along with their dependences) by calling:
+
+.. code-block:: bash
+
+    pip install nemo_toolkit[all] # Absolutely everything
+
+or their subsets by:
+
+.. code-block:: bash
+
+    pip install nemo_toolkit[nlp,asr] # Core + NLP + ASR
 
 * DEVELOPMENT: If you'd like to use master branch and/or develop NeMo you can run "reinstall.sh" script.
 
