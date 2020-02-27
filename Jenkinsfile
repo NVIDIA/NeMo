@@ -11,28 +11,53 @@ pipeline {
   }
   stages {
 
-    stage('L0: PyTorch version') {
+    stage('PyTorch version') {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
       }
     }
-    stage('L0: Install test requirements') {
+    stage('Install test requirements') {
       steps {
         sh 'apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt'
       }
     }
-    stage('L0: Code formatting checks') {
+    stage('Code formatting checks') {
       steps {
         sh 'python setup.py style'
       }
     }
-    stage('L0: Unittests ALL') {
+    stage('Documentation check') {
       steps {
-        sh './reinstall.sh && python -m unittest'
+        sh './reinstall.sh && pytest -m docs'
       }
     }
 
-    stage('L1: Parallel Stage1') {
+
+    stage('L0: Unit Tests') {
+      steps {
+        sh 'pytest -m unit'
+      }
+    }
+
+    stage('L0: Integration Tests') {
+      steps {
+        sh 'pytest -m integration'
+      }
+    }
+
+    stage('L1: System Tests') {
+      steps {
+        sh 'pytest -m system'
+      }
+    }
+
+    stage('L2: Acceptance Tests') {
+      steps {
+        sh 'pytest -m acceptance'
+      }
+    }
+
+    stage('L2: Parallel Stage1') {
       when {
         anyOf{
           branch 'master'
@@ -54,7 +79,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel NLP-BERT pretraining') {
+    stage('L2: Parallel NLP-BERT pretraining') {
       when {
         anyOf{
           branch 'master'
@@ -80,7 +105,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel NLP Examples 1') {
+    stage('L2: Parallel NLP Examples 1') {
       when {
         anyOf{
           branch 'master'
@@ -113,7 +138,7 @@ pipeline {
     }
 
 
-    stage('L1: Parallel NLP Examples 2') {
+    stage('L2: Parallel NLP Examples 2') {
       when {
         anyOf{
           branch 'master'
@@ -139,7 +164,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel NLP-Squad') {
+    stage('L2: Parallel NLP-Squad') {
       when {
         anyOf{
           branch 'master'
@@ -165,7 +190,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel NLP-Examples 3') {
+    stage('L2: Parallel NLP-Examples 3') {
       when {
         anyOf{
           branch 'master'
@@ -191,7 +216,7 @@ pipeline {
       }
     }
 
-    stage('L1: NLP-Intent Detection/Slot Tagging Examples - Multi-GPU') {
+    stage('L2: NLP-Intent Detection/Slot Tagging Examples - Multi-GPU') {
       when {
         anyOf{
           branch 'master'
@@ -207,7 +232,7 @@ pipeline {
         }
       }
 
-    stage('L1: NLP-NMT Example') {
+    stage('L2: NLP-NMT Example') {
       when {
         anyOf{
           branch 'master'
@@ -221,7 +246,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel Stage Jasper / GAN') {
+    stage('L2: Parallel Stage Jasper / GAN') {
       when {
         anyOf{
           branch 'master'
@@ -259,7 +284,7 @@ pipeline {
     //   }
     // }
 
-    stage('L1: Multi-GPU Jasper test') {
+    stage('L2: Multi-GPU Jasper test') {
       when {
         anyOf{
           branch 'master'
@@ -277,7 +302,7 @@ pipeline {
     }
     
 
-    stage('L1: TTS Tests') {
+    stage('L2: TTS Tests') {
       when {
         anyOf{
           branch 'master'
