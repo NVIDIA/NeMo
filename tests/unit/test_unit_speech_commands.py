@@ -28,7 +28,6 @@ import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts import AudioLabelDataset, WaveformFeaturizer, collections, parsers, perturb
 from nemo.core import DeviceType
-from tests.common_setup import NeMoUnitTest
 
 logging = nemo.logging
 
@@ -131,6 +130,7 @@ class TestSpeechCommandsPytorch(TestCase):
             self.assertTrue(data[2].size(0) == batch_size)
             self.assertTrue(data[3].size(0) == batch_size)
 
+    @pytest.mark.unit
     def test_trim_silence(self):
         batch_size = 2
         normal_dl = nemo_asr.AudioToSpeechLabelDataLayer(
@@ -156,6 +156,7 @@ class TestSpeechCommandsPytorch(TestCase):
             for point in range(batch_size):
                 self.assertTrue(norm[1][point].data >= trim[1][point].data)
 
+    @pytest.mark.unit
     def test_audio_preprocessors(self):
         batch_size = 2
         dl = nemo_asr.AudioToSpeechLabelDataLayer(

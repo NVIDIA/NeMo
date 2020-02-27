@@ -22,7 +22,6 @@ import pytest
 from sphinx.application import Sphinx
 
 
-@pytest.mark.docs
 class DocTest(TestCase):
     source_dir = u'docs/sources/source/'
     config_dir = u'docs/sources/source/'
@@ -31,6 +30,7 @@ class DocTest(TestCase):
 
     all_files = True
 
+    @pytest.mark.docs
     def test_html_documentation(self):
         """ Tests whether the HTML documentation can be build properly. """
         app = Sphinx(

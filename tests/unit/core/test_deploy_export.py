@@ -113,8 +113,8 @@ class TestDeployExport(TestCase):
             self.__test_export_route(module, out_name + '.pt', nemo.core.DeploymentFormat.PYTORCH, input_example)
         self.__test_export_route(module, out_name + '.ts', nemo.core.DeploymentFormat.TORCHSCRIPT, input_example)
 
-    @pytest.mark.skip_on_device('CPU')
     @pytest.mark.unit
+    @pytest.mark.skip_on_device('CPU')
     def test_simple_module_export(self):
         simplest_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         self.__test_export_route_all(
