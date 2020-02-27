@@ -20,8 +20,10 @@ import os
 import shutil
 import tarfile
 from typing import Dict
+from unittest import TestCase
 
 import numpy as np
+import pytest
 import torch
 from ruamel.yaml import YAML
 
@@ -32,12 +34,12 @@ from nemo.collections.nlp.nm.losses import SmoothedCrossEntropyLoss
 from nemo.collections.nlp.nm.trainables.common import TokenClassifier
 from nemo.core import WeightShareTransform
 from nemo.core.neural_types import *
-from tests.common_setup import NeMoUnitTest
 
 logging = nemo.logging
 
 
-class TestWeightSharing(NeMoUnitTest):
+@pytest.mark.usefixtures("neural_factory")
+class TestWeightSharing(TestCase):
     labels = [
         "'",
         "a",
@@ -96,6 +98,11 @@ class TestWeightSharing(NeMoUnitTest):
         else:
             logging.info("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
 
+    def setUp(self) -> None:
+        """ Re-instantiates Neural Factory. """
+        # Re-initialize the default Neural Factory - on the indicated device.
+        self.nf = nemo.core.NeuralModuleFactory(placement=self.nf.placement)
+
     # @classmethod
     # def tearDownClass(cls) -> None:
     #     super().tearDownClass()
@@ -116,6 +123,7 @@ class TestWeightSharing(NeMoUnitTest):
                 )
         return all_same
 
+    @pytest.mark.unit
     def test_TaylorNet_get_weights(self):
         tn1 = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         tn2 = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
@@ -139,6 +147,7 @@ class TestWeightSharing(NeMoUnitTest):
     #     tn2.fc1.bias.data = torch.tensor([0.1])
     #     self.assertTrue(self.__check_if_weights_are_equal(tn1.get_weights(), tn2.get_weights()))
 
+    @pytest.mark.unit
     def test_tie_weights(self):
         class DummyDataLayer(DataLayerNM):
             def __init__(self, vocab_size):
@@ -203,6 +212,7 @@ class TestWeightSharing(NeMoUnitTest):
             np.array_equal(embd.embedding.weight.detach().cpu().numpy(), proj.mlp.layer2.weight.detach().cpu().numpy())
         )
 
+    @pytest.mark.unit
     def test_untied_weights(self):
         class DummyDataLayer(DataLayerNM):
             def __init__(self, vocab_size):
@@ -267,6 +277,7 @@ class TestWeightSharing(NeMoUnitTest):
             np.array_equal(embd.embedding.weight.detach().cpu().numpy(), proj.mlp.layer2.weight.detach().cpu().numpy())
         )
 
+    @pytest.mark.unit
     def test_set_weights(self):
         voc_size = 3
         dim = 2
@@ -278,6 +289,8 @@ class TestWeightSharing(NeMoUnitTest):
         weights = torch.tensor(np.random.randint(0, 10, (3, 2)) * 1.0)
         self.assertFalse(np.array_equal(embd.embedding.weight.detach().cpu().numpy(), weights.detach().cpu().numpy()))
 
+    @pytest.mark.unit
+    @pytest.mark.skip_on_device('CPU')
     def test_freeze_unfreeze_TrainableNM(self):
         path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/jasper_smaller.yaml"))
         with open(path) as file:
