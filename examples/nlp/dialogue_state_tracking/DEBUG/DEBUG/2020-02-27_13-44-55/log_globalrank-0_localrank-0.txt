@@ -1,0 +1,5 @@
+[NeMo W 2020-02-27 13:44:55 deprecated:68] Function ``_get_trainer`` is deprecated. It is going to be removed in the future version.
+[NeMo I 2020-02-27 13:45:02 SGDDataset:38] Loading dialogue examples from /home/ebakhturina/data/subset_dstc/dialogue_example_dir/DEBUG_train_examples.processed.
+[NeMo W 2020-02-27 13:45:02 deprecated:68] Function ``local_parameters`` is deprecated. It is going to be removed in the 0.11 version.
+[NeMo I 2020-02-27 13:45:02 SGDDataset:38] Loading dialogue examples from /home/ebakhturina/data/subset_dstc/dialogue_example_dir/DEBUG_dev_examples.processed.
+[NeMo I 2020-02-27 13:45:12 dialogue_state_tracking_sgd:289] steps per epoch: 0

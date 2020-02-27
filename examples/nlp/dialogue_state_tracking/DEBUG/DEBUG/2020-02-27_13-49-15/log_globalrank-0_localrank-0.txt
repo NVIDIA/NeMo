@@ -1,0 +1,15 @@
+[NeMo W 2020-02-27 13:49:16 deprecated:68] Function ``_get_trainer`` is deprecated. It is going to be removed in the future version.
+[NeMo I 2020-02-27 13:49:22 SGDDataset:38] Loading dialogue examples from /home/ebakhturina/data/subset_dstc/dialogue_example_dir/DEBUG_train_examples.processed.
+[NeMo W 2020-02-27 13:49:22 deprecated:68] Function ``local_parameters`` is deprecated. It is going to be removed in the 0.11 version.
+[NeMo I 2020-02-27 13:49:22 SGDDataset:38] Loading dialogue examples from /home/ebakhturina/data/subset_dstc/dialogue_example_dir/DEBUG_dev_examples.processed.
+[NeMo I 2020-02-27 13:49:32 dialogue_state_tracking_sgd:289] steps per epoch: 1
+[NeMo I 2020-02-27 13:49:37 callbacks:179] Starting .....
+[NeMo I 2020-02-27 13:49:37 callbacks:349] Found 3 modules with weights:
+[NeMo I 2020-02-27 13:49:37 callbacks:351] BERT
+[NeMo I 2020-02-27 13:49:37 callbacks:351] Encoder
+[NeMo I 2020-02-27 13:49:37 callbacks:351] SGDModel
+[NeMo I 2020-02-27 13:49:37 callbacks:352] Total model parameters: 118945547
+[NeMo I 2020-02-27 13:49:37 callbacks:301] Found checkpoint folder DEBUG/DEBUG/2020-02-27_13-49-15/checkpoints. Will attempt to restore checkpoints from it.
+[NeMo W 2020-02-27 13:49:37 callbacks:318] For module SGDModel, no file matches  in DEBUG/DEBUG/2020-02-27_13-49-15/checkpoints
+[NeMo W 2020-02-27 13:49:37 callbacks:320] Checkpoint folder DEBUG/DEBUG/2020-02-27_13-49-15/checkpoints was present but nothing was restored. Continuing training from random initialization.
+[NeMo I 2020-02-27 13:49:37 callbacks:190] Starting epoch 0
