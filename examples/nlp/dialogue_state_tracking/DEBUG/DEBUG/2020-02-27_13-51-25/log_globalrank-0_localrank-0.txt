@@ -1,0 +1,22 @@
+[NeMo W 2020-02-27 13:51:25 deprecated:68] Function ``_get_trainer`` is deprecated. It is going to be removed in the future version.
+[NeMo I 2020-02-27 13:51:32 SGDDataset:38] Loading dialogue examples from /home/ebakhturina/data/subset_dstc/dialogue_example_dir/DEBUG_train_examples.processed.
+[NeMo W 2020-02-27 13:51:32 deprecated:68] Function ``local_parameters`` is deprecated. It is going to be removed in the 0.11 version.
+[NeMo I 2020-02-27 13:51:32 SGDDataset:38] Loading dialogue examples from /home/ebakhturina/data/subset_dstc/dialogue_example_dir/DEBUG_dev_examples.processed.
+[NeMo I 2020-02-27 13:51:32 dialogue_state_tracking_sgd:288] steps per epoch: 1
+[NeMo I 2020-02-27 13:51:32 callbacks:179] Starting .....
+[NeMo I 2020-02-27 13:51:32 callbacks:349] Found 3 modules with weights:
+[NeMo I 2020-02-27 13:51:32 callbacks:351] Encoder
+[NeMo I 2020-02-27 13:51:32 callbacks:351] SGDModel
+[NeMo I 2020-02-27 13:51:32 callbacks:351] BERT
+[NeMo I 2020-02-27 13:51:32 callbacks:352] Total model parameters: 118945547
+[NeMo I 2020-02-27 13:51:32 callbacks:301] Found checkpoint folder DEBUG/DEBUG/2020-02-27_13-51-25/checkpoints. Will attempt to restore checkpoints from it.
+[NeMo W 2020-02-27 13:51:32 callbacks:318] For module SGDModel, no file matches  in DEBUG/DEBUG/2020-02-27_13-51-25/checkpoints
+[NeMo W 2020-02-27 13:51:32 callbacks:320] Checkpoint folder DEBUG/DEBUG/2020-02-27_13-51-25/checkpoints was present but nothing was restored. Continuing training from random initialization.
+[NeMo I 2020-02-27 13:51:32 callbacks:190] Starting epoch 0
+[NeMo I 2020-02-27 13:51:33 callbacks:214] Step: 0
+[NeMo I 2020-02-27 13:51:33 dialogue_state_tracking_sgd:293] Loss: 1.840
+[NeMo I 2020-02-27 13:51:33 callbacks:229] Step time: 0.1756148338317871 seconds
+[NeMo I 2020-02-27 13:51:33 callbacks:428] Doing Evaluation ..............................
+[NeMo I 2020-02-27 13:51:35 prediction_utils:125] Writing predictions to DEBUG/DEBUG/predictions/pred_res_dev_DEBUG.
+[NeMo I 2020-02-27 13:51:35 prediction_utils:133] Processed 0 examples
+[NeMo I 2020-02-27 13:51:35 prediction_utils:141] /home/ebakhturina/data/subset_dstc/dev/dialogues_001.json file is loaded

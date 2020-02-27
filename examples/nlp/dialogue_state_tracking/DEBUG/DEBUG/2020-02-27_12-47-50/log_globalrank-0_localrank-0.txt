@@ -1,0 +1,2 @@
+[NeMo W 2020-02-27 12:47:50 deprecated:68] Function ``_get_trainer`` is deprecated. It is going to be removed in the future version.
+[NeMo I 2020-02-27 12:47:56 sgd_preprocessing:91] Start generating the schema embeddings for train dataset.

@@ -1,0 +1,50 @@
+{
+  "#ALL_SERVICES": {
+    "active_intent_accuracy": 0.5833333333333334,
+    "average_cat_accuracy": 0.0,
+    "average_goal_accuracy": 0.0,
+    "average_noncat_accuracy": 0.0,
+    "joint_cat_accuracy": 0.5,
+    "joint_goal_accuracy": 0.08333333333333333,
+    "joint_noncat_accuracy": 0.08333333333333333,
+    "requested_slots_f1": 0.6666666666666666,
+    "requested_slots_precision": 1.0,
+    "requested_slots_recall": 0.6666666666666666
+  },
+  "#SEEN_SERVICES": {
+    "active_intent_accuracy": 0.5833333333333334,
+    "average_cat_accuracy": 0.0,
+    "average_goal_accuracy": 0.0,
+    "average_noncat_accuracy": 0.0,
+    "joint_cat_accuracy": 0.5,
+    "joint_goal_accuracy": 0.08333333333333333,
+    "joint_noncat_accuracy": 0.08333333333333333,
+    "requested_slots_f1": 0.6666666666666666,
+    "requested_slots_precision": 1.0,
+    "requested_slots_recall": 0.6666666666666666
+  },
+  "Restaurants": {
+    "active_intent_accuracy": 0.5833333333333334,
+    "average_cat_accuracy": 0.0,
+    "average_goal_accuracy": 0.0,
+    "average_noncat_accuracy": 0.0,
+    "joint_cat_accuracy": 0.5,
+    "joint_goal_accuracy": 0.08333333333333333,
+    "joint_noncat_accuracy": 0.08333333333333333,
+    "requested_slots_f1": 0.6666666666666666,
+    "requested_slots_precision": 1.0,
+    "requested_slots_recall": 0.6666666666666666
+  },
+  "Restaurants_1": {
+    "active_intent_accuracy": 0.5833333333333334,
+    "average_cat_accuracy": 0.0,
+    "average_goal_accuracy": 0.0,
+    "average_noncat_accuracy": 0.0,
+    "joint_cat_accuracy": 0.5,
+    "joint_goal_accuracy": 0.08333333333333333,
+    "joint_noncat_accuracy": 0.08333333333333333,
+    "requested_slots_f1": 0.6666666666666666,
+    "requested_slots_precision": 1.0,
+    "requested_slots_recall": 0.6666666666666666
+  }
+}
