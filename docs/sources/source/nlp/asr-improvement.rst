@@ -128,7 +128,7 @@ We trained on 8 GPUS. To launch the training in multi-gpu mode run the following
 
     .. code-block:: bash
 
-        $ python -m torch.distributed.launch --nproc_per_node=8  asr_postprocessor.py --data_dir data_dir --restore_from ../scripts/bert-base-uncased_decoder.pt
+        $ python -m torch.distributed.launch --nproc_per_node=8  asr_postprocessor.py --data_dir data_dir --restore_from bert-base-uncased_decoder.pt
 
 
 

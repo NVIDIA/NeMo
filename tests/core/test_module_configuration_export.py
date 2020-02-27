@@ -19,10 +19,12 @@
 
 from unittest.mock import mock_open, patch
 
-from ruamel import yaml
+from ruamel.yaml import YAML
 
 import nemo
 from tests.common_setup import NeMoUnitTest
+
+YAML = YAML(typ='safe')
 
 
 class NeuralModuleExportTest(NeMoUnitTest):
@@ -44,33 +46,9 @@ class NeuralModuleExportTest(NeMoUnitTest):
         # Mockup abstract methods.
         NeuralModuleExportTest.MockupSimpleModule.__abstractmethods__ = set()
 
-    def __extract_dict_from_handle_calls(self, handle):
-        """ Helper method - extracts a ditionary from the handle containing several write calls. """
-        # Put together the params - dict exported in several calls
-        exported_dict = []
-        for call in handle.write.mock_calls:
-            call_value = str(call)[6:-2].replace(" ", "")
-            # Drop '/n's.
-            if call_value == "\\n":
-                exported_dict.append(",")
-                continue
-            if call_value == "":
-                continue
-            if call_value in [",", ":", "{", "}", "[", "]"]:
-                exported_dict.append(call_value)
-            else:
-                exported_dict.append("\"" + call_value + "\"")
-        # "Preprocess" string.
-        exported_string = "{" + ''.join(exported_dict)[:-1] + "}"
-        exported_string = exported_string.replace(",,", ",")
-        # print(exported_string)
-        return eval(exported_string)
-
-    @patch('__main__.__builtins__.open', new_callable=mock_open)
-    def test_simple_export(self, mock_f):
+    def test_simple_export(self):
         """
             Tests whether build-in types are properly exported.
-            Mockup the hard disk write()/open() operations.
         """
 
         # params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
@@ -79,25 +57,19 @@ class NeuralModuleExportTest(NeMoUnitTest):
         # Export.
         module.export_to_config("/tmp/simple_export.yml")
 
-        # Assert that file that the file was "opened" in a write mode.
-        mock_f.assert_called_with("/tmp/simple_export.yml", 'w')
-
-        # Get handle to the call.
-        handle = mock_f()
-
-        # Get the exported dictionary.
-        exported_dict = self.__extract_dict_from_handle_calls(handle)
-        # print("exported_dict = ", exported_dict)
+        # Check the resulting config file.
+        with open("/tmp/simple_export.yml", 'r') as stream:
+            exported_config = YAML.load(stream)
 
         # Assert that it contains main sections: header and init params.
-        self.assertEqual("header" in exported_dict, True)
-        self.assertEqual("init_params" in exported_dict, True)
+        self.assertEqual("header" in exported_config, True)
+        self.assertEqual("init_params" in exported_config, True)
 
         # Assert that the header contains class and spec.
-        self.assertEqual("full_spec" in exported_dict["header"], True)
+        self.assertEqual("full_spec" in exported_config["header"], True)
 
         # Check init params.
-        exported_init_params = exported_dict["init_params"]
+        exported_init_params = exported_config["init_params"]
         self.assertEqual(int(exported_init_params["a"]), 123)
         self.assertEqual(float(exported_init_params["b"]), 12.4)
         self.assertEqual(exported_init_params["c"], "ala_ma_kota")
@@ -116,7 +88,7 @@ class NeuralModuleExportTest(NeMoUnitTest):
 
         # Check the resulting config file.
         with open("/tmp/nested_list_export.yml", 'r') as stream:
-            exported_config = yaml.safe_load(stream)
+            exported_config = YAML.load(stream)
 
         # Assert that it contains main sections: header and init params.
         self.assertEqual("header" in exported_config, True)
@@ -146,7 +118,7 @@ class NeuralModuleExportTest(NeMoUnitTest):
 
         # Check the resulting config file.
         with open("/tmp/nested_dict_export.yml", 'r') as stream:
-            exported_config = yaml.safe_load(stream)
+            exported_config = YAML.load(stream)
 
         # Assert that it contains main sections: header and init params.
         self.assertEqual("header" in exported_config, True)
