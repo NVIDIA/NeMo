@@ -16,13 +16,15 @@
 # limitations under the License.
 # =============================================================================
 
+from unittest import TestCase
+
+import pytest
 import torch
 
 import nemo
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.core.neural_types import *
+from nemo.core.neural_types import AxisKind, AxisType, ChannelType, NeuralType
 from nemo.utils.decorators import add_port_docs
-from tests.common_setup import NeMoUnitTest
 
 
 class AddsTen(NonTrainableNM):
@@ -63,12 +65,8 @@ class SubtractsTen(NonTrainableNM):
         return mod_in - 10
 
 
-class TestInfer(NeMoUnitTest):
+class TestInfer(TestCase):
     def test_infer_caching(self):
-        neural_factory = nemo.core.neural_factory.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, create_tb_writer=False
-        )
-
         data_source = nemo.backends.pytorch.common.ZerosDataLayer(
             size=1,
             dtype=torch.FloatTensor,

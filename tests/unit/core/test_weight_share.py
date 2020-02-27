@@ -98,6 +98,11 @@ class TestWeightSharing(TestCase):
         else:
             logging.info("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
 
+    def setUp(self) -> None:
+        """ Re-instantiates Neural Factory. """
+        # Re-initialize the default Neural Factory - on the indicated device.
+        self.nf = nemo.core.NeuralModuleFactory(placement=self.nf.placement)
+
     # @classmethod
     # def tearDownClass(cls) -> None:
     #     super().tearDownClass()
