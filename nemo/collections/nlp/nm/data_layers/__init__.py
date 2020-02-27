@@ -14,7 +14,6 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.nm.data_layers.bert_inference_datalayer import *
 from nemo.collections.nlp.nm.data_layers.glue_benchmark_datalayer import *
 from nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer import *
 from nemo.collections.nlp.nm.data_layers.lm_bert_datalayer import *
