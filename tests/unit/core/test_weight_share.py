@@ -98,10 +98,10 @@ class TestWeightSharing(TestCase):
         else:
             logging.info("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
 
-    def setUp(self) -> None:
-        """ Re-instantiates Neural Factory. """
-        # Re-initialize the default Neural Factory - on the indicated device.
-        self.nf = nemo.core.NeuralModuleFactory(placement=self.nf.placement)
+    # def setUp(self) -> None:
+    # """ Re-instantiates Neural Factory. """
+    ## Re-initialize the default Neural Factory - on the indicated device.
+    # self.nf = nemo.core.NeuralModuleFactory(placement=self.nf.placement)
 
     # @classmethod
     # def tearDownClass(cls) -> None:
@@ -204,7 +204,8 @@ class TestWeightSharing(TestCase):
         pred = proj(hidden_states=pred)
         loss_t = loss(labels=_out, logits=pred)
 
-        self.nf.train(
+        optimizer = nemo.backends.pytorch.actions.PtActions()
+        optimizer.train(
             [loss_t], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.0003},
         )
 
@@ -269,7 +270,8 @@ class TestWeightSharing(TestCase):
         pred = proj(hidden_states=pred)
         loss_t = loss(labels=_out, logits=pred)
 
-        self.nf.train(
+        optimizer = nemo.backends.pytorch.actions.PtActions()
+        optimizer.train(
             [loss_t], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.0003},
         )
 
@@ -339,7 +341,7 @@ class TestWeightSharing(TestCase):
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
-        optimizer = self.nf.get_trainer()
+        optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.0003},
         )
