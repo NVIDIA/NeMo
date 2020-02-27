@@ -43,13 +43,13 @@ class BertTextClassificationDataset(Dataset):
             the first line is header (sentence [tab] label)
             each line should be [sentence][tab][label]
         max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer (Tokenizer): such as BertTokenizer
+        tokenizer (Tokenizer): such as NemoBertTokenizer
         num_samples (int): number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
     """
 
     def __init__(
-        self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=False, use_cache=False,
+        self, input_file, max_seq_length, tokenizer, model_name, num_samples=-1, shuffle=False, use_cache=False
     ):
 
         self.input_file = input_file
@@ -58,12 +58,11 @@ class BertTextClassificationDataset(Dataset):
         self.num_samples = num_samples
         self.use_cache = use_cache
         self.shuffle = shuffle
-        self.vocab_size = self.tokenizer.vocab_size
+        self.vocab_size = self.tokenizer.tokenizer.vocab_size
 
         if use_cache:
-            data_dir = os.path.dirname(input_file)
-            filename = os.path.basename(input_file)
-            filename = filename[:-4]
+            data_dir, filename = os.path.split(input_file)
+            filename = model_name + '_' + filename[:-4]
             hdf5_path = os.path.join(data_dir, f'{filename}_features.hdf5')
 
         if use_cache and os.path.exists(hdf5_path):
@@ -91,13 +90,13 @@ class BertTextClassificationDataset(Dataset):
                     sent_label = int(line.split()[-1])
                     sent_labels.append(sent_label)
                     sent_words = line.strip().split()[:-1]
-                    sent_subtokens = ['[CLS]']
+                    sent_subtokens = [tokenizer.cls_token]
 
                     for word in sent_words:
-                        word_tokens = tokenizer.tokenize(word)
+                        word_tokens = tokenizer.text_to_tokens(word)
                         sent_subtokens.extend(word_tokens)
 
-                    sent_subtokens.append('[SEP]')
+                    sent_subtokens.append(tokenizer.sep_token)
 
                     all_sent_subtokens.append(sent_subtokens)
                     sent_lengths.append(len(sent_subtokens))
@@ -107,7 +106,7 @@ class BertTextClassificationDataset(Dataset):
             for i in range(len(all_sent_subtokens)):
                 if len(all_sent_subtokens[i]) > max_seq_length:
                     shorten_sent = all_sent_subtokens[i][-max_seq_length + 1 :]
-                    all_sent_subtokens[i] = ['[CLS]'] + shorten_sent
+                    all_sent_subtokens[i] = [tokenizer.cls_token] + shorten_sent
                     too_long_count += 1
 
             logging.info(
@@ -153,7 +152,7 @@ class BertTextClassificationDataset(Dataset):
             sent_subtokens = all_sent_subtokens[sent_id]
             sent_label = sent_labels[sent_id]
 
-            input_ids = [tokenizer._convert_token_to_id(t) for t in sent_subtokens]
+            input_ids = [tokenizer.tokens_to_ids(t) for t in sent_subtokens]
 
             # The mask has 1 for real tokens and 0 for padding tokens.
             # Only real tokens are attended to.
