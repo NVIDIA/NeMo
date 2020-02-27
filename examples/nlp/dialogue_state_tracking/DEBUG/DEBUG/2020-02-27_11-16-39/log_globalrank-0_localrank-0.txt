@@ -1,1 +1,0 @@
-[NeMo W 2020-02-27 11:16:39 deprecated:68] Function ``_get_trainer`` is deprecated. It is going to be removed in the future version.
