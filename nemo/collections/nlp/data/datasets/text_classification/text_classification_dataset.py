@@ -21,6 +21,7 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
 import os
+import random
 
 import h5py
 import numpy as np
@@ -48,7 +49,7 @@ class BertTextClassificationDataset(Dataset):
     """
 
     def __init__(
-        self, input_file, max_seq_length, tokenizer, num_samples=-1, use_cache=False,
+        self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=False, use_cache=False,
     ):
 
         self.input_file = input_file
@@ -56,7 +57,7 @@ class BertTextClassificationDataset(Dataset):
         self.tokenizer = tokenizer
         self.num_samples = num_samples
         self.use_cache = use_cache
-
+        self.shuffle = shuffle
         self.vocab_size = self.tokenizer.vocab_size
 
         if use_cache:
@@ -77,8 +78,11 @@ class BertTextClassificationDataset(Dataset):
                 lines = f.readlines()[1:]
                 logging.info(f'{input_file}: {len(lines)}')
 
-                if num_samples > -1:
-                    lines = lines[:num_samples]
+                if shuffle or num_samples > -1:
+                    random.seed(0)
+                    random.shuffle(lines)
+                    if num_samples > 0:
+                        lines = lines[:num_samples]
 
                 for index, line in enumerate(lines):
                     if index % 20000 == 0:
@@ -208,6 +212,13 @@ class BertTextClassificationDataset(Dataset):
         self.features = [np.asarray(f[key], dtype=np.long) for key in keys]
         f.close()
         logging.info(f'features restored from {hdf5_path}')
+
+        if self.shuffle:
+            np.random.seed(0)
+            idx = np.arange(len(self))
+            np.random.shuffle(idx)  # shuffle idx in place
+            shuffled_features = [arr[idx] for arr in self.features]
+            self.features = shuffled_features
 
         if self.num_samples > 0:
             truncated_features = [arr[0 : self.num_samples] for arr in self.features]

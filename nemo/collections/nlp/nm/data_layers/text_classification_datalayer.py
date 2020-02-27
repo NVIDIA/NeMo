@@ -79,5 +79,6 @@ class BertTextClassificationDataLayer(TextDataLayer):
             'max_seq_length': max_seq_length,
             'num_samples': num_samples,
             'use_cache': use_cache,
+            'shuffle': shuffle,
         }
         super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
