@@ -1,6 +1,6 @@
 import threading
 
-from nemo.core.neural_factory import DeviceType
+from nemo.core.neural_factory import DeviceType, OperationMode
 
 
 class Singleton(type):
@@ -33,7 +33,10 @@ class AppState(metaclass=Singleton):
 
     def __init__(self, device=DeviceType.GPU):
         """
-        Constructor. Initializes global variables.
+            Constructor. Initializes global variables.
+
+            Args:
+                device: main device used for computations [CPU | GPU] (DEFAULT: GPU)
         """
         self.device = device
         self.active_graph = None

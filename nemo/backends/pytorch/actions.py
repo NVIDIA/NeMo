@@ -21,7 +21,7 @@ from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
 from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
 from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
 from nemo.core.callbacks import ActionCallback, EvaluatorCallback, SimpleLossLoggerCallback
-from nemo.core.neural_factory import Actions, ModelMode, Optimization
+from nemo.core.neural_factory import Actions, OperationMode, Optimization
 from nemo.core.neural_types import *
 from nemo.utils.helpers import get_checkpoint_from_dir
 
@@ -378,7 +378,7 @@ class PtActions(Actions):
         return optimizer
 
     def __nm_graph_forward_pass(
-        self, call_chain, registered_tensors, mode=ModelMode.train, use_cache=False,
+        self, call_chain, registered_tensors, mode=OperationMode.training, use_cache=False,
     ):
         for ind in range(1, len(call_chain)):
             if use_cache:
@@ -405,16 +405,16 @@ class PtActions(Actions):
             #         else:
             #             pmodule.enable_allreduce()
 
-            if mode == ModelMode.train:
+            if mode == OperationMode.training:
                 # if module.is_trainable():
                 if isinstance(pmodule, nn.Module):
                     pmodule.train()
-            elif mode == ModelMode.eval:
+            elif mode == OperationMode.inference:
                 # if module.is_trainable():
                 if isinstance(pmodule, nn.Module):
                     pmodule.eval()
             else:
-                raise ValueError("Unknown ModelMode")
+                raise ValueError("Unknown OperationMode")
             # prepare call signature for `module`
             call_set = {}
             for tensor_name, nmtensor in call_args.items():
@@ -569,7 +569,7 @@ class PtActions(Actions):
                     t.unique_name: d for t, d in zip(call_chain[0][2].values(), tensors) if t is not None
                 }
                 self.__nm_graph_forward_pass(
-                    call_chain=call_chain, registered_tensors=registered_e_tensors, mode=ModelMode.eval,
+                    call_chain=call_chain, registered_tensors=registered_e_tensors, mode=OperationMode.inference,
                 )
 
                 if not is_distributed or self.global_rank == 0:
@@ -752,7 +752,7 @@ class PtActions(Actions):
                 self.__nm_graph_forward_pass(
                     call_chain=call_chain,
                     registered_tensors=registered_e_tensors,
-                    mode=ModelMode.eval,
+                    mode=OperationMode.inference,
                     use_cache=use_cache,
                 )
 

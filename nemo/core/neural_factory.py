@@ -17,7 +17,7 @@
 
 __all__ = [
     'Backend',
-    'ModelMode',
+    'OperationMode',
     'Optimization',
     'DeviceType',
     'Actions',
@@ -57,11 +57,11 @@ class Backend(Enum):
     NotSupported = 2
 
 
-class ModelMode(Enum):
-    """Training Mode or Evaluation/Inference"""
+class OperationMode(Enum):
+    """Training or Inference (Evaluation) mode"""
 
-    train = 0
-    eval = 1
+    training = 0
+    inference = 1
 
 
 class Optimization(Enum):
