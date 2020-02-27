@@ -1,0 +1,3 @@
+[submodule "nemo/collections/tts/tacotron2"]
+	path = nemo/collections/tts/tacotron2
+	url = https://github.com/NVIDIA/tacotron2.git
