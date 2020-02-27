@@ -44,7 +44,7 @@ class ModuleInitializationTestCase(TestCase):
         ModuleInitializationTestCase.TestNM1.__abstractmethods__ = set()
         ModuleInitializationTestCase.TestNM2.__abstractmethods__ = set()
 
-    @pytest.mark.unit
+    @pytest.mark.acceptance
     def test_default_init_params(self):
         simple_nm = ModuleInitializationTestCase.TestNM1(var1=1)
         init_params = simple_nm.init_params
