@@ -10,7 +10,7 @@ import numpy as np
 
 import nemo
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema_embedding_dataset import SchemaEmbeddingDataset
-from nemo.collections.nlp.nm.data_layers.bert_inference_datalayer import *
+from nemo.collections.nlp.nm.data_layers.bert_inference_datalayer import BertInferDataLayer
 
 __all__ = ['SchemaPreprocessor']
 
