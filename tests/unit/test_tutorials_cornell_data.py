@@ -16,15 +16,17 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo import logging
+from unittest import TestCase
+
+import pytest
+
 from nemo.backends.pytorch.tutorials.chatbot.data import loadPrepareData
-from tests.common_setup import NeMoUnitTest
 
 
-class TestPytorchChatBotTutorial(NeMoUnitTest):
-    def test_simple_train(self):
+class TestTutorialCornellData(TestCase):
+    @pytest.mark.unit
+    def test_data_preparation(self):
         datafile = "tests/data/dialog_sample.txt"
-        logging.info(datafile)
-        voc, pairs = loadPrepareData("cornell", datafile=datafile)
+        voc, _ = loadPrepareData("cornell", datafile=datafile)
         self.assertEqual(voc.name, 'cornell')
         self.assertEqual(voc.num_words, 675)
