@@ -177,7 +177,6 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
     tb_writer=nf.tb_writer,
     get_tb_values=lambda x: [["loss", x[0]]],
-    step_freq=steps_per_epoch // 10,
 )
 
 eval_callback = nemo.core.EvaluatorCallback(
