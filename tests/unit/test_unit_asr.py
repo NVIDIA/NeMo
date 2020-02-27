@@ -36,7 +36,6 @@ logging = nemo.logging
 freq = 16000
 
 
-
 @pytest.mark.usefixtures("neural_factory")
 class TestASRPytorch(TestCase):
     labels = [
