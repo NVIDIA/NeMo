@@ -10,7 +10,7 @@ import numpy as np
 
 import nemo
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema_embedding_dataset import SchemaEmbeddingDataset
-from nemo.collections.nlp.nm.data_layers.bert_inference_datalayer import BertInferDataLayer
+from nemo.collections.nlp.nm.data_layers.bert_inference_datalayer import *
 
 __all__ = ['SchemaPreprocessor']
 
@@ -62,31 +62,6 @@ class SchemaPreprocessor:
         bert_ckpt_dir,
         nf,
     ):
-
-        # processor = data_utils.Dstc8DataProcessor(
-        #       data_dir,
-        #       train_file_range=data_utils.FILE_RANGES[task_name]["train"],
-        #       dev_file_range=data_utils.FILE_RANGES[task_name]["dev"],
-        #       test_file_range=data_utils.FILE_RANGES[task_name]["test"],
-        #       vocab_file=vocab_file,
-        #       do_lower_case=do_lower_case,
-        #       tokenizer=tokenizer,
-        #       max_seq_length=max_seq_length)
-
-        # # Generate the dialogue examples if needed or specified.
-        # dial_file_name = f"{task_name}_{dataset_split}_examples.processed"
-        # self.dial_file = os.path.join(dialogues_example_dir,
-        #                               dial_file_name)
-
-        # if not os.path.exists(dialogues_example_dir):
-        #     os.makedirs(dialogues_example_dir)
-        # if not os.path.exists(self.dial_file) or overwrite_dial_file:
-        #     nemo.logging.info("Start generating the dialogue examples.")
-        #     data_utils._create_dialog_examples(processor,
-        #                                        self.dial_file,
-        #                                        dataset_split)
-        #     nemo.logging.info(f"The dialogue examples saved at {self.dial_file}")
-        #     nemo.logging.info("Finish generating the dialogue examples.")
 
         self._schema_embedding_dir = schema_embedding_dir
         for dataset_split in datasets:
