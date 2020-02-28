@@ -246,7 +246,7 @@ To do inference on a single query, run:
 References
 ----------
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-SLOT
     :keyprefix: nlp-slot-
