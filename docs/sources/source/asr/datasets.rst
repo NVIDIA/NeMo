@@ -7,7 +7,7 @@ LibriSpeech
 -----------
 
 Run these scripts to download LibriSpeech data and convert it into format expected by `nemo_asr`.
-You should have at least 110GB free space.
+You should have at least 250GB free space.
 
 .. code-block:: bash
 
@@ -127,7 +127,7 @@ Running the following script will convert the .sph files to .wav using sox, and 
 Once this script finishes, you should have a `train_manifest.json` and `test_manifest.json` in the `<data_root>/an4/` directory.
 
 Aishell1
------------------------------------
+--------
 
 Run these scripts to download Aishell1 data and convert it into format expected by `nemo_asr`.
 
@@ -141,7 +141,7 @@ Run these scripts to download Aishell1 data and convert it into format expected 
 After this, your `data` folder should contain a `data_aishell` folder which contains wav, transcript folder and related `.json` files and `vocab.txt`.
 
 Aishell2
------------------------------------
+--------
 
 Run the script to process AIShell-2 dataset in order to generate files in the supported format of  `nemo_asr`. You should set the data folder of AIShell-2 using `--audio_folder` and where to push these files using `--dest_folder`.
 

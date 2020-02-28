@@ -6,7 +6,6 @@ NVIDIA Neural Modules Developer Guide
    :maxdepth: 2
 
    Introduction <self>
-   installation
    tutorials/intro
    training
    asr/intro
@@ -27,7 +26,8 @@ Neural Modules’ inputs and outputs have Neural Type for semantic checking.
 An application built with NeMo is a Directed Acyclic Graph (DAG) of connected modules enabling researchers to define and build new speech and nlp networks easily through API Compatible modules.
 
 
-**Introduction**
+Introduction
+------------
 
 See this video for a walk-through.
 
@@ -38,7 +38,8 @@ See this video for a walk-through.
     </div>
 
 
-**Core Concepts and Features**
+Core Concepts and Features
+--------------------------
 
 * `NeuralModule` class - represents and implements a neural module.
 * `NmTensor` - represents activations which flow between neural modules' ports.
@@ -48,14 +49,17 @@ See this video for a walk-through.
 * `Collections` - NeMo comes with collections - related group of modules such as `nemo_asr` (for Speech Recognition) and `nemo_nlp` for NLP
 
 
-**Requirements**
+Requirements
+------------
 
 1) Python 3.6 or 3.7
-2) PyTorch 1.2 or later with GPU support
-3) NVIDIA APEX: https://github.com/NVIDIA/apex
+2) PyTorch 1.4 or later with GPU support
+3) (optional for best performance) NVIDIA APEX: https://github.com/NVIDIA/apex
 
+.. _installation:
 
-**Getting started**
+Getting started
+---------------
 
 You can use NVIDIA `NGC NeMo container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_ for the latest NeMo release and all dependencies.
 
@@ -78,49 +82,32 @@ then you can simply use pip to install the latest released version (**currently 
 
 .. code-block:: bash
 
-    pip install nemo-toolkit  # installs NeMo Core
-    pip install nemo-asr # installs NeMo ASR collection
-    pip install nemo-nlp # installs NeMo NLP collection
-    pip install nemo-tts # installs NeMo TTS collection
+    pip install nemo_toolkit[all] # Installs NeMo Core and all collections including nemo_asr, nemo_nlp, nemo_tts
 
-**Tutorials**
+Tutorials
+---------
 
-* `Speech recognition <https://nvidia.github.io/NeMo/asr/intro.html>`_
-* `Natural language processing <https://nvidia.github.io/NeMo/nlp/intro.html>`_
-* `Speech synthesis <https://nvidia.github.io/NeMo/tts/intro.html>`_
+* :ref:`Speech recognition <asr-docs>`
+* :ref:`Natural language processing <nlp-docs>`
+* :ref:`Speech synthesis <tts-docs>`
 
-**Installing From Github**
+Installing From Github
+----------------------
 
 If you prefer to use NeMo's latest development version (from GitHub) follow the steps below:
 
-*Note*: For step 2 and 3, if you want to use NeMo in development mode, use: ``pip install -e .`` instead of ``pip install .``
-
 1) Clone the repository ``git clone https://github.com/NVIDIA/NeMo.git``
-2) Go to NeMo folder and install the toolkit:
+2) Go to NeMo folder and install the toolkit and collections:
 
 .. code-block:: bash
 
-	cd NeMo/nemo
-	pip install .
+    ./reinstall.sh
 
-3) Install the collection(s) you want.
+.. note::
+    reinstall.sh install NeMo in development mode.
 
-.. code-block:: bash
-
-    # Install the ASR collection from collections/nemo_asr
-    apt-get install libsndfile1
-    cd NeMo/collections/nemo_asr
-    pip install .
-
-    # Install the NLP collection from collections/nemo_nlp
-    cd NeMo/collections/nemo_nlp
-    pip install .
-
-    # Install the TTS collection from collections/nemo_tts
-    cd NeMo/collections/nemo_tts
-    pip install .
-
-**Unittests**
+Unittests
+---------
 
 This command runs unittests:
 
@@ -129,7 +116,8 @@ This command runs unittests:
     ./reinstall.sh
     python -m unittest tests/*.py
 
-**Building Docker Container**
+Building Docker Container
+-------------------------
 
 The NeMo Docker image requires Docker Buildx which is included in Docker 19.03 and layer. To build a custom NeMo Docker image, run
 
