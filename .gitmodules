@@ -1,3 +1,4 @@
 [submodule "nemo/collections/tts/tacotron2"]
 	path = nemo/collections/tts/tacotron2
-	url = https://github.com/NVIDIA/tacotron2.git
+	url = https://github.com/blisc/tacotron2.git
+	branch = jason-debug
