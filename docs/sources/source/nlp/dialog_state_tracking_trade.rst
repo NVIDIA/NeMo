@@ -48,23 +48,6 @@ The MultiWOZ dataset covers the following domains:
  6. hospital
  7. police.
 
-
-This division propagates further on the type of intents:
- * inform (∗)
- * request (∗)
- * select (123)
- *  recommend (123)
- * not found (123)
- * request booking info (123)
- * offer booking (1235)
- * inform booked (1235)
- * decline booking (1235)
- * welcome (∗)
- * greet (∗)
- * bye (∗)
- * reqmore (∗).
-
-
 As well as slots:
  * inform (∗)
  * address (∗)
