@@ -12,7 +12,7 @@ In another words, the goal of DST system is to capture user goals and intentions
 **slots** along with the corresponding **values**.
 
 
-.. figure:: dst_multi_woz_example.png
+.. figure:: dst_multiwoz_example.png
 
    Fig. 1: An exemplary, multi-domain dialog along with the associated state tracking (source: \
    :cite:`nlp-dst-wu2019transferable`)
@@ -118,7 +118,7 @@ between domains by predicting (**domain**, **slot**, **value**) triplets not enc
 domain.
 
 
-.. figure:: dst_trade_model_architecture.png
+.. figure:: dst_trade_architecture.png
 
    Fig. 2: Architecture of the TRADE model (source: :cite:`nlp-dst-wu2019transferable`)
 
@@ -166,10 +166,10 @@ In order to preprocess the MultiWOZ dataset you can use the provided `process_mu
 
 
 .. note::
-    By default, the script assumes that you will copy data from the unpacked archive into the \
-    ``~/data/state_tracking/MULTIWOZ2.1/MULTIWOZ2.1/`` \
-    folder and will store results in the ``~/data/state_tracking/multiwoz2.1`` folder. \
-    Both those can be overriden by passing the command line ``source_data_dir`` and ``target_data_dir`` arguments \
+    By default, the script assumes that you will copy and extract data into the \
+    ``~/data/state_tracking/multiwoz2.1/`` \
+    folder and it will store results in the ``~/data/state_tracking/multiwoz2.1`` folder. \
+    Both those can be overridden by passing the command line ``source_data_dir`` and ``target_data_dir`` arguments \
     respectively.
 
 
@@ -211,10 +211,14 @@ In order to train an instance of the TRADE model on the MultiWOZ 2.1 dataset sim
 Metrics and Results
 -------------------
 
-In the following table we compare the results achieved by our TRADE model implementation with the results achieved \
+In the following table we compare the results achieved by our TRADE model implementation with the results reported \
 in the original paper :cite:`nlp-dst-wu2019transferable`. Additionally, as the authors were relying on the MultiWOZ 2.0
-dataset, the table includes also results achieved by TRADE model on the MultiWOZ 2.1 dataset reported in the
-:cite:`nlp-dst-eric2019multiwoz` paper.
+dataset, the table includes also results achieved by TRADE model on MultiWOZ 2.1 dataset reported in the
+:cite:`nlp-dst-eric2019multiwoz` paper. We used the same parameters as the original implementation.
+The main difference is that our model does not use pre-trained embeddings which seem that it does not affect the \
+performance of the model. The other difference is that we used SquareAnnealing for the learning policy instead of \
+fixed learning rate.
+
 Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evaluate the model performance:
 
  * **Joint Goal Accuracy** compares the predicted dialogue states to the ground truth at each dialogue turn, and the
@@ -222,17 +226,19 @@ Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evalua
  * **Slot Accuracy** independently compares each (domain, slot, value) triplet to its ground truth label.
 
 
-+------------------------------------+--------+--------+--------+--------+
-| TRADE implementation               | MultiWOZ 2.0    | MultiWOZ 2.1    |
-+------------------------------------+--------+--------+--------+--------+
-|                                    | Joint  | Slot   | Joint  | Slot   |
-+====================================+========+========+========+========+
-| :cite:`nlp-dst-wu2019transferable` | 48.62% | 96.92% | --     | --     |
-+------------------------------------+--------+--------+--------+--------+
-| :cite:`nlp-dst-eric2019multiwoz`   | 48.60% | --     | 45.60% | --     |
-+------------------------------------+--------+--------+--------+--------+
-| NeMo (this tutorial)               | --     | --     | 42.03% | 96.21% |
-+------------------------------------+--------+--------+--------+--------+
++------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
+|                                    | MultiWOZ 2.0                      | MultiWOZ 2.1                      |
++                                    +--------+--------+--------+--------+--------+--------+--------+--------+
+|                                    | Test            |Development      |  Test           |Development      |
++                                    +--------+--------+--------+--------+--------+--------+--------+--------+
+| TRADE implementation               | Goal   | Slot   | Goal   | Slot   | Goal   | Slot   | Goal   | Slot   |
++====================================+========+========+========+========+========+========+========+========+
+| :cite:`nlp-dst-wu2019transferable` | 48.62% | 96.92% | --     | --     | --     | --     | --     | --     |
++------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
+| :cite:`nlp-dst-eric2019multiwoz`   | 48.60% | --     | --     | --     | 45.60% | --     | --     | --     |
++------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
+| NeMo                               | 48.92% | 97.03% | 50.96% | 97.17% | 47.25% | 96.80% | 51.38% | 97.21% |
++------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
 
 
 .. note::
