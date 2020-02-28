@@ -117,15 +117,14 @@ logging.info(args)
 if not os.path.exists(args.data_dir):
     raise ValueError('Data not found at {args.data_dir}')
 
-args.work_dir = f'{args.work_dir}/{args.task_name.upper()}'
+# args.work_dir = f'{args.work_dir}/{args.task_name.upper()}'
 nf = nemo.core.NeuralModuleFactory(
     backend=nemo.core.Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
     create_tb_writer=True,
-    files_to_copy=[__file__],
-    add_time_to_log_dir=True,
+    files_to_copy=[__file__]
 )
 
 
@@ -172,7 +171,7 @@ bert_config = os.path.join(args.bert_ckpt_dir, 'bert_config.json')
 if not os.path.exists(bert_config):
     raise ValueError(f'bert_config.json not found at {args.bert_ckpt_dir}')
 
-input_data = train_datalayer()
+train_data = train_datalayer()
 
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 
@@ -183,9 +182,9 @@ dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLoss()
 
 # Encode the utterances using BERT.
 token_embeddings = pretrained_bert_model(
-    input_ids=input_data.utterance_ids,
-    attention_mask=input_data.utterance_mask,
-    token_type_ids=input_data.utterance_segment,
+    input_ids=train_data.utterance_ids,
+    attention_mask=train_data.utterance_mask,
+    token_type_ids=train_data.utterance_segment,
 )
 encoded_utterance = encoder_extractor(hidden_states=token_embeddings)
 model = sgd_model.SGDModel(embedding_dim=hidden_size)
@@ -203,15 +202,15 @@ model = sgd_model.SGDModel(embedding_dim=hidden_size)
 ) = model(
     encoded_utterance=encoded_utterance,
     token_embeddings=token_embeddings,
-    utterance_mask=input_data.utterance_mask,
-    num_categorical_slot_values=input_data.num_categorical_slot_values,
-    num_intents=input_data.num_intents,
-    cat_slot_emb=input_data.cat_slot_emb,
-    cat_slot_value_emb=input_data.cat_slot_value_emb,
-    noncat_slot_emb=input_data.noncat_slot_emb,
-    req_slot_emb=input_data.req_slot_emb,
-    req_num_slots=input_data.num_slots,
-    intent_embeddings=input_data.intent_emb,
+    utterance_mask=train_data.utterance_mask,
+    num_categorical_slot_values=train_data.num_categorical_slot_values,
+    num_intents=train_data.num_intents,
+    cat_slot_emb=train_data.cat_slot_emb,
+    cat_slot_value_emb=train_data.cat_slot_value_emb,
+    noncat_slot_emb=train_data.noncat_slot_emb,
+    req_slot_emb=train_data.req_slot_emb,
+    req_num_slots=train_data.num_slots,
+    intent_embeddings=train_data.intent_emb,
 )
 
 loss = dst_loss(
@@ -222,17 +221,17 @@ loss = dst_loss(
     logit_noncat_slot_status=logit_noncat_slot_status,
     logit_noncat_slot_start=logit_noncat_slot_start,
     logit_noncat_slot_end=logit_noncat_slot_end,
-    intent_status=input_data.intent_status,
-    requested_slot_status=input_data.requested_slot_status,
+    intent_status=train_data.intent_status,
+    requested_slot_status=train_data.requested_slot_status,
     req_slot_mask=req_slot_mask,
-    categorical_slot_status=input_data.categorical_slot_status,
-    num_categorical_slots=input_data.num_categorical_slots,
-    categorical_slot_values=input_data.categorical_slot_values,
+    categorical_slot_status=train_data.categorical_slot_status,
+    num_categorical_slots=train_data.num_categorical_slots,
+    categorical_slot_values=train_data.categorical_slot_values,
     cat_slot_values_mask=cat_slot_values_mask,
-    noncategorical_slot_status=input_data.noncategorical_slot_status,
-    num_noncategorical_slots=input_data.num_noncategorical_slots,
-    noncategorical_slot_value_start=input_data.noncategorical_slot_value_start,
-    noncategorical_slot_value_end=input_data.noncategorical_slot_value_end,
+    noncategorical_slot_status=train_data.noncategorical_slot_status,
+    num_noncategorical_slots=train_data.num_noncategorical_slots,
+    noncategorical_slot_value_start=train_data.noncategorical_slot_value_start,
+    noncategorical_slot_value_end=train_data.noncategorical_slot_value_end,
 )
 
 eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
@@ -338,8 +337,7 @@ schema_json_file = os.path.join(args.data_dir, args.eval_dataset, 'schema.json')
 # Write predictions to file in DSTC8 format.
 prediction_dir = os.path.join(args.work_dir, 'predictions', 'pred_res_{}_{}'.format(args.eval_dataset, args.task_name))
 output_metric_file = os.path.join(args.work_dir, 'metrics.txt')
-if not os.path.exists(prediction_dir):
-    os.makedirs(prediction_dir)
+os.makedirs(prediction_dir, exist_ok=True)
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
@@ -357,9 +355,60 @@ lr_policy_fn = get_lr_policy(
     args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
 )
 
+#############################################
+train_eval_tensors = [
+    train_data.example_id,
+    train_data.service_id,
+    train_data.is_real_example,
+    train_data.user_utterance,
+    train_data.start_char_idx,
+    train_data.end_char_idx,
+    logit_intent_status,
+    logit_req_slot_status,
+    logit_cat_slot_status,
+    logit_cat_slot_value,
+    cat_slot_values_mask,
+    logit_noncat_slot_status,
+    logit_noncat_slot_start,
+    logit_noncat_slot_end,
+    train_data.intent_status,
+    train_data.requested_slot_status,
+    req_slot_mask,
+    train_data.categorical_slot_status,
+    train_data.num_categorical_slots,
+    train_data.categorical_slot_values,
+    train_data.noncategorical_slot_status,
+    train_data.num_noncategorical_slots,
+    train_data.noncategorical_slot_value_start,
+    train_data.noncategorical_slot_value_end,
+]
+
+train_input_json_files = [
+    os.path.join(args.data_dir, 'train', 'dialogues_{:03d}.json'.format(fid))
+    for fid in data_utils.FILE_RANGES[args.task_name]['train']
+]
+train_schema_json_file = os.path.join(args.data_dir, 'train', 'schema.json')
+
+# Write predictions to file in DSTC8 format.
+train_prediction_dir = os.path.join(args.work_dir, 'predictions', 'pred_res_{}_{}'.format('TRAIN', args.task_name))
+train_output_metric_file = os.path.join(args.work_dir, 'train_metrics.txt')
+os.makedirs(train_prediction_dir, exist_ok=True)
+
+train_eval_callback = nemo.core.EvaluatorCallback(
+    eval_tensors=train_eval_tensors,
+    user_iter_callback=lambda x, y: eval_iter_callback(x, y),
+    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+        x, train_input_json_files, train_schema_json_file, train_prediction_dir, args.data_dir, 'train', train_output_metric_file
+    ),
+    tb_writer=nf.tb_writer,
+    eval_step=steps_per_epoch,
+)
+#############################################
+
+
 nf.train(
     tensors_to_optimize=[loss],
-    callbacks=[train_callback, eval_callback, ckpt_callback],
+    callbacks=[train_callback, eval_callback, ckpt_callback, train_eval_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
     optimization_params={"num_epochs": args.num_epochs, "lr": args.learning_rate},
