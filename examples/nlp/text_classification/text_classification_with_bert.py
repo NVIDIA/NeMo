@@ -55,7 +55,7 @@ parser.add_argument(
     "--dataset_name",
     required=True,
     type=str,
-    choices=["sst-2", "imdb", "thucnews", "jarvis", "nemo_format", "nlu-ubuntu", "nlu-web", "nlu-chat"],
+    choices=["default_format", "sst-2", "imdb", "thucnews", "jarvis", "nlu-ubuntu", "nlu-web", "nlu-chat"],
     help="default_format assumes that a data file has a header and each line of the file follows "
     + "the format: text [TAB] label. Label is assumed to be an integer.",
 )
