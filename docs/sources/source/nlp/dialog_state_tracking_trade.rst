@@ -48,7 +48,7 @@ The MultiWOZ dataset covers the following domains:
  6. hospital
  7. police.
 
-As well as slots:
+As well as the following slots:
  * inform (∗)
  * address (∗)
  * postcode (∗)
