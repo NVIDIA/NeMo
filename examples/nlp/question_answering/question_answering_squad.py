@@ -104,16 +104,11 @@ def parse_args():
         "--test_file", type=str, help="The test data file. Should be *.json. Does not need to contain ground truth",
     )
     parser.add_argument(
-        "--pretrained_model_name",
-        type=str,
+        '--pretrained_model_name',
         default='roberta-base',
-        help="Name of the pre-trained model",
-        choices=[
-            _.pretrained_model_name
-            for _ in nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
-            + nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
-            + nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-        ],
+        type=str,
+        help='Name of the pre-trained model',
+        choices=nemo_nlp.utils.get_huggingface_models_list(),
     )
     parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
     parser.add_argument(

@@ -40,7 +40,13 @@ parser.add_argument("--lr", default=2e-5, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
-parser.add_argument("--pretrained_model_name", default="bert-base-uncased", type=str)
+parser.add_argument(
+    '--pretrained_model_name',
+    default='roberta-base',
+    type=str,
+    help='Name of the pre-trained model',
+    choices=nemo_nlp.utils.get_huggingface_models_list(),
+)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--classifier_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str)

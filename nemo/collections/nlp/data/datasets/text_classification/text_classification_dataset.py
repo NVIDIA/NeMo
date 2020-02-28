@@ -167,7 +167,7 @@ class BertTextClassificationDataset(Dataset):
             assert len(input_ids) == max_seq_length
             assert len(input_mask) == max_seq_length
 
-            if sent_id == 0:
+            if sent_id < 5:
                 logging.info("*** Example ***")
                 logging.info("example_index: %s" % sent_id)
                 logging.info("subtokens: %s" % " ".join(sent_subtokens))
