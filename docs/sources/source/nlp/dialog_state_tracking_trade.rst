@@ -210,10 +210,15 @@ Metrics and Results
 In the following table we compare the results achieved by our TRADE model implementation with the results reported \
 in the original paper :cite:`nlp-dst-wu2019transferable`. Additionally, as the authors were relying on the MultiWOZ 2.0
 dataset, the table includes also results achieved by TRADE model on MultiWOZ 2.1 dataset reported in the
-:cite:`nlp-dst-eric2019multiwoz` paper. We used the same parameters as the original implementation.
-The main difference is that our model does not use pre-trained embeddings which seems not to affect the \
-performance of the model. The other difference is that we used SquareAnnealing for the learning policy instead of \
-fixed learning rate.
+:cite:`nlp-dst-eric2019multiwoz` paper.
+
+We used the same parameters as the original implementation. The main difference is that our model does not use \
+pre-trained embeddings which seems not to affect the performance of the model. The other difference is that we used \
+SquareAnnealing for the learning policy instead of fixed learning rate.
+
+We also did some improvements to the implementation of the model to have faster training. Additionally, NeMo supports \
+multi-GPU training which enables even faster training time. It should be noted that learning rate needs to get \
+increased if you want to use multi-GPU training because of having larger batch size.
 
 Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evaluate the model performance:
 
