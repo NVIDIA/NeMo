@@ -451,7 +451,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--source_data_dir", default='~/data/state_tracking/multiwoz2.1/MULTIWOZ2.1/MULTIWOZ2.1/', type=str
     )
-    parser.add_argument("--target_data_dir", default='~/data/state_tracking/multiwoz2.1', type=str)
+    parser.add_argument("--target_data_dir", default='~/data/state_tracking/multiwoz2.1/', type=str)
     args = parser.parse_args()
 
     # Get absolute paths.
