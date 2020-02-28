@@ -1,15 +1,10 @@
-# this is nemo's "core" package
 from functools import partial
 
 from ruamel.yaml import YAML
 
 import nemo
-
-# this is nemos's ASR collection of speech-recognition related Neural Modules
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.helpers import monitor_asr_train_progress
-
-######### AFTER ###############################
 from nemo.core.composite_neural_module import CompositeNeuralModule
 
 train_manifest = "/mnt/D1/Data/an4_dataset/an4_train.json"
