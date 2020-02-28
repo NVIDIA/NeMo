@@ -277,7 +277,7 @@ To run inference:
 References
 ----------
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-QA
     :keyprefix: nlp-qa-

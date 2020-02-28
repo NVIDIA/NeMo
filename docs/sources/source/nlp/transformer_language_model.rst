@@ -194,7 +194,7 @@ Finally, you should define your optimizer, and start training!
 References
 ----------
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-LM
     :keyprefix: nlp-lm-
