@@ -42,6 +42,7 @@ parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--pretrained_model_name", default="bert-base-uncased", type=str)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
+parser.add_argument("--classifier_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str)
 parser.add_argument("--data_dir", required=True, type=str)
 parser.add_argument(
@@ -50,7 +51,9 @@ parser.add_argument(
     type=str,
     choices=["sst-2", "imdb", "thucnews", "jarvis", "nlu-ubuntu", "nlu-web", "nlu-chat"],
 )
-parser.add_argument("--use_cache", action='store_true')
+parser.add_argument(
+    "--no_data_cache", action='store_true', help="When specified do not load and store cache preprocessed data.",
+)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
@@ -89,11 +92,6 @@ else:
     """
     model = model_cls(pretrained_model_name=args.pretrained_model_name)
 
-
-if args.bert_checkpoint is not None:
-    model.restore_from(args.bert_checkpoint)
-    logging.info(f"model restored from {args.bert_checkpoint}")
-
 hidden_size = model.hidden_size
 
 tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
@@ -108,6 +106,16 @@ data_desc = TextClassificationDataDesc(args.dataset_name, args.data_dir, args.do
 classifier = nemo_nlp.nm.trainables.SequenceClassifier(
     hidden_size=hidden_size, num_classes=data_desc.num_labels, dropout=args.fc_dropout
 )
+
+if args.bert_checkpoint is not None:
+    model.restore_from(args.bert_checkpoint)
+    logging.info(f"model restored from {args.bert_checkpoint}")
+
+    if args.classifier_checkpoint is not None:
+        classifier.restore_from(args.classifier_checkpoint)
+        logging.info(f"classifier restored from {args.classifier_checkpoint}")
+    else:
+        logging.info(f"no classifier checkpoint provided")
 
 if args.class_balancing == 'weighted_loss':
     # You may need to increase the number of epochs for convergence.
@@ -128,7 +136,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
         num_samples=num_samples,
         shuffle=shuffle,
         batch_size=batch_size,
-        use_cache=args.use_cache,
+        use_cache=not args.no_data_cache,
         model_name=args.pretrained_model_name,
     )
 

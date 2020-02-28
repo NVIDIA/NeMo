@@ -111,6 +111,7 @@ parser.add_argument(
     ],
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to model checkpoint")
+parser.add_argument("--task_head_checkpoint", default=None, type=str, help="Path to task head checkpoint")
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
 parser.add_argument(
     "--tokenizer_model",
@@ -176,6 +177,7 @@ if not os.path.exists(args.data_dir):
         "obtained at https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e"
     )
 
+
 args.work_dir = f'{args.work_dir}/{args.task_name.upper()}'
 
 
@@ -220,10 +222,6 @@ else:
     """
     model = model_cls(pretrained_model_name=args.pretrained_model_name)
 
-if args.bert_checkpoint is not None:
-    model.restore_from(args.bert_checkpoint)
-    logging.info(f"model restored from {args.bert_checkpoint}")
-
 if args.tokenizer == 'sentencepiece':
     try:
         tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
@@ -247,6 +245,16 @@ if args.task_name == 'sts-b':
 else:
     pooler = SequenceClassifier(hidden_size=hidden_size, num_classes=num_labels, log_softmax=False)
     glue_loss = CrossEntropyLossNM()
+
+if args.bert_checkpoint is not None:
+    model.restore_from(args.bert_checkpoint)
+    logging.info(f"model restored from {args.bert_checkpoint}")
+
+    if args.task_head_checkpoint is not None:
+        pooler.restore_from(args.task_head_checkpoint)
+        logging.info(f"task head restored from {args.task_head_checkpoint}")
+    else:
+        logging.info(f"no task head checkpoint provided")
 
 
 def create_pipeline(
