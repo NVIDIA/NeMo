@@ -39,7 +39,7 @@ for use with `nemo_asr`:
 .. note::
     You should have at least 4GB of disk space available if you've used ``--data_version=1``; and at least 6GB if you used ``--data_version=2``. Also, it will take some time to download and process, so go grab a coffee.
 
-After download and conversion, your `data` folder should contain a directory called `google_speech_recognition_v{0/1}`.
+After download and conversion, your `data` folder should contain a directory called `google_speech_recognition_v{1/2}`.
 Inside this directory, there should be multiple subdirectory containing wav files, and three json manifest files:
 
 * `train_manifest.json`
@@ -95,6 +95,11 @@ The script below does both training and evaluation (on V1 dataset) on single GPU
     import nemo.collections.asr as nemo_asr
     # NeMo's learning rate policy
     from nemo.utils.lr_policies import CosineAnnealing
+    from nemo.collections.asr.helpers import (
+        monitor_classification_training_progress,
+        process_classification_evaluation_batch,
+        process_classification_evaluation_epoch,
+    )
 
     logging = nemo.logging
 
@@ -109,7 +114,7 @@ The script below does both training and evaluation (on V1 dataset) on single GPU
     neural_factory = nemo.core.NeuralModuleFactory(
         log_dir='./quartznet-3x1-v1',
         create_tb_writer=True)
-    tb_writer = nf.tb_writer
+    tb_writer = neural_factory.tb_writer
 
     # Path to our training manifest
     train_dataset = "<path_to_where_you_put_data>/train_manifest.json"
@@ -160,7 +165,7 @@ The script below does both training and evaluation (on V1 dataset) on single GPU
 
     # Compute the total number of samples and the number of training steps per epoch
     N = len(train_data_layer)
-    steps_per_epoch = math.ceil(N / (args.batch_size * args.iter_per_step * args.num_gpus))
+    steps_per_epoch = math.ceil(N / float(args.batch_size))
 
     logging.info("Steps per epoch : {0}".format(steps_per_epoch))
     logging.info('Have {0} examples to train on.'.format(N))
@@ -259,7 +264,7 @@ The script below does both training and evaluation (on V1 dataset) on single GPU
         # Notice that we pass in loss, predictions, and the labels.
         # Of course we would like to see our training loss, but we need the
         # other arguments to calculate the accuracy.
-        tensors=[loss, decoded, commands],
+        tensors=[train_loss, decoded, commands],
         # The print_func defines what gets printed.
         print_func=partial(monitor_classification_training_progress, eval_metric=None),
         get_tb_values=lambda x: [("loss", x[0])],
@@ -308,11 +313,11 @@ The script below does both training and evaluation (on V1 dataset) on single GPU
             "max_steps": None,
             "lr": lr,
             "momentum": 0.95,
-            "betas": (0.98. 0.5),
+            "betas": (0.98, 0.5),
             "weight_decay": weight_decay,
             "grad_norm_clip": None,
         },
-        batches_per_step=args.iter_per_step,
+        batches_per_step=1,
     )
 
 .. note::
