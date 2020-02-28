@@ -40,57 +40,57 @@ However, in this tutorial we will utilize MultiWOZ 2.1  :cite:`nlp-dst-eric2019m
 .. _MultiWOZ: https://www.repository.cam.ac.uk/handle/1810/294507
 
 The MultiWOZ dataset covers the following domains:
-1. restaurant
-2. hotel
-3. attraction
-4. taxi
-5. train
-6. hospital
-7. police.
+ 1. restaurant
+ 2. hotel
+ 3. attraction
+ 4. taxi
+ 5. train
+ 6. hospital
+ 7. police.
 
 
 This division propagates further on the type of intents:
-* inform (∗)
-* request (∗)
-* select (123)
-* recommend (123)
-* not found (123)
-* request booking info (123)
-* offer booking (1235)
-* inform booked (1235)
-* decline booking (1235)
-* welcome (∗)
-* greet (∗)
-* bye (∗)
-* reqmore (∗).
+ * inform (∗)
+ * request (∗)
+ * select (123)
+ *  recommend (123)
+ * not found (123)
+ * request booking info (123)
+ * offer booking (1235)
+ * inform booked (1235)
+ * decline booking (1235)
+ * welcome (∗)
+ * greet (∗)
+ * bye (∗)
+ * reqmore (∗).
 
 
 As well as slots:
-* inform (∗)
-* address (∗)
-* postcode (∗)
-* phone (∗)
-* name (1234)
-* no of choices (1235)
-* area (123)
-* pricerange (123)
-* type (123)
-* internet (2)
-* parking (2)
-* stars (2)
-* open hours (3)
-* departure (45)
-* destination (45)
-* leave after (45)
-* arrive by (45)
-* no of people (1235)
-* reference no. (1235)
-* trainID (5)
-* ticket price (5)
-* travel time (5)
-* department (7)
-* day (1235)
-* no of days (123).
+ * inform (∗)
+ * address (∗)
+ * postcode (∗)
+ * phone (∗)
+ * name (1234)
+ * no of choices (1235)
+ * area (123)
+ * pricerange (123)
+ * type (123)
+ * internet (2)
+ * parking (2)
+ * stars (2)
+ * open hours (3)
+ * departure (45)
+ * destination (45)
+ * leave after (45)
+ * arrive by (45)
+ * no of people (1235)
+ * reference no. (1235)
+ * trainID (5)
+ * ticket price (5)
+ * travel time (5)
+ * department (7)
+ * day (1235)
+ * no of days (123).
 
 
 Please note that some of the actions and slots are associated with particular domain(s), whereas some are universal, \
@@ -99,7 +99,7 @@ i.e. domain independent. The latter ones are denoted with (∗).
 
 MultiWOZ offers 10,438 dialogues, with 115,434 turns in total. \
 Dialogues are generally classified into single and multi-domain dialogues. \
-Dialogue length distribution is varying from 1 to 31, with around 70%of dialogues have more than 10 turns. \
+Dialogue length distribution is varying from 1 to 31, with around 70% of dialogues have more than 10 turns. \
 The average number of turns are 8.93 and 15.39 for single and multi-domain dialogues. \
 
 Each dialogue consists of a goal, multiple user and system utterances as well as a belief state and set of dialogue \
@@ -110,7 +110,8 @@ Moreover, it contains both system and user dialogue act annotations (the latter 
 The TRADE model
 ---------------
 
-The **TRA**\nsferable **D**\ialogue stat\ **E** generator  (TRADE)  is a model designed specially for the multi-domain \
+The **TRA**\nsferable **D**\ialogue stat\ **E** generator (TRADE) :cite:`nlp-dst-wu2019transferable`  is a model \
+designed specially for the multi-domain \
 task-oriented dialogue state tracking problem. \
 The model generates dialogue states from utterances and history. It learns embeddings for domains and slots, and also \
 benefits from copy mechanism to facilitate knowledge transfer between domains. It enables the model to predict
@@ -154,9 +155,9 @@ Next, we need to preprocess and reformat the dataset, what will result in divisi
  * validation split (1000 dialogs in the ``val_dials.json`` file)
  * test split (999 dialogs in the ``test_dials.json`` file)
 
-In order to preprocess the MultiWOZ dataset you can use the provided `process_multiwoz`_ script:
+In order to preprocess the MultiWOZ dataset you can use the provided `process_multiwoz.py`_ script:
 
-.. _process_multiwoz: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/multiwoz/process_multiwoz.py
+.. _process_multiwoz.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/multiwoz/process_multiwoz.py
 
 .. code-block:: bash
 
@@ -187,9 +188,9 @@ Training
 --------
 
 In order to train an instance of the TRADE model on the MultiWOZ 2.1 dataset simply run the \
-'dialogue_state_tracking_trade'_ script:
+`dialogue_state_tracking_trade.py`_ script:
 
-.. _dialogue_state_tracking_trade: https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/dialogue_state_tracking_trade.py
+.. _dialogue_state_tracking_trade.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/dialogue_state_tracking_trade.py
 
 
 .. code-block:: bash
@@ -208,16 +209,18 @@ Metrics and Results
 -------------------
 
 In the following table we compare the results achieved by our TRADE model implementation with the results reported \
-in the original paper :cite:`nlp-dst-wu2019transferable`. Additionally, as the authors were relying on the MultiWOZ 2.0
-dataset, the table includes also results achieved by TRADE model on MultiWOZ 2.1 dataset reported in the
-:cite:`nlp-dst-eric2019multiwoz` paper.
+in the original paper :cite:`nlp-dst-wu2019transferable`. As the authors were relying on the MultiWOZ 2.0
+dataset, we ran the original implementation on MultiWOZ 2.1 dataset and reported those too.
 
-We used the same parameters as the original implementation. The main difference is that our model does not use \
-pre-trained embeddings which seems not to affect the performance of the model. The other difference is that we used \
-SquareAnnealing for the learning policy instead of fixed learning rate.
+We used the same parameters as the original implementation. There are some differences between our implementation and \
+the original one. The main difference is that our model does not use pre-trained embeddings which seems not to affect \
+the performance of the model. The other difference is that we used SquareAnnealing for the learning policy instead of \
+fixed learning rate. Additionally, we create the vocabulary just based on the training data while the default for the \
+original one is to create vocabulary from all the data including test and development sets.
 
-We also did some improvements to the implementation of the model to have faster training. Additionally, NeMo supports \
-multi-GPU training which enables even faster training time. It should be noted that learning rate needs to get \
+We also did some improvements to the implementation of the model to have faster training. It makes our implementation \
+significantly faster than the original one. Additionally, NeMo supports multi-GPU training which enables even faster \
+training time. It should be noted that learning rate needs to get \
 increased if you want to use multi-GPU training because of having larger batch size.
 
 Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evaluate the model performance:
@@ -227,30 +230,28 @@ Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evalua
  * **Slot Accuracy** independently compares each (domain, slot, value) triplet to its ground truth label.
 
 
-+------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
-|                                    | MultiWOZ 2.0                      | MultiWOZ 2.1                      |
-+                                    +--------+--------+--------+--------+--------+--------+--------+--------+
-|                                    | Test            |Development      |  Test           |Development      |
-+                                    +--------+--------+--------+--------+--------+--------+--------+--------+
-| TRADE implementation               | Goal   | Slot   | Goal   | Slot   | Goal   | Slot   | Goal   | Slot   |
-+====================================+========+========+========+========+========+========+========+========+
-| :cite:`nlp-dst-wu2019transferable` | 48.62% | 96.92% | --     | --     | --     | --     | --     | --     |
-+------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
-| :cite:`nlp-dst-eric2019multiwoz`   | 48.60% | --     | --     | --     | 45.60% | --     | --     | --     |
-+------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
-| NeMo                               | 48.92% | 97.03% | 50.96% | 97.17% | 47.25% | 96.80% | 51.38% | 97.21% |
-+------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
++---------------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
+|                                             | MultiWOZ 2.0                      | MultiWOZ 2.1                      |
++                                             +--------+--------+--------+--------+--------+--------+--------+--------+
+|                                             | Test            |Development      |  Test           |Development      |
++                                             +--------+--------+--------+--------+--------+--------+--------+--------+
+| TRADE implementations                       | Goal   | Slot   | Goal   | Slot   | Goal   | Slot   | Goal   | Slot   |
++=============================================+========+========+========+========+========+========+========+========+
+| Original :cite:`nlp-dst-wu2019transferable` | 48.62% | 96.92% | --     | --     | --     | --     | --     | --     |
++---------------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
+| NeMo's Implementation of TRADE              | 48.92% | 97.03% | 50.96% | 97.17% | 47.25% | 96.80% | 51.38% | 97.21% |
++---------------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
 
 
 .. note::
     During training the TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly \
-    classify context vector. The `process_multiwoz`_ script extracts that additional information from the dataset,
-    and the `dialogue_state_tracking_trade`_ script reports the **Gating Accuracy** as well.
+    classify context vector. The `process_multiwoz.py`_ script extracts that additional information from the dataset,
+    and the `dialogue_state_tracking_trade.py`_ script reports the **Gating Accuracy** as well.
 
 References
 ----------
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-DST
     :keyprefix: nlp-dst-

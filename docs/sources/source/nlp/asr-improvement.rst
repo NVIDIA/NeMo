@@ -135,7 +135,7 @@ We trained on 8 GPUS. To launch the training in multi-gpu mode run the following
 References
 ------------------
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: ASR-IMPROVEMENTS
     :keyprefix: asr-imps-    
