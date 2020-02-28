@@ -120,12 +120,7 @@ def parse_args():
         "--bert_checkpoint", default=None, type=str, help="Path to BERT model checkpoint for finetuning."
     )
     parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
-    parser.add_argument(
-        "--tokenizer_model",
-        default="tokenizer.model",
-        type=str,
-        help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
-    )
+
     parser.add_argument(
         "--tokenizer",
         default="nemobert",
