@@ -194,6 +194,7 @@ nf = nemo_core.NeuralModuleFactory(
     log_dir=args.work_dir,
     create_tb_writer=True,
     files_to_copy=[__file__],
+    add_time_to_log_dir=False,
 )
 
 logging.info(f'{args}')
