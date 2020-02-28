@@ -232,6 +232,7 @@ else:
     lr_policy_fn = None
 
 grad_norm_clip = args.grad_norm_clip if args.grad_norm_clip > 0 else None
+
 nf.train(
     tensors_to_optimize=[total_loss_train],
     callbacks=[eval_callback, train_callback, ckpt_callback],
