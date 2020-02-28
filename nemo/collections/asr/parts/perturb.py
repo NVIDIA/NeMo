@@ -119,13 +119,39 @@ class WhiteNoisePerturbation(Perturbation):
         data._samples += noise_signal
 
 
+class EchoPerturbation(Perturbation):
+    def __init__(self, min_delay=0.1, max_delay=1.0, max_dampen=0.5, rng=None):
+        self.min_delay = min_delay
+        self.max_delay = max_delay
+        self.max_dampen = max_dampen
+        self._rng = np.random.RandomState() if rng is None else rng
+
+    def perturb(self, data: AudioSegment):
+        min_delay = self._rng.uniform(0., self.min_delay)
+        max_delay = self._rng.uniform(min_delay, self.max_delay)
+        max_dampen = self._rng.uniform(0., self.max_dampen)
+
+        echo_start = min_delay * data._samples.shape[0]
+        echo_end = max_delay * data._samples.shape[0]
+        echo_duration = echo_end - echo_start
+
+        data._samples[echo_start:echo_end] += data._samples[0:echo_duration] * max_dampen
+
+        max_amplitude = np.max(np.abs(data._samples))
+        if max_amplitude > 1.0:
+            data._samples /= max_amplitude
+
+        return data
+
+
 perturbation_types = {
     "speed": SpeedPerturbation,
     "gain": GainPerturbation,
     "impulse": ImpulsePerturbation,
     "shift": ShiftPerturbation,
     "noise": NoisePerturbation,
-    'white_noise': WhiteNoisePerturbation,
+    "white_noise": WhiteNoisePerturbation,
+    "echo": EchoPerturbation,
 }
 
 
