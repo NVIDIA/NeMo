@@ -18,42 +18,7 @@
 # =============================================================================
 
 import nemo
-from nemo.core import AppState, NeuralModule, NeuralModuleFactory, OperationMode
-
-logging = nemo.logging
-
-
-class NeuralGraph:
-    def __init__(self, operation_mode):
-        """
-            Constructor. Initializes graph variables.
-
-            Args:
-                operation_mode: Graph operation mode, that will be propagated along modules during graph creation.
-                [training | eval]
-        """
-        print('__init__ called')
-        self.operation_mode = operation_mode
-        self.app_state = AppState()
-
-    def __enter__(self):
-        print('__enter__ called')
-        # Record itself as the current graph.
-        self.app_state.active_graph = self
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        print('__exit__ called')
-        # Deactivate current graph.
-        self.app_state.active_graph = None
-        if exc_type:
-            print(f'exc_type: {exc_type}')
-            print(f'exc_value: {exc_value}')
-            print(f'exc_traceback: {exc_traceback}')
-
-    def add_two(self):
-        self.init_var += 2
-
+from nemo.core import AppState, NeuralGraph, NeuralModule, NeuralModuleFactory, OperationMode
 
 nf = nemo.core.NeuralModuleFactory()
 # Instantiate the necessary neural modules.
