@@ -329,38 +329,18 @@ if __name__ == "__main__":
         add_time_to_log_dir=False,
     )
 
-    model_type = args.pretrained_model_name.split('-')[0]
-    model_cls = nemo_nlp.utils.DEFAULT_MODELS[model_type]['class']
-
-    if args.bert_config is not None:
-        model = model_cls(config_filename=args.bert_config)
-    else:
-        """ Use this if you're using a standard BERT model.
-        To see the list of pretrained models, call:
-        nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-        """
-        model = model_cls(pretrained_model_name=args.pretrained_model_name)
+    model = nemo_nlp.utils.get_huggingface_model(
+        bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+    )
 
     hidden_size = model.hidden_size
 
-    if args.tokenizer == "sentencepiece":
-        try:
-            tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
-        except Exception:
-            raise ValueError(
-                "Using --tokenizer=sentencepiece \
-                        requires valid --tokenizer_model"
-            )
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
-        tokenizer.add_special_tokens(special_tokens)
-    else:
-        tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
-        tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
-        tokenizer = tokenizer_cls(
-            pretrained_model=args.pretrained_model_name,
-            special_tokens=tokenizer_special_tokens,
-            bert_derivate=model_type,
+    if args.tokenizer == 'sentencepiece':
+        tokenizer = nemo_nlp.utils.get_sentence_piece_tokenizer(
+            tokenizer_model=args.tokenizer_model, pretrained_model_name=args.pretrained_model_name
         )
+    else:
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 
     qa_head = nemo_nlp.nm.trainables.TokenClassifier(
         hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False

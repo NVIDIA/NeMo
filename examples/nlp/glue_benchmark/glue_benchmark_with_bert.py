@@ -3,20 +3,20 @@
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
+# Licensed under the Apache License, Version 2.0 (the 'License');
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
+# distributed under the License is distributed on an 'AS IS' BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
 
-"""
+'''
 Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 
@@ -63,7 +63,7 @@ QNLI	Accuracy	                    89.31
 RTE	    Accuracy	                    71.43
 WNLI	Accuracy	                    43.66
 
-"""
+'''
 
 import argparse
 import os
@@ -80,114 +80,104 @@ from nemo.collections.nlp.nm.data_layers import GlueClassificationDataLayer, Glu
 from nemo.collections.nlp.nm.trainables import SequenceClassifier, SequenceRegression
 from nemo.utils.lr_policies import get_lr_policy
 
-parser = argparse.ArgumentParser(description="GLUE_with_pretrained_BERT")
+parser = argparse.ArgumentParser(description='GLUE_with_pretrained_BERT')
 
 # Parsing arguments
 parser.add_argument(
-    "--data_dir",
+    '--data_dir',
     default='COLA',
     type=str,
     required=True,
-    help="The input data dir. Should contain the .tsv files (or other data files) for the task.",
+    help='The input data dir. Should contain the .tsv files (or other data files) for the task.',
 )
 parser.add_argument(
-    "--task_name",
-    default="CoLA",
+    '--task_name',
+    default='CoLA',
     type=str,
     required=True,
     choices=['cola', 'sst-2', 'mrpc', 'sts-b', 'qqp', 'mnli', 'qnli', 'rte', 'wnli'],
-    help="GLUE task name, MNLI includes both matched and mismatched tasks",
+    help='GLUE task name, MNLI includes both matched and mismatched tasks',
 )
 parser.add_argument(
-    "--pretrained_model_name",
-    default="bert-base-uncased",
+    '--pretrained_model_name',
+    default='bert-base-uncased',
     type=str,
-    help="Name of the pre-trained model",
-    choices=[
-        _.pretrained_model_name
-        for _ in nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
-        + nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
-        + nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-    ],
+    help='Name of the pre-trained model',
+    choices=nemo_nlp.utils.get_huggingface_models_list(),
 )
-parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to model checkpoint")
-parser.add_argument("--task_head_checkpoint", default=None, type=str, help="Path to task head checkpoint")
-parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
+parser.add_argument('--bert_checkpoint', default=None, type=str, help='Path to model checkpoint')
+parser.add_argument('--bert_config', default=None, type=str, help='Path to bert config file in json format')
 parser.add_argument(
-    "--tokenizer_model",
-    default="tokenizer.model",
+    '--tokenizer_model',
+    default=None,
     type=str,
-    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+    help='Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece',
 )
 parser.add_argument(
-    "--tokenizer",
-    default="nemobert",
+    '--tokenizer',
+    default='nemobert',
     type=str,
-    choices=["nemobert", "sentencepiece"],
-    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
+    choices=['nemobert', 'sentencepiece'],
+    help='tokenizer to use, only relevant when using custom pretrained checkpoint.',
 )
 parser.add_argument(
-    "--max_seq_length",
+    '--max_seq_length',
     default=128,
     type=int,
     choices=range(1, 513),
-    help="The maximum total input sequence length after tokenization.Sequences longer than this will be \
-                    truncated, sequences shorter will be padded.",
+    help='The maximum total input sequence length after tokenization.Sequences longer than this will be \
+                    truncated, sequences shorter will be padded.',
 )
-parser.add_argument("--optimizer_kind", default="adam", type=str, help="Optimizer kind")
-parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
-parser.add_argument("--lr", default=5e-5, type=float, help="The initial learning rate.")
-parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
-parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight deay if we apply some.")
-parser.add_argument("--num_epochs", default=3, type=int, help="Total number of training epochs to perform.")
-parser.add_argument("--batch_size", default=8, type=int, help="Batch size per GPU/CPU for training/evaluation.")
-parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs")
+parser.add_argument('--optimizer_kind', default='adam', type=str, help='Optimizer kind')
+parser.add_argument('--lr_policy', default='WarmupAnnealing', type=str)
+parser.add_argument('--lr', default=5e-5, type=float, help='The initial learning rate.')
+parser.add_argument('--lr_warmup_proportion', default=0.1, type=float)
+parser.add_argument('--weight_decay', default=0.0, type=float, help='Weight deay if we apply some.')
+parser.add_argument('--num_epochs', default=3, type=int, help='Total number of training epochs to perform.')
+parser.add_argument('--batch_size', default=8, type=int, help='Batch size per GPU/CPU for training/evaluation.')
+parser.add_argument('--num_gpus', default=1, type=int, help='Number of GPUs')
 parser.add_argument(
-    "--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
+    '--amp_opt_level', default='O0', type=str, choices=['O0', 'O1', 'O2'], help='01/02 to enable mixed precision'
 )
-parser.add_argument("--local_rank", type=int, default=None, help="For distributed training: local_rank")
+parser.add_argument('--local_rank', type=int, default=None, help='For distributed training: local_rank')
 parser.add_argument(
-    "--work_dir",
+    '--work_dir',
     default='output_glue',
     type=str,
-    help="The output directory where the model predictions and checkpoints will be written.",
+    help='The output directory where the model predictions and checkpoints will be written.',
 )
 parser.add_argument(
-    "--save_epoch_freq",
+    '--save_epoch_freq',
     default=1,
     type=int,
-    help="Frequency of saving checkpoint '-1' - epoch checkpoint won't be saved",
+    help='Frequency of saving checkpoint "-1" - epoch checkpoint won\'t be saved',
 )
 parser.add_argument(
-    "--save_step_freq",
+    '--save_step_freq',
     default=-1,
     type=int,
-    help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
+    help='Frequency of saving checkpoint "-1" - step checkpoint won\'t be saved',
 )
-parser.add_argument("--loss_step_freq", default=25, type=int, help="Frequency of printing loss")
+parser.add_argument('--loss_step_freq', default=25, type=int, help='Frequency of printing loss')
 parser.add_argument(
-    "--no_data_cache", action='store_true', help="When specified do not load and store cache preprocessed data.",
+    '--no_data_cache', action='store_true', help='When specified do not load and store cache preprocessed data.',
 )
-parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
+parser.add_argument('--no_shuffle_data', action='store_false', dest='shuffle_data')
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
     raise FileNotFoundError(
-        "GLUE datasets not found. Datasets can be "
-        "obtained at https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e"
+        'GLUE datasets not found. Datasets can be '
+        'obtained at https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e'
     )
 
-
-args.work_dir = f'{args.work_dir}/{args.task_name.upper()}'
-
-
-"""
+'''
 Prepare GLUE task
 MNLI task has two separate dev sets: matched and mismatched
-"""
+'''
 if args.task_name == 'mnli':
-    eval_task_names = ("mnli", "mnli-mm")
-    task_processors = (processors["mnli"](), processors["mnli-mm"]())
+    eval_task_names = ('mnli', 'mnli-mm')
+    task_processors = (processors['mnli'](), processors['mnli-mm']())
 else:
     eval_task_names = (args.task_name,)
     task_processors = (processors[args.task_name](),)
@@ -204,37 +194,20 @@ nf = nemo_core.NeuralModuleFactory(
     log_dir=args.work_dir,
     create_tb_writer=True,
     files_to_copy=[__file__],
-    add_time_to_log_dir=True,
 )
 
 logging.info(f'{args}')
-model_type = args.pretrained_model_name.split('-')[0]
-model_cls = nemo_nlp.utils.DEFAULT_MODELS[model_type]['class']
 
-if args.bert_config is not None:
-    model = model_cls(config_filename=args.bert_config)
-else:
-    """ Use this if you're using a standard BERT model.
-    To see the list of pretrained models, call:
-    nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-    nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
-    nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
-    """
-    model = model_cls(pretrained_model_name=args.pretrained_model_name)
+model = nemo_nlp.utils.get_huggingface_model(
+    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+)
 
 if args.tokenizer == 'sentencepiece':
-    try:
-        tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
-    except Exception:
-        raise ValueError('Using --tokenizer=sentencepiece requires valid --tokenizer_model')
-    special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
-    tokenizer.add_special_tokens(special_tokens)
-else:
-    tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
-    tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
-    tokenizer = tokenizer_cls(
-        pretrained_model=args.pretrained_model_name, special_tokens=tokenizer_special_tokens, bert_derivate=model_type,
+    tokenizer = nemo_nlp.utils.get_sentence_piece_tokenizer(
+        tokenizer_model=args.tokenizer_model, pretrained_model_name=args.pretrained_model_name
     )
+else:
+    tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 
 hidden_size = model.hidden_size
 
@@ -248,13 +221,7 @@ else:
 
 if args.bert_checkpoint is not None:
     model.restore_from(args.bert_checkpoint)
-    logging.info(f"model restored from {args.bert_checkpoint}")
-
-    if args.task_head_checkpoint is not None:
-        pooler.restore_from(args.task_head_checkpoint)
-        logging.info(f"task head restored from {args.task_head_checkpoint}")
-    else:
-        logging.info(f"no task head checkpoint provided")
+    logging.info(f'model restored from {args.bert_checkpoint}')
 
 
 def create_pipeline(
@@ -285,12 +252,12 @@ def create_pipeline(
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
-    """
+    '''
     For STS-B (regressiont tast), the pooler_output represents a is single
     number prediction for each sequence.
     The rest of GLUE tasts are classification tasks; the pooler_output
     represents logits.
-    """
+    '''
     pooler_output = pooler(hidden_states=hidden_states)
     if args.task_name == 'sts-b':
         loss = glue_loss(preds=pooler_output, labels=labels)
@@ -316,10 +283,10 @@ callbacks_eval = [
     )
 ]
 
-"""
+'''
 MNLI task has two dev sets: matched and mismatched
 Create additional callback and data layer for MNLI mismatched dev set
-"""
+'''
 if args.task_name == 'mnli':
     _, _, eval_data_layer_mm, eval_tensors_mm = create_pipeline(evaluate=True, processor=task_processors[1])
     callbacks_eval.append(
@@ -332,11 +299,11 @@ if args.task_name == 'mnli':
         )
     )
 
-logging.info(f"steps_per_epoch = {steps_per_epoch}")
+logging.info(f'steps_per_epoch = {steps_per_epoch}')
 callback_train = nemo_core.SimpleLossLoggerCallback(
     tensors=[train_loss],
-    print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
-    get_tb_values=lambda x: [["loss", x[0]]],
+    print_func=lambda x: print('Loss: {:.3f}'.format(x[0].item())),
+    get_tb_values=lambda x: [['loss', x[0]]],
     step_freq=args.loss_step_freq,
     tb_writer=nf.tb_writer,
 )
@@ -354,5 +321,5 @@ nf.train(
     callbacks=[callback_train, ckpt_callback] + callbacks_eval,
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
-    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr},
+    optimization_params={'num_epochs': args.num_epochs, 'lr': args.lr},
 )

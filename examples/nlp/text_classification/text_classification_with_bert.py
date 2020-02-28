@@ -49,10 +49,12 @@ parser.add_argument(
     "--dataset_name",
     required=True,
     type=str,
-    choices=["sst-2", "imdb", "thucnews", "jarvis", "nlu-ubuntu", "nlu-web", "nlu-chat"],
+    choices=["sst-2", "imdb", "thucnews", "jarvis", "nemo_format", "nlu-ubuntu", "nlu-web", "nlu-chat"],
+    help="default_format assumes that a data file has a header and each line of the file follows "
+    + "the format: text [TAB] label. Label is assumed to be an integer.",
 )
 parser.add_argument(
-    "--no_data_cache", action='store_true', help="When specified do not load and store cache preprocessed data.",
+    "--use_cache", action='store_true', help="When specified loads and stores cache preprocessed data.",
 )
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
@@ -75,32 +77,19 @@ nf = nemo.core.NeuralModuleFactory(
     log_dir=work_dir,
     create_tb_writer=True,
     files_to_copy=[__file__],
-    add_time_to_log_dir=True,
 )
 
-model_type = args.pretrained_model_name.split('-')[0]
-model_cls = nemo_nlp.utils.DEFAULT_MODELS[model_type]['class']
-
-if args.bert_config is not None:
-    model = model_cls(config_filename=args.bert_config)
-else:
-    """ Use this if you're using a standard BERT model.
-    To see the list of pretrained models, call:
-    nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-    nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
-    nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
-    """
-    model = model_cls(pretrained_model_name=args.pretrained_model_name)
+model = nemo_nlp.utils.get_huggingface_model(
+    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+)
 
 hidden_size = model.hidden_size
 
-tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
-tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
-tokenizer = tokenizer_cls(
-    pretrained_model=args.pretrained_model_name, special_tokens=tokenizer_special_tokens, bert_derivate=model_type,
-)
+tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 
-data_desc = TextClassificationDataDesc(args.dataset_name, args.data_dir, args.do_lower_case, args.eval_file_prefix)
+data_desc = TextClassificationDataDesc(
+    args.dataset_name, args.data_dir, args.do_lower_case, modes=[args.train_file_prefix, args.eval_file_prefix]
+)
 
 # Create sentence classification loss on top
 classifier = nemo_nlp.nm.trainables.SequenceClassifier(
@@ -110,12 +99,6 @@ classifier = nemo_nlp.nm.trainables.SequenceClassifier(
 if args.bert_checkpoint is not None:
     model.restore_from(args.bert_checkpoint)
     logging.info(f"model restored from {args.bert_checkpoint}")
-
-    if args.classifier_checkpoint is not None:
-        classifier.restore_from(args.classifier_checkpoint)
-        logging.info(f"classifier restored from {args.classifier_checkpoint}")
-    else:
-        logging.info(f"no classifier checkpoint provided")
 
 if args.class_balancing == 'weighted_loss':
     # You may need to increase the number of epochs for convergence.
@@ -136,7 +119,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
         num_samples=num_samples,
         shuffle=shuffle,
         batch_size=batch_size,
-        use_cache=not args.no_data_cache,
+        use_cache=args.use_cache,
         model_name=args.pretrained_model_name,
     )
 

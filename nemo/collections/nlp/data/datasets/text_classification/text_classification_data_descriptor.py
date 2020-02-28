@@ -15,13 +15,11 @@ __all__ = ['TextClassificationDataDesc']
 
 
 class TextClassificationDataDesc:
-    def __init__(self, dataset_name, data_dir, do_lower_case, eval_file_prefix=None):
-
+    def __init__(self, dataset_name, data_dir, do_lower_case, modes=['train', 'test', 'eval']):
         if dataset_name == 'sst-2':
             self.data_dir = process_sst_2(data_dir)
             self.num_labels = 2
             self.eval_file = self.data_dir + '/dev.tsv'
-
         elif dataset_name == 'imdb':
             self.num_labels = 2
             self.data_dir = process_imdb(data_dir, do_lower_case)
@@ -49,16 +47,18 @@ class TextClassificationDataDesc:
 
             intents = get_intent_labels(f'{self.data_dir}/dict.intents.csv')
             self.num_labels = len(intents)
-        else:
+        elif dataset_name != 'default_format':
             raise ValueError(
                 "Looks like you passed a dataset name that isn't "
-                "already supported by NeMo. Please make sure "
-                "that you build the preprocessing method for it."
+                + "already supported by NeMo. Please make sure "
+                + "that you build the preprocessing method for it. "
+                + "default_format assumes that a data file has a header and each line of the file follows "
+                + "the format: text [TAB] label. Label is assumed to be an integer."
             )
 
         self.train_file = self.data_dir + '/train.tsv'
 
-        for mode in ['train', 'test', 'eval', 'dev']:
+        for mode in modes:
             if not if_exist(self.data_dir, [f'{mode}.tsv']):
                 logging.info(f'Stats calculation for {mode} mode is skipped as {mode}.tsv was not found.')
                 continue
@@ -70,17 +70,8 @@ class TextClassificationDataDesc:
             try:
                 int(input_lines[0].strip().split()[-1])
             except ValueError:
-                error_message = (
-                    f'Stats calculation for {mode} mode is skipped.'
-                    + f' No numerical labels found for {mode}.tsv in {dataset_name} dataset.'
-                )
-
-                if mode == eval_file_prefix:
-                    error_message += f' Use a different dataset for {mode}.'
-                    raise ValueError(error_message)
-
-                logging.info(error_message)
-                continue
+                logging.warning(f'No numerical labels found for {mode}.tsv in {dataset_name} dataset.')
+                raise
 
             queries, raw_sentences = [], []
             for input_line in input_lines:
