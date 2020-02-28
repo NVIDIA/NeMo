@@ -32,13 +32,12 @@ multiple turns, possibly spanning over several different domains.
 The MultiWOZ Dataset
 --------------------
 
-The Multi-Domain Wizard-of-OZ dataset (`MultiWOZ`_) is a collection of human-to-human conversations spanning over \
+The Multi-Domain Wizard-of-Oz dataset (`MultiWOZ`_) is a collection of human-to-human conversations spanning over \
 7 distinct domains and containing over 10,000 dialogues.
 The original MultiWOZ 2.0 dataset was introduced in :cite:`nlp-dst-budzianowski2018multiwoz`.
-However, in this tutorial we will utilize MultiWOZ 2.1  :cite:`nlp-dst-eric2019multiwoz`, which is an updated version\
- of MultiWOZ 2.0. They have fixed several issues with the original dataset including errors in states, utterances, value
-canonicalization etc.). Our model can also get trained on MultiWOZ 2.0.
+However, in this tutorial we will utilize MultiWOZ 2.1  :cite:`nlp-dst-eric2019multiwoz`, which is an updated version of MultiWOZ 2.0. They have fixed several issues with the original dataset including errors in states, utterances, value canonicalization etc.). Our model can also get trained on MultiWOZ 2.0.
 
+.. _MultiWOZ: https://www.repository.cam.ac.uk/handle/1810/294507
 
 The MultiWOZ dataset covers the following domains:
 1. restaurant
@@ -113,9 +112,9 @@ The TRADE model
 
 The **TRA**\nsferable **D**\ialogue stat\ **E** generator  (TRADE)  is a model designed specially for the multi-domain \
 task-oriented dialogue state tracking problem. \
-The model generates dialogue states from utterances using a copy mechanism, what facilitates knowledge transfer \
-between domains by predicting (**domain**, **slot**, **value**) triplets not encountered during training in a given \
-domain.
+The model generates dialogue states from utterances and history. It learns embeddings for domains and slots, and also \
+benefits from copy mechanism to facilitate knowledge transfer between domains. It enables the model to predict
+\(**domain**, **slot**, **value**) triplets not encountered during training in a given domain.
 
 
 .. figure:: dst_trade_architecture.png
@@ -135,19 +134,19 @@ The **state generator** also uses GRU to predict the value for each(domain, slot
 pointer-generator copying to combine a **distribution over the vocabulary** and a **distribution over the dialogue \
 history** into a single output distribution.
 
-Finally, the **slot gate** is a simple classifier  that  maps  a  context  vector taken from the encoder \
-hidden states to a probability  distribution  over three classes: *ptr*, *none*,  and *dontcare*.
+Finally, the **slot gate** is a simple classifier that maps a context  vector taken from the encoder hidden states \
+to a probability  distribution  over three classes: *ptr*, *none*,  and *dontcare*.
 
-Data Preprocessing
+Data Pre-processing
 ------------------
 
-First, we need to download the `MULTIWOZ2.1.zip`_ file from the `MultiWOZ`_ project website.
+First, you need to download `MULTIWOZ2.1.zip` from the `MultiWOZ2.1`_ project website. It contains the data for \
+MultiWOZ 2.1 dataset. Alternatively, you can download `MULTIWOZ2.zip` compressed file from `MultiWOZ2.0`_ which \
+contain the older version of this dataset.
 
+.. _MultiWOZ2.1: https://www.repository.cam.ac.uk/handle/1810/294507
 
-.. _MultiWOZ: https://www.repository.cam.ac.uk/handle/1810/294507
-
-.. _MULTIWOZ2.1.zip: https://www.repository.cam.ac.uk/bitstream/handle/1810/294507/MULTIWOZ2.1.zip?sequence=1&isAllowed=y
-
+.. _MultiWOZ2.0: https://www.repository.cam.ac.uk/handle/1810/280608
 
 Next, we need to preprocess and reformat the dataset, what will result in division of data into three splits:
 
@@ -157,41 +156,38 @@ Next, we need to preprocess and reformat the dataset, what will result in divisi
 
 In order to preprocess the MultiWOZ dataset you can use the provided `process_multiwoz`_ script:
 
-.. _process_multiwoz: https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/multiwoz/process_multiwoz.py
+.. _process_multiwoz: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/multiwoz/process_multiwoz.py
 
 .. code-block:: bash
 
     cd examples/nlp/dialogue_state_tracking/multiwoz
     python process_multiwoz.py
 
-
 .. note::
     By default, the script assumes that you will copy and extract data into the \
     ``~/data/state_tracking/multiwoz2.1/`` \
     folder and it will store results in the ``~/data/state_tracking/multiwoz2.1`` folder. \
     Both those can be overridden by passing the command line ``source_data_dir`` and ``target_data_dir`` arguments \
-    respectively.
+    respectively. Both MultiWOZ 2.0 and MultiWOZ 2.1 can get processed with the same script.
 
 
 Building the NeMo Graph
 -----------------------
 
-The NeMo training graph consists of the following six modules:
+The NeMo training graph consists of the following six modules including data layer, encoder, decoder, and losses:
 
  * data_layer (:class:`nemo.collection.nlp.nm.data_layers.MultiWOZDataLayer`)
  * encoder (:class:`nemo.backends.pytorch.common.EncoderRNN`)
  * decoder (:class:`nemo.collection.nlp.nm.trainables.TRADEGenerator`)
- * gate_loss_fn (:class:`nemo.collection.nlp.nm.losses.CrossEntropyLoss3D`)
- * ptr_loss_fn (:class:`nemo.collection.nlp.nm.losses.TRADEMaskedCrossEntropy`)
+ * gate_loss_fn (:class:`nemo.backends.pytorch.common.losses.CrossEntropyLossNM`)
+ * ptr_loss_fn (:class:`nemo.collections.nlp.nm.losses.MaskedLogLoss`)
  * total_loss_fn (:class:`nemo.collection.nlp.nm.losses.LossAggregatorNM`)
-
-The TRADE model is actually composed of two Neural Modules: encoder and decoder.
 
 Training
 --------
 
 In order to train an instance of the TRADE model on the MultiWOZ 2.1 dataset simply run the \
-'dialogue_state_tracking_trade' script:
+'dialogue_state_tracking_trade'_ script:
 
 .. _dialogue_state_tracking_trade: https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/dialogue_state_tracking_trade.py
 
@@ -204,7 +200,7 @@ In order to train an instance of the TRADE model on the MultiWOZ 2.1 dataset sim
 
 .. note::
     Analogically, the script reads that the ``~/data/state_tracking/multiwoz2.1`` folder by default.
-    This path can be overriden by passing the command line ``data_dir``.
+    This path can be overridden by passing the command line ``data_dir``.
 
 
 
@@ -244,7 +240,7 @@ Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evalua
 .. note::
     During training the TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly \
     classify context vector. The `process_multiwoz`_ script extracts that additional information from the dataset,
-    and the `dialogue_state_tracking_trade`_ script report the **Gating Accuracy** as well.
+    and the `dialogue_state_tracking_trade`_ script reports the **Gating Accuracy** as well.
 
 References
 ----------
