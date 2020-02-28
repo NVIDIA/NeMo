@@ -32,15 +32,15 @@ multiple turns, possibly spanning over several different domains.
 The MultiWOZ Dataset
 --------------------
 
-The Multi-Domain Wizard-of-Oz dataset (`MultiWOZ`_) is a collection of human-to-human conversations spanning over \
+The Multi-Domain Wizard-of-OZ dataset (`MultiWOZ`_) is a collection of human-to-human conversations spanning over \
 7 distinct domains and containing over 10,000 dialogues.
 The original MultiWOZ 2.0 dataset was introduced in :cite:`nlp-dst-budzianowski2018multiwoz`.
-However, in this tutorial we will utilize MultiWOZ 2.1  :cite:`nlp-dst-eric2019multiwoz`, which aimed at fixing \
-several issues with the original dataset (state errors and corrections, utterance corrections, value 
-cannonicalization etc.).
+However, in this tutorial we will utilize MultiWOZ 2.1  :cite:`nlp-dst-eric2019multiwoz`, which is an updated version\
+ of MultiWOZ 2.0. They have fixed several issues with the original dataset including errors in states, utterances, value
+canonicalization etc.). Our model can also get trained on MultiWOZ 2.0.
 
 
-The MultiWOZ covers the following domains:
+The MultiWOZ dataset covers the following domains:
 1. restaurant
 2. hotel
 3. attraction
@@ -50,7 +50,7 @@ The MultiWOZ covers the following domains:
 7. police.
 
 
-This division propagates further on the type of domain-specific actions:
+This division propagates further on the type of intents:
 * inform (∗)
 * request (∗)
 * select (123)
@@ -66,7 +66,7 @@ This division propagates further on the type of domain-specific actions:
 * reqmore (∗).
 
 
-As well as domain-specific slots:
+As well as slots:
 * inform (∗)
 * address (∗)
 * postcode (∗)
@@ -215,7 +215,7 @@ In the following table we compare the results achieved by our TRADE model implem
 in the original paper :cite:`nlp-dst-wu2019transferable`. Additionally, as the authors were relying on the MultiWOZ 2.0
 dataset, the table includes also results achieved by TRADE model on MultiWOZ 2.1 dataset reported in the
 :cite:`nlp-dst-eric2019multiwoz` paper. We used the same parameters as the original implementation.
-The main difference is that our model does not use pre-trained embeddings which seem that it does not affect the \
+The main difference is that our model does not use pre-trained embeddings which seems not to affect the \
 performance of the model. The other difference is that we used SquareAnnealing for the learning policy instead of \
 fixed learning rate.
 
