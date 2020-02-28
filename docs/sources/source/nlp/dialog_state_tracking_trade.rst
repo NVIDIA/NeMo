@@ -138,7 +138,7 @@ Finally, the **slot gate** is a simple classifier that maps a context  vector ta
 to a probability  distribution  over three classes: *ptr*, *none*,  and *dontcare*.
 
 Data Pre-processing
-------------------
+-------------------
 
 First, you need to download `MULTIWOZ2.1.zip` from the `MultiWOZ2.1`_ project website. It contains the data for \
 MultiWOZ 2.1 dataset. Alternatively, you can download `MULTIWOZ2.zip` compressed file from `MultiWOZ2.0`_ which \
