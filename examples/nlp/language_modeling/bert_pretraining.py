@@ -20,7 +20,6 @@ python bert_pretraining.py \
 --amp_opt_level "O0" \
 --train_data path_to/wikitext-2/train.txt \
 --eval_data path_to/wikitext-2/valid.txt \
---dataset_name wikitext-2 \
 --work_dir outputs/bert_lm \
 --batch_size 64 \
 --lr 0.01 \
@@ -39,9 +38,10 @@ python bert_pretraining.py \
 --save_step_freq 200 \
 --num_epochs 10 \
 data_text \
+--dataset_name wikitext-2 \
 --sample_size 10000000 \
 --mask_probability 0.15 \
---short_seq_prob 0.1
+--short_seq_prob 0.1 \
 
 To pretrain BERT large on preprocessed dataset,
 download and preprocess dataset from here:
