@@ -214,16 +214,9 @@ parser_text.add_argument(
     "--tokenizer",
     default="sentence-piece",
     type=str,
-    choices=["sentence-piece", "word-piece"]
+    choices=["sentence-piece"]
     + [_.pretrained_model_name for _ in nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()],
     help="Text tokenizer type.",
-)
-
-parser_text.add_argument(
-    "--do_lower_case",
-    action="store_true",
-    default=False,
-    help="Use uncased text during data preprocessing. Only needed if tokenizer=word-piece",
 )
 parser_preprocessed = sub_parsers.add_parser(
     'data_preprocessed', help='Training starting with already preprocessed data.'
@@ -272,9 +265,6 @@ if 'data_text' in sys.argv:
         tokenizer = nemo_nlp.data.SentencePieceTokenizer(
             model_path=data_desc.tokenizer_model, special_tokens=special_tokens
         )
-    elif args.tokenizer == "word-piece":
-        logging.info("Using Huggingface BERT tokenizer.")
-        tokenizer = nemo_nlp.data.NemoBertTokenizer(vocab_file=data_desc.vocab_file, do_lower_case=args.do_lower_case)
     else:
         logging.info("Using Huggingface BERT tokenizer.")
         tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.tokenizer)
