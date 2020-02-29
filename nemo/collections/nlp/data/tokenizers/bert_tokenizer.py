@@ -17,7 +17,7 @@
 import re
 
 import nemo
-import nemo.collections.nlp.utils.huggingface_utils as huggingface
+import nemo.collections.nlp.utils.huggingface_utils as huggingface_utils
 from nemo import logging
 from nemo.collections.nlp.data.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -70,9 +70,7 @@ class NemoBertTokenizer(TokenizerSpec):
         pretrained_model (str):name of the pretrained model from the hugging face list,
             for example: bert-base-cased
             To see the list of pretrained models, call:
-            nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-            nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
-            nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
+            huggingface_utils.get_huggingface_models_list()
         vocab_file: File containing the vocabulary.
         bert_derivative: for example: 'bert', 'roberta', 'albert'. Only used when vocab_file specified.
         '''
@@ -82,8 +80,8 @@ class NemoBertTokenizer(TokenizerSpec):
         if pretrained_model:
             bert_derivative = pretrained_model.split('-')[0]
 
-        if bert_derivative in huggingface.TOKENIZERS:
-            tokenizer_cls = huggingface.TOKENIZERS[bert_derivative]
+        if bert_derivative in huggingface_utils.TOKENIZERS:
+            tokenizer_cls = huggingface_utils.TOKENIZERS[bert_derivative]
         else:
             raise ValueError(
                 "Bert_derivative value {bert_derivative} is not currently supported"
@@ -100,7 +98,7 @@ class NemoBertTokenizer(TokenizerSpec):
         if hasattr(self.tokenizer, "vocab"):
             self.vocab_size = len(self.tokenizer.vocab)
 
-        special_tokens = huggingface.MODEL_SPECIAL_TOKENS[bert_derivative]
+        special_tokens = huggingface_utils.MODEL_SPECIAL_TOKENS[bert_derivative]
         for k, v in special_tokens.items():
             setattr(self, k, v)
         self.never_split = tuple(special_tokens.values())

@@ -34,10 +34,6 @@ def get_huggingface_model(pretrained_model_name, bert_config):
     Args:
     pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
         for example: bert-base-cased
-        To see the list of pretrained models, call:
-        nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-        nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
-        nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
     bert_config: path to model configuration file.
     '''
     model_type = pretrained_model_name.split('-')[0]
@@ -123,7 +119,6 @@ def get_sentence_piece_tokenizer(tokenizer_model, pretrained_model_name, special
     if special_tokens is None:
         if _model_type_is_valid(model_type):
             special_tokens = MODEL_SPECIAL_TOKENS[model_type]
-            logging.info(f'No special tokens found.')
         else:
             logging.info(f'No special tokens found for {model_type}.')
 
