@@ -16,8 +16,7 @@
 
 import re
 
-import nemo
-import nemo.collections.nlp.utils.huggingface_utils as huggingface_utils
+import nemo.collections.nlp.data.tokenizers.huggingface_utils as huggingface_utils
 from nemo import logging
 from nemo.collections.nlp.data.tokenizers.tokenizer_spec import TokenizerSpec
 

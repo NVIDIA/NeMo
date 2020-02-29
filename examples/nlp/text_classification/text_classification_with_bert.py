@@ -43,7 +43,7 @@ parser.add_argument(
     default='roberta-base',
     type=str,
     help='Name of the pre-trained model',
-    choices=nemo_nlp.utils.get_huggingface_models_list(),
+    choices=nemo_nlp.nm.trainables.get_huggingface_models_list(),
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--classifier_checkpoint", default=None, type=str)
@@ -84,7 +84,7 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=False,
 )
 
-model = nemo_nlp.utils.get_huggingface_model(
+model = nemo_nlp.nm.trainables.get_huggingface_model(
     bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
 )
 

@@ -71,6 +71,7 @@ import os
 from transformers import BertConfig
 
 import nemo.collections.nlp as nemo_nlp
+import nemo.collections.nlp.data.tokenizers.huggingface_utils
 import nemo.core as nemo_core
 from nemo import logging
 from nemo.backends.pytorch.common import CrossEntropyLossNM, MSELoss
@@ -103,7 +104,7 @@ parser.add_argument(
     default='bert-base-uncased',
     type=str,
     help='Name of the pre-trained model',
-    choices=nemo_nlp.utils.get_huggingface_models_list(),
+    choices=nemo_nlp.nm.trainables.get_huggingface_models_list(),
 )
 parser.add_argument('--bert_checkpoint', default=None, type=str, help='Path to model checkpoint')
 parser.add_argument('--bert_config', default=None, type=str, help='Path to bert config file in json format')
@@ -199,12 +200,12 @@ nf = nemo_core.NeuralModuleFactory(
 
 logging.info(f'{args}')
 
-model = nemo_nlp.utils.get_huggingface_model(
+model = nemo_nlp.nm.trainables.get_huggingface_model(
     bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
 )
 
 if args.tokenizer == 'sentencepiece':
-    tokenizer = nemo_nlp.data.tokenizers.get_sentence_piece_tokenizer(
+    tokenizer = nemo.collections.nlp.data.tokenizers.huggingface_utils.get_sentence_piece_tokenizer(
         tokenizer_model=args.tokenizer_model, pretrained_model_name=args.pretrained_model_name
     )
 else:

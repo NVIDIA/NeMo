@@ -13,11 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-from transformers import AlbertTokenizer, BertTokenizer, RobertaTokenizer
 
-import nemo.collections.nlp.nm.trainables.common.huggingface as huggingface
+from nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm import Albert
+from nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm import BERT
+from nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm import Roberta
 
-__all__ = ['MODEL_SPECIAL_TOKENS', 'MODELS', 'get_huggingface_model', 'TOKENIZERS', 'get_huggingface_models_list']
+__all__ = ['MODELS', 'get_huggingface_model', 'get_huggingface_models_list']
 
 
 def get_huggingface_model(pretrained_model_name, bert_config):
@@ -45,44 +46,11 @@ def _model_type_is_valid(model_type):
     return True
 
 
-MODEL_SPECIAL_TOKENS = {
-    'bert': {
-        'unk_token': '[UNK]',
-        'sep_token': '[SEP]',
-        'pad_token': '[PAD]',
-        'bos_token': '[CLS]',
-        'mask_token': '[MASK]',
-        'eos_token': '[SEP]',
-        'cls_token': '[CLS]',
-    },
-    'roberta': {
-        'unk_token': '<unk>',
-        'sep_token': '</s>',
-        'pad_token': '<pad>',
-        'bos_token': '<s>',
-        'mask_token': '<mask>',
-        'eos_token': '</s>',
-        'cls_token': '<s>',
-    },
-    'albert': {
-        'unk_token': '<unk>',
-        'sep_token': '[SEP]',
-        'pad_token': '<pad>',
-        'bos_token': '[CLS]',
-        'mask_token': '[MASK]',
-        'eos_token': '[SEP]',
-        'cls_token': '[CLS]',
-    },
-}
-
-
 MODELS = {
-    'bert': {'default': 'bert-base-uncased', 'class': huggingface.BERT},
-    'roberta': {'defualt': 'roberta-base', 'class': huggingface.Roberta},
-    'albert': {'default': 'albert-base-v2', 'class': huggingface.Albert},
+    'bert': {'default': 'bert-base-uncased', 'class': BERT},
+    'roberta': {'defualt': 'roberta-base', 'class': Roberta},
+    'albert': {'default': 'albert-base-v2', 'class': Albert},
 }
-
-TOKENIZERS = {'bert': BertTokenizer, 'albert': AlbertTokenizer, 'roberta': RobertaTokenizer}
 
 
 def get_huggingface_models_list():

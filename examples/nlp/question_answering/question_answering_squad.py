@@ -86,6 +86,7 @@ import os
 import numpy as np
 
 import nemo.collections.nlp as nemo_nlp
+import nemo.collections.nlp.data.tokenizers.huggingface_utils
 import nemo.core as nemo_core
 from nemo import logging
 from nemo.collections.nlp.callbacks.qa_squad_callback import eval_epochs_done_callback, eval_iter_callback
@@ -108,7 +109,7 @@ def parse_args():
         default='roberta-base',
         type=str,
         help='Name of the pre-trained model',
-        choices=nemo_nlp.utils.get_huggingface_models_list(),
+        choices=nemo_nlp.nm.trainables.get_huggingface_models_list(),
     )
     parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
     parser.add_argument(
@@ -324,14 +325,14 @@ if __name__ == "__main__":
         add_time_to_log_dir=False,
     )
 
-    model = nemo_nlp.utils.get_huggingface_model(
+    model = nemo_nlp.nm.trainables.get_huggingface_model(
         bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
     )
 
     hidden_size = model.hidden_size
 
     if args.tokenizer == 'sentencepiece':
-        tokenizer = nemo_nlp.data.tokenizers.get_sentence_piece_tokenizer(
+        tokenizer = nemo.collections.nlp.data.tokenizers.huggingface_utils.get_sentence_piece_tokenizer(
             tokenizer_model=args.tokenizer_model, pretrained_model_name=args.pretrained_model_name
         )
     else:

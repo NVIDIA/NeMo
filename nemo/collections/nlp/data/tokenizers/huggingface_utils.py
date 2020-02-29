@@ -13,12 +13,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-
 import os
+
+from transformers import AlbertTokenizer, BertTokenizer, RobertaTokenizer
 
 import nemo
 
-__all__ = ['get_sentence_piece_tokenizer']
+__all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_sentence_piece_tokenizer']
+
+
+def _model_type_is_valid(model_type):
+    if model_type is None or model_type not in MODELS:
+        return False
+    return True
+
+
+MODEL_SPECIAL_TOKENS = {
+    'bert': {
+        'unk_token': '[UNK]',
+        'sep_token': '[SEP]',
+        'pad_token': '[PAD]',
+        'bos_token': '[CLS]',
+        'mask_token': '[MASK]',
+        'eos_token': '[SEP]',
+        'cls_token': '[CLS]',
+    },
+    'roberta': {
+        'unk_token': '<unk>',
+        'sep_token': '</s>',
+        'pad_token': '<pad>',
+        'bos_token': '<s>',
+        'mask_token': '<mask>',
+        'eos_token': '</s>',
+        'cls_token': '<s>',
+    },
+    'albert': {
+        'unk_token': '<unk>',
+        'sep_token': '[SEP]',
+        'pad_token': '<pad>',
+        'bos_token': '[CLS]',
+        'mask_token': '[MASK]',
+        'eos_token': '[SEP]',
+        'cls_token': '[CLS]',
+    },
+}
+
+
+TOKENIZERS = {'bert': BertTokenizer, 'albert': AlbertTokenizer, 'roberta': RobertaTokenizer}
 
 
 def get_sentence_piece_tokenizer(tokenizer_model, pretrained_model_name, special_tokens=None):
