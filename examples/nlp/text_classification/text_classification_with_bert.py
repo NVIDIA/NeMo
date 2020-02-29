@@ -17,8 +17,6 @@
 import argparse
 import math
 
-import numpy as np
-
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo import logging
