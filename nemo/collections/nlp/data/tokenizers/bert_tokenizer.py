@@ -16,8 +16,8 @@
 
 import re
 
-import nemo.collections.nlp.data.tokenizers.huggingface_utils as huggingface_utils
 from nemo import logging
+from nemo.collections.nlp.data.tokenizers.huggingface_utils import MODEL_SPECIAL_TOKENS, TOKENIZERS
 from nemo.collections.nlp.data.tokenizers.tokenizer_spec import TokenizerSpec
 
 __all__ = [
@@ -77,8 +77,8 @@ class NemoBertTokenizer(TokenizerSpec):
             bert_derivative = pretrained_model.split('-')[0]
             logging.info(f'Deriving bert model type from pretrained model name.')
 
-        if bert_derivative in huggingface_utils.TOKENIZERS:
-            tokenizer_cls = huggingface_utils.TOKENIZERS[bert_derivative]
+        if bert_derivative in TOKENIZERS:
+            tokenizer_cls = TOKENIZERS[bert_derivative]
         else:
             raise ValueError(
                 "Bert_derivative value {bert_derivative} is not currently supported"
@@ -95,7 +95,7 @@ class NemoBertTokenizer(TokenizerSpec):
         if hasattr(self.tokenizer, "vocab"):
             self.vocab_size = len(self.tokenizer.vocab)
 
-        special_tokens = huggingface_utils.MODEL_SPECIAL_TOKENS[bert_derivative]
+        special_tokens = MODEL_SPECIAL_TOKENS[bert_derivative]
         for k, v in special_tokens.items():
             setattr(self, k, v)
         self.never_split = tuple(special_tokens.values())
