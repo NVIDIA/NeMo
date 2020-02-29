@@ -7,8 +7,6 @@ from typing import Dict, List, Optional
 import librosa
 import numpy as np
 import torch
-
-# noinspection PyPep8Naming
 import torch.nn.functional as F
 
 import nemo
@@ -16,7 +14,6 @@ from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer, collections
 from nemo.collections.asr.parts import features as asr_parts_features
 from nemo.collections.asr.parts import parsers
-from nemo.collections.tts.fastspeech import text_norm
 from nemo.core.neural_types import AudioSignal, EmbeddedTextType, LengthsType, MaskType, NeuralType
 
 

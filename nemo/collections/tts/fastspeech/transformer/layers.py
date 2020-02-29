@@ -2,8 +2,6 @@ from collections import OrderedDict
 
 import torch
 from torch import nn
-
-# noinspection PyPep8Naming
 from torch.nn import functional as F
 
 from nemo.collections.tts.fastspeech.transformer import sublayers

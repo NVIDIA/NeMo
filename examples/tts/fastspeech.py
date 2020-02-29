@@ -10,7 +10,6 @@ from ruamel import yaml
 import nemo
 from nemo.collections import asr as nemo_asr
 from nemo.collections import tts as nemo_tts
-from nemo.collections.tts.fastspeech import text_norm
 from nemo.utils import argparse as nm_argparse
 from nemo.utils import lr_policies
 

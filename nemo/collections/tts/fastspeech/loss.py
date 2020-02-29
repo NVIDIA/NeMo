@@ -3,8 +3,6 @@ from typing import Dict, Optional
 
 import torch
 from torch import nn
-
-# noinspection PyPep8Naming
 from torch.nn import functional as F
 
 from nemo.backends.pytorch.nm import LossNM
