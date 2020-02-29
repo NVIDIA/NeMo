@@ -254,6 +254,7 @@ if args.config_file is not None:
 
 if 'data_text' in sys.argv:
     special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
+
     data_desc = BERTPretrainingDataDesc(
         args.dataset_name,
         train_data=args.train_data,
