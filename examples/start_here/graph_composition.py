@@ -26,10 +26,11 @@ dl = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
 fx = nemo.tutorials.TaylorNet(dim=4)
 loss = nemo.tutorials.MSELoss()
 
+x, y = dl()
+
 # Build the training graph.
 with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
     print('inside with statement body')
-    # Describe the activation flow.
-    x, y = dl()
+
     p = fx(x=x)
     lss = loss(predictions=p, target=y)
