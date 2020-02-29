@@ -63,7 +63,7 @@ def remove_spaces(text):
 
 
 class NemoBertTokenizer(TokenizerSpec):
-    def __init__(self, pretrained_model=None, vocab_file=None, bert_derivative=None, do_lower_case=False):
+    def __init__(self, pretrained_model=None, vocab_file=None, bert_derivative='bert', do_lower_case=False):
         '''
         The user needs to specify pretrained_model name or vocab file and bert_derivative
 
@@ -74,11 +74,9 @@ class NemoBertTokenizer(TokenizerSpec):
         vocab_file: File containing the vocabulary.
         bert_derivative: for example: 'bert', 'roberta', 'albert'. Only used when vocab_file specified.
         '''
-        if pretrained_model and bert_derivative:
-            logging.info(f'Both pretrained_model an bert_derivative specified. Pretrained_model will be used.')
-
         if pretrained_model:
             bert_derivative = pretrained_model.split('-')[0]
+            logging.info(f'Deriving bert model type from pretrained model name.')
 
         if bert_derivative in huggingface_utils.TOKENIZERS:
             tokenizer_cls = huggingface_utils.TOKENIZERS[bert_derivative]

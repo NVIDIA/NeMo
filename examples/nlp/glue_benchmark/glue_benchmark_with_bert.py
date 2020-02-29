@@ -204,7 +204,7 @@ model = nemo_nlp.utils.get_huggingface_model(
 )
 
 if args.tokenizer == 'sentencepiece':
-    tokenizer = nemo_nlp.utils.get_sentence_piece_tokenizer(
+    tokenizer = nemo_nlp.data.tokenizers.get_sentence_piece_tokenizer(
         tokenizer_model=args.tokenizer_model, pretrained_model_name=args.pretrained_model_name
     )
 else:

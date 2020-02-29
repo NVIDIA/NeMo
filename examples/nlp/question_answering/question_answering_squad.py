@@ -331,7 +331,7 @@ if __name__ == "__main__":
     hidden_size = model.hidden_size
 
     if args.tokenizer == 'sentencepiece':
-        tokenizer = nemo_nlp.utils.get_sentence_piece_tokenizer(
+        tokenizer = nemo_nlp.data.tokenizers.get_sentence_piece_tokenizer(
             tokenizer_model=args.tokenizer_model, pretrained_model_name=args.pretrained_model_name
         )
     else:
