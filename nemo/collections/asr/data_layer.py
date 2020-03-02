@@ -14,6 +14,7 @@
 # =============================================================================
 """This package contains Neural Modules responsible for ASR data layers."""
 
+import copy
 from functools import partial
 from typing import Any, Dict, List, Optional
 
@@ -577,6 +578,7 @@ target_label_n}
 
     def _process_augmentations(self, augmentor) -> AudioAugmentor:
         augmentations = []
+        augmentor = copy.deepcopy(augmentor)
         for augment_name, augment_kwargs in augmentor.items():
             prob = augment_kwargs.get('prob', None)
 
