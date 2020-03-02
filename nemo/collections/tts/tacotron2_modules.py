@@ -472,7 +472,7 @@ class Tacotron2Loss(LossNM):
         mask = mask.permute(1, 0, 2)
         mel_out.data.masked_fill_(mask, self.pad_value)
         mel_out_postnet.data.masked_fill_(mask, self.pad_value)
-        logging.info(f"mask {mask.shape}; gate_out {gate_out.shape}")
+        logging.debug(f"mask {mask.shape}; gate_out {gate_out.shape}")
         gate_out.squeeze_()
         gate_out.data.masked_fill_(mask[:, 0, :].squeeze(), 1e3)
 
