@@ -17,6 +17,10 @@
 # =============================================================================
 
 import os
+from tests.core.trt_ONNX.logger import G_LOGGER, LogMode
+from tests.core.trt_ONNX.tensorrt_runner import TensorRTRunnerV2
+from tests.core.trt_ONNX.tensorrt_loaders import OnnxFileLoader, OnnxNetworkLoader, BuildEngineLoader
+from tests.core.trt_ONNX.tensorrt_loaders import BaseDataLoader, DefaultDataLoader, DataLoaderCache
 from pathlib import Path
 
 # git clone git@github.com:microsoft/onnxruntime.git
@@ -30,19 +34,21 @@ from pathlib import Path
 import onnxruntime as ort
 
 # This import causes pycuda to automatically manage CUDA context creation and cleanup.
-import pycuda.autoinit
 import pycuda.driver as cuda
-import tensorrt as trt
+# Only initialize GPU after this runner is activated.
+import pycuda.autoinit
+
 import torch
 from ruamel.yaml import YAML
-
 import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from tests.common_setup import NeMoUnitTest
 
-TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
+from collections import OrderedDict
+import numpy as np
+import copy
 
 
 class TestDeployExport(NeMoUnitTest):
@@ -61,7 +67,6 @@ class TestDeployExport(NeMoUnitTest):
         if out.exists():
             os.remove(out)
 
-        outputs_scr = None
         outputs_fwd = (
             (module.forward(*input_example) if isinstance(input_example, tuple) else module.forward(input_example))
             if input_example is not None
@@ -72,8 +77,7 @@ class TestDeployExport(NeMoUnitTest):
             output=out_name,
             input_example=input_example,
             d_format=mode,
-            output_example=outputs_fwd,
-            use_da=(mode != nemo.core.DeploymentFormat.TRTONNX),
+            output_example=outputs_fwd
         )
 
         tol = 5.0e-3
@@ -81,11 +85,74 @@ class TestDeployExport(NeMoUnitTest):
         self.assertTrue(out.exists())
 
         if mode == nemo.core.DeploymentFormat.TRTONNX:
-            outputs_fwd = (
-                outputs_fwd[0] if isinstance(outputs_fwd, tuple) or isinstance(outputs_fwd, list) else outputs_fwd
-            )
-            outputs_scr = torch.zeros_like(outputs_fwd)
-            self.trt_onnx(out_name, module, input_example, outputs_scr, mode)
+
+            data_loader = DefaultDataLoader()
+            loader_cache = DataLoaderCache(data_loader)
+            profile_shapes = OrderedDict()
+            names = list(module.input_ports) + list(module.output_ports)
+
+            if isinstance(input_example, tuple):
+                si = [tuple(input_example[i].shape) for i in range(len(input_example))]
+            else:
+                si = [tuple(input_example.shape)]
+            if isinstance(outputs_fwd, tuple):
+                fi = [tuple(outputs_fwd[i].shape) for i in range(len(outputs_fwd))]
+            else:
+                fi = [tuple(outputs_fwd.shape)]
+            si = si + fi
+            i = 0
+            for name in names:
+                profile_shapes[name] = [si[i]]*3
+                i = i + 1
+
+            onnx_loader = OnnxFileLoader(out_name)
+            network_loader = OnnxNetworkLoader(onnx_loader, explicit_precision=False)
+            model_loader = BuildEngineLoader(network_loader, max_workspace_size=1<<30,
+                                             fp16_mode=False, int8_mode=False,
+                                             profile_shapes=profile_shapes, write_engine=None,
+                                             calibrator=None,
+                                             layerwise=False)
+
+            with TensorRTRunnerV2(model_loader=model_loader) as active_runner:
+                input_metadata = active_runner.get_input_metadata()
+                if input_metadata is None:
+                    G_LOGGER.critical("For {:}, get_input_metadata() returned None!".format(active_runner.name))
+                G_LOGGER.debug("Runner Inputs: {:}".format(input_metadata))
+                feed_dict = loader_cache.load(iteration=0, input_metadata=input_metadata, input_example=input_example)
+                inputs = dict()
+                input_names = list(module.input_ports)
+                for i in range(len(input_names)):
+                    input_name = (
+                        "encoded_lengths"
+                        if type(module).__name__ == "JasperEncoder" and input_names[i] == "length"
+                        else input_names[i]
+                    )
+                    inputs[input_name] = (
+                        input_example[i].cpu().numpy() if isinstance(input_example, tuple)
+                        else input_example.cpu().numpy()
+                    )
+
+                out_dict = active_runner.infer(feed_dict=feed_dict, output=outputs_fwd)
+                for ov in out_dict.values():
+                    outputs_scr = torch.from_numpy(ov).cuda()
+                    break
+
+                outputs = []
+                outputs.append(copy.deepcopy(out_dict))
+                G_LOGGER.debug("Received outputs: {:}".format(["{:}: {:}".format(name, out.shape) for name, out in out_dict.items()]))
+                G_LOGGER.verbose("Output Buffers: {:}".format(outputs))
+
+            inpex = []
+            for ie in feed_dict.values(): #loader_cache.cache[0].values():
+                if ie.dtype.type is np.int32:
+                    inpex.append(torch.from_numpy(ie).long().cuda())
+                else:
+                    inpex.append(torch.from_numpy(ie).cuda())
+                if len(inpex) == len(input_example):
+                    break
+            inpex = tuple(inpex)
+            outputs_fwd = module.forward(*inpex)
+
         elif mode == nemo.core.DeploymentFormat.ONNX:
             # Must recompute because *module* might be different now
             outputs_fwd = (
@@ -123,21 +190,17 @@ class TestDeployExport(NeMoUnitTest):
                 module.forward(*input_example) if isinstance(input_example, tuple) else module.forward(input_example)
             )
 
-        outputs_scr = (
-            outputs_scr[0] if isinstance(outputs_scr, tuple) or isinstance(outputs_scr, list) else outputs_scr
-        )
-        outputs_fwd = (
-            outputs_fwd[0] if isinstance(outputs_fwd, tuple) or isinstance(outputs_fwd, list) else outputs_fwd
-        )
-        self.assertLess((outputs_scr - outputs_fwd.cuda()).norm(p=2), tol)
+        outputs_scr = outputs_scr[0] if isinstance(outputs_scr, tuple) or isinstance(outputs_scr, list) else outputs_scr
+        outputs_fwd = outputs_fwd[0] if isinstance(outputs_fwd, tuple) or isinstance(outputs_fwd, list) else outputs_fwd
+
+        self.assertLess((outputs_scr - outputs_fwd).norm(p=2), tol)
 
         if out.exists():
             os.remove(out)
 
     def __test_export_route_all(self, module, out_name, input_example=None):
         if input_example is not None:
-            # TODO
-            # self.__test_export_route(module, out_name + '.trt.onnx', nemo.core.DeploymentFormat.TRTONNX, input_example=input_example)
+            self.__test_export_route(module, out_name + '.trt.onnx', nemo.core.DeploymentFormat.TRTONNX, input_example=input_example)
             self.__test_export_route(module, out_name + '.onnx', nemo.core.DeploymentFormat.ONNX, input_example)
             self.__test_export_route(module, out_name + '.pt', nemo.core.DeploymentFormat.PYTORCH, input_example)
         self.__test_export_route(module, out_name + '.ts', nemo.core.DeploymentFormat.TORCHSCRIPT, input_example)
@@ -166,8 +229,8 @@ class TestDeployExport(NeMoUnitTest):
         bert = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name="bert-base-uncased")
         input_example = (
             torch.randint(low=0, high=16, size=(2, 16)).cuda(),
-            torch.randint(low=0, high=1, size=(2, 16)).cuda(),
-            torch.randint(low=0, high=1, size=(2, 16)).cuda(),
+            torch.randint(low=0, high=2, size=(2, 16)).cuda(),
+            torch.randint(low=0, high=2, size=(2, 16)).cuda(),
         )
         self.__test_export_route_all(module=bert, out_name="bert", input_example=input_example)
 
@@ -185,7 +248,7 @@ class TestDeployExport(NeMoUnitTest):
         self.__test_export_route_all(
             module=jasper_encoder,
             out_name="jasper_encoder",
-            input_example=(torch.randn(16, 64, 256).cuda(), torch.randn(256).cuda()),
+            input_example=(torch.randn(1, 64, 64).cuda(), torch.randint(low=0, high=2, size=(2, 16)).cuda()),
         )
 
     def test_quartz_encoder(self):
@@ -201,39 +264,5 @@ class TestDeployExport(NeMoUnitTest):
         self.__test_export_route_all(
             module=jasper_encoder,
             out_name="quartz_encoder",
-            input_example=(torch.randn(16, 64, 256).cuda(), torch.randint(20, (16,)).cuda()),
+            input_example=(torch.randn(1, 64, 256).cuda(), torch.randint(1, (16,)).cuda()),
         )
-
-    def trt_onnx(self, model_file, module, input_example, output_example, mode):
-        with trt.Builder(TRT_LOGGER) as builder, builder.create_network(
-            1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
-        ) as network, trt.OnnxParser(network, TRT_LOGGER) as parser:
-            builder.max_workspace_size = 1 << 30
-            builder.max_batch_size = 1
-            # Load the Onnx model and parse it in order to populate the TensorRT network.
-            with open(model_file, 'rb') as model:
-                if not parser.parse(model.read()):
-                    print('ERROR: Failed to parse the ONNX file.')
-                    for error in range(parser.num_errors):
-                        print(parser.get_error(error))
-                    return None
-            engine = builder.build_cuda_engine(network)
-            input_names = list(module.input_ports.keys())
-            output_names = list(module.output_ports.keys())
-            bindings = [0] * (len(input_names) + 1)
-
-            i = 0
-            for input_name in input_names:
-                inp_idx = engine.get_binding_index(input_name)
-                assert input_example[i].is_contiguous()
-                bindings[inp_idx] = input_example[i].data_ptr()
-                i += 1
-            for output_name in output_names:
-                out_idx = engine.get_binding_index(output_name)
-                assert output_example.is_contiguous()
-                bindings[out_idx] = output_example.data_ptr()
-                break
-            with engine.create_execution_context() as context:
-                stream = cuda.Stream()
-                context.execute_async_v2(bindings=bindings, stream_handle=stream.handle)
-                stream.synchronize()

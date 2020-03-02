@@ -912,7 +912,7 @@ class PtActions(Actions):
 
     @staticmethod
     def __module_export(
-        module, output, d_format: DeploymentFormat, input_example=None, output_example=None, use_da=False
+        module, output, d_format: DeploymentFormat, input_example=None, output_example=None
     ):
         # Check if output already exists
         destination = Path(output)
@@ -1000,7 +1000,7 @@ class PtActions(Actions):
                     verbose=False,
                     export_params=True,
                     do_constant_folding=True,
-                    dynamic_axes=dynamic_axes if use_da else None,
+                    dynamic_axes=dynamic_axes,
                     opset_version=11,
                     example_outputs=output_example,
                 )
@@ -1034,7 +1034,7 @@ class PtActions(Actions):
 
     @staticmethod
     def deployment_export(
-        module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None, use_da=False
+        module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None
     ):
         """Exports Neural Module instance for deployment.
 
@@ -1054,7 +1054,6 @@ class PtActions(Actions):
                 d_format=d_format,
                 input_example=input_example,
                 output_example=output_example,
-                use_da=use_da,
             )
 
     def train(

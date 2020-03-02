@@ -599,7 +599,7 @@ class NeuralModuleFactory(object):
         )
 
     def deployment_export(
-        self, module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None, use_da=False
+        self, module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None
     ):
         """Exports Neural Module instance for deployment.
 
@@ -609,7 +609,6 @@ class NeuralModuleFactory(object):
             d_format (DeploymentFormat): which deployment format to use
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
-            use_da: populate dynamic axes if they exist
         """
         # Custom hacks: These will be put into a proper place soon
         # We are checking type like this to avoid taking dependency on nemo_asr
@@ -634,7 +633,6 @@ class NeuralModuleFactory(object):
             d_format=d_format,
             input_example=input_example,
             output_example=output_example,
-            use_da=use_da,
         )
 
     def infer(
