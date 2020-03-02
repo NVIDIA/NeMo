@@ -253,7 +253,7 @@ if args.config_file is not None:
     args.max_seq_length = config['max_position_embeddings']
 
 if 'data_text' in sys.argv:
-    special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
+    special_tokens = nemo_nlp.data.tokenizers.MODEL_SPECIAL_TOKENS['bert']
 
     data_desc = BERTPretrainingDataDesc(
         args.dataset_name,
