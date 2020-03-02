@@ -31,19 +31,13 @@ def get_huggingface_model(pretrained_model_name, bert_config):
     '''
     model_type = pretrained_model_name.split('-')[0]
 
-    if _model_type_is_valid(model_type):
+    if model_type in MODELS:
         if bert_config:
             return MODELS[model_type]['class'](config_filename=bert_config)
         else:
             return MODELS[model_type]['class'](pretrained_model_name=pretrained_model_name)
     else:
         raise ValueError(f'Choose pretrained model from the following list: {get_huggingface_models_list()}.')
-
-
-def _model_type_is_valid(model_type):
-    if model_type is None or model_type not in MODELS:
-        return False
-    return True
 
 
 MODELS = {

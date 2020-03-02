@@ -46,7 +46,6 @@ parser.add_argument(
     choices=nemo_nlp.nm.trainables.get_huggingface_models_list(),
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str)
-parser.add_argument("--classifier_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str)
 parser.add_argument("--data_dir", required=True, type=str)
 parser.add_argument(

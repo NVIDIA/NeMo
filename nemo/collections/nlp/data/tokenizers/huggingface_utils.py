@@ -21,12 +21,7 @@ import nemo
 
 __all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_sentence_piece_tokenizer']
 
-
-def _model_type_is_valid(model_type):
-    if model_type is None or model_type not in MODELS:
-        return False
-    return True
-
+logging = nemo.logging
 
 MODEL_SPECIAL_TOKENS = {
     'bert': {
@@ -81,10 +76,10 @@ def get_sentence_piece_tokenizer(tokenizer_model, pretrained_model_name, special
     model_type = pretrained_model_name.split('-')[0]
 
     if special_tokens is None:
-        if _model_type_is_valid(model_type):
-            special_tokens = MODEL_SPECIAL_TOKENS[model_type]
-        else:
+        if model_type is None or model_type not in MODEL_SPECIAL_TOKENS:
             logging.info(f'No special tokens found for {model_type}.')
+        else:
+            special_tokens = MODEL_SPECIAL_TOKENS[model_type]
 
     tokenizer.add_special_tokens(special_tokens)
     return tokenizer
