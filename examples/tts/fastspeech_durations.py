@@ -1,4 +1,16 @@
-# Copyright (c) 2019 NVIDIA Corporation
+# Copyright 2020 NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import argparse
 import copy
 import os
@@ -33,47 +45,13 @@ def parse_args():
         "--spec_model_config", type=str, required=True, help="spec model configuration file: model.yaml",
     )
     parser.add_argument(
-        "--vocoder_model_config",
-        type=str,
-        help=("vocoder model configuration file: model.yaml. Not required for " "griffin-lim."),
-    )
-    parser.add_argument(
         "--spec_model_load_dir", type=str, required=True, help="directory containing checkpoints for spec model",
     )
     parser.add_argument("--eval_dataset", type=str, required=True)
 
-    # Grifflin-Lim parameters
-    parser.add_argument(
-        "--griffin_lim_mag_scale",
-        type=float,
-        default=2048,
-        help=(
-            "This is multiplied with the linear spectrogram. This is "
-            "to avoid audio sounding muted due to mel filter normalization"
-        ),
-    )
-    parser.add_argument(
-        "--griffin_lim_power",
-        type=float,
-        default=1.2,
-        help=(
-            "The linear spectrogram is raised to this power prior to running"
-            "the Griffin Lim algorithm. A power of greater than 1 has been "
-            "shown to improve audio quality."
-        ),
-    )
     parser.add_argument(
         '--durations_dir', type=str, default='durs',
     )
-
-    # Waveglow parameters
-    parser.add_argument(
-        "--waveglow_denoiser_strength",
-        type=float,
-        default=0.0,
-        help=("denoiser strength for waveglow. Start with 0 and slowly " "increment"),
-    )
-    parser.add_argument("--waveglow_sigma", type=float, default=0.6)
 
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--amp_opt_level", default="O1")

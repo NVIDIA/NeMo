@@ -14,7 +14,7 @@ pad_value: &pad_value -11.52
 
 FastSpeechDataLayer:
     header: {collection_type: asr, collection_version: null,
-             full_spec: nemo.collections.tts.fastspeech.data.FastSpeechDataLayer, nemo_core_version: 0.9.5}
+             full_spec: nemo.collections.tts.FastSpeechDataLayer, nemo_core_version: 0.9.5}
     init_params:
         drop_last: false
         int_values: false
@@ -54,7 +54,7 @@ AudioToMelSpectrogramPreprocessor:
         window_stride: null
 
 FastSpeech:
-    header: {full_spec: nemo.collections.tts.fastspeech.model.FastSpeech,
+    header: {full_spec: nemo.collections.tts.FastSpeech,
              collection_type: asr, collection_version: null, nemo_core_version: 0.9.5}
     init_params:
         decoder_output_size: 384
