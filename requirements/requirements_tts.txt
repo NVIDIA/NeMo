@@ -2,4 +2,4 @@ librosa
 matplotlib
 pypinyin
 scipy
-git+https://github.com/blisc/tacotron2.git@039a61bcc0a82393a39f90cc36644539cb4c7d09
+git+https://github.com/blisc/tacotron2.git@a4637ddf1c58ae35d789a2d9e2a285161ace5978
