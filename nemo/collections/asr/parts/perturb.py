@@ -94,9 +94,12 @@ class NoisePerturbation(Perturbation):
     def perturb(self, data):
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
         noise_record = self._rng.sample(self._manifest.data, 1)[0]
-        noise = AudioSegment.from_file(noise_record['audio_filepath'], target_sr=data.sample_rate)
+        noise = AudioSegment.from_file(noise_record.audio_file, target_sr=data.sample_rate)
         noise_gain_db = min(data.rms_db - noise.rms_db - snr_db, self._max_gain_db)
-        logging.debug("noise: %s %s %s", snr_db, noise_gain_db, noise_record['audio_filepath'])
+        logging.debug("noise: %s %s %s", snr_db, noise_gain_db, noise_record.audio_file)
+
+        if noise.duration < data.duration:
+            noise.pad(data._samples.shape[0] - noise._samples.shape[0], symmetric=True)
 
         # calculate noise segment to use
         start_time = self._rng.uniform(0.0, noise.duration - data.duration)
@@ -132,10 +135,10 @@ class EchoPerturbation(Perturbation):
         max_delay = self._rng.uniform(min_delay, self.max_duration)
         max_dampen = self._rng.uniform(0., self.max_dampen)
 
-        echo_start = min_delay * data._samples.shape[0]
-        echo_end = max_delay * data._samples.shape[0]
-        echo_duration = echo_end - echo_start
-        echo_dampen = np.linspace(max_dampen, 0., num=echo_duration, dtype=np.float32)
+        echo_start = int(min_delay * data._samples.shape[0])
+        echo_end = int(max_delay * data._samples.shape[0])
+        echo_duration = int(echo_end - echo_start)
+        echo_dampen = np.linspace(1.0, max_dampen, num=echo_duration, dtype=np.float32)
 
         data._samples[echo_start:echo_end] += (data._samples[0:echo_duration] * echo_dampen)
 
