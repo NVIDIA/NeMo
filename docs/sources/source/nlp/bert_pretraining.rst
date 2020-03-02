@@ -262,6 +262,18 @@ Next, we define necessary callbacks:
 2. `EvaluatorCallback`: tracking metrics during evaluation at set intervals
 3. `CheckpointCallback`: saving model checkpoints at set intervals
 
+    train_callback = nemo.core.SimpleLossLoggerCallback(tensors=[train_loss],
+        print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())))),
+        step_freq=args.train_step_freq,
+    eval_callback = nemo.core.EvaluatorCallback(eval_tensors=[eval_loss],
+        user_iter_callback=nemo_nlp.callbacks.lm_bert_callback.eval_iter_callback,
+        user_epochs_done_callback=nemo_nlp.callbacks.lm_bert_callback.eval_epochs_done_callback
+        eval_step=args.eval_step_freq)
+    ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir,
+        epoch_freq=args.save_epoch_freq,
+        load_from_folder=args.load_dir,
+        step_freq=args.save_step_freq)
+        
 .. tip::
 
     Tensorboard_ is a great debugging tool. It's not a requirement for this tutorial, but if you'd like to use it, you should install tensorboardX_ and run the following command during pre-training:
