@@ -146,18 +146,26 @@ for tb_writer_func to consume. The user must log all data of interest inside
 tb_writer_func including scalars that would otherwise be logged if
 tb_writer_func was not passed to EvaluatorCallback.
 
+You can also log your evaluation metrics into Weights & Biases experiment trackers.
+To do so, please setup these parameters. Also make sure wandb is installed and you did ``wandb login``.
+
+- wandb_name: W&B experiment name
+- wandb_project: W&B project name
+
 For an example, please see the scripts inside <nemo_dir>/examples.
 
 WandbCallback
 -----------------
 WandbCallback logs losses and metrics to `Weights & Biases <https://docs.wandb.com/>`_.
+Make sure wandb is installed and you did ``wandb login``.
 
-It combines SimpleLossLoggerCallback and EvaluatorCallback into a single callback
-with logging to `Weights & Biases`. Training metrics are logged after each batch and
-validation metrics are logged at the end of each epoch.
+This is a light-weight callback to log **training** metrics into Weights & Biases.
+To log evaluation metrics, see Evaluator Callback above.
 
 It requires following arguments:
 
-- name and project are optional and used to organize your runs in W&B interface
-- train_tensors defines the NMTensors logged at the end of each batch (similar to SimpleLossLoggerCallback)
-- eval_tensors, user_iter_callback and user_epochs_done_callback are used to log valitation metrics and are used as in EvaluatorCallback
+- train_tensors: list of tensors to evaluate and log based on training batches
+- wandb_name: W&B experiment name
+- wandb_project: W&B project name
+- args: argparse flags - will be logged as hyper parameters for your run
+- update_freq: frequency with which to log updates
