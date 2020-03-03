@@ -438,10 +438,15 @@ class EvaluatorCallback(ActionCallback):
                 logging.info(f'Evaluation time: {elapsed_time} seconds')
 
     def on_action_start(self):
-        if self.global_rank is None or self.global_rank == 0 and self._wandb_name is not None and \
-                self._wandb_project is not None:
+        if (
+            self.global_rank is None
+            or self.global_rank == 0
+            and self._wandb_name is not None
+            and self._wandb_project is not None
+        ):
             try:
                 import wandb
+
                 wandb.init(name=self._wandb_name, project=self._wandb_project)
             except ImportError:
                 logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
@@ -465,7 +470,9 @@ class EvaluatorCallback(ActionCallback):
     def wandb_log(self, tensors_logged):
         if self._wandb_name != None:
             import wandb
+
             wandb.log(tensors_logged, step=self.step)
+
 
 _Policy = namedtuple('Policy', 'method start end')
 
@@ -570,12 +577,7 @@ class WandbCallback(ActionCallback):
     """
 
     def __init__(
-        self,
-        train_tensors=[],
-        wandb_name=None,
-        wandb_project=None,
-        args=None,
-        update_freq=25,
+        self, train_tensors=[], wandb_name=None, wandb_project=None, args=None, update_freq=25,
     ):
         """
         Args:
@@ -596,6 +598,7 @@ class WandbCallback(ActionCallback):
         if self.global_rank is None or self.global_rank == 0:
             try:
                 import wandb
+
                 wandb.init(name=self._name, project=self._project)
                 if self._args is not None:
                     wandb.config.update(self._args)
@@ -625,4 +628,5 @@ class WandbCallback(ActionCallback):
 
     def wandb_log(self, tensors_logged):
         import wandb
+
         wandb.log(tensors_logged, step=self.step)
