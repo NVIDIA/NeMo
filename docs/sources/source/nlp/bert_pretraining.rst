@@ -263,7 +263,7 @@ Next, we define necessary callbacks:
 3. `CheckpointCallback`: saving model checkpoints at set intervals
 
     train_callback = nemo.core.SimpleLossLoggerCallback(tensors=[train_loss],
-        print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())))),
+        print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())))),
         step_freq=args.train_step_freq,
     eval_callback = nemo.core.EvaluatorCallback(eval_tensors=[eval_loss],
         user_iter_callback=nemo_nlp.callbacks.lm_bert_callback.eval_iter_callback,
