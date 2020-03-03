@@ -132,7 +132,7 @@
 
         callback_train = nemo.core.SimpleLossLoggerCallback(
             tensors=train_tensors,
-            print_func=lambda x: str(np.round(x[0].item(), 3)),
+            print_func=lambda x: str(round(x[0].item(), 3)),
             tb_writer=nf.tb_writer,
             get_tb_values=lambda x: [["loss", x[0]]],
             step_freq=steps_per_epoch)

@@ -180,7 +180,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
         from nemo.core import CheckpointCallback, SimpleLossLoggerCallback
         train_callback = SimpleLossLoggerCallback(
             tensors=train_tensors,
-            print_func=lambda x: str(np.round(x[0].item(), 3)),
+            print_func=lambda x: logging.info(str(round(x[0].item(), 3))),
             tb_writer=nf.tb_writer,
             get_tb_values=lambda x: [["loss", x[0]]],
             step_freq=steps_per_epoch,

@@ -22,8 +22,8 @@ neural-machine-translation.html#translation-with-pretrained-model
 import torch
 
 import nemo
-from nemo import logging
 import nemo.collections.nlp as nemo_nlp
+from nemo import logging
 from nemo.collections.nlp.callbacks.machine_translation_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.core import WeightShareTransform
 from nemo.utils.lr_policies import get_lr_policy

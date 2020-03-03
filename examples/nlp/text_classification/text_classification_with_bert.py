@@ -17,7 +17,6 @@
 import argparse
 import math
 
-import numpy as np
 from transformers import BertTokenizer
 
 import nemo.collections.nlp.nm.data_layers.text_classification_datalayer

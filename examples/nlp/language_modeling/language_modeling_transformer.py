@@ -16,8 +16,8 @@
 import math
 
 import nemo
-from nemo import logging
 import nemo.collections.nlp as nemo_nlp
+from nemo import logging
 from nemo.collections.nlp.callbacks.lm_transformer_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.lm_transformer_dataset import LanguageModelDataDesc
 from nemo.collections.nlp.nm.data_layers import LanguageModelingDataLayer
