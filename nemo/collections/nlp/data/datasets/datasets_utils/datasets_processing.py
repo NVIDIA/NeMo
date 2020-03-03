@@ -20,6 +20,8 @@ import json
 import os
 import shutil
 
+import tqdm
+
 from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import (
     DATABASE_EXISTS_TMP,
@@ -319,13 +321,19 @@ def process_thucnews(data_dir):
         test_num = int(len(category_files) * (1 - train_size))
         test_files = category_files[:test_num]
         train_files = category_files[test_num:]
+
         for mode in modes:
             logging.info(f'Processing {mode} data of the category {category}')
             if mode == 'test':
                 files = test_files
             else:
                 files = train_files
-            for file in tqdm(files):
+
+            if len(files) == 0:
+                logging.info(f'Skipping category {category} for {mode} mode')
+                continue
+
+            for file in tqdm.tqdm(files):
                 with open(file, 'r', encoding='utf-8') as f:
                     news = f.read().strip().replace('\r', '')
                     news = news.replace('\n', '').replace('\t', ' ')
