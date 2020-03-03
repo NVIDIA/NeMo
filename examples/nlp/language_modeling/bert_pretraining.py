@@ -36,9 +36,9 @@ python bert_pretraining.py \
 --num_attention_heads 12 \
 --hidden_act "gelu" \
 --save_step_freq 200 \
---num_epochs 10 \
 data_text \
 --dataset_name wikitext-2 \
+--num_epochs 10 \
 --sample_size 10000000 \
 --mask_probability 0.15 \
 --short_seq_prob 0.1 \
@@ -57,7 +57,6 @@ python -m torch.distributed.launch --nproc_per_node=8 bert_pretraining.py \
 --train_data train_data \
 --eval_data eval_data \
 --save_step_freq 200 \
---max_steps 1142857 \
 --num_gpus 8 \
 --batches_per_step 2 \
 --amp_opt_level "O1" \
@@ -69,7 +68,8 @@ python -m torch.distributed.launch --nproc_per_node=8 bert_pretraining.py \
 --weight_decay 0.01 \
 --lr 0.875e-4 \
 data_preprocessed \
---max_predictions_per_seq 80
+--max_predictions_per_seq 80 \
+--num_iters 1142857 
 
 350000 iterations on a DGX1 with 8 V100 32GB GPUs with AMP O1 optimization
 should finish under 5 days and yield an MRPC score of ACC/F1 85.05/89.35.
@@ -103,7 +103,6 @@ parser.add_argument(
     "--local_rank", default=None, type=int, help="Automatically set when using Multi-GPU with torch.distributed."
 )
 parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs to use.")
-parser.add_argument("--num_epochs", default=10, type=int, help="Number of epochs for training.")
 parser.add_argument("--train_data", required=True, type=str, help="path to training dataset.")
 parser.add_argument("--config_file", default=None, type=str, help="The BERT model config")
 parser.add_argument("--eval_data", required=True, type=str, help="path to evaluation dataset.")
@@ -171,9 +170,6 @@ parser.add_argument("--hidden_act", default="gelu", type=str)
 parser.add_argument("--gradient_predivide", action="store_true", default=False, help="use gradient predivide")
 parser.add_argument("--only_mlm_loss", action="store_true", default=False, help="use only masked language model loss")
 parser.add_argument(
-    "--max_steps", default=-1, type=int, help="if specified overrides --num_epochs. Used for preprocessed data",
-)
-parser.add_argument(
     "--load_dir",
     default=None,
     type=str,
@@ -194,6 +190,9 @@ parser.add_argument("--train_step_freq", default=25, type=int, help="Print train
 parser.add_argument("--eval_step_freq", default=25, type=int, help="Print evaluation metrics every given iteration.")
 sub_parsers = parser.add_subparsers()
 parser_text = sub_parsers.add_parser('data_text', help='Training starting with raw text data.')
+group = parser_text.add_mutually_exclusive_group()
+group.add_argument("--num_epochs", default=10, type=int, help="Number of training epochs.")
+group.add_argument("--num_iters", default=-1, type=int, help="Number of training steps.")
 parser_text.add_argument("--sample_size", default=1e7, type=int, help="Data sample size.")
 parser_text.add_argument(
     "--mask_probability",
@@ -226,6 +225,9 @@ parser_preprocessed.add_argument(
     default=20,
     type=int,
     help="Maximum number of masked tokens to predict. Need to match the number of masked tokens in the input data sets.",
+)
+parser_preprocessed.add_argument(
+    "--num_iters", default=100, type=int, help="Number of training steps.",
 )
 
 args = parser.parse_args()
@@ -425,13 +427,13 @@ ckpt_eval = nemo.core.EvaluatorCallback(
 
 # define learning rate decay policy
 if args.lr_policy is not None:
-    if args.max_steps < 0:
+    if args.num_iters < 0:
         lr_policy_fn = get_lr_policy(
             args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
         )
     else:
         lr_policy_fn = get_lr_policy(
-            args.lr_policy, total_steps=args.max_steps, warmup_ratio=args.lr_warmup_proportion
+            args.lr_policy, total_steps=args.num_iters, warmup_ratio=args.lr_warmup_proportion
         )
 else:
     lr_policy_fn = None
@@ -448,10 +450,10 @@ optimization_params = {
     "weight_decay": args.weight_decay,
 }
 
-if args.max_steps < 0:
+if args.num_iters < 0:
     optimization_params['num_epochs'] = args.num_epochs
 else:
-    optimization_params['max_steps'] = args.max_steps
+    optimization_params['max_steps'] = args.num_iters
 nf.train(
     tensors_to_optimize=[train_loss],
     lr_policy=lr_policy_fn,
