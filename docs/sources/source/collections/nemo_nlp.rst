@@ -87,7 +87,7 @@ NLP Neural Modules
    :show-inheritance:
    :exclude-members: forward
    
-.. automodule:: nemo.collections.nlp.nm.trainables.dialogue_state_tracking.state_tracking_trade_nm
+.. automodule:: nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm
    :members:
    :undoc-members:
    :show-inheritance:
