@@ -91,7 +91,7 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
         dataset (str): directory or a single file with dataset documents
         max_seq_length (int): maximum allowed length of the text segments
         batch_size (int): batch size in segments
-        training (bool): true if in training mode
+        mode (str): model execution mode, e.g. "training"
     """
 
     @property
@@ -117,8 +117,10 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
             "labels": NeuralType(tuple('B'), LabelsType()),
         }
 
-    def __init__(self, dataset, max_pred_length, batch_size=64, training=True):
-
+    def __init__(
+        self, dataset, max_pred_length, mode, batch_size=64,
+    ):
+        super().__init__()
         if os.path.isdir(dataset):
             self.files = [
                 os.path.join(dataset, f) for f in os.listdir(dataset) if os.path.isfile(os.path.join(dataset, f))
@@ -129,14 +131,13 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
         self.num_files = len(self.files)
         self._batch_size = batch_size
         self.max_pred_length = max_pred_length
-        self.training = training
+        self.mode = mode
         total_length = 0
         for f in self.files:
             fp = h5py.File(f, 'r')
             total_length += len(fp['input_ids'])
             fp.close()
         self.total_length = total_length
-        super().__init__()
 
     def _collate_fn(self, x):
         num_components = len(x[0])
@@ -164,7 +165,7 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
     @property
     def data_iterator(self):
         while True:
-            if self.training:
+            if self.mode == "train":
                 random.shuffle(self.files)
             for f_id in range(self.num_files):
                 data_file = self.files[f_id]
@@ -181,3 +182,5 @@ class BertPretrainingPreprocessedDataLayer(DataLayerNM):
                 )
                 for x in train_dataloader:
                     yield x
+            if self.mode != "train":
+                break

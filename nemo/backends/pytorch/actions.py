@@ -523,6 +523,7 @@ class PtActions(Actions):
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
+
                 if hasattr(eval_dataloader, 'sampler'):
                     eval_dataloader.sampler.set_epoch(0)
             else:  # Not distributed
@@ -545,9 +546,15 @@ class PtActions(Actions):
             dl_device = dl_nm._device
 
             # Evaluation mini-batch for loop
-            num_batches = len(eval_dataloader)
+            num_batches = None
+            if hasattr(eval_dataloader, "__len__"):
+                num_batches = len(eval_dataloader)
             for epoch_i, data in enumerate(eval_dataloader, 0):
-                if verbose and (num_batches < 10 or (epoch_i % int(num_batches / 10) == 0)):
+                if (
+                    verbose
+                    and num_batches is not None
+                    and (num_batches < 10 or (epoch_i % int(num_batches / 10) == 0))
+                ):
                     logging.info(f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
                 if isinstance(data, torch.Tensor):
@@ -618,13 +625,16 @@ class PtActions(Actions):
             # should happend only on one worker
             if callback.user_done_callback and (self.global_rank is None or self.global_rank == 0):
                 vals_to_log = callback.user_done_callback(callback._global_var_dict)
-                # log results to Tensorboard
-                if vals_to_log is not None and callback.swriter is not None:
-                    if callback.tb_writer_func is not None:
-                        callback.tb_writer_func(callback.swriter, vals_to_log, step)
-                    else:
-                        for key, val in vals_to_log.items():
-                            callback.swriter.add_scalar(key, val, step)
+                # log results to Tensorboard or Weights & Biases
+                if vals_to_log is not None:
+                    if hasattr(callback, 'swriter') and callback.swriter is not None:
+                        if hasattr(callback, 'tb_writer_func') and callback.tb_writer_func is not None:
+                            callback.tb_writer_func(callback.swriter, vals_to_log, step)
+                        else:
+                            for key, val in vals_to_log.items():
+                                callback.swriter.add_scalar(key, val, step)
+                    if hasattr(callback, 'wandb_log'):
+                        callback.wandb_log(vals_to_log)
 
     def _infer(
         self, tensors_to_return, verbose=False, cache=False, use_cache=False, offload_to_cpu=True,
@@ -1310,6 +1320,9 @@ class PtActions(Actions):
                 if self.tb_writer is not None:
                     value = curr_optimizer.param_groups[0]['lr']
                     self.tb_writer.add_scalar('param/lr', value, self.step)
+                if callbacks is not None:
+                    for callback in callbacks:
+                        callback.learning_rate = curr_optimizer.param_groups[0]['lr']
 
                 # registered_tensors will contain created tensors
                 # named by output port and uuid of module which created them
