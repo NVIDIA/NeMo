@@ -392,7 +392,7 @@ class Decoder(nn.Module):
             (self.attention_weights.unsqueeze(1), self.attention_weights_cum.unsqueeze(1),), dim=1,
         )
         self.attention_context, self.attention_weights = self.attention_layer(
-            self.attention_hidden, self.memory, self.processed_memory, attention_weights_cat, self.mask
+            self.attention_hidden, self.memory, self.processed_memory, attention_weights_cat, self.mask,
         )
 
         self.attention_weights_cum += self.attention_weights
