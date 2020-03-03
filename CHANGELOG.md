@@ -126,6 +126,8 @@ files, along with unit tests, examples and tutorials
 ### Fixed
 - Critical fix of the training action on CPU 
 ([PR #308](https://github.com/NVIDIA/NeMo/pull/309)) - @tkornuta-nvidia
+- Fixed issue in Tacotron 2 prenet
+([PR #444](https://github.com/NVIDIA/NeMo/pull/444)) - @blisc
 
 ### Removed
 - gradient_predivide_factor arg of train() now has no effect
