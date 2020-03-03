@@ -53,7 +53,7 @@ with an uncased BERT base model (the checkpoint bert-base-uncased)
 (source https://github.com/huggingface/transformers/tree/master/examples#glue).
 
 Task	Metric	                        Result
-CoLA	Matthew"s corr	                48.87
+CoLA	Matthew's corr	                48.87
 SST-2	Accuracy	                    91.74
 MRPC	F1/Accuracy	                 90.70/86.27
 STS-B	Person/Spearman corr.	     91.39/91.04

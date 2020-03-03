@@ -19,7 +19,7 @@ from transformers import AlbertTokenizer, BertTokenizer, RobertaTokenizer
 
 import nemo
 
-__all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_tokenizer']
+__all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_tokenizer',  'get_bert_special_tokens'']
 
 logging = nemo.logging
 
@@ -67,10 +67,7 @@ def get_tokenizer(tokenizer_name, pretrained_model_name, tokenizer_model=None, s
     tokenizer_name: sentencepiece or nemobert
     pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
         for example: bert-base-cased
-        To see the list of pretrained models, call:
-        nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-        nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
-        nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
+        To see the list of pretrained models, use: nemo_nlp.nm.trainables.get_bert_models_list()
     tokenizer_model (path): only used for sentencepiece tokenizer
     special_tokens (dict): dict of special tokens (Optional)
     '''
