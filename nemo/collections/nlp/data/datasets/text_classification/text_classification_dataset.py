@@ -28,20 +28,7 @@ import numpy as np
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils import (
-    process_imdb,
-    process_jarvis_datasets,
-    process_nlu,
-    process_sst_2,
-    process_thucnews,
-)
-from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import (
-    calc_class_weights,
-    get_intent_labels,
-    get_label_stats,
-    get_stats,
-    if_exist,
-)
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import get_stats
 from nemo.collections.nlp.utils.callback_utils import list2str
 
 __all__ = ['BertTextClassificationDataset']
@@ -56,32 +43,29 @@ class BertTextClassificationDataset(Dataset):
             the first line is header (sentence [tab] label)
             each line should be [sentence][tab][label]
         max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer (Tokenizer): such as BertTokenizer
+        tokenizer (Tokenizer): such as NemoBertTokenizer
         num_samples (int): number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
     """
 
-    def __init__(
-        self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=True, use_cache=False,
-    ):
-
+    def __init__(self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=False, use_cache=False):
         self.input_file = input_file
         self.max_seq_length = max_seq_length
         self.tokenizer = tokenizer
         self.num_samples = num_samples
-        self.shuffle = shuffle
         self.use_cache = use_cache
-
-        self.vocab_size = self.tokenizer.vocab_size
+        self.shuffle = shuffle
+        self.vocab_size = self.tokenizer.tokenizer.vocab_size
 
         if use_cache:
-            data_dir = os.path.dirname(input_file)
-            filename = os.path.basename(input_file)
-            filename = filename[:-4]
-            hdf5_path = os.path.join(data_dir, f'{filename}_features.hdf5')
+            data_dir, filename = os.path.split(input_file)
+            tokenizer_type = type(tokenizer.tokenizer).__name__
+            cached_features_file = os.path.join(
+                data_dir, "cached_{}_{}_{}".format(filename[:-4], tokenizer_type, str(max_seq_length), '.hdf5')
+            )
 
-        if use_cache and os.path.exists(hdf5_path):
-            self.load_cached_features(hdf5_path)
+        if use_cache and os.path.exists(cached_features_file):
+            self.load_cached_features(cached_features_file)
 
         else:
             with open(input_file, "r") as f:
@@ -105,13 +89,13 @@ class BertTextClassificationDataset(Dataset):
                     sent_label = int(line.split()[-1])
                     sent_labels.append(sent_label)
                     sent_words = line.strip().split()[:-1]
-                    sent_subtokens = ['[CLS]']
+                    sent_subtokens = [tokenizer.cls_token]
 
                     for word in sent_words:
-                        word_tokens = tokenizer.tokenize(word)
+                        word_tokens = tokenizer.text_to_tokens(word)
                         sent_subtokens.extend(word_tokens)
 
-                    sent_subtokens.append('[SEP]')
+                    sent_subtokens.append(tokenizer.sep_token)
 
                     all_sent_subtokens.append(sent_subtokens)
                     sent_lengths.append(len(sent_subtokens))
@@ -121,7 +105,7 @@ class BertTextClassificationDataset(Dataset):
             for i in range(len(all_sent_subtokens)):
                 if len(all_sent_subtokens[i]) > max_seq_length:
                     shorten_sent = all_sent_subtokens[i][-max_seq_length + 1 :]
-                    all_sent_subtokens[i] = ['[CLS]'] + shorten_sent
+                    all_sent_subtokens[i] = [tokenizer.cls_token] + shorten_sent
                     too_long_count += 1
 
             logging.info(
@@ -132,10 +116,10 @@ class BertTextClassificationDataset(Dataset):
             self.convert_sequences_to_features(all_sent_subtokens, sent_labels, tokenizer, max_seq_length)
 
             if self.use_cache:
-                self.cache_features(hdf5_path, self.features)
+                self.cache_features(cached_features_file, self.features)
 
                 # update self.features to use features from hdf5
-                self.load_cached_features(hdf5_path)
+                self.load_cached_features(cached_features_file)
 
     def __len__(self):
         if self.use_cache:
@@ -167,7 +151,7 @@ class BertTextClassificationDataset(Dataset):
             sent_subtokens = all_sent_subtokens[sent_id]
             sent_label = sent_labels[sent_id]
 
-            input_ids = [tokenizer._convert_token_to_id(t) for t in sent_subtokens]
+            input_ids = [tokenizer.tokens_to_ids(t) for t in sent_subtokens]
 
             # The mask has 1 for real tokens and 0 for padding tokens.
             # Only real tokens are attended to.
@@ -182,7 +166,7 @@ class BertTextClassificationDataset(Dataset):
             assert len(input_ids) == max_seq_length
             assert len(input_mask) == max_seq_length
 
-            if sent_id == 0:
+            if sent_id < 5:
                 logging.info("*** Example ***")
                 logging.info("example_index: %s" % sent_id)
                 logging.info("subtokens: %s" % " ".join(sent_subtokens))
@@ -200,7 +184,7 @@ class BertTextClassificationDataset(Dataset):
                 )
             )
 
-    def cache_features(self, hdf5_path, features):
+    def cache_features(self, cached_features_file, features):
         len_features = len(features)
         input_ids_array = np.zeros((len_features, self.max_seq_length))
         segment_ids_array = np.zeros((len_features, self.max_seq_length))
@@ -213,22 +197,22 @@ class BertTextClassificationDataset(Dataset):
             input_mask_array[idx] = features[idx].input_mask
             sent_labels_array[idx] = features[idx].sent_label
 
-        f = h5py.File(hdf5_path, mode='w')
+        f = h5py.File(cached_features_file, mode='w')
         f.create_dataset('input_ids', data=input_ids_array)
         f.create_dataset('segment_ids', data=segment_ids_array)
         f.create_dataset('input_mask', data=input_mask_array)
         f.create_dataset('sent_labels', data=sent_labels_array)
         f.close()
 
-    def load_cached_features(self, hdf5_path):
-        f = h5py.File(hdf5_path, 'r')
+    def load_cached_features(self, cached_features_file):
+        f = h5py.File(cached_features_file, 'r')
         keys = ['input_ids', 'segment_ids', 'input_mask', 'sent_labels']
         self.features = [np.asarray(f[key], dtype=np.long) for key in keys]
         f.close()
-        logging.info(f'features restored from {hdf5_path}')
+        logging.info(f'features restored from {cached_features_file}')
 
         if self.shuffle:
-            np.random.seed(123)
+            np.random.seed(0)
             idx = np.arange(len(self))
             np.random.shuffle(idx)  # shuffle idx in place
             shuffled_features = [arr[idx] for arr in self.features]
@@ -248,74 +232,3 @@ class InputFeatures(object):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
-
-
-class TextClassificationDataDesc:
-    def __init__(self, dataset_name, data_dir, do_lower_case):
-        if dataset_name == 'sst-2':
-            self.data_dir = process_sst_2(data_dir)
-            self.num_labels = 2
-            self.eval_file = self.data_dir + '/dev.tsv'
-        elif dataset_name == 'imdb':
-            self.num_labels = 2
-            self.data_dir = process_imdb(data_dir, do_lower_case)
-            self.eval_file = self.data_dir + '/test.tsv'
-        elif dataset_name == 'thucnews':
-            self.num_labels = 14
-            self.data_dir = process_thucnews(data_dir)
-            self.eval_file = self.data_dir + '/test.tsv'
-        elif dataset_name.startswith('nlu-'):
-            if dataset_name.endswith('chat'):
-                self.data_dir = f'{data_dir}/ChatbotCorpus.json'
-                self.num_labels = 2
-            elif dataset_name.endswith('ubuntu'):
-                self.data_dir = f'{data_dir}/AskUbuntuCorpus.json'
-                self.num_labels = 5
-            elif dataset_name.endswith('web'):
-                data_dir = f'{data_dir}/WebApplicationsCorpus.json'
-                self.num_labels = 8
-            self.data_dir = process_nlu(data_dir, do_lower_case, dataset_name=dataset_name)
-            self.eval_file = self.data_dir + '/test.tsv'
-        elif dataset_name.startswith('jarvis'):
-            self.data_dir = process_jarvis_datasets(
-                data_dir, do_lower_case, dataset_name, modes=['train', 'test', 'eval'], ignore_prev_intent=False
-            )
-
-            intents = get_intent_labels(f'{self.data_dir}/dict.intents.csv')
-            self.num_labels = len(intents)
-        else:
-            raise ValueError(
-                "Looks like you passed a dataset name that isn't "
-                "already supported by NeMo. Please make sure "
-                "that you build the preprocessing method for it."
-            )
-
-        self.train_file = self.data_dir + '/train.tsv'
-
-        for mode in ['train', 'test', 'eval']:
-
-            if not if_exist(self.data_dir, [f'{mode}.tsv']):
-                logging.info(f' Stats calculation for {mode} mode' f' is skipped as {mode}.tsv was not found.')
-                continue
-
-            input_file = f'{self.data_dir}/{mode}.tsv'
-            with open(input_file, 'r') as f:
-                input_lines = f.readlines()[1:]  # Skipping headers at index 0
-
-            queries, raw_sentences = [], []
-            for input_line in input_lines:
-                parts = input_line.strip().split()
-                raw_sentences.append(int(parts[-1]))
-                queries.append(' '.join(parts[:-1]))
-
-            infold = input_file[: input_file.rfind('/')]
-
-            logging.info(f'Three most popular classes during {mode}ing')
-            total_sents, sent_label_freq = get_label_stats(raw_sentences, infold + f'/{mode}_sentence_stats.tsv')
-
-            if mode == 'train':
-                self.class_weights = calc_class_weights(sent_label_freq)
-                logging.info(f'Class weights are - {self.class_weights}')
-
-            logging.info(f'Total Sentences - {total_sents}')
-            logging.info(f'Sentence class frequencies - {sent_label_freq}')
