@@ -18,7 +18,6 @@ import argparse
 import math
 import os
 
-import numpy as np
 from transformers import BertTokenizer
 
 import nemo
@@ -184,7 +183,7 @@ eval_tensors, _, _, eval_data_layer = create_pipeline(
 # Create callbacks for train and eval modes
 train_callback = SimpleLossLoggerCallback(
     tensors=train_tensors,
-    print_func=lambda x: logging.info(str(np.round(x[0].item(), 3))),
+    print_func=lambda x: logging.info(str(round(x[0].item(), 3))),
     tb_writer=nf.tb_writer,
     get_tb_values=lambda x: [["loss", x[0]]],
     step_freq=train_steps_per_epoch,
