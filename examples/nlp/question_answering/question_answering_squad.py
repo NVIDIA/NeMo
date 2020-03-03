@@ -86,7 +86,7 @@ import os
 import numpy as np
 
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.data.tokenizers.huggingface_utils
+import nemo.collections.nlp.data.tokenizers.tokenizer_utils
 import nemo.core as nemo_core
 from nemo import logging
 from nemo.collections.nlp.callbacks.qa_squad_callback import eval_epochs_done_callback, eval_iter_callback
@@ -109,7 +109,7 @@ def parse_args():
         default='roberta-base',
         type=str,
         help='Name of the pre-trained model',
-        choices=nemo_nlp.nm.trainables.get_huggingface_models_list(),
+        choices=nemo_nlp.nm.trainables.get_bert_models_list(),
     )
     parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
     parser.add_argument(
@@ -118,7 +118,7 @@ def parse_args():
     parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
     parser.add_argument(
         "--tokenizer_model",
-        default="tokenizer.model",
+        default=None,
         type=str,
         help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
     )
@@ -331,12 +331,11 @@ if __name__ == "__main__":
 
     hidden_size = model.hidden_size
 
-    if args.tokenizer == 'sentencepiece':
-        tokenizer = nemo.collections.nlp.data.tokenizers.huggingface_utils.get_sentence_piece_tokenizer(
-            tokenizer_model=args.tokenizer_model, pretrained_model_name=args.pretrained_model_name
-        )
-    else:
-        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
+    tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+        tokenizer_name=args.tokenizer,
+        pretrained_model_name=args.pretrained_model_name,
+        tokenizer_model=args.tokenizer_model
+    )
 
     qa_head = nemo_nlp.nm.trainables.TokenClassifier(
         hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False

@@ -17,7 +17,7 @@
 import re
 
 from nemo import logging
-from nemo.collections.nlp.data.tokenizers.huggingface_utils import MODEL_SPECIAL_TOKENS, TOKENIZERS
+from nemo.collections.nlp.data.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOKENS, TOKENIZERS
 from nemo.collections.nlp.data.tokenizers.tokenizer_spec import TokenizerSpec
 
 __all__ = [
@@ -69,7 +69,7 @@ class NemoBertTokenizer(TokenizerSpec):
         pretrained_model (str):name of the pretrained model from the hugging face list,
             for example: bert-base-cased
             To see the list of pretrained models, call:
-            huggingface_utils.get_huggingface_models_list()
+            huggingface_utils.get_bert_models_list()
         vocab_file: File containing the vocabulary.
         bert_derivative: for example: 'bert', 'roberta', 'albert'. Only used when vocab_file specified.
         '''

@@ -18,7 +18,7 @@ from nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm import Albe
 from nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm import BERT
 from nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm import Roberta
 
-__all__ = ['MODELS', 'get_huggingface_model', 'get_huggingface_models_list']
+__all__ = ['MODELS', 'get_huggingface_model', 'get_bert_models_list']
 
 
 def get_huggingface_model(pretrained_model_name, bert_config):
@@ -37,17 +37,17 @@ def get_huggingface_model(pretrained_model_name, bert_config):
         else:
             return MODELS[model_type]['class'](pretrained_model_name=pretrained_model_name)
     else:
-        raise ValueError(f'Choose pretrained model from the following list: {get_huggingface_models_list()}.')
+        raise ValueError(f'Choose pretrained model from the following list: {get_bert_models_list()}.')
 
 
 MODELS = {
     'bert': {'default': 'bert-base-uncased', 'class': BERT},
-    'roberta': {'defualt': 'roberta-base', 'class': Roberta},
+    'roberta': {'default': 'roberta-base', 'class': Roberta},
     'albert': {'default': 'albert-base-v2', 'class': Albert},
 }
 
 
-def get_huggingface_models_list():
+def get_bert_models_list():
     huggingface_models = []
     for model in MODELS:
         model_names = [x.pretrained_model_name for x in MODELS[model]['class'].list_pretrained_models()]

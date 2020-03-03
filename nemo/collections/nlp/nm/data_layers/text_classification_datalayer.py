@@ -67,7 +67,6 @@ class BertTextClassificationDataLayer(TextDataLayer):
         input_file,
         tokenizer,
         max_seq_length,
-        model_name,
         num_samples=-1,
         shuffle=False,
         batch_size=64,
@@ -81,6 +80,5 @@ class BertTextClassificationDataLayer(TextDataLayer):
             'num_samples': num_samples,
             'use_cache': use_cache,
             'shuffle': shuffle,
-            'model_name': model_name,
         }
         super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)

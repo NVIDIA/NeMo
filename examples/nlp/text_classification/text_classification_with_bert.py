@@ -43,7 +43,7 @@ parser.add_argument(
     default='roberta-base',
     type=str,
     help='Name of the pre-trained model',
-    choices=nemo_nlp.nm.trainables.get_huggingface_models_list(),
+    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str)
@@ -64,6 +64,7 @@ parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
 parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
+parser.add_argument('--loss_step_freq', default=25, type=int, help='Frequency of printing loss')
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--do_lower_case", action='store_true')
@@ -80,7 +81,7 @@ nf = nemo.core.NeuralModuleFactory(
     log_dir=work_dir,
     create_tb_writer=True,
     files_to_copy=[__file__],
-    add_time_to_log_dir=False,
+    add_time_to_log_dir=True,
 )
 
 model = nemo_nlp.nm.trainables.get_huggingface_model(
@@ -123,8 +124,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
         num_samples=num_samples,
         shuffle=shuffle,
         batch_size=batch_size,
-        use_cache=args.use_cache,
-        model_name=args.pretrained_model_name,
+        use_cache=args.use_cache
     )
 
     ids, type_ids, input_mask, labels = data_layer()
@@ -136,7 +136,6 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
         batch_size = data_size
 
     steps_per_epoch = math.ceil(data_size / (batch_size * num_gpus))
-    logging.info(f"Steps_per_epoch = {steps_per_epoch}")
 
     hidden_states = model(input_ids=ids, token_type_ids=type_ids, attention_mask=input_mask)
 
@@ -158,6 +157,8 @@ train_tensors, train_loss, steps_per_epoch, _ = create_pipeline(
     local_rank=args.local_rank,
     mode=args.train_file_prefix,
 )
+logging.info(f"Steps_per_epoch = {steps_per_epoch}")
+
 eval_tensors, _, _, data_layer = create_pipeline(
     num_samples=args.num_eval_samples,
     batch_size=args.batch_size,
@@ -169,9 +170,10 @@ eval_tensors, _, _, data_layer = create_pipeline(
 # Create callbacks for train and eval modes
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=train_tensors,
-    print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+    print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
     tb_writer=nf.tb_writer,
     get_tb_values=lambda x: [["loss", x[0]]],
+    step_freq=args.loss_step_freq
 )
 
 eval_callback = nemo.core.EvaluatorCallback(

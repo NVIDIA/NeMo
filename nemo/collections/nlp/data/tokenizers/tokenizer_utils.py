@@ -19,7 +19,7 @@ from transformers import AlbertTokenizer, BertTokenizer, RobertaTokenizer
 
 import nemo
 
-__all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_sentence_piece_tokenizer']
+__all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_tokenizer']
 
 logging = nemo.logging
 
@@ -56,30 +56,37 @@ MODEL_SPECIAL_TOKENS = {
 
 TOKENIZERS = {'bert': BertTokenizer, 'albert': AlbertTokenizer, 'roberta': RobertaTokenizer}
 
+def get_bert_special_tokens(bert_derivative):
+    return MODEL_SPECIAL_TOKENS[bert_derivative]
 
-def get_sentence_piece_tokenizer(tokenizer_model, pretrained_model_name, special_tokens=None):
+def get_tokenizer(tokenizer_name, pretrained_model_name, tokenizer_model=None, special_tokens=None):
     '''
-    Return SentencePieceTokenizer
+    Args:
+    tokenizer_name: sentencepiece or nemobert
     pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
         for example: bert-base-cased
         To see the list of pretrained models, call:
         nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
         nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
         nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
+    tokenizer_model (path): only used for sentencepiece tokenizer
     special_tokens (dict): dict of special tokens (Optional)
     '''
-    if not os.path.exists(tokenizer_model):
-        raise FileNotFoundError(f'{tokenizer_model} tokenizer model not found')
 
-    tokenizer = nemo.collections.nlp.data.tokenizers.SentencePieceTokenizer(model_path=tokenizer_model)
+    if tokenizer_name == 'nemobert':
+        tokenizer = nemo.collections.nlp.data.tokenizers.NemoBertTokenizer(pretrained_model=pretrained_model_name)
+    elif tokenizer_name == 'sentencepiece':
+        if not os.path.exists(tokenizer_model):
+            raise FileNotFoundError(f'{tokenizer_model} tokenizer model not found')
 
-    model_type = pretrained_model_name.split('-')[0]
-
-    if special_tokens is None:
-        if model_type is None or model_type not in MODEL_SPECIAL_TOKENS:
-            logging.info(f'No special tokens found for {model_type}.')
-        else:
-            special_tokens = MODEL_SPECIAL_TOKENS[model_type]
-
-    tokenizer.add_special_tokens(special_tokens)
+        tokenizer = nemo.collections.nlp.data.tokenizers.SentencePieceTokenizer(model_path=tokenizer_model)
+        model_type = pretrained_model_name.split('-')[0]
+        if special_tokens is None:
+            if model_type not in MODEL_SPECIAL_TOKENS:
+                logging.info(f'No special tokens found for {model_type}.')
+            else:
+                special_tokens = MODEL_SPECIAL_TOKENS[model_type]
+        tokenizer.add_special_tokens(special_tokens)
+    else:
+        raise ValueError(f'{tokenizer_name} is not supported')
     return tokenizer
