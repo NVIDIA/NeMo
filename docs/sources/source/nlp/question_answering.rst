@@ -69,21 +69,6 @@ First, we instantiate Neural Module Factory which defines 1) backend (PyTorch), 
                                                files_to_copy=[__file__],
                                                add_time_to_log_dir=True)
 
-We define the tokenizer which transforms text into BERT tokens, using `NemoBertTokenizer`.
-This will tokenize text following the mapping of the original BERT model.
-
-    .. code-block:: python
-
-        hidden_size = model.hidden_size
-        tokenizer = nemo_nlp.data.NemoBertTokenizer(bert_derivate='bert', pretrained_model="bert-base-uncased")
-        # to use RoBERTa tokenizer, run e.g.
-        special_tokens_roberta = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['roberta']
-        tokenizer = nemo_nlp.data.NemoBertTokenizer(bert_derivate='roberta', pretrained_model="roberta-base", special_tokens=special_tokens_roberta)
-        # to use Albert tokenizer, run e.g.
-        special_tokens_albert = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['albert']
-        tokenizer = nemo_nlp.data.NemoBertTokenizer(bert_derivate='albert', pretrained_model="albert-base-v1", special_tokens=special_tokens_albert)
-
-
 Next, we define all Neural Modules participating in our question answering classification pipeline.
 
     * Process data: the `BertQuestionAnsweringDataLayer` is supposed to do the preprocessing of raw data into the format data supported by `SquadDataset`.
@@ -128,6 +113,15 @@ Next, we define all Neural Modules participating in our question answering class
         # or for Albert
         args.pretrained_model_name = "albert-base-v1"
         model = nemo_nlp.nm.trainables.huggingface.Albert(args.pretrained_model_name)
+
+    * Define the tokenizer which transforms text into BERT tokens, using `NemoBertTokenizer`.
+    This will tokenize text following the mapping of the original BERT model.
+
+    .. code-block:: python
+
+        hidden_size = model.hidden_size
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
+
 
     * Create the classifier head for our task.
 

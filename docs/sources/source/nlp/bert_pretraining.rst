@@ -84,7 +84,7 @@ To train on a Chinese dataset, you should use `NemoBertTokenizer`.
 
         # If you're using a custom vocabulary, create your tokenizer like this
         tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path="tokenizer.model")
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
+        special_tokens = nemo_nlp.data.get_bert_special_tokens('bert')
         tokenizer.add_special_tokens(special_tokens)
 
         # Otherwise, create your tokenizer like this
