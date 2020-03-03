@@ -921,9 +921,7 @@ class PtActions(Actions):
                         self.modules.add(module[0])
 
     @staticmethod
-    def __module_export(
-        module, output, d_format: DeploymentFormat, input_example=None, output_example=None
-    ):
+    def __module_export(module, output, d_format: DeploymentFormat, input_example=None, output_example=None):
         # Check if output already exists
         destination = Path(output)
         if destination.exists():
@@ -1043,9 +1041,7 @@ class PtActions(Actions):
             type(module).__call__ = __old_call__
 
     @staticmethod
-    def deployment_export(
-        module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None
-    ):
+    def deployment_export(module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None):
         """Exports Neural Module instance for deployment.
 
         Args:
