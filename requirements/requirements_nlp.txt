@@ -9,5 +9,3 @@ youtokentome
 numpy
 tqdm
 sklearn
-requests
-wget
