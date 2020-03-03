@@ -93,7 +93,7 @@ class GLUEDataset(Dataset):
                 'eos_token': tokenizer.eos_token,
                 'pad_token': tokenizer.pad_token,
                 'cls_token': tokenizer.cls_token,
-                'sep_token_extra': tokenizer.eos_token if 'roberta' in model_name.lower() else None,
+                'sep_token_extra': tokenizer.eos_token if 'roberta' in tokenizer_type.lower() else None,
             }
 
             self.features = self.convert_examples_to_features(
