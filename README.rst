@@ -38,19 +38,7 @@ The toolkit comes with extendable collections of pre-built modules for automatic
 NeMo consists of a core and some pre-built neural modules for particular domains such as automatic speech recognition, natural language processing and text synthesis:
 
 * **NeMo Core**: fundamental building blocks for all neural models and type system
-* **ASR Collection**: collection of modules for speech recognition tasks
-* **TTS Collection**: collection of modules for text to speech
-* **NLP Collection**: collection of natural language processing
-   * Intent Detection and Slot Filling
-   * Text Classification
-   * State Tracking for Task-oriented Dialogue Systems
-   * Language Modelling
-   * Machine Translation
-   * Question Answering
-   * Name Entity Recognition (NER)
-   * Punctuation and Capitalization
-   * GLUE Benchmark
-   * ASR Postprocessing with BERT
+* **NeMo collections**: pre-built neural modules for particular domains such as automatic speech recognition (nemo_asr), natural language processing (nemo_nlp) and text synthesis (nemo_tts).
 
 **Introduction**
 
@@ -76,7 +64,7 @@ THE LATEST STABLE VERSION OF NeMo is **0.9.0** (which is available via PIP).
 **Requirements**
 
 1) Python 3.6 or 3.7
-2) PyTorch 1.2.* or 1.3.* with GPU support
+2) PyTorch 1.4* with GPU support
 3) (optional for best performance) NVIDIA APEX. Install from here: https://github.com/NVIDIA/apex
 
 **Docker Container**
@@ -87,15 +75,27 @@ THE LATEST STABLE VERSION OF NeMo is **0.9.0** (which is available via PIP).
 
 If you are using the NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ follow these instructions
 
-* Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:19.11-py3``
-* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.11-py3``
+* Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:20.01-py3``
+* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:20.01-py3``
 
 .. code-block:: bash
 
-    pip install nemo-toolkit  # installs NeMo Core
-    pip install nemo-asr # installs NeMo ASR collection
-    pip install nemo-nlp # installs NeMo NLP collection
-    pip install nemo-tts # installs NeMo TTS collection
+    pip install nemo_toolkit # Installs NeMo Core Only
+    pip install nemo_toolkit[asr] # Installs Core and ASR Collection
+    pip install nemo_toolkit[nlp] # Installs Core and NLP Collection
+    pip install nemo_toolkit[tts] # Installs Core and TTS Collection
+
+You can also install everything (NeMo Core with all collections along with their dependences) by calling:
+
+.. code-block:: bash
+
+    pip install nemo_toolkit[all] # Absolutely everything
+
+or their subsets by:
+
+.. code-block:: bash
+
+    pip install nemo_toolkit[nlp,asr] # Core + NLP + ASR
 
 * DEVELOPMENT: If you'd like to use master branch and/or develop NeMo you can run "reinstall.sh" script.
 
@@ -122,7 +122,7 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 2) Go to NeMo folder and re-install the toolkit with collections:
 
 .. code-block:: bash
-	
+
     ./reinstall.sh
 
 **Style tests**
@@ -148,11 +148,14 @@ Citation
 
 If you are using NeMo please cite the following publication
 
-@misc{nemo2019,
-    title={NeMo: a toolkit for building AI applications using Neural Modules},
-    author={Oleksii Kuchaiev and Jason Li and Huyen Nguyen and Oleksii Hrinchuk and Ryan Leary and Boris Ginsburg and Samuel Kriman and Stanislav Beliaev and Vitaly Lavrukhin and Jack Cook and Patrice Castonguay and Mariya Popova and Jocelyn Huang and Jonathan M. Cohen},
-    year={2019},
-    eprint={1909.09577},
-    archivePrefix={arXiv},
-    primaryClass={cs.LG}
-}
+.. code-block:: tex
+
+    @misc{nemo2019,
+        title={NeMo: a toolkit for building AI applications using Neural Modules},
+        author={Oleksii Kuchaiev and Jason Li and Huyen Nguyen and Oleksii Hrinchuk and Ryan Leary and Boris Ginsburg and Samuel Kriman and Stanislav Beliaev and Vitaly Lavrukhin and Jack Cook and Patrice Castonguay and Mariya Popova and Jocelyn Huang and Jonathan M. Cohen},
+        year={2019},
+        eprint={1909.09577},
+        archivePrefix={arXiv},
+        primaryClass={cs.LG}
+    }
+
