@@ -99,7 +99,6 @@ class BertTextClassificationDataset(Dataset):
 
                     all_sent_subtokens.append(sent_subtokens)
                     sent_lengths.append(len(sent_subtokens))
-
             get_stats(sent_lengths)
 
             for i in range(len(all_sent_subtokens)):
