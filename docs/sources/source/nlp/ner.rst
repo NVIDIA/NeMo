@@ -9,6 +9,8 @@ tutorial. See the :ref:`installation` section for more details.
     For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
 
 
+.. _ner_tutorial:
+
 Introduction
 ------------
 
