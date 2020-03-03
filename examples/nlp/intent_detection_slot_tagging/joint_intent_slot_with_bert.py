@@ -18,7 +18,6 @@ import argparse
 import math
 import os
 
-import numpy as np
 from transformers import BertTokenizer
 
 import nemo
@@ -118,11 +117,11 @@ else:
 total_loss_fn = LossAggregatorNM(num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight])
 
 
-def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
-    logging.info(f"Loading {mode} data...")
-    data_file = f'{data_desc.data_dir}/{mode}.tsv'
-    slot_file = f'{data_desc.data_dir}/{mode}_slots.tsv'
-    shuffle = args.shuffle_data if mode == 'train' else False
+def create_pipeline(num_samples=-1, batch_size=32, data_prefix='train', is_training=True, num_gpus=1):
+    logging.info(f"Loading {data_prefix} data...")
+    data_file = f'{data_desc.data_dir}/{data_prefix}.tsv'
+    slot_file = f'{data_desc.data_dir}/{data_prefix}_slots.tsv'
+    shuffle = args.shuffle_data if is_training else False
 
     data_layer = BertJointIntentSlotDataLayer(
         input_file=data_file,
@@ -160,7 +159,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
     slot_loss = slot_loss_fn(logits=slot_logits, labels=input_data.slots, loss_mask=input_data.loss_mask)
     total_loss = total_loss_fn(loss_1=intent_loss, loss_2=slot_loss)
 
-    if mode == 'train':
+    if is_training:
         tensors_to_evaluate = [total_loss, intent_logits, slot_logits]
     else:
         tensors_to_evaluate = [
@@ -175,16 +174,24 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
 
 
 train_tensors, train_loss, train_steps_per_epoch, _ = create_pipeline(
-    args.num_train_samples, batch_size=args.batch_size, num_gpus=args.num_gpus, mode=args.train_file_prefix,
+    num_samples=args.num_train_samples,
+    batch_size=args.batch_size,
+    data_prefix=args.train_file_prefix,
+    is_training=True,
+    num_gpus=args.num_gpus,
 )
 eval_tensors, _, _, eval_data_layer = create_pipeline(
-    args.num_eval_samples, batch_size=args.batch_size, num_gpus=args.num_gpus, mode=args.eval_file_prefix,
+    num_samples=args.num_eval_samples,
+    batch_size=args.batch_size,
+    data_prefix=args.eval_file_prefix,
+    is_training=False,
+    num_gpus=args.num_gpus,
 )
 
 # Create callbacks for train and eval modes
 train_callback = SimpleLossLoggerCallback(
     tensors=train_tensors,
-    print_func=lambda x: str(np.round(x[0].item(), 3)),
+    print_func=lambda x: logging.info(str(round(x[0].item(), 3))),
     tb_writer=nf.tb_writer,
     get_tb_values=lambda x: [["loss", x[0]]],
     step_freq=train_steps_per_epoch,
