@@ -30,14 +30,14 @@ RUN apt-get update && \
     python-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# install onnx trt open source plugins
+# build trt open source plugins
 ENV PATH=$PATH:/usr/src/tensorrt/bin
-WORKDIR /tmp/onnx-trt
-COPY scripts/docker/onnx-trt.patch .
-RUN git clone -n https://github.com/onnx/onnx-tensorrt.git && cd onnx-tensorrt && \
-    git checkout 8716c9b && git submodule update --init --recursive && patch -f < ../onnx-trt.patch && \
-    mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DGPU_ARCHS="60 70 75" && \
-    make -j16 && make install && mv -f /usr/lib/libnvonnx* /usr/lib/x86_64-linux-gnu/ && ldconfig && rm -rf /tmp/onnx-tensorrt
+WORKDIR /tmp/trt-oss
+RUN git clone --recursive --branch release/7.0 https://github.com/NVIDIA/TensorRT.git && cd TensorRT && \
+     mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DTRT_LIB_DIR=/usr/lib/x86_64-linux-gnu/ -DTRT_BIN_DIR=`pwd` \
+    -DBUILD_PARSERS=OFF -DBUILD_SAMPLES=OFF -DBUILD_PLUGINS=ON -DGPU_ARCHS="70 75" && \
+    make -j nvinfer_plugin
 
 # install nemo dependencies
 WORKDIR /tmp/nemo
@@ -52,6 +52,10 @@ COPY . .
 FROM nemo-deps as nemo
 ARG NEMO_VERSION
 ARG BASE_IMAGE
+
+# copy oss trt plugins
+COPY --from=nemo-deps /tmp/trt-oss/TensorRT/build/libnvinfer_plugin.so* /usr/lib/x86_64-linux-gnu/
+
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
 RUN /usr/bin/test -n "$NEMO_VERSION" && \
