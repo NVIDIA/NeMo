@@ -18,6 +18,7 @@ Introduction
 Creating domain-specific BERT models can be advantageous for a wide range of applications. One notable is domain-specific BERT in a biomedical setting,
 similar to BioBERT :cite:`nlp-bert-lee2019biobert` and SciBERT :cite:`nlp-bert-beltagy2019scibert`.
 
+.. _bert_data_download:
 
 Download Corpus
 ---------------
@@ -44,14 +45,14 @@ use the script ``examples/nlp/language_modeling/process_wiki_zh.py`` for preproc
 
 For already preprocessed data, we will be using a large dataset composed of Wikipedia and BookCorpus as in the original BERT paper.
 
-To download the dataset, go to ``https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/LanguageModeling/BERT`` 
+To download the dataset, go to `https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/LanguageModeling/BERT <https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/LanguageModeling/BERT>`__
 and run the script ``./data/create_datasets_from_start.sh``.
-The downloaded folder should include a 2 sub folders with the prefix ``lower_case_[0,1]_seq_len_128_max_pred_20_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5``
-and ``lower_case_[0,1]_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5``, containing sequences of length 128 with a maximum of 20 masked tokens
+The downloaded folder should include a 2 sub folders with the prefix `lower_case_[0,1]_seq_len_128_max_pred_20_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5`
+and `lower_case_[0,1]_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5`, containing sequences of length 128 with a maximum of 20 masked tokens
 and sequences of length 512 with a maximum of 80 masked tokens respectively.
 
 
-Create the tokenizer model
+Create the tokenizer
 --------------------------
 A tokenizer will be used for data preprocessing and, therefore, is only required for training using raw text data.
 
@@ -59,9 +60,9 @@ A tokenizer will be used for data preprocessing and, therefore, is only required
 the dataset to create a vocab file and a tokenizer model.
 
 You can also use an available vocab or tokenizer model to skip this step. If you already have a pretrained tokenizer model
-copy it to the ``[data_dir]/bert`` folder under the name ``tokenizer.model`` and the script will skip this step.
+copy it to the `[data_dir]/bert` folder under the name `tokenizer.model` and the script will skip this step.
 
-If have an available vocab, such as``vocab.txt`` file from any pretrained BERT model, copy it to the ``[data_dir]/bert`` folder under the name ``vocab.txt``.
+If have an available vocab, such as `vocab.txt` file from any pretrained BERT model, copy it to the `[data_dir]/bert` folder under the name `vocab.txt`.
 
     .. code-block:: python
       
@@ -124,7 +125,10 @@ We also need to define the BERT model that we will be pre-training. Here, you ca
             max_position_embeddings=args.max_seq_length,
             hidden_act=args.hidden_act)
 
-If you want to start pre-training from existing BERT checkpoints, specify the checkpoint folder path with the argument ``--load_dir``. 
+
+.. note::
+    If you want to start pre-training from existing BERT checkpoints, specify the checkpoint folder path with the argument ``--load_dir``. 
+
 The following code will automatically load the checkpoints if they exist and are compatible to the previously defined model
 
     .. code-block:: python
@@ -133,6 +137,7 @@ The following code will automatically load the checkpoints if they exist and are
                             load_from_folder=args.load_dir)
 
 To initialize the model with already pretrained checkpoints, specify ``pretrained_model_name``. For example, to initialize BERT Base trained on cased Wikipedia and BookCorpus with 12 layers, run
+    
     .. code-block:: python
 
         bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name="bert-base-cased")
@@ -177,7 +182,7 @@ Finally we will tie the weights of the encoder embedding layer and the MLM outpu
 
 Then, we create the pipeline from input to output that can be used for both training and evaluation:
 
-For training from raw text use nemo_nlp.nm.data_layers.BertPretrainingDataLayer, for preprocessed data use nemo_nlp.nm.data_layers.BertPretrainingPreprocessedDataLayer
+For training from raw text use `nemo_nlp.nm.data_layers.BertPretrainingDataLayer`, for preprocessed data use `nemo_nlp.nm.data_layers.BertPretrainingPreprocessedDataLayer`
 
     .. code-block:: python
 
@@ -256,46 +261,10 @@ For training from raw text use nemo_nlp.nm.data_layers.BertPretrainingDataLayer,
         #                            mode="eval")
 
 
-Next, we define necessary callbacks:
+Run the model
+----------------
 
-1. `SimpleLossLoggerCallback`: tracking loss during training
-2. `EvaluatorCallback`: tracking metrics during evaluation at set intervals
-3. `CheckpointCallback`: saving model checkpoints at set intervals
-
-    train_callback = nemo.core.SimpleLossLoggerCallback(tensors=[train_loss],
-        print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())))),
-        step_freq=args.train_step_freq,
-    eval_callback = nemo.core.EvaluatorCallback(eval_tensors=[eval_loss],
-        user_iter_callback=nemo_nlp.callbacks.lm_bert_callback.eval_iter_callback,
-        user_epochs_done_callback=nemo_nlp.callbacks.lm_bert_callback.eval_epochs_done_callback
-        eval_step=args.eval_step_freq)
-    ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir,
-        epoch_freq=args.save_epoch_freq,
-        load_from_folder=args.load_dir,
-        step_freq=args.save_step_freq)
-        
-.. tip::
-
-    Tensorboard_ is a great debugging tool. It's not a requirement for this tutorial, but if you'd like to use it, you should install tensorboardX_ and run the following command during pre-training:
-
-    .. code-block:: bash
-
-        tensorboard --logdir outputs/bert_lm/tensorboard
-
-.. _Tensorboard: https://www.tensorflow.org/tensorboard
-.. _tensorboardX: https://github.com/lanpa/tensorboardX
-
-
-We also recommend you export your model's parameters to a config file. This makes it easier to load your BERT model into NeMo later, as explained in our NER tutorial.
-
-    .. code-block:: python
-
-        config_path = f'{nf.checkpoint_dir}/bert-config.json'
-
-        if not os.path.exists(config_path):
-            bert_model.config.to_json_file(config_path)
-
-Finally, you should define your optimizer, and start training!
+Define your learning rate policy
 
     .. code-block:: python
 
@@ -308,7 +277,39 @@ Finally, you should define your optimizer, and start training!
                                      total_steps=args.num_epochs * steps_per_epoch,
                                      warmup_ratio=args.lr_warmup_proportion)
 
+Next, we define necessary callbacks:
 
+1. `SimpleLossLoggerCallback`: tracking loss during training
+2. `EvaluatorCallback`: tracking metrics during evaluation at set intervals
+3. `CheckpointCallback`: saving model checkpoints at set intervals
+
+    .. code-block:: python
+
+        train_callback = nemo.core.SimpleLossLoggerCallback(tensors=[train_loss],
+            print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())))),
+            step_freq=args.train_step_freq,
+        eval_callback = nemo.core.EvaluatorCallback(eval_tensors=[eval_loss],
+            user_iter_callback=nemo_nlp.callbacks.lm_bert_callback.eval_iter_callback,
+            user_epochs_done_callback=nemo_nlp.callbacks.lm_bert_callback.eval_epochs_done_callback
+            eval_step=args.eval_step_freq)
+        ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir,
+            epoch_freq=args.save_epoch_freq,
+            load_from_folder=args.load_dir,
+            step_freq=args.save_step_freq)
+
+
+We recommend you export your model's parameters to a config file. This makes it easier to load your BERT model into NeMo later, as explained in our Named Entity Recognition :ref:`ner_tutorial` tutorial.
+
+    .. code-block:: python
+
+        config_path = f'{nf.checkpoint_dir}/bert-config.json'
+
+        if not os.path.exists(config_path):
+            bert_model.config.to_json_file(config_path)
+
+Finally, you should define your optimizer, and start training!
+
+    .. code-block:: python
 
         nf.train(tensors_to_optimize=[train_loss],
                  lr_policy=lr_policy_fn,
@@ -319,6 +320,58 @@ Finally, you should define your optimizer, and start training!
                                       "lr": args.lr,
                                       "betas": (args.beta1, args.beta2),
                                       "weight_decay": args.weight_decay})
+
+
+How to use the training script 
+--------------------------------
+
+You can find the example training script at ``examples/nlp/language_modeling/bert_pretraining.py``.
+
+For single GPU training, the script can be started with 
+
+.. code-block:: bash
+
+    cd examples/nlp/language_modeling
+    python bert_pretraining.py [args]
+
+
+For multi-GPU training with ``x`` GPUs, the script can be started with 
+
+.. code-block:: bash
+
+    cd examples/nlp/language_modeling
+    python -m torch.distributed.launch --nproc_per_node=x bert_pretraining.py --num_gpus=x [args]
+  
+
+If you running the model on raw text data, please remember to add the argument ``data_text`` to the python command.
+
+.. code-block:: bash
+
+    python bert_pretraining.py [args] data_text [args]
+
+Similarly, to run the model on already preprocessed data add the argument ``data_preprocessed`` to the python command.
+
+.. code-block:: bash
+
+    python bert_pretraining.py [args] data_preprocessed [args]
+
+.. note::
+    By default, the script assumes ``data_preprocessed`` as input mode.
+
+.. note::
+    For downloading or preprocessing data offline please refer to :ref:`bert_data_download`.
+
+
+.. tip::
+
+    Tensorboard_ is a great debugging tool. It's not a requirement for this tutorial, but if you'd like to use it, you should install tensorboardX_ and run the following command during pre-training:
+
+    .. code-block:: bash
+
+        tensorboard --logdir outputs/bert_lm/tensorboard
+
+.. _Tensorboard: https://www.tensorflow.org/tensorboard
+.. _tensorboardX: https://github.com/lanpa/tensorboardX
 
 References
 ----------
