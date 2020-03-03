@@ -70,6 +70,10 @@ To release a new version, please update the changelog as followed:
 ## [Unreleased]
 
 ### Added
+- Roberta and Albert support added to GLUE script, data caching also added.
+([PR #413](https://github.com/NVIDIA/NeMo/pull/413)) - @ekmb
+- text classification notebook added
+([PR #382](https://github.com/NVIDIA/NeMo/pull/382)) - @ericharper
 - New Neural Type System documentation. Also added decorator to generate docs for input/output ports.
 ([PR #370](https://github.com/NVIDIA/NeMo/pull/370)) - @okuchaiev
 - New Neural Type System and its tests.

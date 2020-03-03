@@ -109,7 +109,7 @@ classifier = JointIntentSlotClassifier(
 if args.class_balancing == 'weighted_loss':
     # To tackle imbalanced classes, you may use weighted loss
     intent_loss_fn = CrossEntropyLossNM(logits_dim=2, weight=data_desc.intent_weights)
-    slot_loss_fn = CrossEntropyLossNM(logits_dim=3, weight=data_desc.intent_weights)
+    slot_loss_fn = CrossEntropyLossNM(logits_dim=3, weight=data_desc.slot_weights)
 
 else:
     intent_loss_fn = CrossEntropyLossNM(logits_dim=2)
@@ -174,10 +174,10 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
     return tensors_to_evaluate, total_loss, steps_per_epoch, data_layer
 
 
-train_tensors, train_loss, steps_per_epoch, _ = create_pipeline(
+train_tensors, train_loss, train_steps_per_epoch, _ = create_pipeline(
     args.num_train_samples, batch_size=args.batch_size, num_gpus=args.num_gpus, mode=args.train_file_prefix,
 )
-eval_tensors, _, _, data_layer = create_pipeline(
+eval_tensors, _, _, eval_data_layer = create_pipeline(
     args.num_eval_samples, batch_size=args.batch_size, num_gpus=args.num_gpus, mode=args.eval_file_prefix,
 )
 
@@ -187,15 +187,15 @@ train_callback = SimpleLossLoggerCallback(
     print_func=lambda x: str(np.round(x[0].item(), 3)),
     tb_writer=nf.tb_writer,
     get_tb_values=lambda x: [["loss", x[0]]],
-    step_freq=steps_per_epoch,
+    step_freq=train_steps_per_epoch,
 )
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
-    user_iter_callback=lambda x, y: eval_iter_callback(x, y, data_layer),
+    user_iter_callback=lambda x, y: eval_iter_callback(x, y, eval_data_layer),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, f'{nf.work_dir}/graphs'),
     tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch,
+    eval_step=train_steps_per_epoch,
 )
 
 # Create callback to save checkpoints
@@ -204,7 +204,7 @@ ckpt_callback = CheckpointCallback(
 )
 
 lr_policy_fn = get_lr_policy(
-    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
+    args.lr_policy, total_steps=args.num_epochs * train_steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
 )
 
 nf.train(
