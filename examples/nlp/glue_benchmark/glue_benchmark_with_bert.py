@@ -71,6 +71,7 @@ import os
 from transformers import BertConfig
 
 import nemo.collections.nlp as nemo_nlp
+import nemo.collections.nlp.data.tokenizers.tokenizer_utils
 import nemo.core as nemo_core
 from nemo import logging
 from nemo.backends.pytorch.common import CrossEntropyLossNM, MSELoss
@@ -85,7 +86,7 @@ parser = argparse.ArgumentParser(description="GLUE_with_pretrained_BERT")
 # Parsing arguments
 parser.add_argument(
     "--data_dir",
-    default='COLA',
+    default="COLA",
     type=str,
     required=True,
     help="The input data dir. Should contain the .tsv files (or other data files) for the task.",
@@ -95,7 +96,7 @@ parser.add_argument(
     default="CoLA",
     type=str,
     required=True,
-    choices=['cola', 'sst-2', 'mrpc', 'sts-b', 'qqp', 'mnli', 'qnli', 'rte', 'wnli'],
+    choices=["cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte", "wnli"],
     help="GLUE task name, MNLI includes both matched and mismatched tasks",
 )
 parser.add_argument(
@@ -103,18 +104,13 @@ parser.add_argument(
     default="bert-base-uncased",
     type=str,
     help="Name of the pre-trained model",
-    choices=[
-        _.pretrained_model_name
-        for _ in nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
-        + nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
-        + nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-    ],
+    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to model checkpoint")
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
 parser.add_argument(
     "--tokenizer_model",
-    default="tokenizer.model",
+    default=None,
     type=str,
     help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
 )
@@ -147,7 +143,7 @@ parser.add_argument(
 parser.add_argument("--local_rank", type=int, default=None, help="For distributed training: local_rank")
 parser.add_argument(
     "--work_dir",
-    default='output_glue',
+    default="output_glue",
     type=str,
     help="The output directory where the model predictions and checkpoints will be written.",
 )
@@ -165,9 +161,9 @@ parser.add_argument(
 )
 parser.add_argument("--loss_step_freq", default=25, type=int, help="Frequency of printing loss")
 parser.add_argument(
-    "--no_data_cache", action='store_true', help="When specified do not load and store cache preprocessed data.",
+    "--no_data_cache", action="store_true", help="When specified do not load and store cache preprocessed data.",
 )
-parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
+parser.add_argument("--no_shuffle_data", action="store_false", dest="shuffle_data")
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
@@ -176,14 +172,11 @@ if not os.path.exists(args.data_dir):
         "obtained at https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e"
     )
 
-args.work_dir = f'{args.work_dir}/{args.task_name.upper()}'
-
-
 """
 Prepare GLUE task
 MNLI task has two separate dev sets: matched and mismatched
 """
-if args.task_name == 'mnli':
+if args.task_name == "mnli":
     eval_task_names = ("mnli", "mnli-mm")
     task_processors = (processors["mnli"](), processors["mnli-mm"]())
 else:
@@ -205,48 +198,32 @@ nf = nemo_core.NeuralModuleFactory(
     add_time_to_log_dir=True,
 )
 
-logging.info(f'{args}')
-model_type = args.pretrained_model_name.split('-')[0]
-model_cls = nemo_nlp.utils.DEFAULT_MODELS[model_type]['class']
+logging.info(f"{args}")
 
-if args.bert_config is not None:
-    model = model_cls(config_filename=args.bert_config)
-else:
-    """ Use this if you're using a standard BERT model.
-    To see the list of pretrained models, call:
-    nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-    nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
-    nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
-    """
-    model = model_cls(pretrained_model_name=args.pretrained_model_name)
+model = nemo_nlp.nm.trainables.get_huggingface_model(
+    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+)
 
-if args.bert_checkpoint is not None:
-    model.restore_from(args.bert_checkpoint)
-    logging.info(f"model restored from {args.bert_checkpoint}")
+tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+    tokenizer_name=args.tokenizer,
+    pretrained_model_name=args.pretrained_model_name,
+    tokenizer_model=args.tokenizer_model,
+)
 
-if args.tokenizer == 'sentencepiece':
-    try:
-        tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
-    except Exception:
-        raise ValueError('Using --tokenizer=sentencepiece requires valid --tokenizer_model')
-    special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
-    tokenizer.add_special_tokens(special_tokens)
-else:
-    tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
-    tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
-    tokenizer = tokenizer_cls(
-        pretrained_model=args.pretrained_model_name, special_tokens=tokenizer_special_tokens, bert_derivate=model_type,
-    )
 
 hidden_size = model.hidden_size
 
 # uses [CLS] token for classification (the first token)
-if args.task_name == 'sts-b':
+if args.task_name == "sts-b":
     pooler = SequenceRegression(hidden_size=hidden_size)
     glue_loss = MSELoss()
 else:
     pooler = SequenceClassifier(hidden_size=hidden_size, num_classes=num_labels, log_softmax=False)
     glue_loss = CrossEntropyLossNM()
+
+if args.bert_checkpoint is not None:
+    model.restore_from(args.bert_checkpoint)
+    logging.info(f"model restored from {args.bert_checkpoint}")
 
 
 def create_pipeline(
@@ -258,7 +235,7 @@ def create_pipeline(
     processor=task_processors[0],
 ):
     data_layer = GlueClassificationDataLayer
-    if output_mode == 'regression':
+    if output_mode == "regression":
         data_layer = GlueRegressionDataLayer
 
     data_layer = data_layer(
@@ -268,7 +245,6 @@ def create_pipeline(
         tokenizer=tokenizer,
         data_dir=args.data_dir,
         max_seq_length=max_seq_length,
-        model_name=args.pretrained_model_name,
         use_data_cache=not args.no_data_cache,
         shuffle=False if evaluate else args.shuffle_data,
     )
@@ -284,7 +260,7 @@ def create_pipeline(
     represents logits.
     """
     pooler_output = pooler(hidden_states=hidden_states)
-    if args.task_name == 'sts-b':
+    if args.task_name == "sts-b":
         loss = glue_loss(preds=pooler_output, labels=labels)
     else:
         loss = glue_loss(logits=pooler_output, labels=labels)
@@ -293,7 +269,7 @@ def create_pipeline(
     return loss, steps_per_epoch, data_layer, [pooler_output, labels]
 
 
-token_params = {'bos_token': None, 'eos_token': '[SEP]', 'pad_token': '[PAD]', 'cls_token': '[CLS]'}
+token_params = {"bos_token": None, "eos_token": "[SEP]", "pad_token": "[PAD]", "cls_token": "[CLS]"}
 
 train_loss, steps_per_epoch, _, _ = create_pipeline()
 _, _, eval_data_layer, eval_tensors = create_pipeline(evaluate=True)
@@ -312,7 +288,7 @@ callbacks_eval = [
 MNLI task has two dev sets: matched and mismatched
 Create additional callback and data layer for MNLI mismatched dev set
 """
-if args.task_name == 'mnli':
+if args.task_name == "mnli":
     _, _, eval_data_layer_mm, eval_tensors_mm = create_pipeline(evaluate=True, processor=task_processors[1])
     callbacks_eval.append(
         nemo_core.EvaluatorCallback(

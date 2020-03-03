@@ -72,19 +72,15 @@ GLUE_TASKS_NUM_LABELS = {
 
 
 class GLUEDataset(Dataset):
-    def __init__(
-        self, data_dir, tokenizer, max_seq_length, processor, output_mode, evaluate, model_name, use_data_cache
-    ):
+    def __init__(self, data_dir, tokenizer, max_seq_length, processor, output_mode, evaluate, use_data_cache):
 
         self.tokenizer = tokenizer
         self.label_list = processor.get_labels()
         self.examples = processor.get_dev_examples(data_dir) if evaluate else processor.get_train_examples(data_dir)
 
+        tokenizer_type = type(tokenizer.tokenizer).__name__
         cached_features_file = os.path.join(
-            data_dir,
-            "cached_{}_{}_{}".format(
-                "dev" if evaluate else "train", list(filter(None, model_name.split("/"))).pop(), str(max_seq_length)
-            ),
+            data_dir, "cached_{}_{}_{}".format("dev" if evaluate else "train", tokenizer_type, str(max_seq_length)),
         )
 
         if use_data_cache and os.path.exists(cached_features_file):
@@ -97,7 +93,7 @@ class GLUEDataset(Dataset):
                 'eos_token': tokenizer.eos_token,
                 'pad_token': tokenizer.pad_token,
                 'cls_token': tokenizer.cls_token,
-                'sep_token_extra': tokenizer.eos_token if 'roberta' in model_name.lower() else None,
+                'sep_token_extra': tokenizer.eos_token if 'roberta' in tokenizer_type.lower() else None,
             }
 
             self.features = self.convert_examples_to_features(
