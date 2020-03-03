@@ -16,12 +16,12 @@
 # limitations under the License.
 # =============================================================================
 
+import copy
 import os
-from tests.core.trt_ONNX.logger import G_LOGGER, LogMode
-from tests.core.trt_ONNX.tensorrt_runner import TensorRTRunnerV2
-from tests.core.trt_ONNX.tensorrt_loaders import OnnxFileLoader, OnnxNetworkLoader, BuildEngineLoader
-from tests.core.trt_ONNX.tensorrt_loaders import BaseDataLoader, DefaultDataLoader, DataLoaderCache
+from collections import OrderedDict
 from pathlib import Path
+
+import numpy as np
 
 # git clone git@github.com:microsoft/onnxruntime.git
 # cd onnxruntime
@@ -33,22 +33,29 @@ from pathlib import Path
 # pip install --upgrade ./build/Linux/RelWithDebInfo/dist/*.whl
 import onnxruntime as ort
 
-# This import causes pycuda to automatically manage CUDA context creation and cleanup.
-import pycuda.driver as cuda
 # Only initialize GPU after this runner is activated.
 import pycuda.autoinit
 
+# This import causes pycuda to automatically manage CUDA context creation and cleanup.
+import pycuda.driver as cuda
 import torch
 from ruamel.yaml import YAML
+
 import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from tests.common_setup import NeMoUnitTest
-
-from collections import OrderedDict
-import numpy as np
-import copy
+from tests.core.trt_ONNX.logger import G_LOGGER, LogMode
+from tests.core.trt_ONNX.tensorrt_loaders import (
+    BaseDataLoader,
+    BuildEngineLoader,
+    DataLoaderCache,
+    DefaultDataLoader,
+    OnnxFileLoader,
+    OnnxNetworkLoader,
+)
+from tests.core.trt_ONNX.tensorrt_runner import TensorRTRunnerV2
 
 
 class TestDeployExport(NeMoUnitTest):
@@ -73,11 +80,7 @@ class TestDeployExport(NeMoUnitTest):
             else None
         )
         self.nf.deployment_export(
-            module=module,
-            output=out_name,
-            input_example=input_example,
-            d_format=mode,
-            output_example=outputs_fwd
+            module=module, output=out_name, input_example=input_example, d_format=mode, output_example=outputs_fwd
         )
 
         tol = 5.0e-3
@@ -102,16 +105,21 @@ class TestDeployExport(NeMoUnitTest):
             si = si + fi
             i = 0
             for name in names:
-                profile_shapes[name] = [si[i]]*3
+                profile_shapes[name] = [si[i]] * 3
                 i = i + 1
 
             onnx_loader = OnnxFileLoader(out_name)
             network_loader = OnnxNetworkLoader(onnx_loader, explicit_precision=False)
-            model_loader = BuildEngineLoader(network_loader, max_workspace_size=1<<30,
-                                             fp16_mode=False, int8_mode=False,
-                                             profile_shapes=profile_shapes, write_engine=None,
-                                             calibrator=None,
-                                             layerwise=False)
+            model_loader = BuildEngineLoader(
+                network_loader,
+                max_workspace_size=1 << 30,
+                fp16_mode=False,
+                int8_mode=False,
+                profile_shapes=profile_shapes,
+                write_engine=None,
+                calibrator=None,
+                layerwise=False,
+            )
 
             with TensorRTRunnerV2(model_loader=model_loader) as active_runner:
                 input_metadata = active_runner.get_input_metadata()
@@ -128,7 +136,8 @@ class TestDeployExport(NeMoUnitTest):
                         else input_names[i]
                     )
                     inputs[input_name] = (
-                        input_example[i].cpu().numpy() if isinstance(input_example, tuple)
+                        input_example[i].cpu().numpy()
+                        if isinstance(input_example, tuple)
                         else input_example.cpu().numpy()
                     )
 
@@ -139,11 +148,15 @@ class TestDeployExport(NeMoUnitTest):
 
                 outputs = []
                 outputs.append(copy.deepcopy(out_dict))
-                G_LOGGER.debug("Received outputs: {:}".format(["{:}: {:}".format(name, out.shape) for name, out in out_dict.items()]))
+                G_LOGGER.debug(
+                    "Received outputs: {:}".format(
+                        ["{:}: {:}".format(name, out.shape) for name, out in out_dict.items()]
+                    )
+                )
                 G_LOGGER.verbose("Output Buffers: {:}".format(outputs))
 
             inpex = []
-            for ie in feed_dict.values(): #loader_cache.cache[0].values():
+            for ie in feed_dict.values():  # loader_cache.cache[0].values():
                 if ie.dtype.type is np.int32:
                     inpex.append(torch.from_numpy(ie).long().cuda())
                 else:
@@ -190,8 +203,12 @@ class TestDeployExport(NeMoUnitTest):
                 module.forward(*input_example) if isinstance(input_example, tuple) else module.forward(input_example)
             )
 
-        outputs_scr = outputs_scr[0] if isinstance(outputs_scr, tuple) or isinstance(outputs_scr, list) else outputs_scr
-        outputs_fwd = outputs_fwd[0] if isinstance(outputs_fwd, tuple) or isinstance(outputs_fwd, list) else outputs_fwd
+        outputs_scr = (
+            outputs_scr[0] if isinstance(outputs_scr, tuple) or isinstance(outputs_scr, list) else outputs_scr
+        )
+        outputs_fwd = (
+            outputs_fwd[0] if isinstance(outputs_fwd, tuple) or isinstance(outputs_fwd, list) else outputs_fwd
+        )
 
         self.assertLess((outputs_scr - outputs_fwd).norm(p=2), tol)
 
@@ -200,7 +217,9 @@ class TestDeployExport(NeMoUnitTest):
 
     def __test_export_route_all(self, module, out_name, input_example=None):
         if input_example is not None:
-            self.__test_export_route(module, out_name + '.trt.onnx', nemo.core.DeploymentFormat.TRTONNX, input_example=input_example)
+            self.__test_export_route(
+                module, out_name + '.trt.onnx', nemo.core.DeploymentFormat.TRTONNX, input_example=input_example
+            )
             self.__test_export_route(module, out_name + '.onnx', nemo.core.DeploymentFormat.ONNX, input_example)
             self.__test_export_route(module, out_name + '.pt', nemo.core.DeploymentFormat.PYTORCH, input_example)
         self.__test_export_route(module, out_name + '.ts', nemo.core.DeploymentFormat.TORCHSCRIPT, input_example)

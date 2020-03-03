@@ -1,21 +1,49 @@
+# ! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
 import os
 import sys
-
-sys.path.insert(0, os.path.abspath("."))
-from .logger import G_LOGGER, LogMode
-from .tensorrt_runner import TRT_LOGGER, TensorRTRunnerV2
-from .tensorrt_runner import find_in_dict, default_value, is_dimension_dynamic, send_on_queue
-from .tensorrt_runner import write_timestamped, get_input_metadata_from_profile, is_shape_dynamic
-from .tensorrt_runner import is_shape_dynamic, is_valid_shape_override, DEFAULT_SHAPE_VALUE
-
-from .tensorrt_format import FormatManager
+import time
+import warnings
+from collections import OrderedDict
 
 import numpy as np
-import warnings
-import time
-from collections import OrderedDict
 import onnx
 import tensorrt as trt
+
+from .logger import G_LOGGER, LogMode
+from .tensorrt_format import FormatManager
+from .tensorrt_runner import (
+    DEFAULT_SHAPE_VALUE,
+    TRT_LOGGER,
+    TensorRTRunnerV2,
+    default_value,
+    find_in_dict,
+    get_input_metadata_from_profile,
+    is_dimension_dynamic,
+    is_shape_dynamic,
+    is_valid_shape_override,
+    send_on_queue,
+    write_timestamped,
+)
+
+sys.path.insert(0, os.path.abspath("."))
 
 
 def set_onnx_logging_level(sev):
