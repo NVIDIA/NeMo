@@ -22,7 +22,6 @@ from collections import OrderedDict
 from pathlib import Path
 
 import numpy as np
-
 # git clone git@github.com:microsoft/onnxruntime.git
 # cd onnxruntime
 #
@@ -32,10 +31,8 @@ import numpy as np
 #
 # pip install --upgrade ./build/Linux/RelWithDebInfo/dist/*.whl
 import onnxruntime as ort
-
 # Only initialize GPU after this runner is activated.
 import pycuda.autoinit
-
 # This import causes pycuda to automatically manage CUDA context creation and cleanup.
 import pycuda.driver as cuda
 import torch
