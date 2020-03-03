@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # =============================================================================
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,9 +19,8 @@
 
 import threading
 
-from nemo.core.neural_factory import DeviceType, OperationMode
-
-# from nemo.core.neural_graph import NeuralGraph
+# Sadly have to import this to avoid circular dependencies.
+import nemo
 
 
 class Singleton(type):
@@ -52,15 +51,32 @@ class AppState(metaclass=Singleton):
         active graph etc.
     """
 
-    def __init__(self, device=DeviceType.GPU):
+    def __init__(self, device=None):
         """
             Constructor. Initializes global variables.
 
             Args:
                 device: main device used for computations [CPU | GPU] (DEFAULT: GPU)
         """
-        self._device = device
-        self._active_graph = None
+        # Had to set it to None in argument to avoid circular import at the class initialization phase.
+        if device is None:
+            self._device = nemo.core.DeviceType.GPU
+        else:
+            self._device = device
+        self._neural_graph_manager = nemo.core.NeuralGraphManager()
+
+    @property
+    def graphs(self):
+        """ Property returns the graph manager.
+
+            Returns:
+                List of created graphs
+        """
+        return self._neural_graph_manager
+
+    def register_graph(self, graph):
+        """ Registers a new graph. """
+        self._neural_graph_manager.register_graph(graph)
 
     @property
     def active_graph(self):
@@ -69,12 +85,7 @@ class AppState(metaclass=Singleton):
             Returns:
                 Active graph
         """
-        # Create a new graph - training is the default.
-        # if self._active_graph is None:
-        #       self._active_graph = NeuralGraph(operation_mode=OperationMode.training)
-
-        # Return the graph.
-        return self._active_graph
+        return self._neural_graph_manager.active_graph
 
     @active_graph.setter
     def active_graph(self, graph):
@@ -83,4 +94,4 @@ class AppState(metaclass=Singleton):
             Args:
                 graph: Neural graph object that will become active.
         """
-        self._active_graph = graph
+        self._neural_graph_manager.active_graph = graph

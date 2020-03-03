@@ -1,8 +1,7 @@
-# ! /usr/bin/python
 # -*- coding: utf-8 -*-
 
 # =============================================================================
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +16,7 @@
 # limitations under the License.
 # =============================================================================
 
+# from collections import OrderedDict
 from typing import Dict, Optional
 
 from nemo.core.app_state import AppState
@@ -24,23 +24,34 @@ from nemo.core.neural_factory import NeuralType, OperationMode
 
 
 class NeuralGraph:
-    def __init__(self, operation_mode):
+    def __init__(self, operation_mode, name=None):
         """
             Constructor. Initializes graph variables.
 
             Args:
                 operation_mode: Graph operation mode, that will be propagated along modules during graph creation.
                 [training | eval]
+                name: Name of the graph (optional)
         """
         print('__init__ called')
+        # Store name and operation mode.
         self._operation_mode = operation_mode
+        if name is None:
+            # Simply take the name of operation.
+            self._name = str(self._operation_mode)[14:]
+        else:
+            self._name = name
         # Input and output ports - empty for now.
         self._binded_input_ports = {}
         self._binded_output_ports = {}
+        # Operations.
+        self._operation_list = []
+        # Register graph.
+        AppState().register_graph(self)
 
     @property
     def input_ports(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module input ports
+        """Returns definitions of module input ports.
 
         Returns:
           A (dict) of module's input ports names to NeuralTypes mapping
@@ -60,7 +71,6 @@ class NeuralGraph:
         """ Activates given graph as current. """
         print('__enter__ called')
         AppState().active_graph = self
-        # self._app_state.active_graph = self
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
@@ -72,5 +82,16 @@ class NeuralGraph:
             print(f'exc_value: {exc_value}')
             print(f'exc_traceback: {exc_traceback}')
 
-    def record_step(self):
-        pass
+    def __str__(self):
+        """ Prints a nice summary. """
+        # TODO: a nice summry. ;)
+        desc = "`{}` ({}):\n".format(self._name, len(self._operation_list))
+        for op in self._operation_list:
+            desc = desc + "  {}\n".format(type(op[0]).__name__)
+        return desc
+
+    def record_operation(self, module, inputs):
+        """
+            Records the operation (module plus passed inputs) on a list.
+        """
+        self._operation_list.append([module, inputs])

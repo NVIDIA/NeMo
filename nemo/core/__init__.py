@@ -19,5 +19,6 @@ from nemo.core.app_state import AppState
 from nemo.core.callbacks import *
 from nemo.core.neural_factory import *
 from nemo.core.neural_graph import NeuralGraph
+from nemo.core.neural_graph_manager import NeuralGraphManager
 from nemo.core.neural_modules import *
 from nemo.core.neural_types import *

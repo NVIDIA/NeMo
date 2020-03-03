@@ -39,6 +39,8 @@ from .neural_types import (
 )
 from nemo import logging
 from nemo.core import NeuralModuleFactory
+from nemo.core.app_state import AppState
+from nemo.core.neural_graph import NeuralGraph
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils.decorators.deprecated import deprecated
 
@@ -418,51 +420,49 @@ class NeuralModule(ABC):
         input_port_defs = self.input_ports
         output_port_defs = self.output_ports
 
+        # Handle a special case - one passes an instance of neural graph.
+        # This should bind all ports.
+        # if len(kwargs) == 1:  # and isinstance(kwargs.items()[1], NeuralGraph):
+        # TODO: Those ports should be binded.
+        # print("Binding all ports")
+        # Not doing it now - assuming that user will manually indicate ports to bind.
+
         first_input_nmtensor_type = None
         input_nmtensors_are_of_same_type = True
-        for port_name, tgv in kwargs.items():
+        # Iterate through all passed parameters.
+        for port_name, port_value in kwargs.items():
             # make sure that passed arguments correspond to input port names
             if port_name not in input_port_defs.keys():
                 raise NeuralPortNameMismatchError("Wrong input port name: {0}".format(port_name))
 
-            input_port = input_port_defs[port_name]
-            type_comatibility = input_port.compare(tgv)
-            if (
-                type_comatibility != NeuralTypeComparisonResult.SAME
-                and type_comatibility != NeuralTypeComparisonResult.GREATER
-            ):
-                raise NeuralPortNmTensorMismatchError(
-                    "\n\nIn {0}. \n"
-                    "Port: {1} and a NmTensor it was fed are \n"
-                    "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
-                    "\n\nType comparison result: {4}".format(
-                        self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility,
+            # Check what was actually passed.
+            if isinstance(port_value, NeuralGraph):
+                # TODO: Those ports should be binded.
+                print("Binding port ", port_value)
+            else:
+                # Compare input port definition with the received definition.
+                input_port = input_port_defs[port_name]
+                type_comatibility = input_port.compare(port_value)
+                if (
+                    type_comatibility != NeuralTypeComparisonResult.SAME
+                    and type_comatibility != NeuralTypeComparisonResult.GREATER
+                ):
+                    raise NeuralPortNmTensorMismatchError(
+                        "\n\nIn {0}. \n"
+                        "Port: {1} and a NmTensor it was fed are \n"
+                        "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
+                        "\n\nType comparison result: {4}".format(
+                            self.__class__.__name__,
+                            port_name,
+                            input_port_defs[port_name],
+                            port_value,
+                            type_comatibility,
+                        )
                     )
-                )
+        # TODO: Are we making sure that ALL necessary inputs that were PASSED?
 
-            # if first_input_nmtensor_type is None:
-            #     first_input_nmtensor_type = NeuralType(tgv._axis2type)
-            # else:
-            #     if first_input_nmtensor_type._axis2type is None:
-            #         input_nmtensors_are_of_same_type = True
-            #     else:
-            #         input_nmtensors_are_of_same_type = first_input_nmtensor_type.compare(
-            #             tgv
-            #         ) == NeuralTypeComparisonResult.SAME and len(first_input_nmtensor_type._axis2type)
-            # if not (
-            #     type_comatibility == NeuralTypeComparisonResult.SAME
-            #     or type_comatibility == NeuralTypeComparisonResult.GREATER
-            # ):
-            #     raise NeuralPortNmTensorMismatchError(
-            #         "\n\nIn {0}. \n"
-            #         "Port: {1} and a NmTensor it was fed are \n"
-            #         "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
-            #         "\n\nType comparison result: {4}".format(
-            #             self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility,
-            #         )
-            #     )
-            # if type_comatibility == NeuralTypeComparisonResult.LESS:
-            #     print('Types were raised')
+        # At that point we made sure that all ports are correcty connected.
+        AppState().active_graph.record_operation(self, kwargs.items())
 
         if len(output_port_defs) == 1:
             out_name = list(output_port_defs)[0]

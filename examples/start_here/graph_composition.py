@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # =============================================================================
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,14 +23,29 @@ from nemo.core import AppState, NeuralGraph, NeuralModule, NeuralModuleFactory, 
 nf = nemo.core.NeuralModuleFactory()
 # Instantiate the necessary neural modules.
 dl = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
-fx = nemo.tutorials.TaylorNet(dim=4)
+fx1 = nemo.tutorials.TaylorNet(dim=4)
+fx2 = nemo.tutorials.TaylorNet(dim=4)
 loss = nemo.tutorials.MSELoss()
 
-x, y = dl()
+# This will create a default graph.
+x_valid, y_valid = dl()
+
+
+with NeuralGraph(operation_mode=OperationMode.training) as training_graph1:
+    x, y = dl()
 
 # Build the training graph.
-with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
-    print('inside with statement body')
+with NeuralGraph(operation_mode=OperationMode.training) as training_graph2:
+    # Add modules to graph.
+    p1 = fx1(x=x)
+    p2 = fx2(x=p1)
+    p3 = fx2(x=p2)
+    lss = loss(predictions=p3, target=y)
 
-    p = fx(x=x)
-    lss = loss(predictions=p, target=y)
+
+print(AppState().graphs.summary())
+
+# print(training_graph1)
+# print(training_graph2)
+
+print(AppState().graphs["training1"])
