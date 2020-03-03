@@ -16,6 +16,7 @@
 import math
 
 import nemo
+from nemo import logging
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.callbacks.lm_transformer_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.lm_transformer_dataset import LanguageModelDataDesc
@@ -148,7 +149,7 @@ eval_loss = create_pipeline(
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     step_freq=100,
-    print_func=lambda x: str(x[0].item()),
+    print_func=lambda x: logging.info(str(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer,
 )
