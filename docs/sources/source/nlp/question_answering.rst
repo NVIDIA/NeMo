@@ -114,8 +114,7 @@ Next, we define all Neural Modules participating in our question answering class
         args.pretrained_model_name = "albert-base-v1"
         model = nemo_nlp.nm.trainables.huggingface.Albert(args.pretrained_model_name)
 
-    * Define the tokenizer which transforms text into BERT tokens, using `NemoBertTokenizer`.
-    This will tokenize text following the mapping of the original BERT model.
+    * Define the tokenizer which transforms text into BERT tokens, using `NemoBertTokenizer`. This will tokenize text following the mapping of the original BERT model.
 
     .. code-block:: python
 
