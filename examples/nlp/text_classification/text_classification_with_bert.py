@@ -124,7 +124,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
         num_samples=num_samples,
         shuffle=shuffle,
         batch_size=batch_size,
-        use_cache=args.use_cache
+        use_cache=args.use_cache,
     )
 
     ids, type_ids, input_mask, labels = data_layer()
@@ -173,7 +173,7 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
     tb_writer=nf.tb_writer,
     get_tb_values=lambda x: [["loss", x[0]]],
-    step_freq=args.loss_step_freq
+    step_freq=args.loss_step_freq,
 )
 
 eval_callback = nemo.core.EvaluatorCallback(

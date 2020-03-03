@@ -205,10 +205,10 @@ model = nemo_nlp.nm.trainables.get_huggingface_model(
 )
 
 tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
-        tokenizer_name=args.tokenizer,
-        pretrained_model_name=args.pretrained_model_name,
-        tokenizer_model=args.tokenizer_model
-    )
+    tokenizer_name=args.tokenizer,
+    pretrained_model_name=args.pretrained_model_name,
+    tokenizer_model=args.tokenizer_model,
+)
 
 
 hidden_size = model.hidden_size

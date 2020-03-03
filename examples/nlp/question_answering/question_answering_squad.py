@@ -334,7 +334,7 @@ if __name__ == "__main__":
     tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
         tokenizer_name=args.tokenizer,
         pretrained_model_name=args.pretrained_model_name,
-        tokenizer_model=args.tokenizer_model
+        tokenizer_model=args.tokenizer_model,
     )
 
     qa_head = nemo_nlp.nm.trainables.TokenClassifier(

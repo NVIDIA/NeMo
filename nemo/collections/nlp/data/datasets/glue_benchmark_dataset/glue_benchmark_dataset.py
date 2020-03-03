@@ -72,9 +72,7 @@ GLUE_TASKS_NUM_LABELS = {
 
 
 class GLUEDataset(Dataset):
-    def __init__(
-        self, data_dir, tokenizer, max_seq_length, processor, output_mode, evaluate, use_data_cache
-    ):
+    def __init__(self, data_dir, tokenizer, max_seq_length, processor, output_mode, evaluate, use_data_cache):
 
         self.tokenizer = tokenizer
         self.label_list = processor.get_labels()
@@ -82,8 +80,7 @@ class GLUEDataset(Dataset):
 
         tokenizer_type = type(tokenizer.tokenizer).__name__
         cached_features_file = os.path.join(
-            data_dir,
-            "cached_{}_{}_{}".format("dev" if evaluate else "train", tokenizer_type, str(max_seq_length)),
+            data_dir, "cached_{}_{}_{}".format("dev" if evaluate else "train", tokenizer_type, str(max_seq_length)),
         )
 
         if use_data_cache and os.path.exists(cached_features_file):

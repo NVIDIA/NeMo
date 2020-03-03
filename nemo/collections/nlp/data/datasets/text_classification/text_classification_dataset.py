@@ -48,9 +48,7 @@ class BertTextClassificationDataset(Dataset):
             If -1, use all dataset. Useful for testing.
     """
 
-    def __init__(
-        self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=False, use_cache=False
-    ):
+    def __init__(self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=False, use_cache=False):
         self.input_file = input_file
         self.max_seq_length = max_seq_length
         self.tokenizer = tokenizer
@@ -63,8 +61,8 @@ class BertTextClassificationDataset(Dataset):
             data_dir, filename = os.path.split(input_file)
             tokenizer_type = type(tokenizer.tokenizer).__name__
             cached_features_file = os.path.join(
-                data_dir,
-                "cached_{}_{}_{}".format(filename[:-4], tokenizer_type, str(max_seq_length), '.hdf5'))
+                data_dir, "cached_{}_{}_{}".format(filename[:-4], tokenizer_type, str(max_seq_length), '.hdf5')
+            )
 
         if use_cache and os.path.exists(cached_features_file):
             self.load_cached_features(cached_features_file)

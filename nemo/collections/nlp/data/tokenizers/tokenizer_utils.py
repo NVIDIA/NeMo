@@ -56,8 +56,10 @@ MODEL_SPECIAL_TOKENS = {
 
 TOKENIZERS = {'bert': BertTokenizer, 'albert': AlbertTokenizer, 'roberta': RobertaTokenizer}
 
+
 def get_bert_special_tokens(bert_derivative):
     return MODEL_SPECIAL_TOKENS[bert_derivative]
+
 
 def get_tokenizer(tokenizer_name, pretrained_model_name, tokenizer_model=None, special_tokens=None):
     '''
