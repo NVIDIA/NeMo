@@ -26,6 +26,15 @@ Transformer Language Model
    transformer_language_model
 
 
+Dialog State Tracking
+---------------------
+
+.. toctree::
+   :maxdepth: 8
+
+   dialog_state_tracking_trade
+
+
 Named Entity Recognition
 ------------------------
 
@@ -33,7 +42,6 @@ Named Entity Recognition
    :maxdepth: 8
 
    ner
-
 
 Punctuation and Word Capitalization
 -----------------------------------

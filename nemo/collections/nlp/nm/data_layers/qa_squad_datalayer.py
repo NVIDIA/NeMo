@@ -39,7 +39,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
         max_seq_length (int): All training files which have a duration more
             than max_duration are dropped. Can't be used if the `utt2dur` file
             does not exist. Defaults to None.
-        mode (str): Use "train", "eval", or "infer" to define between
+        mode (str): Use "train", "eval", or "test" to define between
             training and evaluation and inference.
         batch_size (int): Batch size. Defaults to 64.
         dataset_type (Dataset): Question Answering class.
@@ -80,6 +80,7 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
         mode,
         batch_size=64,
         use_cache=True,
+        shuffle=False,
         dataset_type=SquadDataset,
     ):
         dataset_params = {
@@ -93,4 +94,4 @@ class BertQuestionAnsweringDataLayer(TextDataLayer):
             'doc_stride': doc_stride,
         }
 
-        super().__init__(dataset_type, dataset_params, batch_size, shuffle=False)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
