@@ -19,7 +19,7 @@ from transformers import AlbertTokenizer, BertTokenizer, RobertaTokenizer
 
 import nemo
 
-__all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_tokenizer',  'get_bert_special_tokens'']
+__all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_tokenizer', 'get_bert_special_tokens']
 
 logging = nemo.logging
 
