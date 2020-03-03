@@ -23,8 +23,6 @@ import argparse
 import math
 from os.path import exists, expanduser
 
-import numpy as np
-
 import nemo.core as nemo_core
 from nemo import logging
 from nemo.backends.pytorch.common import EncoderRNN
@@ -44,7 +42,7 @@ parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--lr_warmup_proportion", default=0.0, type=float)
 parser.add_argument("--lr", default=0.001, type=float)
-parser.add_argument("--lr_policy", default=None, type=str)
+parser.add_argument("--lr_policy", default='SquareAnnealing', type=str)
 parser.add_argument("--min_lr", default=1e-4, type=float)
 parser.add_argument("--weight_decay", default=0.0, type=float)
 parser.add_argument("--emb_dim", default=400, type=int)
@@ -202,9 +200,9 @@ tensors_eval, total_loss_eval, ptr_loss_eval, gate_loss_eval, steps_per_epoch_ev
 train_callback = nemo_core.SimpleLossLoggerCallback(
     tensors=[total_loss_train, gate_loss_train, ptr_loss_train],
     print_func=lambda x: logging.info(
-        f'Loss:{str(np.round(x[0].item(), 3))}, '
-        f'Gate Loss:{str(np.round(x[1].item(), 3))}, '
-        f'Pointer Loss:{str(np.round(x[2].item(), 3))}'
+        f'Loss:{str(round(x[0].item(), 3))}, '
+        f'Gate Loss:{str(round(x[1].item(), 3))}, '
+        f'Pointer Loss:{str(round(x[2].item(), 3))}'
     ),
     tb_writer=nf.tb_writer,
     get_tb_values=lambda x: [["loss", x[0]], ["gate_loss", x[1]], ["pointer_loss", x[2]]],
@@ -223,7 +221,7 @@ ckpt_callback = nemo_core.CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
 
-if args.lr_policy is not None:
+if args.lr_policy:
     total_steps = args.num_epochs * steps_per_epoch_train
     lr_policy_fn = get_lr_policy(
         args.lr_policy, total_steps=total_steps, warmup_ratio=args.lr_warmup_proportion, min_lr=args.min_lr
@@ -232,6 +230,7 @@ else:
     lr_policy_fn = None
 
 grad_norm_clip = args.grad_norm_clip if args.grad_norm_clip > 0 else None
+
 nf.train(
     tensors_to_optimize=[total_loss_train],
     callbacks=[eval_callback, train_callback, ckpt_callback],

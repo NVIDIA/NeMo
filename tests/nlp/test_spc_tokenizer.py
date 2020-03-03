@@ -24,13 +24,13 @@ from tests.common_setup import NeMoUnitTest
 class TestSPCTokenizer(NeMoUnitTest):
     def test_add_special_tokens(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
+        special_tokens = nemo_nlp.data.tokenizers.MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
         self.assertTrue(tokenizer.vocab_size == tokenizer.original_vocab_size + len(set(special_tokens.values())))
 
     def test_text_to_tokens(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
+        special_tokens = nemo_nlp.data.tokenizers.MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
@@ -52,7 +52,7 @@ class TestSPCTokenizer(NeMoUnitTest):
 
     def test_text_to_ids(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
+        special_tokens = nemo_nlp.data.tokenizers.MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
@@ -65,7 +65,7 @@ class TestSPCTokenizer(NeMoUnitTest):
 
     def test_ids_to_text(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
+        special_tokens = nemo_nlp.data.tokenizers.MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
@@ -76,7 +76,7 @@ class TestSPCTokenizer(NeMoUnitTest):
 
     def test_tokens_to_ids(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
+        special_tokens = nemo_nlp.data.tokenizers.MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
@@ -90,7 +90,7 @@ class TestSPCTokenizer(NeMoUnitTest):
 
     def test_ids_to_tokens(self):
         tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
+        special_tokens = nemo_nlp.data.tokenizers.MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"

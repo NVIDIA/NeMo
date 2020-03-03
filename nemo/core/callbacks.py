@@ -585,12 +585,27 @@ class WandbCallback(ActionCallback):
         project=None,
         user_iter_callback=None,
         user_epochs_done_callback=None,
+        update_freq=25,
+        eval_freq=100,
     ):
+        """
+        Args:
+            train_tensors: list of tensors to evaluate based on training batches
+            eval_tensors: list of tensors to evaluate during evaluation runs
+            name: wandb experiment name
+            project: wandb project name
+            user_iter_callback: callback to process evaluation batch
+            user_epochs_done_callback: callback to aggregate results from evaluation batches
+            update_freq: frequency with which to log updates
+            eval_freq: frequency with which to run evaluation
+        """
         super().__init__()
         try:
             import wandb
         except:
             raise ImportError('Could not import wandb. Run "pip install wandb" to use WandbCallback')
+        self._update_freq = update_freq
+        self._eval_freq = eval_freq
         self._train_tensors = train_tensors
         self._eval_tensors = eval_tensors
         self._name = name
@@ -613,13 +628,24 @@ class WandbCallback(ActionCallback):
     def on_iteration_end(self):
         # log training metrics
         if self.global_rank is None or self.global_rank == 0:
-            tensors_logged = {t.name: self.registered_tensors[t.unique_name] for t in self._train_tensors}
-            self.wandb_log(tensors_logged)
+            # do training metric updates
+            if self.step % self._update_freq == 0:
+                tensors_logged = {t.name: self.registered_tensors[t.unique_name] for t in self._train_tensors}
+                tensors_logged['LR'] = self.learning_rate
+                self.wandb_log(tensors_logged)
+            # do evaluation and eval metrics updates if necessary
+            if self.step % self._eval_freq == 0:
+                self.action._eval(self._eval_tensors, self, self.step)
+
+    def on_epoch_start(self):
+        if self.global_rank is None or self.global_rank == 0:
+            self._last_epoch_start = time.time()
 
     def on_epoch_end(self):
-        # log validation metrics
+        # compute validation metrics
         if self.global_rank is None or self.global_rank == 0:
-            self.action._eval(self._eval_tensors, self, self.step)
+            epoch_time = time.time() - self._last_epoch_start
+            self.wandb_log({"epoch": self.epoch_num, "epoch_time": epoch_time})
 
     def wandb_log(self, tensors_logged):
         import wandb

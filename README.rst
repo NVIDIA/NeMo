@@ -64,7 +64,7 @@ THE LATEST STABLE VERSION OF NeMo is **0.9.0** (which is available via PIP).
 **Requirements**
 
 1) Python 3.6 or 3.7
-2) PyTorch 1.2.* or 1.3.* with GPU support
+2) PyTorch 1.4* with GPU support
 3) (optional for best performance) NVIDIA APEX. Install from here: https://github.com/NVIDIA/apex
 
 **Docker Container**
@@ -75,8 +75,8 @@ THE LATEST STABLE VERSION OF NeMo is **0.9.0** (which is available via PIP).
 
 If you are using the NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ follow these instructions
 
-* Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:19.11-py3``
-* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.11-py3``
+* Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:20.01-py3``
+* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:20.01-py3``
 
 .. code-block:: bash
 
@@ -122,7 +122,7 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 2) Go to NeMo folder and re-install the toolkit with collections:
 
 .. code-block:: bash
-	
+
     ./reinstall.sh
 
 **Style tests**

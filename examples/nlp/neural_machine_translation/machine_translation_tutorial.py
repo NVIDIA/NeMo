@@ -23,6 +23,7 @@ import torch
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
+from nemo import logging
 from nemo.collections.nlp.callbacks.machine_translation_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.core import WeightShareTransform
 from nemo.utils.lr_policies import get_lr_policy
@@ -223,7 +224,7 @@ eval_loss, eval_tensors = create_pipeline(eval_dataset_src, eval_dataset_tgt, ar
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     step_freq=100,
-    print_func=lambda x: str(x[0].item()),
+    print_func=lambda x: logging.info(str(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer,
 )
