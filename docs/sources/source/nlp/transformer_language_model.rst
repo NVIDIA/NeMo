@@ -145,7 +145,7 @@ Next, we define necessary callbacks:
         from nemo.collections.nlp.callbacks.lm_transformer_callback import eval_epochs_done_callback, eval_iter_callback
         train_callback = SimpleLossLoggerCallback(
             tensors=train_tensors,
-            print_func=lambda x: str(np.round(x[0].item(), 3)),
+            print_func=lambda x: logging.info(str(round(x[0].item(), 3))),
             tb_writer=nf.tb_writer,
             get_tb_values=lambda x: [["loss", x[0]]],
             step_freq=steps_per_epoch,
@@ -194,7 +194,7 @@ Finally, you should define your optimizer, and start training!
 References
 ----------
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-LM
     :keyprefix: nlp-lm-

@@ -51,9 +51,9 @@ pipeline {
       }
     }
 
-    stage('L2: Acceptance Tests') {
+    stage('LX: Unclassified Tests') {
       steps {
-        sh 'pytest -m acceptance'
+        sh 'pytest -m unclassified'
       }
     }
 
@@ -90,14 +90,14 @@ pipeline {
       parallel { 
         stage('BERT on the fly preprocessing') {
           steps {
-            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=0 python bert_pretraining.py --amp_opt_level O1 --train_data /home/TestData/nlp/wikitext-2/train.txt --eval_data /home/TestData/nlp/wikitext-2/valid.txt --dataset_name wikitext-2 --work_dir outputs/bert_lm/wikitext2 --batch_size 64 --lr 0.01 --lr_policy CosineAnnealing --lr_warmup_proportion 0.05 --tokenizer sentence-piece --vocab_size 3200 --hidden_size 768 --intermediate_size 3072 --num_hidden_layers 6 --num_attention_heads 12 --hidden_act "gelu" --save_step_freq 200 --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1 --max_steps=300'
+            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=0 python bert_pretraining.py --amp_opt_level O1 --train_data /home/TestData/nlp/wikitext-2/train.txt --eval_data /home/TestData/nlp/wikitext-2/valid.txt --work_dir outputs/bert_lm/wikitext2 --batch_size 64 --lr 0.01 --lr_policy CosineAnnealing --lr_warmup_proportion 0.05 --vocab_size 3200 --hidden_size 768 --intermediate_size 3072 --num_hidden_layers 6 --num_attention_heads 12 --hidden_act "gelu" --save_step_freq 200 data_text  --num_iters=300 --tokenizer sentence-piece --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1 --dataset_name wikitext-2'
             sh 'cd examples/nlp/language_modeling && LOSS=$(cat outputs/bert_lm/wikitext2/log_globalrank-0_localrank-0.txt |   grep "Loss" |tail -n 1| awk \'{print \$7}\' | egrep -o "[0-9.]+" ) && echo $LOSS && if [ $(echo "$LOSS < 8.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/language_modeling/outputs/wikitext2 && rm -rf /home/TestData/nlp/wikitext-2/*.pkl && rm -rf /home/TestData/nlp/wikitext-2/bert'
           }
         }        
         stage('BERT offline preprocessing') {
           steps {
-            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=1 python bert_pretraining.py --amp_opt_level O1 --train_data /home/TestData/nlp/wiki_book_mini/training --eval_data /home/TestData/nlp/wiki_book_mini/evaluation --work_dir outputs/bert_lm/wiki_book --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --save_step_freq 200 --max_steps 300  --num_gpus 1  --batches_per_step 1 --lr_policy SquareRootAnnealing --beta2 0.999 --beta1 0.9  --lr_warmup_proportion 0.01 --optimizer adam_w  --weight_decay 0.01  --lr 0.875e-4 --preprocessed_data '
+            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=1 python bert_pretraining.py --amp_opt_level O1 --train_data /home/TestData/nlp/wiki_book_mini/training --eval_data /home/TestData/nlp/wiki_book_mini/evaluation --work_dir outputs/bert_lm/wiki_book --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --save_step_freq 200 --num_gpus 1 --batches_per_step 1 --lr_policy SquareRootAnnealing --beta2 0.999 --beta1 0.9  --lr_warmup_proportion 0.01 --optimizer adam_w  --weight_decay 0.01  --lr 0.875e-4 data_preprocessed --num_iters 300'
             sh 'cd examples/nlp/language_modeling && LOSS=$(cat outputs/bert_lm/wiki_book/log_globalrank-0_localrank-0.txt |  grep "Loss" |tail -n 1| awk \'{print \$7}\' | egrep -o "[0-9.]+" ) && echo $LOSS && if [ $(echo "$LOSS < 15.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/language_modeling/outputs/wiki_book'
           }
@@ -116,7 +116,7 @@ pipeline {
       parallel {
         stage ('Text Classification with BERT Test') {
           steps {
-            sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --pretrained_bert_model bert-base-uncased --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs'
+            sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --pretrained_model_name bert-base-uncased --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs'
             sh 'rm -rf examples/nlp/text_classification/outputs'
           }
         }

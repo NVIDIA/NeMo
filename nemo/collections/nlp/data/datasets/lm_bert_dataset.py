@@ -385,7 +385,7 @@ class BERTPretrainingDataDesc:
                 raise FileNotFoundError(
                     "Dataset not found. Run 'get_wkt2.sh DATA_DIR' from examples/nlp/language_modeling"
                 )
-            self.data_dir, self.tokenizer_model = self.create_vocab_mlm(
+            self.data_dir, self.tokenizer_model, self.vocab_file = self.create_vocab_mlm(
                 train_data, vocab_size, sample_size, special_tokens
             )
         else:
@@ -406,7 +406,7 @@ class BERTPretrainingDataDesc:
         bert_dir = f'{data_dir}/bert'
         if if_exist(bert_dir, ['tokenizer.model']):
             logging.info(DATABASE_EXISTS_TMP.format('WikiText_BERT', bert_dir))
-            return data_dir, f'{bert_dir}/tokenizer.model'
+            return data_dir, f'{bert_dir}/tokenizer.model', f'{bert_dir}/vocab.txt'
         logging.info(f'Processing WikiText dataset and store at {bert_dir}')
         os.makedirs(bert_dir, exist_ok=True)
 
@@ -446,7 +446,8 @@ class BERTPretrainingDataDesc:
         vocab.extend(tokens)
 
         # Save vocabulary to output file
-        with open(f'{bert_dir}/vocab.txt', "w") as f:
+        vocab_file = f'{bert_dir}/vocab.txt'
+        with open(vocab_file, "w") as f:
             for token in vocab:
                 f.write(f"{token}\n".format())
-        return data_dir, f'{bert_dir}/tokenizer.model'
+        return data_dir, f'{bert_dir}/tokenizer.model', vocab_file
