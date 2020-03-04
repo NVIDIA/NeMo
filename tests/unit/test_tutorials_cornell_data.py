@@ -16,18 +16,17 @@
 # limitations under the License.
 # =============================================================================
 
-import nemo
-from tests.common_setup import NeMoUnitTest
+from unittest import TestCase
+
+import pytest
+
+from nemo.backends.pytorch.tutorials.chatbot.data import loadPrepareData
 
 
-class TestNeuralFactory(NeMoUnitTest):
-    def test_create_simple_graph(self):
-        # Create modules.
-        dl = nemo.tutorials.RealFunctionDataLayer(n=100, batch_size=16)
-        fx = nemo.tutorials.TaylorNet(dim=4)
-        loss = nemo.tutorials.MSELoss()
-
-        # Create the graph by connnecting the modules.
-        x, y = dl()
-        y_pred = fx(x=x)
-        _ = loss(predictions=y_pred, target=y)
+class TestTutorialCornellData(TestCase):
+    @pytest.mark.unit
+    def test_data_preparation(self):
+        datafile = "tests/data/dialog_sample.txt"
+        voc, _ = loadPrepareData("cornell", datafile=datafile)
+        self.assertEqual(voc.name, 'cornell')
+        self.assertEqual(voc.num_words, 675)
