@@ -46,4 +46,4 @@ class TokenizerSpec(ABC):
         pass
 
     def add_special_tokens(self, special_tokens: List[str]):
-        pass
+        raise NotImplementedError("To be implemented")

@@ -3,6 +3,21 @@
 Natural Language Processing
 ===========================
 
+Supported Tasks and Models:
+
+* Intent Detection and Slot Filling
+* Text Classification
+* State Tracking for Task-oriented Dialogue Systems
+* Language Modelling
+* Neural Machine Translation
+* Question Answering
+* Name Entity Recognition (NER)
+* Punctuation and Capitalization
+* GLUE Benchmark
+* ASR Postprocessing with BERT
+
+All examples from NLP collection can be found `here <https://github.com/NVIDIA/NeMo/tree/master/examples/nlp>`__.
+
 Neural Machine Translation (NMT)
 --------------------------------
 .. toctree::
