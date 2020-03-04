@@ -56,8 +56,7 @@ class Attention(nn.Module):
         ------
         query: decoder output (batch, n_mel_channels * n_frames_per_step)
         processed_memory: processed encoder outputs (B, T_in, attention_dim)
-        attention_weights_cat: cumulative and prev. att weights
-            (B, 2, max_time)
+        attention_weights_cat: cumulative and prev. att weights (B, 2, max_time)
         RETURNS
         -------
         alignment (batch, max_time)
@@ -108,12 +107,12 @@ class Prenet(nn.Module):
             for linear in self.layers:
                 x = F.relu(linear(x))
                 x0 = x[0].unsqueeze(0)
-                mask = Variable(torch.bernoulli(x0.data.new(x0.data.size()).fill_(0.5)))
+                mask = Variable(torch.bernoulli(x0.data.new(x0.data.size()).fill_(1 - self.p_dropout)))
                 mask = mask.expand(x.size(0), x.size(1))
-                x = x * mask * 2
+                x = x * mask * 1 / (1 - self.p_dropout)
         else:
             for linear in self.layers:
-                x = F.dropout(F.relu(linear(x)), p=0.0, training=True)
+                x = F.dropout(F.relu(linear(x)), p=self.p_dropout, training=True)
         return x
 
 
@@ -177,7 +176,7 @@ class Postnet(nn.Module):
 
     def forward(self, x):
         for i in range(len(self.convolutions) - 1):
-            x = F.dropout(torch.tanh(self.convolutions[i](x)), 0.5, self.training)
+            x = F.dropout(torch.tanh(self.convolutions[i](x)), self.p_dropout, self.training)
         x = F.dropout(self.convolutions[-1](x), self.p_dropout, self.training)
 
         return x
@@ -265,7 +264,7 @@ class Decoder(nn.Module):
         self.p_decoder_dropout = p_decoder_dropout
         self.early_stopping = early_stopping
 
-        self.prenet = Prenet(n_mel_channels * n_frames_per_step, [prenet_dim, prenet_dim], prenet_p_dropout,)
+        self.prenet = Prenet(n_mel_channels * n_frames_per_step, [prenet_dim, prenet_dim], prenet_p_dropout)
 
         self.attention_rnn = nn.LSTMCell(prenet_dim + encoder_embedding_dim, attention_rnn_dim)
 
