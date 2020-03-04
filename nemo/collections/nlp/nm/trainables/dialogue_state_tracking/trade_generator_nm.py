@@ -121,7 +121,6 @@ class TRADEGenerator(TrainableNM):
         self.subslot_idx = torch.tensor([self.slot_w2i[slot] for slot in slots], device=self._device)
 
     def forward(self, encoder_hidden, encoder_outputs, input_lens, src_ids, targets=None):
-
         if (not self.training) or (random.random() > self.teacher_forcing):
             use_teacher_forcing = False
         else:
@@ -143,7 +142,7 @@ class TRADEGenerator(TrainableNM):
         slot_emb = slot_emb.unsqueeze(1)
         slot_emb = slot_emb.repeat(1, batch_size, 1)
         decoder_input = self.dropout(slot_emb).view(-1, self.hidden_size)
-        hidden = encoder_hidden.transpose(0, 1).repeat(len(self.slots), 1, 1)
+        hidden = encoder_hidden[:, 0:1, :].transpose(0, 1).repeat(len(self.slots), 1, 1)
 
         hidden = hidden.view(-1, self.hidden_size).unsqueeze(0)
 
