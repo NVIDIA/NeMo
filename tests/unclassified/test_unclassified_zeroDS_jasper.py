@@ -88,7 +88,7 @@ class TestZeroDL(TestCase):
     #     if os.path.exists(os.path.join(data_folder, "asr")):
     #         shutil.rmtree(os.path.join(data_folder, "asr"))
 
-    @pytest.mark.acceptance
+    @pytest.mark.unclassified
     def test_asr_with_zero_ds(self):
         logging.info("Testing ASR NMs with ZeroDS and without pre-processing")
         path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))

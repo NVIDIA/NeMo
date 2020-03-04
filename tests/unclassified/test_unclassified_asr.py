@@ -96,7 +96,7 @@ class TestASRPytorch(TestCase):
         else:
             logging.info("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
 
-    @pytest.mark.acceptance
+    @pytest.mark.unclassified
     def test_jasper_training(self):
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
@@ -145,7 +145,7 @@ class TestASRPytorch(TestCase):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @pytest.mark.acceptance
+    @pytest.mark.unclassified
     def test_double_jasper_training(self):
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
@@ -207,7 +207,7 @@ class TestASRPytorch(TestCase):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @pytest.mark.acceptance
+    @pytest.mark.unclassified
     def test_quartznet_training(self):
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_test.yaml"))) as f:
             quartz_model_definition = self.yaml.load(f)
@@ -250,7 +250,7 @@ class TestASRPytorch(TestCase):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @pytest.mark.acceptance
+    @pytest.mark.unclassified
     def test_stft_conv_training(self):
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
@@ -296,7 +296,7 @@ class TestASRPytorch(TestCase):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @pytest.mark.acceptance
+    @pytest.mark.unclassified
     def test_garnet_training(self):
         with open('examples/asr/experimental/configs/garnet_an4.yaml') as file:
             cfg = self.yaml.load(file)
@@ -357,7 +357,7 @@ class TestASRPytorch(TestCase):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @pytest.mark.acceptance
+    @pytest.mark.unclassified
     def test_jasper_evaluation(self):
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
