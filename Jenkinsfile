@@ -11,28 +11,53 @@ pipeline {
   }
   stages {
 
-    stage('L0: PyTorch version') {
+    stage('PyTorch version') {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
       }
     }
-    stage('L0: Install test requirements') {
+    stage('Install test requirements') {
       steps {
         sh 'apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt'
       }
     }
-    stage('L0: Code formatting checks') {
+    stage('Code formatting checks') {
       steps {
         sh 'python setup.py style'
       }
     }
-    stage('L0: Unittests ALL') {
+    stage('Documentation check') {
       steps {
-        sh './reinstall.sh && python -m unittest'
+        sh './reinstall.sh && pytest -m docs'
       }
     }
 
-    stage('L1: Parallel Stage1') {
+
+    stage('L0: Unit Tests') {
+      steps {
+        sh 'pytest -m unit'
+      }
+    }
+
+    stage('L0: Integration Tests') {
+      steps {
+        sh 'pytest -m integration'
+      }
+    }
+
+    stage('L1: System Tests') {
+      steps {
+        sh 'pytest -m system'
+      }
+    }
+
+    stage('LX: Unclassified Tests') {
+      steps {
+        sh 'pytest -m unclassified'
+      }
+    }
+
+    stage('L2: Parallel Stage1') {
       when {
         anyOf{
           branch 'master'
@@ -54,7 +79,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel NLP-BERT pretraining') {
+    stage('L2: Parallel NLP-BERT pretraining') {
       when {
         anyOf{
           branch 'master'
@@ -65,14 +90,14 @@ pipeline {
       parallel { 
         stage('BERT on the fly preprocessing') {
           steps {
-            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=0 python bert_pretraining.py --amp_opt_level O1 --train_data /home/TestData/nlp/wikitext-2/train.txt --eval_data /home/TestData/nlp/wikitext-2/valid.txt --work_dir outputs/bert_lm/wikitext2 --batch_size 64 --lr 0.01 --lr_policy CosineAnnealing --lr_warmup_proportion 0.05 --vocab_size 3200 --hidden_size 768 --intermediate_size 3072 --num_hidden_layers 6 --num_attention_heads 12 --hidden_act "gelu" --save_step_freq 200 --max_steps=300 data_text --tokenizer sentence-piece --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1 --dataset_name wikitext-2'
+            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=0 python bert_pretraining.py --amp_opt_level O1 --train_data /home/TestData/nlp/wikitext-2/train.txt --eval_data /home/TestData/nlp/wikitext-2/valid.txt --work_dir outputs/bert_lm/wikitext2 --batch_size 64 --lr 0.01 --lr_policy CosineAnnealing --lr_warmup_proportion 0.05 --vocab_size 3200 --hidden_size 768 --intermediate_size 3072 --num_hidden_layers 6 --num_attention_heads 12 --hidden_act "gelu" --save_step_freq 200 data_text  --num_iters=300 --tokenizer sentence-piece --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1 --dataset_name wikitext-2'
             sh 'cd examples/nlp/language_modeling && LOSS=$(cat outputs/bert_lm/wikitext2/log_globalrank-0_localrank-0.txt |   grep "Loss" |tail -n 1| awk \'{print \$7}\' | egrep -o "[0-9.]+" ) && echo $LOSS && if [ $(echo "$LOSS < 8.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/language_modeling/outputs/wikitext2 && rm -rf /home/TestData/nlp/wikitext-2/*.pkl && rm -rf /home/TestData/nlp/wikitext-2/bert'
           }
         }        
         stage('BERT offline preprocessing') {
           steps {
-            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=1 python bert_pretraining.py --amp_opt_level O1 --train_data /home/TestData/nlp/wiki_book_mini/training --eval_data /home/TestData/nlp/wiki_book_mini/evaluation --work_dir outputs/bert_lm/wiki_book --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --save_step_freq 200 --max_steps 300  --num_gpus 1  --batches_per_step 1 --lr_policy SquareRootAnnealing --beta2 0.999 --beta1 0.9  --lr_warmup_proportion 0.01 --optimizer adam_w  --weight_decay 0.01  --lr 0.875e-4 data_preprocessed '
+            sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=1 python bert_pretraining.py --amp_opt_level O1 --train_data /home/TestData/nlp/wiki_book_mini/training --eval_data /home/TestData/nlp/wiki_book_mini/evaluation --work_dir outputs/bert_lm/wiki_book --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --save_step_freq 200 --num_gpus 1 --batches_per_step 1 --lr_policy SquareRootAnnealing --beta2 0.999 --beta1 0.9  --lr_warmup_proportion 0.01 --optimizer adam_w  --weight_decay 0.01  --lr 0.875e-4 data_preprocessed --num_iters 300'
             sh 'cd examples/nlp/language_modeling && LOSS=$(cat outputs/bert_lm/wiki_book/log_globalrank-0_localrank-0.txt |  grep "Loss" |tail -n 1| awk \'{print \$7}\' | egrep -o "[0-9.]+" ) && echo $LOSS && if [ $(echo "$LOSS < 15.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/language_modeling/outputs/wiki_book'
           }
@@ -80,7 +105,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel NLP Examples 1') {
+    stage('L2: Parallel NLP Examples 1') {
       when {
         anyOf{
           branch 'master'
@@ -91,7 +116,7 @@ pipeline {
       parallel {
         stage ('Text Classification with BERT Test') {
           steps {
-            sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --pretrained_bert_model bert-base-uncased --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs'
+            sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --pretrained_model_name bert-base-uncased --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs'
             sh 'rm -rf examples/nlp/text_classification/outputs'
           }
         }
@@ -113,7 +138,7 @@ pipeline {
     }
 
 
-    stage('L1: Parallel NLP Examples 2') {
+    stage('L2: Parallel NLP Examples 2') {
       when {
         anyOf{
           branch 'master'
@@ -139,7 +164,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel NLP-Squad') {
+    stage('L2: Parallel NLP-Squad') {
       when {
         anyOf{
           branch 'master'
@@ -165,7 +190,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel NLP-Examples 3') {
+    stage('L2: Parallel NLP-Examples 3') {
       when {
         anyOf{
           branch 'master'
@@ -191,7 +216,7 @@ pipeline {
       }
     }
 
-    stage('L1: NLP-Intent Detection/Slot Tagging Examples - Multi-GPU') {
+    stage('L2: NLP-Intent Detection/Slot Tagging Examples - Multi-GPU') {
       when {
         anyOf{
           branch 'master'
@@ -207,7 +232,7 @@ pipeline {
         }
       }
 
-    stage('L1: NLP-NMT Example') {
+    stage('L2: NLP-NMT Example') {
       when {
         anyOf{
           branch 'master'
@@ -221,7 +246,7 @@ pipeline {
       }
     }
 
-    stage('L1: Parallel Stage Jasper / GAN') {
+    stage('L2: Parallel Stage Jasper / GAN') {
       when {
         anyOf{
           branch 'master'
@@ -259,7 +284,7 @@ pipeline {
     //   }
     // }
 
-    stage('L1: Multi-GPU Jasper test') {
+    stage('L2: Multi-GPU Jasper test') {
       when {
         anyOf{
           branch 'master'
@@ -277,7 +302,7 @@ pipeline {
     }
     
 
-    stage('L1: TTS Tests') {
+    stage('L2: TTS Tests') {
       when {
         anyOf{
           branch 'master'

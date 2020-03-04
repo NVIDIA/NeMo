@@ -406,7 +406,7 @@ class BERTPretrainingDataDesc:
         bert_dir = f'{data_dir}/bert'
         if if_exist(bert_dir, ['tokenizer.model']):
             logging.info(DATABASE_EXISTS_TMP.format('WikiText_BERT', bert_dir))
-            return data_dir, f'{bert_dir}/tokenizer.model'
+            return data_dir, f'{bert_dir}/tokenizer.model', f'{bert_dir}/vocab.txt'
         logging.info(f'Processing WikiText dataset and store at {bert_dir}')
         os.makedirs(bert_dir, exist_ok=True)
 

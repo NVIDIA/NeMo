@@ -16,12 +16,13 @@
 # limitations under the License.
 # =============================================================================
 
+from unittest import TestCase
+
+import pytest
 from sphinx.application import Sphinx
 
-from tests.common_setup import NeMoUnitTest
 
-
-class DocTest(NeMoUnitTest):
+class DocTest(TestCase):
     source_dir = u'docs/sources/source/'
     config_dir = u'docs/sources/source/'
     output_dir = u'docs/sources/source/test_build'
@@ -29,6 +30,7 @@ class DocTest(NeMoUnitTest):
 
     all_files = True
 
+    @pytest.mark.docs
     def test_html_documentation(self):
         """ Tests whether the HTML documentation can be build properly. """
         app = Sphinx(
