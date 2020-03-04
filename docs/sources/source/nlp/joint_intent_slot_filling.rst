@@ -6,8 +6,8 @@ In this tutorial, we are going to implement a joint intent and slot filling syst
 All code used in this tutorial is based on ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``.
 
 There are a variety pre-trained BERT models that we can select from using the argument `--pretrained_bert_model`. We're currently
-using the script for loading pre-trained models from `pytorch_transformers`. See the list of available pre-trained models
-`here <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__.
+using the script for loading pre-trained models from `transformers`. See the list of available pre-trained models
+`here <https://https://huggingface.co/transformers/pretrained_models.html>`__.
 
 .. tip::
 
@@ -38,7 +38,7 @@ This model can work with any dataset that follows the format:
 Currently, the datasets that we provide pre-processing script for include ATIS which can be downloaded
 from `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ and the SNIPS spoken language understanding research dataset which can be
 requested from `here <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__.
-You can find the pre-processing script in ``collections/nemo_nlp/nemo_nlp/data/datasets/utils.py``.
+You can find the pre-processing script in ``collections/nlp/data/datasets/datasets_utils/datasets_processing.py``.
 
 
 Code structure
@@ -59,7 +59,7 @@ First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or
             add_time_to_log_dir=True,
         )
 
-We define the tokenizer which transforms text into BERT tokens, using a built-in tokenizer by `pytorch_transformers`.
+We define the tokenizer which transforms text into BERT tokens, using a built-in tokenizer by `transformers`.
 This will tokenize text following the mapping of the original BERT model.
 
     .. code-block:: python
