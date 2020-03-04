@@ -18,6 +18,7 @@
 """This file contains NeuralModule and NmTensor classes."""
 __all__ = ['WeightShareTransform', 'NeuralModule']
 
+import collections
 import uuid
 from abc import abstractmethod
 from collections import namedtuple
@@ -28,6 +29,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from ruamel.yaml import YAML
 
+import nemo
 from .neural_types import (
     CanNotInferResultNeuralType,
     NeuralPortNameMismatchError,
@@ -87,6 +89,111 @@ class NeuralModule(NeuralInterface):
 
         # Validate the parameters.
         # self._validate_params(self._init_params)
+
+    def __call__(self, **kwargs):
+        """This method allows objects to be called with their port names
+
+        Args:
+          kwargs: Input ports and their values. For example:
+          ...
+          mymodule1 = Subclass1_of_NeuralModule(...)
+          mymodule2 = Subclass2_of_NeuralModule(...)
+          ...
+          out_port1, out_port2 = mymodule1(input_port1=value1,
+          input_port2=value2,
+          input_port3=value3)
+          out_port11 = mymodule2(input_port1=out_port2)
+          ...
+
+        Returns:
+          NmTensor object or tuple of NmTensor objects
+        """
+        print(" Neural Module:__call__")
+        # Get input and output ports definitions.
+        input_port_defs = self.input_ports
+        output_port_defs = self.output_ports
+
+        # Record the operation (i.e. add a single module)
+        self._app_state.active_graph.record_operation(self, kwargs.items())
+
+        first_input_nmtensor_type = None
+        input_nmtensors_are_of_same_type = True
+        # Iterate through all passed parameters.
+        for port_name, port_content in kwargs.items():
+            # make sure that passed arguments correspond to input port names
+            if port_name not in input_port_defs.keys():
+                raise NeuralPortNameMismatchError("Wrong input port name: {0}".format(port_name))
+
+            # Check what was actually passed.
+            if isinstance(port_content, nemo.core.NeuralGraph):
+                # Bind this input port to a neural graph.
+
+                # TODO: make sure that port_content ==  self._app_state.active_graph ?????
+                port_content.bind_input(port_name, input_port_defs[port_name])
+                # It is "compatible by definition";), so we don't have to check this port further.
+            else:  # : port_content is a neural module.
+                # Compare input port definition with the received definition.
+                input_port = input_port_defs[port_name]
+                type_comatibility = input_port.compare(port_content)
+                if (
+                    type_comatibility != NeuralTypeComparisonResult.SAME
+                    and type_comatibility != NeuralTypeComparisonResult.GREATER
+                ):
+                    raise NeuralPortNmTensorMismatchError(
+                        "\n\nIn {0}. \n"
+                        "Port: {1} and a NmTensor it was fed are \n"
+                        "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
+                        "\n\nType comparison result: {4}".format(
+                            self.__class__.__name__,
+                            port_name,
+                            input_port_defs[port_name],
+                            port_content,
+                            type_comatibility,
+                        )
+                    )
+        # TODO CHECK 1: Are we making sure that ALL necessary inputs that were PASSED?
+
+        # Here we will store the results.
+        results = None
+
+        if len(output_port_defs) == 1:
+            out_name = list(output_port_defs)[0]
+            out_type = output_port_defs[out_name]
+            if out_type is None:
+                if input_nmtensors_are_of_same_type:
+                    out_type = first_input_nmtensor_type
+                else:
+                    raise CanNotInferResultNeuralType(
+                        "Can't infer output neural type. Likely your inputs are of different type."
+                    )
+            # TODO CHECK 2: Why are we returning "something" (having input type) if there SHOULD be NO output?
+            results = NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
+        else:
+            result = []
+            for out_port, n_type in output_port_defs.items():
+                out_type = n_type
+                if out_type is None:
+                    if input_nmtensors_are_of_same_type:
+                        out_type = first_input_nmtensor_type
+                    else:
+                        raise CanNotInferResultNeuralType(
+                            "Can't infer output neural type. Likely your inputs are of different type."
+                        )
+                result.append(NmTensor(producer=self, producer_args=kwargs, name=out_port, ntype=out_type,))
+
+            # Creating ad-hoc class for returning from module's forward pass.
+            output_class_name = f'{self.__class__.__name__}Output'
+            field_names = list(output_port_defs)
+            result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
+
+            # Tie tuple of output tensors with corresponding names.
+            results = result_type(*result)
+
+        # Bind the output ports.
+        self._app_state.active_graph.bind_outputs(output_port_defs, results)
+
+        # Return the results.
+        return results
 
     @property
     def init_params(self) -> Optional[Dict]:
