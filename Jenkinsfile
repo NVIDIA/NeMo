@@ -51,9 +51,9 @@ pipeline {
       }
     }
 
-    stage('L2: Acceptance Tests') {
+    stage('LX: Unclassified Tests') {
       steps {
-        sh 'pytest -m acceptance'
+        sh 'pytest -m unclassified'
       }
     }
 
