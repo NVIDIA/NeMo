@@ -17,16 +17,20 @@
 # limitations under the License.
 # =============================================================================
 
-import nemo
-from tests.common_setup import NeMoUnitTest
+from unittest import TestCase
+
+import pytest
+
+from nemo.core import NeuralModule
 
 
-class NeuralModuleImportTest(NeMoUnitTest):
+@pytest.mark.usefixtures("neural_factory")
+class NeuralModuleImportTest(TestCase):
     """
         Class testing Neural Module configuration export.
     """
 
-    class FirstSimpleModule(nemo.core.NeuralModule):
+    class FirstSimpleModule(NeuralModule):
         """
         Mockup component class.
         """
@@ -34,7 +38,7 @@ class NeuralModuleImportTest(NeMoUnitTest):
         def __init__(self, a, b, c, d):
             super().__init__()
 
-    class SecondSimpleModule(nemo.core.NeuralModule):
+    class SecondSimpleModule(NeuralModule):
         """
         Mockup component class.
         """
@@ -49,6 +53,7 @@ class NeuralModuleImportTest(NeMoUnitTest):
         NeuralModuleImportTest.FirstSimpleModule.__abstractmethods__ = set()
         NeuralModuleImportTest.SecondSimpleModule.__abstractmethods__ = set()
 
+    @pytest.mark.unit
     def test_simple_import_root_neural_module(self):
         """ Tests whether the Neural Module can instantiate a simple module by loading a configuration file."""
 
@@ -59,7 +64,7 @@ class NeuralModuleImportTest(NeMoUnitTest):
         orig_module.export_to_config("/tmp/first_simple_import.yml")
 
         # Import and create the new object.
-        new_module = nemo.core.NeuralModule.import_from_config("/tmp/first_simple_import.yml")
+        new_module = NeuralModule.import_from_config("/tmp/first_simple_import.yml")
 
         # Compare class types.
         self.assertEqual(type(orig_module).__name__, type(new_module).__name__)
@@ -69,6 +74,7 @@ class NeuralModuleImportTest(NeMoUnitTest):
         for key in param_keys:
             self.assertEqual(orig_module.init_params[key], new_module.init_params[key])
 
+    @pytest.mark.unit
     def test_simple_import_leaf_module(self):
         """
             Tests whether a particular module can instantiate another
@@ -92,6 +98,7 @@ class NeuralModuleImportTest(NeMoUnitTest):
         for key in param_keys:
             self.assertEqual(orig_module.init_params[key], new_module.init_params[key])
 
+    @pytest.mark.unit
     def test_incompatible_import_leaf_module(self):
         """
             Tests whether a particular module can instantiate another
@@ -105,7 +112,7 @@ class NeuralModuleImportTest(NeMoUnitTest):
         orig_module.export_to_config("/tmp/second_simple_import.yml")
 
         # This will actuall create an instance of SecondSimpleModule - OK.
-        new_module = nemo.core.NeuralModule.import_from_config("/tmp/second_simple_import.yml")
+        new_module = NeuralModule.import_from_config("/tmp/second_simple_import.yml")
         # Compare class types.
         self.assertEqual(type(orig_module).__name__, type(new_module).__name__)
 

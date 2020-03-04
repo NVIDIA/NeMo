@@ -15,7 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-import nemo
+
+from unittest import TestCase
+
+import pytest
+
+from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     AudioSignal,
@@ -32,10 +37,10 @@ from nemo.core.neural_types import (
     SpectrogramType,
     VoidType,
 )
-from tests.common_setup import NeMoUnitTest
 
 
-class NeuralTypeSystemTests(NeMoUnitTest):
+class NeuralTypeSystemTests(TestCase):
+    @pytest.mark.unit
     def test_short_vs_long_version(self):
         long_version = NeuralType(
             axes=(AxisType(AxisKind.Batch, None), AxisType(AxisKind.Dimension, None), AxisType(AxisKind.Time, None)),
@@ -45,6 +50,7 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         self.assertEqual(long_version.compare(short_version), NeuralTypeComparisonResult.SAME)
         self.assertEqual(short_version.compare(long_version), NeuralTypeComparisonResult.SAME)
 
+    @pytest.mark.unit
     def test_parameterized_type_audio_sampling_frequency(self):
         audio16K = NeuralType(axes=('B', 'T'), elements_type=AudioSignal(16000))
         audio8K = NeuralType(axes=('B', 'T'), elements_type=AudioSignal(8000))
@@ -55,17 +61,20 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         self.assertEqual(another16K.compare(audio16K), NeuralTypeComparisonResult.SAME)
         self.assertEqual(audio16K.compare(another16K), NeuralTypeComparisonResult.SAME)
 
+    @pytest.mark.unit
     def test_transpose_same_1(self):
         type1 = NeuralType(axes=('B', 'T', 'C'))
         type2 = NeuralType(axes=('T', 'B', 'C'))
         self.assertEqual(type1.compare(type2), NeuralTypeComparisonResult.TRANSPOSE_SAME)
         self.assertEqual(type2.compare(type1), NeuralTypeComparisonResult.TRANSPOSE_SAME)
 
+    @pytest.mark.unit
     def test_transpose_same_2(self):
         audio16K = NeuralType(axes=('B', 'T'), elements_type=AudioSignal(16000))
         audio16K_t = NeuralType(axes=('T', 'B'), elements_type=AudioSignal(16000))
         self.assertEqual(audio16K.compare(audio16K_t), NeuralTypeComparisonResult.TRANSPOSE_SAME)
 
+    @pytest.mark.unit
     def test_inheritance_spec_augment_example(self):
         input = NeuralType(('B', 'D', 'T'), SpectrogramType())
         out1 = NeuralType(('B', 'D', 'T'), MelSpectrogramType())
@@ -77,12 +86,14 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         self.assertEqual(out1.compare(input), NeuralTypeComparisonResult.LESS)
         self.assertEqual(out2.compare(input), NeuralTypeComparisonResult.LESS)
 
+    @pytest.mark.unit
     def test_singletone(self):
         loss_output1 = NeuralType(axes=None)
         loss_output2 = NeuralType(axes=None)
         self.assertEqual(loss_output1.compare(loss_output2), NeuralTypeComparisonResult.SAME)
         self.assertEqual(loss_output2.compare(loss_output1), NeuralTypeComparisonResult.SAME)
 
+    @pytest.mark.unit
     def test_list_of_lists(self):
         T1 = NeuralType(
             axes=(
@@ -107,6 +118,7 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         # TODO: should this be incompatible instead???
         self.assertEqual(T1.compare(T2), NeuralTypeComparisonResult.TRANSPOSE_SAME)
 
+    @pytest.mark.unit
     def test_void(self):
         btc_spctr = NeuralType(('B', 'T', 'C'), SpectrogramType())
         btc_spct_bad = NeuralType(('B', 'T'), SpectrogramType())
@@ -115,6 +127,7 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         self.assertEqual(btc_spctr.compare(btc_void), NeuralTypeComparisonResult.INCOMPATIBLE)
         self.assertEqual(btc_void.compare(btc_spct_bad), NeuralTypeComparisonResult.INCOMPATIBLE)
 
+    @pytest.mark.unit
     def test_big_void(self):
         big_void_1 = NeuralType(elements_type=VoidType())
         big_void_2 = NeuralType()
@@ -152,24 +165,26 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         self.assertEqual(big_void_2.compare(t1), NeuralTypeComparisonResult.SAME)
         self.assertEqual(big_void_2.compare(t2), NeuralTypeComparisonResult.SAME)
 
+    @pytest.mark.unit
     def test_dag(self):
-        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
-        trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
-        loss = nemo.backends.pytorch.tutorials.MSELoss()
+        data_source = RealFunctionDataLayer(n=10000, batch_size=128)
+        trainable_module = TaylorNet(dim=4)
+        loss = MSELoss()
         x, y = data_source()
         y_pred = trainable_module(x=x)
         _ = loss(predictions=y_pred, target=y)
 
         def wrong():
-            data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
-            trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
-            loss = nemo.backends.pytorch.tutorials.MSELoss()
+            data_source = RealFunctionDataLayer(n=10000, batch_size=128)
+            trainable_module = TaylorNet(dim=4)
+            loss = MSELoss()
             x, y = data_source()
             loss_tensor = loss(predictions=x, target=x)
             _ = trainable_module(x=loss_tensor)
 
         self.assertRaises(NeuralPortNmTensorMismatchError, wrong)
 
+    @pytest.mark.unit
     def test_unspecified_dimensions(self):
         t0 = NeuralType(
             (AxisType(AxisKind.Batch, 64), AxisType(AxisKind.Time, 10), AxisType(AxisKind.Dimension, 128)),
@@ -179,6 +194,7 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         self.assertEqual(t1.compare(t0), NeuralTypeComparisonResult.SAME)
         self.assertEqual(t0.compare(t1), NeuralTypeComparisonResult.DIM_INCOMPATIBLE)
 
+    @pytest.mark.unit
     def test_any_axis(self):
         t0 = NeuralType(('B', 'Any', 'Any'), VoidType())
         t1 = NeuralType(('B', 'Any', 'Any'), SpectrogramType())
@@ -189,6 +205,7 @@ class NeuralTypeSystemTests(NeMoUnitTest):
         self.assertEqual(t2.compare(t1), NeuralTypeComparisonResult.INCOMPATIBLE)
         self.assertEqual(t1.compare(t0), NeuralTypeComparisonResult.INCOMPATIBLE)
 
+    @pytest.mark.unit
     def test_struct(self):
         class BoundingBox(ElementType):
             def __str__(self):

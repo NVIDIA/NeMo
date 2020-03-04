@@ -19,19 +19,21 @@
 import os
 import shutil
 import tarfile
+from unittest import TestCase
 
+import pytest
 import torch
 from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from nemo.core.neural_types import *
-from tests.common_setup import NeMoUnitTest
+from nemo.core.neural_types import AxisKind, AxisType, LabelsType, LengthsType, NeuralType, SpectrogramType
 
 logging = nemo.logging
 
 
-class TestZeroDL(NeMoUnitTest):
+@pytest.mark.usefixtures("neural_factory")
+class TestZeroDL(TestCase):
     labels = [
         "'",
         "a",
@@ -86,6 +88,7 @@ class TestZeroDL(NeMoUnitTest):
     #     if os.path.exists(os.path.join(data_folder, "asr")):
     #         shutil.rmtree(os.path.join(data_folder, "asr"))
 
+    @pytest.mark.unclassified
     def test_asr_with_zero_ds(self):
         logging.info("Testing ASR NMs with ZeroDS and without pre-processing")
         path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))

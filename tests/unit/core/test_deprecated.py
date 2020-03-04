@@ -19,18 +19,21 @@
 
 import re
 from io import StringIO
+from unittest import TestCase
 from unittest.mock import patch
+
+import pytest
 
 from nemo import logging
 from nemo.utils.decorators import deprecated
-from tests.common_setup import NeMoUnitTest
 
 
-class DeprecatedTest(NeMoUnitTest):
+class DeprecatedTest(TestCase):
     NEMO_ERR_MSG_FORMAT = re.compile(
         r"\[NeMo W [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} deprecated:[0-9]*\] "
     )
 
+    @pytest.mark.unit
     def test_say_whee_deprecated(self):
         """ Tests whether both std and err streams return the right values
         when function is deprecated."""
@@ -58,6 +61,7 @@ class DeprecatedTest(NeMoUnitTest):
         else:
             raise ValueError("Test case could not find a match, did the format of nemo loggin messages change?")
 
+    @pytest.mark.unit
     def test_say_wow_twice_deprecated(self):
         """ Tests whether both std and err streams return the right values
         when a deprecated is called twice."""
@@ -94,6 +98,7 @@ class DeprecatedTest(NeMoUnitTest):
         # Check error output - should be empty.
         self.assertEqual(std_err.getvalue().strip(), '')
 
+    @pytest.mark.unit
     def test_say_whoopie_deprecated_version(self):
         """ Tests whether both std and err streams return the right values
         when function is deprecated and version is provided. """
@@ -123,6 +128,7 @@ class DeprecatedTest(NeMoUnitTest):
         else:
             raise ValueError("Test case could not find a match, did the format of nemo loggin messages change?")
 
+    @pytest.mark.unit
     def test_say_kowabunga_deprecated_explanation(self):
         """ Tests whether both std and err streams return the right values
         when function is deprecated and additional explanation is provided. """

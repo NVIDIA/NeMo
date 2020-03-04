@@ -16,15 +16,18 @@
 # limitations under the License.
 # =============================================================================
 
+from unittest import TestCase
+
+import pytest
+
 import nemo
-from tests.common_setup import NeMoUnitTest
-
-logging = nemo.logging
 
 
-class TestPytorchTrainers(NeMoUnitTest):
+@pytest.mark.usefixtures("neural_factory")
+class TestPytorchTrainers(TestCase):
+    @pytest.mark.system
     def test_simple_train(self):
-        logging.info("Simplest train test")
+        """ Simplest train test """
         data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         loss = nemo.backends.pytorch.tutorials.MSELoss()
@@ -37,8 +40,9 @@ class TestPytorchTrainers(NeMoUnitTest):
             tensors_to_optimize=[loss_tensor], optimizer="sgd", optimization_params={"lr": 0.0003, "num_epochs": 1},
         )
 
+    @pytest.mark.system
     def test_simple_train_named_output(self):
-        logging.info('Simplest train test with using named output.')
+        """ Simplest train test with using named output """
         data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=128,)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         loss = nemo.backends.pytorch.tutorials.MSELoss()
@@ -57,8 +61,9 @@ class TestPytorchTrainers(NeMoUnitTest):
             tensors_to_optimize=[loss_tensor], optimizer="sgd", optimization_params={"lr": 0.0003, "num_epochs": 1},
         )
 
+    @pytest.mark.system
     def test_simple_chained_train(self):
-        logging.info("Chained train test")
+        """ Chained train test """
         data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=32)
         trainable_module1 = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         trainable_module2 = nemo.backends.pytorch.tutorials.TaylorNet(dim=2)

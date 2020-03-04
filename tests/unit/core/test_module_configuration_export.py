@@ -17,22 +17,23 @@
 # limitations under the License.
 # =============================================================================
 
-from unittest.mock import mock_open, patch
+from unittest import TestCase
 
+import pytest
 from ruamel.yaml import YAML
 
-import nemo
-from tests.common_setup import NeMoUnitTest
+from nemo.core import NeuralModule
 
 YAML = YAML(typ='safe')
 
 
-class NeuralModuleExportTest(NeMoUnitTest):
+@pytest.mark.usefixtures("neural_factory")
+class NeuralModuleExportTest(TestCase):
     """
         Class testing Neural Module configuration export.
     """
 
-    class MockupSimpleModule(nemo.core.NeuralModule):
+    class MockupSimpleModule(NeuralModule):
         """
         Mockup component class.
         """
@@ -46,6 +47,7 @@ class NeuralModuleExportTest(NeMoUnitTest):
         # Mockup abstract methods.
         NeuralModuleExportTest.MockupSimpleModule.__abstractmethods__ = set()
 
+    @pytest.mark.unit
     def test_simple_export(self):
         """
             Tests whether build-in types are properly exported.
@@ -75,6 +77,7 @@ class NeuralModuleExportTest(NeMoUnitTest):
         self.assertEqual(exported_init_params["c"], "ala_ma_kota")
         self.assertEqual(bool(exported_init_params["d"]), True)
 
+    @pytest.mark.unit
     def test_nested_list_export(self):
         """ Tests whether (nested*) lists are properly exported."""
 
@@ -105,6 +108,7 @@ class NeuralModuleExportTest(NeMoUnitTest):
         self.assertEqual(exported_init_params["c"][1], "ale")
         self.assertEqual(exported_init_params["d"], None)
 
+    @pytest.mark.unit
     def test_nested_dict_export(self):
         """ Tests whether (nested*) dictionaries are properly exported."""
 
@@ -133,6 +137,7 @@ class NeuralModuleExportTest(NeMoUnitTest):
         self.assertEqual(exported_init_params["c"]["ala"]["nie_ma"], "psa")
         self.assertEqual(exported_init_params["d"], True)
 
+    @pytest.mark.unit
     def test_unallowed_export(self):
         """ Tests whether unallowed types are NOT exported."""
 
