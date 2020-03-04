@@ -16,6 +16,10 @@
 # limitations under the License.
 # =============================================================================
 
+from unittest import TestCase
+
+import pytest
+
 from nemo.utils.lr_policies import (
     CosineAnnealing,
     PolynomialDecayAnnealing,
@@ -23,10 +27,10 @@ from nemo.utils.lr_policies import (
     SquareAnnealing,
     WarmupAnnealing,
 )
-from tests.common_setup import NeMoUnitTest
 
 
-class TestPolicies(NeMoUnitTest):
+class TestPolicies(TestCase):
+    @pytest.mark.unit
     def test_square(self):
         policy = SquareAnnealing(100)
         lr1, lr2, lr3 = (policy(1e-3, x, 0) for x in (0, 10, 20))
@@ -34,6 +38,7 @@ class TestPolicies(NeMoUnitTest):
         self.assertTrue(lr2 >= lr3)
         self.assertTrue(lr1 - lr2 >= lr2 - lr3)
 
+    @pytest.mark.unit
     def test_working(self):
         total_steps = 1000
         lr_policy_cls = [
@@ -49,12 +54,14 @@ class TestPolicies(NeMoUnitTest):
             for p in lr_policies:
                 assert p(1e-3, step, 0) > 0
 
+    @pytest.mark.unit
     def test_warmup(self):
         policy = SquareAnnealing(100, warmup_ratio=0.5)
         lr1, lr2, lr3 = (policy(1e-3, x, 0) for x in (0, 50, 100))
         self.assertTrue(lr1 < lr2)
         self.assertTrue(lr2 > lr3)
 
+    @pytest.mark.unit
     def test_warmup_hold(self):
         policy = PolynomialHoldDecayAnnealing(1000, warmup_ratio=0.25, hold_ratio=0.25, power=2)
         lr1, lr2, lr3, lr4 = (policy(1e-3, x, 0) for x in (0, 250, 500, 1000))

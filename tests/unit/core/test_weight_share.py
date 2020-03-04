@@ -20,8 +20,10 @@ import os
 import shutil
 import tarfile
 from typing import Dict
+from unittest import TestCase
 
 import numpy as np
+import pytest
 import torch
 from ruamel.yaml import YAML
 
@@ -32,12 +34,12 @@ from nemo.collections.nlp.nm.losses import SmoothedCrossEntropyLoss
 from nemo.collections.nlp.nm.trainables.common import TokenClassifier
 from nemo.core import WeightShareTransform
 from nemo.core.neural_types import *
-from tests.common_setup import NeMoUnitTest
 
 logging = nemo.logging
 
 
-class TestWeightSharing(NeMoUnitTest):
+@pytest.mark.usefixtures("neural_factory")
+class TestWeightSharing(TestCase):
     labels = [
         "'",
         "a",
@@ -68,7 +70,7 @@ class TestWeightSharing(NeMoUnitTest):
         "z",
         " ",
     ]
-    manifest_filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/asr/an4_train.json"))
+    manifest_filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/asr/an4_train.json"))
     featurizer_config = {
         'window': 'hann',
         'dither': 1e-05,
@@ -86,7 +88,7 @@ class TestWeightSharing(NeMoUnitTest):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
+        data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/"))
         logging.info("Looking up for test ASR data")
         if not os.path.exists(os.path.join(data_folder, "asr")):
             logging.info("Extracting ASR data to: {0}".format(os.path.join(data_folder, "asr")))
@@ -116,6 +118,7 @@ class TestWeightSharing(NeMoUnitTest):
                 )
         return all_same
 
+    @pytest.mark.unit
     def test_TaylorNet_get_weights(self):
         tn1 = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         tn2 = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
@@ -139,6 +142,7 @@ class TestWeightSharing(NeMoUnitTest):
     #     tn2.fc1.bias.data = torch.tensor([0.1])
     #     self.assertTrue(self.__check_if_weights_are_equal(tn1.get_weights(), tn2.get_weights()))
 
+    @pytest.mark.unit
     def test_tie_weights(self):
         class DummyDataLayer(DataLayerNM):
             def __init__(self, vocab_size):
@@ -195,7 +199,8 @@ class TestWeightSharing(NeMoUnitTest):
         pred = proj(hidden_states=pred)
         loss_t = loss(labels=_out, logits=pred)
 
-        self.nf.train(
+        optimizer = nemo.backends.pytorch.actions.PtActions()
+        optimizer.train(
             [loss_t], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.0003},
         )
 
@@ -203,6 +208,7 @@ class TestWeightSharing(NeMoUnitTest):
             np.array_equal(embd.embedding.weight.detach().cpu().numpy(), proj.mlp.layer2.weight.detach().cpu().numpy())
         )
 
+    @pytest.mark.unit
     def test_untied_weights(self):
         class DummyDataLayer(DataLayerNM):
             def __init__(self, vocab_size):
@@ -259,7 +265,8 @@ class TestWeightSharing(NeMoUnitTest):
         pred = proj(hidden_states=pred)
         loss_t = loss(labels=_out, logits=pred)
 
-        self.nf.train(
+        optimizer = nemo.backends.pytorch.actions.PtActions()
+        optimizer.train(
             [loss_t], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.0003},
         )
 
@@ -267,6 +274,7 @@ class TestWeightSharing(NeMoUnitTest):
             np.array_equal(embd.embedding.weight.detach().cpu().numpy(), proj.mlp.layer2.weight.detach().cpu().numpy())
         )
 
+    @pytest.mark.unit
     def test_set_weights(self):
         voc_size = 3
         dim = 2
@@ -278,8 +286,10 @@ class TestWeightSharing(NeMoUnitTest):
         weights = torch.tensor(np.random.randint(0, 10, (3, 2)) * 1.0)
         self.assertFalse(np.array_equal(embd.embedding.weight.detach().cpu().numpy(), weights.detach().cpu().numpy()))
 
+    @pytest.mark.unit
+    @pytest.mark.skip_on_device('CPU')
     def test_freeze_unfreeze_TrainableNM(self):
-        path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))
+        path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/jasper_smaller.yaml"))
         with open(path) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(
@@ -326,7 +336,7 @@ class TestWeightSharing(NeMoUnitTest):
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
-        optimizer = self.nf.get_trainer()
+        optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.0003},
         )
