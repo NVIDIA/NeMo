@@ -75,7 +75,7 @@ class TestTTSPytorch(TestCase):
         else:
             logging.info("speech data found in: {0}".format(data_folder + "asr"))
 
-    @pytest.mark.acceptance
+    @pytest.mark.unclassified
     @pytest.mark.skip_on_device('CPU')
     def test_tacotron2_training(self):
         data_layer = nemo_asr.AudioToTextDataLayer(
@@ -145,7 +145,7 @@ class TestTTSPytorch(TestCase):
             [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @pytest.mark.acceptance
+    @pytest.mark.unclassified
     def test_waveglow_training(self):
         data_layer = nemo_tts.AudioDataLayer(
             manifest_filepath=self.manifest_filepath, n_segments=4000, batch_size=4, sample_rate=16000

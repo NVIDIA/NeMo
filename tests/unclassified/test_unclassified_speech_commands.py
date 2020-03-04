@@ -81,7 +81,7 @@ class TestSpeechCommandsPytorch(TestCase):
         if os.path.exists(os.path.join(data_folder, "speech_commands")):
             shutil.rmtree(os.path.join(data_folder, "speech_commands"))
 
-    @pytest.mark.acceptance
+    @pytest.mark.unclassified
     def test_jasper_training(self):
         with open(
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_speech_recognition.yaml"))
@@ -129,7 +129,7 @@ class TestSpeechCommandsPytorch(TestCase):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @pytest.mark.acceptance
+    @pytest.mark.unclassified
     def test_double_jasper_training(self):
         with open(
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_speech_recognition.yaml"))
@@ -185,7 +185,7 @@ class TestSpeechCommandsPytorch(TestCase):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @pytest.mark.acceptance
+    @pytest.mark.unclassified
     def test_stft_conv(self):
         with open(
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_speech_recognition.yaml"))
@@ -232,7 +232,7 @@ class TestSpeechCommandsPytorch(TestCase):
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @pytest.mark.acceptance
+    @pytest.mark.unclassified
     def test_jasper_eval(self):
         with open(
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_speech_recognition.yaml"))
