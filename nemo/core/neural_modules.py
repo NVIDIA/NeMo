@@ -18,9 +18,8 @@
 """This file contains NeuralModule and NmTensor classes."""
 __all__ = ['WeightShareTransform', 'NeuralModule']
 
-import collections
 import uuid
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from collections import namedtuple
 from enum import Enum
 from inspect import getargvalues, getfullargspec, stack
@@ -39,8 +38,7 @@ from .neural_types import (
 )
 from nemo import logging
 from nemo.core import NeuralModuleFactory
-from nemo.core.app_state import AppState
-from nemo.core.neural_graph import NeuralGraph
+from nemo.core.neural_interface import NeuralInterface
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils.decorators.deprecated import deprecated
 
@@ -59,11 +57,13 @@ PretrainedModelInfo = namedtuple(
 )
 
 
-class NeuralModule(ABC):
+class NeuralModule(NeuralInterface):
     """Abstract class that every Neural Module must inherit from.
     """
 
     def __init__(self):
+        # Call integrace constructor.
+        super().__init__()
 
         # Get default factory.
         self._factory = NeuralModuleFactory.get_default_factory()
@@ -376,127 +376,9 @@ class NeuralModule(ABC):
                  properties to define module ports instead'
         )
 
-    @property
-    @abstractmethod
-    def input_ports(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module input ports
-
-        Returns:
-          A (dict) of module's input ports names to NeuralTypes mapping
-        """
-
-    @property
-    @abstractmethod
-    def output_ports(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports
-
-        Returns:
-          A (dict) of module's output ports names to NeuralTypes mapping
-        """
-
     @staticmethod
     def pretrained_storage():
         return ''
-
-    def __call__(self, **kwargs):
-        """This method allows objects to be called with their port names
-
-        Args:
-          kwargs: Input ports and their values. For example:
-          ...
-          mymodule1 = Subclass1_of_NeuralModule(...)
-          mymodule2 = Subclass2_of_NeuralModule(...)
-          ...
-          out_port1, out_port2 = mymodule1(input_port1=value1,
-          input_port2=value2,
-          input_port3=value3)
-          out_port11 = mymodule2(input_port1=out_port2)
-          ...
-
-        Returns:
-          NmTensor object or tuple of NmTensor objects
-        """
-        # Get input and output ports definitions.
-        input_port_defs = self.input_ports
-        output_port_defs = self.output_ports
-
-        # Handle a special case - one passes an instance of neural graph.
-        # This should bind all ports.
-        # if len(kwargs) == 1:  # and isinstance(kwargs.items()[1], NeuralGraph):
-        # TODO: Those ports should be binded.
-        # print("Binding all ports")
-        # Not doing it now - assuming that user will manually indicate ports to bind.
-
-        first_input_nmtensor_type = None
-        input_nmtensors_are_of_same_type = True
-        # Iterate through all passed parameters.
-        for port_name, port_value in kwargs.items():
-            # make sure that passed arguments correspond to input port names
-            if port_name not in input_port_defs.keys():
-                raise NeuralPortNameMismatchError("Wrong input port name: {0}".format(port_name))
-
-            # Check what was actually passed.
-            if isinstance(port_value, NeuralGraph):
-                # TODO: Those ports should be binded.
-                print("Binding port ", port_value)
-            else:
-                # Compare input port definition with the received definition.
-                input_port = input_port_defs[port_name]
-                type_comatibility = input_port.compare(port_value)
-                if (
-                    type_comatibility != NeuralTypeComparisonResult.SAME
-                    and type_comatibility != NeuralTypeComparisonResult.GREATER
-                ):
-                    raise NeuralPortNmTensorMismatchError(
-                        "\n\nIn {0}. \n"
-                        "Port: {1} and a NmTensor it was fed are \n"
-                        "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
-                        "\n\nType comparison result: {4}".format(
-                            self.__class__.__name__,
-                            port_name,
-                            input_port_defs[port_name],
-                            port_value,
-                            type_comatibility,
-                        )
-                    )
-        # TODO: Are we making sure that ALL necessary inputs that were PASSED?
-
-        # At that point we made sure that all ports are correcty connected.
-        AppState().active_graph.record_operation(self, kwargs.items())
-
-        if len(output_port_defs) == 1:
-            out_name = list(output_port_defs)[0]
-            out_type = output_port_defs[out_name]
-            if out_type is None:
-                if input_nmtensors_are_of_same_type:
-                    out_type = first_input_nmtensor_type
-                else:
-                    raise CanNotInferResultNeuralType(
-                        "Can't infer output neural type. Likely your inputs are of different type."
-                    )
-            return NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
-        else:
-            result = []
-            for out_port, n_type in output_port_defs.items():
-                out_type = n_type
-                if out_type is None:
-                    if input_nmtensors_are_of_same_type:
-                        out_type = first_input_nmtensor_type
-                    else:
-                        raise CanNotInferResultNeuralType(
-                            "Can't infer output neural type. Likely your inputs are of different type."
-                        )
-                result.append(NmTensor(producer=self, producer_args=kwargs, name=out_port, ntype=out_type,))
-
-            # Creating ad-hoc class for returning from module's forward pass.
-            output_class_name = f'{self.__class__.__name__}Output'
-            field_names = list(output_port_defs)
-            result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
-
-            # Tie tuple of output tensors with corresponding names.
-            result = result_type(*result)
-
-            return result
 
     def __str__(self):
         return self.__class__.__name__

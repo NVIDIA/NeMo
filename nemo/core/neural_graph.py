@@ -19,11 +19,11 @@
 # from collections import OrderedDict
 from typing import Dict, Optional
 
-from nemo.core.app_state import AppState
 from nemo.core.neural_factory import NeuralType, OperationMode
+from nemo.core.neural_interface import NeuralInterface
 
 
-class NeuralGraph:
+class NeuralGraph(NeuralInterface):
     def __init__(self, operation_mode, name=None):
         """
             Constructor. Initializes graph variables.
@@ -33,6 +33,8 @@ class NeuralGraph:
                 [training | eval]
                 name: Name of the graph (optional)
         """
+        # Call integrace constructor.
+        super().__init__()
         print('__init__ called')
         # Store name and operation mode.
         self._operation_mode = operation_mode
@@ -47,7 +49,7 @@ class NeuralGraph:
         # Operations.
         self._operation_list = []
         # Register graph.
-        AppState().register_graph(self)
+        self._app_state.register_graph(self)
 
     @property
     def input_ports(self) -> Optional[Dict[str, NeuralType]]:
@@ -70,13 +72,13 @@ class NeuralGraph:
     def __enter__(self):
         """ Activates given graph as current. """
         print('__enter__ called')
-        AppState().active_graph = self
+        self._app_state.active_graph = self
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         """ Deactivates current graph. """
         print('__exit__ called')
-        AppState().active_graph = None
+        self._app_state.active_graph = None
         if exc_type:
             print(f'exc_type: {exc_type}')
             print(f'exc_value: {exc_value}')
@@ -84,7 +86,7 @@ class NeuralGraph:
 
     def __str__(self):
         """ Prints a nice summary. """
-        # TODO: a nice summry. ;)
+        # TODO: a nice summary. ;)
         desc = "`{}` ({}):\n".format(self._name, len(self._operation_list))
         for op in self._operation_list:
             desc = desc + "  {}\n".format(type(op[0]).__name__)
@@ -95,3 +97,15 @@ class NeuralGraph:
             Records the operation (module plus passed inputs) on a list.
         """
         self._operation_list.append([module, inputs])
+
+    def bind_input_ports(self, port_name, port_definition):
+        print("Binding input port")
+        # TODO: Make sure the port name is not already present there.
+
+        # Copy the definition of the port to graph input port definition.
+        self._binded_input_ports[port_name] = port_definition
+
+        # Remember that it leads to a given module!
+
+    def bind_output_ports(self, output_port_defs, results):
+        print("Binding output ports")

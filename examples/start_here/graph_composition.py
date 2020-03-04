@@ -27,25 +27,46 @@ fx1 = nemo.tutorials.TaylorNet(dim=4)
 fx2 = nemo.tutorials.TaylorNet(dim=4)
 loss = nemo.tutorials.MSELoss()
 
-# This will create a default graph.
-x_valid, y_valid = dl()
+# This will create a default graph: "training"
+_, _ = dl()
 
 
-with NeuralGraph(operation_mode=OperationMode.training) as training_graph1:
-    x, y = dl()
+with NeuralGraph(operation_mode=OperationMode.inference) as validation_dl:
+    x_valid, y_valid = dl()
 
 # Build the training graph.
-with NeuralGraph(operation_mode=OperationMode.training) as training_graph2:
+with NeuralGraph(operation_mode=OperationMode.training, name="trainable_module") as trainable_module:
     # Add modules to graph.
-    p1 = fx1(x=x)
+    # Bind the first input.
+    p1 = fx1(x=trainable_module)
     p2 = fx2(x=p1)
     p3 = fx2(x=p2)
-    lss = loss(predictions=p3, target=y)
+    # All outputs will be binded by default.
+
+# Compose two graphs into final graph.
+with NeuralGraph(operation_mode=OperationMode.training, name="training_graph") as training_graph:
+    # Take outputs from the first graph.
+    x, y = AppState().graphs["training"]()
+    # Pass them to the second graph.
+    _, _, p = trainable_module(x)
+    # Pass both of them to loss.
+    lss = loss(predictions=p, target=y)
 
 
+# Show all graphs.
 print(AppState().graphs.summary())
 
-# print(training_graph1)
+# Show details of graph containing the trainable training module.
+# print(training_module)
+
+# Show
+print(AppState().graphs["training1"])
 # print(training_graph2)
 
-print(AppState().graphs["training1"])
+# SimpleLossLoggerCallback will print loss values to console.
+callback = nemo.core.SimpleLossLoggerCallback(
+    tensors=[lss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
+)
+
+# Invoke "train" action.
+nf.train([lss], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd")
