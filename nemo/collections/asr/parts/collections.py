@@ -240,7 +240,7 @@ class ASRSpeechLabel(SpeechLabel):
             labels.append(item['label'])
             offsets.append(item['offset'])
 
-        super().__init__(audio_files, durations, labels, *args, **kwargs)
+        super().__init__(audio_files, durations, labels, offsets, *args, **kwargs)
 
     def __parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
         item = json.loads(line)
