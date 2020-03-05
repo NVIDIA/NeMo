@@ -78,7 +78,7 @@ You can run the following to start training:
 .. code-block:: bash
 
     python tacotron2.py --train_dataset=<data_root>/databaker_csmsc_train.json --eval_datasets <data_root>/databaker_csmsc_eval.json --model_config=configs/tacotron_mandarin.yaml --max_steps=30000
-    
+
 .. tip::
     Tacotron 2 normally takes around 20,000 steps for attention to be learned.
     Once attention is learned, this is when you can use the model to generate
@@ -87,8 +87,8 @@ You can run the following to start training:
 Mixed Precision training
 -------------------------
 Enabling or disabling mixed precision training can be changed through a command
-line argument --amp_opt_level. Recommended and default values for Tacotron 2
-and Waveglow are O1. It can be:
+line argument ``--amp_opt_level``. Recommended and default values for Tacotron 2 are O0,
+whereas values for Waveglow are O1. Options for amp_opt_level are:
 
 - O0: float32 training
 - O1: mixed precision training
@@ -115,8 +115,9 @@ torch.distributed.launch module and sepcifying the num_gpus as the
 Inference
 ---------
 You can now to inference with either your own trained Tacotron 2, or you can
-use our pre-trained Tacotron 2 model. `Please download our
-pretrained model here  <https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech>`_.
+use our pre-trained Tacotron 2 model. Please download our models for
+`tacotron 2 here <https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech>`_ and 
+`waveglow here <https://ngc.nvidia.com/catalog/models/nvidia:waveglow_ljspeech>`_.
 Next create the texts that you want
 to generate and add them to a json like the training dataset. They should
 have lines like so:
@@ -143,3 +144,8 @@ NeMo/examples/tts folder like so:
     python tts_infer.py --spec_model=tacotron2 --spec_model_config=configs/tacotron2.yaml --spec_model_load_dir=<directory_with_tacotron2_checkopints> --vocoder=waveglow --vocoder_model_config=configs/waveglow.yaml --vocoder_model_load_dir=<directory_with_waveglow_checkopints> --save_dir=<where_you_want_to_save_wav_files> --eval_dataset <mainfest_to_generate>
 
 For Mandarin, remember to replace the config file of Tacotron 2 with tacotron2_mandarin.yaml.
+
+.. tip::
+    The inference via waveglow can be further controlled via the ``--waveglow_denoiser_strength`` and
+    ``--waveglow_sigma`` arguments. If there is a stuble white noise to the audio, we recommend slowing increasing
+    ``--waveglow_denoiser_strength`` from 0.
