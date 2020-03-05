@@ -21,9 +21,8 @@ import pathlib
 import tarfile
 from unittest import TestCase
 
-import pytest
-
 import numpy as np
+import pytest
 
 import nemo
 import nemo.collections.asr as nemo_asr
