@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import OrderedDict
+
 import numpy as np
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 from nemo.collections.tts.parts.transformer import layers
 
@@ -56,6 +59,30 @@ def get_attn_key_pad_mask(seq_k, seq_q, pad_id):
     return padding_mask
 
 
+class FFTBlock(torch.nn.Module):
+    """FFT Block"""
+
+    def __init__(self, d_model, d_inner, n_head, d_k, d_v, fft_conv1d_kernel, fft_conv1d_padding, dropout=0.1):
+        super(FFTBlock, self).__init__()
+        self.slf_attn = layers.MultiHeadAttention(n_head, d_model, d_k, d_v, dropout=dropout)
+        self.pos_ffn = layers.PositionwiseFeedForward(
+            d_model,
+            d_inner,
+            fft_conv1d_kernel=fft_conv1d_kernel,
+            fft_conv1d_padding=fft_conv1d_padding,
+            dropout=dropout,
+        )
+
+    def forward(self, enc_input, non_pad_mask=None, slf_attn_mask=None):
+        enc_output, enc_slf_attn = self.slf_attn(enc_input, enc_input, enc_input, mask=slf_attn_mask)
+        enc_output *= non_pad_mask
+
+        enc_output = self.pos_ffn(enc_output)
+        enc_output *= non_pad_mask
+
+        return enc_output, enc_slf_attn
+
+
 class Encoder(nn.Module):
     """Encoder."""
 
@@ -89,7 +116,7 @@ class Encoder(nn.Module):
 
         self.layer_stack = nn.ModuleList(
             [
-                layers.FFTBlock(
+                FFTBlock(
                     d_model,
                     d_inner,
                     n_head,
@@ -152,7 +179,7 @@ class Decoder(nn.Module):
 
         self.layer_stack = nn.ModuleList(
             [
-                layers.FFTBlock(
+                FFTBlock(
                     d_model,
                     d_inner,
                     n_head,

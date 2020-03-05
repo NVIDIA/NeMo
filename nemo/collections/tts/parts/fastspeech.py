@@ -19,8 +19,6 @@ import numpy as np
 import torch
 from torch import nn
 
-from nemo.collections.tts.parts import transformer
-
 
 class FastSpeechDataset:
     def __init__(self, audio_dataset, durs_dir):
@@ -85,6 +83,34 @@ class LengthRegulator(nn.Module):
         return output, dec_pos
 
 
+class ConvTranspose(nn.Module):
+    """Convolution Module with transposes of last two dimensions."""
+
+    def __init__(
+        self, in_channels, out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=True, w_init='relu'
+    ):
+        super(ConvTranspose, self).__init__()
+
+        self.conv = nn.Conv1d(
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            bias=bias,
+        )
+
+        nn.init.xavier_uniform_(self.conv.weight, gain=nn.init.calculate_gain(w_init))
+
+    def forward(self, x):
+        x = x.contiguous().transpose(1, 2)
+        x = self.conv(x)
+        x = x.contiguous().transpose(1, 2)
+
+        return x
+
+
 class DurationPredictor(nn.Module):
     """Duration Predictor."""
 
@@ -102,14 +128,14 @@ class DurationPredictor(nn.Module):
                 [
                     (
                         "conv1d_1",
-                        transformer.Conv(self.input_size, self.filter_size, kernel_size=self.kernel, padding=1),
+                        ConvTranspose(self.input_size, self.filter_size, kernel_size=self.kernel, padding=1),
                     ),
                     ("relu_1", nn.ReLU()),
                     ("layer_norm_1", nn.LayerNorm(self.filter_size)),
                     ("dropout_1", nn.Dropout(self.dropout)),
                     (
                         "conv1d_2",
-                        transformer.Conv(self.filter_size, self.filter_size, kernel_size=self.kernel, padding=1),
+                        ConvTranspose(self.filter_size, self.filter_size, kernel_size=self.kernel, padding=1),
                     ),
                     ("relu_2", nn.ReLU()),
                     ("layer_norm_2", nn.LayerNorm(self.filter_size)),

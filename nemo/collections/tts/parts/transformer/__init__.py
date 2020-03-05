@@ -12,5 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.tts.parts.transformer.conv_transpose import Conv
 from nemo.collections.tts.parts.transformer.models import Decoder, Encoder
