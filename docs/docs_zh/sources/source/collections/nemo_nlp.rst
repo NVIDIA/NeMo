@@ -94,7 +94,7 @@ NLP 神经模块
    :show-inheritance:
    :exclude-members: forward
 
-.. automodule:: nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
+.. automodule:: nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm
    :members:
    :undoc-members:
    :show-inheritance:
