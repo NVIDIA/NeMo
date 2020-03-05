@@ -37,8 +37,8 @@ This model can work with any dataset that follows the format:
 
 Currently, the datasets that we provide pre-processing script for include ATIS which can be downloaded
 from `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ and the SNIPS spoken language understanding research dataset which can be
-requested from `here <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__.
-You can find the pre-processing script in ``collections/nlp/data/datasets/datasets_utils/datasets_processing.py``.
+requested from `here <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__. \
+By setting the dataset_name parameter to one of ['atis', 'snips-light', 'snips-speak', 'snips-all'], you can process and convert these datasets into NeMo's format.
 
 
 Code structure
