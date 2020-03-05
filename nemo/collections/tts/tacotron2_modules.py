@@ -5,9 +5,10 @@ import torch
 from torch import nn
 from torch.nn.functional import pad
 
-from .parts.layers import get_mask_from_lengths
-from .parts.tacotron2 import Decoder, Encoder, Postnet
+from nemo import logging
 from nemo.backends.pytorch.nm import LossNM, NonTrainableNM, TrainableNM
+from nemo.collections.tts.parts.layers import get_mask_from_lengths
+from nemo.collections.tts.parts.tacotron2 import Decoder, Encoder, Postnet
 from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
 
