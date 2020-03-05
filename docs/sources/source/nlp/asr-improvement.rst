@@ -43,7 +43,7 @@ The script is located under ``examples/nlp/asr_postprocessor/get_decoder_params_
 
     .. code-block:: bash
 
-        $ python get_decoder_params_from_bert.py --model_name bert-base-uncased
+        $ python get_decoder_params_from_bert.py --model_name bert-base-uncased --save_to results_dir
 
 
 Neural modules overview
