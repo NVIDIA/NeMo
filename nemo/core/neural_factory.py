@@ -62,6 +62,7 @@ class OperationMode(Enum):
 
     training = 0
     inference = 1
+    both = 2
 
 
 class Optimization(Enum):

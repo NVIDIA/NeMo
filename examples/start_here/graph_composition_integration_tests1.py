@@ -20,21 +20,31 @@
 import nemo
 from nemo.core import AppState, NeuralGraph, NeuralModule, NeuralModuleFactory, OperationMode
 
+logging = nemo.logging
+
 nf = nemo.core.NeuralModuleFactory()
 # Instantiate the necessary neural modules.
 dl = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
 m2 = nemo.tutorials.TaylorNet(dim=4)
 loss = nemo.tutorials.MSELoss()
 
-with NeuralGraph(operation_mode=OperationMode.training, name="g2") as g2:
-    y = m2(x=g2)
 
-# Build the training graph.
-with NeuralGraph(operation_mode=OperationMode.training, name="g3") as g3:
-    # Add modules to graph.
-    x, p = dl()
-    y = g2(x=x)
-    lss = loss(predictions=p, target=y)
+with NeuralGraph(operation_mode=OperationMode.training, name="g1") as g1:
+    x, t = dl()
+    y = m2(x=x)
+
+print(g1)
+g1.show_binded_inputs()
+g1.show_binded_outputs()
+
+with NeuralGraph(operation_mode=OperationMode.training, name="g1.1") as g11:
+    x1, t1, p1 = g1()
+    lss = loss(predictions=p1, target=t1)
+
+
+print(g11)
+g11.show_binded_inputs()
+g11.show_binded_outputs()
 
 
 # Show all graphs.

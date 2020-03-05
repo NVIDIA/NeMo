@@ -35,8 +35,9 @@ class NeuralInterface(ABC):
     """
 
     def __init__(self):
+        """ Constructor. Set application state. """
+        # Get access to app state.
         self._app_state = nemo.core.app_state.AppState()
-        pass
 
     @property
     @abstractmethod

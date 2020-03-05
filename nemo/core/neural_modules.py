@@ -168,6 +168,11 @@ class NeuralModule(NeuralInterface):
                     )
             # TODO CHECK 2: Why are we returning "something" (having input type) if there SHOULD be NO output?
             results = NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
+
+            # Bind the output ports.
+            print("Neural module LEN 1 -> going to bind_outputs")
+            self._app_state.active_graph.bind_outputs(output_port_defs, [results])
+
         else:
             result = []
             for out_port, n_type in output_port_defs.items():
@@ -186,11 +191,12 @@ class NeuralModule(NeuralInterface):
             field_names = list(output_port_defs)
             result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
 
+            print("Neural module LEN MORE -> going to bind_outputs")
+            # Bind the output ports.
+            self._app_state.active_graph.bind_outputs(output_port_defs, result)
+
             # Tie tuple of output tensors with corresponding names.
             results = result_type(*result)
-
-        # Bind the output ports.
-        self._app_state.active_graph.bind_outputs(output_port_defs, results)
 
         # Return the results.
         return results

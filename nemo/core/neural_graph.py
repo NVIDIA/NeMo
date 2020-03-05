@@ -65,33 +65,24 @@ class NeuralGraph(NeuralInterface):
         print("Created graph: ", self._name)
 
     def __call__(self, **kwargs):
-        """This method allows objects to be called with their port names
+        """
+            This method "inserts" one existing neural graph into another one.
+            Also checks if all inputs were provided and properly connects them.
 
-        Args:
-          kwargs: Input ports and their values. For example:
-          ...
-          mymodule1 = Subclass1_of_NeuralModule(...)
-          mymodule2 = Subclass2_of_NeuralModule(...)
-          ...
-          out_port1, out_port2 = mymodule1(input_port1=value1,
-          input_port2=value2,
-          input_port3=value3)
-          out_port11 = mymodule2(input_port1=out_port2)
-          ...
-
-        Returns:
-          NmTensor object or tuple of NmTensor objects
         """
         print(" Neural Graph:__call__")
         # Get input and output ports definitions.
         input_port_defs = self.input_ports
         output_port_defs = self.output_ports
 
-        # TODO Record the operation,i.e. "copy" the whole graph!
-        self._app_state.active_graph.record_operation(self, kwargs.items())
+        # TODO: check graph operation mode compatibility.
 
-        first_input_nmtensor_type = None
-        input_nmtensors_are_of_same_type = True
+        # "Copy" all the operations from the previous graph.
+        for operation in self._operation_list:
+            self._app_state.active_graph.record_operation(*operation)
+
+        # print(self._operation_list)
+
         # Iterate through all passed parameters.
         for port_name, port_content in kwargs.items():
             # make sure that passed arguments correspond to input port names
@@ -133,47 +124,36 @@ class NeuralGraph(NeuralInterface):
         # Here we will store the results.
         results = None
 
-        # TODO CHECK 2: Why 1 port is a special case?
+        # This part is different. Now the goal is not to create NEW "tensors", but to return the BINDED ones!
         if len(output_port_defs) == 1:
             out_name = list(output_port_defs)[0]
-            out_type = output_port_defs[out_name]
-            # TODO CHECK 3: out_type always remains None.
-            if out_type is None:
-                if input_nmtensors_are_of_same_type:
-                    out_type = first_input_nmtensor_type
-                else:
-                    raise CanNotInferResultNeuralType(
-                        "Can't infer output neural type. Likely your inputs are of different type."
-                    )
-            results = NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
-            print("LEN = 1")
-            # Bind the output ports - only
-            self._app_state.active_graph.bind_outputs(output_port_defs, result)
+            # out_type = output_port_defs[out_name]
+            # TODO CHECK 2: Why are we returning "something" (having input type) if there SHOULD be NO output?
+            results = self._binded_output_ports[out_name]
+
+            # Bind the output ports.
+            print("Neural graph LEN 1 -> going to bind_outputs")
+            self._app_state.active_graph.bind_outputs(output_port_defs, [results])
+
         else:
             result = []
-            for out_port, n_type in output_port_defs.items():
-                out_type = n_type
-                # TODO CHECK 4: out_type always remains None.
-                if out_type is None:
-                    if input_nmtensors_are_of_same_type:
-                        out_type = first_input_nmtensor_type
-                    else:
-                        raise CanNotInferResultNeuralType(
-                            "Can't infer output neural type. Likely your inputs are of different type."
-                        )
-                result.append(NmTensor(producer=self, producer_args=kwargs, name=out_port, ntype=out_type,))
+            # for out_port, n_type in output_port_defs.items():
+            #    out_type = n_type
+            #    result.append(NmTensor(producer=self, producer_args=kwargs, name=out_port, ntype=out_type,))
+            for name, tensor in self._binded_output_tensors.items():
+                result.append(tensor)
 
             # Creating ad-hoc class for returning from module's forward pass.
             output_class_name = f'{self.__class__.__name__}Output'
             field_names = list(output_port_defs)
             result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
 
+            print("Neural graph LEN MORE -> going to bind_outputs")
+            # Bind the output ports.
+            self._app_state.active_graph.bind_outputs(output_port_defs, result)
+
             # Tie tuple of output tensors with corresponding names.
             results = result_type(*result)
-
-            print("LEN ELSE")
-            # Bind the output ports - only
-            self._app_state.active_graph.bind_outputs(output_port_defs, result)
 
         # Return the results.
         return results
@@ -228,7 +208,7 @@ class NeuralGraph(NeuralInterface):
     def bind_input(
         self, port_name, port_definition,
     ):
-        print("Binding input: `{}`: def = {}".format(port_name, port_definition))
+        print("Binding input: `{}`: def = `{}` value = NONE".format(port_name, port_definition))
         # Copy the definition of the port to graph input port definition.
         self._binded_input_ports[port_name] = port_definition
 
@@ -238,13 +218,35 @@ class NeuralGraph(NeuralInterface):
         # Remember that it leads to a given module!
 
     def bind_outputs(self, output_port_defs, output_values):
+        # print("Binding ALL outputs: defs = `{}`, values = `{}`".format(output_port_defs, output_values))
 
         for (output_name, output_definition), output_value in zip(output_port_defs.items(), output_values):
-            print("Binding output: `{}`: def = {}, value = {}".format(output_name, output_definition, output_value))
+            # print(
+            #    "Binding output: key = `{}`: def = `{}`, value = `{}`".format(
+            #        output_name, type(output_definition), type(output_value)
+            #    )
+            # )
+            # Copy the definition of the port to graph input port definition.
+            self._binded_output_ports[output_name] = output_definition
+
             # Bind output tensors.
+
             self._binded_output_tensors[output_name] = output_value
 
-            # Copy the definition of the port to graph input port definition.
-            self._binded_output_ports[output_value] = output_value
+    def show_binded_inputs(self):
+        print("Binded input ports: ")
+        for key, value in self._binded_input_ports.items():
+            print(" * `{}`: `{}` ({})".format(key, value, type(value)))
 
-        print("Binding outputs DONE!")
+        print("Binded input tensors: ")
+        for key, value in self._binded_input_tensors.items():
+            print(" * `{}`: `{}` ({})".format(key, value, type(value)))
+
+    def show_binded_outputs(self):
+        print("Binded output ports: ")
+        for key, value in self._binded_output_ports.items():
+            print(" * `{}`: `{}` ({})".format(key, value, type(value)))
+
+        print("Binded output tensors: ")
+        for key, value in self._binded_output_tensors.items():
+            print(" * `{}`: `{}` ({})".format(key, value, type(value)))
