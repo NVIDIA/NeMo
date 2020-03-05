@@ -25,6 +25,8 @@ from nemo.collections import tts as nemo_tts
 from nemo.utils import argparse as nm_argparse
 from nemo.utils import lr_policies
 
+logging = nemo.logging
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -95,7 +97,7 @@ class FastSpeechGraph:
         )
 
         callbacks = [
-            nemo.core.SimpleLossLoggerCallback([loss], print_func=lambda x: nemo.logging.info(f'Loss: {x[0].data}'))
+            nemo.core.SimpleLossLoggerCallback([loss], print_func=lambda x: logging.info(f'Loss: {x[0].data}'))
         ]
 
         return loss, callbacks
@@ -117,7 +119,7 @@ def main():
     yaml_loader = yaml.YAML(typ="safe")
     with open(args.model_config) as f:
         config = attrdict.AttrDict(yaml_loader.load(f))
-    nemo.logging.info(f'Config: {config}')
+    logging.info(f'Config: {config}')
     graph = FastSpeechGraph(args, config, num_workers=max(int(os.cpu_count() / engine.world_size), 1))
 
     steps_per_epoch = math.ceil(len(graph.data_layer) / (args.batch_size * engine.world_size))

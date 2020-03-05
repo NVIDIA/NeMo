@@ -9,6 +9,8 @@ from torch.nn import functional as F
 import nemo
 from nemo.collections.tts.parts.layers import ConvNorm, LinearNorm, get_mask_from_lengths
 
+logging = nemo.logging
+
 
 class LocationLayer(nn.Module):
     def __init__(self, attention_n_filters, attention_kernel_size, attention_dim):
@@ -487,7 +489,7 @@ class Decoder(nn.Module):
             alignments += [alignment]
 
             if len(mel_outputs) == self.max_decoder_steps:
-                nemo.logging.warning(f"Reached max decoder steps {self.max_decoder_steps}")
+                logging.warning("Reached max decoder steps %d.", self.max_decoder_steps)
                 break
 
             decoder_input = mel_output

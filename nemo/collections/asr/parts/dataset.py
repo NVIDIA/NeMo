@@ -132,10 +132,13 @@ class AudioDataset(Dataset):
         bos_id=None,
         eos_id=None,
         load_audio=True,
+        parser='en',
     ):
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
-            parser=parsers.CharParser(labels=labels, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,),
+            parser=parsers.make_parser(
+                labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
+            ),
             min_duration=min_duration,
             max_duration=max_duration,
             max_number=max_utts,
