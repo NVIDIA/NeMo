@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import torch
 from transformers import BERT_PRETRAINED_MODEL_ARCHIVE_MAP
@@ -41,7 +42,7 @@ decoder_keys = [
 
 parser = argparse.ArgumentParser(description="BERT parameters to decoder")
 parser.add_argument("--model_name", default="bert-base-uncased", type=str)
-parser.add_argument("--save_to", default="", type=str)
+parser.add_argument("--save_to", default="", type=str, help="folder to save output to.")
 
 args = parser.parse_args()
 
@@ -94,4 +95,6 @@ zeros = torch.zeros((tokens_to_add, d_model)).to(device="cpu")
 tmp = torch.cat((new_decoder_weights['embedding_layer.token_embedding.weight'], zeros))
 
 new_decoder_weights['embedding_layer.token_embedding.weight'] = tmp
-torch.save(new_decoder_weights, args.save_to + args.model_name + "_decoder.pt")
+if not os.path.exists(args.save_to):
+    os.makedirs(args.save_to)
+torch.save(new_decoder_weights, os.path.join(args.save_to, args.model_name + "_decoder.pt"))
