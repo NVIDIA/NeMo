@@ -9,6 +9,8 @@ tutorial. See the :ref:`installation` section for more details.
     For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
 
 
+.. _ner_tutorial:
+
 Introduction
 ------------
 
@@ -73,7 +75,7 @@ If you're using a standard BERT model, you should do it as follows. To see the f
         bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
             pretrained_model_name="bert-base-cased")
 
-See examples/nlp/token_classification.py on how to use a BERT model that you pre-trained yourself.
+See examples/nlp/token_classification/token_classification.py on how to use a BERT model that you pre-trained yourself.
 Now, create the train and evaluation data layers:
 
     .. code-block:: python

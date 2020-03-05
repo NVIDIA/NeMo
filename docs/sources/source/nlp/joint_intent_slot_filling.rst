@@ -6,8 +6,8 @@ In this tutorial, we are going to implement a joint intent and slot filling syst
 All code used in this tutorial is based on ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``.
 
 There are a variety pre-trained BERT models that we can select from using the argument `--pretrained_bert_model`. We're currently
-using the script for loading pre-trained models from `pytorch_transformers`. See the list of available pre-trained models
-`here <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__.
+using the script for loading pre-trained models from `transformers`. See the list of available pre-trained models
+`here <https://https://huggingface.co/transformers/pretrained_models.html>`__.
 
 .. tip::
 
@@ -38,7 +38,7 @@ This model can work with any dataset that follows the format:
 Currently, the datasets that we provide pre-processing script for include ATIS which can be downloaded
 from `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ and the SNIPS spoken language understanding research dataset which can be
 requested from `here <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__.
-You can find the pre-processing script in ``collections/nemo_nlp/nemo_nlp/data/datasets/utils.py``.
+You can find the pre-processing script in ``collections/nlp/data/datasets/datasets_utils/datasets_processing.py``.
 
 
 Code structure
@@ -59,7 +59,7 @@ First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or
             add_time_to_log_dir=True,
         )
 
-We define the tokenizer which transforms text into BERT tokens, using a built-in tokenizer by `pytorch_transformers`.
+We define the tokenizer which transforms text into BERT tokens, using a built-in tokenizer by `transformers`.
 This will tokenize text following the mapping of the original BERT model.
 
     .. code-block:: python
@@ -109,11 +109,11 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
     .. code-block:: python
 
         from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
-        def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
-            logging.info(f"Loading {mode} data...")
-            data_file = f'{data_desc.data_dir}/{mode}.tsv'
-            slot_file = f'{data_desc.data_dir}/{mode}_slots.tsv'
-            shuffle = args.shuffle_data if mode == 'train' else False
+        def create_pipeline(num_samples=-1, batch_size=32, data_prefix='train', is_training=True, num_gpus=1):
+            logging.info(f"Loading {data_prefix} data...")
+            data_file = f'{data_desc.data_dir}/{data_prefix}.tsv'
+            slot_file = f'{data_desc.data_dir}/{data_prefix}_slots.tsv'
+            shuffle = args.shuffle_data if is_training else False
 
             data_layer = BertJointIntentSlotDataLayer(
                 input_file=data_file,
@@ -151,7 +151,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
             slot_loss = slot_loss_fn(logits=slot_logits, labels=input_data.slots, loss_mask=input_data.loss_mask)
             total_loss = total_loss_fn(loss_1=intent_loss, loss_2=slot_loss)
 
-            if mode == 'train':
+            if is_training:
                 tensors_to_evaluate = [total_loss, intent_logits, slot_logits]
             else:
                 tensors_to_evaluate = [
@@ -165,11 +165,19 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
             return tensors_to_evaluate, total_loss, steps_per_epoch, data_layer
 
 
-        train_tensors, train_loss, steps_per_epoch, _ = create_pipeline(
-            args.num_train_samples, batch_size=args.batch_size, num_gpus=args.num_gpus, mode=args.train_file_prefix,
+        train_tensors, train_loss, train_steps_per_epoch, _ = create_pipeline(
+            num_samples=args.num_train_samples,
+            batch_size=args.batch_size,
+            data_prefix=args.train_file_prefix,
+            is_training=True,
+            num_gpus=args.num_gpus,
         )
-        eval_tensors, _, _, data_layer = create_pipeline(
-            args.num_eval_samples, batch_size=args.batch_size, num_gpus=args.num_gpus, mode=args.eval_file_prefix,
+        eval_tensors, _, _, eval_data_layer = create_pipeline(
+            num_samples=args.num_eval_samples,
+            batch_size=args.batch_size,
+            data_prefix=args.eval_file_prefix,
+            is_training=False,
+            num_gpus=args.num_gpus,
         )
 
     * Create relevant callbacks for saving checkpoints, printing training progresses and evaluating results.
@@ -180,7 +188,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
         from nemo.core import CheckpointCallback, SimpleLossLoggerCallback
         train_callback = SimpleLossLoggerCallback(
             tensors=train_tensors,
-            print_func=lambda x: str(np.round(x[0].item(), 3)),
+            print_func=lambda x: logging.info(str(round(x[0].item(), 3))),
             tb_writer=nf.tb_writer,
             get_tb_values=lambda x: [["loss", x[0]]],
             step_freq=steps_per_epoch,

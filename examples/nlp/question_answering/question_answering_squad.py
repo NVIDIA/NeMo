@@ -86,6 +86,7 @@ import os
 import numpy as np
 
 import nemo.collections.nlp as nemo_nlp
+import nemo.collections.nlp.data.tokenizers.tokenizer_utils
 import nemo.core as nemo_core
 from nemo import logging
 from nemo.collections.nlp.callbacks.qa_squad_callback import eval_epochs_done_callback, eval_iter_callback
@@ -104,16 +105,11 @@ def parse_args():
         "--test_file", type=str, help="The test data file. Should be *.json. Does not need to contain ground truth",
     )
     parser.add_argument(
-        "--pretrained_model_name",
-        type=str,
+        '--pretrained_model_name',
         default='roberta-base',
-        help="Name of the pre-trained model",
-        choices=[
-            _.pretrained_model_name
-            for _ in nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
-            + nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
-            + nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-        ],
+        type=str,
+        help='Name of the pre-trained model',
+        choices=nemo_nlp.nm.trainables.get_bert_models_list(),
     )
     parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
     parser.add_argument(
@@ -122,7 +118,7 @@ def parse_args():
     parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
     parser.add_argument(
         "--tokenizer_model",
-        default="tokenizer.model",
+        default=None,
         type=str,
         help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
     )
@@ -329,38 +325,17 @@ if __name__ == "__main__":
         add_time_to_log_dir=False,
     )
 
-    model_type = args.pretrained_model_name.split('-')[0]
-    model_cls = nemo_nlp.utils.DEFAULT_MODELS[model_type]['class']
-
-    if args.bert_config is not None:
-        model = model_cls(config_filename=args.bert_config)
-    else:
-        """ Use this if you're using a standard BERT model.
-        To see the list of pretrained models, call:
-        nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-        """
-        model = model_cls(pretrained_model_name=args.pretrained_model_name)
+    model = nemo_nlp.nm.trainables.get_huggingface_model(
+        bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+    )
 
     hidden_size = model.hidden_size
 
-    if args.tokenizer == "sentencepiece":
-        try:
-            tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
-        except Exception:
-            raise ValueError(
-                "Using --tokenizer=sentencepiece \
-                        requires valid --tokenizer_model"
-            )
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
-        tokenizer.add_special_tokens(special_tokens)
-    else:
-        tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
-        tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
-        tokenizer = tokenizer_cls(
-            pretrained_model=args.pretrained_model_name,
-            special_tokens=tokenizer_special_tokens,
-            bert_derivate=model_type,
-        )
+    tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+        tokenizer_name=args.tokenizer,
+        pretrained_model_name=args.pretrained_model_name,
+        tokenizer_model=args.tokenizer_model,
+    )
 
     qa_head = nemo_nlp.nm.trainables.TokenClassifier(
         hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False
@@ -421,7 +396,7 @@ if __name__ == "__main__":
         logging.info(f"steps_per_epoch = {train_steps_per_epoch}")
         callback_train = nemo_core.SimpleLossLoggerCallback(
             tensors=[train_loss],
-            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+            print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
             get_tb_values=lambda x: [["loss", x[0]]],
             step_freq=args.train_step_freq,
             tb_writer=nf.tb_writer,

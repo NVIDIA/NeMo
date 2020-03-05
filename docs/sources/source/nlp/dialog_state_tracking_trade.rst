@@ -170,8 +170,8 @@ The NeMo training graph consists of the following six modules including data lay
 Training
 --------
 
-In order to train an instance of the TRADE model on the MultiWOZ 2.1 dataset simply run the \
-`dialogue_state_tracking_trade.py`_ script:
+In order to train an instance of the TRADE model on the MultiWOZ 2.1 dataset and evaluate on its test data simply run \
+the `dialogue_state_tracking_trade.py`_ script with default parameters:
 
 .. _dialogue_state_tracking_trade.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/dialogue_state_tracking_trade.py
 
@@ -199,7 +199,9 @@ We used the same parameters as the original implementation. There are some diffe
 the original one. The main difference is that our model does not use pre-trained embeddings which seems not to affect \
 the performance of the model. The other difference is that we used SquareAnnealing for the learning policy instead of \
 fixed learning rate. Additionally, we create the vocabulary just based on the training data while the default for the \
-original one is to create vocabulary from all the data including test and development sets.
+original one is to create vocabulary from all the data including test and development sets. The main reason behind \
+the improvement of our model in terms of accuracy is utilizing better learning rate policy. When we used fixed \
+learning rate in our implementation, we got to similar results as the original one.
 
 We also did some improvements to the implementation of the model to have faster training. It makes our implementation \
 significantly faster than the original one. Additionally, NeMo supports multi-GPU training which enables even faster \
@@ -220,7 +222,7 @@ Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evalua
 +                                             +--------+--------+--------+--------+--------+--------+--------+--------+
 | TRADE implementations                       | Goal   | Slot   | Goal   | Slot   | Goal   | Slot   | Goal   | Slot   |
 +=============================================+========+========+========+========+========+========+========+========+
-| Original :cite:`nlp-dst-wu2019transferable` | 48.62% | 96.92% | --     | --     | --     | --     | --     | --     |
+| Original :cite:`nlp-dst-wu2019transferable` | 48.62% | 96.92% | --     | --     | 45.31% | 96.57% | 49.15% | 97.04% |
 +---------------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
 | NeMo's Implementation of TRADE              | 48.92% | 97.03% | 50.96% | 97.17% | 47.25% | 96.80% | 51.38% | 97.21% |
 +---------------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
