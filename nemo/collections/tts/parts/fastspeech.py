@@ -37,7 +37,7 @@ class FastSpeechDataset:
 
 
 class LengthRegulator(nn.Module):
-    """ Length Regulator """
+    """Length Regulator."""
 
     def __init__(self, encoder_output_size, duration_predictor_filter_size, duration_predictor_kernel_size, dropout):
         super(LengthRegulator, self).__init__()
@@ -86,7 +86,7 @@ class LengthRegulator(nn.Module):
 
 
 class DurationPredictor(nn.Module):
-    """ Duration Predictor """
+    """Duration Predictor."""
 
     def __init__(self, input_size, filter_size, kernel, conv_output_size, dropout):
         super(DurationPredictor, self).__init__()
