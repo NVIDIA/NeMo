@@ -28,6 +28,7 @@ from nemo.utils import get_checkpoint_from_dir
 
 try:
     import wandb
+
     _WANDB_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     _WANDB_AVAILABLE = False
@@ -444,10 +445,7 @@ class EvaluatorCallback(ActionCallback):
                 logging.info(f'Evaluation time: {elapsed_time} seconds')
 
     def on_action_start(self):
-        if (
-            self.global_rank is None
-            or self.global_rank == 0
-        ):
+        if self.global_rank is None or self.global_rank == 0:
             if self._wandb_name is not None and self._wandb_project is not None:
                 if _WANDB_AVAILABLE:
                     wandb.init(name=self._wandb_name, project=self._wandb_project)
