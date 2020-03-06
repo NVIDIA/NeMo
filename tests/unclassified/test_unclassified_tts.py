@@ -192,7 +192,7 @@ class TestTTSPytorch(TestCase):
             [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @pytest.mark.unclassified
+    @pytest.mark.integration
     def test_fastspeech(self):
         neural_factory = nemo.core.NeuralModuleFactory(
             backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
@@ -282,5 +282,5 @@ class TestTTSPytorch(TestCase):
         )
         optimizer = neural_factory.get_trainer()
         optimizer.train(
-            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
+            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 3, "lr": 0.0003},
         )

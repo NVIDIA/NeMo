@@ -19,7 +19,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from nemo.collections.tts.parts.transformer import layers
+from nemo.collections.nlp.nm.trainables.common.transformer import transformer_modules
 
 
 def get_non_pad_mask(seq, pad_id):
@@ -64,26 +64,26 @@ class FFTBlock(torch.nn.Module):
 
     def __init__(self, d_model, d_inner, n_head, d_k, d_v, fft_conv1d_kernel, fft_conv1d_padding, dropout=0.1):
         super(FFTBlock, self).__init__()
-        self.slf_attn = layers.MultiHeadAttention(n_head, d_model, d_k, d_v, dropout=dropout)
-        self.pos_ffn = layers.PositionwiseFeedForward(
-            d_model,
-            d_inner,
-            fft_conv1d_kernel=fft_conv1d_kernel,
-            fft_conv1d_padding=fft_conv1d_padding,
-            dropout=dropout,
+        self.slf_attn = transformer_modules.MultiHeadAttention(d_model, n_head, attn_layer_dropout=dropout)
+        self.n_head = n_head
+        self.pos_ffn = transformer_modules.PositionWiseFF(
+            hidden_size=d_model,
+            inner_size=d_inner,
+            ffn_dropout=dropout,
         )
 
     def forward(self, enc_input, non_pad_mask=None, slf_attn_mask=None):
-        enc_output, enc_slf_attn = self.slf_attn(enc_input, enc_input, enc_input, mask=slf_attn_mask)
+        slf_attn_mask = slf_attn_mask.unsqueeze(1).repeat(1, self.n_head, 1, 1)
+        enc_output = self.slf_attn(enc_input, enc_input, enc_input, attention_mask=slf_attn_mask)
         enc_output *= non_pad_mask
 
         enc_output = self.pos_ffn(enc_output)
         enc_output *= non_pad_mask
 
-        return enc_output, enc_slf_attn
+        return enc_output
 
 
-class Encoder(nn.Module):
+class FastSpeechTransformerEncoder(nn.Module):
     """Encoder."""
 
     def __init__(
@@ -103,7 +103,7 @@ class Encoder(nn.Module):
         pad_id,
     ):
 
-        super(Encoder, self).__init__()
+        super(FastSpeechTransformerEncoder, self).__init__()
 
         n_position = len_max_seq + 1
 
@@ -130,10 +130,7 @@ class Encoder(nn.Module):
             ]
         )
 
-    def forward(self, src_seq, src_pos, return_attns=False):
-
-        enc_slf_attn_list = []
-
+    def forward(self, src_seq, src_pos):
         # -- Prepare masks
         slf_attn_mask = get_attn_key_pad_mask(seq_k=src_seq, seq_q=src_seq, pad_id=self.pad_id)
         non_pad_mask = get_non_pad_mask(src_seq, pad_id=self.pad_id)
@@ -142,14 +139,12 @@ class Encoder(nn.Module):
         enc_output = self.src_word_emb(src_seq) + self.position_enc(src_pos)
 
         for i, enc_layer in enumerate(self.layer_stack):
-            enc_output, enc_slf_attn = enc_layer(enc_output, non_pad_mask=non_pad_mask, slf_attn_mask=slf_attn_mask)
-            if return_attns:
-                enc_slf_attn_list += [enc_slf_attn]
+            enc_output = enc_layer(enc_output, non_pad_mask=non_pad_mask, slf_attn_mask=slf_attn_mask)
 
         return enc_output, non_pad_mask
 
 
-class Decoder(nn.Module):
+class FastSpeechTransformerDecoder(nn.Module):
     """Decoder."""
 
     def __init__(
@@ -168,7 +163,7 @@ class Decoder(nn.Module):
         pad_id,
     ):
 
-        super(Decoder, self).__init__()
+        super(FastSpeechTransformerDecoder, self).__init__()
 
         n_position = len_max_seq + 1
 
@@ -193,10 +188,7 @@ class Decoder(nn.Module):
             ]
         )
 
-    def forward(self, dec_seq, dec_pos, return_attns=False):
-
-        dec_slf_attn_list = []
-
+    def forward(self, dec_seq, dec_pos):
         # -- Prepare masks
         slf_attn_mask = get_attn_key_pad_mask(seq_k=dec_pos, seq_q=dec_pos, pad_id=self.pad_id)
         non_pad_mask = get_non_pad_mask(dec_pos, pad_id=self.pad_id)
@@ -205,8 +197,6 @@ class Decoder(nn.Module):
         dec_output = dec_seq + self.position_dec(dec_pos)
 
         for dec_layer in self.layer_stack:
-            dec_output, dec_slf_attn = dec_layer(dec_output, non_pad_mask=non_pad_mask, slf_attn_mask=slf_attn_mask)
-            if return_attns:
-                dec_slf_attn_list += [dec_slf_attn]
+            dec_output = dec_layer(dec_output, non_pad_mask=non_pad_mask, slf_attn_mask=slf_attn_mask)
 
         return dec_output, non_pad_mask

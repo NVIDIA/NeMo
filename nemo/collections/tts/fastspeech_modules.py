@@ -22,7 +22,7 @@ import nemo
 from nemo.backends.pytorch import nm as nemo_nm
 from nemo.backends.pytorch.nm import DataLayerNM, LossNM
 from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer
-from nemo.collections.tts.parts import fastspeech, transformer
+from nemo.collections.tts.parts import fastspeech, fastspeech_transformer
 from nemo.core.neural_types import AudioSignal, EmbeddedTextType, LengthsType, MaskType, MelSpectrogramType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
@@ -253,7 +253,7 @@ class FastSpeech(nemo_nm.TrainableNM):
     ):
         super().__init__()
 
-        self.encoder = transformer.Encoder(
+        self.encoder = fastspeech_transformer.FastSpeechTransformerEncoder(
             len_max_seq=max_seq_len,
             d_word_vec=word_vec_dim,
             n_layers=encoder_n_layer,
@@ -272,7 +272,7 @@ class FastSpeech(nemo_nm.TrainableNM):
             encoder_output_size, duration_predictor_filter_size, duration_predictor_kernel_size, dropout
         ).to(self._device)
 
-        self.decoder = transformer.Decoder(
+        self.decoder = fastspeech_transformer.FastSpeechTransformerDecoder(
             len_max_seq=max_seq_len,
             d_word_vec=word_vec_dim,
             n_layers=decoder_n_layer,
