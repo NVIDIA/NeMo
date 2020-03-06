@@ -57,7 +57,6 @@ from nemo.package_info import (
     __version__,
 )
 
-
 if os.path.exists('nemo/README.md'):
     with open("nemo/README.md", "r") as fh:
         long_description = fh.read()
