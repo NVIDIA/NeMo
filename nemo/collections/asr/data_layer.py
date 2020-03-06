@@ -455,10 +455,10 @@ class AudioToSpeechLabelDataLayer(DataLayerNM):
     and their target labels. JSON files should be of the following format::
 
         {"audio_filepath": path_to_wav_0, "duration": time_in_sec_0, "label": \
-target_label_0}
+target_label_0, "offset": offset_in_sec_0}
         ...
         {"audio_filepath": path_to_wav_n, "duration": time_in_sec_n, "label": \
-target_label_n}
+target_label_n, "offset": offset_in_sec_n}
 
     Args:
         manifest_filepath (str): Dataset parameter.
