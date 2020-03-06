@@ -445,7 +445,6 @@ if not os.path.exists(config_path):
 
 # define and launch training algorithm (optimizer)
 optimization_params = {
-    "batch_size": args.batch_size,
     "lr": args.lr,
     "betas": (args.beta1, args.beta2),
     "weight_decay": args.weight_decay,
