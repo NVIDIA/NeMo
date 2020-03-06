@@ -8,6 +8,8 @@ result
 tests/data/asr
 .DS_Store
 bert.pt.json
+work
+fastspeech_output
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
