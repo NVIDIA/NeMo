@@ -208,6 +208,7 @@ class Tacotron2Decoder(TrainableNM):
         attention_location_n_filters: int = 32,
         attention_location_kernel_size: int = 31,
         prenet_p_dropout: float = 0.5,
+        force: bool = False,
     ):
         super().__init__()
         self.decoder = Decoder(
@@ -227,10 +228,11 @@ class Tacotron2Decoder(TrainableNM):
             prenet_p_dropout=prenet_p_dropout,
             early_stopping=True,
         )
+        self.force = force
         self.to(self._device)
 
     def forward(self, char_phone_encoded, encoded_length, mel_target):
-        if self.training:
+        if self.training or self.force:
             mel_output, gate_output, alignments = self.decoder(
                 char_phone_encoded, mel_target, memory_lengths=encoded_length
             )
