@@ -12,16 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import copy
-import os
 import pathlib
 
-import librosa
-import matplotlib.pyplot as plt
 import numpy as np
 import tqdm
 from ruamel.yaml import YAML
-from scipy.io.wavfile import write
 from tacotron2 import create_NMs
 
 import nemo
@@ -135,7 +130,7 @@ def main():
     logging.info("Running Tacotron 2")
     # Run tacotron 2
     evaluated_tensors = neural_factory.infer(
-        tensors=infer_tensors, checkpoint_dir=args.spec_model_load_dir, cache=False, offload_to_cpu=True,
+        tensors=infer_tensors, checkpoint_dir=args.spec_model_load_dir, cache=use_cache, offload_to_cpu=True,
     )
 
     def get_D(alignment, true_len):

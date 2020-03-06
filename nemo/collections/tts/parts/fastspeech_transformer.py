@@ -12,12 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import OrderedDict
-
 import numpy as np
 import torch
 from torch import nn
-from torch.nn import functional as F
 
 from nemo.collections.nlp.nm.trainables.common.transformer import transformer_modules
 
@@ -67,9 +64,7 @@ class FFTBlock(torch.nn.Module):
         self.slf_attn = transformer_modules.MultiHeadAttention(d_model, n_head, attn_layer_dropout=dropout)
         self.n_head = n_head
         self.pos_ffn = transformer_modules.PositionWiseFF(
-            hidden_size=d_model,
-            inner_size=d_inner,
-            ffn_dropout=dropout,
+            hidden_size=d_model, inner_size=d_inner, ffn_dropout=dropout,
         )
 
     def forward(self, enc_input, non_pad_mask=None, slf_attn_mask=None):
