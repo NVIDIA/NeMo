@@ -432,7 +432,10 @@ if __name__ == "__main__":
                 args.lr_policy, total_steps=args.max_steps, warmup_ratio=args.lr_warmup_proportion
             )
 
-        optimization_params = {"lr": args.lr}
+        optimization_params = {
+            "lr": args.lr,
+            "weight_decay": args.weight_decay,
+        }
         if args.max_steps < 0:
             optimization_params['num_epochs'] = args.num_epochs
         else:
