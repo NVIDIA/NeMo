@@ -1,7 +1,7 @@
 model: "Tacotron 2 Mandarin"
 sample_rate: &sr 22050
 # <PAD>, <BOS>, <EOS> will be added by the tacotron2.py script
-labels: [' ', '!', ',', '.', '?', 'a', 'b', 'c',
+labels: &labels [' ', '!', ',', '.', '?', 'a', 'b', 'c',
          'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
          'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
          't', 'u', 'v', 'w', 'x', 'y', 'z', '0',
