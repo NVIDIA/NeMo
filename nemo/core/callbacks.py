@@ -26,6 +26,13 @@ from collections import namedtuple
 import nemo
 from nemo.utils import get_checkpoint_from_dir
 
+try:
+    import wandb
+
+    _WANDB_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    _WANDB_AVAILABLE = False
+
 logging = nemo.logging
 
 
@@ -438,21 +445,15 @@ class EvaluatorCallback(ActionCallback):
                 logging.info(f'Evaluation time: {elapsed_time} seconds')
 
     def on_action_start(self):
-        if (
-            self.global_rank is None
-            or self.global_rank == 0
-            and self._wandb_name is not None
-            and self._wandb_project is not None
-        ):
-            try:
-                import wandb
-
-                wandb.init(name=self._wandb_name, project=self._wandb_project)
-            except ImportError:
-                logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
-                logging.info("Will not log data to weights and biases.")
-                self._wandb_name = None
-                self._wandb_project = None
+        if self.global_rank is None or self.global_rank == 0:
+            if self._wandb_name is not None and self._wandb_project is not None:
+                if _WANDB_AVAILABLE:
+                    wandb.init(name=self._wandb_name, project=self._wandb_project)
+                else:
+                    logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
+                    logging.info("Will not log data to weights and biases.")
+                    self._wandb_name = None
+                    self._wandb_project = None
 
     def on_action_end(self):
         step = self.step
@@ -468,9 +469,7 @@ class EvaluatorCallback(ActionCallback):
         self._global_var_dict = {}
 
     def wandb_log(self, tensors_logged):
-        if self._wandb_name != None:
-            import wandb
-
+        if self._wandb_name is not None and _WANDB_AVAILABLE:
             wandb.log(tensors_logged, step=self.step)
 
 
@@ -588,6 +587,10 @@ class WandbCallback(ActionCallback):
             update_freq: frequency with which to log updates
         """
         super().__init__()
+
+        if not _WANDB_AVAILABLE:
+            logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
+
         self._update_freq = update_freq
         self._train_tensors = train_tensors
         self._name = wandb_name
@@ -596,13 +599,12 @@ class WandbCallback(ActionCallback):
 
     def on_action_start(self):
         if self.global_rank is None or self.global_rank == 0:
-            try:
-                import wandb
-
+            if _WANDB_AVAILABLE:
                 wandb.init(name=self._name, project=self._project)
+
                 if self._args is not None:
                     wandb.config.update(self._args)
-            except ImportError:
+            else:
                 logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
                 logging.info("Will not log data to weights and biases.")
                 self._update_freq = -1
@@ -627,6 +629,5 @@ class WandbCallback(ActionCallback):
             self.wandb_log({"epoch": self.epoch_num, "epoch_time": epoch_time})
 
     def wandb_log(self, tensors_logged):
-        import wandb
-
-        wandb.log(tensors_logged, step=self.step)
+        if _WANDB_AVAILABLE:
+            wandb.log(tensors_logged, step=self.step)
