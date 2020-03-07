@@ -30,6 +30,7 @@ loss = nemo.tutorials.MSELoss()
 
 
 with NeuralGraph(operation_mode=OperationMode.training, name="g2") as g2:
+    # Add module to graph and bind it input port 'x'.
     y = m2(x=g2)
 
 print(g2)
@@ -40,13 +41,13 @@ g2.show_binded_outputs()
 with NeuralGraph(operation_mode=OperationMode.training, name="g3") as g3:
     # Add modules to graph.
     x, t = dl()
+    # Incorporate modules from existing graph
     p = g2(x=x)
     lss = loss(predictions=p, target=t)
 
 print(g3)
 g3.show_binded_inputs()
 g3.show_binded_outputs()
-
 
 # Show all graphs.
 print(AppState().graphs.summary())

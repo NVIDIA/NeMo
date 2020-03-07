@@ -129,7 +129,9 @@ class NeuralModule(NeuralInterface):
                 # Bind this input port to a neural graph.
 
                 # TODO: make sure that port_content ==  self._app_state.active_graph ?????
-                port_content.bind_input(port_name, input_port_defs[port_name])
+                if port_content != self._app_state.active_graph:
+                    print("Cannot bind ports of one graph with a different graph!")
+                port_content.bind_input(port_name, input_port_defs[port_name], self)
                 # It is "compatible by definition";), so we don't have to check this port further.
             else:  # : port_content is a neural module.
                 # Compare input port definition with the received definition.
