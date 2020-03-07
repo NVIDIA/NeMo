@@ -31,8 +31,6 @@ import tensorrt as trt
 
 from .logger import G_LOGGER, LogMode
 
-sys.path.insert(0, os.path.abspath("."))
-
 G_LOGGER.info("Using TensorRT {:}".format(trt.__version__))
 G_LOGGER.debug("Note: Using tensorrt from {:}".format(trt.__path__))
 

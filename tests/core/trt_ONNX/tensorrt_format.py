@@ -23,8 +23,6 @@ import sys
 
 from .logger import G_LOGGER
 
-sys.path.insert(0, os.path.abspath("."))
-
 # TRT does not include batch dimension.
 class DataFormat(enum.IntEnum):
     UNKNOWN = 0
