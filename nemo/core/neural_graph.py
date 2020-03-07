@@ -77,7 +77,7 @@ class NeuralGraph(NeuralInterface):
             Also checks if all inputs were provided and properly connects them.
 
         """
-        print(" Neural Graph {} __call__".format(self._name))
+        # print(" Neural Graph {} __call__".format(self._name))
         # Get input and output ports definitions.
         input_port_defs = self.input_ports
         output_port_defs = self.output_ports
@@ -108,8 +108,6 @@ class NeuralGraph(NeuralInterface):
                 # It is "compatible by definition";), so we don't have to check this port further.
 
             else:  # : port_content is a neural module.
-                print("Handshaking port: {}", port_name)
-
                 # Compare input port definition with the received definition.
                 input_port = input_port_defs[port_name]
                 type_comatibility = input_port.compare(port_content)
@@ -129,12 +127,11 @@ class NeuralGraph(NeuralInterface):
                             type_comatibility,
                         )
                     )
-                # Finally, pass the input to the binded port!
-                # TODO !
-                print("Input port to be connected : {}".format(port_name))
-                # This means that we need to update all outputs of a given module.
+                # Reaching that point means that we accepted input to a binded port.
+                # The current graph parsing requires us to update all outputs of
+                # a module that "accepted" the input.
+                # Update means changing the original producer_args for the binded port.
                 producer = self._binded_input_module[port_name]
-                print("Producer from `binded input module`")
                 for _, output_tensor in self._binded_output_tensors.items():
                     if output_tensor.producer == producer:
                         # Set "input port value" to new content - which indicates tensor (and producer)
@@ -155,7 +152,6 @@ class NeuralGraph(NeuralInterface):
             # BUT UPDATE THE inputs to it!!
 
             # Bind the output ports.
-            print("Neural graph LEN 1 -> going to bind_outputs")
             self._app_state.active_graph.bind_outputs(output_port_defs, [results])
 
         else:
@@ -168,7 +164,6 @@ class NeuralGraph(NeuralInterface):
             field_names = list(output_port_defs)
             result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
 
-            print("Neural graph LEN MORE -> going to bind_outputs")
             # Bind the output ports.
             self._app_state.active_graph.bind_outputs(output_port_defs, result)
 
@@ -198,18 +193,18 @@ class NeuralGraph(NeuralInterface):
 
     def __enter__(self):
         """ Activates given graph as current. """
-        print("Entering graph: ", self._name)
+        # print("Entering graph: ", self._name)
         self._app_state.active_graph = self
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         """ Deactivates current graph. """
-        print("Exiting graph: ", self._name)
+        # print("Exiting graph: ", self._name)
         self._app_state.active_graph = None
-        if exc_type:
-            print(f'exc_type: {exc_type}')
-            print(f'exc_value: {exc_value}')
-            print(f'exc_traceback: {exc_traceback}')
+        # if exc_type:
+        #    print(f'exc_type: {exc_type}')
+        #    print(f'exc_value: {exc_value}')
+        #    print(f'exc_traceback: {exc_traceback}')
 
     def __str__(self):
         """ Prints a nice summary. """
@@ -226,16 +221,15 @@ class NeuralGraph(NeuralInterface):
         self._operation_list.append([module, inputs])
 
     def bind_input(self, port_name, port_definition, binded_module):
-        print("Binding input: `{}`: def = `{}` value = NONE".format(port_name, port_definition))
+        # print("Binding input: `{}`: def = `{}` value = NONE".format(port_name, port_definition))
         # Copy the definition of the port to graph input port definition.
         self._binded_input_ports[port_name] = port_definition
 
-        # TODO: Remember that it leads to a given module!
         # Indicate that this tensor is missing and has to be provided!
         self._binded_input_tensors[port_name] = None
         # Additionally, remember the binded module
         self._binded_input_module[port_name] = binded_module
-        print("Binding input DONE!")
+        # print("Binding input DONE!")
 
     def bind_outputs(self, output_port_defs, output_values):
         # print("Binding ALL outputs: defs = `{}`, values = `{}`".format(output_port_defs, output_values))

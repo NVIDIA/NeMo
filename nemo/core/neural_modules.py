@@ -108,7 +108,7 @@ class NeuralModule(NeuralInterface):
         Returns:
           NmTensor object or tuple of NmTensor objects
         """
-        print(" Neural Module:__call__")
+        # print(" Neural Module:__call__")
         # Get input and output ports definitions.
         input_port_defs = self.input_ports
         output_port_defs = self.output_ports
@@ -130,7 +130,7 @@ class NeuralModule(NeuralInterface):
 
                 # TODO: make sure that port_content ==  self._app_state.active_graph ?????
                 if port_content != self._app_state.active_graph:
-                    print("Cannot bind ports of one graph with a different graph!")
+                    raise ConnectionError("Cannot bind ports of one graph with a different graph!")
                 port_content.bind_input(port_name, input_port_defs[port_name], self)
                 # It is "compatible by definition";), so we don't have to check this port further.
             else:  # : port_content is a neural module.
@@ -172,7 +172,6 @@ class NeuralModule(NeuralInterface):
             results = NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
 
             # Bind the output ports.
-            print("Neural module LEN 1 -> going to bind_outputs")
             self._app_state.active_graph.bind_outputs(output_port_defs, [results])
 
         else:
@@ -193,7 +192,6 @@ class NeuralModule(NeuralInterface):
             field_names = list(output_port_defs)
             result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
 
-            print("Neural module LEN MORE -> going to bind_outputs")
             # Bind the output ports.
             self._app_state.active_graph.bind_outputs(output_port_defs, result)
 

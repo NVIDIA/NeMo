@@ -154,7 +154,6 @@ class PtActions(Actions):
             print(len(hooks_lst))
             # take nmtensor from the end of the list
             nmtensor = hooks_lst.pop()
-            print("Considered nmtensor: {} ({})".format(nmtensor, type(nmtensor)))
 
             node = create_node(nmtensor.producer, nmtensor.producer_args)
             # Store nmtensor as an output of its producer
@@ -169,7 +168,6 @@ class PtActions(Actions):
             if nmtensor.producer_args is not None and nmtensor.producer_args != {}:
                 for name, new_nmtensor in nmtensor.producer_args.items():
                     if new_nmtensor not in processed_nmtensors:
-                        print("Adding to `hooks`: `{}`:  {} ({})".format(name, new_nmtensor, type(new_nmtensor)))
                         # put in the start of list
                         hooks_lst.insert(0, new_nmtensor)
 
