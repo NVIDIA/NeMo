@@ -43,6 +43,7 @@ from .tensorrt_runner import (
     write_timestamped,
 )
 
+
 def set_onnx_logging_level(sev):
     if sev >= G_LOGGER.INFO:
         warnings.filterwarnings("ignore")
