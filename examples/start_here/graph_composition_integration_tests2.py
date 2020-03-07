@@ -31,7 +31,7 @@ loss = nemo.tutorials.MSELoss()
 logging.info(
     "This example shows how one can nest one graph into another - without binding of the input ports."
     F" Please note that the nested graph can be used exatly like any other module"
-    F" By default, all output graph ports are binded, thus `visible` outside."
+    F" By default, all output graph ports are bound, thus `visible` outside."
     F" The user will be able to pick pick a subset manually (this simple feature is in my TODO list)."
 )
 

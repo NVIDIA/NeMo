@@ -41,7 +41,7 @@ logging.info(
 with NeuralGraph(operation_mode=OperationMode.both, name="trainable_module") as trainable_module:
     # Bind the input.
     p = fx(x=trainable_module)
-    # All outputs will be binded by default.
+    # All outputs will be bound by default.
 
 # Compose two graphs into final graph.
 with NeuralGraph(operation_mode=OperationMode.training, name="training_graph") as training_graph:

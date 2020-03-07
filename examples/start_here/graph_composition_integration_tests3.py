@@ -29,9 +29,9 @@ fx = nemo.tutorials.TaylorNet(dim=4)
 loss = nemo.tutorials.MSELoss()
 
 logging.info(
-    "This example shows how one can nest one graph into another - without binding of the input ports."
+    "This example shows how one can nest one graph into another - with binding of the input ports."
     F" Please note that the nested graph can be used exatly like any other module"
-    F" In particular, note that the input port 'x' of the module `m2` is binded in graph 'g2'"
+    F" In particular, note that the input port 'x' of the module `m2` is bound in graph 'g2'"
     F" and then set to `x` returned by `dl` in the graph `g3`."
 )
 
@@ -48,8 +48,8 @@ with NeuralGraph(operation_mode=OperationMode.training, name="g3") as g3:
     lss = loss(predictions=p, target=t)
 
 print(g3)
-g3.show_binded_inputs()
-g3.show_binded_outputs()
+g3.show_bound_inputs()
+g3.show_bound_outputs()
 
 # Show all graphs.
 print(AppState().graphs.summary())

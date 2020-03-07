@@ -54,15 +54,13 @@ class NeuralGraph(NeuralInterface):
             self._name = name
 
         # Input and output ports - empty for now.
-        self._binded_input_ports = {}
-        self._binded_output_ports = {}
-        self._binded_input_tensors = {}
-        self._binded_output_tensors = {}
-        # Additional list of tensors that need to be updated when connecting to the "binded" port.
-        # self._all_output_tensors = {}
-        # And modules of binded input modules - so we will update their output tensors when the "binded"
+        self._bound_input_ports = {}
+        self._bound_output_ports = {}
+        self._bound_input_tensors = {}
+        self._bound_output_tensors = {}
+        # List of modules of bound inputs - so we will update their output tensors when the "bound"
         # input port will be connected.
-        self._binded_input_module = {}
+        self._bound_input_module = {}
 
         # Operations.
         self._operation_list = []
@@ -124,12 +122,12 @@ class NeuralGraph(NeuralInterface):
                             type_comatibility,
                         )
                     )
-                # Reaching that point means that we accepted input to a binded port.
+                # Reaching that point means that we accepted input to a bound port.
                 # The current graph parsing requires us to update all outputs of
                 # a module that "accepted" the input.
-                # Update means changing the original producer_args for the binded port.
-                producer = self._binded_input_module[port_name]
-                for _, output_tensor in self._binded_output_tensors.items():
+                # Update means changing the original producer_args for the bound port.
+                producer = self._bound_input_module[port_name]
+                for _, output_tensor in self._bound_output_tensors.items():
                     if output_tensor.producer == producer:
                         # Set "input port value" to new content - which indicates tensor (and producer)
                         # that will be used during graph backward traverse.
@@ -140,12 +138,12 @@ class NeuralGraph(NeuralInterface):
         # Here we will store the results.
         results = None
 
-        # This part is different. Now the goal is not to create NEW "tensors", but to return the BINDED ones!
+        # This part is different. Now the goal is not to create NEW "tensors", but to return the bound ones!
         if len(output_port_defs) == 1:
             # Get the name of the ouput port.
             out_name = list(output_port_defs)[0]
-            # Simply pass the binded tensor.
-            results = self._binded_output_tensors[out_name]
+            # Simply pass the bound tensor.
+            results = self._bound_output_tensors[out_name]
             # BUT UPDATE THE inputs to it!!
 
             # Bind the output ports.
@@ -153,7 +151,7 @@ class NeuralGraph(NeuralInterface):
 
         else:
             result = []
-            for _, tensor in self._binded_output_tensors.items():
+            for _, tensor in self._bound_output_tensors.items():
                 result.append(tensor)
 
             # Creating ad-hoc class for returning from module's forward pass.
@@ -177,7 +175,7 @@ class NeuralGraph(NeuralInterface):
         Returns:
           A (dict) of module's input ports names to NeuralTypes mapping
         """
-        return self._binded_input_ports
+        return self._bound_input_ports
 
     @property
     def output_ports(self) -> Optional[Dict[str, NeuralType]]:
@@ -186,7 +184,7 @@ class NeuralGraph(NeuralInterface):
         Returns:
           A (dict) of module's output ports names to NeuralTypes mapping
         """
-        return self._binded_output_ports
+        return self._bound_output_ports
 
     def __enter__(self):
         """ Activates given graph as current. """
@@ -217,16 +215,15 @@ class NeuralGraph(NeuralInterface):
         """
         self._operation_list.append([module, inputs])
 
-    def bind_input(self, port_name, port_definition, binded_module):
+    def bind_input(self, port_name, port_definition, bound_module):
         # print("Binding input: `{}`: def = `{}` value = NONE".format(port_name, port_definition))
         # Copy the definition of the port to graph input port definition.
-        self._binded_input_ports[port_name] = port_definition
+        self._bound_input_ports[port_name] = port_definition
 
         # Indicate that this tensor is missing and has to be provided!
-        self._binded_input_tensors[port_name] = None
-        # Additionally, remember the binded module
-        self._binded_input_module[port_name] = binded_module
-        # print("Binding input DONE!")
+        self._bound_input_tensors[port_name] = None
+        # Additionally, remember the bound module
+        self._bound_input_module[port_name] = bound_module
 
     def bind_outputs(self, output_port_defs, output_values):
         # print("Binding ALL outputs: defs = `{}`, values = `{}`".format(output_port_defs, output_values))
@@ -238,27 +235,27 @@ class NeuralGraph(NeuralInterface):
             #    )
             # )
             # Copy the definition of the port to graph input port definition.
-            self._binded_output_ports[output_name] = output_definition
+            self._bound_output_ports[output_name] = output_definition
 
             # Bind output tensors.
-            self._binded_output_tensors[output_name] = output_value
+            self._bound_output_tensors[output_name] = output_value
             # Additionally, store all output tensors.
             # self._all_output_tensors[output_name] = output_value
 
-    def show_binded_inputs(self):
-        print("Binded input ports: ")
-        for key, value in self._binded_input_ports.items():
+    def show_bound_inputs(self):
+        print("bound input ports: ")
+        for key, value in self._bound_input_ports.items():
             print(" * `{}`: `{}` ({})".format(key, value, type(value)))
 
-        print("Binded input tensors: ")
-        for key, value in self._binded_input_tensors.items():
+        print("bound input tensors: ")
+        for key, value in self._bound_input_tensors.items():
             print(" * `{}`: `{}` ({})".format(key, value, type(value)))
 
-    def show_binded_outputs(self):
-        print("Binded output ports: ")
-        for key, value in self._binded_output_ports.items():
+    def show_bound_outputs(self):
+        print("bound output ports: ")
+        for key, value in self._bound_output_ports.items():
             print(" * `{}`: `{}` ({})".format(key, value, type(value)))
 
-        print("Binded output tensors: ")
-        for key, value in self._binded_output_tensors.items():
+        print("bound output tensors: ")
+        for key, value in self._bound_output_tensors.items():
             print(" * `{}`: `{}` ({})".format(key, value, type(value)))
