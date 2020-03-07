@@ -25,22 +25,19 @@ logging = nemo.logging
 nf = nemo.core.NeuralModuleFactory()
 # Instantiate the necessary neural modules.
 dl = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
-m2 = nemo.tutorials.TaylorNet(dim=4)
+fx = nemo.tutorials.TaylorNet(dim=4)
 loss = nemo.tutorials.MSELoss()
 
+logging.info(
+    "This example shows how one can build a `default` (implicit) graph."
+    F" This approach works for applications containing a single graph/"
+)
 
-with NeuralGraph(operation_mode=OperationMode.training, name="g0") as g0:
-    x, t = dl()
-    p = m2(x=x)
-    lss = loss(predictions=p, target=t)
+# This will create a default (implicit) graph: "training".
+x, t = dl()
+p = fx(x=x)
+lss = loss(predictions=p, target=t)
 
-print(g0)
-g0.show_binded_inputs()
-g0.show_binded_outputs()
-
-
-# Show all graphs.
-print(AppState().graphs.summary())
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = nemo.core.SimpleLossLoggerCallback(

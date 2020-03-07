@@ -37,10 +37,8 @@ class NeuralGraphManager(object):
     def register_graph(self, graph):
         """ Registers a new graph. """
         # Create a unigue name.
-        print("Name: ", graph._name)
         # Add it to the list.
         unique_name = self.__generate_unique_graph_name(graph._name)
-        print("Unique name: ", unique_name)
         self._graphs[unique_name] = graph
 
     @property
@@ -54,7 +52,7 @@ class NeuralGraphManager(object):
 
     def summary(self):
         """ Prints a nice summary. """
-        # TODO: a nice summry. ;)
+        # TODO: a nicer summary. ;)
         desc = ""
         for name, graph in self._graphs.items():
             desc = desc + "`{}`: {}\n".format(name, graph)

@@ -45,7 +45,6 @@ class NeuralGraph(NeuralInterface):
         """
         # Call integrace constructor.
         super().__init__()
-        print('__init__ called')
         # Store name and operation mode.
         self._operation_mode = operation_mode
         if name is None:
@@ -69,7 +68,6 @@ class NeuralGraph(NeuralInterface):
         self._operation_list = []
         # Register graph.
         self._app_state.register_graph(self)
-        print("Created graph: ", self._name)
 
     def __call__(self, **kwargs):
         """
@@ -90,7 +88,6 @@ class NeuralGraph(NeuralInterface):
 
         # print(self._operation_list)
 
-        print("Handshaking inputs of neural graph inside a graph")
         # Iterate through all passed parameters.
         for port_name, port_content in kwargs.items():
             # make sure that passed arguments correspond to input port names

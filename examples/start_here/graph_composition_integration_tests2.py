@@ -28,29 +28,20 @@ dl = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
 m2 = nemo.tutorials.TaylorNet(dim=4)
 loss = nemo.tutorials.MSELoss()
 
+logging.info(
+    "This example shows how one can nest one graph into another - without binding of the input ports."
+    F" Please note that the nested graph can be used exatly like any other module"
+    F" By default, all output graph ports are binded, thus `visible` outside."
+    F" The user will be able to pick pick a subset manually (this simple feature is in my TODO list)."
+)
 
-with NeuralGraph(operation_mode=OperationMode.training, name="g2") as g2:
-    # Add module to graph and bind it input port 'x'.
-    y = m2(x=g2)
-
-print(g2)
-g2.show_binded_inputs()
-g2.show_binded_outputs()
-
-# Build the training graph.
-with NeuralGraph(operation_mode=OperationMode.training, name="g3") as g3:
-    # Add modules to graph.
+with NeuralGraph(operation_mode=OperationMode.training, name="g1") as g1:
     x, t = dl()
-    # Incorporate modules from existing graph
-    p = g2(x=x)
-    lss = loss(predictions=p, target=t)
+    y = m2(x=x)
 
-print(g3)
-g3.show_binded_inputs()
-g3.show_binded_outputs()
-
-# Show all graphs.
-print(AppState().graphs.summary())
+with NeuralGraph(operation_mode=OperationMode.training, name="g1.1") as g11:
+    x1, t1, p1 = g1()
+    lss = loss(predictions=p1, target=t1)
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = nemo.core.SimpleLossLoggerCallback(

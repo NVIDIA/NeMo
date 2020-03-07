@@ -151,7 +151,6 @@ class PtActions(Actions):
         # extract all nodes to all_nodes set
         hooks_lst = list(hooks)
         while len(hooks_lst) > 0:
-            print(len(hooks_lst))
             # take nmtensor from the end of the list
             nmtensor = hooks_lst.pop()
 

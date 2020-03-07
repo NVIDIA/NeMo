@@ -28,27 +28,12 @@ dl = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
 m2 = nemo.tutorials.TaylorNet(dim=4)
 loss = nemo.tutorials.MSELoss()
 
+logging.info("This example shows how one can build an `explicit` graph.")
 
-with NeuralGraph(operation_mode=OperationMode.training, name="g1") as g1:
+with NeuralGraph(operation_mode=OperationMode.training) as g0:
     x, t = dl()
-    y = m2(x=x)
-
-print(g1)
-g1.show_binded_inputs()
-g1.show_binded_outputs()
-
-with NeuralGraph(operation_mode=OperationMode.training, name="g1.1") as g11:
-    x1, t1, p1 = g1()
-    lss = loss(predictions=p1, target=t1)
-
-
-print(g11)
-g11.show_binded_inputs()
-g11.show_binded_outputs()
-
-
-# Show all graphs.
-print(AppState().graphs.summary())
+    p = m2(x=x)
+    lss = loss(predictions=p, target=t)
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = nemo.core.SimpleLossLoggerCallback(

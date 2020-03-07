@@ -20,48 +20,39 @@
 import nemo
 from nemo.core import AppState, NeuralGraph, NeuralModule, NeuralModuleFactory, OperationMode
 
+logging = nemo.logging
+
 nf = nemo.core.NeuralModuleFactory()
 # Instantiate the necessary neural modules.
 dl = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
-fx1 = nemo.tutorials.TaylorNet(dim=4)
-fx2 = nemo.tutorials.TaylorNet(dim=4)
+fx = nemo.tutorials.TaylorNet(dim=4)
 loss = nemo.tutorials.MSELoss()
 
-# This will create a default graph: "training"
-_, _ = dl()
+logging.info(
+    "This example shows how one can nest one graph into another - without binding of the input ports."
+    F" Please note that the nested graph can be used exatly like any other module"
+    F" In particular, note that the input port 'x' of the module `m2` is binded in graph 'g2'"
+    F" and then set to `x` returned by `dl` in the graph `g3`."
+)
 
-
-with NeuralGraph(operation_mode=OperationMode.inference) as validation_dl:
-    x_valid, y_valid = dl()
+with NeuralGraph(operation_mode=OperationMode.training, name="g2") as g2:
+    # Add module to graph and bind it input port 'x'.
+    y = fx(x=g2)
 
 # Build the training graph.
-with NeuralGraph(operation_mode=OperationMode.training, name="trainable_module") as trainable_module:
+with NeuralGraph(operation_mode=OperationMode.training, name="g3") as g3:
     # Add modules to graph.
-    # Bind the first input.
-    p1 = fx1(x=trainable_module)
-    p2 = fx2(x=p1)
-    p3 = fx2(x=p2)
-    # All outputs will be binded by default.
+    x, t = dl()
+    # Incorporate modules from existing graph.
+    p = g2(x=x)
+    lss = loss(predictions=p, target=t)
 
-# Compose two graphs into final graph.
-with NeuralGraph(operation_mode=OperationMode.training, name="training_graph") as training_graph:
-    # Take outputs from the first graph.
-    x, y = AppState().graphs["training"]()
-    # Pass them to the second graph.
-    _, _, p = trainable_module(x)
-    # Pass both of them to loss.
-    lss = loss(predictions=p, target=y)
-
+print(g3)
+g3.show_binded_inputs()
+g3.show_binded_outputs()
 
 # Show all graphs.
 print(AppState().graphs.summary())
-
-# Show details of graph containing the trainable training module.
-# print(training_module)
-
-# Show
-print(AppState().graphs["training1"])
-# print(training_graph2)
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = nemo.core.SimpleLossLoggerCallback(
