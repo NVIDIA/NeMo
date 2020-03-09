@@ -271,6 +271,19 @@ class DataLayerNM(NeuralModule):
         """Dataset size"""
         pass
 
+    def collate_fn(self, batch):
+        """ Function collating the samples into batch. 
+        By default, it calls PyTorch default collate.
+
+        TODO: This piece of code is backend-dependent! Must be fixed \
+            when refactoring the hierarchy.
+
+
+        Args:
+            batch: List with samples to be put together. 
+        """
+        return t.utils.data.dataloader.default_collate(batch)
+
     @property
     @abstractmethod
     def dataset(self):
