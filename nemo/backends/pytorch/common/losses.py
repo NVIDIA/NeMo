@@ -134,12 +134,12 @@ class CrossEntropyLossNM(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, logits_dim=2, weight=None, reduce=True, reduction='mean'):
+    def __init__(self, logits_dim=2, weight=None, reduction='mean'):
         super().__init__()
 
         if weight:
             weight = torch.FloatTensor(weight).to(self._device)
-        self._criterion = nn.CrossEntropyLoss(weight=weight, reduce=reduce, reduction=reduction)
+        self._criterion = nn.CrossEntropyLoss(weight=weight, reduction=reduction)
         self._logits_dim = logits_dim
 
     def _loss_function(self, logits, labels, loss_mask=None):
