@@ -16,7 +16,7 @@
 
 import torch
 
-from nemo.backends.pytorch.nm import DataLayerNM, LossNM, NonTrainableNM, TrainableNM
+from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core import AxisType, BatchTag, ChannelTag, DeviceType, HeightTag, LogProbabilityTag, NeuralType, WidthTag
 
 __all__ = ['LeNet5']
