@@ -17,19 +17,15 @@
 # =============================================================================
 
 import collections
-# from collections import OrderedDict
 from typing import Dict, Optional
 
 import nemo
-from nemo.core.neural_factory import NeuralType, OperationMode
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_types import (
-    CanNotInferResultNeuralType,
     NeuralPortNameMismatchError,
     NeuralPortNmTensorMismatchError,
     NeuralType,
     NeuralTypeComparisonResult,
-    NmTensor,
 )
 
 

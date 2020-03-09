@@ -18,7 +18,7 @@
 # =============================================================================
 
 import nemo
-from nemo.core import AppState, NeuralGraph, NeuralModule, NeuralModuleFactory, OperationMode
+from nemo.core import NeuralGraph, OperationMode
 
 logging = nemo.logging
 
@@ -46,13 +46,6 @@ with NeuralGraph(operation_mode=OperationMode.training, name="g3") as g3:
     # Incorporate modules from existing graph.
     p = g2(x=x)
     lss = loss(predictions=p, target=t)
-
-print(g3)
-g3.show_bound_inputs()
-g3.show_bound_outputs()
-
-# Show all graphs.
-print(AppState().graphs.summary())
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = nemo.core.SimpleLossLoggerCallback(

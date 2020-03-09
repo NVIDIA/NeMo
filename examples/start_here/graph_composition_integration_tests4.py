@@ -20,8 +20,7 @@
 import torch
 
 import nemo
-from nemo.collections.asr.helpers import process_evaluation_batch, process_evaluation_epoch
-from nemo.core import AppState, NeuralGraph, NeuralModule, NeuralModuleFactory, OperationMode
+from nemo.core import NeuralGraph, OperationMode
 
 logging = nemo.logging
 
@@ -40,7 +39,7 @@ logging.info(
 # Build the training graph.
 with NeuralGraph(operation_mode=OperationMode.both, name="trainable_module") as trainable_module:
     # Bind the input.
-    p = fx(x=trainable_module)
+    _ = fx(x=trainable_module)
     # All outputs will be bound by default.
 
 # Compose two graphs into final graph.
