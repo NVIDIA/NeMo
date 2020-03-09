@@ -1,10 +1,10 @@
 Weight Sharing between Modules
 ==============================
 
-There are several ways to share or tie weights between neural models.
+There are several ways to share or tie weights between neural modules.
 
-Neural Module reuse
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Neural Module Reuse
+~~~~~~~~~~~~~~~~~~~
 
 The idea is to re-use neural modules between training, evaluation and inference graphs.
 For example:
@@ -15,7 +15,7 @@ For example:
     train_dataloader = nemo.TrainDataLayer(**train_config)
     eval_dataloader = nemo.EvalDataLayer(**eval_config)
 
-    L = nemo.MaskedXEntropyLoss()
+    L = nemo.tutorials.MaskedXEntropyLoss()
 
     # training model
 
@@ -36,18 +36,19 @@ For example:
     ...
 
 
-Copy weights between modules
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Weight Copying Between Modules
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 :class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` class provides 2 methods
 :meth:`get_weights<nemo.core.neural_modules.NeuralModule.get_weights>` and
 :meth:`set_weights<nemo.core.neural_modules.NeuralModule.set_weights>` 
-for sharing weights.
+for copying weights.
 
 .. note::
     :meth:`set_weights<nemo.core.neural_modules.NeuralModule.set_weights>` method can set only part of module's weights.
 
 .. important::
     This approach is used only to copy weights. Subsequent update of weights in one module will not affect weights in the other module.
+    This means that the weights will get DIFFERENT gradients on the update step.
 
 Consider an example:
 
@@ -72,19 +73,21 @@ Consider an example:
                                                        tn3.get_weights()))
 
 
-Tie weights between modules
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Weight Tying Between Modules
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 :class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` class provides :meth:`tie_weights_with<nemo.core.neural_modules.NeuralModule.tie_weights_with>` method to tie weights between two or more modules.
 
 .. important::
-    Tied weights are identical across all modules: subsequent modification of weights in one module will result in the same modification on the other.
+    Tied weights are identical across all modules. Gradients to the weights will be the SAME.
 
+.. important::
+    However manually updating the weight on one module via tensor.data will NOT update the weight on the other module
 
 In the example below we first create a simple embedding encoder which takes [batch, time] sequences of word ids from vocabulary ``V``  and embeds them into some ``D``-dimensional space. Effectively, this is a lookup-based projection from ``V``-dimensional space to ``D``-dimensional space. We then create a decoder which projects from ``D``-dimensional space back to the ``V``-dimensional space. We want to transpose the encoder projection matrix and reuse it for decoder.
 The code below demonstrates how this can be achieved.
 
 .. note::
-   The weights have different names (``embedding.weight`` and ``projection.weight``) but their values are the same. Changes to one will result to changes in the other. Effectively, ``embedding.weight`` and ``projection.weight`` become pointers to the same tensor.
+   The weights have different names (``embedding.weight`` and ``projection.weight``) but their values and gradient updates will be the same.
 
 
 .. code-block:: python
@@ -102,14 +105,6 @@ The code below demonstrates how this can be achieved.
     self.assertTrue(np.array_equal(embd.embedding.weight.detach().numpy(),
                                    proj.projection.weight.detach().numpy()))
 
-    was = embd.embedding.weight.detach().numpy()
-
-    # Now, change weights on one object
-    embd.embedding.weight.data = torch.tensor(np.random.randint(0, 10, (3, 2))*1.0)
-    after = embd.embedding.weight.detach().numpy()
-
-    # Make sure that the change was reflected on another object
-    self.assertTrue(np.array_equal(embd.embedding.weight.detach().numpy(),
-                                    proj.projection.weight.detach().numpy()))
-    self.assertFalse(np.array_equal(was, after))
-
+.. warning::
+    Manually setting the weight tensors to be equal to the other will likely break multi-GPU and multi-node runs. Eg,
+    ``embd.embedding.weight = proj.projection.weights`` is not recommended. Use the ``tie_weights_with()`` function instead

@@ -4,9 +4,9 @@
 
 2) Make sure you sign your commits. E.g. use ``git commit -s`` when commiting
 
-3) Make sure all unittests finish successfully before sending PR
+3) Make sure all unittests finish successfully before sending PR ``python -m unittest`` from NeMo's root folder
 
-4) Send your Pull Request to `master` branch
+4) Send your Pull Request to the `master` branch
 
 
 # Collection Guidelines
@@ -28,9 +28,8 @@ Please note that CI needs to pass for all the modules and collections.
 1. **Sensible**: code should make sense. If you think a piece of code might be confusing, write comments.
 
 ## Python style
-We follow [PEP 8 style guide](https://www.python.org/dev/peps/pep-0008/) and we incorporate [pycodestyle](https://pypi.org/project/pycodestyle/) into our CI pipeline to check for style. Make sure that your code passes PEP 8 before creating a Pull Request.
-
-There are several tools to automatically format your code to be PEP 8 compliant, such as [autopep8](https://github.com/hhatto/autopep8). Your text editor might support its own auto PEP 8 plugin.
+We use ``black`` as our style guide. To check whether your code will pass style check (from the NeMo's repo folder) run:
+``python setup.py style`` and if it does not pass run ``python setup.py style --fix``.
 
 1. Avoid wild import: ``from X import *`` unless in ``X.py``, ``__all__`` is defined.
 1. Minimize the use of ``**kwargs``.
@@ -47,7 +46,10 @@ There are several tools to automatically format your code to be PEP 8 compliant,
 1. If a comment lasts multiple lines, use ``'''`` instead of ``#``.
 
 ## Nemo style
-1. If you import a module from the same collection, use relative path instead of absolute path. For example, inside ``nemo_nlp``, use ``.utils`` instead of ``nemo_nelp.utils``.
-1. Before accessing something, always make sure that it exists. E.g. right now, in ``actions.py``, there's this line of code ``batch_size=dl_nm.local_parameters["batch_size"]`` but nowhere in the codebase we check that ``batch_size`` is passed into datalayer.
+1. Use absolute paths.
+1. Before accessing something, always make sure that it exists.
 1. Right inheritance. For example, if a module doesn't have any trainable weights, don't inherit from TrainableNM.
 1. Naming consistency, both within NeMo and between NeMo and external literature. E.g. use the name ``logits`` for ``log_probs``, ``hidden_size`` for ``d_model``.
+1. Make an effort to use the right Neural Types when designing your neural modules. If a type you need does not
+ exists - you can introduce one. See documentation on how to do this
+1. When creating input/ouput ports for your modules use "add_port_docs" decorator to nicely generate docs for them

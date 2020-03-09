@@ -7,9 +7,10 @@ from PIL import Image
 from tensorboardX import SummaryWriter
 
 import nemo
-from nemo.backends.pytorch.torchvision.helpers import eval_iter_callback, \
-    eval_epochs_done_callback, compute_accuracy
-import nemo_simple_gan
+import nemo.collections.simple_gan as nemo_simple_gan
+from nemo.backends.pytorch.torchvision.helpers import compute_accuracy, eval_epochs_done_callback, eval_iter_callback
+
+logging = nemo.logging
 
 
 parser = argparse.ArgumentParser(description='MNIST')
@@ -17,11 +18,13 @@ parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=128, type=int)
 parser.add_argument("--num_epochs", default=5000, type=int)
 parser.add_argument("--work_dir", default=None, type=str)
-parser.add_argument("--train_dataset",
-                    # set default=os.getcwd() unless your are running test
-                    default="/home/mrjenkins/TestData", type=str)
-parser.add_argument("--amp_opt_level", choices=['O0', 'O1', 'O2', 'O3'],
-                    default='O0')
+parser.add_argument(
+    "--train_dataset",
+    # set default=os.getcwd() unless your are running test
+    default="~/TestData/mnist",
+    type=str,
+)
+parser.add_argument("--amp_opt_level", choices=['O0', 'O1', 'O2', 'O3'], default='O0')
 
 args = parser.parse_args()
 
@@ -37,22 +40,18 @@ neural_factory = nemo.core.NeuralModuleFactory(
     optimization_level=args.amp_opt_level,
     log_dir=work_dir,
     create_tb_writer=True,
-    files_to_copy=[__file__]
-    )
+    files_to_copy=[__file__],
+)
 
 mnist_data = nemo_simple_gan.MnistGanDataLayer(
-    batch_size=batch_size,
-    shuffle=True,
-    train=True,
-    root=args.train_dataset)
+    batch_size=batch_size, shuffle=True, train=True, root=args.train_dataset
+)
 
-generator = nemo_simple_gan.SimpleGenerator(
-    batch_size=batch_size)
+generator = nemo_simple_gan.SimpleGenerator(batch_size)
 discriminator = nemo_simple_gan.SimpleDiscriminator()
 neg_disc_loss = nemo_simple_gan.DiscriminatorLoss(neg=True)
 disc_loss = nemo_simple_gan.DiscriminatorLoss()
-disc_grad_penalty = nemo_simple_gan.GradientPenalty(
-    lambda_=3)
+disc_grad_penalty = nemo_simple_gan.GradientPenalty(lambda_=3)
 interpolater = nemo_simple_gan.InterpolateImage()
 
 # Create generator DAG
@@ -67,13 +66,10 @@ interpolated_decision = discriminator(image=interpolated_image)
 real_decision = discriminator(image=real_data)
 interpolated_loss = disc_loss(decision=interpolated_decision)
 real_loss = neg_disc_loss(decision=real_decision)
-grad_penalty = disc_grad_penalty(
-    interpolated_image=interpolated_image,
-    interpolated_decision=interpolated_decision)
+grad_penalty = disc_grad_penalty(interpolated_image=interpolated_image, interpolated_decision=interpolated_decision,)
 
 # Create Eval DAG
-random_data = nemo_simple_gan.RandomDataLayer(
-    batch_size=batch_size)
+random_data = nemo_simple_gan.RandomDataLayer(batch_size=batch_size)
 latents_e = random_data()
 generated_image_e = generator(latents=latents_e)
 
@@ -85,19 +81,11 @@ losses_D = [interpolated_loss, real_loss, grad_penalty]
 # For single loss and single optimizer, the following steps can be skipped
 # and an optimizer will be created in trainer.train()
 optimizer_G = neural_factory.create_optimizer(
-    optimizer="adam",
-    things_to_optimize=[generator],
-    optimizer_params={
-        "lr": 1e-4,
-        "betas": (0.5, 0.9),
-    })
+    optimizer="adam", things_to_optimize=[generator], optimizer_params={"lr": 1e-4, "betas": (0.5, 0.9),},
+)
 optimizer_D = neural_factory.create_optimizer(
-    optimizer="adam",
-    things_to_optimize=[discriminator],
-    optimizer_params={
-        "lr": 1e-4,
-        "betas": (0.5, 0.9),
-    })
+    optimizer="adam", things_to_optimize=[discriminator], optimizer_params={"lr": 1e-4, "betas": (0.5, 0.9),},
+)
 
 
 def save_image(global_vars):
@@ -121,10 +109,10 @@ eval_callback = nemo.core.EvaluatorCallback(
 
 def print_losses(tensors):
     g_loss, i_loss, r_loss, grad_p = tensors
-    neural_factory.logger.info(f"Generator Loss: {g_loss}")
-    neural_factory.logger.info(f"Interpolated Loss: {i_loss}")
-    neural_factory.logger.info(f"Real Loss: {r_loss}")
-    neural_factory.logger.info(f"Grad Penalty: {grad_p}")
+    logging.info(f"Generator Loss: {g_loss}")
+    logging.info(f"Interpolated Loss: {i_loss}")
+    logging.info(f"Real Loss: {r_loss}")
+    logging.info(f"Grad Penalty: {grad_p}")
 
 
 def get_tb_name_value(tensors):
@@ -137,10 +125,10 @@ logger_callback = nemo.core.SimpleLossLoggerCallback(
     print_func=print_losses,
     get_tb_values=get_tb_name_value,
     step_freq=500,
-    tb_writer=neural_factory.tb_writer)
+    tb_writer=neural_factory.tb_writer,
+)
 
-checkpoint_callback = nemo.core.CheckpointCallback(
-    folder=neural_factory.checkpoint_dir, step_freq=1000)
+checkpoint_callback = nemo.core.CheckpointCallback(folder=neural_factory.checkpoint_dir, step_freq=1000)
 
 tensors_to_optimize = [
     (optimizer_D, losses_D),
@@ -151,4 +139,5 @@ tensors_to_optimize = [
 neural_factory.train(
     tensors_to_optimize=tensors_to_optimize,
     callbacks=[eval_callback, logger_callback, checkpoint_callback],
-    optimization_params={"num_epochs": args.num_epochs})
+    optimization_params={"num_epochs": args.num_epochs},
+)

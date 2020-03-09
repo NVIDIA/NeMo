@@ -6,6 +6,10 @@ output
 result
 *.pt
 tests/data/asr
+.DS_Store
+bert.pt.json
+work
+fastspeech_output
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -19,6 +23,7 @@ __pycache__/
 # Distribution / packaging
 .idea
 .Python
+wandb
 build/
 develop-eggs/
 dist/
@@ -115,6 +120,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# VSCode project settins
+.vscode/
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -124,6 +132,8 @@ venv.bak/
 
 # mkdocs documentation
 /site
+/docs/html
+/docs/docs_zh/zh
 
 # mypy
 .mypy_cache/
@@ -145,3 +155,5 @@ examples/*/wandb
 examples/*/data
 wandb
 dump.py
+
+docs/sources/source/test_build/

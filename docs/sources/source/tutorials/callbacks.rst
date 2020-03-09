@@ -28,16 +28,14 @@ training. The two reccomended arguments to override are print_func(), and
 either get_tb_values() or log_to_tb_func().
 
 print_func() should be used to log values to screen. We recommend using
-neural_factory.logger.info() in place
+logging.info() in place
 of print(). For example, it can be used to print the loss value:
 
 .. code-block:: python
 
-    def my_print_func(tensors, logger=None):
-        if logger:
-            logger.info(f"Loss {tensors[0]}")
-        else:
-            print(f"Loss {tensors[0]}")
+    from nemo import logging
+    def my_print_func(tensors):
+        logging.info(f"Loss {tensors[0]}")
 
 We provide two methods to log to tensorboard: get_tb_values() and
 log_to_tb_func(). For simple use case of logging scalars, we recommend
@@ -76,8 +74,7 @@ SimpleLossLoggerCallback can be constructed as follows:
         # Define tensors that we want to pass to print_func, and get_tb_values
         tensors=[train_loss],
         # Pass the print function that we want to use
-        # Note we use partial to specify additional parameters
-        print_func=partial(my_print_func, logger=neural_factory.logger),
+        print_func=my_print_func,
         # Pass the function that returns tensorboard tags and scalars
         get_tb_values=my_get_tb_values,
         # How often we want to call this callback
@@ -149,4 +146,26 @@ for tb_writer_func to consume. The user must log all data of interest inside
 tb_writer_func including scalars that would otherwise be logged if
 tb_writer_func was not passed to EvaluatorCallback.
 
+You can also log your evaluation metrics into Weights & Biases experiment trackers.
+To do so, please setup these parameters. Also make sure wandb is installed and you did ``wandb login``.
+
+- wandb_name: W&B experiment name
+- wandb_project: W&B project name
+
 For an example, please see the scripts inside <nemo_dir>/examples.
+
+WandbCallback
+-----------------
+WandbCallback logs losses and metrics to `Weights & Biases <https://docs.wandb.com/>`_.
+Make sure wandb is installed and you did ``wandb login``.
+
+This is a light-weight callback to log **training** metrics into Weights & Biases.
+To log evaluation metrics, see Evaluator Callback above.
+
+It requires following arguments:
+
+- train_tensors: list of tensors to evaluate and log based on training batches
+- wandb_name: W&B experiment name
+- wandb_project: W&B project name
+- args: argparse flags - will be logged as hyper parameters for your run
+- update_freq: frequency with which to log updates

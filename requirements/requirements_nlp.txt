@@ -1,0 +1,11 @@
+boto3
+h5py
+matplotlib
+sentencepiece
+torchtext
+transformers
+unidecode
+youtokentome
+numpy
+tqdm
+sklearn

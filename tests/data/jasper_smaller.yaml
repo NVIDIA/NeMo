@@ -8,7 +8,7 @@ AudioToTextDataLayer:
     eval:
         shuffle: false
 
-AudioPreprocessing:
+AudioToMelSpectrogramPreprocessor:
     normalize: "per_feature"
     window_size: 0.02
     window_stride: 0.01
@@ -17,52 +17,51 @@ AudioPreprocessing:
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
-    feat_type: "logfbank"
     stft_conv: true
 
 JasperEncoder:
     activation: "relu"
 
     jasper:
-        - filters: 256
-          repeat: 1
-          kernel: [11]
-          stride: [2]
-          dilation: [1]
-          dropout: 0.0
-          residual: false
+        -   filters: 256
+            repeat: 1
+            kernel: [11]
+            stride: [2]
+            dilation: [1]
+            dropout: 0.0
+            residual: false
 
-        - filters: 256
-          repeat: 3
-          kernel: [11]
-          stride: [1]
-          dilation: [1]
-          dropout: 0.1
-          residual: true
+        -   filters: 256
+            repeat: 3
+            kernel: [11]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.1
+            residual: true
 
-        - filters: 512
-          repeat: 2
-          kernel: [17]
-          stride: [1]
-          dilation: [1]
-          dropout: 0.1
-          residual: true
+        -   filters: 512
+            repeat: 2
+            kernel: [17]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.1
+            residual: true
 
-        - filters: 768
-          repeat: 1
-          kernel: [25]
-          stride: [1]
-          dilation: [1]
-          dropout: 0.1
-          residual: true
+        -   filters: 768
+            repeat: 1
+            kernel: [25]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.1
+            residual: true
 
-        - filters: 1024
-          repeat: 1
-          kernel: [1]
-          stride: [1]
-          dilation: [1]
-          dropout: 0.2
-          residual: false
+        -   filters: 1024
+            repeat: 1
+            kernel: [1]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.2
+            residual: false
 
 DecoderRNN:
     hidden_size: 128

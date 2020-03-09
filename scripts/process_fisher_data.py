@@ -20,36 +20,40 @@ import io
 import json
 import os
 import re
+from math import ceil, floor
 
-from math import floor, ceil
 import numpy as np
 import scipy.io.wavfile as wavfile
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description="Fisher Data Processing")
 parser.add_argument(
-        "--audio_root", default=None, type=str, required=True,
-        help="The path to the root of the audio (wav) data folder.")
+    "--audio_root", default=None, type=str, required=True, help="The path to the root of the audio (wav) data folder.",
+)
 parser.add_argument(
-        "--transcript_root", default=None, type=str, required=True,
-        help="The path to the root of the transcript data folder.")
+    "--transcript_root",
+    default=None,
+    type=str,
+    required=True,
+    help="The path to the root of the transcript data folder.",
+)
 parser.add_argument(
-        "--dest_root", default=None, type=str, required=True,
-        help="Path to the destination root directory.")
+    "--dest_root", default=None, type=str, required=True, help="Path to the destination root directory.",
+)
 
 # Optional arguments
 parser.add_argument(
-        "--min_slice_duration", default=10.0, type=float,
-        help="Minimum audio slice duration after processing.")
+    "--min_slice_duration", default=10.0, type=float, help="Minimum audio slice duration after processing.",
+)
 parser.add_argument(
-        "--keep_low_conf", action="store_true",
-        help="Keep all utterances with low confidence transcripts")
+    "--keep_low_conf", action="store_true", help="Keep all utterances with low confidence transcripts",
+)
 parser.add_argument(
-        "--remove_noises", action="store_true",
-        help="Removes transcripted noises such as [laughter].")
+    "--remove_noises", action="store_true", help="Removes transcripted noises such as [laughter].",
+)
 parser.add_argument(
-        "--noises_to_emoji", action="store_true",
-        help="Converts transcripts for noises to an emoji character.")
+    "--noises_to_emoji", action="store_true", help="Converts transcripts for noises to an emoji character.",
+)
 args = parser.parse_args()
 
 # Total number of files before segmenting, and train/val/test splits
@@ -62,9 +66,9 @@ TRANSCRIPT_BUGS = {
     "fe_03_00265-B-3353-3381": "correct",
     "fe_03_00991-B-52739-52829": "that's one of those",
     "fe_03_10282-A-34442-34484.wav": "they don't want",
-    "fe_03_10677-B-10104-10641": "uh my mine yeah the german shepherd " +
-                                 "pitbull mix he snores almost as loud " +
-                                 "as i do",
+    "fe_03_10677-B-10104-10641": "uh my mine yeah the german shepherd "
+    + "pitbull mix he snores almost as loud "
+    + "as i do",
     "fe_03_00027-B-39380-39405": None,
     "fe_03_11487-B-3109-23406": None,
     "fe_03_01326-A-30742-30793": None,
@@ -85,7 +89,7 @@ TRANSCRIPT_NUMBERS = {
     "dc3s": "d c threes",
     "book 2": "book two",
     "s2b": "s two b",
-    "3d": "three d"
+    "3d": "three d",
 }
 
 TAG_MAP = {
@@ -99,13 +103,11 @@ TAG_MAP = {
     "[lipsmack]": "😕",
     "[[skip]]": "",
     "[pause]": "",
-    "[sneeze]": "😕"
+    "[sneeze]": "😕",
 }
 
 
-def __write_sample(
-        dest, file_id, count, file_count, sample_rate,
-        audio, duration, transcript):
+def __write_sample(dest, file_id, count, file_count, sample_rate, audio, duration, transcript):
     """
     Writes one slice to the given target directory.
     Args:
@@ -126,9 +128,9 @@ def __write_sample(
 
     # Write transcript info
     transcript = {
-        "audio_filename": audio_path,
+        "audio_filepath": audio_path,
         "duration": duration,
-        "text": transcript
+        "text": transcript,
     }
 
     # Append to manifest
@@ -140,22 +142,23 @@ def __write_sample(
 
 def __normalize(utt):
     replace_table = str.maketrans(dict.fromkeys('()*;:"!&{},.-?'))
-    utt = utt.lower() \
-             .replace('[uh]', 'uh') \
-             .replace('[um]', 'um') \
-             .replace('<noise>', '[noise]') \
-             .replace('<spoken_noise>', '[vocalized-noise]') \
-             .replace('.period', 'period') \
-             .replace('.dot', 'dot') \
-             .replace('-hyphen', 'hyphen') \
-             .replace('._', ' ') \
-             .translate(replace_table)
+    utt = (
+        utt.lower()
+        .replace('[uh]', 'uh')
+        .replace('[um]', 'um')
+        .replace('<noise>', '[noise]')
+        .replace('<spoken_noise>', '[vocalized-noise]')
+        .replace('.period', 'period')
+        .replace('.dot', 'dot')
+        .replace('-hyphen', 'hyphen')
+        .replace('._', ' ')
+        .translate(replace_table)
+    )
     utt = re.sub(r"'([a-z]+)'", r'\1', utt)  # Unquote quoted words
     return utt
 
 
-def __process_utterance(file_id, trans_path, line,
-                        keep_low_conf, rem_noises, emojify):
+def __process_utterance(file_id, trans_path, line, keep_low_conf, rem_noises, emojify):
     """
     Processes one utterance (one line of a transcript).
     Args:
@@ -167,9 +170,7 @@ def __process_utterance(file_id, trans_path, line,
         emojify: whether to convert noise symbols to emoji, lower precedence
     """
     # Check for lines to skip (comments, empty, low confidence)
-    if line.startswith('#') \
-            or not line.strip() \
-            or (not keep_low_conf and '((' in line):
+    if line.startswith('#') or not line.strip() or (not keep_low_conf and '((' in line):
         return None, None, None, None
 
     # Data and sanity checks
@@ -188,7 +189,7 @@ def __process_utterance(file_id, trans_path, line,
         return None, None, None, None
 
     # Replacements as necessary
-    line_id = '-'.join([file_id, channel[0], str(t_start*10), str(t_end*10)])
+    line_id = '-'.join([file_id, channel[0], str(t_start * 10), str(t_end * 10)])
 
     content = TRANSCRIPT_BUGS.get(line_id, ' '.join(line[3:]))
 
@@ -211,9 +212,17 @@ def __process_utterance(file_id, trans_path, line,
 
 
 def __process_one_file(
-        trans_path, sample_rate, audio_data, file_id,
-        dst_root, min_slice_duration, file_count,
-        keep_low_conf, rem_noises, emojify):
+    trans_path,
+    sample_rate,
+    audio_data,
+    file_id,
+    dst_root,
+    min_slice_duration,
+    file_count,
+    keep_low_conf,
+    rem_noises,
+    emojify,
+):
     """
     Creates one block of audio slices and their corresponding transcripts.
     Args:
@@ -240,8 +249,8 @@ def __process_one_file(
 
         for line in fin:
             t_start, t_end, idx, content = __process_utterance(
-                    file_id, trans_path, line,
-                    keep_low_conf, rem_noises, emojify)
+                file_id, trans_path, line, keep_low_conf, rem_noises, emojify
+            )
 
             if content is None or not content:
                 continue
@@ -251,9 +260,8 @@ def __process_one_file(
             # Append utterance to buffer
             transcript_buffers[idx] += content
             audio_buffers[idx].append(
-                    audio_data[floor(t_start*sample_rate):
-                               ceil(t_end*sample_rate),
-                               idx])
+                audio_data[floor(t_start * sample_rate) : ceil(t_end * sample_rate), idx,]
+            )
             buffer_durations[idx] += duration
 
             if buffer_durations[idx] < min_slice_duration:
@@ -269,7 +277,7 @@ def __process_one_file(
                     sample_rate,
                     np.concatenate(audio_buffers[idx], axis=0),
                     buffer_durations[idx],
-                    transcript_buffers[idx]
+                    transcript_buffers[idx],
                 )
 
                 # Clear buffers
@@ -290,8 +298,9 @@ def __partition_name(file_count):
         return "train"
 
 
-def __process_data(audio_root, transcript_root, dst_root, min_slice_duration,
-                   file_count, keep_low_conf, rem_noises, emojify):
+def __process_data(
+    audio_root, transcript_root, dst_root, min_slice_duration, file_count, keep_low_conf, rem_noises, emojify,
+):
     """
     Converts Fisher wav files to numpy arrays, segments audio and transcripts.
     Args:
@@ -308,8 +317,7 @@ def __process_data(audio_root, transcript_root, dst_root, min_slice_duration,
         1. There is exactly one transcripts directory in data_folder
         2. Audio files are all: <audio_root>/audio-wav/fe_03_xxxxx.wav
     """
-    transcript_list = glob.glob(os.path.join(
-        transcript_root, "fe_03_p*_tran*", "data", "trans", "*", "*.txt"))
+    transcript_list = glob.glob(os.path.join(transcript_root, "fe_03_p*_tran*", "data", "trans", "*", "*.txt"))
     print("Found {} transcripts.".format(len(transcript_list)))
 
     count = file_count
@@ -317,15 +325,23 @@ def __process_data(audio_root, transcript_root, dst_root, min_slice_duration,
     # Grab audio file associated with each transcript, and slice
     for trans_path in tqdm(transcript_list, desc="Matching and segmenting"):
         file_id, _ = os.path.splitext(os.path.basename(trans_path))
-        audio_path = os.path.join(audio_root, "audio_wav", file_id+".wav")
+        audio_path = os.path.join(audio_root, "audio_wav", file_id + ".wav")
 
         sample_rate, audio_data = wavfile.read(audio_path)
 
         # Create a set of segments (a block) for each file
         __process_one_file(
-                trans_path, sample_rate, audio_data, file_id,
-                dst_root, min_slice_duration, count, keep_low_conf,
-                rem_noises, emojify)
+            trans_path,
+            sample_rate,
+            audio_data,
+            file_id,
+            dst_root,
+            min_slice_duration,
+            count,
+            keep_low_conf,
+            rem_noises,
+            emojify,
+        )
         count += 1
 
     return count
@@ -363,14 +379,15 @@ def main():
     for data_set in ['LDC2004S13-Part1', 'LDC2005S13-Part2']:
         print(f"\n\nWorking on dataset: {data_set}")
         file_count = __process_data(
-                os.path.join(audio_root, data_set),
-                os.path.join(transcript_root, data_set),
-                dest_root,
-                min_slice_duration,
-                file_count,
-                keep_low_conf,
-                rem_noises,
-                emojify)
+            os.path.join(audio_root, data_set),
+            os.path.join(transcript_root, data_set),
+            dest_root,
+            min_slice_duration,
+            file_count,
+            keep_low_conf,
+            rem_noises,
+            emojify,
+        )
 
         print(f"Total file count so far: {file_count}")
 
