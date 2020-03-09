@@ -19,9 +19,9 @@ import math
 import torch
 
 import nemo
-from nemo.collections.cv.modules.lenet5 import LeNet5
-from nemo.collections.cv.modules.mnist_datalayer import MNISTDataLayer
-from nemo.collections.cv.modules.nll_loss import NLLLoss
+from nemo.collections.cv.modules.data_layers.mnist_datalayer import MNISTDataLayer
+from nemo.collections.cv.modules.losses.nll_loss import NLLLoss
+from nemo.collections.cv.modules.trainables.lenet5 import LeNet5
 from nemo.core import DeviceType, NeuralType
 
 # 0. Instantiate Neural Factory with supported backend

@@ -15,4 +15,5 @@
 # =============================================================================
 
 from nemo.collections.cv.modules.data_layers.mnist_datalayer import *
-from nemo.collections.cv.modules.data_layers.penn_fudan_person_detection_datalayer import *
+
+# from nemo.collections.cv.modules.data_layers.penn_fudan_person_detection_datalayer import *

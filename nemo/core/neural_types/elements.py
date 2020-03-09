@@ -35,6 +35,7 @@ __all__ = [
     'EmbeddedTextType',
     'EncodedRepresentation',
     'MaskType',
+    'NormalizedValueType',
 ]
 import abc
 from abc import ABC, abstractmethod
@@ -183,13 +184,20 @@ class PredictionsType(LabelsType):
     """Element type to represent some sort of predictions returned by model"""
 
 
-class RegressionValuesType(PredictionsType):
+class RegressionValuesType(LabelsType):
     """Element type to represent labels for regression task"""
 
 
-class CategoricalValuesType(PredictionsType):
+class CategoricalValuesType(LabelsType):
     """Element type to represent labels for categorical classification task"""
 
 
 class MaskType(PredictionsType):
     """Element type to represent boolean mask"""
+
+
+class NormalizedValueType(ElementType):
+    """
+        Element type to represent a value normalized to <0-1> range,
+        e.g. a single element (R) of normalized RGB image.
+    """

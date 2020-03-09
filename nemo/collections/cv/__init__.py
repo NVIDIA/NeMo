@@ -14,10 +14,7 @@
 # limitations under the License.
 # =============================================================================
 
-from .modules.lenet5 import LeNet5
-from .modules.mnist_datalayer import MNISTDataLayer
-from .modules.nll_loss import NLLLoss
-from nemo.collections.cv import modules
+from nemo.collections.cv.modules import *
 
 # backend = nemo.core.Backend.PyTorch
 # from nemo.core import Backend

@@ -17,26 +17,36 @@
 import torch
 
 from nemo.backends.pytorch.nm import DataLayerNM, LossNM, NonTrainableNM, TrainableNM
-from nemo.core import AxisType, BatchTag, ChannelTag, DeviceType, HeightTag, LogProbabilityTag, NeuralType, WidthTag
+from nemo.core.neural_types import AxisKind, AxisType, LabelsType, LogprobsType, LossType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['NLLLoss']
 
 
 class NLLLoss(LossNM):
-    @staticmethod
-    def create_ports():
-        input_ports = {
-            "predictions": NeuralType({0: AxisType(BatchTag), 1: AxisType(LogProbabilityTag)}),
-            "targets": NeuralType({0: AxisType(BatchTag)}),
-        }
-        output_ports = {"loss": NeuralType(None)}
-        return input_ports, output_ports
+    """ Class representing a simple NLL loss. """
 
     def __init__(self, **kwargs):
         # Neural Module API specific
         LossNM.__init__(self, **kwargs)
         # End of Neural Module API specific
         self._criterion = torch.nn.NLLLoss()
+
+    @property
+    @add_port_docs()
+    def input_ports(self):
+        """ Returns definitions of module input ports. """
+        return {
+            "predictions": NeuralType(axes=('B', 'D'), elements_type=LogprobsType()),
+            # "targets": NeuralType(axes=tuple(AxisType(AxisKind.Batch)), elements_type=LabelsType()),
+            "targets": NeuralType(axes=tuple('B'), elements_type=LabelsType()),
+        }
+
+    @property
+    @add_port_docs()
+    def output_ports(self):
+        """ Returns definitions of module output ports. """
+        return {"loss": NeuralType(elements_type=LossType())}
 
     # You need to implement this function
     def _loss_function(self, **kwargs):

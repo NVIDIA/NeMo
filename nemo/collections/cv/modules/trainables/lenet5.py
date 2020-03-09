@@ -17,7 +17,8 @@
 import torch
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core import AxisType, BatchTag, ChannelTag, DeviceType, HeightTag, LogProbabilityTag, NeuralType, WidthTag
+from nemo.core.neural_types import AxisKind, AxisType, LogprobsType, NeuralType, NormalizedValueType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['LeNet5']
 
@@ -26,20 +27,27 @@ class LeNet5(TrainableNM):
     """Classical LeNet-5 model for MNIST image classification.
     """
 
-    @staticmethod
-    def create_ports():
-        input_ports = {
+    @property
+    @add_port_docs()
+    def input_ports(self):
+        """ Returns definitions of module input ports. """
+        return {
             "images": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag, 1),
-                    2: AxisType(HeightTag, 32),
-                    3: AxisType(WidthTag, 32),
-                }
+                axes=(
+                    AxisType(kind=AxisKind.Batch),
+                    AxisType(kind=AxisKind.Channel, size=1),
+                    AxisType(kind=AxisKind.Height, size=32),
+                    AxisType(kind=AxisKind.Width, size=32),
+                ),
+                elements_type=NormalizedValueType(),
             )
         }
-        output_ports = {"predictions": NeuralType({0: AxisType(BatchTag), 1: AxisType(LogProbabilityTag)})}
-        return input_ports, output_ports
+
+    @property
+    @add_port_docs()
+    def output_ports(self):
+        """ Returns definitions of module output ports. """
+        return {"predictions": NeuralType(axes=('B', 'D'), elements_type=LogprobsType())}
 
     def __init__(self):
         """

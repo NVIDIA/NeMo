@@ -14,5 +14,4 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.cv.modules.trainables.faster_rcnn import *
 from nemo.collections.cv.modules.trainables.lenet5 import *

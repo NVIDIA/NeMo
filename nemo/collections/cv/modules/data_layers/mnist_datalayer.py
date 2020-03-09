@@ -20,7 +20,8 @@ import torch
 from torchvision import datasets, transforms
 
 from nemo.backends.pytorch.nm import DataLayerNM
-from nemo.core import AxisType, BatchTag, ChannelTag, HeightTag, NeuralType, WidthTag
+from nemo.core.neural_types import AxisKind, AxisType, LabelsType, NeuralType, NormalizedValueType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['MNISTDataLayer']
 
@@ -28,27 +29,6 @@ __all__ = ['MNISTDataLayer']
 class MNISTDataLayer(DataLayerNM):
     """Wrapper around torchvision's MNIST dataset.
     """
-
-    @staticmethod
-    def create_ports(input_size=(32, 32)):
-        """
-        Creates definitions of input and output ports.
-        By default, it sets HeightTag WidthTag size to 32.
-        (TO BE REFACTORED).
-        """
-        input_ports = {}
-        output_ports = {
-            "images": NeuralType(
-                {
-                    0: AxisType(BatchTag),
-                    1: AxisType(ChannelTag, 1),
-                    2: AxisType(HeightTag, input_size[1]),
-                    3: AxisType(WidthTag, input_size[0]),
-                }
-            ),
-            "targets": NeuralType({0: AxisType(BatchTag)}),
-        }
-        return input_ports, output_ports
 
     def __init__(self, batch_size, data_folder="~/data/mnist", train=True, shuffle=True):
         """
@@ -60,8 +40,8 @@ class MNISTDataLayer(DataLayerNM):
             train: use train or test splits
             shuffle: shuffle data (True by default)
         """
-        # Passing the default params to base init call.
-        DataLayerNM.__init__(self)
+        # Call base class constructor.
+        super().__init__()
 
         self._batch_size = batch_size
         self._train = train
@@ -76,6 +56,26 @@ class MNISTDataLayer(DataLayerNM):
         self._dataset = datasets.MNIST(
             root=abs_data_folder, train=self._train, download=True, transform=self._transforms
         )
+
+    @property
+    @add_port_docs()
+    def output_ports(self):
+        """
+        Creates definitions of output ports.
+        By default, it sets image width and height to 32.
+        """
+        return {
+            "images": NeuralType(
+                axes=(
+                    AxisType(kind=AxisKind.Batch),
+                    AxisType(kind=AxisKind.Channel, size=1),
+                    AxisType(kind=AxisKind.Height, size=32),
+                    AxisType(kind=AxisKind.Width, size=32),
+                ),
+                elements_type=NormalizedValueType(),
+            ),
+            "targets": NeuralType(tuple('B'), elements_type=LabelsType()),
+        }
 
     def __len__(self):
         return len(self._dataset)
