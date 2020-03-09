@@ -96,18 +96,25 @@ class NoisePerturbation(Perturbation):
         noise_record = self._rng.sample(self._manifest.data, 1)[0]
         noise = AudioSegment.from_file(noise_record.audio_file, target_sr=data.sample_rate)
         noise_gain_db = min(data.rms_db - noise.rms_db - snr_db, self._max_gain_db)
-        logging.debug("noise: %s %s %s", snr_db, noise_gain_db, noise_record.audio_file)
+        # logging.debug("noise: %s %s %s", snr_db, noise_gain_db, noise_record.audio_file)
 
-        if noise.duration < data.duration:
-            noise.pad(data._samples.shape[0] - noise._samples.shape[0], symmetric=True)
+        # if noise.duration < data.duration:
+        #     noise.pad(data._samples.shape[0] - noise._samples.shape[0], symmetric=True)
 
         # calculate noise segment to use
         start_time = self._rng.uniform(0.0, noise.duration - data.duration)
-        noise.subsegment(start_time=start_time, end_time=start_time + data.duration)
+        if noise.duration > (start_time + data.duration):
+            noise.subsegment(start_time=start_time, end_time=start_time + data.duration)
 
         # adjust gain for snr purposes and superimpose
         noise.gain_db(noise_gain_db)
-        data._samples = data._samples + noise.samples
+
+        if noise._samples.shape[0] < data._samples.shape[0]:
+            noise_idx = self._rng.randint(0, data._samples.shape[0] - noise._samples.shape[0])
+            data._samples[noise_idx: noise_idx + noise._samples.shape[0]] += noise._samples
+
+        else:
+            data._samples += noise._samples
 
 
 class WhiteNoisePerturbation(Perturbation):
