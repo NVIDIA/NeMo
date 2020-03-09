@@ -65,7 +65,7 @@ class AxisKind(AxisKindAbstract):
             return AxisKind.Width
         elif _label == "h" or _label == "height":
             return AxisKind.Height
-        elif _label == "any":
+        elif _label == "any" or _label == "a":
             return AxisKind.Any
         else:
             raise ValueError(f"Can't create AxisKind from {label}")

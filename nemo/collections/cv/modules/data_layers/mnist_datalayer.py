@@ -40,7 +40,7 @@ class MNISTDataLayer(DataLayerNM):
             train: use train or test splits
             shuffle: shuffle data (True by default)
         """
-        # Call base class constructor.
+        # Call the base class constructor.
         super().__init__()
 
         self._batch_size = batch_size

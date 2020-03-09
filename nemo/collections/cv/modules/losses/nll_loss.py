@@ -16,8 +16,8 @@
 
 import torch
 
-from nemo.backends.pytorch.nm import DataLayerNM, LossNM, NonTrainableNM, TrainableNM
-from nemo.core.neural_types import AxisKind, AxisType, LabelsType, LogprobsType, LossType, NeuralType
+from nemo.backends.pytorch.nm import LossNM
+from nemo.core.neural_types import LabelsType, LogprobsType, LossType, NeuralType  # AxisKind, AxisType,
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['NLLLoss']
@@ -26,10 +26,10 @@ __all__ = ['NLLLoss']
 class NLLLoss(LossNM):
     """ Class representing a simple NLL loss. """
 
-    def __init__(self, **kwargs):
-        # Neural Module API specific
-        LossNM.__init__(self, **kwargs)
-        # End of Neural Module API specific
+    def __init__(self):
+        # Call the base class constructor.
+        super().__init__()
+        # Set criterion.
         self._criterion = torch.nn.NLLLoss()
 
     @property
@@ -38,8 +38,8 @@ class NLLLoss(LossNM):
         """ Returns definitions of module input ports. """
         return {
             "predictions": NeuralType(axes=('B', 'D'), elements_type=LogprobsType()),
-            # "targets": NeuralType(axes=tuple(AxisType(AxisKind.Batch)), elements_type=LabelsType()),
-            "targets": NeuralType(axes=tuple('B'), elements_type=LabelsType()),
+            # "targets": NeuralType(axes=tuple(AxisType(AxisKind.Batch)), elements_type=LabelsType()),# NOT WORKING!
+            "targets": NeuralType(axes=('B'), elements_type=LabelsType()),
         }
 
     @property
