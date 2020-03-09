@@ -5,4 +5,4 @@ The NeMo CV collection offers modules useful for the following computer vision a
 1. Image Classification
 ..* LeNet-5
 2. Object Detection
-..* DetectNet v2
+..* FasterRCNN (wip)

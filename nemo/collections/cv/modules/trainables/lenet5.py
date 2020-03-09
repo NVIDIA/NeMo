@@ -1,45 +1,44 @@
-# Copyright (C) tkornuta, NVIDIA AI Applications Team. All Rights Reserved.
+# =============================================================================
+# Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-__author__ = "Tomasz Kornuta"
+# =============================================================================
 
 import torch
 
-from nemo.backends.pytorch.nm import TrainableNM, NonTrainableNM, LossNM,\
-    DataLayerNM
+from nemo.backends.pytorch.nm import DataLayerNM, LossNM, NonTrainableNM, TrainableNM
+from nemo.core import AxisType, BatchTag, ChannelTag, DeviceType, HeightTag, LogProbabilityTag, NeuralType, WidthTag
 
-from nemo.core import NeuralType, BatchTag, ChannelTag, HeightTag, WidthTag,\
-    AxisType, DeviceType, LogProbabilityTag
+__all__ = ['LeNet5']
 
 
 class LeNet5(TrainableNM):
     """Classical LeNet-5 model for MNIST image classification.
     """
+
     @staticmethod
     def create_ports():
         input_ports = {
-            "images": NeuralType({0: AxisType(BatchTag),
-                                  1: AxisType(ChannelTag, 1),
-                                  2: AxisType(HeightTag, 32),
-                                  3: AxisType(WidthTag, 32)
-                                  })
+            "images": NeuralType(
+                {
+                    0: AxisType(BatchTag),
+                    1: AxisType(ChannelTag, 1),
+                    2: AxisType(HeightTag, 32),
+                    3: AxisType(WidthTag, 32),
+                }
+            )
         }
-        output_ports = {
-            "predictions": NeuralType({0: AxisType(BatchTag),
-                                       1: AxisType(LogProbabilityTag)
-                                       })
-        }
+        output_ports = {"predictions": NeuralType({0: AxisType(BatchTag), 1: AxisType(LogProbabilityTag)})}
         return input_ports, output_ports
 
     def __init__(self):
@@ -63,7 +62,7 @@ class LeNet5(TrainableNM):
             torch.nn.Linear(120, 84),
             torch.nn.ReLU(),
             torch.nn.Linear(84, 10),
-            torch.nn.LogSoftmax(dim=1)
+            torch.nn.LogSoftmax(dim=1),
         )
         self.to(self._device)
 

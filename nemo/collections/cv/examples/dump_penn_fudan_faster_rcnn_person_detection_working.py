@@ -1,59 +1,50 @@
-# Copyright (C) tkornuta, NVIDIA AI Applications Team. All Rights Reserved.
+# =============================================================================
+# Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# =============================================================================
 
-__author__ = "Tomasz Kornuta"
-
-import math
-import torch
-import sys
 import itertools
+import math
+import sys
+
+import torch
 
 import nemo
-import torch
-
-from nemo.core import NeuralType, DeviceType
-
-from nemo_cv.modules.penn_fudan_person_detection_datalayer import \
-    PennFudanDataLayer, PennFudanPedestrianDataset
-
-from nemo_cv.modules.faster_rcnn import FasterRCNN
-from nemo_cv.modules.nll_loss import NLLLoss
-
+from nemo.collections.cv.modules.faster_rcnn import FasterRCNN
+from nemo.collections.cv.modules.nll_loss import NLLLoss
+from nemo.collections.cv.modules.penn_fudan_person_detection_datalayer import (
+    PennFudanDataLayer,
+    PennFudanPedestrianDataset,
+)
+from nemo.core import DeviceType, NeuralType
 
 # 0. Instantiate Neural Factory with supported backend
 nf = nemo.core.NeuralModuleFactory(placement=DeviceType.CPU)
 
 # 1. Instantiate necessary neural modules
-PennDL = PennFudanDataLayer(
-    batch_size=4,
-    shuffle=True,
-    data_folder="~/data/PennFudanPed"
-)
+PennDL = PennFudanDataLayer(batch_size=4, shuffle=True, data_folder="~/data/PennFudanPed")
 
 # Question: how to pass 2 from DL to model?
 model = FasterRCNN(2)
 
 # 2. Describe activation's flow
 ids, imgs, boxes, targets, masks, areas, iscrowds, num_objs = PennDL()
-p = model(images=imgs, bounding_boxes=boxes,
-          targets=targets, num_objects=num_objs)
+p = model(images=imgs, bounding_boxes=boxes, targets=targets, num_objects=num_objs)
 
 
 # Invoke "train" action
-nf.train([p], callbacks=[],
-         optimization_params={"num_epochs": 10, "lr": 0.001},
-         optimizer="adam")
+nf.train([p], callbacks=[], optimization_params={"num_epochs": 10, "lr": 0.001}, optimizer="adam")
 sys.exit(1)
 
 
@@ -92,8 +83,7 @@ def reduce_dict(input_dict, average=True):
 def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
     model.train()
 
-    for image_ids, images, boxes, targets, masks, areas, iscrowds, num_objs \
-            in data_loader:
+    for image_ids, images, boxes, targets, masks, areas, iscrowds, num_objs in data_loader:
 
         # Move to device.
         images = images.to(device)
@@ -146,7 +136,7 @@ def pad_tensors_to_max(tensor_list):
         # print("cur_sizes = ", cur_sizes)
 
         # Create the reverted list of "desired extensions".
-        ext_sizes = [m-c for (m, c) in zip(max_sizes, cur_sizes)][:: -1]
+        ext_sizes = [m - c for (m, c) in zip(max_sizes, cur_sizes)][::-1]
 
         # print("ext_sizes = ", ext_sizes)
 
@@ -156,10 +146,7 @@ def pad_tensors_to_max(tensor_list):
         # print("pad_sizes = ", pad_sizes)
 
         # Pad tensor, starting from last dimension.
-        padded_tensor = torch.nn.functional.pad(
-            input=tensor,
-            pad=pad_sizes,
-            mode='constant', value=0)
+        padded_tensor = torch.nn.functional.pad(input=tensor, pad=pad_sizes, mode='constant', value=0)
 
         # print("Tensor after padding: ", padded_tensor.size())
         # Add to list.
@@ -214,21 +201,17 @@ def collate_fn(batch):
 
 
 # define training and validation data loaders
-data_loader = torch.utils.data.DataLoader(
-    pfdataset, batch_size=2,
-    shuffle=True, num_workers=4, collate_fn=collate_fn)
+data_loader = torch.utils.data.DataLoader(pfdataset, batch_size=2, shuffle=True, num_workers=4, collate_fn=collate_fn)
 
 
-device = torch.device(
-    'cuda') if torch.cuda.is_available() else torch.device('cpu')
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 # move model to the right device
 model.to(device)
 
 # construct an optimizer
 params = [p for p in model.parameters() if p.requires_grad]
-optimizer = torch.optim.SGD(params, lr=0.005,
-                            momentum=0.9, weight_decay=0.0005)
+optimizer = torch.optim.SGD(params, lr=0.005, momentum=0.9, weight_decay=0.0005)
 
 
 # let's train it for 10 epochs
@@ -237,8 +220,7 @@ num_epochs = 10
 for epoch in range(num_epochs):
     print("Epoch: ", epoch)
     # train for one epoch, printing every 10 iterations
-    train_one_epoch(model, optimizer, data_loader,
-                    device, epoch, print_freq=10)
+    train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=10)
 
     # evaluate on the test dataset
     # evaluate(model, data_loader_test, device=device)

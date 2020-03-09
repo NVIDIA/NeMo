@@ -1,34 +1,43 @@
-# Copyright (C) NVIDIA. All Rights Reserved.
+# =============================================================================
+# Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# =============================================================================
 
-__author__ = "Tomasz Kornuta"
-
-from torch.utils.data.dataloader import default_collate
 import os
+
 import numpy as np
-from PIL import Image
-
-from ..utils.utils import pad_tensors_to_max
-
 import torch
+from PIL import Image
 from torch.utils.data import Dataset
+from torch.utils.data.dataloader import default_collate
 from torchvision import transforms
 
+from ..utils.utils import pad_tensors_to_max
 from nemo.backends.pytorch.nm import DataLayerNM
+from nemo.core import (
+    AxisType,
+    BatchTag,
+    BoundingBoxTag,
+    ChannelTag,
+    DeviceType,
+    HeightTag,
+    ListTag,
+    NeuralType,
+    WidthTag,
+)
 
-from nemo.core import NeuralType, AxisType, DeviceType, \
-    BatchTag, ChannelTag, HeightTag, WidthTag, ListTag, BoundingBoxTag
+__all__ = ['PennFudanPedestrianDataset']
 
 
 class PennFudanPedestrianDataset(Dataset):
@@ -48,10 +57,8 @@ class PennFudanPedestrianDataset(Dataset):
         self.abs_data_folder = os.path.expanduser(data_folder)
 
         # Load and sort all the image files.
-        self.imgs = list(sorted(
-            os.listdir(os.path.join(self.abs_data_folder, "PNGImages"))))
-        self.masks = list(sorted(
-            os.listdir(os.path.join(self.abs_data_folder, "PedMasks"))))
+        self.imgs = list(sorted(os.listdir(os.path.join(self.abs_data_folder, "PNGImages"))))
+        self.masks = list(sorted(os.listdir(os.path.join(self.abs_data_folder, "PedMasks"))))
 
         # Image transforms - to tensor.
         self.transforms = transforms.Compose([transforms.ToTensor()])
@@ -78,10 +85,8 @@ class PennFudanPedestrianDataset(Dataset):
         """
 
         # Load given image and  mask.
-        img_path = os.path.join(self.abs_data_folder,
-                                "PNGImages", self.imgs[idx])
-        mask_path = os.path.join(self.abs_data_folder,
-                                 "PedMasks", self.masks[idx])
+        img_path = os.path.join(self.abs_data_folder, "PNGImages", self.imgs[idx])
+        mask_path = os.path.join(self.abs_data_folder, "PedMasks", self.masks[idx])
 
         # Conver image to RGB.
         img = Image.open(img_path).convert("RGB")
@@ -110,7 +115,7 @@ class PennFudanPedestrianDataset(Dataset):
             ymin = np.min(pos[0])
             ymax = np.max(pos[0])
             boxes.append([xmin, ymin, xmax, ymax])
-        #print("Image {} as {} bounding boxes".format(self.imgs[idx], num_objs))
+        # print("Image {} as {} bounding boxes".format(self.imgs[idx], num_objs))
 
         # Transform index to tensor.
         image_id = torch.tensor(idx, dtype=torch.int64)
@@ -121,8 +126,7 @@ class PennFudanPedestrianDataset(Dataset):
         masks = torch.as_tensor(masks, dtype=torch.uint8)
 
         # Calculate the area.
-        area = torch.as_tensor(
-            boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+        area = torch.as_tensor(boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
 
         # Suppose all instances are not crowd.
         iscrowd = torch.zeros((num_objs,), dtype=torch.int64)
@@ -149,43 +153,34 @@ class PennFudanDataLayer(DataLayerNM):
         output_ports = {
             # Batch of indices.
             "indices": NeuralType({0, AxisType(BatchTag)}),
-
             # Batch of images.
-            "images": NeuralType({0: AxisType(BatchTag),
-                                  1: AxisType(ChannelTag, 3),
-                                  2: AxisType(HeightTag),
-                                  3: AxisType(WidthTag)}),
-
+            "images": NeuralType(
+                {0: AxisType(BatchTag), 1: AxisType(ChannelTag, 3), 2: AxisType(HeightTag), 3: AxisType(WidthTag)}
+            ),
             # Batch of bounding boxes.
-            "bounding_boxes": NeuralType({0: AxisType(BatchTag),
-                                          1: AxisType(ListTag),
-                                          2: AxisType(BoundingBoxTag)}),
+            "bounding_boxes": NeuralType({0: AxisType(BatchTag), 1: AxisType(ListTag), 2: AxisType(BoundingBoxTag)}),
             # Batch of targets.
             "targets": NeuralType({0: AxisType(BatchTag)}),
-
             # Batch of masks.
-            "masks": NeuralType({0: AxisType(BatchTag),
-                                 # Each channel = 1 object.
-                                 1: AxisType(ChannelTag),
-                                 2: AxisType(HeightTag),
-                                 3: AxisType(WidthTag)}),
+            "masks": NeuralType(
+                {
+                    0: AxisType(BatchTag),
+                    # Each channel = 1 object.
+                    1: AxisType(ChannelTag),
+                    2: AxisType(HeightTag),
+                    3: AxisType(WidthTag),
+                }
+            ),
             # Batch of areas.
             "areas": NeuralType({0: AxisType(BatchTag)}),
-
             # Batch of "is crowd"s.
             "iscrowds": NeuralType({0: AxisType(BatchTag)}),
-
             # "Artificial" variable - tensor storing numbers of objects.
-            "num_objects": NeuralType({0: AxisType(BatchTag)})
+            "num_objects": NeuralType({0: AxisType(BatchTag)}),
         }
         return input_ports, output_ports
 
-    def __init__(
-        self,
-        batch_size,
-        shuffle=True,
-        data_folder="~/data/PennFudanPed"
-    ):
+    def __init__(self, batch_size, shuffle=True, data_folder="~/data/PennFudanPed"):
         """
         Initializes the datalayer.
 
@@ -229,14 +224,14 @@ class PennFudanDataLayer(DataLayerNM):
         # Replace the images with padded_images.
         zipped_batch[1] = pad_tensors_to_max(zipped_batch[1])
 
-        #print(" !!! Bounding boxes per image !!!")
+        # print(" !!! Bounding boxes per image !!!")
         # for item in zipped_batch[2]:
         #    print(item.size())
 
         # Pad number of bboxes per image.
         zipped_batch[2] = pad_tensors_to_max(zipped_batch[2])
 
-        #print(" !!! Targets per image !!!")
+        # print(" !!! Targets per image !!!")
         # for item in zipped_batch[3]:
         #    print(item.size())
 

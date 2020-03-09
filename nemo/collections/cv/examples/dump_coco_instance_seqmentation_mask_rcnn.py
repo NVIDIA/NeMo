@@ -1,18 +1,18 @@
-# Copyright (C) tkornuta, NVIDIA AI Applications Team. All Rights Reserved.
+# =============================================================================
+# Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-__author__ = "Tomasz Kornuta"
+# =============================================================================
 
 # This code is based on the tutorial from Google Research:
 # https://colab.research.google.com/github/pytorch/vision/blob/temp-tutorial/tutorials/torchvision_finetuning_instance_segmentation.ipynb#scrollTo=RoAEkUgn4uEq
@@ -45,28 +45,24 @@ __author__ = "Tomasz Kornuta"
 
 
 import math
-import numpy as np
 import os
-from PIL import Image
 
+import numpy as np
 import torch
 import torch.utils.data
-
 import torchvision
-import torchvision.utils as utils
 import torchvision.transforms as T
-
-from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
-from torchvision.models.detection.rpn import AnchorGenerator
+import torchvision.utils as utils
+from PIL import Image
 from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
+from torchvision.models.detection.rpn import AnchorGenerator
 
-
-#from torchvision.references.detection.engine import train_one_epoch, evaluate
+# from torchvision.references.detection.engine import train_one_epoch, evaluate
 
 
 def warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor):
-
     def f(x):
         if x >= warmup_iters:
             return 1
@@ -109,11 +105,10 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
 
     lr_scheduler = None
     if epoch == 0:
-        warmup_factor = 1. / 1000
+        warmup_factor = 1.0 / 1000
         warmup_iters = min(1000, len(data_loader) - 1)
 
-        lr_scheduler = warmup_lr_scheduler(
-            optimizer, warmup_iters, warmup_factor)
+        lr_scheduler = warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
 
     for images, targets in data_loader:
         images = list(image.to(device) for image in images)
@@ -157,11 +152,9 @@ def evaluate(model, data_loader, device):
         torch.cuda.synchronize()
         outputs = model(image)
 
-        outputs = [{k: v.to(cpu_device) for k, v in t.items()}
-                   for t in outputs]
+        outputs = [{k: v.to(cpu_device) for k, v in t.items()} for t in outputs]
 
-        res = {target["image_id"].item(): output for target,
-               output in zip(targets, outputs)}
+        res = {target["image_id"].item(): output for target, output in zip(targets, outputs)}
 
     # accumulate predictions from all images
     torch.set_num_threads(n_threads)
@@ -264,25 +257,25 @@ dataset[0]
 # MODEL 1: FastRCNN
 
 # load a model pre-trained pre-trained on COCO
-#model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
+# model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
 
 # replace the classifier with a new one, that has
 # num_classes which is user-defined
 # num_classes = 2  # 1 class (person) + background
 # get number of input features for the classifier
-#in_features = model.roi_heads.box_predictor.cls_score.in_features
+# in_features = model.roi_heads.box_predictor.cls_score.in_features
 # replace the pre-trained head with a new one
-#model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
+# model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
 
 # Model 2: FasterRCNN with MobileNet v2 encoder.
 
 # load a pre-trained model for classification and return
 # only the features
-#backbone = torchvision.models.mobilenet_v2(pretrained=True).features
+# backbone = torchvision.models.mobilenet_v2(pretrained=True).features
 # FasterRCNN needs to know the number of
 # output channels in a backbone. For mobilenet_v2, it's 1280
 # so we need to add it here
-#backbone.out_channels = 1280
+# backbone.out_channels = 1280
 
 # let's make the RPN generate 5 x 3 anchors per spatial
 # location, with 5 different sizes and 3 different aspect
@@ -323,9 +316,7 @@ def get_instance_segmentation_model(num_classes):
     in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
     hidden_layer = 256
     # and replace the mask predictor with a new one
-    model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask,
-                                                       hidden_layer,
-                                                       num_classes)
+    model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask, hidden_layer, num_classes)
 
     return model
 
@@ -341,10 +332,8 @@ def return_transform(train):
     return T.Compose(transforms)
 
 
-dataset = PennFudanDataset(
-    '/home/tkornuta/data/PennFudanPed', return_transform(train=True))
-dataset_test = PennFudanDataset(
-    '/home/tkornuta/data/PennFudanPed', return_transform(train=False))
+dataset = PennFudanDataset('/home/tkornuta/data/PennFudanPed', return_transform(train=True))
+dataset_test = PennFudanDataset('/home/tkornuta/data/PennFudanPed', return_transform(train=False))
 
 # split the dataset in train and test set
 torch.manual_seed(1)
@@ -353,17 +342,14 @@ dataset = torch.utils.data.Subset(dataset, indices[:-50])
 dataset_test = torch.utils.data.Subset(dataset_test, indices[-50:])
 
 # define training and validation data loaders
-data_loader = torch.utils.data.DataLoader(
-    dataset, batch_size=2, shuffle=True, num_workers=4,
-    collate_fn=collate_fn)
+data_loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=True, num_workers=4, collate_fn=collate_fn)
 
 data_loader_test = torch.utils.data.DataLoader(
-    dataset_test, batch_size=1, shuffle=False, num_workers=4,
-    collate_fn=collate_fn)
+    dataset_test, batch_size=1, shuffle=False, num_workers=4, collate_fn=collate_fn
+)
 
 
-device = torch.device(
-    'cuda') if torch.cuda.is_available() else torch.device('cpu')
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 # our dataset has two classes only - background and person
 num_classes = 2
@@ -375,14 +361,11 @@ model.to(device)
 
 # construct an optimizer
 params = [p for p in model.parameters() if p.requires_grad]
-optimizer = torch.optim.SGD(params, lr=0.005,
-                            momentum=0.9, weight_decay=0.0005)
+optimizer = torch.optim.SGD(params, lr=0.005, momentum=0.9, weight_decay=0.0005)
 
 # and a learning rate scheduler which decreases the learning rate by
 # 10x every 3 epochs
-lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
-                                               step_size=3,
-                                               gamma=0.1)
+lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
 
 
 # let's train it for 10 epochs
@@ -391,8 +374,7 @@ num_epochs = 10
 for epoch in range(num_epochs):
     print("Epoch: ", epoch)
     # train for one epoch, printing every 10 iterations
-    train_one_epoch(model, optimizer, data_loader,
-                    device, epoch, print_freq=10)
+    train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=10)
     # update the learning rate
     lr_scheduler.step()
     # evaluate on the test dataset
@@ -414,5 +396,4 @@ Image.fromarray(img.mul(255).permute(1, 2, 0).byte().numpy()).show()
 # And let's now visualize the top predicted segmentation mask. The masks are
 # predicted as [N, 1, H, W], where N is the number of predictions, and are
 # probability maps between 0-1.
-Image.fromarray(prediction[0]['masks'][0, 0].mul(
-    255).byte().cpu().numpy()).show()
+Image.fromarray(prediction[0]['masks'][0, 0].mul(255).byte().cpu().numpy()).show()

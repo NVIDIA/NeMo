@@ -1,13 +1,10 @@
 import torch
-
 import torch.nn.functional as F
 from torch import nn
-
+from torchvision.models.detection import _utils as det_utils
 from torchvision.ops import boxes as box_ops
 from torchvision.ops import misc as misc_nn_ops
 from torchvision.ops import roi_align
-
-from torchvision.models.detection import _utils as det_utils
 
 
 def maskrcnn_inference(x, labels):
@@ -110,17 +107,16 @@ def heatmaps_to_keypoints(maps, rois):
     heights_ceil = heights.ceil()
 
     num_keypoints = maps.shape[1]
-    xy_preds = torch.zeros((len(rois), 3, num_keypoints),
-                           dtype=torch.float32, device=maps.device)
-    end_scores = torch.zeros((len(rois), num_keypoints),
-                             dtype=torch.float32, device=maps.device)
+    xy_preds = torch.zeros((len(rois), 3, num_keypoints), dtype=torch.float32, device=maps.device)
+    end_scores = torch.zeros((len(rois), num_keypoints), dtype=torch.float32, device=maps.device)
     for i in range(len(rois)):
         roi_map_width = int(widths_ceil[i].item())
         roi_map_height = int(heights_ceil[i].item())
         width_correction = widths[i] / roi_map_width
         height_correction = heights[i] / roi_map_height
         roi_map = torch.nn.functional.interpolate(
-            maps[i][None], size=(roi_map_height, roi_map_width), mode='bicubic', align_corners=False)[0]
+            maps[i][None], size=(roi_map_height, roi_map_width), mode='bicubic', align_corners=False
+        )[0]
         # roi_map_probs = scores_to_probs(roi_map.copy())
         w = roi_map.shape[2]
         pos = roi_map.reshape(num_keypoints, -1).argmax(dim=1)
@@ -157,10 +153,10 @@ def keypointrcnn_inference(x, boxes):
 # but are kept here for the moment while we need them
 # temporarily for paste_mask_in_image
 def expand_boxes(boxes, scale):
-    w_half = (boxes[:, 2] - boxes[:, 0]) * .5
-    h_half = (boxes[:, 3] - boxes[:, 1]) * .5
-    x_c = (boxes[:, 2] + boxes[:, 0]) * .5
-    y_c = (boxes[:, 3] + boxes[:, 1]) * .5
+    w_half = (boxes[:, 2] - boxes[:, 0]) * 0.5
+    h_half = (boxes[:, 3] - boxes[:, 1]) * 0.5
+    x_c = (boxes[:, 2] + boxes[:, 0]) * 0.5
+    y_c = (boxes[:, 3] + boxes[:, 1]) * 0.5
 
     w_half *= scale
     h_half *= scale
@@ -191,8 +187,7 @@ def paste_mask_in_image(mask, box, im_h, im_w):
     mask = mask.expand((1, 1, -1, -1))
 
     # Resize mask
-    mask = misc_nn_ops.interpolate(mask, size=(
-        h, w), mode='bilinear', align_corners=False)
+    mask = misc_nn_ops.interpolate(mask, size=(h, w), mode='bilinear', align_corners=False)
     mask = mask[0][0]
 
     im_mask = torch.zeros((im_h, im_w), dtype=mask.dtype, device=mask.device)
@@ -201,9 +196,7 @@ def paste_mask_in_image(mask, box, im_h, im_w):
     y_0 = max(box[1], 0)
     y_1 = min(box[3] + 1, im_h)
 
-    im_mask[y_0:y_1, x_0:x_1] = mask[
-        (y_0 - box[1]):(y_1 - box[1]), (x_0 - box[0]):(x_1 - box[0])
-    ]
+    im_mask[y_0:y_1, x_0:x_1] = mask[(y_0 - box[1]) : (y_1 - box[1]), (x_0 - box[0]) : (x_1 - box[0])]
     return im_mask
 
 
@@ -212,10 +205,7 @@ def paste_masks_in_image(masks, boxes, img_shape, padding=1):
     boxes = expand_boxes(boxes, scale).to(dtype=torch.int64).tolist()
     # im_h, im_w = img_shape.tolist()
     im_h, im_w = img_shape
-    res = [
-        paste_mask_in_image(m[0], b, im_h, im_w)
-        for m, b in zip(masks, boxes)
-    ]
+    res = [paste_mask_in_image(m[0], b, im_h, im_w) for m, b in zip(masks, boxes)]
     if len(res) > 0:
         res = torch.stack(res, dim=0)[:, None]
     else:
@@ -224,41 +214,39 @@ def paste_masks_in_image(masks, boxes, img_shape, padding=1):
 
 
 class RoIHeads(torch.nn.Module):
-    def __init__(self,
-                 box_roi_pool,
-                 box_head,
-                 box_predictor,
-                 # Faster R-CNN training
-                 fg_iou_thresh, bg_iou_thresh,
-                 batch_size_per_image, positive_fraction,
-                 bbox_reg_weights,
-                 # Faster R-CNN inference
-                 score_thresh,
-                 nms_thresh,
-                 detections_per_img,
-                 # Mask
-                 mask_roi_pool=None,
-                 mask_head=None,
-                 mask_predictor=None,
-                 keypoint_roi_pool=None,
-                 keypoint_head=None,
-                 keypoint_predictor=None,
-                 ):
+    def __init__(
+        self,
+        box_roi_pool,
+        box_head,
+        box_predictor,
+        # Faster R-CNN training
+        fg_iou_thresh,
+        bg_iou_thresh,
+        batch_size_per_image,
+        positive_fraction,
+        bbox_reg_weights,
+        # Faster R-CNN inference
+        score_thresh,
+        nms_thresh,
+        detections_per_img,
+        # Mask
+        mask_roi_pool=None,
+        mask_head=None,
+        mask_predictor=None,
+        keypoint_roi_pool=None,
+        keypoint_head=None,
+        keypoint_predictor=None,
+    ):
         super(RoIHeads, self).__init__()
 
         self.box_similarity = box_ops.box_iou
         # assign ground-truth boxes for each proposal
-        self.proposal_matcher = det_utils.Matcher(
-            fg_iou_thresh,
-            bg_iou_thresh,
-            allow_low_quality_matches=False)
+        self.proposal_matcher = det_utils.Matcher(fg_iou_thresh, bg_iou_thresh, allow_low_quality_matches=False)
 
-        self.fg_bg_sampler = det_utils.BalancedPositiveNegativeSampler(
-            batch_size_per_image,
-            positive_fraction)
+        self.fg_bg_sampler = det_utils.BalancedPositiveNegativeSampler(batch_size_per_image, positive_fraction)
 
         if bbox_reg_weights is None:
-            bbox_reg_weights = (10., 10., 5., 5.)
+            bbox_reg_weights = (10.0, 10.0, 5.0, 5.0)
         self.box_coder = det_utils.BoxCoder(bbox_reg_weights)
 
         self.box_roi_pool = box_roi_pool
@@ -301,8 +289,7 @@ class RoIHeads(torch.nn.Module):
         matched_idxs = []
         labels = []
         for proposals_in_image, gt_boxes_in_image, gt_labels_in_image in zip(proposals, gt_boxes, gt_labels):
-            match_quality_matrix = self.box_similarity(
-                gt_boxes_in_image, proposals_in_image)
+            match_quality_matrix = self.box_similarity(gt_boxes_in_image, proposals_in_image)
             matched_idxs_in_image = self.proposal_matcher(match_quality_matrix)
 
             clamped_matched_idxs_in_image = matched_idxs_in_image.clamp(min=0)
@@ -325,19 +312,13 @@ class RoIHeads(torch.nn.Module):
     def subsample(self, labels):
         sampled_pos_inds, sampled_neg_inds = self.fg_bg_sampler(labels)
         sampled_inds = []
-        for img_idx, (pos_inds_img, neg_inds_img) in enumerate(
-            zip(sampled_pos_inds, sampled_neg_inds)
-        ):
-            img_sampled_inds = torch.nonzero(
-                pos_inds_img | neg_inds_img).squeeze(1)
+        for img_idx, (pos_inds_img, neg_inds_img) in enumerate(zip(sampled_pos_inds, sampled_neg_inds)):
+            img_sampled_inds = torch.nonzero(pos_inds_img | neg_inds_img).squeeze(1)
             sampled_inds.append(img_sampled_inds)
         return sampled_inds
 
     def add_gt_proposals(self, proposals, gt_boxes):
-        proposals = [
-            torch.cat((proposal, gt_box))
-            for proposal, gt_box in zip(proposals, gt_boxes)
-        ]
+        proposals = [torch.cat((proposal, gt_box)) for proposal, gt_box in zip(proposals, gt_boxes)]
 
         return proposals
 
@@ -357,8 +338,7 @@ class RoIHeads(torch.nn.Module):
         proposals = self.add_gt_proposals(proposals, gt_boxes)
 
         # get matching gt indices for each proposal
-        matched_idxs, labels = self.assign_targets_to_proposals(
-            proposals, gt_boxes, gt_labels)
+        matched_idxs, labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels)
         # sample a fixed proportion of positive-negative proposals
         sampled_inds = self.subsample(labels)
         matched_gt_boxes = []
@@ -417,7 +397,7 @@ class RoIHeads(torch.nn.Module):
             # non-maximum suppression, independently done per class
             keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
             # keep only topk scoring predictions
-            keep = keep[:self.detections_per_img]
+            keep = keep[: self.detections_per_img]
             boxes, scores, labels = boxes[keep], scores[keep], labels[keep]
 
             all_boxes.append(boxes)
@@ -442,8 +422,7 @@ class RoIHeads(torch.nn.Module):
                     assert t["keypoints"].dtype == torch.float32, 'target keypoints must of float type'
 
         if self.training:
-            proposals, matched_idxs, labels, regression_targets = self.select_training_samples(
-                proposals, targets)
+            proposals, matched_idxs, labels, regression_targets = self.select_training_samples(proposals, targets)
 
         box_features = self.box_roi_pool(features, proposals, image_shapes)
         box_features = self.box_head(box_features)
@@ -453,16 +432,11 @@ class RoIHeads(torch.nn.Module):
 
         # else:
         boxes_postdet, scores_postdet, labels_postdet = self.postprocess_detections(
-            class_logits, box_regression, proposals, image_shapes)
+            class_logits, box_regression, proposals, image_shapes
+        )
         num_images = len(boxes_postdet)
         for i in range(num_images):
-            result.append(
-                dict(
-                    boxes=boxes_postdet[i],
-                    labels=labels_postdet[i],
-                    scores=scores_postdet[i],
-                )
-            )
+            result.append(dict(boxes=boxes_postdet[i], labels=labels_postdet[i], scores=scores_postdet[i],))
 
         if self.has_mask:
             mask_proposals = [p["boxes"] for p in result]
@@ -476,8 +450,7 @@ class RoIHeads(torch.nn.Module):
                     mask_proposals.append(proposals[img_id][pos])
                     pos_matched_idxs.append(matched_idxs[img_id][pos])
 
-            mask_features = self.mask_roi_pool(
-                features, mask_proposals, image_shapes)
+            mask_features = self.mask_roi_pool(features, mask_proposals, image_shapes)
             mask_features = self.mask_head(mask_features)
             mask_logits = self.mask_predictor(mask_features)
 
@@ -499,14 +472,12 @@ class RoIHeads(torch.nn.Module):
                     keypoint_proposals.append(proposals[img_id][pos])
                     pos_matched_idxs.append(matched_idxs[img_id][pos])
 
-            keypoint_features = self.keypoint_roi_pool(
-                features, keypoint_proposals, image_shapes)
+            keypoint_features = self.keypoint_roi_pool(features, keypoint_proposals, image_shapes)
             keypoint_features = self.keypoint_head(keypoint_features)
             keypoint_logits = self.keypoint_predictor(keypoint_features)
 
             # else:
-            keypoints_probs, kp_scores = keypointrcnn_inference(
-                keypoint_logits, keypoint_proposals)
+            keypoints_probs, kp_scores = keypointrcnn_inference(keypoint_logits, keypoint_proposals)
             for keypoint_prob, kps, r in zip(keypoints_probs, kp_scores, result):
                 r["keypoints"] = keypoint_prob
                 r["keypoints_scores"] = kps

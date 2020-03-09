@@ -28,6 +28,19 @@ from itertools import chain
 
 import setuptools
 
+from nemo.package_info import (
+    __contact_emails__,
+    __contact_names__,
+    __description__,
+    __download_url__,
+    __homepage__,
+    __keywords__,
+    __license__,
+    __package_name__,
+    __repository_url__,
+    __version__,
+)
+
 
 def is_build_action():
     if len(sys.argv) <= 1:
@@ -44,18 +57,6 @@ def is_build_action():
 if is_build_action():
     os.environ['NEMO_PACKAGE_BUILDING'] = 'True'
 
-from nemo.package_info import (
-    __contact_emails__,
-    __contact_names__,
-    __description__,
-    __download_url__,
-    __homepage__,
-    __keywords__,
-    __license__,
-    __package_name__,
-    __repository_url__,
-    __version__,
-)
 
 if os.path.exists('nemo/README.md'):
     with open("nemo/README.md", "r") as fh:
@@ -94,6 +95,7 @@ extras_require = {
     'test': req_file("requirements_test.txt"),
     # Collections Packages
     'asr': req_file("requirements_asr.txt"),
+    'cv': req_file("requirements_cv.txt"),
     'nlp': req_file("requirements_nlp.txt"),
     'simple_gan': req_file("requirements_simple_gan.txt"),
     'tts': req_file("requirements_tts.txt"),
