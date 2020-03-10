@@ -1241,7 +1241,13 @@ class PtActions(Actions):
                                         f"Synchronized batch norm group size ({synced_batchnorm_groupsize}) must be 0"
                                         f" or divide total number of GPUs ({world_size})."
                                     )
-                                sync_batchnorm_group = torch.distributed.new_group(synced_batchnorm_groupsize)
+                                # Find ranks of other nodes in the same batchnorm group
+                                rank = torch.distributed.get_rank()
+                                group = rank // synced_batchnorm_groupsize
+                                group_rank_ids = range(group * synced_batchnorm_groupsize,
+                                                       (group + 1) * synced_batchnorm_groupsize)
+                                sync_batchnorm_group = torch.distributed.new_group(group_rank_ids)
+
                             pmodule = nn.SyncBatchNorm.convert_sync_batchnorm(
                                 pmodule, process_group=sync_batchnorm_group
                             )
