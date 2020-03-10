@@ -68,7 +68,6 @@ class GlueClassificationDataLayer(TextDataLayer):
         tokenizer,
         max_seq_length,
         processor,
-        model_name,
         evaluate=False,
         shuffle=False,
         batch_size=64,
@@ -82,7 +81,6 @@ class GlueClassificationDataLayer(TextDataLayer):
             'evaluate': evaluate,
             'tokenizer': tokenizer,
             'max_seq_length': max_seq_length,
-            'model_name': model_name,
             'use_data_cache': use_data_cache,
         }
         super().__init__(dataset_type, dataset_params, batch_size, shuffle)

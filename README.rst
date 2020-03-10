@@ -27,47 +27,43 @@
 NVIDIA Neural Modules: NeMo
 ===========================
 
-NeMo is a toolkit for defining and building new state of the art deep learning models for `Conversational AI <https://developer.nvidia.com/conversational-ai#started>`_ applications
+NeMo is a toolkit for defining and building `Conversational AI <https://developer.nvidia.com/conversational-ai#started>`_ applications.
 
-Goal of the NeMo toolkit is to make it possible for researchers to easily and safely compose complex neural network architectures for conversational AI using reusable components. Built for speed, NeMo can scale out training to multiple GPUs and multiple nodes.
+Goal of the NeMo toolkit is to make it possible for researchers to easily compose complex neural network architectures for conversational AI using reusable components. Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
 
 **Neural Modules** are conceptual blocks of neural networks that take *typed* inputs and produce *typed* outputs. Such modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
 
-The toolkit comes with extendable collections of pre-built modules for automatic speech recognition (ASR), natural language processing (NLP) and text synthesis (TTS). Furthermore, NeMo provides built-in support for **distributed training** and **mixed precision** on the latest NVIDIA GPUs.
-
-NeMo consists of a core and some pre-built neural modules for particular domains such as automatic speech recognition, natural language processing and text synthesis:
-
-* **NeMo Core**: fundamental building blocks for all neural models and type system
-* **NeMo collections**: pre-built neural modules for particular domains such as automatic speech recognition (nemo_asr), natural language processing (nemo_nlp) and text synthesis (nemo_tts).
+The toolkit comes with extendable collections of pre-built modules for automatic speech recognition (ASR), natural language processing (NLP) and text synthesis (TTS).
 
 **Introduction**
 
 * Watch `this video <https://nvidia.github.io/NeMo/>`_ for a quick walk-through.
 
-* Documentation: https://nvidia.github.io/NeMo/
+* Documentation (latest released version): https://nvidia.github.io/NeMo/
 
 * Read NVIDIA `Developer Blog for example applications <https://devblogs.nvidia.com/how-to-build-domain-specific-automatic-speech-recognition-models-on-gpus/>`_
 
 * Read NVIDIA `Developer Blog for Quartznet ASR model <https://devblogs.nvidia.com/develop-smaller-speech-recognition-models-with-nvidias-nemo-framework/>`_
 
-* Recommended version to install is **0.9.0** via pip install nemo-toolkit
+* Recommended version to install is **0.9.0** via ``pip install nemo-toolkit``
 
 * Recommended NVIDIA `NGC NeMo Toolkit container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_
 
 * Pretrained models are available on NVIDIA `NGC Model repository <https://ngc.nvidia.com/catalog/models?orderBy=modifiedDESC&query=nemo&quickFilter=models&filters=>`_
 
 
-**Getting started**
+Getting started
+~~~~~~~~~~~~~~~
 
-THE LATEST STABLE VERSION OF NeMo is **0.9.0** (which is available via PIP).
+THE LATEST STABLE VERSION OF NeMo is **0.9.0** (Available via PIP).
 
 **Requirements**
 
 1) Python 3.6 or 3.7
-2) PyTorch 1.2.* or 1.3.* with GPU support
-3) (optional for best performance) NVIDIA APEX. Install from here: https://github.com/NVIDIA/apex
+2) PyTorch 1.4.* with GPU support
+3) (optional, for best performance) NVIDIA APEX. Install from here: https://github.com/NVIDIA/apex
 
-**Docker Container**
+**NeMo Docker Container**
  NVIDIA `NGC NeMo Toolkit container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_ is now available.
 
 * Pull the docker: ``docker pull nvcr.io/nvidia/nemo:v0.9``
@@ -75,36 +71,15 @@ THE LATEST STABLE VERSION OF NeMo is **0.9.0** (which is available via PIP).
 
 If you are using the NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ follow these instructions
 
-* Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:19.11-py3``
-* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:19.11-py3``
-
-.. code-block:: bash
-
-    pip install nemo_toolkit # Installs NeMo Core Only
-    pip install nemo_toolkit[asr] # Installs Core and ASR Collection
-    pip install nemo_toolkit[nlp] # Installs Core and NLP Collection
-    pip install nemo_toolkit[tts] # Installs Core and TTS Collection
-
-You can also install everything (NeMo Core with all collections along with their dependences) by calling:
-
-.. code-block:: bash
-
-    pip install nemo_toolkit[all] # Absolutely everything
-
-or their subsets by:
-
-.. code-block:: bash
-
-    pip install nemo_toolkit[nlp,asr] # Core + NLP + ASR
-
-* DEVELOPMENT: If you'd like to use master branch and/or develop NeMo you can run "reinstall.sh" script.
-
-**Documentation**
-
-`NeMo documentation <https://nvidia.github.io/NeMo/>`_
+* Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:20.01-py3``
+* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:20.01-py3``
+* ``apt-get update && apt-get install -y libsndfile1``
+* ``pip install nemo_toolkit`` NeMo core
+* ``pip install nemo_asr`` NeMo ASR (Speech Recognition) collection
+* ``pip install nemo_nlp`` NeMo NLP (Natural Language Processing) collection
+* ``pip install nemo_tts`` NeMo TTS (Speech Synthesis) collection
 
 See `examples/start_here` to get started with the simplest example. The folder `examples` contains several examples to get you started with various tasks in NLP and ASR.
-
 
 **Tutorials**
 
@@ -112,17 +87,22 @@ See `examples/start_here` to get started with the simplest example. The folder `
 * `Natural language processing <https://nvidia.github.io/NeMo/nlp/intro.html>`_
 * `Speech Synthesis <https://nvidia.github.io/NeMo/tts/intro.html>`_
 
+
+DEVELOPMENT
+~~~~~~~~~~~
+If you'd like to use master branch and/or develop NeMo you can run "reinstall.sh" script.
+
+`Documentation (master branch) <http://nemo-master-docs.s3-website.us-east-2.amazonaws.com/>`_.
+
 **Installing From Github**
 
 If you prefer to use NeMo's latest development version (from GitHub) follow the steps below:
-
-*Note*: For step 2 and 3, if you want to use NeMo in development mode, use: ``pip install -e .`` instead of ``pip install .``
 
 1) Clone the repository ``git clone https://github.com/NVIDIA/NeMo.git``
 2) Go to NeMo folder and re-install the toolkit with collections:
 
 .. code-block:: bash
-	
+
     ./reinstall.sh
 
 **Style tests**
@@ -140,7 +120,7 @@ This command runs unittests:
 .. code-block:: bash
 
     ./reinstall.sh
-    python -m unittest tests/*.py
+    python pytest tests
 
 
 Citation

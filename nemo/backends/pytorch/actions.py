@@ -1321,6 +1321,9 @@ class PtActions(Actions):
                 if self.tb_writer is not None:
                     value = curr_optimizer.param_groups[0]['lr']
                     self.tb_writer.add_scalar('param/lr', value, self.step)
+                if callbacks is not None:
+                    for callback in callbacks:
+                        callback.learning_rate = curr_optimizer.param_groups[0]['lr']
 
                 # registered_tensors will contain created tensors
                 # named by output port and uuid of module which created them

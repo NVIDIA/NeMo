@@ -1,4 +1,5 @@
 from .datasets import AudioOnlyDataset
+from .fastspeech import FastSpeechDataset
 from .helpers import (
     tacotron2_eval_log_to_tb_func,
     tacotron2_log_to_tb_func,
@@ -26,4 +27,5 @@ __all__ = [
     'tacotron2_process_eval_batch',
     'tacotron2_process_final_eval',
     'tacotron2_eval_log_to_tb_func',
+    'FastSpeechDataset',
 ]

@@ -77,7 +77,7 @@ class JointIntentSlotDataDesc:
             self.data_dir = process_atis(data_dir, do_lower_case)
         elif dataset_name == 'snips-atis':
             self.data_dir, self.pad_label = self.merge(
-                data_dir, ['ATIS/nemo-processed-uncased', 'snips/nemo-processed-uncased/all'], dataset_name
+                data_dir, ['atis/nemo-processed-uncased', 'snips/nemo-processed-uncased/all'], dataset_name
             )
         elif dataset_name == 'dialogflow':
             self.data_dir = process_dialogflow(data_dir, do_lower_case)

@@ -15,12 +15,11 @@
 # =============================================================================
 """
 
-To pretrain BERT on raw text dataset run
+To pretrain BERT on raw uncased text dataset run
 python bert_pretraining.py \
 --amp_opt_level "O0" \
 --train_data path_to/wikitext-2/train.txt \
 --eval_data path_to/wikitext-2/valid.txt \
---dataset_name wikitext-2 \
 --work_dir outputs/bert_lm \
 --batch_size 64 \
 --lr 0.01 \
@@ -37,10 +36,12 @@ python bert_pretraining.py \
 --num_attention_heads 12 \
 --hidden_act "gelu" \
 --save_step_freq 200 \
+data_text \
+--dataset_name wikitext-2 \
 --num_epochs 10 \
 --sample_size 10000000 \
 --mask_probability 0.15 \
---short_seq_prob 0.1
+--short_seq_prob 0.1 \
 
 To pretrain BERT large on preprocessed dataset,
 download and preprocess dataset from here:
@@ -49,14 +50,13 @@ Run the script:
 ./data/create_datasets_from_start.sh
 and extract data into train_data and eval_data
 
-Then run BERT large on the 512 sequence length dataset
+Then run BERT large on dataset with a sequence length of 512 and a maximum of 80 masked tokens per sequence
 python -m torch.distributed.launch --nproc_per_node=8 bert_pretraining.py \
 --batch_size 8 \
 --config_file bert_config.json
 --train_data train_data \
 --eval_data eval_data \
 --save_step_freq 200 \
---max_steps 1142857 \
 --num_gpus 8 \
 --batches_per_step 2 \
 --amp_opt_level "O1" \
@@ -67,7 +67,9 @@ python -m torch.distributed.launch --nproc_per_node=8 bert_pretraining.py \
 --optimizer adam_w \
 --weight_decay 0.01 \
 --lr 0.875e-4 \
---preprocessed_data
+data_preprocessed \
+--max_predictions_per_seq 80 \
+--num_iters 1142857 
 
 350000 iterations on a DGX1 with 8 V100 32GB GPUs with AMP O1 optimization
 should finish under 5 days and yield an MRPC score of ACC/F1 85.05/89.35.
@@ -84,6 +86,7 @@ https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo
 import argparse
 import math
 import os
+import sys
 
 from transformers import BertConfig
 
@@ -96,55 +99,137 @@ from nemo.collections.nlp.data.datasets.lm_bert_dataset import BERTPretrainingDa
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description='BERT pretraining')
-parser.add_argument("--local_rank", default=None, type=int)
-parser.add_argument("--num_gpus", default=1, type=int)
-parser.add_argument("--num_epochs", default=10, type=int)
-parser.add_argument("--batch_size", default=64, type=int)
-parser.add_argument("--batches_per_step", default=1, type=int)
-parser.add_argument("--lr", default=0.01, type=float)
-parser.add_argument("--lr_policy", default=None, type=str)
-parser.add_argument("--lr_warmup_proportion", default=0.05, type=float)
-parser.add_argument("--optimizer", default="novograd", type=str)
-parser.add_argument("--beta1", default=0.95, type=float)
-parser.add_argument("--beta2", default=0.25, type=float)
-parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
-parser.add_argument("--weight_decay", default=0.0, type=float)
-parser.add_argument("--tokenizer", default="sentence-piece", type=str, choices=["sentence-piece", "nemo-bert"])
+parser.add_argument(
+    "--local_rank", default=None, type=int, help="Automatically set when using Multi-GPU with torch.distributed."
+)
+parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs to use.")
+parser.add_argument("--train_data", required=True, type=str, help="path to training dataset.")
+parser.add_argument("--config_file", default=None, type=str, help="The BERT model config")
+parser.add_argument("--eval_data", required=True, type=str, help="path to evaluation dataset.")
+parser.add_argument("--batch_size", default=64, type=int, help="Batch size per worker for each model pass.")
+parser.add_argument(
+    "--batches_per_step",
+    default=1,
+    type=int,
+    help="Number of gradient accumulation steps per iteration before parameters are updated.",
+)
+parser.add_argument("--lr", default=0.01, type=float, help="Initial learning rate.")
+parser.add_argument(
+    "--lr_policy",
+    default=None,
+    type=str,
+    choices=[
+        "WarmupHoldPolicy",
+        "SquareAnnealing",
+        "SquareRootAnnealing",
+        "CosineAnnealing",
+        "WarmupAnnealing",
+        "InverseSquareRootAnnealing",
+        "PolynomialDecayAnnealing",
+        "PolynomialHoldDecayAnnealing",
+    ],
+    help="Learning rate policy.",
+)
+parser.add_argument(
+    "--lr_warmup_proportion", default=0.05, type=float, help="Warm up proportion of total training iterations."
+)
+parser.add_argument(
+    "--optimizer",
+    default="novograd",
+    type=str,
+    choices=["novograd", "adam", "sgd", "adam_w", "fused_novograd", "fused_adam", "fused_lamb"],
+    help="Optimizer algorithm for training.",
+)
+parser.add_argument(
+    "--beta1",
+    default=0.95,
+    type=float,
+    help="Only needed for specific optimizers. Exponential decay rates for the 1st moment of optimizers, e.g. *adam*, *novograd*, *lamb*.",
+)
+parser.add_argument(
+    "--beta2",
+    default=0.25,
+    type=float,
+    help="Only needed for specific optimizers. Exponential decay rates for the 2nd moment of optimizers, e.g. *adam*, *novograd*, *lamb*.",
+)
+parser.add_argument(
+    "--amp_opt_level",
+    default="O0",
+    type=str,
+    choices=["O0", "O1", "O2"],
+    help="Automatic Mixed Precision optimization level. For further information visit https://nvidia.github.io/apex/amp.html.",
+)
+parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight decay parameter of the optimizer.")
 parser.add_argument("--max_seq_length", default=128, type=int)
-parser.add_argument("--sample_size", default=1e7, type=int)
-parser.add_argument("--mask_probability", default=0.15, type=float)
-parser.add_argument("--short_seq_prob", default=0.1, type=float)
 parser.add_argument("--vocab_size", default=3200, type=int)
 parser.add_argument("--hidden_size", default=768, type=int)
 parser.add_argument("--intermediate_size", default=3072, type=int)
-parser.add_argument("--num_hidden_layers", default=12, type=int)
 parser.add_argument("--num_attention_heads", default=12, type=int)
+parser.add_argument("--num_hidden_layers", default=12, type=int)
 parser.add_argument("--hidden_act", default="gelu", type=str)
-parser.add_argument(
-    "--max_predictions_per_seq",
-    default=20,
-    type=int,
-    help="maximum number of masked tokens to predict, needed when --preprocessed_data is specified",
-)
-parser.add_argument("--train_data", required=True, type=str, help="path to training dataset.")
-parser.add_argument("--eval_data", required=True, type=str, help="path to evaluation dataset.")
-parser.add_argument(
-    "--preprocessed_data", action="store_true", default=False, help="specify if using preprocessed data"
-)
 parser.add_argument("--gradient_predivide", action="store_true", default=False, help="use gradient predivide")
 parser.add_argument("--only_mlm_loss", action="store_true", default=False, help="use only masked language model loss")
 parser.add_argument(
-    "--max_steps", default=-1, type=int, help="if specified overrides --num_epochs. Used for preprocessed data",
+    "--load_dir",
+    default=None,
+    type=str,
+    help="Directory with weights and optimizer checkpoints. Used for resuming training.",
 )
-parser.add_argument("--dataset_name", default="wikitext-2", type=str)
-parser.add_argument("--load_dir", default=None, type=str)
-parser.add_argument("--bert_checkpoint", default=None, type=str, help="specify path to pretrained BERT weights")
-parser.add_argument("--work_dir", default="outputs/bert_lm", type=str)
-parser.add_argument("--save_epoch_freq", default=1, type=int)
-parser.add_argument("--save_step_freq", default=100, type=int)
-parser.add_argument("--train_step_freq", default=25, type=int)
-parser.add_argument("--eval_step_freq", default=25, type=int)
-parser.add_argument("--config_file", default=None, type=str, help="The BERT model config")
+parser.add_argument(
+    "--bert_checkpoint",
+    default=None,
+    type=str,
+    help="Path to BERT encoder weights file. Used for encoder initialization for finetuning.",
+)
+parser.add_argument(
+    "--work_dir", default="outputs/bert_lm", type=str, help="Output directory for checkpoints, logs etc."
+)
+parser.add_argument("--save_epoch_freq", default=1, type=int, help="Save checkpoints every given epoch.")
+parser.add_argument("--save_step_freq", default=100, type=int, help="Save checkpoints every given iteration.")
+parser.add_argument("--train_step_freq", default=25, type=int, help="Print training metrics every given iteration.")
+parser.add_argument("--eval_step_freq", default=25, type=int, help="Print evaluation metrics every given iteration.")
+sub_parsers = parser.add_subparsers()
+parser_text = sub_parsers.add_parser('data_text', help='Training starting with raw text data.')
+group = parser_text.add_mutually_exclusive_group()
+group.add_argument("--num_epochs", default=10, type=int, help="Number of training epochs.")
+group.add_argument("--num_iters", default=-1, type=int, help="Number of training steps.")
+parser_text.add_argument("--sample_size", default=1e7, type=int, help="Data sample size.")
+parser_text.add_argument(
+    "--mask_probability",
+    default=0.15,
+    type=float,
+    help="Probability of masking a token in the input text during data processing.",
+)
+parser_text.add_argument(
+    "--short_seq_prob",
+    default=0.1,
+    type=float,
+    help="Probability of having a sequence shorter than the maximum sequence length `max_seq_length` in data processing.",
+)
+parser_text.add_argument(
+    "--dataset_name", default="wikitext-2", choices=["wikitext-2"], type=str, help="Dataset name."
+)
+parser_text.add_argument(
+    "--tokenizer",
+    default="sentence-piece",
+    type=str,
+    choices=["sentence-piece"]
+    + [_.pretrained_model_name for _ in nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()],
+    help="Text tokenizer type.",
+)
+parser_preprocessed = sub_parsers.add_parser(
+    'data_preprocessed', help='Training starting with already preprocessed data.'
+)
+parser_preprocessed.add_argument(
+    "--max_predictions_per_seq",
+    default=20,
+    type=int,
+    help="Maximum number of masked tokens to predict. Need to match the number of masked tokens in the input data sets.",
+)
+parser_preprocessed.add_argument(
+    "--num_iters", default=100, type=int, help="Number of training steps.",
+)
+
 args = parser.parse_args()
 
 nf = nemo_core.NeuralModuleFactory(
@@ -167,8 +252,9 @@ if args.config_file is not None:
     args.hidden_act = config['hidden_act']
     args.max_seq_length = config['max_position_embeddings']
 
-if not args.preprocessed_data:
-    special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
+if 'data_text' in sys.argv:
+    special_tokens = nemo_nlp.data.get_bert_special_tokens('bert')
+
     data_desc = BERTPretrainingDataDesc(
         args.dataset_name,
         train_data=args.train_data,
@@ -182,12 +268,9 @@ if not args.preprocessed_data:
         tokenizer = nemo_nlp.data.SentencePieceTokenizer(
             model_path=data_desc.tokenizer_model, special_tokens=special_tokens
         )
-    elif args.tokenizer == "nemo-bert":
-        logging.info("To use NemoBertTokenizer.")
-        # To train on a Chinese dataset, use NemoBertTokenizer
-        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model="bert-base-uncased")
     else:
-        raise ValueError("Please add your tokenizer or use sentence-piece or nemo-bert.")
+        logging.info("Using Huggingface BERT tokenizer.")
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.tokenizer)
     args.vocab_size = tokenizer.vocab_size
 
 
@@ -273,7 +356,7 @@ def create_pipeline(data_file, batch_size, preprocessed_data=False, batches_per_
     return loss, mlm_loss, nsp_loss, steps_per_epoch
 
 
-if not args.preprocessed_data:
+if 'data_text' in sys.argv:
     train_loss, mlm_loss, nsp_loss, steps_per_epoch = create_pipeline(
         data_file=data_desc.train_file,
         preprocessed_data=False,
@@ -345,13 +428,13 @@ ckpt_eval = nemo.core.EvaluatorCallback(
 
 # define learning rate decay policy
 if args.lr_policy is not None:
-    if args.max_steps < 0:
+    if args.num_iters < 0:
         lr_policy_fn = get_lr_policy(
             args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
         )
     else:
         lr_policy_fn = get_lr_policy(
-            args.lr_policy, total_steps=args.max_steps, warmup_ratio=args.lr_warmup_proportion
+            args.lr_policy, total_steps=args.num_iters, warmup_ratio=args.lr_warmup_proportion
         )
 else:
     lr_policy_fn = None
@@ -362,16 +445,15 @@ if not os.path.exists(config_path):
 
 # define and launch training algorithm (optimizer)
 optimization_params = {
-    "batch_size": args.batch_size,
     "lr": args.lr,
     "betas": (args.beta1, args.beta2),
     "weight_decay": args.weight_decay,
 }
 
-if args.max_steps < 0:
+if args.num_iters < 0:
     optimization_params['num_epochs'] = args.num_epochs
 else:
-    optimization_params['max_steps'] = args.max_steps
+    optimization_params['max_steps'] = args.num_iters
 nf.train(
     tensors_to_optimize=[train_loss],
     lr_policy=lr_policy_fn,

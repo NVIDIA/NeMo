@@ -14,4 +14,4 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm import *
+from nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm import *

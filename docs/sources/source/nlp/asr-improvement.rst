@@ -34,16 +34,16 @@ Importing parameters from pretrained BERT
 Both encoder and decoder are initialized with pretrained BERT parameters.
 Since BERT language model has the same architecture as transformer encoder, there is no need to do anything additional.
 To prepare decoder parameters from pretrained BERT we wrote a script ``get_decoder_params_from_bert.py`` that downloads BERT
-parameters from the ``pytorch-transformers`` repository :cite:`asr-imps-huggingface2019transformers` and maps them into a transformer decoder.
+parameters from the ``transformers`` repository :cite:`asr-imps-huggingface2019transformers` and maps them into a transformer decoder.
 Encoder-decoder attention is initialized with self-attention parameters.
-The script is located under ``examples/nlp/scripts`` directory and accepts 2 arguments:
+The script is located under ``examples/nlp/asr_postprocessor/get_decoder_params_from_bert.py`` directory and accepts 2 arguments:
 
 * ``--model_name``: e.g. ``bert-base-cased``, ``bert-base-uncased``, etc.
 * ``--save_to``: a directory where the parameters will be saved
 
     .. code-block:: bash
 
-        $ python get_decoder_params_from_bert.py --model_name bert-base-uncased
+        $ python get_decoder_params_from_bert.py --model_name bert-base-uncased --save_to results_dir
 
 
 Neural modules overview
@@ -135,7 +135,7 @@ We trained on 8 GPUS. To launch the training in multi-gpu mode run the following
 References
 ------------------
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: ASR-IMPROVEMENTS
     :keyprefix: asr-imps-    
