@@ -927,8 +927,8 @@ class PtActions(Actions):
         if destination.exists():
             raise FileExistsError(f"Destination {output} already exists. " f"Aborting export.")
 
-        input_names = list(module.input_ports.keys())
-        output_names = list(module.output_ports.keys())
+        input_names = module.input_ports.keys()
+        output_names = module.output_ports.keys()
         dynamic_axes = defaultdict(list)
 
         def __extract_dynamic_axes(port_name: str, ntype: NeuralType, dynamic_axes: defaultdict):
@@ -947,6 +947,8 @@ class PtActions(Actions):
             )
             inputs_to_drop.add("length")
             outputs_to_drop.add("encoded_lengths")
+            output_names = output_names - outputs_to_drop
+            input_names = input_names - inputs_to_drop
 
         # for input_ports
         for port_name, ntype in module.input_ports.items():
@@ -1005,9 +1007,9 @@ class PtActions(Actions):
                     jitted_model,
                     input_example,
                     output,
-                    input_names=input_names,
-                    output_names=output_names,
-                    verbose=False,
+                    input_names=list(input_names),
+                    output_names=list(output_names),
+                    verbose=True,
                     export_params=True,
                     do_constant_folding=True,
                     dynamic_axes=dynamic_axes,
