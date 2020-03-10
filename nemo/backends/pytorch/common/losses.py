@@ -109,7 +109,6 @@ class CrossEntropyLossNM(LossNM):
     Args:
         logits_dim (int): dimension size of the logits tensor
         weight (list): list of rescaling weight given to each class
-        reduce (bool): controls if reduction would be done over the batch
         reduction (str): type of the reduction over the batch
     """
 
