@@ -30,10 +30,10 @@ class TestAppState(TestCase):
     def test_shared_graph(self):
         # Create first instance of AppState.
         x = AppState()
-        x.active_graph = "ala"
+        x.test_value = "ala"
         # Create second instance of AppState and test value.
         y = AppState()
-        self.assertEqual(y.active_graph, "ala")
+        self.assertEqual(y.test_value, "ala")
         # Change second instance and test first one.
-        y.active_graph = "ola"
-        self.assertEqual(x.active_graph, "ola")
+        y.test_value = "ola"
+        self.assertEqual(x.test_value, "ola")
