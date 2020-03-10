@@ -17,6 +17,7 @@
 # =============================================================================
 
 from nemo.utils.nemo_logging import Logger as _Logger
+from nemo.utils.nemo_logging import LogMode as logging_mode
 
 logging = _Logger()
 

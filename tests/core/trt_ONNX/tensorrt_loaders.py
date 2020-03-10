@@ -17,8 +17,6 @@
 # limitations under the License.
 # =============================================================================
 
-import os
-import sys
 import time
 import warnings
 from collections import OrderedDict
@@ -27,7 +25,6 @@ import numpy as np
 import onnx
 import tensorrt as trt
 
-from .logger import G_LOGGER, LogMode
 from .tensorrt_format import FormatManager
 from .tensorrt_runner import (
     DEFAULT_SHAPE_VALUE,
@@ -42,10 +39,11 @@ from .tensorrt_runner import (
     send_on_queue,
     write_timestamped,
 )
+from nemo import logging, logging_mode
 
 
 def set_onnx_logging_level(sev):
-    if sev >= G_LOGGER.INFO:
+    if sev >= logging.INFO:
         warnings.filterwarnings("ignore")
 
 
@@ -94,7 +92,7 @@ class DefaultDataLoader(BaseDataLoader):
         self.float_max = default_value(float_max, 1.0)
 
     def __call__(self, index, input_metadata, input_example=None):
-        G_LOGGER.debug("Updating seed to: {:}".format(self.seed + index))
+        logging.debug("Updating seed to: {:}".format(self.seed + index))
         rng = np.random.RandomState(self.seed + index)
 
         buffers = OrderedDict()
@@ -109,19 +107,20 @@ class DefaultDataLoader(BaseDataLoader):
                     static_shape = [self.default_shape_value if is_dimension_dynamic(elem) else elem for elem in shape]
                 if static_shape != shape:
                     if not is_valid_shape_override(static_shape, shape):
-                        G_LOGGER.critical(
+                        logging.critical(
                             "Cannot override original shape: {:}, for input: {:} to {:}".format(
                                 shape, name, static_shape
                             )
                         )
-                    G_LOGGER.warning(
+                    logging.warning(
                         "Input: {:}: Adjusted dynamic shape: {:} to: {:}".format(name, shape, static_shape),
-                        mode=LogMode.ONCE,
+                        mode=logging_mode.ONCE,
                     )
             else:
                 if name in self.default_shapes:
-                    G_LOGGER.warning(
-                        "Will not override static shape: {:}, for input: {:}".format(shape, name), mode=LogMode.ONCE
+                    logging.warning(
+                        "Will not override static shape: {:}, for input: {:}".format(shape, name),
+                        mode=logging_mode.ONCE,
                     )
                 static_shape = shape
 
@@ -150,8 +149,9 @@ class DefaultDataLoader(BaseDataLoader):
             )
             if is_shape_tensor:
                 buffers[name] = np.array(self.default_shapes[name], dtype=dtype)
-                G_LOGGER.warning(
-                    "Assuming {:} is a shape tensor. Setting to: {:}".format(name, buffers[name]), mode=LogMode.ONCE
+                logging.warning(
+                    "Assuming {:} is a shape tensor. Setting to: {:}".format(name, buffers[name]),
+                    mode=logging_mode.ONCE,
                 )
             i = i + 1
 
@@ -173,29 +173,29 @@ class DataLoaderCache(object):
             input_metadata (OrderedDict[str, Tuple[np.dtype, Tuple[int]]]): Input Metadata, including shape and type information. The loader may attempt to match input_metadata when data in the cache does not exactly match a new set of input_metadata.
         """
         if iteration not in self.cache:
-            G_LOGGER.debug("Iteration {:} not found in cache, generating new buffers for all inputs".format(iteration))
+            logging.debug("Iteration {:} not found in cache, generating new buffers for all inputs".format(iteration))
             self.cache[iteration] = self.data_loader(iteration, input_metadata, input_example)
             if self.cache[iteration] is None:
-                G_LOGGER.critical(
+                logging.critical(
                     "Received no data from data_loader(iteration, input_metadata) for input_metadata: {:}".format(
                         input_metadata
                     )
                 )
         else:
-            G_LOGGER.verbose("Found iteration {:} in cache".format(iteration))
+            logging.info("Found iteration {:} in cache".format(iteration))
 
         feed_dict = OrderedDict()
         for index, (name, (dtype, shape)) in enumerate(input_metadata.items()):
             cached_name = find_in_dict(name, self.cache[iteration], index)
             if cached_name is None:
-                G_LOGGER.warning("Could not find input: {:} in cache, regenerating buffers".format(name))
+                logging.warning("Could not find input: {:} in cache, regenerating buffers".format(name))
                 self.cache[iteration] = self.data_loader(iteration, input_metadata, input_example)
                 cached_name = name
 
             buffer = self.cache[iteration][cached_name]
 
             if dtype != buffer.dtype:
-                G_LOGGER.warning(
+                logging.warning(
                     "Cached buffer data type does not match data type for input: {:}. Note: Cached type: {:}, input type: {:}. Attempting to cast".format(
                         name, buffer.dtype, dtype
                     )
@@ -203,7 +203,7 @@ class DataLoaderCache(object):
                 buffer = buffer.astype(dtype)
 
             if not is_valid_shape_override(buffer.shape, shape):
-                G_LOGGER.warning(
+                logging.warning(
                     "Cached buffer shape does not match shape for input. Note: Cached shape: {:}, input shape: {:}.".format(
                         buffer.shape, shape
                     )
@@ -214,7 +214,7 @@ class DataLoaderCache(object):
                         FormatManager.deduce_format(buffer.shape), FormatManager.deduce_format(shape)
                     )
                     new_shape = FormatManager.convert(tuple(buffer.shape), FormatManager.deduce_format(shape))
-                    G_LOGGER.warning(
+                    logging.warning(
                         "Attempting to permute shape: {:} using permutation {:}. New shape: {:}".format(
                             buffer.shape, perm, new_shape
                         )
@@ -222,10 +222,10 @@ class DataLoaderCache(object):
                     buffer = np.transpose(buffer, perm)
                 except NotImplementedError as err:
                     # If the FormatManager does not recognize the format, skip permutation.
-                    G_LOGGER.verbose("Skipping permutation due to {:}".format(err))
+                    logging.info("Skipping permutation due to {:}".format(err))
                 except KeyError as err:
                     # If the FormatManager cannot generate the permutation for the format combination, skip permutation.
-                    G_LOGGER.verbose("Skipping permutation due to {:}".format(err))
+                    logging.info("Skipping permutation due to {:}".format(err))
 
             feed_dict[name] = buffer
         return feed_dict
@@ -250,9 +250,9 @@ class BaseOnnxModelLoader(BaseModelLoader):
     def check(self, model):
         try:
             onnx.checker.check_model(model)
-            G_LOGGER.debug("ONNX Checker Passed")
+            logging.debug("ONNX Checker Passed")
         except onnx.checker.ValidationError as err:
-            G_LOGGER.warning("ONNX Checker exited with an error: {:}".format(err))
+            logging.warning("ONNX Checker exited with an error: {:}".format(err))
         return model
 
 
@@ -268,7 +268,7 @@ class OnnxFileLoader(BaseOnnxModelLoader):
         self.path = path
 
     def __call__(self):
-        G_LOGGER.info("Loading {:}".format(self.path))
+        logging.info("Loading {:}".format(self.path))
         return self.check(onnx.load(self.path))
 
     def __str__(self):
@@ -299,8 +299,8 @@ class OnnxNetworkLoader(BaseModelLoader):
         success = parser.parse(self.onnx_loader().SerializeToString())
         if not success:
             for index in range(parser.num_errors):
-                G_LOGGER.error(parser.get_error(index))
-            G_LOGGER.critical("Could not parse ONNX correctly")
+                logging.error(parser.get_error(index))
+            logging.critical("Could not parse ONNX correctly")
 
         return network, parser
 
@@ -363,13 +363,13 @@ class BuildEngineLoader(BaseModelLoader):
 
         with trt.Builder(TRT_LOGGER) as builder, network, parser:
             if self.preprocess_network:
-                G_LOGGER.debug("Applying network preprocessing: {:}".format(self.preprocess_network))
+                logging.debug("Applying network preprocessing: {:}".format(self.preprocess_network))
                 self.preprocess_network(network)
 
             if self.layerwise:
                 TensorRTRunnerV2.mark_layerwise(network)
 
-            if G_LOGGER.severity <= G_LOGGER.DEBUG:
+            if logging.getEffectiveLevel() <= logging.DEBUG:
                 TensorRTRunnerV2.log_network(network)
 
             config = builder.create_builder_config()
@@ -383,14 +383,14 @@ class BuildEngineLoader(BaseModelLoader):
                 config.flags = config.flags | 1 << int(trt.BuilderFlag.INT8)
                 if not network.has_explicit_precision:
                     if not self.calibrator:
-                        G_LOGGER.critical(
+                        logging.critical(
                             "Network does not have explicit precision. A calibrator must be provided in order to use int8 mode."
                         )
                     self.calibrator.set_input_metadata(get_input_metadata_from_profile(profile, network))
                     config.int8_calibrator = self.calibrator
 
-            G_LOGGER.debug("Using builder configuration flags: {:}".format(config.flags))
-            G_LOGGER.info(
+            logging.debug("Using builder configuration flags: {:}".format(config.flags))
+            logging.info(
                 "Building engine: max workspace size={:} bytes, fp16={:}, int8={:}, layerwise={:}".format(
                     self.max_workspace_size, self.fp16_mode, self.int8_mode, self.layerwise
                 )

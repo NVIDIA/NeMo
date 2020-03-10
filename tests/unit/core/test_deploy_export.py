@@ -47,7 +47,7 @@ import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
-from tests.core.trt_ONNX.logger import G_LOGGER, LogMode
+from nemo import logging
 from tests.core.trt_ONNX.tensorrt_loaders import (
     BaseDataLoader,
     BuildEngineLoader,
@@ -116,8 +116,8 @@ class TestDeployExport(TestCase):
             with TensorRTRunnerV2(model_loader=model_loader) as active_runner:
                 input_metadata = active_runner.get_input_metadata()
                 if input_metadata is None:
-                    G_LOGGER.critical("For {:}, get_input_metadata() returned None!".format(active_runner.name))
-                G_LOGGER.debug("Runner Inputs: {:}".format(input_metadata))
+                    logging.critical("For {:}, get_input_metadata() returned None!".format(active_runner.name))
+                logging.debug("Runner Inputs: {:}".format(input_metadata))
                 feed_dict = loader_cache.load(iteration=0, input_metadata=input_metadata, input_example=input_example)
                 inputs = dict()
                 input_names = list(module.input_ports)
@@ -140,12 +140,12 @@ class TestDeployExport(TestCase):
 
                 outputs = []
                 outputs.append(copy.deepcopy(out_dict))
-                G_LOGGER.debug(
+                logging.debug(
                     "Received outputs: {:}".format(
                         ["{:}: {:}".format(name, out.shape) for name, out in out_dict.items()]
                     )
                 )
-                G_LOGGER.verbose("Output Buffers: {:}".format(outputs))
+                logging.info("Output Buffers: {:}".format(outputs))
 
             inpex = []
             for ie in feed_dict.values():  # loader_cache.cache[0].values():

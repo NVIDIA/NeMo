@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.****
 
+import enum
 import logging as _logging
 import sys
 import threading
@@ -24,9 +25,12 @@ from nemo.utils.env_var_parsing import get_envbool, get_envint
 from nemo.utils.formatters.base import BaseNeMoFormatter
 from nemo.utils.metaclasses import SingletonMetaClass
 
-__all__ = [
-    "Logger",
-]
+__all__ = ["Logger", "LogMode"]
+
+
+class LogMode(enum.IntEnum):
+    EACH = 0  # Log the message each time
+    ONCE = 1  # Log the message only once. The same message will not be logged again.
 
 
 class Logger(metaclass=SingletonMetaClass):
@@ -70,6 +74,8 @@ class Logger(metaclass=SingletonMetaClass):
         self.old_warnings_showwarning = None
 
         self._define_logger()
+
+        self.once_logged = set()
 
     def _define_logger(self):
 
@@ -248,7 +254,15 @@ class Logger(metaclass=SingletonMetaClass):
         s = warnings.formatwarning(message, category, filename, lineno, line)
         self.warning("%s", s)
 
-    def debug(self, msg, *args, **kwargs):
+    def _log(self, level, msg, mode, *args, **kwargs):
+        PREFIX_LEN = 12
+        if mode == LogMode.ONCE:
+            if msg[PREFIX_LEN:] in self.once_logged:
+                return
+            self.once_logged.add(msg[PREFIX_LEN:])
+        self._logger._log(level, msg, args, **kwargs)
+
+    def debug(self, msg, mode=LogMode.EACH, *args, **kwargs):
         """
         Log 'msg % args' with severity 'DEBUG'.
 
@@ -258,9 +272,9 @@ class Logger(metaclass=SingletonMetaClass):
         logger.debug("Houston, we have a %s", "thorny problem", exc_info=1)
         """
         if self._logger is not None and self._logger.isEnabledFor(Logger.DEBUG):
-            self._logger._log(Logger.DEBUG, msg, args, **kwargs)
+            self._log(Logger.DEBUG, msg, mode, args, **kwargs)
 
-    def info(self, msg, *args, **kwargs):
+    def info(self, msg, mode=LogMode.EACH, *args, **kwargs):
         """
         Log 'msg % args' with severity 'INFO'.
 
@@ -270,9 +284,9 @@ class Logger(metaclass=SingletonMetaClass):
         logger.info("Houston, we have a %s", "interesting problem", exc_info=1)
         """
         if self._logger is not None and self._logger.isEnabledFor(Logger.INFO):
-            self._logger._log(Logger.INFO, msg, args, **kwargs)
+            self._log(Logger.INFO, msg, mode, args, **kwargs)
 
-    def warning(self, msg, *args, **kwargs):
+    def warning(self, msg, mode=LogMode.EACH, *args, **kwargs):
         """
         Log 'msg % args' with severity 'WARNING'.
 
@@ -282,9 +296,9 @@ class Logger(metaclass=SingletonMetaClass):
         logger.warning("Houston, we have a %s", "bit of a problem", exc_info=1)
         """
         if self._logger is not None and self._logger.isEnabledFor(Logger.WARNING):
-            self._logger._log(Logger.WARNING, msg, args, **kwargs)
+            self._log(Logger.WARNING, msg, mode, args, **kwargs)
 
-    def error(self, msg, *args, **kwargs):
+    def error(self, msg, mode=LogMode.EACH, *args, **kwargs):
         """
         Log 'msg % args' with severity 'ERROR'.
 
@@ -294,9 +308,9 @@ class Logger(metaclass=SingletonMetaClass):
         logger.error("Houston, we have a %s", "major problem", exc_info=1)
         """
         if self._logger is not None and self._logger.isEnabledFor(Logger.ERROR):
-            self._logger._log(Logger.ERROR, msg, args, **kwargs)
+            self._log(Logger.ERROR, msg, mode, args, **kwargs)
 
-    def critical(self, msg, *args, **kwargs):
+    def critical(self, msg, mode=LogMode.EACH, *args, **kwargs):
         """
         Log 'msg % args' with severity 'CRITICAL'.
 
@@ -306,7 +320,7 @@ class Logger(metaclass=SingletonMetaClass):
         logger.critical("Houston, we have a %s", "major disaster", exc_info=1)
         """
         if self._logger is not None and self._logger.isEnabledFor(Logger.CRITICAL):
-            self._logger._log(Logger.CRITICAL, msg, args, **kwargs)
+            self._log(Logger.CRITICAL, msg, mode, args, **kwargs)
 
 
 # # Necessary to catch the correct caller
