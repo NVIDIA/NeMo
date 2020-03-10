@@ -59,9 +59,13 @@ class BertTextClassificationDataset(Dataset):
 
         if use_cache:
             data_dir, filename = os.path.split(input_file)
+            vocab_size = getattr(tokenizer, "vocab_size", 0)
             tokenizer_type = type(tokenizer.tokenizer).__name__
             cached_features_file = os.path.join(
-                data_dir, "cached_{}_{}_{}".format(filename[:-4], tokenizer_type, str(max_seq_length), '.hdf5')
+                data_dir,
+                "cached_{}_{}_{}_{}".format(
+                    filename[:-4], tokenizer_type, str(max_seq_length), str(vocab_size), '.hdf5'
+                ),
             )
 
         if use_cache and os.path.exists(cached_features_file):
