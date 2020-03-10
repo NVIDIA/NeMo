@@ -210,7 +210,7 @@ class TestDeployExport(TestCase):
             for i in range(len(input_names)):
                 input_name = input_names[i]
                 if input_name in module.disabled_deployment_input_ports:
-                    input_name = ort_inputs[i].name
+                    continue
                 inputs[input_name] = (
                     input_example[input_name].cpu().numpy()
                     if isinstance(input_example, OrderedDict)
@@ -323,9 +323,7 @@ class TestDeployExport(TestCase):
         )
 
         self.__test_export_route_all(
-            module=jasper_encoder,
-            out_name="jasper_encoder",
-            input_example=(torch.randn(16, 64, 256).cuda(), torch.randn(256).cuda()),
+            module=jasper_encoder, out_name="jasper_encoder", input_example=torch.randn(16, 64, 256).cuda(),
         )
 
     @pytest.mark.unit
@@ -343,7 +341,5 @@ class TestDeployExport(TestCase):
         )
 
         self.__test_export_route_all(
-            module=jasper_encoder,
-            out_name="quartz_encoder",
-            input_example=(torch.randn(16, 64, 256).cuda(), torch.randint(20, (16,)).cuda()),
+            module=jasper_encoder, out_name="quartz_encoder", input_example=torch.randn(16, 64, 256).cuda(),
         )
