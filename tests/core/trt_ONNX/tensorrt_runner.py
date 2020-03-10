@@ -29,26 +29,24 @@ import numpy as np
 import pycuda.driver as cuda
 import tensorrt as trt
 
-from .logger import G_LOGGER, LogMode
+from nemo import logging, logging_mode
 
-G_LOGGER.info("Using TensorRT {:}".format(trt.__version__))
-G_LOGGER.debug("Note: Using tensorrt from {:}".format(trt.__path__))
+logging.info("Using TensorRT {:}".format(trt.__version__))
+logging.debug("Note: Using tensorrt from {:}".format(trt.__path__))
 
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 
 
 def set_trt_logging_level(sev):
     global TRT_LOGGER
-    if sev == G_LOGGER.VERBOSE:
-        G_LOGGER.min_severity = trt.Logger.VERBOSE
-    elif sev == G_LOGGER.DEBUG:
-        G_LOGGER.min_severity = trt.Logger.INFO
-    elif sev == G_LOGGER.WARNING:
-        G_LOGGER.min_severity = trt.Logger.WARNING
-    elif sev == G_LOGGER.ERROR:
-        G_LOGGER.min_severity = trt.Logger.ERROR
-    elif sev == G_LOGGER.CRITICAL:
-        G_LOGGER.min_severity = trt.Logger.INTERNAL_ERROR
+    if sev == logging.DEBUG:
+        logging.min_severity = trt.Logger.INFO
+    elif sev == logging.WARNING:
+        logging.min_severity = trt.Logger.WARNING
+    elif sev == logging.ERROR:
+        logging.min_severity = trt.Logger.ERROR
+    elif sev == logging.CRITICAL:
+        logging.min_severity = trt.Logger.INTERNAL_ERROR
 
 
 TRT_DYNAMIC_DIM = -1
@@ -131,12 +129,12 @@ PIPE_MAX_SEND_BYTES = 1 << 31
 # Attempts to send an object over the queue, compresses if needed. In the event the object cannot be sent, sends None instead.
 def send_on_queue(queue, obj):
     if not is_pickleable(obj):
-        G_LOGGER.warning("Cannot pickle: {:}. Sending None instead".format(obj))
+        logging.warning("Cannot pickle: {:}. Sending None instead".format(obj))
         queue.put(None)
         return
 
     if sys.getsizeof(obj) > PIPE_MAX_SEND_BYTES:
-        G_LOGGER.warning(
+        logging.warning(
             "Object size ({:} bytes) exceeds maximum size that can be sent over queues ({:} bytes). Attempting to compress - this may take some time. If this does not work or you want to avoid the compression overhead, you should disable subprocesses via the --no-subprocess flag, or by setting use_subprocess=False in Comparator.run().".format(
                 sys.getsizeof(obj), PIPE_MAX_SEND_BYTES
             )
@@ -144,21 +142,21 @@ def send_on_queue(queue, obj):
         obj = compress(obj)
 
     if sys.getsizeof(obj) > PIPE_MAX_SEND_BYTES:
-        G_LOGGER.warning("Compressed object is still too large to send. Sending None instead.")
+        logging.warning("Compressed object is still too large to send. Sending None instead.")
         queue.put(None)
         return
 
-    G_LOGGER.verbose("Sending: {:} on queue".format(obj))
+    logging.info("Sending: {:} on queue".format(obj))
     queue.put(obj)
 
 
 def receive_on_queue(queue, timeout=None):
-    G_LOGGER.verbose("Waiting for data to become available on queue")
+    logging.info("Waiting for data to become available on queue")
     obj = queue.get(block=True, timeout=timeout)
     if is_compressed(obj):
-        G_LOGGER.debug("Decompressing output")
+        logging.debug("Decompressing output")
         obj = decompress(obj)
-    G_LOGGER.verbose("Received {:} on queue".format(obj))
+    logging.info("Received {:} on queue".format(obj))
     return obj
 
 
@@ -184,7 +182,7 @@ def write_timestamped(contents, dir=None, name=None, mode="wb"):
     """
     if dir is not None:
         if not os.path.exists(dir):
-            # G_LOGGER.debug("{:} does not exist, creating now.".format(dir))
+            # logging.debug("{:} does not exist, creating now.".format(dir))
             os.makedirs(dir, exist_ok=True)
 
         path = timestamped_filepath(dir, name)
@@ -193,10 +191,10 @@ def write_timestamped(contents, dir=None, name=None, mode="wb"):
             contents = contents()
 
         if os.path.exists(path):
-            G_LOGGER.warning("{:} already exists. Will not overwrite.".format(path))
+            logging.warning("{:} already exists. Will not overwrite.".format(path))
         else:
             with open(path, mode) as f:
-                G_LOGGER.info("Writing to {:}".format(path))
+                logging.info("Writing to {:}".format(path))
                 f.write(contents)
             return path
     return None
@@ -211,7 +209,7 @@ def get_input_metadata_from_profile(profile, network):
         else:
             shapes = profile.get_shape(tensor.name)
         if tuple(shapes[0]) != tuple(shapes[1]):
-            G_LOGGER.warning("In profile 0, min != max, using opt shapes for calibration")
+            logging.warning("In profile 0, min != max, using opt shapes for calibration")
         # Always use opt shape
         input_metadata[tensor.name] = (trt.nptype(tensor.dtype), shapes[1])
     return input_metadata
@@ -297,9 +295,9 @@ class Buffers(object):
                 buf_dict[name].resize(shape)
 
         if not found:
-            G_LOGGER.warning("Buffer: {:} was not found, could not resize".format(name))
+            logging.warning("Buffer: {:} was not found, could not resize".format(name))
         else:
-            G_LOGGER.debug("Resizing {:} buffer to {:}".format(name, shape))
+            logging.debug("Resizing {:} buffer to {:}".format(name, shape))
 
     def copy_inputs(self, feed_dict, stream=None):
         for name, buffer in feed_dict.items():
@@ -376,7 +374,7 @@ class BaseRunner(object):
     #         float: The time in seconds
     #     """
     #     if self.inference_time is None:
-    #         G_LOGGER.warning("inference_time was not set for this runner. Inference time will be incorrect! To correctly compare runtimes, please set the inference_time property in the infer() function", mode=LogMode.ONCE)
+    #         logging.warning("inference_time was not set for this runner. Inference time will be incorrect! To correctly compare runtimes, please set the inference_time property in the infer() function", mode=LogMode.ONCE)
     #         return 1
     #     return self.inference_time
 
@@ -409,14 +407,14 @@ class TensorRTRunnerV2(BaseRunner):
             plugins (List[str]): A list of paths to plugin libraries to load before inference.
             name (str): The human-readable name to use for this runner.
         """
-        set_trt_logging_level(G_LOGGER.severity)
+        set_trt_logging_level(logging.getEffectiveLevel())
 
         def load_plugins():
             import ctypes
 
             for plugin in plugins:
                 path = os.path.abspath(plugin)
-                G_LOGGER.info("Loading plugin library: {:}".format(path))
+                logging.info("Loading plugin library: {:}".format(path))
                 ctypes.CDLL(path)
 
         # Load any user-supplied plugin libraries. This must happen before everything else, including engine deserialization.
@@ -426,13 +424,13 @@ class TensorRTRunnerV2(BaseRunner):
         # Choose a unique name for this runner.
         super().__init__(default_value(name, "trt-v2-runner-{:}".format(TensorRTRunnerV2.total_runners)))
         TensorRTRunnerV2.total_runners += 1
-        G_LOGGER.debug("Creating {:}".format(self.name))
+        logging.debug("Creating {:}".format(self.name))
 
         self.model_loader = model_loader
 
         self.engine = self.model_loader()
         if not self.engine:
-            G_LOGGER.critical("Invalid Engine. Please ensure the engine was built correctly.")
+            logging.critical("Invalid Engine. Please ensure the engine was built correctly.")
 
         self.buffers = Buffers.from_engine(self.engine)
         self.stream = cuda.Stream()
@@ -456,7 +454,7 @@ class TensorRTRunnerV2(BaseRunner):
         inputs = OrderedDict()
         active_profile = self.context.active_optimization_profile
         bindings_per_profile = len(self.engine) // self.engine.num_optimization_profiles
-        G_LOGGER.debug(
+        logging.debug(
             "Total # of Profiles: {:}, Bindings Per Profile: {:}, Active Profile: {:}".format(
                 self.engine.num_optimization_profiles, bindings_per_profile, active_profile
             )
@@ -464,7 +462,7 @@ class TensorRTRunnerV2(BaseRunner):
 
         start_binding = bindings_per_profile * active_profile
         end_binding = start_binding + bindings_per_profile
-        G_LOGGER.verbose("Start Binding: {:}, End Binding: {:}".format(start_binding, end_binding))
+        logging.info("Start Binding: {:}, End Binding: {:}".format(start_binding, end_binding))
 
         for binding in range(start_binding, end_binding):
             if self.engine.binding_is_input(binding):
@@ -497,19 +495,19 @@ class TensorRTRunnerV2(BaseRunner):
             for i in range(len(in_out)):
                 shape = in_out[i].shape
                 if self.engine.is_shape_binding(binding) and is_shape_dynamic(self.context.get_shape(binding)):
-                    G_LOGGER.debug("Setting shape binding: {:} (index: {:}) to: {:}".format(name, binding, in_out[i]))
+                    logging.debug("Setting shape binding: {:} (index: {:}) to: {:}".format(name, binding, in_out[i]))
                     self.context.set_shape_input(binding, in_out[i])
                 elif is_shape_dynamic(self.context.get_binding_shape(binding)):
-                    G_LOGGER.debug("Setting binding: {:} (index: {:}) to shape: {:}".format(name, binding, shape))
+                    logging.debug("Setting binding: {:} (index: {:}) to shape: {:}".format(name, binding, shape))
                     self.context.set_binding_shape(binding, shape)
 
         # Check
         if not self.context.all_binding_shapes_specified:
-            G_LOGGER.critical(
+            logging.critical(
                 "Some input shapes were not specified.\nNote: Inputs are: {:}".format(self.get_input_metadata())
             )
         if not self.context.all_shape_inputs_specified:
-            G_LOGGER.critical(
+            logging.critical(
                 "Some shape inputs were not specified.\nNote: Inputs are: {:}".format(self.get_input_metadata())
             )
 
@@ -545,7 +543,7 @@ class TensorRTRunnerV2(BaseRunner):
                 network_flags = network_flags | (1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_PRECISION))
             network = builder.create_network(flags=network_flags)
             if network is None:
-                G_LOGGER.critical("Invalid network")
+                logging.critical("Invalid network")
             return network
 
     @staticmethod
@@ -605,7 +603,7 @@ class TensorRTRunnerV2(BaseRunner):
                     return attr not in ["shape", "start", "stride"]
             return True
 
-        G_LOGGER.debug("Network Inputs: {:}".format(TensorRTRunnerV2.get_network_inputs(network)))
+        logging.debug("Network Inputs: {:}".format(TensorRTRunnerV2.get_network_inputs(network)))
         for layer in network:
             if layer.type in LAYER_TYPE_CLASS_MAPPING:
                 layer.__class__ = LAYER_TYPE_CLASS_MAPPING[layer.type]
@@ -619,8 +617,8 @@ class TensorRTRunnerV2(BaseRunner):
                 for i in range(layer.num_outputs)
                 if layer.get_output(i)
             ]
-            G_LOGGER.verbose("{:} [Op: {:}]".format(layer.name, layer.type))
-            G_LOGGER.verbose("\t{:} -> {:}".format(input_info, output_info))
+            logging.info("{:} [Op: {:}]".format(layer.name, layer.type))
+            logging.info("\t{:} -> {:}".format(input_info, output_info))
             attrs = dir(layer)
             for attr in attrs:
                 # Exclude special attributes, as well as any attributes of the base layer class (those can be displayed above).
@@ -629,10 +627,10 @@ class TensorRTRunnerV2(BaseRunner):
                     and not hasattr(trt.ILayer, attr)
                     and is_valid_attribute(attr, layer)
                 ):
-                    G_LOGGER.verbose("\t{:}.{:} = {:}".format(layer.name, attr, getattr(layer, attr)))
+                    logging.info("\t{:}.{:} = {:}".format(layer.name, attr, getattr(layer, attr)))
 
         network_outputs = {network.get_output(i).name: network.get_output(i).shape for i in range(network.num_outputs)}
-        G_LOGGER.debug("Network Outputs: {:}".format(network_outputs))
+        logging.debug("Network Outputs: {:}".format(network_outputs))
 
     @staticmethod
     def mark_layerwise(network):
@@ -650,10 +648,10 @@ class TensorRTRunnerV2(BaseRunner):
             for index in range(layer.num_outputs):
                 out = layer.get_output(index)
                 if not out.is_network_output and not in_loop:
-                    G_LOGGER.debug("Marking {:} as an output".format(out.name))
+                    logging.debug("Marking {:} as an output".format(out.name))
                     network.mark_output(out)
                     num_layers_marked += 1
-        G_LOGGER.debug("Running in layerwise mode. Marking {:} layers as outputs".format(num_layers_marked))
+        logging.debug("Running in layerwise mode. Marking {:} layers as outputs".format(num_layers_marked))
 
     @staticmethod
     def build_profile(builder, network, profile_shapes, default_shape_value=DEFAULT_SHAPE_VALUE):
@@ -665,7 +663,7 @@ class TensorRTRunnerV2(BaseRunner):
                 return None
             shapes = profile_shapes[name]
             if not isinstance(shapes, list) or len(shapes) != 3:
-                G_LOGGER.critical(
+                logging.critical(
                     "Profile values must be a list containing exactly 3 shapes (tuples or Dims), but received shapes: {:} for input: {:}.\nNote: profile was: {:}.\nNote: Network inputs were: {:}".format(
                         shapes, name, profile_shapes, TensorRTRunnerV2.get_network_inputs(network)
                     )
@@ -681,37 +679,37 @@ class TensorRTRunnerV2(BaseRunner):
                 if not shapes:
                     rank = inp.shape[0]
                     shapes = [(DEFAULT_SHAPE_VALUE,) * rank] * 3
-                    G_LOGGER.warning(
+                    logging.warning(
                         "Setting shape input to {:}. If this is incorrect, for shape input: {:}, please provide tuples for min, opt, and max shapes containing {:} elements".format(
                             shapes[0], inp.name, rank
                         ),
-                        mode=LogMode.ONCE,
+                        mode=logging_mode.ONCE,
                     )
                 min, opt, max = shapes
                 profile.set_shape(inp.name, min, opt, max)
                 inp.shape = opt
-                G_LOGGER.verbose(
+                logging.info(
                     "Setting shape input: {:} values to min: {:}, opt: {:}, max: {:}".format(inp.name, min, opt, max)
                 )
             else:
                 shapes = get_profile_shape(inp.name)
                 if not shapes:
                     shapes = [override_shape(inp.shape)] * 3
-                    G_LOGGER.warning(
+                    logging.warning(
                         "Overriding input shape {:} to {:}. If this is incorrect, for input tensor: {:}, please provide tuples for min, opt, and max shapes containing values: {:} with dynamic dimensions replaced,".format(
                             inp.shape, shapes[0], inp.name, inp.shape
                         ),
-                        mode=LogMode.ONCE,
+                        mode=logging_mode.ONCE,
                     )
                 min, opt, max = shapes
                 profile.set_shape(inp.name, min, opt, max)
                 inp.shape = opt
-                G_LOGGER.verbose(
+                logging.info(
                     "Setting input: {:} shape to min: {:}, opt: {:}, max: {:}".format(inp.name, min, opt, max)
                 )
 
         if not profile:
-            G_LOGGER.critical(
+            logging.critical(
                 "Profile is not valid, please provide profile data. Note: profile was: {:}".format(profile_shapes)
             )
         return profile

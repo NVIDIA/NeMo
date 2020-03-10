@@ -18,10 +18,9 @@
 # =============================================================================
 
 import enum
-import os
-import sys
 
-from .logger import G_LOGGER
+from nemo import logging
+
 
 # TRT does not include batch dimension.
 class DataFormat(enum.IntEnum):
@@ -94,7 +93,7 @@ class FormatManager(object):
         elif len(shape) == 2:
             return DataFormat.NW
         else:
-            G_LOGGER.warning(
+            logging.warning(
                 "Cannot deduce format for "
                 + str(shape)
                 + ". Currently only implemented for input_buffers with 1-3 non-batch dimensions. Please update this function!"
