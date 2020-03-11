@@ -132,7 +132,6 @@ class GlueRegressionDataLayer(TextDataLayer):
         tokenizer,
         max_seq_length,
         processor,
-        model_name,
         evaluate=False,
         shuffle=False,
         batch_size=64,
@@ -146,7 +145,6 @@ class GlueRegressionDataLayer(TextDataLayer):
             'evaluate': evaluate,
             'tokenizer': tokenizer,
             'max_seq_length': max_seq_length,
-            'model_name': model_name,
             'use_data_cache': use_data_cache,
         }
 
