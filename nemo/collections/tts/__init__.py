@@ -14,6 +14,8 @@
 # =============================================================================
 
 from nemo.collections.tts.data_layers import AudioDataLayer
+from nemo.collections.tts.fasterspeech_modules import *
+from nemo.collections.tts.fasterspeech_modules import __all__ as fasterspeech__all__
 from nemo.collections.tts.fastspeech_modules import *
 from nemo.collections.tts.fastspeech_modules import __all__ as fastspeech__all__
 from nemo.collections.tts.parts.helpers import *
@@ -26,4 +28,6 @@ from nemo.core import Backend
 
 backend = Backend.PyTorch
 
-__all__ = ["AudioDataLayer"] + helpers__all__ + tacotron2__all__ + waveglow__all__ + fastspeech__all__
+__all__ = (
+    ["AudioDataLayer"] + helpers__all__ + tacotron2__all__ + waveglow__all__ + fastspeech__all__ + fasterspeech__all__
+)

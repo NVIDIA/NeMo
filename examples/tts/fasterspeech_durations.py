@@ -14,13 +14,11 @@
 import argparse
 import math
 import os
-from pathlib import Path
 
 import attrdict
 from ruamel import yaml
 
 import nemo
-from nemo.collections import asr as nemo_asr
 from nemo.collections import tts as nemo_tts
 from nemo.utils import argparse as nm_argparse
 from nemo.utils import lr_policies
@@ -36,19 +34,20 @@ def parse_args():
     )
     parser.set_defaults(
         amp_opt_level='O0',
-        model_config='configs/fasterspeech.yaml',
+        model_config='configs/fasterspeech_durations.yaml',
         batch_size=32,
-        optimizer='adam',
+        optimizer='novograd',
         weight_decay=1e-6,
-        num_epochs=3,  # Couple of epochs for testing.
-        lr=1e-3,  # Goes good with Adam.
+        num_epochs=150,  # Couple of epochs for testing.
+        lr=1e-2,  # Goes good with Adam.
         work_dir='work',
+        checkpoint_save_freq=15000,
     )
 
     # To be able to discern experiments in the future.
-    parser.add_argument('--id', type=str, required=True, help="Experiment identificator for clarity.")
+    # parser.add_argument('--id', type=str, required=True, help="Experiment identificator for clarity.")
 
-    # Cosine policy.
+    # Default training things.
     parser.add_argument('--min_lr', type=float, default=1e-5, help="Minimum learning rate to decay to.")
     parser.add_argument('--warmup', type=int, default=3000, help="Number of steps for warmup.")
 
@@ -62,62 +61,86 @@ def parse_args():
 
 class FasterSpeechGraph:
     def __init__(self, args, config):
-        self.data_layer = nemo_tts.FastSpeechDataLayer.import_from_config(
-            args.model_config,
-            'FastSpeechDataLayer',
-            overwrite_params=dict(
-                manifest_filepath=args.train_dataset,
-                durs_dir=args.durations_dir,
-                bos_id=len(config.labels),
-                eos_id=len(config.labels) + 1,
-                pad_id=len(config.labels) + 2,
-                batch_size=args.batch_size,
-                num_workers=max(int(os.cpu_count() / args.world_size), 1),
-            ),
+        self.data_layer = nemo_tts.FasterSpeechDataLayer(
+            manifest_filepath=args.train_dataset,
+            durs_dir=args.durs_dir,
+            labels=config.labels,
+            sample_rate=config.sample_rate,
+            batch_size=args.batch_size,
+            num_workers=max(int(os.cpu_count() / args.world_size), 1),
+            shuffle=True,
+            **config.FasterSpeechDataLayer,
         )
 
-        self.data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor.import_from_config(
-            args.model_config, 'AudioToMelSpectrogramPreprocessor', overwrite_params=dict(pad_to=0),
+        self.model = nemo_tts.FasterSpeech(
+            n_vocab=len(config.labels), d_emb=128, pad_id=None, jasper_kwargs=config.JasperEncoder, d_out=1,
         )
 
-        self.fastspeech = nemo_tts.FastSpeech.import_from_config(
-            args.model_config,
-            'FastSpeech',
-            overwrite_params=dict(n_src_vocab=len(config.labels) + 3, pad_id=len(config.labels) + 2),
-        )
+        self.loss = nemo_tts.FasterSpeechDurLoss()
 
-        self.loss = nemo_tts.FastSpeechLoss()
-
-    def build(self):
+    def build(self, args):
         data = self.data_layer()
-        mel_true, _ = self.data_preprocessor(input_signal=data.audio, length=data.audio_len)
-        mel_pred, dur_pred = self.fastspeech(
-            text=data.text, text_pos=data.text_pos, mel_true=mel_true, dur_true=data.dur_true,
-        )
-        loss = self.loss(
-            mel_true=mel_true, mel_pred=mel_pred, dur_true=data.dur_true, dur_pred=dur_pred, text_pos=data.text_pos,
-        )
+        output = self.model(text=data.text, text_mask=data.text_mask)
+        loss = self.loss(dur_true=data.dur, dur_pred=output.pred, text_mask=data.text_mask)
 
         callbacks = [
-            nemo.core.SimpleLossLoggerCallback([loss], print_func=lambda x: logging.info(f'Loss: {x[0].data}'))
+            nemo.core.SimpleLossLoggerCallback(
+                tensors=[loss, data.dur, output.pred, data.text_mask], print_func=self._print_info,
+            ),
+            nemo.core.CheckpointCallback(
+                folder=args.ckpt_dir, step_freq=args.checkpoint_save_freq,
+            ),
         ]
 
         return loss, callbacks
+
+    @staticmethod
+    def _print_info(tensors):
+        loss, dur_true, dur_pred, mask = tensors
+
+        # Loss.
+        logging.info(f'Loss: {loss.item():.5f}')
+
+        # Acc.
+        hit, total = 0, 0
+        for dur_true1, dur_pred1, mask1 in zip(dur_true, dur_pred, mask):
+            prefix = mask1.sum().item()
+            dur_true1, dur_pred1 = dur_true1[:prefix], dur_pred1.squeeze(-1)[:prefix]
+            assert dur_true1.shape == dur_true1.shape
+
+            # Preprocessing.
+            dur_pred1 = dur_pred1.exp() - 1
+            dur_pred1[dur_pred1 < 0.0] = 0.0
+            dur_pred1 = dur_pred1.round().long()
+
+            hit += (dur_true1 == dur_pred1).sum().item()
+            total += prefix
+
+        # Example.
+        # noinspection PyUnboundLocalVariable
+        logging.info(f'dur_true: {dur_true1.data}')
+        # noinspection PyUnboundLocalVariable
+        logging.info(f'dur_pred: {dur_pred1.data}')
+
+        acc = hit / total * 100
+        assert 0 <= acc <= 100
+        logging.info(f'Acc: {acc:.3f}%')
 
 
 def main():
     args = parse_args()
     logging.info('Args: %s', args)
 
-    work_dir = Path(args.work_dir) / args.id
     engine = nemo.core.NeuralModuleFactory(
         local_rank=args.local_rank,
         optimization_level=args.amp_opt_level,
         cudnn_benchmark=args.cudnn_benchmark,
-        log_dir=work_dir / 'log',
-        files_to_copy=[__file__],
+        log_dir=args.work_dir,
+        files_to_copy=[args.model_config, __file__],
     )
+    # TODO: Shouldn't be like that.
     args.world_size = engine.world_size
+    args.ckpt_dir = engine.checkpoint_dir
 
     yaml_loader = yaml.YAML(typ="safe")
     with open(args.model_config) as f:
@@ -125,21 +148,18 @@ def main():
     logging.info('Config: %s', config)
 
     graph = FasterSpeechGraph(args, config)
+    loss, callbacks = graph.build(args)
 
-    exit(0)
-
-    steps_per_epoch = math.ceil(len(graph.data_layer) / (args.batch_size * engine.world_size))
-    total_steps = args.max_steps if args.max_steps is not None else args.num_epochs * steps_per_epoch
-    loss, callbacks = graph.build()
+    total_steps = (
+        args.max_steps
+        if args.max_steps is not None
+        else args.num_epochs * math.ceil(len(graph.data_layer) / (args.batch_size * engine.world_size))
+    )
     engine.train(
         tensors_to_optimize=[loss],
         optimizer=args.optimizer,
         optimization_params=dict(
-            num_epochs=args.num_epochs,
-            max_steps=total_steps,
-            lr=args.lr,
-            weight_decay=args.weight_decay,
-            grad_norm_clip=args.grad_norm_clip,
+            num_epochs=args.num_epochs, max_steps=total_steps, lr=args.lr, weight_decay=args.weight_decay,
         ),
         callbacks=callbacks,
         lr_policy=lr_policies.CosineAnnealing(total_steps=total_steps, min_lr=args.min_lr, warmup_steps=args.warmup),
