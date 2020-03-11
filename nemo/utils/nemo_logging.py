@@ -254,13 +254,13 @@ class Logger(metaclass=SingletonMetaClass):
         s = warnings.formatwarning(message, category, filename, lineno, line)
         self.warning("%s", s)
 
-    def _log(self, level, msg, mode, *args, **kwargs):
+    def _logged_once(self, msg, mode):
         PREFIX_LEN = 12
         if mode == LogMode.ONCE:
             if msg[PREFIX_LEN:] in self.once_logged:
-                return
+                return True
             self.once_logged.add(msg[PREFIX_LEN:])
-        self._logger._log(level, msg, *args, **kwargs)
+        return False
 
     def debug(self, msg, mode=LogMode.EACH, *args, **kwargs):
         """
@@ -271,8 +271,8 @@ class Logger(metaclass=SingletonMetaClass):
 
         logger.debug("Houston, we have a %s", "thorny problem", exc_info=1)
         """
-        if self._logger is not None and self._logger.isEnabledFor(Logger.DEBUG):
-            self._log(Logger.DEBUG, msg, mode, args, **kwargs)
+        if self._logger is not None and self._logger.isEnabledFor(Logger.DEBUG) and not self._logged_once(msg, mode):
+            self._logger._log(Logger.DEBUG, msg, args, **kwargs)
 
     def info(self, msg, mode=LogMode.EACH, *args, **kwargs):
         """
@@ -283,8 +283,8 @@ class Logger(metaclass=SingletonMetaClass):
 
         logger.info("Houston, we have a %s", "interesting problem", exc_info=1)
         """
-        if self._logger is not None and self._logger.isEnabledFor(Logger.INFO):
-            self._log(Logger.INFO, msg, mode, args, **kwargs)
+        if self._logger is not None and self._logger.isEnabledFor(Logger.INFO) and not self._logged_once(msg, mode):
+            self._logger._log(Logger.INFO, msg, args, **kwargs)
 
     def warning(self, msg, mode=LogMode.EACH, *args, **kwargs):
         """
@@ -295,8 +295,8 @@ class Logger(metaclass=SingletonMetaClass):
 
         logger.warning("Houston, we have a %s", "bit of a problem", exc_info=1)
         """
-        if self._logger is not None and self._logger.isEnabledFor(Logger.WARNING):
-            self._log(Logger.WARNING, msg, mode, args, **kwargs)
+        if self._logger is not None and self._logger.isEnabledFor(Logger.WARNING) and not self._logged_once(msg, mode):
+            self._logger._log(Logger.WARNING, msg, args, **kwargs)
 
     def error(self, msg, mode=LogMode.EACH, *args, **kwargs):
         """
@@ -307,8 +307,8 @@ class Logger(metaclass=SingletonMetaClass):
 
         logger.error("Houston, we have a %s", "major problem", exc_info=1)
         """
-        if self._logger is not None and self._logger.isEnabledFor(Logger.ERROR):
-            self._log(Logger.ERROR, msg, mode, args, **kwargs)
+        if self._logger is not None and self._logger.isEnabledFor(Logger.ERROR) and not self._logged_once(msg, mode):
+            self._logger._log(Logger.ERROR, msg, args, **kwargs)
 
     def critical(self, msg, mode=LogMode.EACH, *args, **kwargs):
         """
@@ -319,8 +319,12 @@ class Logger(metaclass=SingletonMetaClass):
 
         logger.critical("Houston, we have a %s", "major disaster", exc_info=1)
         """
-        if self._logger is not None and self._logger.isEnabledFor(Logger.CRITICAL):
-            self._log(Logger.CRITICAL, msg, mode, args, **kwargs)
+        if (
+            self._logger is not None
+            and self._logger.isEnabledFor(Logger.CRITICAL)
+            and not self._logged_once(msg, mode)
+        ):
+            self._logger._log(Logger.CRITICAL, msg, args, **kwargs)
 
 
 # # Necessary to catch the correct caller
