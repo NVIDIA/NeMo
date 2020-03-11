@@ -260,7 +260,7 @@ class Logger(metaclass=SingletonMetaClass):
             if msg[PREFIX_LEN:] in self.once_logged:
                 return
             self.once_logged.add(msg[PREFIX_LEN:])
-        self._logger._log(level, msg, args, **kwargs)
+        self._logger._log(level, msg, *args, **kwargs)
 
     def debug(self, msg, mode=LogMode.EACH, *args, **kwargs):
         """

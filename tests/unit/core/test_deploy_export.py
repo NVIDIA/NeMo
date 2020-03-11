@@ -49,15 +49,9 @@ import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo import logging
-from tests.core.trt_ONNX.tensorrt_loaders import (
-    BuildEngineLoader,
-    DataLoaderCache,
-    DefaultDataLoader,
-    OnnxFileLoader,
-    OnnxNetworkLoader,
-)
-from tests.core.trt_ONNX.tensorrt_runner import TensorRTRunnerV2
 
+from .trt_ONNX import tensorrt_loaders as loaders
+from .trt_ONNX import tensorrt_runner as runner
 
 @pytest.mark.usefixtures("neural_factory")
 class TestDeployExport(TestCase):
@@ -81,8 +75,8 @@ class TestDeployExport(TestCase):
 
         if mode == nemo.core.DeploymentFormat.TRTONNX:
 
-            data_loader = DefaultDataLoader()
-            loader_cache = DataLoaderCache(data_loader)
+            data_loader = loaders.DefaultDataLoader()
+            loader_cache = loaders.DataLoaderCache(data_loader)
             profile_shapes = OrderedDict()
             names = list(module.input_ports) + list(module.output_ports)
 
@@ -100,9 +94,9 @@ class TestDeployExport(TestCase):
                 profile_shapes[name] = [si[i]] * 3
                 i = i + 1
 
-            onnx_loader = OnnxFileLoader(out_name)
-            network_loader = OnnxNetworkLoader(onnx_loader, explicit_precision=False)
-            model_loader = BuildEngineLoader(
+            onnx_loader = loaders.OnnxFileLoader(out_name)
+            network_loader = loaders.OnnxNetworkLoader(onnx_loader, explicit_precision=False)
+            model_loader = loaders.BuildEngineLoader(
                 network_loader,
                 max_workspace_size=1 << 30,
                 fp16_mode=False,
@@ -113,7 +107,7 @@ class TestDeployExport(TestCase):
                 layerwise=False,
             )
 
-            with TensorRTRunnerV2(model_loader=model_loader) as active_runner:
+            with runner.TensorRTRunnerV2(model_loader=model_loader) as active_runner:
                 input_metadata = active_runner.get_input_metadata()
                 if input_metadata is None:
                     logging.critical("For {:}, get_input_metadata() returned None!".format(active_runner.name))
