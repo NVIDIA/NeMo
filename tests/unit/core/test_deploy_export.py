@@ -218,7 +218,7 @@ class TestDeployExport(TestCase):
         self.__test_export_route(module, out_name + '.ts', nemo.core.DeploymentFormat.TORCHSCRIPT, input_example)
 
     @pytest.mark.unit
-    # @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_simple_module_export(self):
         simplest_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         self.__test_export_route_all(
@@ -226,7 +226,7 @@ class TestDeployExport(TestCase):
         )
 
     @pytest.mark.unit
-    # @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_TokenClassifier_module_export(self):
         t_class = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
             hidden_size=512, num_classes=16, use_transformer_pretrained=False
@@ -236,7 +236,7 @@ class TestDeployExport(TestCase):
         )
 
     @pytest.mark.unit
-    # @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_jasper_decoder(self):
         j_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=33)
         self.__test_export_route_all(
@@ -244,7 +244,7 @@ class TestDeployExport(TestCase):
         )
 
     @pytest.mark.unit
-    # @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_hf_bert(self):
         bert = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name="bert-base-uncased")
         input_example = (
@@ -255,7 +255,7 @@ class TestDeployExport(TestCase):
         self.__test_export_route_all(module=bert, out_name="bert", input_example=input_example)
 
     @pytest.mark.unit
-    # @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_jasper_encoder(self):
         with open("tests/data/jasper_smaller.yaml") as file:
             yaml = YAML(typ="safe")
@@ -274,7 +274,7 @@ class TestDeployExport(TestCase):
         )
 
     @pytest.mark.unit
-    # @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_quartz_encoder(self):
         with open("tests/data/quartznet_test.yaml") as file:
             yaml = YAML(typ="safe")
