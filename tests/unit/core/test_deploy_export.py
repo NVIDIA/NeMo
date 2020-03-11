@@ -20,6 +20,7 @@ import copy
 import os
 import sys
 from collections import OrderedDict
+from os import path, sys
 from pathlib import Path
 from unittest import TestCase
 
@@ -41,6 +42,10 @@ import pycuda.autoinit
 # This import causes pycuda to automatically manage CUDA context creation and cleanup.
 import pycuda.driver as cuda
 import pytest
+
+sys.path.append(os.path.join(path.dirname(path.abspath(__file__)), 'trt_ONNX'))
+import tensorrt_loaders as loaders
+import tensorrt_runner as runner
 import torch
 from ruamel.yaml import YAML
 
@@ -48,8 +53,6 @@ import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
-from .trt_ONNX import tensorrt_loaders as loaders
-from .trt_ONNX import tensorrt_runner as runner
 from nemo import logging
 
 
