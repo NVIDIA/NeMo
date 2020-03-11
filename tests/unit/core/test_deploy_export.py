@@ -18,6 +18,7 @@
 
 import copy
 import os
+import sys
 from collections import OrderedDict
 from pathlib import Path
 from unittest import TestCase
@@ -56,6 +57,8 @@ from tests.unit.core.trt_ONNX.tensorrt_loaders import (
     OnnxNetworkLoader,
 )
 from tests.unit.core.trt_ONNX.tensorrt_runner import TensorRTRunnerV2
+
+sys.path.append(".")
 
 
 @pytest.mark.usefixtures("neural_factory")
