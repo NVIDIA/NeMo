@@ -1,7 +1,7 @@
 教程
 ====
 
-在这个教程中，我们将使用 BERT 模型，来实现一个意图识别 (intent classification) 和槽填充 (slot filling) 混合系统，参考自 `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`nlp-slot-chen2019bert` 。本教程中所有的代码全部来自 ``examples/nlp/joint_intent_slot_with_bert.py`` 。
+在这个教程中，我们将使用 BERT 模型，来实现一个意图识别 (intent classification) 和槽填充 (slot filling) 混合系统，参考自 `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`nlp-slot-chen2019bert`。本教程中所有的代码全部来自 ``examples/nlp/joint_intent_slot_with_bert.py`` 。
 
 我们可以使用 `--pretrained_bert_model` 这个参数，来选择四个预训练好的 BERT 模型。当前，我们使用的加载预训练模型的脚本均来自 `pytorch_transformers` 。更多预训练好的模型在 `这里下载 <https://huggingface.co/pytorch-transformers/pretrained_models.html>`_ 。
 
@@ -200,7 +200,7 @@
 参考文献
 --------
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-SLOT
     :keyprefix: nlp-slot-

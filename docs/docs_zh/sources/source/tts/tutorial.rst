@@ -96,7 +96,7 @@ torch.distributed.launch 模块并指定 ``--nproc_per_node`` 参数为 GPU 的�
 
 合成语音
 ---------
-你可以使用自己训练的 Tacotron 2 模型合成语音，也可以使用我们预训练好的 Tacotron 2 模型(`下载链接 <https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech>`_)，以及 Waveglow 模型(`下载链接 <https://ngc.nvidia.com/catalog/models/nvidia:waveglow_ljspeech>`_)。
+你可以使用自己训练的 Tacotron 2 模型合成语音，也可以使用我们预训练好的模型(`Tacotron 2 下载链接 <https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech>`_)，以及(`Waveglow 模型下载链接 <https://ngc.nvidia.com/catalog/models/nvidia:waveglow_ljspeech>`_)。
 下一步，请创建你想用于语音合成的文本，并将其转化为训练数据格式相同的 JSON 格式。该 JSON 文件格式如下所示：
 
 .. code-block:: json
