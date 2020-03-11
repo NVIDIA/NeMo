@@ -78,7 +78,7 @@ class TestTTSPytorch(TestCase):
             logging.info("speech data found in: {0}".format(data_folder + "asr"))
 
     @pytest.mark.unclassified
-    @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_tacotron2_training(self):
         data_layer = nemo_asr.AudioToTextDataLayer(
             manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4,
