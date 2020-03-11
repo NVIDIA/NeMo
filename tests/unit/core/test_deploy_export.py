@@ -48,10 +48,10 @@ import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
-from nemo import logging
-
 from .trt_ONNX import tensorrt_loaders as loaders
 from .trt_ONNX import tensorrt_runner as runner
+from nemo import logging
+
 
 @pytest.mark.usefixtures("neural_factory")
 class TestDeployExport(TestCase):
