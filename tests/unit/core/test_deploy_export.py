@@ -25,7 +25,6 @@ from pathlib import Path
 from unittest import TestCase
 
 import numpy as np
-
 # git clone git@github.com:microsoft/onnxruntime.git
 # cd onnxruntime
 #
@@ -35,17 +34,7 @@ import numpy as np
 #
 # pip install --upgrade ./build/Linux/RelWithDebInfo/dist/*.whl
 import onnxruntime as ort
-
-# Only initialize GPU after this runner is activated.
-import pycuda.autoinit
-
-# This import causes pycuda to automatically manage CUDA context creation and cleanup.
-import pycuda.driver as cuda
 import pytest
-
-sys.path.append(os.path.join(path.dirname(path.abspath(__file__)), 'trt_ONNX'))
-import tensorrt_loaders as loaders
-import tensorrt_runner as runner
 import torch
 from ruamel.yaml import YAML
 
@@ -54,6 +43,21 @@ import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo import logging
+
+# Check if the required libraries and runtimes are installed.
+try:
+    # Only initialize GPU after this runner is activated.
+    import pycuda.autoinit
+
+    # This import causes pycuda to automatically manage CUDA context creation and cleanup.
+    import pycuda.driver as cuda
+
+    sys.path.append(os.path.join(path.dirname(path.abspath(__file__)), 'trt_ONNX'))
+    import tensorrt_loaders as loaders
+    import tensorrt_runner as runner
+except:
+    # Skip tests.
+    pytestmark = pytest.mark.skip
 
 
 @pytest.mark.usefixtures("neural_factory")
