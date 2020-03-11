@@ -72,7 +72,7 @@ NeMo/examples/tts。假设你当前已经位于 NeMo/examples/tts 目录下，
 混合精度训练
 ------------
 启用或关闭混合精度训练可以通过一个命令行参数来控制 ``--amp_opt_level`` 。对于 Tacotron 2
-和 Waveglow 来说，该参数建议的默认值为 ``O1`` 。该参数值可以设置为以下几种：
+，该参数建议的默认值为 ``O0``，对于 Waveglow，该参数建议的默认值为  ``O1``。该参数值可以设置为以下几种：
 
 - O0: 单精度（float32）训练
 - O1: 混合精度训练
@@ -96,7 +96,7 @@ torch.distributed.launch 模块并指定 ``--nproc_per_node`` 参数为 GPU 的�
 
 合成语音
 ---------
-你可以使用自己训练的 Tacotron 2 模型合成语音，也可以使用我们预训练好的 Tacotron 2 模型合成语音(`下载链接 <https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech>`_)。 
+你可以使用自己训练的 Tacotron 2 模型合成语音，也可以使用我们预训练好的 Tacotron 2 模型(`下载链接 <https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech>`_)，以及 Waveglow 模型(`下载链接 <https://ngc.nvidia.com/catalog/models/nvidia:waveglow_ljspeech>`_)。
 下一步，请创建你想用于语音合成的文本，并将其转化为训练数据格式相同的 JSON 格式。该 JSON 文件格式如下所示：
 
 .. code-block:: json
@@ -120,3 +120,7 @@ torch.distributed.launch 模块并指定 ``--nproc_per_node`` 参数为 GPU 的�
     python tts_infer.py --spec_model=tacotron2 --spec_model_config=configs/tacotron2.yaml --spec_model_load_dir=<directory_with_tacotron2_checkopints> --vocoder=waveglow --vocoder_model_config=configs/waveglow.yaml --vocoder_model_load_dir=<directory_with_waveglow_checkopints> --save_dir=<where_you_want_to_save_wav_files> --eval_dataset <mainfest_to_generate>
 
 要合成普通话语音，记得将 Tacotron 2 模型配置文件更换为 tacotron2_mandarin.yaml。
+
+.. tip::
+    你可以通过 ``--waveglow_denoiser_strength`` 和 ``--waveglow_sigma`` 参数来进一步控制 Waveglow 的推理过程。
+    如果合成的音频中含有白噪声，我们推荐从 0 开始逐渐提高 ``--waveglow_denoiser_strength`` 参数的值以缓解这种情况。
