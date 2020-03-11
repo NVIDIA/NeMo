@@ -20,7 +20,7 @@ __all__ = ['WeightShareTransform', 'NeuralModule']
 
 import collections
 import uuid
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from collections import namedtuple
 from enum import Enum
 from inspect import getargvalues, getfullargspec, stack
@@ -29,6 +29,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from ruamel.yaml import YAML
 
+import nemo
 from .neural_types import (
     CanNotInferResultNeuralType,
     NeuralPortNameMismatchError,
@@ -39,6 +40,7 @@ from .neural_types import (
 )
 from nemo import logging
 from nemo.core import NeuralModuleFactory
+from nemo.core.neural_interface import NeuralInterface
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils.decorators.deprecated import deprecated
 
@@ -57,11 +59,13 @@ PretrainedModelInfo = namedtuple(
 )
 
 
-class NeuralModule(ABC):
+class NeuralModule(NeuralInterface):
     """Abstract class that every Neural Module must inherit from.
     """
 
     def __init__(self):
+        # Call integrace constructor.
+        super().__init__()
 
         # Get default factory.
         self._factory = NeuralModuleFactory.get_default_factory()
@@ -374,24 +378,6 @@ class NeuralModule(ABC):
                  properties to define module ports instead'
         )
 
-    @property
-    @abstractmethod
-    def input_ports(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module input ports
-
-        Returns:
-          A (dict) of module's input ports names to NeuralTypes mapping
-        """
-
-    @property
-    @abstractmethod
-    def output_ports(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports
-
-        Returns:
-          A (dict) of module's output ports names to NeuralTypes mapping
-        """
-
     @staticmethod
     def pretrained_storage():
         return ''
@@ -414,55 +400,55 @@ class NeuralModule(ABC):
         Returns:
           NmTensor object or tuple of NmTensor objects
         """
+        # print(" Neural Module:__call__")
         # Get input and output ports definitions.
         input_port_defs = self.input_ports
         output_port_defs = self.output_ports
 
+        # Record the operation (i.e. add a single module)
+        self._app_state.active_graph.record_operation(self, kwargs.items())
+
         first_input_nmtensor_type = None
         input_nmtensors_are_of_same_type = True
-        for port_name, tgv in kwargs.items():
+        # Iterate through all passed parameters.
+        for port_name, port_content in kwargs.items():
             # make sure that passed arguments correspond to input port names
             if port_name not in input_port_defs.keys():
                 raise NeuralPortNameMismatchError("Wrong input port name: {0}".format(port_name))
 
-            input_port = input_port_defs[port_name]
-            type_comatibility = input_port.compare(tgv)
-            if (
-                type_comatibility != NeuralTypeComparisonResult.SAME
-                and type_comatibility != NeuralTypeComparisonResult.GREATER
-            ):
-                raise NeuralPortNmTensorMismatchError(
-                    "\n\nIn {0}. \n"
-                    "Port: {1} and a NmTensor it was fed are \n"
-                    "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
-                    "\n\nType comparison result: {4}".format(
-                        self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility,
-                    )
-                )
+            # Check what was actually passed.
+            if isinstance(port_content, nemo.core.NeuralGraph):
+                # Bind this input port to a neural graph.
 
-            # if first_input_nmtensor_type is None:
-            #     first_input_nmtensor_type = NeuralType(tgv._axis2type)
-            # else:
-            #     if first_input_nmtensor_type._axis2type is None:
-            #         input_nmtensors_are_of_same_type = True
-            #     else:
-            #         input_nmtensors_are_of_same_type = first_input_nmtensor_type.compare(
-            #             tgv
-            #         ) == NeuralTypeComparisonResult.SAME and len(first_input_nmtensor_type._axis2type)
-            # if not (
-            #     type_comatibility == NeuralTypeComparisonResult.SAME
-            #     or type_comatibility == NeuralTypeComparisonResult.GREATER
-            # ):
-            #     raise NeuralPortNmTensorMismatchError(
-            #         "\n\nIn {0}. \n"
-            #         "Port: {1} and a NmTensor it was fed are \n"
-            #         "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
-            #         "\n\nType comparison result: {4}".format(
-            #             self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility,
-            #         )
-            #     )
-            # if type_comatibility == NeuralTypeComparisonResult.LESS:
-            #     print('Types were raised')
+                # TODO: make sure that port_content ==  self._app_state.active_graph ?????
+                if port_content != self._app_state.active_graph:
+                    raise ConnectionError("Cannot bind ports of one graph with a different graph!")
+                port_content.bind_input(port_name, input_port_defs[port_name], self)
+                # It is "compatible by definition";), so we don't have to check this port further.
+            else:  # : port_content is a neural module.
+                # Compare input port definition with the received definition.
+                input_port = input_port_defs[port_name]
+                type_comatibility = input_port.compare(port_content)
+                if (
+                    type_comatibility != NeuralTypeComparisonResult.SAME
+                    and type_comatibility != NeuralTypeComparisonResult.GREATER
+                ):
+                    raise NeuralPortNmTensorMismatchError(
+                        "\n\nIn {0}. \n"
+                        "Port: {1} and a NmTensor it was fed are \n"
+                        "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
+                        "\n\nType comparison result: {4}".format(
+                            self.__class__.__name__,
+                            port_name,
+                            input_port_defs[port_name],
+                            port_content,
+                            type_comatibility,
+                        )
+                    )
+        # TODO CHECK 1: Are we making sure that ALL necessary inputs that were PASSED?
+
+        # Here we will store the results.
+        results = None
 
         if len(output_port_defs) == 1:
             out_name = list(output_port_defs)[0]
@@ -474,7 +460,12 @@ class NeuralModule(ABC):
                     raise CanNotInferResultNeuralType(
                         "Can't infer output neural type. Likely your inputs are of different type."
                     )
-            return NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
+            # TODO CHECK 2: Why are we returning "something" (having input type) if there SHOULD be NO output?
+            results = NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
+
+            # Bind the output ports.
+            self._app_state.active_graph.bind_outputs(output_port_defs, [results])
+
         else:
             result = []
             for out_port, n_type in output_port_defs.items():
@@ -493,10 +484,14 @@ class NeuralModule(ABC):
             field_names = list(output_port_defs)
             result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
 
-            # Tie tuple of output tensors with corresponding names.
-            result = result_type(*result)
+            # Bind the output ports.
+            self._app_state.active_graph.bind_outputs(output_port_defs, result)
 
-            return result
+            # Tie tuple of output tensors with corresponding names.
+            results = result_type(*result)
+
+        # Return the results.
+        return results
 
     def __str__(self):
         return self.__class__.__name__
