@@ -33,7 +33,7 @@ Transformer语言模型
 
    ner
 
-Intent and Slot filling
+意图识别和槽填充
 -----------------------
 .. toctree::
    :maxdepth: 8
