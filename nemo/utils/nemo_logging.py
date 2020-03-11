@@ -262,7 +262,7 @@ class Logger(metaclass=SingletonMetaClass):
             self.once_logged.add(msg[PREFIX_LEN:])
         return False
 
-    def debug(self, msg, mode=LogMode.EACH, *args, **kwargs):
+    def debug(self, msg, *args, mode=LogMode.EACH, **kwargs):
         """
         Log 'msg % args' with severity 'DEBUG'.
 
@@ -274,7 +274,7 @@ class Logger(metaclass=SingletonMetaClass):
         if self._logger is not None and self._logger.isEnabledFor(Logger.DEBUG) and not self._logged_once(msg, mode):
             self._logger._log(Logger.DEBUG, msg, args, **kwargs)
 
-    def info(self, msg, mode=LogMode.EACH, *args, **kwargs):
+    def info(self, msg, *args, mode=LogMode.EACH, **kwargs):
         """
         Log 'msg % args' with severity 'INFO'.
 
@@ -286,7 +286,7 @@ class Logger(metaclass=SingletonMetaClass):
         if self._logger is not None and self._logger.isEnabledFor(Logger.INFO) and not self._logged_once(msg, mode):
             self._logger._log(Logger.INFO, msg, args, **kwargs)
 
-    def warning(self, msg, mode=LogMode.EACH, *args, **kwargs):
+    def warning(self, msg, *args, mode=LogMode.EACH, **kwargs):
         """
         Log 'msg % args' with severity 'WARNING'.
 
@@ -298,7 +298,7 @@ class Logger(metaclass=SingletonMetaClass):
         if self._logger is not None and self._logger.isEnabledFor(Logger.WARNING) and not self._logged_once(msg, mode):
             self._logger._log(Logger.WARNING, msg, args, **kwargs)
 
-    def error(self, msg, mode=LogMode.EACH, *args, **kwargs):
+    def error(self, msg, *args, mode=LogMode.EACH, **kwargs):
         """
         Log 'msg % args' with severity 'ERROR'.
 
@@ -310,7 +310,7 @@ class Logger(metaclass=SingletonMetaClass):
         if self._logger is not None and self._logger.isEnabledFor(Logger.ERROR) and not self._logged_once(msg, mode):
             self._logger._log(Logger.ERROR, msg, args, **kwargs)
 
-    def critical(self, msg, mode=LogMode.EACH, *args, **kwargs):
+    def critical(self, msg, *args, mode=LogMode.EACH, **kwargs):
         """
         Log 'msg % args' with severity 'CRITICAL'.
 
