@@ -24,9 +24,8 @@ from collections import OrderedDict
 import numpy as np
 import onnx
 import tensorrt as trt
-
-from .tensorrt_format import FormatManager
-from .tensorrt_runner import (
+from tensorrt_format import FormatManager
+from tensorrt_runner import (
     DEFAULT_SHAPE_VALUE,
     TRT_LOGGER,
     TensorRTRunnerV2,
@@ -39,6 +38,7 @@ from .tensorrt_runner import (
     send_on_queue,
     write_timestamped,
 )
+
 from nemo import logging, logging_mode
 
 
