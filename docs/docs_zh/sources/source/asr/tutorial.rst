@@ -7,18 +7,21 @@
 .. note::
     在这个教程中你只需要用到 `nemo` 和 `nemo_asr` 。
 
+一个基础的 ASR Jupyter教程可以参见 `GitHub <https://github.com/NVIDIA/NeMo/tree/master/examples/asr/notebooks>`_ 。
+
+
 简介
 -------------
-这个教程中我们使用 Jasper :cite:`asr-tut-li2019jasper` 模型。Jasper 是一个基于 CTC :cite:`asr-tut-graves2006` 的端到端的语音识别模型。这个模型之所以被称之为“端到端”是因为它在不需要额外的对齐信息下就可以把输入的音频样本转到对应的文本上。
+这个 ASR 教程中我们使用 QuartzNet :cite:`asr-tut-kriman2019quartznet` 模型。QuartzNet 是一个基于 CTC :cite:`asr-tut-graves2006` 的端到端的语音识别模型。这个模型之所以被称之为“端到端”是因为它在不需要额外的对齐信息下就可以把输入的音频样本转到对应的文本上。
 CTC 可以在音频和文本中找到对齐方式。基于 CTC 的语音识别管道包含了下面的这些模块：
 
 1. 音频预处理（特征提取）：信号正则化，窗口化，（log）频谱（梅尔谱或者 MFCC）
 2. 神经网络声学模型（在给定的每个时间步上的输入特征下，预测词表中字符c的概率分布 P_t(c)）
 3. CTC 损失函数
 
-    .. image:: ctc_asr.png
-        :align: center
-        :alt: CTC-based ASR
+.. image:: ctc_asr.png
+    :align: center
+    :alt: CTC-based ASR
 
 获取数据
 --------
@@ -36,7 +39,7 @@ CTC 可以在音频和文本中找到对齐方式。基于 CTC 的语音识别�
     # python get_librispeech_data.py --data_root=data --data_set=ALL
 
 .. note::
-    如果用 ``--data_set=dev_clean,train_clean_100`` ，你的磁盘空间至少需要 26GB。如果用 ``--data_set=ALL`` ，你的磁盘空间至少需要 110GB。下载和处理都需要一段时间，所以休息一下下吧。
+    如果用 ``--data_set=dev_clean,train_clean_100`` ，你的磁盘空间至少需要 52GB。如果用 ``--data_set=ALL`` ，你的磁盘空间至少需要 250GB。下载和处理都需要一段时间，所以休息一下下吧。下载完成后，你可以删除原始的 .tar.gz 和 .flac 文件，这样会减少一半的硬盘使用。
 
 
 下载和转换后, 你的 `data` 文件夹应该包含两个 Json 文件：
@@ -56,13 +59,13 @@ Json 文件中的每一行都指的是一个训练样本 `audio_filepath` 包含
 训练
 ----
 
-我们会在 Jasper 家族 :cite:`asr-tut-li2019jasper` 中训练一个小模型。
-Jasper（Just Another SPeech Recognizer）是一个深度时延网络 （TDNN） 包含了一维卷积层的块（blocks）。
-Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块的个数, R 表示的是一个块中卷积子块的个数。每个子块包含了一个一维卷积层，一层 batch normalization，一个 ReLU 激活函数，和一个 dropout 层：
+我们会在 QuartzNet 家族 :cite:`asr-tut-kriman2019quartznet`中训练一个小模型。
+QuartzNet 是一个深度时延网络 （TDNN） 包含了一维卷积层的块（blocks）。
+QuartzNet 家族的模型的结构可以这样表示 QuartzNet_[BxR] 其中 B 是块的个数, R 表示的是一个块中卷积子块的个数。每个子块包含了一个一维卷积层，一层 batch normalization，一个 ReLU 激活函数，和一个 dropout 层：
 
-    .. image:: jasper.png
-        :align: center
-        :alt: japer model
+.. image:: quartz_vertical.png
+    :align: center
+    :alt: quartznet model
 
 在这个教程中我们会使用 [12x1] 的模型结构并且会用分开的卷积。
 下面脚本的训练（on `train_clean_100.json` ）和评估（on `dev_clean.json` ）都是在一块GPU上：
@@ -83,7 +86,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
     # 创建 Neural Factory
     # 它会为我们创建日志文件和 tensorboard 记录器
     nf = nemo.core.NeuralModuleFactory(
-        log_dir='jasper12x1SEP',
+        log_dir='QuartzNet12x1',
         create_tb_writer=True)
     tb_writer = nf.tb_writer
 
@@ -93,15 +96,15 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
     # 到验证集列表文件的路径
     eval_datasets = "<path_to_where_you_put_data>/dev_clean.json"
 
-    # Jasper 模型定义
+    # QuartzNet 模型定义
     from ruamel.yaml import YAML
 
     # 这里我们用可分离卷积
     # with 12 blocks (k=12 repeated once r=1 from the picture above)
     yaml = YAML(typ="safe")
-    with open("<nemo_git_repo_root>/examples/asr/configs/jasper12x1SEP.yaml") as f:
-        jasper_model_definition = yaml.load(f)
-    labels = jasper_model_definition['labels']
+    with open("<nemo_git_repo_root>/examples/asr/configs/quartznet12x1.yaml") as f:
+        quartznet_model_definition = yaml.load(f)
+    labels = quartznet_model_definition['labels']
 
     # 初始化神经模块
     data_layer = nemo_asr.AudioToTextDataLayer(
@@ -114,10 +117,10 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor()
     spec_augment = nemo_asr.SpectrogramAugmentation(rect_masks=5)
 
-    jasper_encoder = nemo_asr.JasperEncoder(
+    encoder = nemo_asr.JasperEncoder(
         feat_in=64,
-        **jasper_model_definition['JasperEncoder'])
-    jasper_decoder = nemo_asr.JasperDecoderForCTC(
+        **quartznet_model_definition['JasperEncoder'])
+    decoder = nemo_asr.JasperDecoderForCTC(
         feat_in=1024, num_classes=len(labels))
     ctc_loss = nemo_asr.CTCLossNM(num_classes=len(labels))
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
@@ -127,9 +130,9 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
     processed_signal, processed_signal_len = data_preprocessor(
         input_signal=audio_signal, length=audio_signal_len)
     aug_signal = spec_augment(input_spec=processed_signal)
-    encoded, encoded_len = jasper_encoder(
+    encoded, encoded_len = encoder(
         audio_signal=aug_signal, length=processed_signal_len)
-    log_probs = jasper_decoder(encoder_output=encoded)
+    log_probs = decoder(encoder_output=encoded)
     predictions = greedy_decoder(log_probs=log_probs)
     loss = ctc_loss(
         log_probs=log_probs, targets=transcript,
@@ -141,9 +144,9 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
     processed_signal_v, processed_signal_len_v = data_preprocessor(
         input_signal=audio_signal_v, length=audio_signal_len_v)
     # 注意我们再验证 DAG 的时候不会用数据增强
-    encoded_v, encoded_len_v = jasper_encoder(
+    encoded_v, encoded_len_v = encoder(
         audio_signal=processed_signal_v, length=processed_signal_len_v)
-    log_probs_v = jasper_decoder(encoder_output=encoded_v)
+    log_probs_v = decoder(encoder_output=encoded_v)
     predictions_v = greedy_decoder(log_probs=log_probs_v)
     loss_v = ctc_loss(
         log_probs=log_probs_v, targets=transcript_v,
@@ -208,7 +211,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
         )
 
 .. note::
-    这个脚本在 GTX1080 上完成 50 轮训练需要大约 7 小时
+    这个脚本在 GTX1080 上完成 50 轮训练需要大约 7 小时。你可以得到的 WER 应该在30%左右。
 
 .. tip::
     进一步提升 WER:
@@ -231,7 +234,6 @@ NeMo 中的混合精度和分布式训练是基于 `英伟达的 APEX 库 <https
         backend=nemo.core.Backend.PyTorch,
         local_rank=args.local_rank,
         optimization_level=nemo.core.Optimization.mxprO1,
-        placement=nemo.core.DeviceType.AllGpu,
         cudnn_benchmark=True)
 
 .. note::
@@ -248,19 +250,18 @@ NeMo 中的混合精度和分布式训练是基于 `英伟达的 APEX 库 <https
 
 .. code-block:: bash
 
-    python -m torch.distributed.launch --nproc_per_node=<num_gpus> <nemo_git_repo_root>/examples/asr/jasper.py ...
-
+    python -m torch.distributed.launch --nproc_per_node=<num_gpus> <nemo_git_repo_root>/examples/asr/quartznet.py ...
 
 大量训练样本例子
 ~~~~~~~~~~~~~~~~~~~~~~
 
-请参考 `<nemo_git_repo_root>/examples/asr/jasper.py` , 该实例做一个更全面的理解。它构建了一个训练的有向无环图，在不同的验证集上构建了多达三个有向无环图。
+请参考 `<nemo_git_repo_root>/examples/asr/quartznet.py` , 该实例做一个更全面的理解。它构建了一个训练的有向无环图，在不同的验证集上构建了多个有向无环图。每个验证 DAG 与训练 DAG 共享相同的模型和参数，可以用于评估不同的数据集。
 
 假设你能够使用基于 Volta 架构的的 DGX 服务器，你可以这样运行：
 
 .. code-block:: bash
 
-    python -m torch.distributed.launch --nproc_per_node=<num_gpus> <nemo_git_repo_root>/examples/asr/jasper.py --batch_size=64 --num_epochs=100 --lr=0.015 --warmup_steps=8000 --weight_decay=0.001 --train_dataset=/manifests/librivox-train-all.json --eval_datasets /manifests/librivox-dev-clean.json /manifests/librivox-dev-other.json --model_config=<nemo_git_repo_root>/nemo/examples/asr/configs/quartznet15x5.yaml --exp_name=MyLARGE-ASR-EXPERIMENT
+    python -m torch.distributed.launch --nproc_per_node=<num_gpus> <nemo_git_repo_root>/examples/asr/quartznet.py --batch_size=64 --num_epochs=100 --lr=0.015 --warmup_steps=8000 --weight_decay=0.001 --train_dataset=/manifests/librivox-train-all.json --eval_datasets /manifests/librivox-dev-clean.json /manifests/librivox-dev-other.json --model_config=<nemo_git_repo_root>/nemo/examples/asr/configs/quartznet15x5.yaml --exp_name=MyLARGE-ASR-EXPERIMENT
 
 上面的命令会运行一个8 GPU 的混合精度训练。其中不同的列表文件（.json）文件是不同的数据集。你可以用你的数据来替代它们。
 
@@ -278,10 +279,10 @@ NeMo 中的混合精度和分布式训练是基于 `英伟达的 APEX 库 <https
 
 .. code-block:: python
 
-    jasper_encoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperEncoder-STEP-247400.pt")
-    jasper_decoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperDecoderForCTC-STEP-247400.pt")
+    encoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperEncoder-STEP-247400.pt")
+    decoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperDecoderForCTC-STEP-247400.pt")
     # 防止是分布式训练加入 args.local_rank
-    jasper_decoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperDecoderForCTC-STEP-247400.pt", args.local_rank)
+    decoder.restore_from("<path_to_checkpoints>/15x5SEP/JasperDecoderForCTC-STEP-247400.pt", args.local_rank)
 
 .. tip::
     微调的时候，用小一点的学习率。
@@ -294,7 +295,7 @@ NeMo 中的混合精度和分布式训练是基于 `英伟达的 APEX 库 <https
 
 .. code-block:: bash
 
-    python <nemo_git_repo_root>/examples/asr/jasper_infer.py --model_config=<nemo_git_repo_root>/examples/asr/configs/quartznet15x5.yaml --eval_datasets "<path_to_data>/dev_clean.json" --load_dir=<directory_containing_checkpoints>
+    python <nemo_git_repo_root>/examples/asr/jasper_eval.py --model_config=<nemo_git_repo_root>/examples/asr/configs/quartznet15x5.yaml --eval_datasets "<path_to_data>/dev_clean.json" --load_dir=<directory_containing_checkpoints>
 
 
 用语言模型推理
@@ -311,13 +312,34 @@ NeMo 中的混合精度和分布式训练是基于 `英伟达的 APEX 库 <https
         * ``sudo apt-get update && sudo apt-get install swig``
         * ``sudo apt-get install pkg-config libflac-dev libogg-dev libvorbis-dev libboost-dev``
         * ``sudo apt-get install libsndfile1-dev python-setuptools libboost-all-dev python-dev``
+        * ``sudo apt-get install cmake``
         * ``./install_decoders.sh``
     * 在 Librispeech 上构建一个 6-gram KenLM 的语言模型 ``./build_6-gram_OpenSLR_lm.sh``
     * 运行 ``jasper_infer.py`` 带上 ``--lm_path`` 来指定语言模型的路径
 
     .. code-block:: bash
 
-        python <nemo_git_repo_root>/examples/asr/jasper_infer.py --model_config=<nemo_git_repo_root>/examples/asr/configs/quartznet15x5.yaml --eval_datasets "<path_to_data>/dev_clean.json" --load_dir=<directory_containing_checkpoints> --lm_path=<path_to_6gram.binary>
+        python <nemo_git_repo_root>/examples/asr/jasper_eval.py --model_config=<nemo_git_repo_root>/examples/asr/configs/quartznet15x5.yaml --eval_datasets "<path_to_data>/dev_clean.json" --load_dir=<directory_containing_checkpoints> --lm_path=<path_to_6gram.binary>
+
+Kaldi 兼容性
+-------------------
+
+在 ``nemo_asr`` 中，可以使用 ``KaldiFeatureDataLayer`` 来读取 Kaldi 格式的数据集。 
+为了读取 Kaldi 格式的数据，你需要提供一个文件夹，其中包含以下文件：
+
+* ``feats.scp``, 这个文件将句子 ID 映射到.ark文件，.ark文件中存放了相应的音频数据。
+* ``text``, 这个文件把句子 ID 映射到文本标注。
+* (可选) ``utt2dur``, 这个文件把句子 ID 映射到音频数据的时长，如果你要基于时长切分音频的话，这个文件是必需的。
+
+当然，.ark文件中包含了相应的音频数据，与 ``feats.scp`` 文件中所提供的位置一致。
+
+为了加载Kaldi格式的数据，你需要使用 ``KaldiFeatureDataLayer`` 而不是 ``AudioToTextDataLayer`` 。
+``KaldiFeatureDataLayer`` 层接收 ``kaldi_dir`` 这个参数，而不是 ``manifest_filepath`` ，这个参数需要设置成包含如上所述文件的目录。
+参见 `文档 <https://nvidia.github.io/NeMo/collections/nemo_asr.html#nemo_asr.data_layer.KaldiFeatureDataLayer>`_ 来获取这个层参数的更多详细信息。
+
+.. note::
+
+  如果你切换到 ``KaldiFeatureDataLayer``，请确保任何 ``feat_in`` 参数都正确表示了 Kaldi 特征的维度（例如在encoder中）。此外，你的数据应该很可能被预处理过（例如，MFCC格式），这种情况下，你并不需要 ``AudioToMelSpectrogramPreprocessor`` 中的任何音频前处理。 
 
 
 参考
