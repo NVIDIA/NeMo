@@ -187,7 +187,7 @@
 引用
 ----
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-NMT
     :keyprefix: nlp-nmt-

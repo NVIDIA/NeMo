@@ -9,7 +9,7 @@ QuartzNet 是 Jasper模型 :cite:`asr-models-li2019jasper` 的一个版本, 它�
         :align: center
         :alt: quartznet model
 
-    .. note:: 这个 checkpoint 是在 LibriSpeech  :cite:`panayotov2015librispeech` 上训练的，完全在EN Mozilla Common Voice的部分数据集上做的“验证”
+    .. note:: 这个 checkpoint 是在 LibriSpeech  :cite:`panayotov2015librispeech` 上训练的，完全在EN Mozilla Common Voice :cite:`ardila2019common` 的部分数据集上做的“验证”
 
 `QuartzNet 论文 <https://arxiv.org/abs/1910.10261>`_.
 
@@ -22,3 +22,9 @@ QuartzNet15x5 Librispeech,          `这里 <https://ngc.nvidia.com/catalog/mode
               Mozilla Common Voice
 QuartzNet15x5 Aishell2              `这里 <https://ngc.nvidia.com/catalog/models/nvidia:aishell2_quartznet15x5>`__
 ============= ===================== ==============================================================================
+
+References
+----------
+
+.. bibliography:: asr_all.bib
+    :style: plain

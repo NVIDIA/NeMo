@@ -1,5 +1,5 @@
 BERT 预训练
-==========
+============
 
 在本教程中，我们会按照 BERT 模型结构 :cite:`nlp-bert-devlin2018bert` 构建并训练一个掩码语言模型。训练可以完全从零开始或者在一个预训练好的模型基础上继续训练。在开始本教程之前，请先安装好 ``nemo`` 和 ``nemo_nlp`` 。关于安装 ``nemo`` 的一些步骤可以参阅 :ref:`installation` 章节。
 
@@ -12,6 +12,14 @@ BERT 预训练
     `bert large uncased for nemo <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo>`__
     `bert base uncased for nemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo>`__
     `bert base cased for nemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo>`__
+
+简介
+------------
+
+创建领域相关的 BERT 模型对于很多应用都有溢。一个显著的领域相关的 BERT 模型的例子是生物医学的场景下，
+比如 BioBERT :cite:`nlp-bert-lee2019biobert` 和 SciBERT :cite:`nlp-bert-beltagy2019scibert`.
+
+.. _bert_data_download:
 
 语料下载
 --------
@@ -350,7 +358,7 @@ BERT 预训练
 参考
 ----
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-BERT-PRETRAINING
     :keyprefix: nlp-bert-
