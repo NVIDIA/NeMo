@@ -1,7 +1,7 @@
 教程
 ====
 
-在本教程中我们将要实现基于 `Transformer 编码器-解码器结构 <https://arxiv.org/abs/1706.03762>`_ :cite:`nlp-nmt-vaswani2017attention` 的神经机器翻译系统。本教程中使用到的所有代码都基于 ``examples/nlp/nmt_tutorial.py`` 。
+在本教程中我们将要实现基于 `Transformer 编码器-解码器结构 <https://arxiv.org/abs/1706.03762>`_ :cite:`nlp-nmt-vaswani2017attention` 的神经机器翻译系统。本教程中使用到的所有代码都基于 ``examples/nlp/neural_machine_translation/machine_translation_tutorial.py`` 。
 
 预备知识
 --------
@@ -15,7 +15,7 @@
 
 我们使用 newstest2013 数据集作为验证集，并使用 newstest2014 数据集作为测试集。所有的数据集以及分词器（tokenizer）模型都可以从 `此处 <https://drive.google.com/open?id=1AErD1hEg16Yt28a-IGflZnwGTg9O27DT>`_ 下载。 在下面的步骤中，我们假设所有的数据都放置在 **<path_to_data>** 目录中。
 
-**资源.** 本教程中使用的训练脚本能够训练 Transformer-big 结构的 BERT 模型并在 newstest2014 数据集上达到 **29.2** BLEU / **28.5** SacreBLEU 的分数表现，在配备了多块 16GB Volta 架构图形处理器 的 NVIDIA's DGX-1 上仅需约 15 小时即可完成全部训练过程。同样的训练结果也能够使用更少的资源并通过增加梯度更新的次数来实现 :cite:`nlp-nmt-ott2018scaling` 。
+**资源.** 本教程中使用的训练脚本 ``examples/nlp/neural_machine_translation/machine_translation_tutorial.py`` 能够训练 Transformer-big 结构的 BERT 模型并在 newstest2014 数据集上达到 **29.2** BLEU / **28.5** SacreBLEU 的分数表现，在配备了多块 16GB Volta 架构图形处理器 的 NVIDIA's DGX-1 上仅需约 15 小时即可完成全部训练过程。同样的训练结果也能够使用更少的资源并通过增加梯度更新的次数来实现 :cite:`nlp-nmt-ott2018scaling` 。
 
 .. tip::
     在不指定任何训练参数的前提下运行训练脚本将会在一个很小的数据集（newstest2013）上开始训练，其中训练集包含 3000 个句子对，验证集包含 100 个句子对。这样训练能够更方便地对代码进行调试：如果一切设置正确，验证集的 BLEU 将很快就能 >99，验证集的损失（loss）也能很快就会 < 1.5。
@@ -154,7 +154,7 @@
 模型训练
 --------
 
-要想训练一个 Transformer-big 结构的神经机器翻译模型，请运行位于 ``nemo/examples/nlp`` 的 ``nmt_tutorial.py`` ：
+要想训练一个 Transformer-big 结构的神经机器翻译模型，请运行位于 ``examples/nlp/neural_machine_translation/machine_translation_tutorial.py`` 的 ``nmt_tutorial.py`` ：
 
     .. code-block:: python
 
