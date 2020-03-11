@@ -48,6 +48,7 @@ class DeploymentFormat(Enum):
     PYTORCH = 1
     TORCHSCRIPT = 2
     ONNX = 3
+    TRTONNX = 4
 
 
 class Backend(Enum):
@@ -598,7 +599,7 @@ class NeuralModuleFactory(object):
         )
 
     def deployment_export(
-        self, module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None,
+        self, module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None
     ):
         """Exports Neural Module instance for deployment.
 

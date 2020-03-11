@@ -921,9 +921,7 @@ class PtActions(Actions):
                         self.modules.add(module[0])
 
     @staticmethod
-    def __module_export(
-        module, output, d_format: DeploymentFormat, input_example=None, output_example=None,
-    ):
+    def __module_export(module, output, d_format: DeploymentFormat, input_example=None, output_example=None):
         # Check if output already exists
         destination = Path(output)
         if destination.exists():
@@ -990,7 +988,7 @@ class PtActions(Actions):
                     # Route 2 - via tracing
                     traced_m = torch.jit.trace(module, input_example)
                     traced_m.save(output)
-            elif d_format == DeploymentFormat.ONNX:
+            elif d_format == DeploymentFormat.ONNX or d_format == DeploymentFormat.TRTONNX:
                 if input_example is None:
                     raise ValueError(f'Example input is None, but ONNX tracing was' f' attempted')
                 if output_example is None:
@@ -1007,11 +1005,11 @@ class PtActions(Actions):
                     output,
                     input_names=input_names,
                     output_names=output_names,
-                    verbose=True,
+                    verbose=False,
                     export_params=True,
                     do_constant_folding=True,
                     dynamic_axes=dynamic_axes,
-                    opset_version=10,
+                    opset_version=11,
                     example_outputs=output_example,
                 )
                 # fn = output + ".readable"
@@ -1043,9 +1041,7 @@ class PtActions(Actions):
             type(module).__call__ = __old_call__
 
     @staticmethod
-    def deployment_export(
-        module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None,
-    ):
+    def deployment_export(module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None):
         """Exports Neural Module instance for deployment.
 
         Args:
