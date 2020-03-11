@@ -115,6 +115,12 @@ tests_requirements = extras_require["test"]
 
 class StyleCommand(distutils_cmd.Command):
     __LINE_WIDTH = 119
+    __ISORT_BASE = (
+        'isort '
+        # These two lines makes isort compatible with black.
+        '--multi-line=3 --trailing-comma --force-grid-wrap=0 '
+        f'--use-parentheses --line-width={__LINE_WIDTH} -rc -ws'
+    )
     __BLACK_BASE = f'black --skip-string-normalization --line-length={__LINE_WIDTH}'
     description = 'Checks overall project code style.'
     user_options = [
@@ -138,6 +144,9 @@ class StyleCommand(distutils_cmd.Command):
 
         return return_code
 
+    def _isort(self, scope, check):
+        return self.__call_checker(base_command=self.__ISORT_BASE.split(), scope=scope, check=check,)
+
     def _black(self, scope, check):
         return self.__call_checker(base_command=self.__BLACK_BASE.split(), scope=scope, check=check,)
 
@@ -154,13 +163,14 @@ class StyleCommand(distutils_cmd.Command):
 
     def run(self):
         scope, check = self.scope, not self.fix
+        isort_return = self._isort(scope=scope, check=check)
         black_return = self._black(scope=scope, check=check)
 
-        if black_return == 0:
+        if isort_return == 0 and black_return == 0:
             self._pass()
         else:
             self._fail()
-            exit(black_return)
+            exit(isort_return if isort_return != 0 else black_return)
 
     def finalize_options(self):
         pass
