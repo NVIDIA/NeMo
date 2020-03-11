@@ -49,7 +49,6 @@ NLP 分词器
 NLP 神经模块
 ------------------
 
-
 .. automodule:: nemo.collections.nlp.nm.data_layers
    :members:
    :undoc-members:
@@ -104,6 +103,18 @@ NLP Hugging Face 神经模块
 -------------------------------
 
 .. automodule:: nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :exclude-members: forward
+
+.. automodule:: nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :exclude-members: forward
+
+.. automodule:: nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm
    :members:
    :undoc-members:
    :show-inheritance:
