@@ -26,6 +26,7 @@ import zlib
 from collections import OrderedDict
 
 import numpy as np
+import pycuda
 import pycuda.driver as cuda
 import tensorrt as trt
 
