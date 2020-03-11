@@ -10,7 +10,7 @@ Jasper 家族的模型可以用 Jasper_[BxR] 来表示，其中 B 是块的个�
         :align: center
         :alt: japer model
 
-预训练的模型在 `这里 <https://ngc.nvidia.com/catalog/models/nvidia:jaspernet10x5dr>`_ 。
+预训练的模型如下：
 
 ============= ======================= =================================================================================
 Network       Dataset                 Download Link 

@@ -7,7 +7,7 @@ LibriSpeech
 -----------
 
 运行下面的脚本下载 LibriSpeech 数据集，并把它转换成 `nemo_asr` 集合需要的格式。
-你至少需要 110GB 的空间。
+你至少需要 250GB 的空间。
 
 .. code-block:: bash
 
@@ -109,6 +109,21 @@ Fisher English Training Speech
     --dest_root=<target_dir>
 
 你可以选择性的加入 ``--min_slice_duration=<num_seconds>`` 如果你想改变最小音频片段长度。
+
+AN4 数据集
+-----------
+
+这是一个由卡内基梅隆大学录制和提供的小数据集。它包含很多人说的地址、姓名等内容。关于这个数据集的信息可以在这找到 `official CMU site <http://www.speech.cs.cmu.edu/databases/an4/>`_ 。
+
+请下载并解压数据集（其被标注为“NIST” Sphere（.sph）音频文件格式（64M）在如下的链接中）：http://www.speech.cs.cmu.edu/databases/an4/an4_sphere.tar.gz.
+
+运行如下的脚本，使用 sox 将 .sph 文件转换成 .wav 格式，同时构建训练和测试清单。
+
+.. code-block:: bash
+
+  python process_an4_data.py --data_root=<path_to_extracted_data>
+
+当这个脚本运行结束时，你应该可以在 `<data_root>/an4/` 文件夹下得到 `train_manifest.json` 和 `test_manifest.json` 两个文件。
 
 AISHELL-1
 ---------
