@@ -13,13 +13,13 @@
 下面的例子中，我们从 :class:`TaylorNet` (在前面的例子中有使用过这个类) 中得到我们的类 \
 然后用这些方法来拓展它。首先我们定义一个简单的类 :class:`Status` enum:
 
-.. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
+.. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
    :lines: 33-35
 
 现在让我们定义 :class:`CustomTaylorNet` 神经模块类:
 
-.. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
+.. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
    :lines: 38-43
 
@@ -27,7 +27,7 @@
 为了能处理好 :class:`Status` enum 的导出功能，我们必须实现自定义函数 \
 :meth:`export_to_config()`:
 
-.. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
+.. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
    :lines: 45-76
 
@@ -42,7 +42,7 @@
 
 类似地，我们必须重载方法 :meth:`import_from_config()` :
 
-.. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
+.. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
    :lines: 79-119
 
@@ -60,13 +60,13 @@
 
 现在我们可以简单的构建一个实例，并且导出它的配置，通过调用:
 
-.. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
+.. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
    :lines: 128-129,134-135
 
 通过加载这个配置，初始化第二个实例:
 
-.. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
+.. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
    :lines: 137-139
 

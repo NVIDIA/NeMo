@@ -5,8 +5,8 @@
 一个模块配置文件存储了创建一个实例所需要的所有参数。
 
 .. note::
-    对于可训练的神经模块，`配置`相对于 checkpoint 是起到了互补的作用。
-    配置文件包含了参数 (比如: 层的数量, 隐藏层的大小等), \
+    对于可训练的神经模块，`配置` 相对于 checkpoint 是起到了互补的作用。 \
+    配置文件包含了参数 (比如: 层的数量, 隐藏层的大小等)， \
     而 checkpoint 包含了实际模块的权重
 
 
@@ -19,14 +19,14 @@
 
 我们首先创建 :class:`NeuralFactory` 对象，从原始例子中初始化这个模块:
 
-.. literalinclude:: ../../../../examples/start_here/module_configuration.py
+.. literalinclude:: ../../../../../examples/start_here/module_configuration.py
    :language: python
    :lines: 25-35
 
 现在我们可以导出任何一个已有模块的配置，调用 :meth:`export_to_config()`, 例如 \
 我们可以导出 :class:`TaylorNet` 的配置，通过调用:
 
-.. literalinclude:: ../../../../examples/start_here/module_configuration.py
+.. literalinclude:: ../../../../../examples/start_here/module_configuration.py
    :language: python
    :lines: 38
 
@@ -35,7 +35,7 @@
 
 有个类似的函数 :meth:`import_from_config()` 负责加载配置文件:
 
-.. literalinclude:: ../../../../examples/start_here/module_configuration.py
+.. literalinclude:: ../../../../../examples/start_here/module_configuration.py
    :language: python
    :lines: 41
 
@@ -47,7 +47,7 @@
 现在我们可以像用其它模块那样用导入的模块 \
 例如，我们可以构建一个图，用 NeMo trainer 来训练:
 
-.. literalinclude:: ../../../../examples/start_here/module_configuration.py
+.. literalinclude:: ../../../../../examples/start_here/module_configuration.py
    :language: python
    :lines: 43-
 
