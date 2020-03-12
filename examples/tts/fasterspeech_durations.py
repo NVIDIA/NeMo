@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import collections
 import math
 import os
 
@@ -44,10 +45,8 @@ def parse_args():
         checkpoint_save_freq=15000,
     )
 
-    # To be able to discern experiments in the future.
-    # parser.add_argument('--id', type=str, required=True, help="Experiment identificator for clarity.")
-
     # Default training things.
+    parser.add_argument('--train_log_freq', type=int, default=50, help="Train metrics logging frequency.")
     parser.add_argument('--min_lr', type=float, default=1e-5, help="Minimum learning rate to decay to.")
     parser.add_argument('--warmup', type=int, default=3000, help="Number of steps for warmup.")
 
@@ -57,6 +56,30 @@ def parse_args():
     args = parser.parse_args()
 
     return args
+
+
+class TrainLogger(nemo.core.SimpleLossLoggerCallback):
+    def __init__(self, tensors, metrics, freq, tb_writer, mu=0.99):
+        self._cache = collections.defaultdict(float)
+
+        def print_func(pt_tensors):
+            kv_tensors = attrdict.AttrDict(dict(zip(tensors.keys(), pt_tensors)))
+
+            for metric in metrics:
+                for k, v in metric(kv_tensors).items():
+                    self._cache[k] = (1 - mu) * self._cache[k] + mu * v
+
+        # noinspection PyUnusedLocal
+        def get_tb_values(*args, **kwargs):
+            return list(self._cache.items())
+
+        super().__init__(
+            tensors=list(tensors.values()),
+            print_func=print_func,
+            get_tb_values=get_tb_values,
+            step_freq=freq,
+            tb_writer=tb_writer,
+        )
 
 
 class FasterSpeechGraph:
@@ -84,10 +107,10 @@ class FasterSpeechGraph:
         loss = self.loss(dur_true=data.dur, dur_pred=output.pred, text_mask=data.text_mask)
 
         callbacks = [
-            nemo.core.SimpleLossLoggerCallback(
-                tensors=[loss, data.dur, output.pred, data.text_mask],
-                print_func=self._metrics,
-                get_tb_values=self._metrics,
+            TrainLogger(
+                tensors=dict(loss=loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
+                metrics=[self._train_metrics],
+                freq=args.train_log_freq,
                 tb_writer=engine.tb_writer,
             ),
             nemo.core.CheckpointCallback(folder=engine.checkpoint_dir, step_freq=args.checkpoint_save_freq),
@@ -102,16 +125,14 @@ class FasterSpeechGraph:
         return loss, callbacks, total_steps
 
     @staticmethod
-    def _metrics(tensors):
-        loss, dur_true, dur_pred, mask = tensors
-
+    def _train_metrics(tensors):
         # Loss.
-        loss = loss.item()
+        loss = tensors.loss.item()
         logging.info(f'Loss: {loss:.5f}')
 
         # Acc.
         hit, total = 0, 0
-        for dur_true1, dur_pred1, mask1 in zip(dur_true, dur_pred, mask):
+        for dur_true1, dur_pred1, mask1 in zip(tensors.dur_true, tensors.dur_pred, tensors.mask):
             prefix = mask1.sum().item()
             dur_true1, dur_pred1 = dur_true1[:prefix], dur_pred1.squeeze(-1)[:prefix]
             assert dur_true1.shape == dur_true1.shape
@@ -134,7 +155,7 @@ class FasterSpeechGraph:
         assert 0 <= acc <= 100
         logging.info(f'Acc: {acc:.3f}%')
 
-        return [('loss', loss), ('acc', acc)]
+        return dict(loss=loss, acc=acc)
 
 
 def main():
