@@ -54,8 +54,13 @@ try:
     # This import causes pycuda to automatically manage CUDA context creation and cleanup.
     import pycuda.driver as cuda
 
-    from .tensorrt_loaders import DefaultDataLoader, DataLoaderCache, OnnxFileLoader, OnnxNetworkLoader, \
-        BuildEngineLoader
+    from .tensorrt_loaders import (
+        DefaultDataLoader,
+        DataLoaderCache,
+        OnnxFileLoader,
+        OnnxNetworkLoader,
+        BuildEngineLoader,
+    )
     from .tensorrt_runner import TensorRTRunnerV2
 except:
     # Skip tests.
