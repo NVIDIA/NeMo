@@ -37,8 +37,6 @@ import numpy as np
 import onnxruntime as ort
 import pytest
 
-from .tensorrt_loaders import DefaultDataLoader, DataLoaderCache, OnnxFileLoader, OnnxNetworkLoader, BuildEngineLoader
-from .tensorrt_runner import TensorRTRunnerV2
 import torch
 from ruamel.yaml import YAML
 
@@ -56,9 +54,9 @@ try:
     # This import causes pycuda to automatically manage CUDA context creation and cleanup.
     import pycuda.driver as cuda
 
-    sys.path.append(os.path.join(path.dirname(path.abspath(__file__)), 'trt_ONNX'))
-    import tensorrt_loaders as loaders
-    import tensorrt_runner as runner
+    from .tensorrt_loaders import DefaultDataLoader, DataLoaderCache, OnnxFileLoader, OnnxNetworkLoader, \
+        BuildEngineLoader
+    from .tensorrt_runner import TensorRTRunnerV2
 except:
     # Skip tests.
     pytestmark = pytest.mark.skip
