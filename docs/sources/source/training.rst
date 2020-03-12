@@ -22,7 +22,7 @@ Multi-GPU Training
 
 For multi-GPU training:
 
-Add 'local_rank' argument to your script and do not set it yourself: `parser.add_argument("--local_rank", default=os.getenv('LOCAL_RANK',0), type=int)`
+Add 'local_rank' argument to your script and do not set it yourself: `parser.add_argument("--local_rank", default=os.getenv('LOCAL_RANK', None), type=int)`
 
 .. code-block:: python
 
