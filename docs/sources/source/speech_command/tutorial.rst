@@ -18,9 +18,9 @@ Upon detection of these commands, a specific action can be taken by the system. 
 low power sensors and remain active for long durations of time.
 
 This Speech Command recognition tutorial is based on the QuartzNet model :cite:`speech-recognition-tut-kriman2019quartznet` with
-a modified decoder head to suit classification tasks. Instead of predicting a token for each time step of the input, we instead predict
+a modified decoder head to suit classification tasks. Instead of predicting a token for each time step of the input, we predict
 a single label for the entire duration of the audio signal. This is accomplished by a decoder head that performs Global Max / Average pooling
-accross all timesteps prior to classification. After this, the model can be trained via standard categorical cross-entropy loss.
+across all timesteps prior to classification. After this, the model can be trained via standard categorical cross-entropy loss.
 
 1. Audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)
 2. Data augmentation using SpecAugment :cite:`speech-recognition-tut-park2019` to increase number of data samples.
