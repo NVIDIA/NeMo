@@ -33,12 +33,12 @@ read -r -d '' cmd <<EOF
 nvidia-smi \
 && apt-get update \
 && apt-get install -y libsndfile1 \
-&& cp -R /ws/nemos/${id} /nemo && cd /nemo && pip install .[all] && cd .. \
+&& cp -R /ws/nemos/${id} /nemo && cd /nemo && pip install .[all] \
 && echo "Starting training..." \
 && python -m torch.distributed.launch --nproc_per_node=8 ${script} \
---id=${id} \
 --work_dir=${RESULT} \
 --model_config=${config} \
+--tensorboard_dir=/ws/tb/${id} \
 --train_dataset=/manifests/librispeech/librivox-train-all.json \
 --durs_dir=/data/durs
 EOF

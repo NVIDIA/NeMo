@@ -60,14 +60,14 @@ def parse_args():
 
 
 class FasterSpeechGraph:
-    def __init__(self, args, config):
+    def __init__(self, args, engine, config):
         self.data_layer = nemo_tts.FasterSpeechDataLayer(
             manifest_filepath=args.train_dataset,
             durs_dir=args.durs_dir,
             labels=config.labels,
             sample_rate=config.sample_rate,
             batch_size=args.batch_size,
-            num_workers=max(int(os.cpu_count() / args.world_size), 1),
+            num_workers=max(int(os.cpu_count() / engine.world_size), 1),
             shuffle=True,
             **config.FasterSpeechDataLayer,
         )
@@ -78,28 +78,36 @@ class FasterSpeechGraph:
 
         self.loss = nemo_tts.FasterSpeechDurLoss()
 
-    def build(self, args):
+    def build(self, args, engine):
         data = self.data_layer()
         output = self.model(text=data.text, text_mask=data.text_mask)
         loss = self.loss(dur_true=data.dur, dur_pred=output.pred, text_mask=data.text_mask)
 
         callbacks = [
             nemo.core.SimpleLossLoggerCallback(
-                tensors=[loss, data.dur, output.pred, data.text_mask], print_func=self._print_info,
+                tensors=[loss, data.dur, output.pred, data.text_mask],
+                print_func=self._metrics,
+                get_tb_values=self._metrics,
+                tb_writer=engine.tb_writer,
             ),
-            nemo.core.CheckpointCallback(
-                folder=args.ckpt_dir, step_freq=args.checkpoint_save_freq,
-            ),
+            nemo.core.CheckpointCallback(folder=engine.checkpoint_dir, step_freq=args.checkpoint_save_freq),
         ]
 
-        return loss, callbacks
+        total_steps = (
+            args.max_steps
+            if args.max_steps is not None
+            else args.num_epochs * math.ceil(len(self.data_layer) / (args.batch_size * engine.world_size))
+        )
+
+        return loss, callbacks, total_steps
 
     @staticmethod
-    def _print_info(tensors):
+    def _metrics(tensors):
         loss, dur_true, dur_pred, mask = tensors
 
         # Loss.
-        logging.info(f'Loss: {loss.item():.5f}')
+        loss = loss.item()
+        logging.info(f'Loss: {loss:.5f}')
 
         # Acc.
         hit, total = 0, 0
@@ -126,6 +134,8 @@ class FasterSpeechGraph:
         assert 0 <= acc <= 100
         logging.info(f'Acc: {acc:.3f}%')
 
+        return [('loss', loss), ('acc', acc)]
+
 
 def main():
     args = parse_args()
@@ -138,23 +148,18 @@ def main():
         log_dir=args.work_dir,
         files_to_copy=[args.model_config, __file__],
     )
-    # TODO: Shouldn't be like that.
-    args.world_size = engine.world_size
-    args.ckpt_dir = engine.checkpoint_dir
+    # noinspection PyProtectedMember
+    logging.info('Engine: %s', vars(engine._exp_manager))
 
     yaml_loader = yaml.YAML(typ="safe")
     with open(args.model_config) as f:
         config = attrdict.AttrDict(yaml_loader.load(f))
     logging.info('Config: %s', config)
 
-    graph = FasterSpeechGraph(args, config)
-    loss, callbacks = graph.build(args)
+    graph = FasterSpeechGraph(args, engine, config)
 
-    total_steps = (
-        args.max_steps
-        if args.max_steps is not None
-        else args.num_epochs * math.ceil(len(graph.data_layer) / (args.batch_size * engine.world_size))
-    )
+    loss, callbacks, total_steps = graph.build(args, engine)
+
     engine.train(
         tensors_to_optimize=[loss],
         optimizer=args.optimizer,

@@ -20,17 +20,10 @@ from torch.nn import functional as F
 
 import nemo
 from nemo.backends.pytorch import nm as nemo_nm
-from nemo.backends.pytorch.nm import DataLayerNM
-from nemo.backends.pytorch.nm import LossNM
-from nemo.collections.asr.parts import AudioDataset
-from nemo.collections.asr.parts import WaveformFeaturizer
+from nemo.backends.pytorch.nm import DataLayerNM, LossNM
+from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer
 from nemo.collections.tts.parts import fastspeech
-from nemo.core.neural_types import AudioSignal
-from nemo.core.neural_types import ChannelType
-from nemo.core.neural_types import EmbeddedTextType
-from nemo.core.neural_types import LengthsType
-from nemo.core.neural_types import MaskType
-from nemo.core.neural_types import NeuralType
+from nemo.core.neural_types import AudioSignal, ChannelType, EmbeddedTextType, LengthsType, MaskType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['FasterSpeechDataLayer', 'FasterSpeech', 'FasterSpeechDurLoss']
@@ -101,24 +94,24 @@ class FasterSpeechDataLayer(DataLayerNM):
         )
 
     def __init__(
-            self,
-            manifest_filepath,
-            durs_dir,
-            labels,
-            batch_size,
-            sample_rate=16000,
-            int_values=False,
-            bos_id=None,
-            eos_id=None,
-            pad_id=None,
-            min_duration=0.1,
-            max_duration=None,
-            normalize_transcripts=True,
-            trim_silence=False,
-            load_audio=True,
-            drop_last=False,
-            shuffle=True,
-            num_workers=0,
+        self,
+        manifest_filepath,
+        durs_dir,
+        labels,
+        batch_size,
+        sample_rate=16000,
+        int_values=False,
+        bos_id=None,
+        eos_id=None,
+        pad_id=None,
+        min_duration=0.1,
+        max_duration=None,
+        normalize_transcripts=True,
+        trim_silence=False,
+        load_audio=True,
+        drop_last=False,
+        shuffle=True,
+        num_workers=0,
     ):
         super().__init__()
 
@@ -218,7 +211,7 @@ class FasterSpeech(nemo_nm.TrainableNM):
         return dict(pred=NeuralType(('B', 'T', 'D'), ChannelType()), len=NeuralType(('B',), LengthsType()))
 
     def __init__(
-            self, n_vocab, d_emb, pad_id, jasper_kwargs, d_out,
+        self, n_vocab, d_emb, pad_id, jasper_kwargs, d_out,
     ):
         super().__init__()
 
