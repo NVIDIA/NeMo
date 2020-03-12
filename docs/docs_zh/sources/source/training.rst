@@ -22,13 +22,11 @@
 
 进行多 GPU 训练需要进行如下设置：
 
-(1) 在 ``NeuralModuleFactory`` 类中设置选项 ``placement`` 为 ``nemo.core.DeviceType.AllGpu``
-(2) 在你的 python 脚本中添加命令行选项 ``local_rank``: ``parser.add_argument("--local_rank", default=None, type=int)``
+在你的 python 脚本中添加命令行选项 ``local_rank``: ``parser.add_argument("--local_rank", default=os.getenv('LOCAL_RANK',0), type=int)``
 
 .. code-block:: python
 
     nf = nemo.core.NeuralModuleFactory(
-           placement=nemo.core.DeviceType.AllGpu,
            local_rank=args.local_rank)
 
 
