@@ -22,13 +22,11 @@ Multi-GPU Training
 
 For multi-GPU training:
 
-(1) Set `placement` to `nemo.core.DeviceType.AllGpu` in NeuralModuleFactory
-(2) Add 'local_rank' argument to your script and do not set it yourself: `parser.add_argument("--local_rank", default=None, type=int)`
+Add 'local_rank' argument to your script and do not set it yourself: `parser.add_argument("--local_rank", default=os.getenv('LOCAL_RANK', None), type=int)`
 
 .. code-block:: python
 
     nf = nemo.core.NeuralModuleFactory(
-           placement=nemo.core.DeviceType.AllGpu,     
            local_rank=args.local_rank)
 
 
