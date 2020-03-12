@@ -26,7 +26,11 @@ import zlib
 from collections import OrderedDict
 
 import numpy as np
-import pycuda
+
+# Only initialize GPU after this runner is activated.
+import pycuda.autoinit
+
+# This import causes pycuda to automatically manage CUDA context creation and cleanup.
 import pycuda.driver as cuda
 import tensorrt as trt
 

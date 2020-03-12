@@ -36,16 +36,10 @@ import numpy as np
 # pip install --upgrade ./build/Linux/RelWithDebInfo/dist/*.whl
 import onnxruntime as ort
 
-# Only initialize GPU after this runner is activated.
-import pycuda.autoinit
-
-# This import causes pycuda to automatically manage CUDA context creation and cleanup.
-import pycuda.driver as cuda
 import pytest
 
-sys.path.append(os.path.join(path.dirname(path.abspath(__file__)), 'trt_ONNX'))
-import tensorrt_loaders as loaders
-import tensorrt_runner as runner
+from .tensorrt_loaders import DefaultDataLoader, DataLoaderCache, OnnxFileLoader, OnnxNetworkLoader, BuildEngineLoader
+from .tensorrt_runner import TensorRTRunnerV2
 import torch
 from ruamel.yaml import YAML
 
@@ -58,18 +52,37 @@ from nemo import logging
 
 @pytest.mark.usefixtures("neural_factory")
 class TestDeployExport(TestCase):
+    def setUp(self):
+        logging.setLevel(logging.WARNING)
+        device = nemo.core.DeviceType.GPU
+        self.nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, placement=device)
+
     def __test_export_route(self, module, out_name, mode, input_example=None):
         out = Path(out_name)
         if out.exists():
             os.remove(out)
 
         outputs_fwd = (
-            (module.forward(*input_example) if isinstance(input_example, tuple) else module.forward(input_example))
-            if input_example is not None
-            else None
+            module.forward(*tuple(input_example.values()))
+            if isinstance(input_example, OrderedDict)
+            else (
+                module.forward(*input_example)
+                if isinstance(input_example, tuple)
+                else module.forward(input_example)
+                if input_example is not None
+                else None
+            )
+        )
+
+        deploy_input_example = (
+            tuple(input_example.values()) if isinstance(input_example, OrderedDict) else input_example
         )
         self.nf.deployment_export(
-            module=module, output=out_name, input_example=input_example, d_format=mode, output_example=outputs_fwd
+            module=module,
+            output=out_name,
+            input_example=deploy_input_example,
+            d_format=mode,
+            output_example=outputs_fwd,
         )
 
         tol = 5.0e-3
@@ -78,13 +91,15 @@ class TestDeployExport(TestCase):
 
         if mode == nemo.core.DeploymentFormat.TRTONNX:
 
-            data_loader = loaders.DefaultDataLoader()
-            loader_cache = loaders.DataLoaderCache(data_loader)
+            data_loader = DefaultDataLoader()
+            loader_cache = DataLoaderCache(data_loader)
             profile_shapes = OrderedDict()
             names = list(module.input_ports) + list(module.output_ports)
 
             if isinstance(input_example, tuple):
                 si = [tuple(input_example[i].shape) for i in range(len(input_example))]
+            elif isinstance(input_example, OrderedDict):
+                si = [tuple(input_example.values())[i].shape for i in range(len(input_example))]
             else:
                 si = [tuple(input_example.shape)]
             if isinstance(outputs_fwd, tuple):
@@ -97,9 +112,9 @@ class TestDeployExport(TestCase):
                 profile_shapes[name] = [si[i]] * 3
                 i = i + 1
 
-            onnx_loader = loaders.OnnxFileLoader(out_name)
-            network_loader = loaders.OnnxNetworkLoader(onnx_loader, explicit_precision=False)
-            model_loader = loaders.BuildEngineLoader(
+            onnx_loader = OnnxFileLoader(out_name)
+            network_loader = OnnxNetworkLoader(onnx_loader, explicit_precision=False)
+            model_loader = BuildEngineLoader(
                 network_loader,
                 max_workspace_size=1 << 30,
                 fp16_mode=False,
@@ -110,24 +125,26 @@ class TestDeployExport(TestCase):
                 layerwise=False,
             )
 
-            with runner.TensorRTRunnerV2(model_loader=model_loader) as active_runner:
+            with TensorRTRunnerV2(model_loader=model_loader) as active_runner:
                 input_metadata = active_runner.get_input_metadata()
                 if input_metadata is None:
                     logging.critical("For {:}, get_input_metadata() returned None!".format(active_runner.name))
                 logging.debug("Runner Inputs: {:}".format(input_metadata))
                 feed_dict = loader_cache.load(iteration=0, input_metadata=input_metadata, input_example=input_example)
                 inputs = dict()
-                input_names = list(module.input_ports)
+                input_names = list(input_metadata.keys())
                 for i in range(len(input_names)):
-                    input_name = (
-                        "encoded_lengths"
-                        if type(module).__name__ == "JasperEncoder" and input_names[i] == "length"
-                        else input_names[i]
-                    )
+                    input_name = input_names[i]
+                    if input_name in module.disabled_deployment_input_ports:
+                        continue
                     inputs[input_name] = (
-                        input_example[i].cpu().numpy()
-                        if isinstance(input_example, tuple)
-                        else input_example.cpu().numpy()
+                        input_example[input_name].cpu().numpy()
+                        if isinstance(input_example, OrderedDict)
+                        else (
+                            input_example[i].cpu().numpy()
+                            if isinstance(input_example, tuple)
+                            else input_example.cpu().numpy()
+                        )
                     )
 
                 out_dict = active_runner.infer(feed_dict=feed_dict, output=outputs_fwd)
@@ -158,7 +175,13 @@ class TestDeployExport(TestCase):
         elif mode == nemo.core.DeploymentFormat.ONNX:
             # Must recompute because *module* might be different now
             outputs_fwd = (
-                module.forward(*input_example) if isinstance(input_example, tuple) else module.forward(input_example)
+                module.forward(*tuple(input_example.values()))
+                if isinstance(input_example, OrderedDict)
+                else (
+                    module.forward(*input_example)
+                    if isinstance(input_example, tuple)
+                    else module.forward(input_example)
+                )
             )
             sess_options = ort.SessionOptions()
             sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
@@ -166,14 +189,19 @@ class TestDeployExport(TestCase):
             print('Execution Providers: ', ort_session.get_providers())
             inputs = dict()
             input_names = list(module.input_ports)
+            ort_inputs = ort_session.get_inputs()
             for i in range(len(input_names)):
-                input_name = (
-                    "encoded_lengths"
-                    if type(module).__name__ == "JasperEncoder" and input_names[i] == "length"
-                    else input_names[i]
-                )
+                input_name = input_names[i]
+                if input_name in module.disabled_deployment_input_ports:
+                    input_name = ort_inputs[i].name
                 inputs[input_name] = (
-                    input_example[i].cpu().numpy() if isinstance(input_example, tuple) else input_example.cpu().numpy()
+                    input_example[input_name].cpu().numpy()
+                    if isinstance(input_example, OrderedDict)
+                    else (
+                        input_example[i].cpu().numpy()
+                        if isinstance(input_example, tuple)
+                        else input_example.cpu().numpy()
+                    )
                 )
             outputs_scr = ort_session.run(None, inputs)
             outputs_scr = torch.from_numpy(outputs_scr[0]).cuda()
@@ -183,13 +211,25 @@ class TestDeployExport(TestCase):
                 input_example = torch.randn(4, 1).cuda()
                 outputs_fwd = module.forward(input_example)
             outputs_scr = (
-                scr.forward(*input_example) if isinstance(input_example, tuple) else scr.forward(input_example)
+                module.forward(*tuple(input_example.values()))
+                if isinstance(input_example, OrderedDict)
+                else (
+                    module.forward(*input_example)
+                    if isinstance(input_example, tuple)
+                    else module.forward(input_example)
+                )
             )
         elif mode == nemo.core.DeploymentFormat.PYTORCH:
             module.load_state_dict(torch.load(out_name))
             module.eval()
             outputs_scr = (
-                module.forward(*input_example) if isinstance(input_example, tuple) else module.forward(input_example)
+                module.forward(*tuple(input_example.values()))
+                if isinstance(input_example, OrderedDict)
+                else (
+                    module.forward(*input_example)
+                    if isinstance(input_example, tuple)
+                    else module.forward(input_example)
+                )
             )
 
         outputs_scr = (
@@ -243,10 +283,12 @@ class TestDeployExport(TestCase):
     # @pytest.mark.skip_on_device('CPU')
     def test_hf_bert(self):
         bert = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name="bert-base-uncased")
-        input_example = (
-            torch.randint(low=0, high=16, size=(2, 16)).cuda(),
-            torch.randint(low=0, high=2, size=(2, 16)).cuda(),
-            torch.randint(low=0, high=2, size=(2, 16)).cuda(),
+        input_example = OrderedDict(
+            [
+                ("input_ids", torch.randint(low=0, high=16, size=(2, 16)).cuda()),
+                ("token_type_ids", torch.randint(low=0, high=2, size=(2, 16)).cuda()),
+                ("attention_mask", torch.randint(low=0, high=2, size=(2, 16)).cuda()),
+            ]
         )
         self.__test_export_route_all(module=bert, out_name="bert", input_example=input_example)
 
@@ -266,7 +308,7 @@ class TestDeployExport(TestCase):
         self.__test_export_route_all(
             module=jasper_encoder,
             out_name="jasper_encoder",
-            input_example=(torch.randn(1, 64, 64).cuda(), torch.randint(low=0, high=2, size=(2, 16)).cuda()),
+            input_example=(torch.randn(16, 64, 256).cuda(), torch.randn(256).cuda()),
         )
 
     @pytest.mark.unit
@@ -275,8 +317,10 @@ class TestDeployExport(TestCase):
         with open("tests/data/quartznet_test.yaml") as file:
             yaml = YAML(typ="safe")
             quartz_model_definition = yaml.load(file)
+            del quartz_model_definition['JasperEncoder']['conv_mask']
 
         jasper_encoder = nemo_asr.JasperEncoder(
+            conv_mask=False,
             feat_in=quartz_model_definition['AudioToMelSpectrogramPreprocessor']['features'],
             **quartz_model_definition['JasperEncoder']
         )
@@ -284,5 +328,5 @@ class TestDeployExport(TestCase):
         self.__test_export_route_all(
             module=jasper_encoder,
             out_name="quartz_encoder",
-            input_example=(torch.randn(1, 64, 256).cuda(), torch.randint(1, (16,)).cuda()),
+            input_example=(torch.randn(16, 64, 256).cuda(), torch.randint(20, (16,)).cuda()),
         )

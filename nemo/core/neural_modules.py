@@ -392,6 +392,30 @@ class NeuralModule(ABC):
           A (dict) of module's output ports names to NeuralTypes mapping
         """
 
+    @property
+    def disabled_deployment_input_ports(self) -> Optional[Set[str]]:
+        """Returns names of input ports that will not be included in an export
+
+        Returns:
+          A (set) of module's input port names that are not exportable
+        """
+        return set([])
+
+    @property
+    def disabled_deployment_output_ports(self) -> Optional[Set[str]]:
+        """Returns names of output ports that will not be included in an export
+
+        Returns:
+          A (set) of module's output port names that are not exportable
+        """
+        return set([])
+
+    def prepare_for_deployment(self) -> None:
+        """Patch the module if required to prepare for deployment
+
+        """
+        return
+
     @staticmethod
     def pretrained_storage():
         return ''
