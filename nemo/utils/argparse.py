@@ -18,7 +18,7 @@ class NemoArgParser(argparse.ArgumentParser):
         super().__init__(**kwargs)
         # NeMo arguments
         self.add_argument(
-            "--local_rank", default=os.getenv('LOCAL_RANK', 0), type=int, help="node rank for distributed training",
+            "--local_rank", default=os.getenv('LOCAL_RANK', None), type=int, help="node rank for distributed training",
         )
         self.add_argument(
             "--amp_opt_level",
