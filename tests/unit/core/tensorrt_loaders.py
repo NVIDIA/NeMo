@@ -24,8 +24,9 @@ from collections import OrderedDict
 import numpy as np
 import onnx
 import tensorrt as trt
-from tensorrt_format import FormatManager
-from tensorrt_runner import (
+
+from .tensorrt_format import FormatManager
+from .tensorrt_runner import (
     DEFAULT_SHAPE_VALUE,
     TRT_LOGGER,
     TensorRTRunnerV2,
@@ -38,7 +39,6 @@ from tensorrt_runner import (
     send_on_queue,
     write_timestamped,
 )
-
 from nemo import logging, logging_mode
 
 
@@ -99,7 +99,12 @@ class DefaultDataLoader(BaseDataLoader):
         i = 0
         for name, (dtype, shape) in input_metadata.items():
             if input_example is not None and (not isinstance(input_example, tuple) or i < len(input_example)):
-                static_shape = input_example[i].shape if isinstance(input_example, tuple) else input_example.shape
+                if isinstance(input_example, tuple):
+                    static_shape = input_example[i].shape
+                elif isinstance(input_example, OrderedDict):
+                    static_shape = tuple(input_example.values())[i].shape
+                else:
+                    static_shape = [tuple(input_example.shape)]
             elif is_shape_dynamic(shape):
                 if name in self.default_shapes:
                     static_shape = self.default_shapes[name]
@@ -125,7 +130,10 @@ class DefaultDataLoader(BaseDataLoader):
                 static_shape = shape
 
             if input_example is not None and (not isinstance(input_example, tuple) or i < len(input_example)):
-                buffers[name] = input_example[i].cpu() if isinstance(input_example, tuple) else input_example.cpu()
+                if isinstance(input_example, OrderedDict):
+                    buffers[name] = list(input_example.values())[i].cpu()
+                else:
+                    buffers[name] = input_example[i].cpu() if isinstance(input_example, tuple) else input_example.cpu()
             elif np.issubdtype(dtype, np.integer):
                 buffers[name] = rng.randint(low=self.int_min, high=self.int_max, size=static_shape, dtype=dtype)
             elif np.issubdtype(dtype, np.bool_):

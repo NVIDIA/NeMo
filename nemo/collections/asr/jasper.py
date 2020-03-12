@@ -5,10 +5,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import nemo
 from .parts.jasper import JasperBlock, init_weights, jasper_activations
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
+
+logging = nemo.logging
 
 
 class JasperEncoder(TrainableNM):
@@ -113,6 +116,22 @@ class JasperEncoder(TrainableNM):
             "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
         }
+
+    @property
+    def disabled_deployment_input_ports(self):
+        return set(["length"])
+
+    @property
+    def disabled_deployment_output_ports(self):
+        return set(["encoded_lengths"])
+
+    def prepare_for_deployment(self):
+        m_count = 0
+        for m in self.modules():
+            if type(m).__name__ == "MaskedConv1d":
+                m.use_mask = False
+                m_count += 1
+        logging.warning(f"Turned off {m_count} masked convolutions")
 
     def __init__(
         self,
