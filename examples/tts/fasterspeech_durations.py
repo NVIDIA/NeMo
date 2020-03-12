@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import collections
 import math
 import os
 
@@ -53,33 +52,12 @@ def parse_args():
     # Durations from ASR CTC model.
     parser.add_argument('--durs_dir', type=str, required=True, help="Train dataset durations directory path.")
 
+    # Model.
+    parser.add_argument('--d_emb', type=int, default=128, help="Size of input char embedding.")
+
     args = parser.parse_args()
 
     return args
-
-
-class TrainLogger(nemo.core.SimpleLossLoggerCallback):
-    def __init__(self, tensors, metrics, freq, tb_writer, mu=0.99):
-        self._cache = collections.defaultdict(float)
-
-        def print_func(pt_tensors):
-            kv_tensors = attrdict.AttrDict(dict(zip(tensors.keys(), pt_tensors)))
-
-            for metric in metrics:
-                for k, v in metric(kv_tensors).items():
-                    self._cache[k] = (1 - mu) * self._cache[k] + mu * v
-
-        # noinspection PyUnusedLocal
-        def get_tb_values(*args, **kwargs):
-            return list(self._cache.items())
-
-        super().__init__(
-            tensors=list(tensors.values()),
-            print_func=print_func,
-            get_tb_values=get_tb_values,
-            step_freq=freq,
-            tb_writer=tb_writer,
-        )
 
 
 class FasterSpeechGraph:
@@ -96,7 +74,7 @@ class FasterSpeechGraph:
         )
 
         self.model = nemo_tts.FasterSpeech(
-            n_vocab=len(config.labels), d_emb=128, pad_id=None, jasper_kwargs=config.JasperEncoder, d_out=1,
+            n_vocab=len(config.labels), d_emb=args.d_emb, pad_id=None, jasper_kwargs=config.JasperEncoder, d_out=1,
         )
 
         self.loss = nemo_tts.FasterSpeechDurLoss()
@@ -107,7 +85,7 @@ class FasterSpeechGraph:
         loss = self.loss(dur_true=data.dur, dur_pred=output.pred, text_mask=data.text_mask)
 
         callbacks = [
-            TrainLogger(
+            nemo.core.TrainLogger(
                 tensors=dict(loss=loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
                 metrics=[self._train_metrics],
                 freq=args.train_log_freq,

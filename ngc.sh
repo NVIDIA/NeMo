@@ -52,6 +52,6 @@ ngc batch run \
   --result "${RESULT}" \
   --datasetid 9367:/data/librispeech \
   --datasetid 32028:/manifests/librispeech \
-  --datasetid 56321:/data/durs \
+  --datasetid 56492:/data/durs \
   --workspace "${WS}":/ws \
   --commandline "${cmd}"
