@@ -1,5 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import argparse
+import os
 
 
 class NemoArgParser(argparse.ArgumentParser):
@@ -17,7 +18,7 @@ class NemoArgParser(argparse.ArgumentParser):
         super().__init__(**kwargs)
         # NeMo arguments
         self.add_argument(
-            "--local_rank", default=None, type=int, help="node rank for distributed training",
+            "--local_rank", default=os.getenv('LOCAL_RANK', None), type=int, help="node rank for distributed training",
         )
         self.add_argument(
             "--amp_opt_level",
