@@ -22,7 +22,7 @@
 
 进行多 GPU 训练需要进行如下设置：
 
-在你的 python 脚本中添加命令行选项 ``local_rank``: ``parser.add_argument("--local_rank", default=os.getenv('LOCAL_RANK',0), type=int)``
+在你的 python 脚本中添加命令行选项 ``local_rank``: ``parser.add_argument("--local_rank", default=os.getenv('LOCAL_RANK', None), type=int)``
 
 .. code-block:: python
 
