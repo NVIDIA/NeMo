@@ -951,11 +951,13 @@ class PtActions(Actions):
         # for input_ports
         for port_name, ntype in module.input_ports.items():
             if port_name in inputs_to_drop:
+                input_names.remove(port_name)
                 continue
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)
         # for output_ports
         for port_name, ntype in module.output_ports.items():
             if port_name in outputs_to_drop:
+                output_names.remove(port_name)
                 continue
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)
 
@@ -1053,6 +1055,7 @@ class PtActions(Actions):
             amp_max_loss_scale (float): Max value for amp loss scaling.
                 Defaults to 2.0**24.
         """
+
         with torch.no_grad():
             PtActions.__module_export(
                 module=module,

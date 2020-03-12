@@ -16,11 +16,11 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.utils.nemo_logging import Logger as _Logger
-from nemo.utils.nemo_logging import LogMode as logging_mode
+from .nemo_logging import Logger as _Logger
+from .nemo_logging import LogMode as logging_mode
 
 logging = _Logger()
 
-from nemo.utils.argparse import NemoArgParser
-from nemo.utils.exp_logging import ExpManager, get_logger
-from nemo.utils.helpers import *
+from .argparse import NemoArgParser
+from .exp_logging import ExpManager, get_logger
+from .helpers import *
