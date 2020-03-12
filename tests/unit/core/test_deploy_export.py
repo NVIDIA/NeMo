@@ -35,7 +35,6 @@ import numpy as np
 #
 # pip install --upgrade ./build/Linux/RelWithDebInfo/dist/*.whl
 import onnxruntime as ort
-
 import pytest
 
 from .tensorrt_loaders import DefaultDataLoader, DataLoaderCache, OnnxFileLoader, OnnxNetworkLoader, BuildEngineLoader
@@ -48,6 +47,21 @@ import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo import logging
+
+# Check if the required libraries and runtimes are installed.
+try:
+    # Only initialize GPU after this runner is activated.
+    import pycuda.autoinit
+
+    # This import causes pycuda to automatically manage CUDA context creation and cleanup.
+    import pycuda.driver as cuda
+
+    sys.path.append(os.path.join(path.dirname(path.abspath(__file__)), 'trt_ONNX'))
+    import tensorrt_loaders as loaders
+    import tensorrt_runner as runner
+except:
+    # Skip tests.
+    pytestmark = pytest.mark.skip
 
 
 @pytest.mark.usefixtures("neural_factory")
@@ -254,7 +268,7 @@ class TestDeployExport(TestCase):
         self.__test_export_route(module, out_name + '.ts', nemo.core.DeploymentFormat.TORCHSCRIPT, input_example)
 
     @pytest.mark.unit
-    # @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_simple_module_export(self):
         simplest_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         self.__test_export_route_all(
@@ -262,7 +276,7 @@ class TestDeployExport(TestCase):
         )
 
     @pytest.mark.unit
-    # @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_TokenClassifier_module_export(self):
         t_class = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
             hidden_size=512, num_classes=16, use_transformer_pretrained=False
@@ -272,7 +286,7 @@ class TestDeployExport(TestCase):
         )
 
     @pytest.mark.unit
-    # @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_jasper_decoder(self):
         j_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=33)
         self.__test_export_route_all(
@@ -280,7 +294,7 @@ class TestDeployExport(TestCase):
         )
 
     @pytest.mark.unit
-    # @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_hf_bert(self):
         bert = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name="bert-base-uncased")
         input_example = OrderedDict(
@@ -293,7 +307,7 @@ class TestDeployExport(TestCase):
         self.__test_export_route_all(module=bert, out_name="bert", input_example=input_example)
 
     @pytest.mark.unit
-    # @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_jasper_encoder(self):
         with open("tests/data/jasper_smaller.yaml") as file:
             yaml = YAML(typ="safe")
@@ -312,7 +326,7 @@ class TestDeployExport(TestCase):
         )
 
     @pytest.mark.unit
-    # @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_quartz_encoder(self):
         with open("tests/data/quartznet_test.yaml") as file:
             yaml = YAML(typ="safe")
