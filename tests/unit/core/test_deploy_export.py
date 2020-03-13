@@ -46,9 +46,11 @@ import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo import logging
 
+TRT_ONNX_DISABLED = False
+
 # Check if the required libraries and runtimes are installed.
+# Only initialize GPU after this runner is activated.
 try:
-    # Only initialize GPU after this runner is activated.
     import pycuda.autoinit
 
     # This import causes pycuda to automatically manage CUDA context creation and cleanup.
@@ -63,16 +65,17 @@ try:
     )
     from .tensorrt_runner import TensorRTRunnerV2
 except:
-    # Skip tests.
-    pytestmark = pytest.mark.skip
+    TRT_ONNX_DISABLED = True
 
 
 @pytest.mark.usefixtures("neural_factory")
 class TestDeployExport(TestCase):
-    def setUp(self):
-        logging.setLevel(logging.WARNING)
-        device = nemo.core.DeviceType.GPU
-        self.nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, placement=device)
+    # def setUp(self):
+    #    super().setUp()
+
+    #    logging.setLevel(logging.WARNING)
+    #    device = nemo.core.DeviceType.GPU
+    #    self.nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, placement=device)
 
     def __test_export_route(self, module, out_name, mode, input_example=None):
         out = Path(out_name)
@@ -263,9 +266,10 @@ class TestDeployExport(TestCase):
 
     def __test_export_route_all(self, module, out_name, input_example=None):
         if input_example is not None:
-            self.__test_export_route(
-                module, out_name + '.trt.onnx', nemo.core.DeploymentFormat.TRTONNX, input_example=input_example
-            )
+            if not TRT_ONNX_DISABLED:
+                self.__test_export_route(
+                    module, out_name + '.trt.onnx', nemo.core.DeploymentFormat.TRTONNX, input_example=input_example
+                )
             self.__test_export_route(module, out_name + '.onnx', nemo.core.DeploymentFormat.ONNX, input_example)
             self.__test_export_route(module, out_name + '.pt', nemo.core.DeploymentFormat.PYTORCH, input_example)
         self.__test_export_route(module, out_name + '.ts', nemo.core.DeploymentFormat.TORCHSCRIPT, input_example)
