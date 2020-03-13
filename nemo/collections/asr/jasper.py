@@ -118,14 +118,14 @@ class JasperEncoder(TrainableNM):
         }
 
     @property
-    def disabled_deployment_input_ports(self):
+    def _disabled_deployment_input_ports(self):
         return set(["length"])
 
     @property
-    def disabled_deployment_output_ports(self):
+    def _disabled_deployment_output_ports(self):
         return set(["encoded_lengths"])
 
-    def prepare_for_deployment(self):
+    def _prepare_for_deployment(self):
         m_count = 0
         for m in self.modules():
             if type(m).__name__ == "MaskedConv1d":

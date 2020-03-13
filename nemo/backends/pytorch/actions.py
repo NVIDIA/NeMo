@@ -939,17 +939,17 @@ class PtActions(Actions):
 
         # Some modules have inputs or outputs that should not be included in the export
         # Interrogate the module to check, and if so, exclude them
-        output_names -= module.disabled_deployment_output_ports
-        input_names -= module.disabled_deployment_input_ports
+        output_names -= module._disabled_deployment_output_ports
+        input_names -= module._disabled_deployment_input_ports
 
         # for input_ports
         for port_name, ntype in module.input_ports.items():
-            if port_name in module.disabled_deployment_input_ports:
+            if port_name in module.i_disabled_deployment_input_ports:
                 continue
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)
         # for output_ports
         for port_name, ntype in module.output_ports.items():
-            if port_name in module.disabled_deployment_output_ports:
+            if port_name in module._disabled_deployment_output_ports:
                 continue
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)
 

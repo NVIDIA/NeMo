@@ -610,7 +610,7 @@ class NeuralModuleFactory(object):
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
         """
-        module.prepare_for_deployment()
+        module._prepare_for_deployment()
 
         return self._trainer.deployment_export(
             module=module,

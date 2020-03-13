@@ -94,9 +94,6 @@ class TestDeployExport(TestCase):
         deploy_input_example = (
             tuple(input_example.values()) if isinstance(input_example, OrderedDict) else input_example
         )
-        deploy_input_example = (
-            tuple(input_example.values()) if isinstance(input_example, OrderedDict) else input_example
-        )
         self.nf.deployment_export(
             module=module,
             output=out_name,
