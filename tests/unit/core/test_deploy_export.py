@@ -115,7 +115,13 @@ class TestDeployExport(TestCase):
             loader_cache = DataLoaderCache(data_loader)
             profile_shapes = OrderedDict()
             names = list(module.input_ports) + list(module.output_ports)
-
+            names = list(
+                filter(
+                    lambda x: x
+                    not in (module._disabled_deployment_input_ports | module._disabled_deployment_output_ports),
+                    names,
+                )
+            )
             if isinstance(input_example, tuple):
                 si = [tuple(input_example[i].shape) for i in range(len(input_example))]
             elif isinstance(input_example, OrderedDict):
