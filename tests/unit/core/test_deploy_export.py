@@ -155,7 +155,7 @@ class TestDeployExport(TestCase):
                 input_names = list(input_metadata.keys())
                 for i in range(len(input_names)):
                     input_name = input_names[i]
-                    if input_name in module.disabled_deployment_input_ports:
+                    if input_name in module._disabled_deployment_input_ports:
                         continue
                     inputs[input_name] = (
                         input_example[input_name].cpu().numpy()
@@ -212,7 +212,7 @@ class TestDeployExport(TestCase):
             ort_inputs = ort_session.get_inputs()
             for i in range(len(input_names)):
                 input_name = input_names[i]
-                if input_name in module.disabled_deployment_input_ports:
+                if input_name in module._disabled_deployment_input_ports:
                     continue
                 inputs[input_name] = (
                     input_example[input_name].cpu().numpy()
