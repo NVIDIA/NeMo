@@ -123,11 +123,11 @@ class ExpManager:
         # Create work_dir if specified
         if work_dir:
             self.work_dir = work_dir
-            self.ckpt_dir = f'{self.work_dir}/checkpoints'
+            self.ckpt_dir = os.path.join(self.work_dir, 'checkpoints')
             # only create tm_sur dir if checkpoints dir is not present in the work_dir
             if add_time and not os.path.exists(self.ckpt_dir):
                 self.work_dir = os.path.join(work_dir, tm_suf)
-                self.ckpt_dir = f'{self.work_dir}/checkpoints'
+                self.ckpt_dir = os.path.join(self.work_dir, 'checkpoints')
             self.make_dir(self.work_dir, exist_ok)
             if use_tb:
                 self.get_tb_writer(exist_ok=exist_ok)
