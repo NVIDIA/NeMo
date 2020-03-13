@@ -24,7 +24,7 @@ parser = argparse.ArgumentParser(description='Schema_guided_dst')
 
 # BERT based utterance encoder related arguments
 parser.add_argument(
-    "--bert_ckpt_dir", default=None, type=str, required=True, help="Directory containing pre-trained BERT checkpoint."
+    "--bert_ckpt_dir", default=None, type=str, help="Directory containing pre-trained BERT checkpoint."
 )
 # parser.add_argument("--do_lower_case", action="store_true",
 #                     help="Whether to lower case the input text. Should be True for uncased "
@@ -77,9 +77,6 @@ parser.add_argument(
     help="Directory for the downloaded DSTC8 data, which contains the dialogue files"
     " and schema files of all datasets (eg train, dev)",
 )
-# parser.add_argument("--run_mode", default="train", type=str,
-#                     choices=["train", "predict"],
-#                     help="The mode to run the script in.")
 parser.add_argument(
     "--work_dir",
     type=str,
@@ -117,7 +114,6 @@ logging.info(args)
 if not os.path.exists(args.data_dir):
     raise ValueError('Data not found at {args.data_dir}')
 
-# args.work_dir = f'{args.work_dir}/{args.task_name.upper()}'
 nf = nemo.core.NeuralModuleFactory(
     backend=nemo.core.Backend.PyTorch,
     local_rank=args.local_rank,
@@ -127,12 +123,12 @@ nf = nemo.core.NeuralModuleFactory(
     files_to_copy=[__file__]
 )
 
-
-bert_init_ckpt = os.path.join(args.bert_ckpt_dir, "BERT-base-cased.pt")
-
 pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_model_name)
 
-pretrained_bert_model.restore_from(bert_init_ckpt)
+if args.bert_ckpt_dir:
+    bert_init_ckpt = os.path.join(args.bert_ckpt_dir, "BERT-base-cased.pt")
+    if not path.os.exists(bert_init_ckpt):
+        raise ValueError('No BERT-base-cased**.pt found in {args.data_dir}')
 
 # BERT tokenizer
 tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
@@ -166,11 +162,6 @@ train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
     shuffle=not args.no_shuffle,
 )
 
-# fix
-bert_config = os.path.join(args.bert_ckpt_dir, 'bert_config.json')
-if not os.path.exists(bert_config):
-    raise ValueError(f'bert_config.json not found at {args.bert_ckpt_dir}')
-
 train_data = train_datalayer()
 
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
@@ -178,7 +169,6 @@ hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 # define model pipeline
 encoder_extractor = sgd_modules.Encoder(hidden_size=hidden_size, dropout=args.dropout)
 dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLoss()
-
 
 # Encode the utterances using BERT.
 token_embeddings = pretrained_bert_model(
@@ -247,11 +237,8 @@ eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
 
 # Encode the utterances using BERT
 eval_data = eval_datalayer()
-# import pdb; pdb.set_trace()
-# eval_datalayer.dataset[0]
-
-
 print(len(eval_datalayer))
+
 eval_token_embeddings = pretrained_bert_model(
     input_ids=eval_data.utterance_ids,
     attention_mask=eval_data.utterance_mask,
@@ -314,7 +301,7 @@ eval_tensors = [
 
 steps_per_epoch = len(train_datalayer) // (args.train_batch_size * args.num_gpus)
 logging.info(f'steps per epoch: {steps_per_epoch}')
-# import pdb; pdb.set_trace()
+
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=train_tensors,
