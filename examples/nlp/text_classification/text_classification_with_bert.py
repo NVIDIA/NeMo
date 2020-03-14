@@ -26,18 +26,8 @@ from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Sentence classification with pretrained BERT')
-parser.add_argument("--local_rank", default=None, type=int)
-parser.add_argument("--batch_size", default=32, type=int)
-parser.add_argument("--max_seq_length", default=36, type=int)
-parser.add_argument("--num_gpus", default=1, type=int)
-parser.add_argument("--num_epochs", default=10, type=int)
-parser.add_argument("--num_train_samples", default=-1, type=int)
-parser.add_argument("--num_eval_samples", default=-1, type=int)
-parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
-parser.add_argument("--lr", default=2e-5, type=float)
-parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
-parser.add_argument("--weight_decay", default=0.01, type=float)
-parser.add_argument("--fc_dropout", default=0.1, type=float)
+parser.add_argument("--work_dir", default='outputs', type=str)
+parser.add_argument("--data_dir", required=True, type=str)
 parser.add_argument(
     '--pretrained_model_name',
     default='roberta-base',
@@ -47,38 +37,39 @@ parser.add_argument(
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str)
-parser.add_argument("--data_dir", required=True, type=str)
+parser.add_argument("--batch_size", default=32, type=int)
+parser.add_argument("--max_seq_length", default=36, type=int)
+parser.add_argument("--num_gpus", default=1, type=int)
+parser.add_argument("--num_epochs", default=10, type=int)
+parser.add_argument("--num_train_samples", default=-1, type=int)
+parser.add_argument("--num_eval_samples", default=-1, type=int)
+parser.add_argument("--optimizer_kind", default="adam", type=str)
+parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
+parser.add_argument("--lr", default=2e-5, type=float)
+parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
+parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
+parser.add_argument("--weight_decay", default=0.01, type=float)
+parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument(
-    "--dataset_name",
-    required=True,
-    type=str,
-    choices=["default_format", "sst-2", "imdb", "thucnews", "jarvis", "nlu-ubuntu", "nlu-web", "nlu-chat"],
-    help="default_format assumes that a data file has a header and each line of the file follows "
-    + "the format: text [TAB] label. Label is assumed to be an integer.",
-)
-parser.add_argument(
-    "--use_cache", action='store_true', help="When specified loads and stores cache preprocessed data.",
+    "--use_cache", action='store_true', help="When specified loads and stores cache preprocessed data."
 )
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
-parser.add_argument("--work_dir", default='outputs', type=str)
 parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument('--loss_step_freq', default=25, type=int, help='Frequency of printing loss')
-parser.add_argument("--optimizer_kind", default="adam", type=str)
-parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--do_lower_case", action='store_true')
-parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
+parser.add_argument("--shuffle_data", type=bool, default=True)
 parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
+parser.add_argument("--local_rank", default=None, type=int)
 
 args = parser.parse_args()
 
-work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
 nf = nemo.core.NeuralModuleFactory(
     backend=nemo.core.Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
-    log_dir=work_dir,
+    log_dir=args.work_dir,
     create_tb_writer=True,
     files_to_copy=[__file__],
     add_time_to_log_dir=True,
@@ -92,9 +83,7 @@ hidden_size = model.hidden_size
 
 tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 
-data_desc = TextClassificationDataDesc(
-    args.dataset_name, args.data_dir, args.do_lower_case, modes=[args.train_file_prefix, args.eval_file_prefix]
-)
+data_desc = TextClassificationDataDesc(data_dir=args.data_dir, modes=[args.train_file_prefix, args.eval_file_prefix])
 
 # Create sentence classification loss on top
 classifier = nemo_nlp.nm.trainables.SequenceClassifier(
@@ -112,10 +101,10 @@ else:
     loss_fn = nemo.backends.pytorch.common.CrossEntropyLossNM()
 
 
-def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mode='train'):
+def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train', is_training=True):
     logging.info(f"Loading {mode} data...")
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
-    shuffle = args.shuffle_data if mode == 'train' else False
+    shuffle = args.shuffle_data if is_training else False
 
     data_layer = nemo_nlp.nm.data_layers.BertTextClassificationDataLayer(
         input_file=data_file,
@@ -125,6 +114,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
         shuffle=shuffle,
         batch_size=batch_size,
         use_cache=args.use_cache,
+        do_lower_case=args.do_loer_case,
     )
 
     ids, type_ids, input_mask, labels = data_layer()
@@ -142,7 +132,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, local_rank=0, mod
     logits = classifier(hidden_states=hidden_states)
     loss = loss_fn(logits=logits, labels=labels)
 
-    if mode == 'train':
+    if is_training:
         tensors_to_evaluate = [loss, logits]
     else:
         tensors_to_evaluate = [logits, labels]
@@ -154,8 +144,8 @@ train_tensors, train_loss, steps_per_epoch, _ = create_pipeline(
     num_samples=args.num_train_samples,
     batch_size=args.batch_size,
     num_gpus=args.num_gpus,
-    local_rank=args.local_rank,
     mode=args.train_file_prefix,
+    is_training=True,
 )
 logging.info(f"Steps_per_epoch = {steps_per_epoch}")
 
@@ -163,8 +153,8 @@ eval_tensors, _, _, data_layer = create_pipeline(
     num_samples=args.num_eval_samples,
     batch_size=args.batch_size,
     num_gpus=args.num_gpus,
-    local_rank=args.local_rank,
     mode=args.eval_file_prefix,
+    is_training=False,
 )
 
 # Create callbacks for train and eval modes

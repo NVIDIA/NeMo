@@ -21,7 +21,7 @@ Adopted from: https://github.com/jasonwu0731/trade-dst
 
 import argparse
 import math
-from os.path import exists, expanduser
+from os.path import exists
 
 import nemo.core as nemo_core
 from nemo import logging
@@ -35,57 +35,55 @@ from nemo.collections.nlp.nm.trainables import TRADEGenerator
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description='Dialogue state tracking with TRADE model on MultiWOZ dataset')
+parser.add_argument("--data_dir", default='data/multiwoz2.1', type=str)
+parser.add_argument("--work_dir", default='outputs', type=str)
+parser.add_argument("--checkpoint_dir", default=None, type=str)
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=16, type=int)
 parser.add_argument("--eval_batch_size", default=16, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
-parser.add_argument("--lr_warmup_proportion", default=0.0, type=float)
+parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--lr", default=0.001, type=float)
+parser.add_argument("--lr_warmup_proportion", default=0.0, type=float)
 parser.add_argument("--lr_policy", default='SquareAnnealing', type=str)
 parser.add_argument("--min_lr", default=1e-4, type=float)
 parser.add_argument("--weight_decay", default=0.0, type=float)
+parser.add_argument("--grad_norm_clip", type=float, default=10, help="gradient clipping")
+parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--emb_dim", default=400, type=int)
 parser.add_argument("--hid_dim", default=400, type=int)
 parser.add_argument("--n_layers", default=1, type=int)
 parser.add_argument("--dropout", default=0.2, type=float)
 parser.add_argument("--input_dropout", default=0.2, type=float)
-parser.add_argument("--data_dir", default='~/data/state_tracking/multiwoz2.1', type=str)
+parser.add_argument("--teacher_forcing", default=0.5, type=float)
+parser.add_argument("--shuffle_data", type=bool, default=True)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
-parser.add_argument("--work_dir", default='~/experiments', type=str)
-parser.add_argument("--save_epoch_freq", default=-1, type=int)
+parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
-parser.add_argument("--optimizer_kind", default="adam", type=str)
-parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
-parser.add_argument("--shuffle_data", action='store_true')
 parser.add_argument("--num_train_samples", default=-1, type=int)
 parser.add_argument("--num_eval_samples", default=-1, type=int)
-parser.add_argument("--grad_norm_clip", type=float, default=10, help="gradient clipping")
-parser.add_argument("--teacher_forcing", default=0.5, type=float)
 args = parser.parse_args()
 
 # List of the domains to be considered
 domains = {"attraction": 0, "restaurant": 1, "taxi": 2, "train": 3, "hotel": 4}
 
-# Check if data dir exists.
-abs_data_dir = expanduser(args.data_dir)
-if not exists(abs_data_dir):
-    raise ValueError(f"Folder `{abs_data_dir}` not found")
+# Check if data dir exists
+if not exists(args.data_dir):
+    raise ValueError(f"Data folder `{args.data_dir}` not found")
 
-# Prepare the experiment (output) dir.
-abs_work_dir = f'{expanduser(args.work_dir)}/dst_trade/'
-logging.info("Logging the results of the experiment to: `{}`".format(abs_work_dir))
+# Prepare the experiment output dir
+logging.info(f"Logging the experiment to: {args.work_dir}")
 
-
-print("abs_data_dir = ", abs_data_dir)
-data_desc = MultiWOZDataDesc(abs_data_dir, domains)
+data_desc = MultiWOZDataDesc(args.data_dir, domains)
 
 nf = nemo_core.NeuralModuleFactory(
     backend=nemo_core.Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
-    log_dir=abs_work_dir,
+    log_dir=args.work_dir,
+    checkpoint_dir=args.checkpoint_dir,
     create_tb_writer=True,
     files_to_copy=[__file__],
     add_time_to_log_dir=True,
@@ -114,7 +112,7 @@ def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefi
     shuffle = args.shuffle_data if is_training else False
 
     data_layer = MultiWOZDataLayer(
-        abs_data_dir,
+        args.data_dir,
         data_desc.domains,
         all_domains=data_desc.all_domains,
         vocab=data_desc.vocab,

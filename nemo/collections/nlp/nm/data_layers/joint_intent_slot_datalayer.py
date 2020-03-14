@@ -90,6 +90,7 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
         batch_size=64,
         ignore_extra_tokens=False,
         ignore_start_end=False,
+        do_lower_case=False,
         dataset_type=BertJointIntentSlotDataset,
     ):
         dataset_params = {
@@ -101,6 +102,7 @@ class BertJointIntentSlotDataLayer(TextDataLayer):
             'num_samples': num_samples,
             'ignore_extra_tokens': ignore_extra_tokens,
             'ignore_start_end': ignore_start_end,
+            'do_lower_case': do_lower_case,
         }
         super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
 
@@ -120,6 +122,7 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
         dataset_type (BertJointIntentSlotDataset):
             the dataset that needs to be converted to DataLayerNM
         shuffle (bool): whether to shuffle data or not. Default: False.
+        do_lower_case (bool): whether to make the sentence all lower case
         batch_size: text segments batch size
     """
 
@@ -155,7 +158,13 @@ class BertJointIntentSlotInferDataLayer(TextDataLayer):
         max_seq_length,
         batch_size=1,
         shuffle=False,
+        do_lower_case=False,
         dataset_type=BertJointIntentSlotInferDataset,
     ):
-        dataset_params = {'queries': queries, 'tokenizer': tokenizer, 'max_seq_length': max_seq_length}
+        dataset_params = {
+            'queries': queries,
+            'tokenizer': tokenizer,
+            'max_seq_length': max_seq_length,
+            'do_lower_case': do_lower_case,
+        }
         super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)

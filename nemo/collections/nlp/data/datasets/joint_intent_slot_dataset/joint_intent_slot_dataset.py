@@ -157,6 +157,7 @@ class BertJointIntentSlotDataset(Dataset):
         pad_label=128,
         ignore_extra_tokens=False,
         ignore_start_end=False,
+        do_lower_case=False,
     ):
         if num_samples == 0:
             raise ValueError("num_samples has to be positive", num_samples)
@@ -179,7 +180,10 @@ class BertJointIntentSlotDataset(Dataset):
             raw_slots.append([int(slot) for slot in slot_line.strip().split()])
             parts = input_line.strip().split()
             raw_intents.append(int(parts[-1]))
-            queries.append(' '.join(parts[:-1]))
+            query = ' '.join(parts[:-1])
+            if do_lower_case:
+                query = query.lower()
+            queries.append(query)
 
         features = get_features(
             queries,

@@ -6,12 +6,12 @@ In this tutorial, we are going to implement a joint intent and slot filling syst
 All code used in this tutorial is based on ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``.
 
 There are a variety pre-trained BERT models that we can select from using the argument `--pretrained_bert_model`. We're currently
-using the script for loading pre-trained models from `transformers`. See the list of available pre-trained models
-`here <https://https://huggingface.co/transformers/pretrained_models.html>`__.
+using the script for loading pre-trained models from `transformers`. \
+See the list of available pre-trained models by calling `nemo.collections.nlp.nm.trainables.get_bert_models_list()`.
 
 .. tip::
 
-    For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
+    For pretraining BERT model in NeMo and also downloading pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
 
 
 Preliminaries
@@ -30,18 +30,29 @@ with x being the sequence of n tokens (x1, x2, ..., xn), y being the predicted i
 
 **Datasets.**
 
-This model can work with any dataset that follows the format:
+This model can work with any dataset that follows the NeMo's format:
     * input file: a `tsv` file with the first line as a header [sentence][tab][label]
-
     * slot file: slot labels for all tokens in the sentence, separated by space. The length of the slot labels should be the same as the length of all tokens in sentence in input file.
 
+Datasets which are not in this format should get processed and converted into NeMo's format. \
 Currently, the datasets that we provide pre-processing script for include ATIS which can be downloaded
 from `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ and the SNIPS spoken language understanding research dataset which can be
 requested from `here <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__. \
-By setting the dataset_name parameter to one of ['atis', 'snips-light', 'snips-speak', 'snips-all'], you can process and convert these datasets into NeMo's format.
+
+You may use ``/examples/nlp/intent_detection_slot_tagging/data/import_datasets.py`` script to process these datasets:
+
+    .. code-block:: python
+
+        cd examples/nlp/intent_detection_slot_tagging/data/
+        python import_datasets.py \
+            --dataset_name <name of the dataset>
+            --source_data_dir <path to data>\
+            --target_data_dir <path to save the processed data in NeMo format>
+
+By setting the dataset_name parameter to one of ['atis', 'snips'], you can process and convert these datasets into NeMo's format. you can also write your own preprocessing scripts for any dataset.
 
 
-Code structure
+Code Structure
 --------------
 
 First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level,
@@ -53,7 +64,8 @@ First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or
             backend=nemo.core.Backend.PyTorch,
             local_rank=args.local_rank,
             optimization_level=args.amp_opt_level,
-            log_dir=work_dir,
+            log_dir=args.work_dir,
+            checkpoint_dir=args.checkpoint_dir,
             create_tb_writer=True,
             files_to_copy=[__file__],
             add_time_to_log_dir=True,
@@ -69,17 +81,17 @@ This will tokenize text following the mapping of the original BERT model.
 
 Next, we define all Neural Modules participating in our joint intent slot filling classification pipeline.
 
-    * Process data: the `JointIntentSlotDataDesc` class in `nemo/collections/nlp/data/datasets/joint_intent_slot_dataset/data_descriptor.py` is supposed to do the preprocessing of raw data into the format data supported by `BertJointIntentSlotDataset`. Currently, it supports SNIPS and ATIS raw datasets, but you can also write your own preprocessing scripts for any dataset.
+    * Build data description: the `JointIntentSlotDataDesc` class in `nemo/collections/nlp/data/datasets/joint_intent_slot_dataset/data_descriptor.py` is supposed to do the read the dataset and build its schema.
 
     .. code-block:: python
 
         from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
         data_desc = JointIntentSlotDataDesc(
-            args.data_dir, args.do_lower_case, args.dataset_name, args.none_slot_label, args.pad_label
+            data_dir=args.data_dir, none_slot_label=args.none_slot_label, pad_label=args.pad_label
         )
 
 
-    * Load the pretrained BERT model to encode the corresponding inputs.
+    * Load the pre-trained BERT model to encode the corresponding inputs.
 
     .. code-block:: python
 
@@ -126,6 +138,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
                 batch_size=batch_size,
                 ignore_extra_tokens=args.ignore_extra_tokens,
                 ignore_start_end=args.ignore_start_end,
+                do_lower_case=args.do_lower_case,
             )
 
             input_data = data_layer()
@@ -223,31 +236,36 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
             optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
         )
 
-Model training
+Model Training
 --------------
 
-To train a joint intent slot filling model, run ``joint_intent_slot_with_bert.py`` located at ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``:
+To train a joint intent slot filling model on a dataset, run ``joint_intent_slot_with_bert.py`` located at ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``:
 
     .. code-block:: python
 
-        python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py \
-            --data_dir <path to data>
-            --work_dir <where you want to log your experiment> \
+        cd examples/nlp/intent_detection_slot_tagging/
+        python joint_intent_slot_with_bert.py \
+            --data_dir <path to data>\
+            --work_dir <where you want to log your experiment>\
 
-To do inference, run:
+By default a folder named "checkpoints" would get created under word_dir and checkpoints are stored under it.
+
+To do inference on a checkpoint, run:
 
     .. code-block:: python
 
+        cd examples/nlp/intent_detection_slot_tagging/
         python joint_intent_slot_infer.py \
             --data_dir <path to data> \
-            --work_dir <path to checkpoint folder>
+            --checkpoint_dir <path to checkpoint folder>\
 
 To do inference on a single query, run:
 
     .. code-block:: python
 
+        cd examples/nlp/intent_detection_slot_tagging/
         python joint_intent_slot_infer.py \
-            --work_dir <path to checkpoint folder>
+            --checkpoint_dir <path to checkpoint folder>
             --query <query>
 
 

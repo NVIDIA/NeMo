@@ -33,10 +33,10 @@ parser = argparse.ArgumentParser(description='Joint-intent BERT')
 parser.add_argument("--max_seq_length", default=50, type=int)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--pretrained_bert_model", default="bert-base-uncased", type=str)
-parser.add_argument("--dataset_name", default='snips-all', type=str)
-parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
+parser.add_argument("--dataset_name", default='atis', type=str)
+parser.add_argument("--data_dir", default='data/atis', type=str)
 parser.add_argument("--query", default='please turn on the light', type=str)
-parser.add_argument("--work_dir", required=True, help="your checkpoint folder", type=str)
+parser.add_argument("--checkpoint_dir", required=True, help="your checkpoint folder", type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--do_lower_case", action='store_false')
 
@@ -54,7 +54,7 @@ pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
 tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 hidden_size = pretrained_bert_model.hidden_size
 
-data_desc = JointIntentSlotDataDesc(args.data_dir, args.do_lower_case, args.dataset_name)
+data_desc = JointIntentSlotDataDesc(data_dir=args.data_dir)
 
 query = args.query
 if args.do_lower_case:
@@ -81,7 +81,7 @@ intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
 
 evaluated_tensors = nf.infer(
-    tensors=[intent_logits, slot_logits, input_data.subtokens_mask], checkpoint_dir=args.work_dir
+    tensors=[intent_logits, slot_logits, input_data.subtokens_mask], checkpoint_dir=args.checkpoint_dir
 )
 
 
