@@ -186,7 +186,7 @@ if __name__ == "__main__":
     elif dataset_name == 'imdb':
         process_imdb(source_dir, target_dir, do_lower_case)
     elif dataset_name == 'thucnews':
-        process_thucnews(source_dir)
+        process_thucnews(source_dir, target_dir)
     elif dataset_name.startswith('nlu-'):
         if dataset_name == 'nlu-chat':
             infile = f'{source_dir}/ChatbotCorpus.json'
