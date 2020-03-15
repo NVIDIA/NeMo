@@ -17,7 +17,9 @@
 import json
 import os
 
-from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import partition_data, write_files
+from nemo import logging
+from nemo.collections.nlp.data.datasets.datasets_utils import partition_data, write_files
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import DATABASE_EXISTS_TMP, if_exist
 
 __all__ = [
     'get_intent_query_files_dialogflow',
@@ -79,26 +81,22 @@ def get_slots_dialogflow(files):
     return slot_labels
 
 
-def process_dialogflow(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
-    if not os.path.exists(data_dir):
+def process_dialogflow(infold, outfold, dev_split=0.1):
+    if not os.path.exists(infold):
         link = 'www.dialogflow.com'
         raise ValueError(
-            f'Data not found at {data_dir}. ' f'Export your dialogflow data from' f'{link} and unzip at {data_dir}.'
+            f'Data not found at {infold}. ' f'Export your dialogflow data from' f'{link} and unzip at {infold}.'
         )
 
-    outfold = f'{data_dir}/dialogflow/nemo-processed'
-
-    '''TO DO  - check for nemo-processed directory
-    already exists. If exists, skip the entire creation steps below. '''
+    if if_exist(outfold, [f'{mode}.tsv' for mode in ['train', 'test']]):
+        logging.info(DATABASE_EXISTS_TMP.format('mturk', outfold))
+        return
 
     os.makedirs(outfold, exist_ok=True)
 
-    files = get_intent_query_files_dialogflow(data_dir)
-
+    files = get_intent_query_files_dialogflow(infold)
     slot_labels = get_slots_dialogflow(files)
-
     intent_queries, intent_names, slot_tags = get_intents_slots_dialogflow(files, slot_labels)
-
     train_queries, train_slots, test_queries, test_slots = partition_data(intent_queries, slot_tags, split=dev_split)
 
     write_files(train_queries, f'{outfold}/train.tsv')
@@ -109,5 +107,3 @@ def process_dialogflow(data_dir, uncased, modes=['train', 'test'], dev_split=0.1
 
     write_files(slot_labels, f'{outfold}/dict.slots.csv')
     write_files(intent_names, f'{outfold}/dict.intents.csv')
-
-    return outfold
