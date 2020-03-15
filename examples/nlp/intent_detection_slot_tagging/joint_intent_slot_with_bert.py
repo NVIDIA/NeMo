@@ -89,7 +89,7 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=True,
 )
 
-tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
+tokenizer = BertTokenizer.from_pretrained(args.pretrained_model_name)
 
 """ Load the pretrained BERT parameters
 See the list of pretrained models, call:
@@ -99,7 +99,7 @@ if args.bert_checkpoint and args.bert_config:
     pretrained_bert_model = BERT(config_filename=args.bert_config)
     pretrained_bert_model.restore_from(args.bert_checkpoint)
 else:
-    pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
+    pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_model_name)
 
 hidden_size = pretrained_bert_model.hidden_size
 
