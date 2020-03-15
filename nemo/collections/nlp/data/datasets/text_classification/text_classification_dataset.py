@@ -98,11 +98,13 @@ class BertTextClassificationDataset(Dataset):
                     if index % 20000 == 0:
                         logging.debug(f"Processing line {index}/{len(lines)}")
 
-                    sent_label = int(line.split()[-1])
-                    sent_labels.append(sent_label)
-                    sent_words = line.strip().split()[:-1]
                     if do_lower_case:
-                        sent_words = [s.lower() for s in sent_words]
+                        line = line.lower()
+
+                    line_splited = line.strip().split()
+                    sent_label = int(line_splited[-1])
+                    sent_labels.append(sent_label)
+                    sent_words = line_splited[:-1]
                     sent_subtokens = [tokenizer.cls_token]
 
                     for word in sent_words:
