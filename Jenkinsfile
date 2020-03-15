@@ -226,8 +226,8 @@ pipeline {
       failFast true
         steps {
           sh 'cd examples/nlp/intent_detection_slot_tagging && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py --num_gpus=2 --num_epochs=1 --max_seq_length=50 --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=dev --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs_joint_intent_slot'
-          sh 'cd examples/nlp/intent_detection_slot_tagging && DATE_F=$(ls outputs_joint_intent_slot/) && CHECKPOINT_DIR=outputs/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer.py --checkpoint_dir $CHECKPOINT_DIR --eval_file_prefix=dev --data_dir=/home/TestData/nlp/retail/ --batch_size=10'
-          sh 'cd examples/nlp/intent_detection_slot_tagging && DATE_F=$(ls outputs_joint_intent_slot/) && CHECKPOINT_DIR=outputs/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer_b1.py --data_dir=/home/TestData/nlp/retail/ --checkpoint_dir $CHECKPOINT_DIR --query="how much is it?"'
+          sh 'cd examples/nlp/intent_detection_slot_tagging && DATE_F=$(ls outputs_joint_intent_slot/) && CHECKPOINT_DIR=outputs_joint_intent_slot/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer.py --checkpoint_dir $CHECKPOINT_DIR --eval_file_prefix=dev --data_dir=/home/TestData/nlp/retail/ --batch_size=10'
+          sh 'cd examples/nlp/intent_detection_slot_tagging && DATE_F=$(ls outputs_joint_intent_slot/) && CHECKPOINT_DIR=outputs_joint_intent_slot/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer_b1.py --data_dir=/home/TestData/nlp/retail/ --checkpoint_dir $CHECKPOINT_DIR --query="how much is it?"'
           sh 'rm -rf examples/nlp/intent_detection_slot_tagging/outputs'
         }
       }
