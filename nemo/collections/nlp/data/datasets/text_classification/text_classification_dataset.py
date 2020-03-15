@@ -102,7 +102,7 @@ class BertTextClassificationDataset(Dataset):
                     sent_labels.append(sent_label)
                     sent_words = line.strip().split()[:-1]
                     if do_lower_case:
-                        sent_words = sent_words.lower()
+                        sent_words = [s.lower() for s in sent_words]
                     sent_subtokens = [tokenizer.cls_token]
 
                     for word in sent_words:
