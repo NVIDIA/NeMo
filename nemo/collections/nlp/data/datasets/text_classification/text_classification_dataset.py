@@ -65,6 +65,7 @@ class BertTextClassificationDataset(Dataset):
         self.use_cache = use_cache
         self.shuffle = shuffle
         self.vocab_size = self.tokenizer.tokenizer.vocab_size
+        self.do_lower_case = do_lower_case
 
         if use_cache:
             data_dir, filename = os.path.split(input_file)
