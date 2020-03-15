@@ -342,60 +342,10 @@ lr_policy_fn = get_lr_policy(
     args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
 )
 
-#############################################
-train_eval_tensors = [
-    train_data.example_id,
-    train_data.service_id,
-    train_data.is_real_example,
-    train_data.user_utterance,
-    train_data.start_char_idx,
-    train_data.end_char_idx,
-    logit_intent_status,
-    logit_req_slot_status,
-    logit_cat_slot_status,
-    logit_cat_slot_value,
-    cat_slot_values_mask,
-    logit_noncat_slot_status,
-    logit_noncat_slot_start,
-    logit_noncat_slot_end,
-    train_data.intent_status,
-    train_data.requested_slot_status,
-    req_slot_mask,
-    train_data.categorical_slot_status,
-    train_data.num_categorical_slots,
-    train_data.categorical_slot_values,
-    train_data.noncategorical_slot_status,
-    train_data.num_noncategorical_slots,
-    train_data.noncategorical_slot_value_start,
-    train_data.noncategorical_slot_value_end,
-]
-
-train_input_json_files = [
-    os.path.join(args.data_dir, 'train', 'dialogues_{:03d}.json'.format(fid))
-    for fid in data_utils.FILE_RANGES[args.task_name]['train']
-]
-train_schema_json_file = os.path.join(args.data_dir, 'train', 'schema.json')
-
-# Write predictions to file in DSTC8 format.
-train_prediction_dir = os.path.join(args.work_dir, 'predictions', 'pred_res_{}_{}'.format('TRAIN', args.task_name))
-train_output_metric_file = os.path.join(args.work_dir, 'train_metrics.txt')
-os.makedirs(train_prediction_dir, exist_ok=True)
-
-train_eval_callback = nemo.core.EvaluatorCallback(
-    eval_tensors=train_eval_tensors,
-    user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, train_input_json_files, train_schema_json_file, train_prediction_dir, args.data_dir, 'train', train_output_metric_file
-    ),
-    tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch,
-)
-#############################################
-
 
 nf.train(
     tensors_to_optimize=[loss],
-    callbacks=[train_callback, eval_callback, ckpt_callback, train_eval_callback],
+    callbacks=[train_callback, eval_callback, ckpt_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
     optimization_params={"num_epochs": args.num_epochs, "lr": args.learning_rate},
