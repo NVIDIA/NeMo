@@ -19,8 +19,8 @@ import os
 import shutil
 from os.path import exists
 
-from .dialogueflow_utils import process_dialogflow
-from .mturk_utils import process_mturk
+from dialogflow_utils import process_dialogflow
+from mturk_utils import process_mturk
 from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import (
     DATABASE_EXISTS_TMP,
@@ -250,11 +250,11 @@ if __name__ == "__main__":
             infold=source_dir,
             outfold=target_dir,
             modes=["train", "test", "dev"],
-            ignore_prev_intent=args.ingore_prev_intent,
+            ignore_prev_intent=args.ignore_prev_intent,
         )
     elif dataset_name == 'dialogflow':
-        process_dialogflow(source_dir, do_lower_case)
+        process_dialogflow(infold=source_dir, outfold=target_dir)
     elif dataset_name == 'mturk-processed':
-        process_mturk(source_dir, do_lower_case)
+        process_mturk(infold=source_dir, outfold=target_dir)
     else:
         raise ValueError(f'Dataset {dataset_name} is not supported.')
