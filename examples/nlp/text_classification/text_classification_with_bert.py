@@ -114,7 +114,7 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train', is_
         shuffle=shuffle,
         batch_size=batch_size,
         use_cache=args.use_cache,
-        do_lower_case=args.do_loer_case,
+        do_lower_case=args.do_lower_case,
     )
 
     ids, type_ids, input_mask, labels = data_layer()
