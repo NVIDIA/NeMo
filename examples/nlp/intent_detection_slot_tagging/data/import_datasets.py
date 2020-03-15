@@ -21,6 +21,7 @@ from os.path import exists
 
 from dialogflow_utils import process_dialogflow
 from mturk_utils import process_mturk
+
 from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import (
     DATABASE_EXISTS_TMP,
