@@ -102,49 +102,6 @@ class SGDModel(TrainableNM):
             2: AxisType(ChannelTag)
         """
         return {
-            # "logit_intent_status": NeuralType({
-            #     0: AxisType(BatchTag),
-            #     1: AxisType(TimeTag),
-            #     2: AxisType(ChannelTag)
-            # }),
-            # "logit_req_slot_status": NeuralType({
-            #     0: AxisType(BatchTag),
-            #     1: AxisType(TimeTag)
-            # }),
-            # "req_slot_mask": NeuralType({
-            #     0: AxisType(BatchTag),
-            #     1: AxisType(TimeTag)
-            # }),
-            # "logit_cat_slot_status": NeuralType({
-            #     0: AxisType(BatchTag),
-            #     1: AxisType(TimeTag),
-            #     2: AxisType(ChannelTag)
-            # }),
-            # "logit_cat_slot_value": NeuralType({
-            #     0: AxisType(BatchTag),
-            #     1: AxisType(TimeTag),
-            #     2: AxisType(ChannelTag)
-            # }),
-            # "cat_slot_values_mask": NeuralType({
-            #     0: AxisType(BatchTag),
-            #     1: AxisType(TimeTag),
-            #     2: AxisType(ChannelTag)
-            # }),
-            # "logit_noncat_slot_status": NeuralType({
-            #     0: AxisType(BatchTag),
-            #     1: AxisType(TimeTag),
-            #     2: AxisType(ChannelTag)
-            # }),
-            # "logit_noncat_slot_start": NeuralType({
-            #     0: AxisType(BatchTag),
-            #     1: AxisType(TimeTag),
-            #     2: AxisType(ChannelTag)
-            # }),
-            # "logit_noncat_slot_end": NeuralType({
-            #     0: AxisType(BatchTag),
-            #     1: AxisType(TimeTag),
-            #     2: AxisType(ChannelTag)
-            # })
             "logit_intent_status": NeuralType(('B', 'T', 'C'), LogitsType()),
             "logit_req_slot_status": NeuralType(('B', 'T'), LogitsType()),
             "req_slot_mask": NeuralType(('B', 'T'), ChannelType()),
