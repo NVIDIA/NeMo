@@ -937,26 +937,16 @@ class PtActions(Actions):
                     if axis.kind == AxisKind.Batch or axis.kind == AxisKind.Time:
                         dynamic_axes[port_name].append(ind)
 
-        # This is a hack for Jasper to Jarvis export -- need re-design for this
-        inputs_to_drop = set()
-        outputs_to_drop = set()
-        if type(module).__name__ == "JasperEncoder":
-            logging.info(
-                "Module is JasperEncoder. We are removing input and output length ports since they are not needed for "
-                "deployment"
-            )
-            inputs_to_drop.add("length")
-            outputs_to_drop.add("encoded_lengths")
-
+        # extract dynamic axes and remove unnecessary inputs/outputs
         # for input_ports
         for port_name, ntype in module.input_ports.items():
-            if port_name in inputs_to_drop:
+            if port_name in module._disabled_deployment_input_ports:
                 input_names.remove(port_name)
                 continue
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)
         # for output_ports
         for port_name, ntype in module.output_ports.items():
-            if port_name in outputs_to_drop:
+            if port_name in module._disabled_deployment_output_ports:
                 output_names.remove(port_name)
                 continue
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)

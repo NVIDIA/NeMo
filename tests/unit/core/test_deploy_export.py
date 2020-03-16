@@ -46,9 +46,11 @@ import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo import logging
 
+TRT_ONNX_DISABLED = False
+
 # Check if the required libraries and runtimes are installed.
+# Only initialize GPU after this runner is activated.
 try:
-    # Only initialize GPU after this runner is activated.
     import pycuda.autoinit
 
     # This import causes pycuda to automatically manage CUDA context creation and cleanup.
@@ -63,16 +65,17 @@ try:
     )
     from .tensorrt_runner import TensorRTRunnerV2
 except:
-    # Skip tests.
-    pytestmark = pytest.mark.skip
+    TRT_ONNX_DISABLED = True
 
 
 @pytest.mark.usefixtures("neural_factory")
 class TestDeployExport(TestCase):
-    def setUp(self):
-        logging.setLevel(logging.WARNING)
-        device = nemo.core.DeviceType.GPU
-        self.nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, placement=device)
+    # def setUp(self):
+    #    super().setUp()
+
+    #    logging.setLevel(logging.WARNING)
+    #    device = nemo.core.DeviceType.GPU
+    #    self.nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, placement=device)
 
     def __test_export_route(self, module, out_name, mode, input_example=None):
         out = Path(out_name)
@@ -112,7 +115,13 @@ class TestDeployExport(TestCase):
             loader_cache = DataLoaderCache(data_loader)
             profile_shapes = OrderedDict()
             names = list(module.input_ports) + list(module.output_ports)
-
+            names = list(
+                filter(
+                    lambda x: x
+                    not in (module._disabled_deployment_input_ports | module._disabled_deployment_output_ports),
+                    names,
+                )
+            )
             if isinstance(input_example, tuple):
                 si = [tuple(input_example[i].shape) for i in range(len(input_example))]
             elif isinstance(input_example, OrderedDict):
@@ -152,7 +161,7 @@ class TestDeployExport(TestCase):
                 input_names = list(input_metadata.keys())
                 for i in range(len(input_names)):
                     input_name = input_names[i]
-                    if input_name in module.disabled_deployment_input_ports:
+                    if input_name in module._disabled_deployment_input_ports:
                         continue
                     inputs[input_name] = (
                         input_example[input_name].cpu().numpy()
@@ -209,8 +218,8 @@ class TestDeployExport(TestCase):
             ort_inputs = ort_session.get_inputs()
             for i in range(len(input_names)):
                 input_name = input_names[i]
-                if input_name in module.disabled_deployment_input_ports:
-                    input_name = ort_inputs[i].name
+                if input_name in module._disabled_deployment_input_ports:
+                    continue
                 inputs[input_name] = (
                     input_example[input_name].cpu().numpy()
                     if isinstance(input_example, OrderedDict)
@@ -263,9 +272,10 @@ class TestDeployExport(TestCase):
 
     def __test_export_route_all(self, module, out_name, input_example=None):
         if input_example is not None:
-            self.__test_export_route(
-                module, out_name + '.trt.onnx', nemo.core.DeploymentFormat.TRTONNX, input_example=input_example
-            )
+            if not TRT_ONNX_DISABLED:
+                self.__test_export_route(
+                    module, out_name + '.trt.onnx', nemo.core.DeploymentFormat.TRTONNX, input_example=input_example
+                )
             self.__test_export_route(module, out_name + '.onnx', nemo.core.DeploymentFormat.ONNX, input_example)
             self.__test_export_route(module, out_name + '.pt', nemo.core.DeploymentFormat.PYTORCH, input_example)
         self.__test_export_route(module, out_name + '.ts', nemo.core.DeploymentFormat.TORCHSCRIPT, input_example)
@@ -323,9 +333,7 @@ class TestDeployExport(TestCase):
         )
 
         self.__test_export_route_all(
-            module=jasper_encoder,
-            out_name="jasper_encoder",
-            input_example=(torch.randn(16, 64, 256).cuda(), torch.randn(256).cuda()),
+            module=jasper_encoder, out_name="jasper_encoder", input_example=torch.randn(16, 64, 256).cuda(),
         )
 
     @pytest.mark.unit
@@ -343,7 +351,5 @@ class TestDeployExport(TestCase):
         )
 
         self.__test_export_route_all(
-            module=jasper_encoder,
-            out_name="quartz_encoder",
-            input_example=(torch.randn(16, 64, 256).cuda(), torch.randint(20, (16,)).cuda()),
+            module=jasper_encoder, out_name="quartz_encoder", input_example=torch.randn(16, 64, 256).cuda(),
         )
