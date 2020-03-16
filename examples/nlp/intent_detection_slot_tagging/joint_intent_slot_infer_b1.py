@@ -29,26 +29,17 @@ from nemo.collections.nlp.nm.trainables import JointIntentSlotClassifier
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Joint-intent BERT')
-parser.add_argument("--max_seq_length", default=50, type=int)
-parser.add_argument("--fc_dropout", default=0.1, type=float)
-parser.add_argument(
-    '--pretrained_model_name',
-    default='bert-base-uncased',
-    type=str,
-    help='Name of the pre-trained model for the encoder',
-    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
-)
+parser.add_argument("--query", required=True, type=str)
 parser.add_argument("--data_dir", default='data/atis', type=str)
-parser.add_argument("--query", default='please turn on the light', type=str)
-parser.add_argument("--checkpoint_dir", required=True, help="your checkpoint folder", type=str)
-parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
+parser.add_argument("--checkpoint_dir", required=True, help="path to your checkpoint folder", type=str)
+parser.add_argument("--pretrained_model_name", default="bert-base-uncased", type=str)
+parser.add_argument("--bert_config", default=None, type=str)
 parser.add_argument("--do_lower_case", action='store_false')
+parser.add_argument("--max_seq_length", default=64, type=int)
 
 args = parser.parse_args()
 
-nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None
-)
+nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch)
 
 pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
     bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
@@ -69,7 +60,7 @@ data_layer = BertJointIntentSlotInferDataLayer(
 
 # Create sentence classification loss on top
 classifier = JointIntentSlotClassifier(
-    hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
+    hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=0.0
 )
 
 input_data = data_layer()
