@@ -37,7 +37,7 @@ def ids2text(ids, vocab):
     return ' '.join([vocab[int(id_)] for id_ in ids])
 
 
-def process_atis(infold, outfold, modes=['train', 'test']):
+def process_atis(infold, outfold, modes=['train', 'test'], do_lower_case=False):
     """ MSFT's dataset, processed by Kaggle
     https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk
     """
@@ -46,7 +46,7 @@ def process_atis(infold, outfold, modes=['train', 'test']):
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
         logging.info(DATABASE_EXISTS_TMP.format('ATIS', outfold))
         return outfold
-    logging.info(f'Processing ATIS dataset and store at {outfold}')
+    logging.info(f'Processing ATIS dataset and storing at {outfold}.')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -62,6 +62,8 @@ def process_atis(infold, outfold, modes=['train', 'test']):
 
         for i, query in enumerate(queries):
             sentence = ids2text(query.strip().split()[1:-1], vocab)
+            if do_lower_case:
+                sentence = sentence.lower()
             outfiles[mode].write(f'{sentence}\t{intents[i].strip()}\n')
             slot = ' '.join(slots[i].strip().split()[1:-1])
             outfiles[mode + '_slots'].write(slot + '\n')
@@ -72,7 +74,7 @@ def process_atis(infold, outfold, modes=['train', 'test']):
         outfiles[mode].close()
 
 
-def process_snips(infold, outfold, uncased, modes=['train', 'test'], dev_split=0.1):
+def process_snips(infold, outfold, do_lower_case, modes=['train', 'test'], dev_split=0.1):
     if not os.path.exists(infold):
         link = 'https://github.com/snipsco/spoken-language-understanding-research-datasets'
         raise ValueError(f'Data not found at {infold}. ' f'You may request to download the SNIPS dataset from {link}.')
@@ -80,13 +82,16 @@ def process_snips(infold, outfold, uncased, modes=['train', 'test'], dev_split=0
     exist = True
     for dataset in ['light', 'speak', 'all']:
         if if_exist(f'{outfold}/{dataset}', [f'{mode}.tsv' for mode in modes]):
-            logging.info(DATABASE_EXISTS_TMP.format('SNIPS-' + dataset.upper(), outfold))
+            logging.info(DATABASE_EXISTS_TMP.format('SNIPS-' + dataset, outfold))
         else:
             exist = False
     if exist:
         return outfold
 
-    logging.info(f'Processing SNIPS dataset and store at {outfold}')
+    logging.info(f'Processing SNIPS dataset and storing at folders "speak", "light" and "all" under {outfold}.')
+    logging.info(
+        f'Processing and importing "smart-speaker-en-close-field" -> "speak" and "smart-speaker-en-close-field" -> "light".'
+    )
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -100,19 +105,21 @@ def process_snips(infold, outfold, uncased, modes=['train', 'test'], dev_split=0
     light_train, light_dev, light_slots, light_intents = get_dataset(light_files, dev_split)
     speak_train, speak_dev, speak_slots, speak_intents = get_dataset(speak_files)
 
-    create_dataset(light_train, light_dev, light_slots, light_intents, uncased, f'{outfold}/light')
-    create_dataset(speak_train, speak_dev, speak_slots, speak_intents, uncased, f'{outfold}/speak')
+    create_dataset(light_train, light_dev, light_slots, light_intents, do_lower_case, f'{outfold}/light')
+    create_dataset(speak_train, speak_dev, speak_slots, speak_intents, do_lower_case, f'{outfold}/speak')
     create_dataset(
         light_train + speak_train,
         light_dev + speak_dev,
         light_slots | speak_slots,
         light_intents | speak_intents,
-        uncased,
+        do_lower_case,
         f'{outfold}/all',
     )
 
 
-def process_jarvis_datasets(infold, outfold, modes=['train', 'test', 'dev'], ignore_prev_intent=False):
+def process_jarvis_datasets(
+    infold, outfold, modes=['train', 'test', 'dev'], do_lower_case=False, ignore_prev_intent=False
+):
     """ process and convert Jarvis datasets into NeMo's BIO format
     """
     dataset_name = "jarvis"
@@ -120,7 +127,7 @@ def process_jarvis_datasets(infold, outfold, modes=['train', 'test', 'dev'], ign
         logging.info(DATABASE_EXISTS_TMP.format(dataset_name, outfold))
         return outfold
 
-    logging.info(f'Processing {dataset_name} dataset and store at {outfold}')
+    logging.info(f'Processing {dataset_name} dataset and storing at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
@@ -167,6 +174,9 @@ def process_jarvis_datasets(infold, outfold, modes=['train', 'test', 'dev'], ign
                 start_token = 2
             else:
                 start_token = 1
+
+            if do_lower_case:
+                sentence = sentence.lower()
             sentence_cld = " ".join(sentence.strip().split()[start_token:-1])
             outfiles[mode].write(f'{sentence_cld}\t' f'{str(intents_list[intent_str])}\n')
 
@@ -221,18 +231,22 @@ if __name__ == "__main__":
         "--dataset_name",
         required=True,
         type=str,
-        choices=['atis', 'snips', 'jarvis', 'dialogueflow', 'mturk-processed'],
+        choices=['atis', 'snips', 'jarvis', 'dialogflow', 'mturk-processed'],
     )
     parser.add_argument(
-        "--source_data_dir", required=True, type=str, help='The path to the folder containing the dataset files.'
+        "--source_data_dir", required=True, type=str, help='path to the folder containing the dataset files'
     )
-    parser.add_argument("--target_data_dir", required=True, type=str)
+    parser.add_argument("--target_data_dir", required=True, type=str, help='path to save the processed dataset')
     parser.add_argument("--do_lower_case", default=True, type=bool)
-    parser.add_argument("--ignore_prev_intent", default=False, type=bool)
+    parser.add_argument(
+        "--ignore_prev_intent",
+        default=False,
+        type=bool,
+        help='ignores previous intent while importing datasets in jarvis\'s format',
+    )
     args = parser.parse_args()
 
     dataset_name = args.dataset_name
-    do_lower_case = args.do_lower_case
     source_dir = args.source_data_dir
     target_dir = args.target_data_dir
 
@@ -240,14 +254,15 @@ if __name__ == "__main__":
         raise FileNotFoundError(f"{source_dir} does not exist.")
 
     if dataset_name == 'atis':
-        process_atis(infold=source_dir, outfold=target_dir)
-    elif dataset_name == 'snips':  # #set(['snips-light', 'snips-speak', 'snips-all']):
-        process_snips(infold=source_dir, outfold=target_dir, uncased=do_lower_case)
+        process_atis(infold=source_dir, outfold=target_dir, do_lower_case=args.do_lower_case)
+    elif dataset_name == 'snips':
+        process_snips(infold=source_dir, outfold=target_dir, do_lower_case=args.do_lower_case)
     elif dataset_name == 'jarvis':
         process_jarvis_datasets(
             infold=source_dir,
             outfold=target_dir,
             modes=["train", "test", "dev"],
+            do_lower_case=args.do_lower_case,
             ignore_prev_intent=args.ignore_prev_intent,
         )
     elif dataset_name == 'dialogflow':
