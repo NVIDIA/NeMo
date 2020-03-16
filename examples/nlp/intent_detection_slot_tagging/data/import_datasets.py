@@ -74,11 +74,8 @@ def process_atis(infold, outfold, modes=['train', 'test']):
 
 def process_snips(infold, outfold, uncased, modes=['train', 'test'], dev_split=0.1):
     if not os.path.exists(infold):
-        link = 'www.github.com/snipsco/spoken-language'
-        '-understanding-research-datasets'
-        raise ValueError(
-            f'Data not found at {infold}. ' f'You may resquest to download the SNIPS dataset from {link}.'
-        )
+        link = 'https://github.com/snipsco/spoken-language-understanding-research-datasets'
+        raise ValueError(f'Data not found at {infold}. ' f'You may request to download the SNIPS dataset from {link}.')
 
     exist = True
     for dataset in ['light', 'speak', 'all']:

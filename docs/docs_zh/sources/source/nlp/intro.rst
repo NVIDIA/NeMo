@@ -47,7 +47,7 @@ Transformer语言模型
 .. toctree::
    :maxdepth: 8
 
-   dialog_state_tracking_trade
+   dialogue_state_tracking_trade
 
 
 命名实体识别 (NER)
