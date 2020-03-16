@@ -62,7 +62,7 @@ def get_features(
             slots = [pad_label]
 
         for j, word in enumerate(words):
-            word_tokens = tokenizer.tokenize(word)
+            word_tokens = tokenizer.text_to_tokens(word)
             subtokens.extend(word_tokens)
 
             loss_mask.append(1)
@@ -102,7 +102,7 @@ def get_features(
                 all_slots[i] = [pad_label] + all_slots[i][-max_seq_length + 1 :]
             too_long_count += 1
 
-        all_input_ids.append([tokenizer._convert_token_to_id(t) for t in subtokens])
+        all_input_ids.append([tokenizer.tokens_to_ids(t) for t in subtokens])
 
         if len(subtokens) < max_seq_length:
             extra = max_seq_length - len(subtokens)
@@ -139,7 +139,7 @@ class BertJointIntentSlotDataset(Dataset):
         slot_file (str): file to slot labels, each line corresponding to
             slot labels for a sentence in input_file. No header.
         max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer (Tokenizer): such as BertTokenizer
+        tokenizer (Tokenizer): such as NemoBertTokenizer
         num_samples (int): number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
         pad_label (int): pad value use for slot labels.
@@ -232,7 +232,7 @@ class BertJointIntentSlotInferDataset(Dataset):
     Args:
         queries (list): list of queries to run inference on
         max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer (Tokenizer): such as BertTokenizer
+        tokenizer (Tokenizer): such as NemoBertTokenizer
         pad_label (int): pad value use for slot labels.
             by default, it's the neutral label.
 
