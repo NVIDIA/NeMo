@@ -113,6 +113,7 @@ def eval_iter_callback(tensors, global_vars):
     predictions['noncat_alignment_end'] = output['end_char_idx']
 
     global_vars['predictions'].extend(combine_predictions_in_example(predictions, batch_size))
+    import pdb; pdb.set_trace()
 
 
 def combine_predictions_in_example(predictions, batch_size):
