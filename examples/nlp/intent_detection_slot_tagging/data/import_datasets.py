@@ -237,7 +237,7 @@ if __name__ == "__main__":
         "--source_data_dir", required=True, type=str, help='path to the folder containing the dataset files'
     )
     parser.add_argument("--target_data_dir", required=True, type=str, help='path to save the processed dataset')
-    parser.add_argument("--do_lower_case", default=True, type=bool)
+    parser.add_argument("--do_lower_case", action='store_true')
     parser.add_argument(
         "--ignore_prev_intent",
         default=False,
