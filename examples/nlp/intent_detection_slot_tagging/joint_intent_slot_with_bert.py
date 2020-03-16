@@ -95,17 +95,14 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=True,
 )
 
-tokenizer = BertTokenizer.from_pretrained(args.pretrained_model_name)
+pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
+    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+)
 
-""" Load the pretrained BERT parameters
-See the list of pretrained models, call:
-nemo_nlp.huggingface.BERT.list_pretrained_models()
-"""
-if args.bert_checkpoint and args.bert_config:
-    pretrained_bert_model = BERT(config_filename=args.bert_config)
+tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
+if args.bert_checkpoint is not None:
     pretrained_bert_model.restore_from(args.bert_checkpoint)
-else:
-    pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_model_name)
+    logging.info(f"Model restored from {args.bert_checkpoint}")
 
 hidden_size = pretrained_bert_model.hidden_size
 
