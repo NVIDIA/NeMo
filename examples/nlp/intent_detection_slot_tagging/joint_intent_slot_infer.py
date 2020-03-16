@@ -29,15 +29,15 @@ from nemo.collections.nlp.nm.trainables.joint_intent_slot import JointIntentSlot
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Joint-intent BERT')
-parser.add_argument("--local_rank", default=None, type=int)
-parser.add_argument("--batch_size", default=128, type=int)
-parser.add_argument("--max_seq_length", default=50, type=int)
-parser.add_argument("--pretrained_model_name", default="bert-base-uncased", type=str)
-parser.add_argument("--data_dir", default='data/atis', type=str)
 parser.add_argument("--checkpoint_dir", required=True, help="your checkpoint folder", type=str)
+parser.add_argument("--data_dir", default='data/atis', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
-parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
+parser.add_argument("--pretrained_model_name", default="bert-base-uncased", type=str)
+parser.add_argument("--bert_config", default=None, type=str)
+parser.add_argument("--batch_size", default=128, type=int)
 parser.add_argument("--do_lower_case", action='store_false')
+parser.add_argument("--max_seq_length", default=64, type=int)
+parser.add_argument("--local_rank", default=None, type=int)
 
 args = parser.parse_args()
 
@@ -45,7 +45,7 @@ if not os.path.exists(args.data_dir):
     raise ValueError(f'Data not found at {args.data_dir}')
 
 nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch, local_rank=args.local_rank, optimization_level=args.amp_opt_level, log_dir=None
+    backend=nemo.core.Backend.PyTorch, local_rank=args.local_rank
 )
 
 pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
