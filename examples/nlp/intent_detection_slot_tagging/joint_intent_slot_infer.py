@@ -33,7 +33,7 @@ parser = argparse.ArgumentParser(description='Joint-intent BERT')
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--batch_size", default=128, type=int)
 parser.add_argument("--max_seq_length", default=50, type=int)
-parser.add_argument("--pretrained_bert_model", default="bert-base-uncased", type=str)
+parser.add_argument("--pretrained_model_name", default="bert-base-uncased", type=str)
 parser.add_argument("--data_dir", default='data/atis', type=str)
 parser.add_argument("--checkpoint_dir", required=True, help="your checkpoint folder", type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
@@ -53,9 +53,9 @@ nf = nemo.core.NeuralModuleFactory(
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
-pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
+pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_model_name)
 hidden_size = pretrained_bert_model.hidden_size
-tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
+tokenizer = BertTokenizer.from_pretrained(args.pretrained_model_name)
 
 data_desc = JointIntentSlotDataDesc(data_dir=args.data_dir)
 
