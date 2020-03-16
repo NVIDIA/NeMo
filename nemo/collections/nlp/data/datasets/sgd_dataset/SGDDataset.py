@@ -57,7 +57,7 @@ class SGDDataset(Dataset):
 
     def __getitem__(self, idx):
         ex = self.features[idx]
-
+    
         service_id = ex.service_schema.service_id
         return (
             ex.example_id,
@@ -88,10 +88,3 @@ class SGDDataset(Dataset):
             np.array(self.schema_data_dict['intent_emb'][service_id], dtype=np.float32),
         )
 
-        """
-        [('cat_slot_emb', (6, 768)),
-         ('cat_slot_value_emb', (6, 11, 768)), 
-         ('noncat_slot_emb', (12, 768)), 
-         ('req_slot_emb', (18, 768)), 
-         ('intent_emb', (4, 768))]
-        """
