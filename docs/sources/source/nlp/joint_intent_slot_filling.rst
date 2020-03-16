@@ -71,13 +71,12 @@ First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or
             add_time_to_log_dir=True,
         )
 
-We define the tokenizer which transforms text into BERT tokens, using a built-in tokenizer by `transformers`.
-This will tokenize text following the mapping of the original BERT model.
+We define the tokenizer which transforms text into BERT tokens, using a built-in tokenizer by `transformers`. \
+NemoBertTokenizer would select and return the appropriate tokenizer for each model.
 
     .. code-block:: python
 
-        from transformers import BertTokenizer
-        tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 
 Next, we define all Neural Modules participating in our joint intent slot filling classification pipeline.
 
@@ -95,8 +94,9 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
 
     .. code-block:: python
 
-        from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
-        pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
+        pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
+            bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+        )
 
     * Create the classifier heads for our task.
 
