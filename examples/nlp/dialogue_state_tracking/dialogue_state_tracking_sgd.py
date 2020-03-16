@@ -163,7 +163,6 @@ train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
 )
 
 train_data = train_datalayer()
-
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 
 # define model pipeline
@@ -249,10 +248,10 @@ eval_encoded_utterance = encoder(hidden_states=eval_token_embeddings)
 (
     eval_logit_intent_status,
     eval_logit_req_slot_status,
-    eval_req_slot_mask,
+    _,
     eval_logit_cat_slot_status,
     eval_logit_cat_slot_value,
-    eval_cat_slot_values_mask,
+    _,
     eval_logit_noncat_slot_status,
     eval_logit_noncat_slot_start,
     eval_logit_noncat_slot_end,
@@ -276,27 +275,22 @@ eval_tensors = [
     eval_data.example_id,
     eval_data.service_id,
     eval_data.is_real_example,
-    eval_data.user_utterance,
     eval_data.start_char_idx,
     eval_data.end_char_idx,
     eval_logit_intent_status,
     eval_logit_req_slot_status,
     eval_logit_cat_slot_status,
     eval_logit_cat_slot_value,
-    eval_cat_slot_values_mask,
     eval_logit_noncat_slot_status,
     eval_logit_noncat_slot_start,
     eval_logit_noncat_slot_end,
     eval_data.intent_status,
     eval_data.requested_slot_status,
-    eval_req_slot_mask,
     eval_data.categorical_slot_status,
     eval_data.num_categorical_slots,
     eval_data.categorical_slot_values,
     eval_data.noncategorical_slot_status,
-    eval_data.num_noncategorical_slots,
-    eval_data.noncategorical_slot_value_start,
-    eval_data.noncategorical_slot_value_end,
+    eval_data.num_noncategorical_slots
 ]
 
 steps_per_epoch = len(train_datalayer) // (args.train_batch_size * args.num_gpus)
