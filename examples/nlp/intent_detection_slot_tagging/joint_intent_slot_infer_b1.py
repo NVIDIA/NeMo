@@ -28,7 +28,7 @@ from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotInferDataLaye
 from nemo.collections.nlp.nm.trainables import JointIntentSlotClassifier
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description='Joint-intent BERT')
+parser = argparse.ArgumentParser(description='Single query inference for intent detection/slot tagging with BERT')
 parser.add_argument("--query", required=True, type=str)
 parser.add_argument("--data_dir", default='data/atis', type=str)
 parser.add_argument("--checkpoint_dir", required=True, help="path to your checkpoint folder", type=str)
