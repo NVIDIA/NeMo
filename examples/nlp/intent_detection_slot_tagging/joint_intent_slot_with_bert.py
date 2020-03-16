@@ -41,8 +41,8 @@ parser.add_argument(
     help='Name of the pre-trained model for the encoder',
     choices=nemo_nlp.nm.trainables.get_bert_models_list(),
 )
-parser.add_argument("--bert_checkpoint", default="", type=str)
-parser.add_argument("--bert_config", default="", type=str)
+parser.add_argument("--bert_checkpoint", default=None, type=str)
+parser.add_argument("--bert_config", default=None, type=str)
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 
