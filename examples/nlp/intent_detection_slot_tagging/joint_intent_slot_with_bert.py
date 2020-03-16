@@ -97,7 +97,7 @@ pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
 )
 
 tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
-if not args.bert_checkpoint:
+if args.bert_checkpoint:
     pretrained_bert_model.restore_from(args.bert_checkpoint)
     logging.info(f"Model restored from {args.bert_checkpoint}")
 
