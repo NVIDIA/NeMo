@@ -55,12 +55,15 @@ parser.add_argument(
 )
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
+parser.add_argument("--do_lower_case", action='store_true')
+parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
+parser.add_argument(
+    "--no_shuffle_data", action='store_false', dest="shuffle_data", help="Shuffle is enabled by default."
+)
+
 parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument('--loss_step_freq', default=25, type=int, help='Frequency of printing loss')
-parser.add_argument("--do_lower_case", action='store_true')
-parser.add_argument("--shuffle_data", type=bool, default=True)
-parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
 parser.add_argument("--local_rank", default=None, type=int)
 
 args = parser.parse_args()

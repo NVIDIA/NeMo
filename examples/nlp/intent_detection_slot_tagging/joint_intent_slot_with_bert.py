@@ -60,12 +60,14 @@ parser.add_argument("--lr", default=2e-5, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
 parser.add_argument("--weight_decay", default=0.01, type=float)
+parser.add_argument("--fc_dropout", default=0.1, type=float)
 
 parser.add_argument("--intent_loss_weight", default=0.6, type=float)
 parser.add_argument("--class_balancing", default="regular", type=str, choices=["regular", "weighted_loss"])
 parser.add_argument("--do_lower_case", action='store_true')
-parser.add_argument("--shuffle_data", type=bool, default=True)
-parser.add_argument("--fc_dropout", default=0.1, type=float)
+parser.add_argument(
+    "--no_shuffle_data", action='store_false', dest="shuffle_data", help="Shuffle is enabled by default."
+)
 
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')

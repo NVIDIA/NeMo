@@ -59,7 +59,9 @@ parser.add_argument("--n_layers", default=1, type=int)
 parser.add_argument("--dropout", default=0.2, type=float)
 parser.add_argument("--input_dropout", default=0.2, type=float)
 parser.add_argument("--teacher_forcing", default=0.5, type=float)
-parser.add_argument("--shuffle_data", type=bool, default=True)
+parser.add_argument(
+    "--no_shuffle_data", action='store_false', dest="shuffle_data", help="Shuffle is enabled by default."
+)
 
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
