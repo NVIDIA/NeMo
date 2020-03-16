@@ -38,11 +38,12 @@ parser = argparse.ArgumentParser(description='Dialogue state tracking with TRADE
 parser.add_argument("--data_dir", default='data/multiwoz2.1', type=str)
 parser.add_argument("--work_dir", default='outputs', type=str)
 parser.add_argument("--checkpoint_dir", default=None, type=str)
-parser.add_argument("--local_rank", default=None, type=int)
+
 parser.add_argument("--batch_size", default=16, type=int)
 parser.add_argument("--eval_batch_size", default=16, type=int)
-parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
+
+parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--lr", default=0.001, type=float)
 parser.add_argument("--lr_warmup_proportion", default=0.0, type=float)
@@ -51,6 +52,7 @@ parser.add_argument("--min_lr", default=1e-4, type=float)
 parser.add_argument("--weight_decay", default=0.0, type=float)
 parser.add_argument("--grad_norm_clip", type=float, default=10, help="gradient clipping")
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
+
 parser.add_argument("--emb_dim", default=400, type=int)
 parser.add_argument("--hid_dim", default=400, type=int)
 parser.add_argument("--n_layers", default=1, type=int)
@@ -58,12 +60,14 @@ parser.add_argument("--dropout", default=0.2, type=float)
 parser.add_argument("--input_dropout", default=0.2, type=float)
 parser.add_argument("--teacher_forcing", default=0.5, type=float)
 parser.add_argument("--shuffle_data", type=bool, default=True)
+
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument("--num_train_samples", default=-1, type=int)
 parser.add_argument("--num_eval_samples", default=-1, type=int)
+parser.add_argument("--local_rank", default=None, type=int)
 args = parser.parse_args()
 
 # List of the domains to be considered

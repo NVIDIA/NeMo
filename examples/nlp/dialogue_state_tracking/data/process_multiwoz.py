@@ -449,7 +449,7 @@ if __name__ == "__main__":
     # Parse the command-line arguments.
     parser = argparse.ArgumentParser(description='Process MultiWOZ dataset')
     parser.add_argument(
-        "--source_data_dir", required=True, type=str, help='The path to the folder containing the MultiWOZ files.'
+        "--source_data_dir", required=True, type=str, help='The path to the folder containing the MultiWOZ data files.'
     )
     parser.add_argument("--target_data_dir", default='multiwoz2.1/', type=str)
     args = parser.parse_args()

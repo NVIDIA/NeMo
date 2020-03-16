@@ -41,36 +41,40 @@ parser.add_argument(
     '--pretrained_model_name',
     default='bert-base-uncased',
     type=str,
-    help='Name of the pre-trained model',
+    help='Name of the pre-trained model for the encoder',
     choices=nemo_nlp.nm.trainables.get_bert_models_list(),
 )
 parser.add_argument("--bert_checkpoint", default="", type=str)
 parser.add_argument("--bert_config", default="", type=str)
+parser.add_argument("--train_file_prefix", default='train', type=str)
+parser.add_argument("--eval_file_prefix", default='test', type=str)
+
+parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--batch_size", default=128, type=int)
 parser.add_argument("--max_seq_length", default=50, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
-parser.add_argument("--num_epochs", default=10, type=int)
-parser.add_argument("--num_train_samples", default=-1, type=int)
-parser.add_argument("--num_eval_samples", default=-1, type=int)
+
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--lr", default=2e-5, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
 parser.add_argument("--weight_decay", default=0.01, type=float)
-parser.add_argument("--fc_dropout", default=0.1, type=float)
-parser.add_argument("--ignore_start_end", action='store_false')
-parser.add_argument("--ignore_extra_tokens", action='store_false')
-parser.add_argument("--train_file_prefix", default='train', type=str)
-parser.add_argument("--eval_file_prefix", default='test', type=str)
-parser.add_argument("--none_slot_label", default='O', type=str)
-parser.add_argument("--pad_label", default=-1, type=int)
-parser.add_argument("--save_epoch_freq", default=1, type=int)
-parser.add_argument("--save_step_freq", default=-1, type=int)
-parser.add_argument("--do_lower_case", action='store_true')
-parser.add_argument("--shuffle_data", type=bool, default=True)
+
 parser.add_argument("--intent_loss_weight", default=0.6, type=float)
 parser.add_argument("--class_balancing", default="regular", type=str, choices=["regular", "weighted_loss"])
+parser.add_argument("--do_lower_case", action='store_true')
+parser.add_argument("--shuffle_data", type=bool, default=True)
+parser.add_argument("--fc_dropout", default=0.1, type=float)
+
+parser.add_argument("--ignore_start_end", action='store_false')
+parser.add_argument("--ignore_extra_tokens", action='store_false')
+parser.add_argument("--none_slot_label", default='O', type=str)
+parser.add_argument("--pad_label", default=-1, type=int)
+parser.add_argument("--num_train_samples", default=-1, type=int)
+parser.add_argument("--num_eval_samples", default=-1, type=int)
+parser.add_argument("--save_epoch_freq", default=1, type=int)
+parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument("--local_rank", default=None, type=int)
 
 args = parser.parse_args()
