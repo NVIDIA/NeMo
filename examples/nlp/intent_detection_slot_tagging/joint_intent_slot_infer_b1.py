@@ -17,22 +17,27 @@
 import argparse
 
 import numpy as np
-from transformers import BertTokenizer
 
 import nemo
+import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import (
     JointIntentSlotDataDesc,
     read_intent_slot_outputs,
 )
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotInferDataLayer
 from nemo.collections.nlp.nm.trainables import JointIntentSlotClassifier
-from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Joint-intent BERT')
 parser.add_argument("--max_seq_length", default=50, type=int)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
-parser.add_argument("--pretrained_model_name", default="bert-base-uncased", type=str)
+parser.add_argument(
+    '--pretrained_model_name',
+    default='bert-base-uncased',
+    type=str,
+    help='Name of the pre-trained model for the encoder',
+    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+)
 parser.add_argument("--data_dir", default='data/atis', type=str)
 parser.add_argument("--query", default='please turn on the light', type=str)
 parser.add_argument("--checkpoint_dir", required=True, help="your checkpoint folder", type=str)
@@ -45,12 +50,11 @@ nf = nemo.core.NeuralModuleFactory(
     backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None
 )
 
-""" Load the pretrained BERT parameters
-See the list of pretrained models, call:
-nemo_nlp.BERT.list_pretrained_models()
-"""
-pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_model_name)
-tokenizer = BertTokenizer.from_pretrained(args.pretrained_model_name)
+pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
+    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+)
+tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
+
 hidden_size = pretrained_bert_model.hidden_size
 
 data_desc = JointIntentSlotDataDesc(data_dir=args.data_dir)

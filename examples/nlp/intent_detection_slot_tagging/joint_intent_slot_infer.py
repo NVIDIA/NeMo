@@ -19,13 +19,12 @@ import os
 
 import numpy as np
 from sklearn.metrics import classification_report
-from transformers import BertTokenizer
 
 import nemo
+import nemo.collections.nlp as nemo_nlp
 from nemo import logging
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
-from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
 from nemo.collections.nlp.nm.trainables.joint_intent_slot import JointIntentSlotClassifier
 
 # Parsing arguments
@@ -49,13 +48,12 @@ nf = nemo.core.NeuralModuleFactory(
     backend=nemo.core.Backend.PyTorch, local_rank=args.local_rank, optimization_level=args.amp_opt_level, log_dir=None
 )
 
-""" Load the pretrained BERT parameters
-See the list of pretrained models, call:
-nemo_nlp.huggingface.BERT.list_pretrained_models()
-"""
-pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_model_name)
+pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
+    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+)
+tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
+
 hidden_size = pretrained_bert_model.hidden_size
-tokenizer = BertTokenizer.from_pretrained(args.pretrained_model_name)
 
 data_desc = JointIntentSlotDataDesc(data_dir=args.data_dir)
 
