@@ -18,8 +18,6 @@ import argparse
 import math
 import os
 
-from transformers import BertTokenizer
-
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo import logging
@@ -28,7 +26,6 @@ from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epoch
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
 from nemo.collections.nlp.nm.trainables import JointIntentSlotClassifier
-from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
 from nemo.core import CheckpointCallback, SimpleLossLoggerCallback
 from nemo.utils.lr_policies import get_lr_policy
 
