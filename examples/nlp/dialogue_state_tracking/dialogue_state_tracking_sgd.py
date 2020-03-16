@@ -167,7 +167,7 @@ train_data = train_datalayer()
 hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 
 # define model pipeline
-encoder_extractor = sgd_modules.Encoder(hidden_size=hidden_size, dropout=args.dropout)
+encoder = sgd_modules.Encoder(hidden_size=hidden_size, dropout=args.dropout)
 dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLoss()
 
 # Encode the utterances using BERT.
@@ -176,7 +176,7 @@ token_embeddings = pretrained_bert_model(
     attention_mask=train_data.utterance_mask,
     token_type_ids=train_data.utterance_segment,
 )
-encoded_utterance = encoder_extractor(hidden_states=token_embeddings)
+encoded_utterance = encoder(hidden_states=token_embeddings)
 model = sgd_model.SGDModel(embedding_dim=hidden_size)
 
 (
@@ -244,7 +244,7 @@ eval_token_embeddings = pretrained_bert_model(
     attention_mask=eval_data.utterance_mask,
     token_type_ids=eval_data.utterance_segment,
 )
-eval_encoded_utterance = encoder_extractor(hidden_states=eval_token_embeddings)
+eval_encoded_utterance = encoder(hidden_states=eval_token_embeddings)
 
 (
     eval_logit_intent_status,
