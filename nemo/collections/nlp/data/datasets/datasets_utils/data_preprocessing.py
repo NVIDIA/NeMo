@@ -143,7 +143,7 @@ def read_csv(file_path):
 
 
 def get_dataset(files, dev_split=0.1):
-    entity2value, value2entity = get_entities(files)
+    # entity2value, value2entity = get_entities(files)
     data, slots, intents = get_data(files)
     if len(data) == 1:
         train, dev = partition(data[0], split=dev_split)
