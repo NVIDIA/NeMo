@@ -449,7 +449,7 @@ class EvaluatorCallback(ActionCallback):
             if self._wandb_name is not None or self._wandb_project is not None:
                 if _WANDB_AVAILABLE and wandb.run is None:
                     wandb.init(name=self._wandb_name, project=self._wandb_project)
-                elif wandb.run is not None:
+                elif _WANDB_AVAILABLE and wandb.run is not None:
                     logging.info("Re-using wandb session")
                 else:
                     logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
@@ -605,7 +605,7 @@ class WandbCallback(ActionCallback):
                 wandb.init(name=self._name, project=self._project)
                 if self._args is not None:
                     wandb.config.update(self._args)
-            elif wandb.run is not None:
+            elif _WANDB_AVAILABLE and wandb.run is not None:
                 logging.info("Re-using wandb session")
             else:
                 logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
