@@ -77,6 +77,7 @@ parser.add_argument(
     help="Directory for the downloaded DSTC8 data, which contains the dialogue files"
     " and schema files of all datasets (eg train, dev)",
 )
+parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to model checkpoint")
 parser.add_argument(
     "--work_dir",
     type=str,
@@ -120,15 +121,14 @@ nf = nemo.core.NeuralModuleFactory(
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
     create_tb_writer=True,
-    files_to_copy=[__file__]
+    files_to_copy=[__file__],
 )
 
 pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_model_name)
 
-if args.bert_ckpt_dir:
-    bert_init_ckpt = os.path.join(args.bert_ckpt_dir, "BERT-base-cased.pt")
-    if not path.os.exists(bert_init_ckpt):
-        raise ValueError('No BERT-base-cased**.pt found in {args.data_dir}')
+if args.bert_checkpoint is not None:
+    model.restore_from(args.bert_checkpoint)
+    logging.info(f"model restored from {args.bert_checkpoint}")
 
 # BERT tokenizer
 tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
@@ -290,7 +290,7 @@ eval_tensors = [
     eval_data.num_categorical_slots,
     eval_data.categorical_slot_values,
     eval_data.noncategorical_slot_status,
-    eval_data.num_noncategorical_slots
+    eval_data.num_noncategorical_slots,
 ]
 
 steps_per_epoch = len(train_datalayer) // (args.train_batch_size * args.num_gpus)

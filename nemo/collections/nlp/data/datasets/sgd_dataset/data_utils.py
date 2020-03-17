@@ -26,9 +26,11 @@ import json
 import os
 import re
 
+import torch
+
 import nemo.collections.nlp.data.datasets.sgd_dataset.schema as schema
 from nemo import logging
-import torch
+
 torch.multiprocessing.set_sharing_strategy('file_system')
 
 __all__ = [
