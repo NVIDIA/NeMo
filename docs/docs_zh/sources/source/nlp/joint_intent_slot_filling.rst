@@ -55,8 +55,7 @@
 
     .. code-block:: python
 
-        from transformers import BertTokenizer
-        tokenizer = BertTokenizer.from_pretrained(args.pretrained_model_name)
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 
 接着，我们定义所有的神经网络模块，加入到意图识别和槽填充混合系统的流程中。
 
@@ -73,8 +72,9 @@
 
     .. code-block:: python
 
-        from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
-        pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_model_name)
+        pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
+            bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+        )
 
     * 为我们的任务创建分类器。
 
@@ -221,24 +221,27 @@
 
     .. code-block:: python
 
-        python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py \
-            --data_dir <path to data>
-            --work_dir <where you want to log your experiment> \
+        cd examples/nlp/intent_detection_slot_tagging/
+        python joint_intent_slot_with_bert.py \
+            --data_dir <path to data>\
+            --work_dir <where you want to log your experiment>\
 
 测试的话，需要运行：
 
     .. code-block:: python
 
+        cd examples/nlp/intent_detection_slot_tagging/
         python joint_intent_slot_infer.py \
             --data_dir <path to data> \
-            --work_dir <path to checkpoint folder>
+            --checkpoint_dir <path to checkpoint folder>\
 
 对一个检索进行测试，需要运行：
 
     .. code-block:: python
 
+        cd examples/nlp/intent_detection_slot_tagging/
         python joint_intent_slot_infer.py \
-            --work_dir <path to checkpoint folder>
+            --checkpoint_dir <path to checkpoint folder>
             --query <query>
 
 
