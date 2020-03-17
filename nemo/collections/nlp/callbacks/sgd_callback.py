@@ -169,4 +169,3 @@ def evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file):
     with open(os.path.join(prediction_dir, PER_FRAME_OUTPUT_FILENAME), "w") as f:
         json.dump(dataset_hyp, f, indent=2, separators=(",", ": "))
     return all_metric_aggregate[ALL_SERVICES]
-
