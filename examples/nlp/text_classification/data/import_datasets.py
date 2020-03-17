@@ -170,7 +170,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("--target_data_dir", required=True, type=str)
     parser.add_argument("--do_lower_case", action='store_true')
-    parser.add_argument("--ignore_prev_intent", action='store_true')
+    parser.add_argument(
+        "--ignore_prev_intent",
+        action='store_true',
+        help='ignores previous intent while importing datasets in jarvis\'s format',
+    )
     args = parser.parse_args()
 
     dataset_name = args.dataset_name
