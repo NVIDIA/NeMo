@@ -7,9 +7,10 @@ fi
 
 # ------------------------------------------------------ CONSTS ------------------------------------------------------
 IMAGE="nvidian/pytorch:19.12-py3"
-GPU_MEM=32 # Default is 32.
-NUM_GPU=8  # Default is 8.
-WS=stan
+GPU_MEM=32    # Default is 32.
+NUM_GPU=8     # Default is 8.
+WS=stan       # Workspace name.
+WORKSPACE=/ws # Workspace mount point.
 RESULT=/result
 
 # ---------------------------------------------------- SAVE STATE ----------------------------------------------------
@@ -31,16 +32,14 @@ script=examples/tts/fasterspeech_durations.py
 config=examples/tts/configs/fasterspeech_durations.yaml
 read -r -d '' cmd <<EOF
 nvidia-smi \
-&& apt-get update \
-&& apt-get install -y libsndfile1 \
-&& cp -R /ws/nemos/${id} /nemo && cd /nemo && pip install .[all] \
-&& echo "Starting training..." \
+&& apt-get update && apt-get install -y libsndfile1 \
+&& cp -R ${WORKSPACE}/nemos/${id} /nemo && cd /nemo && pip install .[all] \
 && python -m torch.distributed.launch --nproc_per_node=8 ${script} \
 --work_dir=${RESULT} \
 --model_config=${config} \
---tensorboard_dir=/ws/tb/${id} \
+--tensorboard_dir=${WORKSPACE}/tb/durs/${id} \
 --train_dataset=/manifests/librispeech/librivox-train-all.json \
---durs_dir=/data/durs
+--durs_file=/data/durs/all-durs.npy
 EOF
 
 # ------------------------------------------------------- FIRE -------------------------------------------------------
@@ -52,6 +51,6 @@ ngc batch run \
   --result "${RESULT}" \
   --datasetid 9367:/data/librispeech \
   --datasetid 32028:/manifests/librispeech \
-  --datasetid 56526:/data/durs \
-  --workspace "${WS}":/ws \
+  --datasetid 56540:/data/durs \
+  --workspace "${WS}":"${WORKSPACE}" \
   --commandline "${cmd}"

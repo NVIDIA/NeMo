@@ -14,6 +14,7 @@
 
 from typing import Optional
 
+import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -22,11 +23,24 @@ import nemo
 from nemo.backends.pytorch import nm as nemo_nm
 from nemo.backends.pytorch.nm import DataLayerNM, LossNM
 from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer
-from nemo.collections.tts.parts import fastspeech
 from nemo.core.neural_types import AudioSignal, ChannelType, EmbeddedTextType, LengthsType, MaskType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['FasterSpeechDataLayer', 'FasterSpeech', 'FasterSpeechDurLoss']
+
+
+class FasterSpeechDataset:
+    def __init__(self, audio_dataset, durs_file):
+        self._audio_dataset = audio_dataset
+        self._durs = np.load(durs_file, allow_pickle=True)
+
+    def __getitem__(self, index):
+        audio, audio_len, text, text_len = self._audio_dataset[index]
+        dur_true = torch.tensor(self._durs[index]).long()
+        return dict(audio=audio, audio_len=audio_len, text=text, text_len=text_len, dur_true=dur_true)
+
+    def __len__(self):
+        return len(self._audio_dataset)
 
 
 class FasterSpeechDataLayer(DataLayerNM):
@@ -37,7 +51,7 @@ class FasterSpeechDataLayer(DataLayerNM):
     Args:
         manifest_filepath (str): Dataset parameter.
             Path to JSON containing data.
-        durs_dir (str): Path to durations arrays directory.
+        durs_file (str): Path to durations arrays file.
         labels (list): Dataset parameter.
             List of characters that can be output by the ASR model.
             For Jasper, this is the 28 character set {a-z '}. The CTC blank
@@ -96,7 +110,7 @@ class FasterSpeechDataLayer(DataLayerNM):
     def __init__(
         self,
         manifest_filepath,
-        durs_dir,
+        durs_file,
         labels,
         batch_size,
         sample_rate=16000,
@@ -130,7 +144,7 @@ class FasterSpeechDataLayer(DataLayerNM):
             'load_audio': load_audio,
         }
         audio_dataset = AudioDataset(**dataset_params)
-        self._dataset = fastspeech.FastSpeechDataset(audio_dataset, durs_dir)
+        self._dataset = FasterSpeechDataset(audio_dataset, durs_file)
         self._pad_id = pad_id or 0
         self._space_id = labels.index(' ')
         self._sample_rate = sample_rate

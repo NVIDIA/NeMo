@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import argparse
 import math
 import os
@@ -35,22 +36,22 @@ def parse_args():
     parser.set_defaults(
         amp_opt_level='O0',
         model_config='configs/fasterspeech_durations.yaml',
-        batch_size=32,
+        batch_size=128,
         optimizer='novograd',
         weight_decay=1e-6,
         num_epochs=150,  # Couple of epochs for testing.
-        lr=1e-2,  # Goes good with Adam.
+        lr=4 * 1e-2,  # Goes good with Adam.
         work_dir='work',
         checkpoint_save_freq=15000,
     )
 
     # Default training things.
-    parser.add_argument('--train_log_freq', type=int, default=50, help="Train metrics logging frequency.")
+    parser.add_argument('--train_log_freq', type=int, default=500, help="Train metrics logging frequency.")
     parser.add_argument('--min_lr', type=float, default=1e-5, help="Minimum learning rate to decay to.")
     parser.add_argument('--warmup', type=int, default=3000, help="Number of steps for warmup.")
 
     # Durations from ASR CTC model.
-    parser.add_argument('--durs_dir', type=str, required=True, help="Train dataset durations directory path.")
+    parser.add_argument('--durs_file', type=str, required=True, help="Train dataset durations directory path.")
 
     # Model.
     parser.add_argument('--d_emb', type=int, default=128, help="Size of input char embedding.")
@@ -64,7 +65,7 @@ class FasterSpeechGraph:
     def __init__(self, args, engine, config):
         self.data_layer = nemo_tts.FasterSpeechDataLayer(
             manifest_filepath=args.train_dataset,
-            durs_dir=args.durs_dir,
+            durs_file=args.durs_file,
             labels=config.labels,
             sample_rate=config.sample_rate,
             batch_size=args.batch_size,
@@ -145,6 +146,8 @@ def main():
         optimization_level=args.amp_opt_level,
         cudnn_benchmark=args.cudnn_benchmark,
         log_dir=args.work_dir,
+        tensorboard_dir=args.tensorboard_dir,
+        create_tb_writer=True,
         files_to_copy=[args.model_config, __file__],
     )
     # noinspection PyProtectedMember

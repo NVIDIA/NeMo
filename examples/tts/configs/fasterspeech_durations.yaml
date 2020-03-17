@@ -16,7 +16,7 @@ JasperEncoder:
     jasper:
         -   filters: 256
             repeat: 1
-            kernel: [3]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -25,7 +25,7 @@ JasperEncoder:
 
         -   filters: 256
             repeat: 5
-            kernel: [3]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -34,7 +34,16 @@ JasperEncoder:
 
         -   filters: 256
             repeat: 5
-            kernel: [3]
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 256
+            repeat: 5
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -68,9 +77,9 @@ JasperEncoder:
             residual: true
             separable: true
 
-        -   filters: 256
+        -   filters: 512
             repeat: 5
-            kernel: [10]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -79,7 +88,7 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [10]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -88,7 +97,7 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [10]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -97,7 +106,7 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [15]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -106,16 +115,7 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [15]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: true
-            separable: true
-
-        -   filters: 512
-            repeat: 5
-            kernel: [15]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
