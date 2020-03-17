@@ -5,7 +5,7 @@ In this tutorial, we are going to implement a joint intent and slot filling syst
 `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`nlp-slot-chen2019bert`.
 All code used in this tutorial is based on ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``.
 
-There are a variety pre-trained BERT models that we can select from using the argument `--pretrained_model_model`. We're currently
+There are a variety pre-trained BERT models that we can select from using the argument `--pretrained_model_name`. We're currently
 using the script for loading pre-trained models from `transformers`. \
 See the list of available pre-trained models by calling `nemo.collections.nlp.nm.trainables.get_bert_models_list()`.
 
