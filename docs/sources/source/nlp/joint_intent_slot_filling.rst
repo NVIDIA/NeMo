@@ -1,13 +1,14 @@
 Tutorial
 ========
 
-In this tutorial, we are going to implement a joint intent and slot filling system with pretrained BERT model based on
-`BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`nlp-slot-chen2019bert`.
-All code used in this tutorial is based on ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``.
+In this tutorial, we are going to show the structure of our example on training and evaluating an intent detection and slot filling model with pretrained BERT model. \
+This model is based on a model proposed in `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`nlp-slot-chen2019bert`.
+All the code introduced in this tutorial is based on ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``.
 
-There are a variety pre-trained BERT models that we can select from using the argument `--pretrained_model_name`. We're currently
+There are a variety pre-trained BERT models that we can select as the base encoder for our model. We're currently
 using the script for loading pre-trained models from `transformers`. \
-See the list of available pre-trained models by calling `nemo.collections.nlp.nm.trainables.get_bert_models_list()`.
+See the list of available pre-trained models by calling `nemo.collections.nlp.nm.trainables.get_bert_models_list()`. \
+The type of the encoder can get defined by the argument `--pretrained_model_name`.
 
 .. tip::
 
@@ -239,7 +240,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
 Model Training
 --------------
 
-To train a joint intent slot filling model on a dataset, run ``joint_intent_slot_with_bert.py`` located at ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``:
+To train an intent detection and slot filling model on a dataset, run ``joint_intent_slot_with_bert.py`` located at ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``:
 
     .. code-block:: python
 
@@ -248,9 +249,8 @@ To train a joint intent slot filling model on a dataset, run ``joint_intent_slot
             --data_dir <path to data>\
             --work_dir <where you want to log your experiment>\
 
-By default a folder named "checkpoints" would get created under word_dir and checkpoints are stored under it.
-
-To do inference on a checkpoint, run:
+By default a folder named "checkpoints" would get created under the working folder specified by `--work_dir` and checkpoints are stored under it.
+To do inference with a checkpoint on test set, you may run:
 
     .. code-block:: python
 
@@ -258,6 +258,7 @@ To do inference on a checkpoint, run:
         python joint_intent_slot_infer.py \
             --data_dir <path to data> \
             --checkpoint_dir <path to checkpoint folder>\
+            --eval_file_prefix test
 
 To do inference on a single query, run:
 
