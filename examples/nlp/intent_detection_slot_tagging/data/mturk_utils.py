@@ -29,25 +29,23 @@ from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import
 __all__ = ['process_mturk', 'process_intent_slot_mturk', 'get_intents_mturk', 'get_slot_labels']
 
 
-def process_mturk(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
-    if not os.path.exists(data_dir):
+def process_mturk(infold, outfold, modes=['train', 'test']):
+    if not os.path.exists(infold):
         link = 'www.mturk.com'
         raise ValueError(
-            f'Data not found at {data_dir}. ' f'Export your mturk data from' f'{link} and unzip at {data_dir}.'
+            f'Data not found at {infold}. ' f'Export your mturk data from' f'{link} and unzip at {infold}.'
         )
-
-    outfold = f'{data_dir}/nemo-processed'
 
     if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
         logging.info(DATABASE_EXISTS_TMP.format('mturk', outfold))
-        return outfold
+        return
 
     logging.info(f'Processing dataset from mturk and storing at {outfold}')
 
     os.makedirs(outfold, exist_ok=True)
 
-    classification_data_file = f'{data_dir}/classification.csv'
-    annotation_data_file = f'{data_dir}/annotation.manifest'
+    classification_data_file = f'{infold}/classification.csv'
+    annotation_data_file = f'{infold}/annotation.manifest'
 
     if not os.path.exists(classification_data_file):
         raise FileNotFoundError(f'File not found ' f'at {classification_data_file}')
@@ -92,8 +90,6 @@ def process_mturk(data_dir, uncased, modes=['train', 'test'], dev_split=0.1):
 
     write_files(slot_labels, f'{outfold}/dict.slots.csv')
     write_files(intent_names, f'{outfold}/dict.intents.csv')
-
-    return outfold
 
 
 def process_intent_slot_mturk(slot_annotations, agreed_all, intent_names, task_name):

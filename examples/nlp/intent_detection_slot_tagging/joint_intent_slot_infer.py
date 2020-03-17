@@ -19,46 +19,41 @@ import os
 
 import numpy as np
 from sklearn.metrics import classification_report
-from transformers import BertTokenizer
 
 import nemo
+import nemo.collections.nlp as nemo_nlp
 from nemo import logging
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
-from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
 from nemo.collections.nlp.nm.trainables.joint_intent_slot import JointIntentSlotClassifier
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description='Joint-intent BERT')
-parser.add_argument("--local_rank", default=None, type=int)
-parser.add_argument("--batch_size", default=128, type=int)
-parser.add_argument("--max_seq_length", default=50, type=int)
-parser.add_argument("--pretrained_bert_model", default="bert-base-uncased", type=str)
-parser.add_argument("--dataset_name", default='snips-all', type=str)
-parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
-parser.add_argument("--work_dir", required=True, help="your checkpoint folder", type=str)
+parser = argparse.ArgumentParser(description='Batch inference for intent detection/slot tagging with BERT')
+parser.add_argument("--checkpoint_dir", required=True, help="your checkpoint folder", type=str)
+parser.add_argument("--data_dir", default='data/atis', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
-parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
+parser.add_argument("--pretrained_model_name", default="bert-base-uncased", type=str)
+parser.add_argument("--bert_config", default=None, type=str)
+parser.add_argument("--batch_size", default=128, type=int)
 parser.add_argument("--do_lower_case", action='store_false')
+parser.add_argument("--max_seq_length", default=64, type=int)
+parser.add_argument("--local_rank", default=None, type=int)
 
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
     raise ValueError(f'Data not found at {args.data_dir}')
 
-nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch, local_rank=args.local_rank, optimization_level=args.amp_opt_level, log_dir=None
+nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, local_rank=args.local_rank)
+
+pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
+    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
 )
+tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 
-""" Load the pretrained BERT parameters
-See the list of pretrained models, call:
-nemo_nlp.huggingface.BERT.list_pretrained_models()
-"""
-pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
 hidden_size = pretrained_bert_model.hidden_size
-tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
 
-data_desc = JointIntentSlotDataDesc(args.data_dir, args.do_lower_case, args.dataset_name)
+data_desc = JointIntentSlotDataDesc(data_dir=args.data_dir)
 
 # Evaluation pipeline
 logging.info("Loading eval data...")
@@ -96,7 +91,7 @@ evaluated_tensors = nf.infer(
         input_data.intents,
         input_data.slots,
     ],
-    checkpoint_dir=args.work_dir,
+    checkpoint_dir=args.checkpoint_dir,
 )
 
 

@@ -51,7 +51,7 @@ import json
 import os
 import re
 import shutil
-from os.path import exists, expanduser
+from os.path import exists
 
 from nemo.collections.nlp.data.datasets.datasets_utils import if_exist
 
@@ -449,24 +449,20 @@ if __name__ == "__main__":
     # Parse the command-line arguments.
     parser = argparse.ArgumentParser(description='Process MultiWOZ dataset')
     parser.add_argument(
-        "--source_data_dir", default='~/data/state_tracking/multiwoz2.1/MULTIWOZ2.1/MULTIWOZ2.1/', type=str
+        "--source_data_dir", required=True, type=str, help='The path to the folder containing the MultiWOZ data files.'
     )
-    parser.add_argument("--target_data_dir", default='~/data/state_tracking/multiwoz2.1/', type=str)
+    parser.add_argument("--target_data_dir", default='multiwoz2.1/', type=str)
     args = parser.parse_args()
 
-    # Get absolute paths.
-    abs_source_data_dir = expanduser(args.source_data_dir)
-    abs_target_data_dir = expanduser(args.target_data_dir)
-
-    if not exists(abs_source_data_dir):
-        raise FileNotFoundError(f"{abs_source_data_dir} does not exist.")
+    if not exists(args.source_data_dir):
+        raise FileNotFoundError(f"{args.source_data_dir} does not exist.")
 
     # Check if the files exist
-    if if_exist(abs_target_data_dir, ['ontology.json', 'dev_dials.json', 'test_dials.json', 'train_dials.json']):
-        print(f'Data is already processed and stored at {abs_target_data_dir}, skipping pre-processing.')
+    if if_exist(args.target_data_dir, ['ontology.json', 'dev_dials.json', 'test_dials.json', 'train_dials.json']):
+        print(f'Data is already processed and stored at {args.source_data_dir}, skipping pre-processing.')
         exit(0)
 
-    fin = open('mapping.pair', 'r')
+    fin = open('multiwoz_mapping.pair', 'r')
     REPLACEMENTS = []
     for line in fin.readlines():
         tok_from, tok_to = line.replace('\n', '').split('\t')
@@ -474,6 +470,6 @@ if __name__ == "__main__":
 
     print('Creating dialogues...')
     # Process MultiWOZ dataset
-    delex_data = createData(abs_source_data_dir)
+    delex_data = createData(args.source_data_dir)
     # Divide data
-    divideData(delex_data, abs_source_data_dir, abs_target_data_dir)
+    divideData(delex_data, args.source_data_dir, args.target_data_dir)

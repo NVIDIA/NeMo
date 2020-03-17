@@ -3,7 +3,7 @@
 
 在这个教程中，我们将使用 BERT 模型，来实现一个意图识别 (intent classification) 和槽填充 (slot filling) 混合系统，参考自 `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`nlp-slot-chen2019bert` 。本教程中所有的代码全部来自 ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``。
 
-我们可以使用 `--pretrained_bert_model` 这个参数，来选择多个预训练好的 BERT 模型。当前，我们使用的加载预训练模型的脚本均来自 `pytorch_transformers` 。更多预训练好的模型在 `这里下载 <https://huggingface.co/pytorch-transformers/pretrained_models.html>`_ 。
+我们可以使用 `--pretrained_model_name` 这个参数，来选择多个预训练好的 BERT 模型。当前，我们使用的加载预训练模型的脚本均来自 `pytorch_transformers` 。更多预训练好的模型在 `这里下载 <https://huggingface.co/pytorch-transformers/pretrained_models.html>`_ 。
 
 .. tip::
 
@@ -55,8 +55,7 @@
 
     .. code-block:: python
 
-        from transformers import BertTokenizer
-        tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 
 接着，我们定义所有的神经网络模块，加入到意图识别和槽填充混合系统的流程中。
 
@@ -73,8 +72,9 @@
 
     .. code-block:: python
 
-        from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
-        pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
+        pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
+            bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+        )
 
     * 为我们的任务创建分类器。
 
@@ -221,24 +221,27 @@
 
     .. code-block:: python
 
-        python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py \
-            --data_dir <path to data>
-            --work_dir <where you want to log your experiment> \
+        cd examples/nlp/intent_detection_slot_tagging/
+        python joint_intent_slot_with_bert.py \
+            --data_dir <path to data>\
+            --work_dir <where you want to log your experiment>\
 
 测试的话，需要运行：
 
     .. code-block:: python
 
+        cd examples/nlp/intent_detection_slot_tagging/
         python joint_intent_slot_infer.py \
             --data_dir <path to data> \
-            --work_dir <path to checkpoint folder>
+            --checkpoint_dir <path to checkpoint folder>\
 
 对一个检索进行测试，需要运行：
 
     .. code-block:: python
 
+        cd examples/nlp/intent_detection_slot_tagging/
         python joint_intent_slot_infer.py \
-            --work_dir <path to checkpoint folder>
+            --checkpoint_dir <path to checkpoint folder>
             --query <query>
 
 

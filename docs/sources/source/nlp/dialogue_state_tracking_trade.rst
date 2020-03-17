@@ -144,15 +144,13 @@ In order to preprocess the MultiWOZ dataset you can use the provided `process_mu
 
 .. code-block:: bash
 
-    cd examples/nlp/dialogue_state_tracking/multiwoz
-    python process_multiwoz.py
+    cd examples/nlp/dialogue_state_tracking/data/
+    python process_multiwoz.py --source_data_dir=$MULTIWOZ_SOURCE_DIR$
 
 .. note::
-    By default, the script assumes that you will copy and extract data into the \
-    ``~/data/state_tracking/multiwoz2.1/`` \
-    folder and it will store results in the ``~/data/state_tracking/multiwoz2.1`` folder. \
-    Both those can be overridden by passing the command line ``source_data_dir`` and ``target_data_dir`` arguments \
-    respectively. Both MultiWOZ 2.0 and MultiWOZ 2.1 can get processed with the same script.
+    Argument source_data_dir specifies the folder where you have copied and extracted data into.
+    By default, it will store results in the ``multiwoz2.1`` folder. You may change the default by providing --target_data_dir=$MULTIWOZ_TARGET_DIR$ as another argument.
+    Both MultiWOZ 2.0 and MultiWOZ 2.1 datasets can get processed with the same script.
 
 
 Building the NeMo Graph
@@ -224,7 +222,7 @@ Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evalua
 +=============================================+========+========+========+========+========+========+========+========+
 | Original :cite:`nlp-dst-wu2019transferable` | 48.62% | 96.92% | 48.76% | 96.95% | 45.31% | 96.57% | 49.15% | 97.04% |
 +---------------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
-| NeMo's Implementation of TRADE              | 48.92% | 97.03% | 50.96% | 97.17% | 47.25% | 96.80% | 51.38% | 97.21% |
+| NeMo's Implementation of TRADE              | 49.78% | 97.06% | 50.44% | 97.15% | 47.77% | 96.82% | 50.85% | 97.21% |
 +---------------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
 
 
