@@ -18,86 +18,93 @@ import argparse
 import math
 import os
 
-from transformers import BertTokenizer
-
 import nemo
+import nemo.collections.nlp as nemo_nlp
 from nemo import logging
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
 from nemo.collections.nlp.callbacks.joint_intent_slot_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
 from nemo.collections.nlp.nm.trainables import JointIntentSlotClassifier
-from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
 from nemo.core import CheckpointCallback, SimpleLossLoggerCallback
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Joint intent detection and slot filling with pre-trained BERT')
-parser.add_argument("--local_rank", default=None, type=int)
+parser.add_argument("--data_dir", default='data/atis', type=str)
+parser.add_argument("--work_dir", default='outputs', type=str)
+parser.add_argument("--checkpoint_dir", default=None, type=str)
+parser.add_argument(
+    '--pretrained_model_name',
+    default='bert-base-uncased',
+    type=str,
+    help='Name of the pre-trained model for the encoder',
+    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+)
+parser.add_argument("--bert_checkpoint", default=None, type=str)
+parser.add_argument("--bert_config", default=None, type=str)
+parser.add_argument("--train_file_prefix", default='train', type=str)
+parser.add_argument("--eval_file_prefix", default='test', type=str)
+
+parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--batch_size", default=128, type=int)
 parser.add_argument("--max_seq_length", default=50, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
-parser.add_argument("--num_epochs", default=10, type=int)
-parser.add_argument("--num_train_samples", default=-1, type=int)
-parser.add_argument("--num_eval_samples", default=-1, type=int)
-parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
-parser.add_argument("--lr", default=2e-5, type=float)
-parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
-parser.add_argument("--weight_decay", default=0.01, type=float)
-parser.add_argument("--fc_dropout", default=0.1, type=float)
-parser.add_argument("--ignore_start_end", action='store_false')
-parser.add_argument("--ignore_extra_tokens", action='store_false')
-parser.add_argument("--pretrained_bert_model", default="bert-base-uncased", type=str)
-parser.add_argument("--bert_checkpoint", default="", type=str)
-parser.add_argument("--bert_config", default="", type=str)
-parser.add_argument("--data_dir", default='data/nlu/atis', type=str)
-parser.add_argument("--dataset_name", default='atis', type=str)
-parser.add_argument("--train_file_prefix", default='train', type=str)
-parser.add_argument("--eval_file_prefix", default='test', type=str)
-parser.add_argument("--none_slot_label", default='O', type=str)
-parser.add_argument("--pad_label", default=-1, type=int)
-parser.add_argument("--work_dir", default='outputs', type=str)
-parser.add_argument("--save_epoch_freq", default=1, type=int)
-parser.add_argument("--save_step_freq", default=-1, type=int)
+
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
-parser.add_argument("--do_lower_case", action='store_true')
-parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
+parser.add_argument("--lr", default=2e-5, type=float)
+parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
+parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
+parser.add_argument("--weight_decay", default=0.01, type=float)
+parser.add_argument("--fc_dropout", default=0.1, type=float)
+
 parser.add_argument("--intent_loss_weight", default=0.6, type=float)
 parser.add_argument("--class_balancing", default="regular", type=str, choices=["regular", "weighted_loss"])
+parser.add_argument("--do_lower_case", action='store_true')
+parser.add_argument(
+    "--no_shuffle_data", action='store_false', dest="shuffle_data", help="Shuffle is enabled by default."
+)
+
+parser.add_argument("--ignore_start_end", action='store_false')
+parser.add_argument("--ignore_extra_tokens", action='store_false')
+parser.add_argument("--none_slot_label", default='O', type=str)
+parser.add_argument("--pad_label", default=-1, type=int)
+parser.add_argument("--num_train_samples", default=-1, type=int)
+parser.add_argument("--num_eval_samples", default=-1, type=int)
+parser.add_argument("--save_epoch_freq", default=1, type=int)
+parser.add_argument("--save_step_freq", default=-1, type=int)
+parser.add_argument("--local_rank", default=None, type=int)
 
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
     raise ValueError(f'Data not found at {args.data_dir}')
 
-work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
 nf = nemo.core.NeuralModuleFactory(
     backend=nemo.core.Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
-    log_dir=work_dir,
+    log_dir=args.work_dir,
+    checkpoint_dir=args.checkpoint_dir,
     create_tb_writer=True,
     files_to_copy=[__file__],
     add_time_to_log_dir=True,
 )
 
-tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
+pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
+    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+)
 
-""" Load the pretrained BERT parameters
-See the list of pretrained models, call:
-nemo_nlp.huggingface.BERT.list_pretrained_models()
-"""
-if args.bert_checkpoint and args.bert_config:
-    pretrained_bert_model = BERT(config_filename=args.bert_config)
+tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
+if args.bert_checkpoint:
     pretrained_bert_model.restore_from(args.bert_checkpoint)
-else:
-    pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
+    logging.info(f"Model restored from {args.bert_checkpoint}")
 
 hidden_size = pretrained_bert_model.hidden_size
 
 data_desc = JointIntentSlotDataDesc(
-    args.data_dir, args.do_lower_case, args.dataset_name, args.none_slot_label, args.pad_label
+    data_dir=args.data_dir, none_slot_label=args.none_slot_label, pad_label=args.pad_label
 )
 
 # Create sentence classification loss on top
@@ -134,6 +141,7 @@ def create_pipeline(num_samples=-1, batch_size=32, data_prefix='train', is_train
         batch_size=batch_size,
         ignore_extra_tokens=args.ignore_extra_tokens,
         ignore_start_end=args.ignore_start_end,
+        do_lower_case=args.do_lower_case,
     )
 
     input_data = data_layer()
