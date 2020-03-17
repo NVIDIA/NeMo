@@ -46,7 +46,10 @@ class Encoder(TrainableNM):
 
             1: AxisType(ChannelTag)
         """
-        return {"logits": NeuralType(('B', 'T'), EmbeddedTextType())}
+        return {
+            "logits": NeuralType(('B', 'T'), EmbeddedTextType()),
+            "hidden_states": NeuralType(('B', 'T', 'C'), ChannelType()),
+        }
 
     def __init__(self, hidden_size, activation='tanh', dropout=0.0, use_transformer_pretrained=True):
         super().__init__()
@@ -67,4 +70,4 @@ class Encoder(TrainableNM):
         logits = self.fc(first_token_hidden_states)
         logits = self.activation(logits)
         logits = self.dropout(logits)
-        return logits
+        return logits, self.dropout(hidden_states)
