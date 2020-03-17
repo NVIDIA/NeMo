@@ -175,7 +175,7 @@ token_embeddings = pretrained_bert_model(
     attention_mask=train_data.utterance_mask,
     token_type_ids=train_data.utterance_segment,
 )
-encoded_utterance = encoder(hidden_states=token_embeddings)
+encoded_utterance, token_embeddings = encoder(hidden_states=token_embeddings)
 model = sgd_model.SGDModel(embedding_dim=hidden_size)
 
 (
@@ -243,7 +243,7 @@ eval_token_embeddings = pretrained_bert_model(
     attention_mask=eval_data.utterance_mask,
     token_type_ids=eval_data.utterance_segment,
 )
-eval_encoded_utterance = encoder(hidden_states=eval_token_embeddings)
+eval_encoded_utterance, eval_token_embeddings = encoder(hidden_states=eval_token_embeddings)
 
 (
     eval_logit_intent_status,
@@ -344,26 +344,3 @@ nf.train(
     optimizer=args.optimizer_kind,
     optimization_params={"num_epochs": args.num_epochs, "lr": args.learning_rate},
 )
-
-
-# encoded_utterance = bert_encoder.get_pooled_output()
-# encoded_tokens = bert_encoder.get_sequence_output()
-
-# Apply dropout in training mode.
-# encoded_utterance = tf.layers.dropout(
-#     encoded_utterance, rate=FLAGS.dropout_rate, training=is_training)
-# encoded_tokens = tf.layers.dropout(
-#     encoded_tokens, rate=FLAGS.dropout_rate, training=is_training)
-# return encoded_utterance, encoded_tokens
-
-
-# TODO: add max_seq_len checkp
-"""
-bert_config = modeling.BertConfig.from_json_file(
-      os.path.join(FLAGS.bert_ckpt_dir, "bert_config.json"))
-  if FLAGS.max_seq_length > bert_config.max_position_embeddings:
-    raise ValueError(
-        "Cannot use sequence length %d because the BERT model "
-        "was only trained up to sequence length %d" %
-        (FLAGS.max_seq_length, bert_config.max_position_embeddings))
-"""
