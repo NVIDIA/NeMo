@@ -66,13 +66,14 @@ python -m torch.distributed.launch --nproc_per_node=8 bert_pretraining.py \
 --lr_warmup_proportion 0.01 \
 --optimizer adam_w \
 --weight_decay 0.01 \
---lr 0.875e-4 \
+--lr 0.4375e-4 \
 data_preprocessed \
 --max_predictions_per_seq 80 \
---num_iters 1142857 
+--num_iters 2285714  
 
-350000 iterations on a DGX1 with 8 V100 32GB GPUs with AMP O1 optimization
-should finish under 5 days and yield an MRPC score of ACC/F1 85.05/89.35.
+BERT base uncased trained with 2285714 iterations on a DGX1 with 8 V100 GPUs with AMP O1 optimization
+should finish in 200 hours and yield EM/F1 of 82.74/89.79 on SQuADv1.1 and 71.24/74.32 on SQuADv2.0.
+On GLUE benchmark MRPC task the model achieves accuracy/F1 od 86.52/90.53.
 
 More information about BERT pretraining can be found at 
 https://nvidia.github.io/NeMo/nlp/bert_pretraining.html
