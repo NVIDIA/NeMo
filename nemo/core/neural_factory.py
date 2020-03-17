@@ -674,7 +674,6 @@ class NeuralModuleFactory(object):
         """Helper function to clean inference cache."""
         self._trainer.clear_cache()
 
-    @deprecated(version="future")
     def _get_trainer(self, tb_writer=None):
         if self._backend == Backend.PyTorch:
             constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.PtActions")
