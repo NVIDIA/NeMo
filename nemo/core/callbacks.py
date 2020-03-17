@@ -446,8 +446,8 @@ class EvaluatorCallback(ActionCallback):
 
     def on_action_start(self):
         if self.global_rank is None or self.global_rank == 0:
-            if self._wandb_name is not None and self._wandb_project is not None:
-                if _WANDB_AVAILABLE:
+            if self._wandb_name is not None or self._wandb_project is not None:
+                if _WANDB_AVAILABLE and wandb.run is None:
                     wandb.init(name=self._wandb_name, project=self._wandb_project)
                 else:
                     logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
@@ -599,7 +599,7 @@ class WandbCallback(ActionCallback):
 
     def on_action_start(self):
         if self.global_rank is None or self.global_rank == 0:
-            if _WANDB_AVAILABLE:
+            if _WANDB_AVAILABLE and wandb.run is None:
                 wandb.init(name=self._name, project=self._project)
 
                 if self._args is not None:
