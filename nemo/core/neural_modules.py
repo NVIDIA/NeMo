@@ -393,7 +393,7 @@ class NeuralModule(ABC):
         """
 
     @property
-    def disabled_deployment_input_ports(self) -> Optional[Set[str]]:
+    def _disabled_deployment_input_ports(self) -> Optional[Set[str]]:
         """Returns names of input ports that will not be included in an export
 
         Returns:
@@ -402,7 +402,7 @@ class NeuralModule(ABC):
         return set([])
 
     @property
-    def disabled_deployment_output_ports(self) -> Optional[Set[str]]:
+    def _disabled_deployment_output_ports(self) -> Optional[Set[str]]:
         """Returns names of output ports that will not be included in an export
 
         Returns:
@@ -410,7 +410,7 @@ class NeuralModule(ABC):
         """
         return set([])
 
-    def prepare_for_deployment(self) -> None:
+    def _prepare_for_deployment(self) -> None:
         """Patch the module if required to prepare for deployment
 
         """

@@ -610,7 +610,7 @@ class NeuralModuleFactory(object):
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
         """
-        module.prepare_for_deployment()
+        module._prepare_for_deployment()
 
         return self._trainer.deployment_export(
             module=module,
@@ -674,7 +674,6 @@ class NeuralModuleFactory(object):
         """Helper function to clean inference cache."""
         self._trainer.clear_cache()
 
-    @deprecated(version="future")
     def _get_trainer(self, tb_writer=None):
         if self._backend == Backend.PyTorch:
             constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.PtActions")
