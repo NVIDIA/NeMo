@@ -276,70 +276,49 @@ class TestDeployExport:
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    @pytest.mark.parametrize("input_example, module, df_type", [(None, "TaylorNet", DF.TORCHSCRIPT)])
-    def test_simple_module_export(self, tmpdir, input_example, module, df_type):
-        """ Tests the TaylorNet module export.
+    @pytest.mark.parametrize("input_example, module_name, df_type", [
+        # TaylorNet export tests.
+        (None, "TaylorNet", DF.TORCHSCRIPT),
+        # TokenClassifier export tests.
+        (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.ONNX),
+        (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.TORCHSCRIPT),
+        (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.PYTORCH),
+        pytest.param(torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.TRTONNX, marks=requires_trt),
+        # JasperDecoderForCTC export tests.
+        (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.ONNX),
+        (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.TORCHSCRIPT),
+        (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.PYTORCH),
+        pytest.param(torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.TRTONNX, marks=requires_trt),
+        # JasperEncoder export tests.
+        (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.ONNX),
+        (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.TORCHSCRIPT),
+        (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.PYTORCH),
+        pytest.param(torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.TRTONNX, marks=requires_trt),
+        # QuartznetEncoder export tests.
+        (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.ONNX),
+        (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.TORCHSCRIPT),
+        (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.PYTORCH),
+        pytest.param(torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.TRTONNX, marks=requires_trt),
+        ])
+    def test_module_export(self, tmpdir, input_example, module_name, df_type):
+        """ Tests the module export.
 
             Args:
                 tmpdir: Fixture which will provide a temporary directory.
 
                 input_example: Input to be passed to TaylorNet.
 
-                module: Name of the module (section in config file).
+                module_name: Name of the module (section in config file).
 
                 df_type: Parameter denoting type of export to be tested.
         """
         # Create neural module instance.
-        module = NeuralModule.import_from_config("tests/configs/test_deploy_export.yaml", "TaylorNet")
+        module = NeuralModule.import_from_config("tests/configs/test_deploy_export.yaml", module_name)
         # Generate filename in the temporary directory.
-        tmp_file_name = str(tmpdir.mkdir("export").join("TaylorNet"))
+        tmp_file_name = str(tmpdir.mkdir("export").join(module_name))
         # Test export.
         self.__test_export_route(
             module=module, out_name=tmp_file_name, mode=df_type, input_example=input_example,
-        )
-
-    @pytest.mark.unit
-    @pytest.mark.run_only_on('GPU')
-    @pytest.mark.parametrize(
-        "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
-    )
-    def test_TokenClassifier_module_export(self, tmpdir, df_type):
-        """ Tests Token Classifier export.
-
-            Args:
-                tmpdir: Fixture which will provide a temporary directory.
-
-                df_type: Parameter denoting type of export to be tested.
-        """
-        # Create neural module instance.
-        module = NeuralModule.import_from_config("tests/configs/test_deploy_export.yaml", "TokenClassifier")
-        # Generate filename in the temporary directory.
-        tmp_file_name = str(tmpdir.mkdir("export").join("TokenClassifier"))
-        # Test export.
-        self.__test_export_route(
-            module=module, out_name=tmp_file_name, mode=df_type, input_example=torch.randn(16, 16, 512).cuda(),
-        )
-
-    @pytest.mark.unit
-    @pytest.mark.run_only_on('GPU')
-    @pytest.mark.parametrize(
-        "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
-    )
-    def test_jasper_decoder(self, tmpdir, df_type):
-        """ Tests Jasped decoder export.
-
-            Args:
-                tmpdir: Fixture which will provide a temporary directory.
-
-                df_type: Parameter denoting type of export to be tested.
-        """
-        # Create neural module instance.
-        module = NeuralModule.import_from_config("tests/configs/test_deploy_export.yaml", "JasperDecoderForCTC")
-        # Generate filename in the temporary directory.
-        tmp_file_name = str(tmpdir.mkdir("export").join("JasperDecoderForCTC"))
-        # Test export.
-        self.__test_export_route(
-            module=module, out_name=tmp_file_name, mode=df_type, input_example=torch.randn(34, 1024, 1).cuda(),
         )
 
     @pytest.mark.unit
@@ -367,46 +346,3 @@ class TestDeployExport:
         tmp_file_name = str(tmpdir.mkdir("export").join("bert"))
         # Test export.
         self.__test_export_route(module=bert, out_name=tmp_file_name, mode=df_type, input_example=input_example)
-
-    @pytest.mark.unit
-    @pytest.mark.run_only_on('GPU')
-    @pytest.mark.parametrize(
-        "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
-    )
-    def test_jasper_encoder(self, tmpdir, df_type):
-        """ Tests jasper encoder export.
-
-            Args:
-                tmpdir: Fixture which will provide a temporary directory.
-
-                df_type: Parameter denoting type of export to be tested.
-        """
-        # Create neural module instance.
-        module = NeuralModule.import_from_config("tests/configs/test_deploy_export.yaml", "JasperEncoder")
-        # Generate filename in the temporary directory.
-        tmp_file_name = str(tmpdir.mkdir("export").join("JasperEncoder"))
-        # Test export.
-        self.__test_export_route(
-            module=module,
-            out_name=tmp_file_name,
-            mode=df_type,
-            input_example=torch.randn(16, 64, 256).cuda(),
-        )
-
-    @pytest.mark.unit
-    @pytest.mark.run_only_on('GPU')
-    @pytest.mark.parametrize(
-        "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
-    )
-    def test_quartz_encoder(self, tmpdir, df_type):
-        # Create neural module instance.
-        module = NeuralModule.import_from_config("tests/configs/test_deploy_export.yaml", "QuartznetEncoder")
-        # Generate filename in the temporary directory.
-        tmp_file_name = str(tmpdir.mkdir("export").join("JasperEncoder"))
-        # Test export.
-        self.__test_export_route(
-            module=module,
-            out_name=tmp_file_name,
-            mode=df_type,
-            input_example=torch.randn(16, 64, 256).cuda(),
-        )
