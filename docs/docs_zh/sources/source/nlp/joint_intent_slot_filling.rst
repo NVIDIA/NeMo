@@ -90,8 +90,8 @@
     .. code-block:: python
 
         from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
-        intent_loss_fn = CrossEntropyLossNM(logits_dim=2)
-        slot_loss_fn = CrossEntropyLossNM(logits_dim=3)
+        intent_loss_fn = CrossEntropyLossNM(logits_ndim=2)
+        slot_loss_fn = CrossEntropyLossNM(logits_ndim=3)
         total_loss_fn = LossAggregatorNM(num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight])
 
     * 创建训练和测试过程的管道。每个管道拥有自己的数据层 (BertJointIntentSlotDataLayer)。数据层是一个单独用于数据语义检测的层，并可以把数据转换到 DataLayerNM 中，你需要定义 `input_ports` 和 `output_ports`。

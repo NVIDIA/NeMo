@@ -112,8 +112,8 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
     .. code-block:: python
 
         from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
-        intent_loss_fn = CrossEntropyLossNM(logits_dim=2)
-        slot_loss_fn = CrossEntropyLossNM(logits_dim=3)
+        intent_loss_fn = CrossEntropyLossNM(logits_ndim=2)
+        slot_loss_fn = CrossEntropyLossNM(logits_ndim=3)
         total_loss_fn = LossAggregatorNM(num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight])
 
     * Create the pipelines for the train and evaluation processes. Each pipeline creates its own data layer (BertJointIntentSlotDataLayer). DataLayer is an extra layer to do the semantic checking for your dataset and convert it into DataLayerNM. You have to define `input_ports` and `output_ports`.
