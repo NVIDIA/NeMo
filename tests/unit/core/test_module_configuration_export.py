@@ -58,7 +58,7 @@ class TestNeuralModuleExport:
 
         # Set params: {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
         params = {"a": 123, "b": 12.4, "c": "ala ma kota", "d": True}
-        module = TestNeuralModuleExport.MockupSimpleModule(**params) 
+        module = TestNeuralModuleExport.MockupSimpleModule(**params)
 
         # Generate filename in the temporary directory.
         tmp_file_name = str(tmpdir.mkdir("export").join("simple_export.yml"))
@@ -70,18 +70,18 @@ class TestNeuralModuleExport:
             exported_config = YAML.load(stream)
 
         # Assert that it contains main sections: header and init params.
-        assert("header" in exported_config) 
-        assert("init_params" in exported_config) 
+        assert "header" in exported_config
+        assert "init_params" in exported_config
 
         # Assert that the header contains class and spec.
-        assert("full_spec" in exported_config["header"]) 
+        assert "full_spec" in exported_config["header"]
 
         # Check init params.
         exported_init_params = exported_config["init_params"]
-        assert(int(exported_init_params["a"]) == 123)
-        assert(float(exported_init_params["b"]) == 12.4)
-        assert(exported_init_params["c"] == "ala ma kota")
-        assert(bool(exported_init_params["d"]) == True) 
+        assert int(exported_init_params["a"]) == 123
+        assert float(exported_init_params["b"]) == 12.4
+        assert exported_init_params["c"] == "ala ma kota"
+        assert bool(exported_init_params["d"]) == True
 
     @pytest.mark.unit
     def test_nested_list_export(self, tmpdir):
@@ -107,19 +107,19 @@ class TestNeuralModuleExport:
             exported_config = YAML.load(stream)
 
         # Assert that it contains main sections: header and init params.
-        assert("header" in exported_config) 
-        assert("init_params" in exported_config) 
+        assert "header" in exported_config
+        assert "init_params" in exported_config
 
         # Check init params.
         exported_init_params = exported_config["init_params"]
-        assert(exported_init_params["a"][0] == 123)
-        assert(exported_init_params["b"][0][0] == 12.4)
-        assert(exported_init_params["c"][0][0][0] == "ala")
-        assert(exported_init_params["c"][0][0][1] == "ma")
-        assert(exported_init_params["c"][0][0][2] == "kota")
-        assert(exported_init_params["c"][0][1] == "kot ma")
-        assert(exported_init_params["c"][1] == "ale")
-        assert(exported_init_params["d"] == None)
+        assert exported_init_params["a"][0] == 123
+        assert exported_init_params["b"][0][0] == 12.4
+        assert exported_init_params["c"][0][0][0] == "ala"
+        assert exported_init_params["c"][0][0][1] == "ma"
+        assert exported_init_params["c"][0][0][2] == "kota"
+        assert exported_init_params["c"][0][1] == "kot ma"
+        assert exported_init_params["c"][1] == "ale"
+        assert exported_init_params["d"] == None
 
     @pytest.mark.unit
     def test_nested_dict_export(self, tmpdir):
@@ -145,17 +145,17 @@ class TestNeuralModuleExport:
             exported_config = YAML.load(stream)
 
         # Assert that it contains main sections: header and init params.
-        assert("header" in exported_config) 
-        assert("init_params" in exported_config) 
+        assert "header" in exported_config
+        assert "init_params" in exported_config
 
         # Check init params.
         exported_init_params = exported_config["init_params"]
-        assert(exported_init_params["a"]["int"] == 123)
-        assert(exported_init_params["b"]["floats"][0] == 12.4)
-        assert(exported_init_params["b"]["floats"][1] == 71.2)
-        assert(exported_init_params["c"]["ala"]["ma"] == "kota")
-        assert(exported_init_params["c"]["ala"]["nie_ma"] == "psa")
-        assert(exported_init_params["d"]) 
+        assert exported_init_params["a"]["int"] == 123
+        assert exported_init_params["b"]["floats"][0] == 12.4
+        assert exported_init_params["b"]["floats"][1] == 71.2
+        assert exported_init_params["c"]["ala"]["ma"] == "kota"
+        assert exported_init_params["c"]["ala"]["nie_ma"] == "psa"
+        assert exported_init_params["d"]
 
     @pytest.mark.unit
     def test_unallowed_export(self, tmpdir):

@@ -74,12 +74,12 @@ class TestNeuralModuleImport:
         new_module = NeuralModule.import_from_config(tmp_file_name)
 
         # Compare class types.
-        assert(type(orig_module).__name__ == type(new_module).__name__)
+        assert type(orig_module).__name__ == type(new_module).__name__
 
         # Compare objects - by its all params.
         param_keys = orig_module.init_params.keys()
         for key in param_keys:
-            assert(orig_module.init_params[key] == new_module.init_params[key])
+            assert orig_module.init_params[key] == new_module.init_params[key]
 
     @pytest.mark.unit
     def test_simple_import_leaf_module(self, tmpdir):
@@ -103,12 +103,12 @@ class TestNeuralModuleImport:
         new_module = TestNeuralModuleImport.FirstSimpleModule.import_from_config(tmp_file_name)
 
         # Compare class types.
-        assert(type(orig_module).__name__ == type(new_module).__name__)
+        assert type(orig_module).__name__ == type(new_module).__name__
 
         # Compare objects - by its all params.
         param_keys = orig_module.init_params.keys()
         for key in param_keys:
-            assert(orig_module.init_params[key] == new_module.init_params[key])
+            assert orig_module.init_params[key] == new_module.init_params[key]
 
     @pytest.mark.unit
     def test_incompatible_import_leaf_module(self, tmpdir):
@@ -131,7 +131,7 @@ class TestNeuralModuleImport:
         # This will actuall create an instance of SecondSimpleModule - OK.
         new_module = NeuralModule.import_from_config(tmp_file_name)
         # Compare class types.
-        assert(type(orig_module).__name__ == type(new_module).__name__)
+        assert type(orig_module).__name__ == type(new_module).__name__
 
         # This will create an instance of SecondSimpleModule, not FirstSimpleModule - SO NOT OK!!
         with pytest.raises(ImportError):

@@ -59,7 +59,7 @@ class TestNeuralModuleConfig:
         params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
 
         # Check error output.
-        assert (self.module.validate_params(params) == True)
+        assert self.module.validate_params(params) == True
 
     @pytest.mark.unit
     def test_nested_dict(self):
@@ -82,7 +82,7 @@ class TestNeuralModuleConfig:
         params = {"list_outer": [[1, 2, 3, 4]]}
 
         # Check error output.
-        assert (self.module.validate_params(params) == True)
+        assert self.module.validate_params(params) == True
 
     @pytest.mark.unit
     def test_nested_mix(self):
@@ -91,4 +91,4 @@ class TestNeuralModuleConfig:
         params = {"list_outer": [{"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}]}
 
         # Check error output.
-        assert (self.module.validate_params(params) == True)
+        assert self.module.validate_params(params) == True
