@@ -114,12 +114,12 @@ classifier = JointIntentSlotClassifier(
 
 if args.class_balancing == 'weighted_loss':
     # To tackle imbalanced classes, you may use weighted loss
-    intent_loss_fn = CrossEntropyLossNM(logits_dim=2, weight=data_desc.intent_weights)
-    slot_loss_fn = CrossEntropyLossNM(logits_dim=3, weight=data_desc.slot_weights)
+    intent_loss_fn = CrossEntropyLossNM(logits_ndim=2, weight=data_desc.intent_weights)
+    slot_loss_fn = CrossEntropyLossNM(logits_ndim=3, weight=data_desc.slot_weights)
 
 else:
-    intent_loss_fn = CrossEntropyLossNM(logits_dim=2)
-    slot_loss_fn = CrossEntropyLossNM(logits_dim=3)
+    intent_loss_fn = CrossEntropyLossNM(logits_ndim=2)
+    slot_loss_fn = CrossEntropyLossNM(logits_ndim=3)
 
 total_loss_fn = LossAggregatorNM(num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight])
 

@@ -226,13 +226,13 @@ def create_pipeline(
             name='Punctuation',
         )
 
-        punct_loss = CrossEntropyLossNM(logits_dim=3, weight=class_weights)
+        punct_loss = CrossEntropyLossNM(logits_ndim=3, weight=class_weights)
 
         # Initialize capitalization loss
         capit_classifier = capit_classifier(
             hidden_size=hidden_size, num_classes=len(capit_label_ids), dropout=dropout, name='Capitalization'
         )
-        capit_loss = CrossEntropyLossNM(logits_dim=3)
+        capit_loss = CrossEntropyLossNM(logits_ndim=3)
 
         task_loss = LossAggregatorNM(num_inputs=2)
 

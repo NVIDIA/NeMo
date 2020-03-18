@@ -158,8 +158,8 @@ labels.txt 文件的每行都应该是下面这个格式的:
       class_weights = nemo.collections.nlp.data.datasets.datasets_utils.calc_class_weights(punct_label_freqs)
 
       # 定义损失函数
-      punct_loss = CrossEntropyLossNM(logits_dim=3, weight=class_weights)
-      capit_loss = CrossEntropyLossNM(logits_dim=3)
+      punct_loss = CrossEntropyLossNM(logits_ndim=3, weight=class_weights)
+      capit_loss = CrossEntropyLossNM(logits_ndim=3)
       task_loss = LossAggregatorNM(num_inputs=2)
 
 

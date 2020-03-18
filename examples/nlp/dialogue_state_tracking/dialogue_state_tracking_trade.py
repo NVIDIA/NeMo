@@ -108,7 +108,7 @@ decoder = TRADEGenerator(
     teacher_forcing=args.teacher_forcing,
 )
 
-gate_loss_fn = CrossEntropyLossNM(logits_dim=3)
+gate_loss_fn = CrossEntropyLossNM(logits_ndim=3)
 ptr_loss_fn = MaskedLogLoss()
 total_loss_fn = LossAggregatorNM(num_inputs=2)
 
