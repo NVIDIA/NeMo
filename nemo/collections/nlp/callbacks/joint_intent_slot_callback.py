@@ -99,6 +99,8 @@ def eval_epochs_done_callback(global_vars, intents_label_ids, slots_label_ids, g
     # remove labels from label_ids that don't appear in the dev set
     used_labels = set(slot_labels) | set(slot_preds)
     slots_label_ids = {k: slots_label_ids[k] for k, v in slots_label_ids.items() if v in used_labels}
+    used_labels = set(intent_labels) | set(intent_preds)
+    intents_label_ids = {k: intents_label_ids[k] for k, v in intents_label_ids.items() if v in used_labels}
 
     if graph_fold:
         # calculate, plot and save the confusion_matrix
