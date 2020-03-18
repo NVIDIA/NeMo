@@ -25,7 +25,7 @@ from nemo.collections.nlp.utils.callback_utils import list2str, plot_confusion_m
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 
-def eval_iter_callback(tensors, global_vars, eval_data_layer):
+def eval_iter_callback(tensors, global_vars):
     if "all_intent_preds" not in global_vars.keys():
         global_vars["all_intent_preds"] = []
     if "all_intent_labels" not in global_vars.keys():
@@ -75,7 +75,7 @@ def eval_iter_callback(tensors, global_vars, eval_data_layer):
     global_vars["all_subtokens_mask"].extend(all_subtokens_mask)
 
 
-def eval_epochs_done_callback(global_vars, graph_fold):
+def eval_epochs_done_callback(global_vars, intents_label_ids, slots_label_ids, graph_fold=None, normalize_cm=True):
     intent_labels = np.asarray(global_vars['all_intent_labels'])
     intent_preds = np.asarray(global_vars['all_intent_preds'])
 
@@ -96,7 +96,41 @@ def eval_epochs_done_callback(global_vars, graph_fold):
     logging.info("Sampled s_preds: [%s]" % list2str(slot_preds[i : i + sample_size]))
     logging.info("Sampled slots: [%s]" % list2str(slot_labels[i : i + sample_size]))
 
-    plot_confusion_matrix(intent_labels, intent_preds, graph_fold)
+    # remove labels from label_ids that don't appear in the dev set
+    used_labels = set(slot_labels) | set(slot_preds)
+    slots_label_ids = {k: slots_label_ids[k] for k, v in slots_label_ids.items() if v in used_labels}
+
+    if graph_fold:
+        # calculate, plot and save the confusion_matrix
+        plot_confusion_matrix(
+            intent_labels, intent_preds, graph_fold, intents_label_ids, normalize=normalize_cm, prefix='Intent'
+        )
+        plot_confusion_matrix(
+            slot_labels, slot_preds, graph_fold, slots_label_ids, normalize=normalize_cm, prefix='Slot'
+        )
+
+    logging.info('Slot Prediction Results:')
+    slot_accuracy = sum(slot_labels == slot_preds) / slot_labels.shape[0]
+    logging.info(f'Slot Accuracy: {slot_accuracy}')
+
+    logging.info(classification_report(slot_labels, slot_preds, target_names=slots_label_ids))
+    logging.info(
+        f'Classification Report:\n \
+        {classification_report(slot_labels, slot_preds, target_names=slots_label_ids)}'
+    )
+    # {classification_report(slot_labels[:-2], slot_preds[:-2])}
+
+    logging.info('Intent Prediction Results:')
+    intent_accuracy = np.mean(intent_labels == intent_preds)
+    logging.info(f'Intent Accuracy: {intent_accuracy}')
+
+    logging.info(classification_report(intent_labels, intent_preds, target_names=intents_label_ids))
+    logging.info(
+        f'Classification Report:\n \
+        {classification_report(intent_labels, intent_preds, target_names=intents_label_ids)}'
+    )
+
+    plot_confusion_matrix(intent_labels, intent_preds, graph_fold, prefix='Intent')
 
     logging.info('Intent prediction results')
     correct_preds = sum(intent_labels == intent_preds)
