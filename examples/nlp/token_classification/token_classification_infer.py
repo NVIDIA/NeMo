@@ -36,7 +36,6 @@ parser.add_argument(
     help="Name of the pre-trained model",
     choices=nemo_nlp.nm.trainables.get_bert_models_list(),
 )
-parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to model checkpoint")
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
 parser.add_argument(
     "--tokenizer_model",
