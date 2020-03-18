@@ -105,7 +105,7 @@ text.txt 每一行包含文本序列，其中词以空格来进行分隔。label
                                               num_classes=num_classes,
                                               dropout=CLASSIFICATION_DROPOUT)
 
-        ner_loss = CrossEntropyLossNM(logits_dim=3)
+        ner_loss = CrossEntropyLossNM(logits_ndim=3)
 
 现在，创建训练和验证集合:
 
