@@ -87,13 +87,13 @@ pipeline {
       }
     }
 
-    stage('LX: Unclassified Tests') {
+    stage('LX: Unclassified Tests GPU') {
       steps {
         sh 'pytest -m unclassified'
       }
     }
 
-    stage('L2: Parallel Stage1') {
+    stage('L2: Parallel Stage1 GPU') {
       when {
         anyOf{
           branch 'master'
