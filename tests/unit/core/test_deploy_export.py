@@ -46,6 +46,7 @@ import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo import logging
 from nemo.core import DeploymentFormat as DF
+from nemo.core import NeuralModule
 
 # Check if the required libraries and runtimes are installed.
 # Only initialize GPU after this runner is activated.
@@ -276,10 +277,22 @@ class TestDeployExport:
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.parametrize("input_example,df_type", [(None, DF.TORCHSCRIPT)])
-    def test_simple_module_export(self, input_example, df_type):
+    def test_simple_module_export(self, tmpdir, input_example, df_type):
+        """ Tests the TaylorNet module export.
+
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
+
+                input_example: Input to be passed to TaylorNet.
+
+                df_type: Parameter denoting type of export to be tested.
+        """
         simplest_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.mkdir("export").join("taylor_net"))
+        # Test export.
         self.__test_export_route(
-            module=simplest_module, out_name="simple", mode=df_type, input_example=input_example,
+            module=simplest_module, out_name=tmp_file_name, mode=df_type, input_example=input_example,
         )
 
     @pytest.mark.unit
@@ -287,12 +300,22 @@ class TestDeployExport:
     @pytest.mark.parametrize(
         "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
     )
-    def test_TokenClassifier_module_export(self, df_type):
+    def test_TokenClassifier_module_export(self, tmpdir, df_type):
+        """ Tests Token Classifier export.
+
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
+
+                df_type: Parameter denoting type of export to be tested.
+        """
         t_class = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
             hidden_size=512, num_classes=16, use_transformer_pretrained=False
         )
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.mkdir("export").join("token_classifier"))
+        # Test export.
         self.__test_export_route(
-            module=t_class, out_name="t_class", mode=df_type, input_example=torch.randn(16, 16, 512).cuda(),
+            module=t_class, out_name=tmp_file_name, mode=df_type, input_example=torch.randn(16, 16, 512).cuda(),
         )
 
     @pytest.mark.unit
@@ -300,10 +323,21 @@ class TestDeployExport:
     @pytest.mark.parametrize(
         "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
     )
-    def test_jasper_decoder(self, df_type):
-        j_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=33)
+    def test_jasper_decoder(self, tmpdir, df_type):
+        """ Tests Jasped decoder export.
+
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
+
+                df_type: Parameter denoting type of export to be tested.
+        """
+        # Create neural module instance.
+        module = NeuralModule.import_from_config("tests/configs/test_deploy_export.yaml", "JasperDecoderForCTC")
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.mkdir("export").join("JasperDecoderForCTC"))
+        # Test export.
         self.__test_export_route(
-            module=j_decoder, out_name="j_decoder", mode=df_type, input_example=torch.randn(34, 1024, 1).cuda(),
+            module=module, out_name=tmp_file_name, mode=df_type, input_example=torch.randn(34, 1024, 1).cuda(),
         )
 
     @pytest.mark.unit
@@ -311,7 +345,14 @@ class TestDeployExport:
     @pytest.mark.parametrize(
         "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
     )
-    def test_hf_bert(self, df_type):
+    def test_hf_bert(self, tmpdir, df_type):
+        """ Tests BERT export.
+
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
+
+                df_type: Parameter denoting type of export to be tested.
+        """
         bert = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name="bert-base-uncased")
         input_example = OrderedDict(
             [
@@ -320,27 +361,32 @@ class TestDeployExport:
                 ("attention_mask", torch.randint(low=0, high=2, size=(2, 16)).cuda()),
             ]
         )
-        self.__test_export_route(module=bert, out_name="bert", mode=df_type, input_example=input_example)
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.mkdir("export").join("bert"))
+        # Test export.
+        self.__test_export_route(module=bert, out_name=tmp_file_name, mode=df_type, input_example=input_example)
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.parametrize(
         "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
     )
-    def test_jasper_encoder(self, df_type):
-        with open("tests/data/jasper_smaller.yaml") as file:
-            yaml = YAML(typ="safe")
-            jasper_model_definition = yaml.load(file)
+    def test_jasper_encoder(self, tmpdir, df_type):
+        """ Tests jasper encoder export.
 
-        jasper_encoder = nemo_asr.JasperEncoder(
-            conv_mask=False,
-            feat_in=jasper_model_definition['AudioToMelSpectrogramPreprocessor']['features'],
-            **jasper_model_definition['JasperEncoder'],
-        )
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
 
+                df_type: Parameter denoting type of export to be tested.
+        """
+        # Create neural module instance.
+        module = NeuralModule.import_from_config("tests/configs/test_deploy_export.yaml", "JasperEncoder")
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.mkdir("export").join("JasperEncoder"))
+        # Test export.
         self.__test_export_route(
-            module=jasper_encoder,
-            out_name="jasper_encoder",
+            module=module,
+            out_name=tmp_file_name,
             mode=df_type,
             input_example=torch.randn(16, 64, 256).cuda(),
         )
@@ -350,21 +396,15 @@ class TestDeployExport:
     @pytest.mark.parametrize(
         "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
     )
-    def test_quartz_encoder(self, df_type):
-        with open("tests/data/quartznet_test.yaml") as file:
-            yaml = YAML(typ="safe")
-            quartz_model_definition = yaml.load(file)
-            del quartz_model_definition['JasperEncoder']['conv_mask']
-
-        jasper_encoder = nemo_asr.JasperEncoder(
-            conv_mask=False,
-            feat_in=quartz_model_definition['AudioToMelSpectrogramPreprocessor']['features'],
-            **quartz_model_definition['JasperEncoder'],
-        )
-
+    def test_quartz_encoder(self, tmpdir, df_type):
+        # Create neural module instance.
+        module = NeuralModule.import_from_config("tests/configs/test_deploy_export.yaml", "QuartznetEncoder")
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.mkdir("export").join("JasperEncoder"))
+        # Test export.
         self.__test_export_route(
-            module=jasper_encoder,
-            out_name="quartz_encoder",
+            module=module,
+            out_name=tmp_file_name,
             mode=df_type,
             input_example=torch.randn(16, 64, 256).cuda(),
         )
