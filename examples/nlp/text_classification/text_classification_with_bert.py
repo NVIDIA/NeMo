@@ -93,7 +93,7 @@ classifier = nemo_nlp.nm.trainables.SequenceClassifier(
     hidden_size=hidden_size, num_classes=data_desc.num_labels, dropout=args.fc_dropout
 )
 
-if args.bert_checkpoint is not None:
+if args.bert_checkpoint:
     model.restore_from(args.bert_checkpoint)
     logging.info(f"model restored from {args.bert_checkpoint}")
 

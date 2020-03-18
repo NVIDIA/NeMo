@@ -107,7 +107,7 @@ class CrossEntropyLossNM(LossNM):
     """
     CrossEntropyLoss
     Args:
-        logits_dim (int): dimension size of the logits tensor
+        logits_ndim (int): number of dimensions (or rank) of the logits tensor
         weight (list): list of rescaling weight given to each class
         reduction (str): type of the reduction over the batch
     """
@@ -133,13 +133,13 @@ class CrossEntropyLossNM(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, logits_dim=2, weight=None, reduction='mean'):
+    def __init__(self, logits_ndim=2, weight=None, reduction='mean'):
         super().__init__()
 
         if weight:
             weight = torch.FloatTensor(weight).to(self._device)
         self._criterion = nn.CrossEntropyLoss(weight=weight, reduction=reduction)
-        self._logits_dim = logits_dim
+        self._logits_dim = logits_ndim
 
     def _loss_function(self, logits, labels, loss_mask=None):
         """
