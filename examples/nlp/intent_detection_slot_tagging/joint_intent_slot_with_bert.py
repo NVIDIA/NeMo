@@ -222,7 +222,7 @@ eval_callback = nemo.core.EvaluatorCallback(
         intents_label_ids=data_desc.intents_label_ids,
         slots_label_ids=data_desc.slots_label_ids,
         graph_fold=f'{nf.work_dir}/graphs',
-        normalize_cm=True
+        normalize_cm=True,
     ),
     tb_writer=nf.tb_writer,
     eval_step=train_steps_per_epoch,
