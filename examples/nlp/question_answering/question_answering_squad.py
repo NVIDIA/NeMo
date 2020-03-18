@@ -20,63 +20,55 @@
 Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 
-Download the Squad data by running the script:
+Download the SQuAD data by running the script:
 examples/nlp/question_answering/get_squad.py
 
-To finetune Squad v1.1 on pretrained BERT large uncased on 1 GPU:
+To finetune SQuADv1.1 on pretrained BERT Base uncased on 1 GPU:
 python question_answering_squad.py
 --train_file /path_to_data_dir/squad/v1.1/train-v1.1.json
 --eval_file /path_to_data_dir/squad/v1.1/dev-v1.1.json
 --work_dir /path_to_output_folder
+--bert_config /path_to/bert-config.json
+--pretrained_model_name bert-base-uncased
 --bert_checkpoint /path_to_bert_checkpoint
 --amp_opt_level "O1"
 --batch_size 24
 --num_epochs 2
 --lr_policy WarmupAnnealing
---lr_warmup_proportion 0.0
 --optimizer adam_w
---weight_decay 0.0
 --lr 3e-5
 --do_lower_case
 --mode train_eval
+--no_data_cache
 
-If --bert_checkpoint is not specified, training starts from
+If --bert_checkpoint and --bert_config are not specified, training starts from
 Huggingface pretrained checkpoints.
 
-To finetune Squad v1.1 on pretrained BERT large uncased on 8 GPU:
+To finetune SQuADv1.1 on pretrained BERT large uncased on 8 GPU change to:
 python -m torch.distributed.launch --nproc_per_node=8 question_answering_squad.py
---amp_opt_level "O1"
---train_file /path_to_data_dir/squad/v1.1/train-v1.1.json
---eval_file /path_to_data_dir/squad/v1.1/dev-v1.1.json
---bert_checkpoint /path_to_bert_checkpoint
 --batch_size 3
 --num_gpus 8
---num_epochs 2
---lr_policy WarmupAnnealing
---lr_warmup_proportion 0.0
---optimizer adam_w
---weight_decay 0.0
---lr 3e-5
---mode train_eval
---do_lower_case
+...
 
-On Huggingface the final Exact Match (EM) and F1 scores are as follows:
-Model	                EM      F1
-BERT Based uncased      80.59    88.34
-BERT Large uncased      83.88    90.65
+To finetune on SQuADv2.0 which allows non-answerable questions, add the flag --version_2_with_negative.
+
+On BERT base uncased pretrained model (
+https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo)
+the final Exact Match (EM) and F1 scores are as follows:
+Data	        EM      F1
+SQuADv1.1       82.74   89.79
+SQuADv2.0       71.24   74.32
 
 To run only evaluation on pretrained question answering checkpoints on 1 GPU with ground-truth data:
 python question_answering_squad.py
 --eval_file /path_to_data_dir/test.json
 --checkpoint_dir /path_to_checkpoints
---do_lower_case
 --mode eval
 
 To run only inference on pretrained question answering checkpoints on 1 GPU without ground-truth data:
 python question_answering_squad.py
 --test_file /path_to_data_dir/test.json
 --checkpoint_dir /path_to_checkpoints
---do_lower_case
 --mode test
 """
 import argparse
