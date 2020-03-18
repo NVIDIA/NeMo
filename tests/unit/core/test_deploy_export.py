@@ -276,8 +276,8 @@ class TestDeployExport:
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    @pytest.mark.parametrize("input_example,df_type", [(None, DF.TORCHSCRIPT)])
-    def test_simple_module_export(self, tmpdir, input_example, df_type):
+    @pytest.mark.parametrize("input_example, module, df_type", [(None, "TaylorNet", DF.TORCHSCRIPT)])
+    def test_simple_module_export(self, tmpdir, input_example, module, df_type):
         """ Tests the TaylorNet module export.
 
             Args:
@@ -285,14 +285,17 @@ class TestDeployExport:
 
                 input_example: Input to be passed to TaylorNet.
 
+                module: Name of the module (section in config file).
+
                 df_type: Parameter denoting type of export to be tested.
         """
-        simplest_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
+        # Create neural module instance.
+        module = NeuralModule.import_from_config("tests/configs/test_deploy_export.yaml", "TaylorNet")
         # Generate filename in the temporary directory.
-        tmp_file_name = str(tmpdir.mkdir("export").join("taylor_net"))
+        tmp_file_name = str(tmpdir.mkdir("export").join("TaylorNet"))
         # Test export.
         self.__test_export_route(
-            module=simplest_module, out_name=tmp_file_name, mode=df_type, input_example=input_example,
+            module=module, out_name=tmp_file_name, mode=df_type, input_example=input_example,
         )
 
     @pytest.mark.unit
@@ -308,14 +311,13 @@ class TestDeployExport:
 
                 df_type: Parameter denoting type of export to be tested.
         """
-        t_class = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
-            hidden_size=512, num_classes=16, use_transformer_pretrained=False
-        )
+        # Create neural module instance.
+        module = NeuralModule.import_from_config("tests/configs/test_deploy_export.yaml", "TokenClassifier")
         # Generate filename in the temporary directory.
-        tmp_file_name = str(tmpdir.mkdir("export").join("token_classifier"))
+        tmp_file_name = str(tmpdir.mkdir("export").join("TokenClassifier"))
         # Test export.
         self.__test_export_route(
-            module=t_class, out_name=tmp_file_name, mode=df_type, input_example=torch.randn(16, 16, 512).cuda(),
+            module=module, out_name=tmp_file_name, mode=df_type, input_example=torch.randn(16, 16, 512).cuda(),
         )
 
     @pytest.mark.unit

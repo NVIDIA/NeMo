@@ -1,3 +1,17 @@
+TaylorNet:
+    header:
+        full_spec: nemo.backends.pytorch.tutorials.TaylorNet
+    init_params:
+        dim: 4
+
+TokenClassifier:
+    header:
+        full_spec: nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier
+    init_params:
+        hidden_size: 512
+        num_classes: 16
+        use_transformer_pretrained: False
+
 JasperDecoderForCTC:
     header:
         full_spec: nemo.collections.asr.JasperDecoderForCTC
