@@ -14,9 +14,14 @@
 # limitations under the License.
 # =============================================================================
 
-""" An implementation of the paper "Transferable Multi-Domain State Generator
+"""
+An implementation of TRADE model introduced by the paper "Transferable Multi-Domain State Generator
 for Task-Oriented Dialogue Systems" (Wu et al., 2019 - ACL 2019)
 Adopted from: https://github.com/jasonwu0731/trade-dst
+
+TRADE is a state tracking model for goal-oriented dialogue systems.
+You may find more information on how to use this example in NeMo's documentation:
+https://nvidia.github.io/NeMo/nlp/dialogue_state_tracking_trade.html
 """
 
 import argparse
