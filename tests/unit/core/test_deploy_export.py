@@ -36,7 +36,6 @@ import numpy as np
 # pip install --upgrade ./build/Linux/RelWithDebInfo/dist/*.whl
 import onnxruntime as ort
 import pytest
-
 import torch
 from ruamel.yaml import YAML
 
@@ -276,30 +275,33 @@ class TestDeployExport:
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    @pytest.mark.parametrize("input_example, module_name, df_type", [
-        # TaylorNet export tests.
-        (None, "TaylorNet", DF.TORCHSCRIPT),
-        # TokenClassifier export tests.
-        (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.ONNX),
-        (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.TORCHSCRIPT),
-        (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.PYTORCH),
-        pytest.param(torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.TRTONNX, marks=requires_trt),
-        # JasperDecoderForCTC export tests.
-        (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.ONNX),
-        (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.TORCHSCRIPT),
-        (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.PYTORCH),
-        pytest.param(torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.TRTONNX, marks=requires_trt),
-        # JasperEncoder export tests.
-        (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.ONNX),
-        (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.TORCHSCRIPT),
-        (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.PYTORCH),
-        pytest.param(torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.TRTONNX, marks=requires_trt),
-        # QuartznetEncoder export tests.
-        (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.ONNX),
-        (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.TORCHSCRIPT),
-        (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.PYTORCH),
-        pytest.param(torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.TRTONNX, marks=requires_trt),
-        ])
+    @pytest.mark.parametrize(
+        "input_example, module_name, df_type",
+        [
+            # TaylorNet export tests.
+            (None, "TaylorNet", DF.TORCHSCRIPT),
+            # TokenClassifier export tests.
+            (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.ONNX),
+            (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.TORCHSCRIPT),
+            (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.PYTORCH),
+            pytest.param(torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.TRTONNX, marks=requires_trt),
+            # JasperDecoderForCTC export tests.
+            (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.ONNX),
+            (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.TORCHSCRIPT),
+            (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.PYTORCH),
+            pytest.param(torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.TRTONNX, marks=requires_trt),
+            # JasperEncoder export tests.
+            (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.ONNX),
+            (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.TORCHSCRIPT),
+            (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.PYTORCH),
+            pytest.param(torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.TRTONNX, marks=requires_trt),
+            # QuartznetEncoder export tests.
+            (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.ONNX),
+            (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.TORCHSCRIPT),
+            (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.PYTORCH),
+            pytest.param(torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.TRTONNX, marks=requires_trt),
+        ],
+    )
     def test_module_export(self, tmpdir, input_example, module_name, df_type):
         """ Tests the module export.
 
