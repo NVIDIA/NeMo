@@ -33,21 +33,57 @@ pipeline {
     }
 
 
-    stage('L0: Unit Tests') {
+    stage('L0: Unit Tests GPU') {
       steps {
         sh 'pytest -m unit'
       }
     }
 
-    stage('L0: Integration Tests') {
+    stage('L0: Unit Tests CPU') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest target: 'master' 
+        }
+      }
+      steps {
+        sh 'pytest -m unit --cpu'
+      }
+    }
+
+    stage('L0: Integration Tests GPU') {
       steps {
         sh 'pytest -m integration'
       }
     }
 
-    stage('L1: System Tests') {
+    stage('L0: Integration Tests CPU') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest target: 'master' 
+        }
+      }
+      steps {
+        sh 'pytest -m integration --cpu'
+      }
+    }
+
+    stage('L1: System Tests GPU') {
       steps {
         sh 'pytest -m system'
+      }
+    }
+
+    stage('L1: System Tests CPU') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest target: 'master' 
+        }
+      }
+      steps {
+        sh 'pytest -m system --cpu'
       }
     }
 
