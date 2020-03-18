@@ -45,11 +45,11 @@ import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 from nemo import logging
-
-TRT_ONNX_DISABLED = False
+from nemo.core import DeploymentFormat as DF
 
 # Check if the required libraries and runtimes are installed.
 # Only initialize GPU after this runner is activated.
+__trt_pycuda_req_satisfied = True
 try:
     import pycuda.autoinit
 
@@ -65,23 +65,27 @@ try:
     )
     from .tensorrt_runner import TensorRTRunnerV2
 except:
-    TRT_ONNX_DISABLED = True
+    __trt_pycuda_req_satisfied = False
+
+# create decorator so that tests can be marked with the TRT requirement
+requires_trt = pytest.mark.skipif(
+    not __trt_pycuda_req_satisfied, reason="TensorRT/PyCuda library required to run test"
+)
 
 
 @pytest.mark.usefixtures("neural_factory")
-class TestDeployExport(TestCase):
-    # def setUp(self):
-    #    super().setUp()
-
-    #    logging.setLevel(logging.WARNING)
-    #    device = nemo.core.DeviceType.GPU
-    #    self.nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, placement=device)
-
+class TestDeployExport:
+    @torch.no_grad()
     def __test_export_route(self, module, out_name, mode, input_example=None):
-        out = Path(out_name)
+        # select correct extension based on the output format
+        ext = {DF.ONNX: ".onnx", DF.TRTONNX: ".trt.onnx", DF.PYTORCH: ".pt", DF.TORCHSCRIPT: ".ts"}.get(mode, ".onnx")
+        out = Path(f"{out_name}{ext}")
+        out_name = str(out)
+
         if out.exists():
             os.remove(out)
 
+        module.eval()
         outputs_fwd = (
             module.forward(*tuple(input_example.values()))
             if isinstance(input_example, OrderedDict)
@@ -106,10 +110,9 @@ class TestDeployExport(TestCase):
         )
 
         tol = 5.0e-3
-        out = Path(out_name)
-        self.assertTrue(out.exists())
+        assert out.exists() == True
 
-        if mode == nemo.core.DeploymentFormat.TRTONNX:
+        if mode == DF.TRTONNX:
 
             data_loader = DefaultDataLoader()
             loader_cache = DataLoaderCache(data_loader)
@@ -198,7 +201,7 @@ class TestDeployExport(TestCase):
             inpex = tuple(inpex)
             outputs_fwd = module.forward(*inpex)
 
-        elif mode == nemo.core.DeploymentFormat.ONNX:
+        elif mode == DF.ONNX:
             # Must recompute because *module* might be different now
             outputs_fwd = (
                 module.forward(*tuple(input_example.values()))
@@ -231,7 +234,7 @@ class TestDeployExport(TestCase):
                 )
             outputs_scr = ort_session.run(None, inputs)
             outputs_scr = torch.from_numpy(outputs_scr[0]).cuda()
-        elif mode == nemo.core.DeploymentFormat.TORCHSCRIPT:
+        elif mode == DF.TORCHSCRIPT:
             scr = torch.jit.load(out_name)
             if isinstance(module, nemo.backends.pytorch.tutorials.TaylorNet):
                 input_example = torch.randn(4, 1).cuda()
@@ -245,7 +248,7 @@ class TestDeployExport(TestCase):
                     else module.forward(input_example)
                 )
             )
-        elif mode == nemo.core.DeploymentFormat.PYTORCH:
+        elif mode == DF.PYTORCH:
             module.load_state_dict(torch.load(out_name))
             module.eval()
             outputs_scr = (
@@ -265,50 +268,50 @@ class TestDeployExport(TestCase):
             outputs_fwd[0] if isinstance(outputs_fwd, tuple) or isinstance(outputs_fwd, list) else outputs_fwd
         )
 
-        self.assertLess((outputs_scr - outputs_fwd).norm(p=2), tol)
+        assert (outputs_scr - outputs_fwd).norm(p=2) < tol
 
         if out.exists():
             os.remove(out)
 
-    def __test_export_route_all(self, module, out_name, input_example=None):
-        if input_example is not None:
-            if not TRT_ONNX_DISABLED:
-                self.__test_export_route(
-                    module, out_name + '.trt.onnx', nemo.core.DeploymentFormat.TRTONNX, input_example=input_example
-                )
-            self.__test_export_route(module, out_name + '.onnx', nemo.core.DeploymentFormat.ONNX, input_example)
-            self.__test_export_route(module, out_name + '.pt', nemo.core.DeploymentFormat.PYTORCH, input_example)
-        self.__test_export_route(module, out_name + '.ts', nemo.core.DeploymentFormat.TORCHSCRIPT, input_example)
-
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    def test_simple_module_export(self):
+    @pytest.mark.parametrize("input_example,df_type", [(None, DF.TORCHSCRIPT)])
+    def test_simple_module_export(self, input_example, df_type):
         simplest_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
-        self.__test_export_route_all(
-            module=simplest_module, out_name="simple", input_example=None,
+        self.__test_export_route(
+            module=simplest_module, out_name="simple", mode=df_type, input_example=input_example,
         )
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    def test_TokenClassifier_module_export(self):
+    @pytest.mark.parametrize(
+        "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
+    )
+    def test_TokenClassifier_module_export(self, df_type):
         t_class = nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier(
             hidden_size=512, num_classes=16, use_transformer_pretrained=False
         )
-        self.__test_export_route_all(
-            module=t_class, out_name="t_class", input_example=torch.randn(16, 16, 512).cuda(),
+        self.__test_export_route(
+            module=t_class, out_name="t_class", mode=df_type, input_example=torch.randn(16, 16, 512).cuda(),
         )
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    def test_jasper_decoder(self):
+    @pytest.mark.parametrize(
+        "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
+    )
+    def test_jasper_decoder(self, df_type):
         j_decoder = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=33)
-        self.__test_export_route_all(
-            module=j_decoder, out_name="j_decoder", input_example=torch.randn(34, 1024, 1).cuda(),
+        self.__test_export_route(
+            module=j_decoder, out_name="j_decoder", mode=df_type, input_example=torch.randn(34, 1024, 1).cuda(),
         )
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    def test_hf_bert(self):
+    @pytest.mark.parametrize(
+        "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
+    )
+    def test_hf_bert(self, df_type):
         bert = nemo.collections.nlp.nm.trainables.common.huggingface.BERT(pretrained_model_name="bert-base-uncased")
         input_example = OrderedDict(
             [
@@ -317,11 +320,14 @@ class TestDeployExport(TestCase):
                 ("attention_mask", torch.randint(low=0, high=2, size=(2, 16)).cuda()),
             ]
         )
-        self.__test_export_route_all(module=bert, out_name="bert", input_example=input_example)
+        self.__test_export_route(module=bert, out_name="bert", mode=df_type, input_example=input_example)
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    def test_jasper_encoder(self):
+    @pytest.mark.parametrize(
+        "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
+    )
+    def test_jasper_encoder(self, df_type):
         with open("tests/data/jasper_smaller.yaml") as file:
             yaml = YAML(typ="safe")
             jasper_model_definition = yaml.load(file)
@@ -329,16 +335,22 @@ class TestDeployExport(TestCase):
         jasper_encoder = nemo_asr.JasperEncoder(
             conv_mask=False,
             feat_in=jasper_model_definition['AudioToMelSpectrogramPreprocessor']['features'],
-            **jasper_model_definition['JasperEncoder']
+            **jasper_model_definition['JasperEncoder'],
         )
 
-        self.__test_export_route_all(
-            module=jasper_encoder, out_name="jasper_encoder", input_example=torch.randn(16, 64, 256).cuda(),
+        self.__test_export_route(
+            module=jasper_encoder,
+            out_name="jasper_encoder",
+            mode=df_type,
+            input_example=torch.randn(16, 64, 256).cuda(),
         )
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    def test_quartz_encoder(self):
+    @pytest.mark.parametrize(
+        "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
+    )
+    def test_quartz_encoder(self, df_type):
         with open("tests/data/quartznet_test.yaml") as file:
             yaml = YAML(typ="safe")
             quartz_model_definition = yaml.load(file)
@@ -347,9 +359,12 @@ class TestDeployExport(TestCase):
         jasper_encoder = nemo_asr.JasperEncoder(
             conv_mask=False,
             feat_in=quartz_model_definition['AudioToMelSpectrogramPreprocessor']['features'],
-            **quartz_model_definition['JasperEncoder']
+            **quartz_model_definition['JasperEncoder'],
         )
 
-        self.__test_export_route_all(
-            module=jasper_encoder, out_name="quartz_encoder", input_example=torch.randn(16, 64, 256).cuda(),
+        self.__test_export_route(
+            module=jasper_encoder,
+            out_name="quartz_encoder",
+            mode=df_type,
+            input_example=torch.randn(16, 64, 256).cuda(),
         )
