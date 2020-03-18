@@ -14,6 +14,11 @@
 # limitations under the License.
 # =============================================================================
 
+"""
+Tutorial on how to use this script to solve NER task could be found here:
+https://nvidia.github.io/NeMo/nlp/intro.html#named-entity-recognition
+"""
+
 import argparse
 import json
 import os
