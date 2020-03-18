@@ -41,9 +41,13 @@
 """
 Dataset: http://dialogue.mi.eng.cam.ac.uk/index.php/corpus/
 
-Code based on:
+Code adopted from:
 https://github.com/jasonwu0731/trade-dst
 https://github.com/budzianowski/multiwoz
+
+This script can be used to process and import MultiWOZ 2.0 and 2.1 datasets. 
+You may find more information on how to use this example in NeMo's documentation:
+https://nvidia.github.io/NeMo/nlp/dialogue_state_tracking_trade.html
 """
 
 import argparse
