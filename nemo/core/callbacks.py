@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import glob
 import os
 import sys
@@ -22,7 +23,6 @@ import time
 import warnings
 from abc import ABC, abstractmethod
 from collections import namedtuple
-import datetime
 
 import nemo
 from nemo.utils import get_checkpoint_from_dir

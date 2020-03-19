@@ -55,7 +55,9 @@ def parse_args():
     parser.add_argument("--model_config", type=str, required=True, help="model configuration file: model.yaml")
     parser.add_argument("--grad_norm_clip", type=float, default=1.0, help="gradient clipping")
     parser.add_argument("--min_lr", type=float, default=1e-5, help="minimum learning rate to decay to")
-    parser.add_argument("--do_not_eval_at_start", action='store_true', help="toggle for whether to do evaluation on step 0")
+    parser.add_argument(
+        "--do_not_eval_at_start", action='store_true', help="toggle for whether to do evaluation on step 0"
+    )
     parser.add_argument("--decoder_force", action='store_true', help="toggle for teacher forcing during evaluation")
     parser.add_argument("--random_seed", default=None, type=int, help="random seed for torch, numpy, and random")
 
@@ -96,7 +98,9 @@ def create_NMs(tacotron2_config_file, labels, decoder_infer=False, decoder_force
     if decoder_infer:
         t2_dec = nemo_tts.Tacotron2DecoderInfer.import_from_config(tacotron2_config_file, "Tacotron2DecoderInfer")
     else:
-        t2_dec = nemo_tts.Tacotron2Decoder.import_from_config(tacotron2_config_file, "Tacotron2Decoder", overwrite_params={"force": decoder_force})
+        t2_dec = nemo_tts.Tacotron2Decoder.import_from_config(
+            tacotron2_config_file, "Tacotron2Decoder", overwrite_params={"force": decoder_force}
+        )
     t2_postnet = nemo_tts.Tacotron2Postnet.import_from_config(tacotron2_config_file, "Tacotron2Postnet")
     t2_loss = nemo_tts.Tacotron2Loss.import_from_config(tacotron2_config_file, "Tacotron2Loss")
     makegatetarget = nemo_tts.MakeGate()
