@@ -75,7 +75,6 @@ def eval_epochs_done_callback(global_vars, label_ids, graph_fold=None, none_labe
         i = random.randint(0, preds.shape[0] - sample_size - 1)
     logging.info("Sampled preds: [%s]" % list2str(preds[i : i + sample_size]))
     logging.info("Sampled labels: [%s]" % list2str(labels[i : i + sample_size]))
-
     # remove labels from label_ids that don't appear in the dev set
     used_labels = set(labels) | set(preds)
     label_ids = {k: label_ids[k] for k, v in label_ids.items() if v in used_labels}

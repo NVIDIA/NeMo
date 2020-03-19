@@ -15,7 +15,6 @@
 # =============================================================================
 
 import argparse
-import json
 import os
 
 import nemo
@@ -26,7 +25,6 @@ from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
     eval_epochs_done_callback,
     eval_iter_callback,
 )
-from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets.datasets_utils import calc_class_weights
 from nemo.collections.nlp.nm.data_layers import PunctuationCapitalizationDataLayer
 from nemo.collections.nlp.nm.trainables import TokenClassifier
@@ -55,14 +53,20 @@ parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
-parser.add_argument("--pretrained_bert_model", default="bert-base-uncased", type=str)
+parser.add_argument(
+    "--pretrained_model_name",
+    default="bert-base-uncased",
+    type=str,
+    help="Name of the pre-trained model",
+    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
 parser.add_argument("--punct_classifier_checkpoint", default=None, type=str)
 parser.add_argument("--capit_classifier_checkpoint", default=None, type=str)
 parser.add_argument(
     "--tokenizer_model",
-    default="tokenizer.model",
+    default=None,
     type=str,
     help="Path to pretrained tokenizer model, \
                     only used if --tokenizer is sentencepiece",
@@ -124,32 +128,19 @@ logging.info(args)
 
 output_file = f'{nf.work_dir}/output.txt'
 
-if args.bert_checkpoint is None:
-    """ Use this if you're using a standard BERT model.
-    To see the list of pretrained models, call:
-    nemo_nlp.huggingface.BERT.list_pretrained_models()
-    """
-    tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
-else:
-    """ Use this if you're using a BERT model that you pre-trained yourself.
-    """
-    if args.tokenizer == "sentencepiece":
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
-        tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model, special_tokens=special_tokens)
-    elif args.tokenizer == "nemobert":
-        tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    else:
-        raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
-    if args.bert_config is not None:
-        with open(args.bert_config) as json_file:
-            config = json.load(json_file)
-        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
-    else:
-        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+model = nemo_nlp.nm.trainables.get_huggingface_model(
+    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+)
 
+tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+    tokenizer_name=args.tokenizer,
+    pretrained_model_name=args.pretrained_model_name,
+    tokenizer_model=args.tokenizer_model,
+)
+
+if args.bert_checkpoint is not None:
     model.restore_from(args.bert_checkpoint)
-    logging.info(f"Model restored from {args.bert_checkpoint}")
+    logging.info(f"model restored from {args.bert_checkpoint}")
 
 hidden_size = model.hidden_size
 
