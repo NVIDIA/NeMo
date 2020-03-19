@@ -214,6 +214,14 @@ class SGDDialogueStateLoss(LossNM):
             "span_start_loss": span_start_loss,
             "span_end_loss": span_end_loss,
         }
-        # for loss_name, loss in losses.items():
-        #     print (f'loss_name: {loss_name}, {loss}')
-        return sum(losses.values()) / len(losses)
+        
+        
+        total_loss = sum(losses.values()) / len(losses)
+        if total_loss > 100:
+            print (total_loss)
+            for loss_name, loss in losses.items():
+                print (f'loss_name: {loss_name}, {loss}')
+            import pdb; pdb.set_trace()
+            print()
+
+        return total_loss
