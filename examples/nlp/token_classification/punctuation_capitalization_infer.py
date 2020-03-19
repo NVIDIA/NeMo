@@ -22,7 +22,6 @@ import numpy as np
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo import logging
-from nemo.collections.nlp.data import NemoBertTokenizer
 from nemo.collections.nlp.nm.data_layers import BertTokenClassificationInferDataLayer
 from nemo.collections.nlp.utils.data_utils import get_vocab
 
