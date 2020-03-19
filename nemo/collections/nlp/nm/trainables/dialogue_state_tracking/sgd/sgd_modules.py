@@ -59,7 +59,8 @@ class Encoder(TrainableNM):
             raise ValueError(f'{activation} is not in supported ' + '{ACTIVATIONS_F.keys()}')
 
         self.activation = ACTIVATIONS_F[activation]()
-        self.dropout = nn.Dropout(dropout)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
 
         if use_transformer_pretrained:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
@@ -69,5 +70,5 @@ class Encoder(TrainableNM):
         first_token_hidden_states = hidden_states[:, 0]
         logits = self.fc(first_token_hidden_states)
         logits = self.activation(logits)
-        logits = self.dropout(logits)
-        return logits, self.dropout(hidden_states)
+        logits = self.dropout1(logits)
+        return logits, self.dropout2(hidden_states)
