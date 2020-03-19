@@ -18,9 +18,14 @@ import random
 
 import numpy as np
 
-
 from nemo import logging
-from nemo.collections.nlp.utils.callback_utils import list2str, plot_confusion_matrix, tensor2list
+from nemo.collections.nlp.utils.callback_utils import (
+    get_classification_report,
+    get_f1_scores,
+    list2str,
+    plot_confusion_matrix,
+    tensor2list,
+)
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
@@ -65,9 +70,6 @@ def eval_epochs_done_callback(global_vars, label_ids, graph_fold=None, none_labe
     labels = labels[subtokens_mask]
     preds = preds[subtokens_mask]
 
-    accuracy = sum(labels == preds) / labels.shape[0]
-    logging.info(f'Accuracy: {accuracy}')
-
     # print predictions and labels for a small random subset of data
     sample_size = 20
     i = 0
@@ -75,11 +77,16 @@ def eval_epochs_done_callback(global_vars, label_ids, graph_fold=None, none_labe
         i = random.randint(0, preds.shape[0] - sample_size - 1)
     logging.info("Sampled preds: [%s]" % list2str(preds[i : i + sample_size]))
     logging.info("Sampled labels: [%s]" % list2str(labels[i : i + sample_size]))
-    
-    # remove labels from label_ids that don't appear in the dev set
-    used_labels = set(labels) | set(preds)
-    labels_names = [k + ' (label id: ' + str(v) + ')' for k, v in sorted(label_ids.items(), key=lambda item: item[1]) if v in used_labels]
-    logging.info(classification_report(labels, preds, target_names=labels_names))
+
+    accuracy = sum(labels == preds) / labels.shape[0]
+    logging.info(f'Accuracy: {accuracy}')
+
+    f1_scores = get_f1_scores(labels, preds, average_modes=['weighted', 'macro', 'micro'])
+    for k, v in f1_scores.items():
+        logging.info(f'{k}: {v}')
+
+    classification_report = get_classification_report(labels, preds, label_ids)
+    logging.info(classification_report)
 
     # calculate and plot confusion_matrix
     if graph_fold:

@@ -351,7 +351,7 @@ To run inference:
 
 .. code-block:: bash
 
-    python examples/nlp/token_classification/punctuation_capitalization_infer.py --punct_labels_dict path_to_data/punct_label_ids.csv --capit_labels_dict path_to_data/capit_label_ids.csv --work_dir path_to_output_dir/checkpoints/
+    python examples/nlp/token_classification/punctuation_capitalization_infer.py --punct_labels_dict path_to_data/punct_label_ids.csv --capit_labels_dict path_to_data/capit_label_ids.csv --checkpoint_dir path_to_output_dir/checkpoints/
 
 Note, punct_label_ids.csv and capit_label_ids.csv files will be generated during training and stored in the data_dir folder.
 
