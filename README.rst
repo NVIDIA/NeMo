@@ -87,6 +87,45 @@ See `examples/start_here` to get started with the simplest example. The folder `
 * `Natural language processing <https://nvidia.github.io/NeMo/nlp/intro.html>`_
 * `Speech Synthesis <https://nvidia.github.io/NeMo/tts/intro.html>`_
 
+Fine-tuning using NeMo
+~~~~~~~~~~~~~~~~~~~~~~
+
+You can use the following checkpoints to use in your fine-tuning experiments.
+
++------------+----------------------------------------------------------------------------------------------+-----------------------+
+| Modality   | Model                                                                                        | Trained on            |
++============+==============================================================================================+=======================+
+| ASR        | `QuartzNet15x5En <https://ngc.nvidia.com/catalog/models/nvidia:multidataset_quartznet15x5>`_ | LibriSpeech,          |
+|            |                                                                                              | Mozilla Common Voice, |
+|            |                                                                                              | WSJ, Fisher,          |
+|            |                                                                                              | and Switchboard       |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
+| ASR        | `QuartzNet15x5Zh <https://ngc.nvidia.com/catalog/models/nvidia:aishell2_quartznet15x5>`_     | AI-shell2 Mandarin    |
+|            |                                                                                              |                       |
+|            |                                                                                              |                       |
+|            |                                                                                              |                       |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
+| NLP        | `BERT base uncased <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo>`_   |English Wikipedia and  |
+|            |                                                                                              |BookCorpus dataset     |
+|            |                                                                                              |seq len <= 128         |
+|            |                                                                                              |                       |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
+| NLP        | `BERT large uncased <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo>`_ |English Wikipedia and  |
+|            |                                                                                              |BookCorpus dataset     |
+|            |                                                                                              |seq len <= 512         |
+|            |                                                                                              |                       |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
+| TTS        | `Tacotron2 <https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech>`_               |LJspeech               |
+|            |                                                                                              |                       |
+|            |                                                                                              |                       |
+|            |                                                                                              |                       |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
+| TTS        | `WaveGlow <https://ngc.nvidia.com/catalog/models/nvidia:waveglow_ljspeechh>`_                |LJspeech               |
+|            |                                                                                              |                       |
+|            |                                                                                              |                       |
+|            |                                                                                              |                       |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
+
 
 DEVELOPMENT
 ~~~~~~~~~~~
