@@ -20,7 +20,6 @@ https://nvidia.github.io/NeMo/nlp/intro.html#named-entity-recognition
 """
 
 import argparse
-import json
 import os
 
 import nemo.collections.nlp as nemo_nlp
@@ -29,7 +28,6 @@ import nemo.collections.nlp.utils.data_utils
 from nemo import logging
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
 from nemo.collections.nlp.callbacks.token_classification_callback import eval_epochs_done_callback, eval_iter_callback
-from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.nm.data_layers import BertTokenClassificationDataLayer
 from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy

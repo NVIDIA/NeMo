@@ -15,7 +15,6 @@
 # =============================================================================
 
 import argparse
-import json
 import os
 
 import nemo
@@ -26,7 +25,6 @@ from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
     eval_epochs_done_callback,
     eval_iter_callback,
 )
-from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
 from nemo.collections.nlp.data.datasets.datasets_utils import calc_class_weights
 from nemo.collections.nlp.nm.data_layers import PunctuationCapitalizationDataLayer
 from nemo.collections.nlp.nm.trainables import TokenClassifier
