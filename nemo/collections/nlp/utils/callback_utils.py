@@ -19,7 +19,7 @@ import time
 
 import numpy as np
 from matplotlib import pyplot as plt
-from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.metrics import classification_report, confusion_matrix, f1_score
 
 from nemo import logging
 
@@ -103,5 +103,24 @@ def get_classification_report(labels, preds, label_ids):
     """
     # remove labels from label_ids that don't appear in the dev set
     used_labels = set(labels) | set(preds)
-    labels_names = [k + ' (label id: ' + str(v) + ')' for k, v in sorted(label_ids.items(), key=lambda item: item[1]) if v in used_labels]
-    return classification_report(labels, preds, target_names=labels_names))
+    labels_names = [
+        k + ' (label id: ' + str(v) + ')'
+        for k, v in sorted(label_ids.items(), key=lambda item: item[1])
+        if v in used_labels
+    ]
+    return classification_report(labels, preds, target_names=labels_names)
+
+
+def get_f1_scores(labels, preds, average_modes=['binary', 'weighted', 'macro', 'micro']):
+    """
+    Returns a dictionary with f1_score based on different averaging mode
+    Args:
+      labels (list of ints): list of true labels
+      preds (list of ints): list of predicted labels
+      average_modes (list): list of possible averaging types. Binary for is supported only for binary target.
+    """
+    f1_scores = {}
+    for average in average_modes:
+        f1_scores['F1 ' + average] = round(f1_score(labels, preds, average='weighted') * 100, 2)
+
+    return f1_scores
