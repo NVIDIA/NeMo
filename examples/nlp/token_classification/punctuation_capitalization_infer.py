@@ -88,7 +88,6 @@ parser.add_argument(
     help='This file is generated during training \
                     when the datalayer is created',
 )
-parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 
 args = parser.parse_args()
 
