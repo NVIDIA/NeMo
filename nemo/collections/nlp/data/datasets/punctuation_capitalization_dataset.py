@@ -77,7 +77,7 @@ def get_features(
         words = query.strip().split()
 
         # add bos token
-        subtokens = ['[CLS]']
+        subtokens = [tokenizer.cls_token]
         loss_mask = [1 - ignore_start_end]
         subtokens_mask = [0]
         if with_label:
@@ -103,7 +103,7 @@ def get_features(
                 capit_labels.extend([capit_query_labels[j]] * len(word_tokens))
 
         # add eos token
-        subtokens.append('[SEP]')
+        subtokens.append(tokenizer.sep_token)
         loss_mask.append(1 - ignore_start_end)
         subtokens_mask.append(0)
         sent_lengths.append(len(subtokens))
@@ -125,7 +125,7 @@ def get_features(
 
     for i, subtokens in enumerate(all_subtokens):
         if len(subtokens) > max_seq_length:
-            subtokens = ['[CLS]'] + subtokens[-max_seq_length + 1 :]
+            subtokens = [tokenizer.cls_token] + subtokens[-max_seq_length + 1 :]
             all_input_mask[i] = [1] + all_input_mask[i][-max_seq_length + 1 :]
             all_loss_mask[i] = [int(not ignore_start_end)] + all_loss_mask[i][-max_seq_length + 1 :]
             all_subtokens_mask[i] = [0] + all_subtokens_mask[i][-max_seq_length + 1 :]
@@ -234,7 +234,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 raise ValueError("{text_file} should have extension .txt")
 
             filename = filename[:-4]
-            features_pkl = os.path.join(data_dir, filename + "_features.pkl")
+            tokenizer_type = type(tokenizer.tokenizer).__name__
+            vocab_size = getattr(tokenizer, "vocab_size", 0)
+            features_pkl = os.path.join(
+                data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
+            )
 
         if use_cache and os.path.exists(features_pkl):
             # If text_file was already processed, load from pickle

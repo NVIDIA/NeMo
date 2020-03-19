@@ -22,15 +22,33 @@ import numpy as np
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo import logging
-from nemo.collections.nlp.data import NemoBertTokenizer
 from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.collections.nlp.utils.data_utils import get_vocab
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='NER with pretrained BERT')
 parser.add_argument("--max_seq_length", default=128, type=int)
-parser.add_argument("--fc_dropout", default=0, type=float)
-parser.add_argument("--pretrained_bert_model", default="bert-base-cased", type=str)
+parser.add_argument(
+    "--pretrained_model_name",
+    default="bert-base-uncased",
+    type=str,
+    help="Name of the pre-trained model",
+    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+)
+parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
+parser.add_argument(
+    "--tokenizer_model",
+    default=None,
+    type=str,
+    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+)
+parser.add_argument(
+    "--tokenizer",
+    default="nemobert",
+    type=str,
+    choices=["nemobert", "sentencepiece"],
+    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
+)
 parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument(
     "--queries",
@@ -50,21 +68,18 @@ parser.add_argument(
     help="Whether to take predicted label in brackets or \
                     just append to word in the output",
 )
-parser.add_argument("--work_dir", default='output/checkpoints', type=str)
+parser.add_argument("--checkpoint_dir", default='output/checkpoints', type=str)
 parser.add_argument("--labels_dict", default='label_ids.csv', type=str)
-parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 
 args = parser.parse_args()
 logging.info(args)
 
-if not os.path.exists(args.work_dir):
-    raise ValueError(f'Work directory not found at {args.work_dir}')
+if not os.path.exists(args.checkpoint_dir):
+    raise ValueError(f'Checkpoint directory not found at {args.checkpoint_dir}')
 if not os.path.exists(args.labels_dict):
     raise ValueError(f'Dictionary with ids to labels not found at {args.labels_dict}')
 
-nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None
-)
+nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, log_dir=None)
 
 labels_dict = get_vocab(args.labels_dict)
 
@@ -72,15 +87,23 @@ labels_dict = get_vocab(args.labels_dict)
 See the list of pretrained models, call:
 nemo_nlp.huggingface.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
+    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+)
+
+tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+    tokenizer_name=args.tokenizer,
+    pretrained_model_name=args.pretrained_model_name,
+    tokenizer_model=args.tokenizer_model,
+)
 hidden_size = pretrained_bert_model.hidden_size
-tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
+
 
 data_layer = nemo_nlp.nm.data_layers.BertTokenClassificationInferDataLayer(
     queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
 )
 
-classifier = TokenClassifier(hidden_size=hidden_size, num_classes=len(labels_dict), dropout=args.fc_dropout)
+classifier = TokenClassifier(hidden_size=hidden_size, num_classes=len(labels_dict))
 
 input_ids, input_type_ids, input_mask, _, subtokens_mask = data_layer()
 
@@ -90,7 +113,7 @@ logits = classifier(hidden_states=hidden_states)
 ###########################################################################
 
 # Instantiate an optimizer to perform `infer` action
-evaluated_tensors = nf.infer(tensors=[logits, subtokens_mask], checkpoint_dir=args.work_dir)
+evaluated_tensors = nf.infer(tensors=[logits, subtokens_mask], checkpoint_dir=args.checkpoint_dir)
 
 
 def concatenate(lists):
