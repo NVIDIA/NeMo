@@ -43,7 +43,7 @@ JasperEncoder:
 
         -   filters: 256
             repeat: 5
-            kernel: [5]
+            kernel: [7]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -52,7 +52,7 @@ JasperEncoder:
 
         -   filters: 256
             repeat: 5
-            kernel: [5]
+            kernel: [7]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -61,7 +61,7 @@ JasperEncoder:
 
         -   filters: 256
             repeat: 5
-            kernel: [5]
+            kernel: [7]
             stride: [1]
             dilation: [1]
             dropout: 0.0

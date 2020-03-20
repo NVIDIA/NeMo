@@ -38,6 +38,8 @@ from abc import ABC
 from typing import Callable, List, Union
 import attrdict
 import collections
+import numpy as np
+
 import nemo
 
 from nemo.core.deprecated_callbacks import (
@@ -543,7 +545,7 @@ class TrainLogger(SimpleLossLoggerCallback):
 
         # noinspection PyUnusedLocal
         def get_tb_values(*args, **kwargs):
-            return list(self._cache.items())
+            return list((k, np.array(v)) for k, v in self._cache.items())
 
         super().__init__(
             tensors=list(tensors.values()),

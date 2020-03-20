@@ -39,7 +39,7 @@ nvidia-smi \
 --model_config=${config} \
 --tensorboard_dir=${WORKSPACE}/tb/durs/${id} \
 --train_dataset=/manifests/librispeech/librivox-train-all.json \
---durs_file=/data/durs/all-durs.npy
+--durs_file=/data/durs/full-pad.npy
 EOF
 
 # ------------------------------------------------------- FIRE -------------------------------------------------------
@@ -51,6 +51,6 @@ ngc batch run \
   --result "${RESULT}" \
   --datasetid 9367:/data/librispeech \
   --datasetid 32028:/manifests/librispeech \
-  --datasetid 56540:/data/durs \
+  --datasetid 57420:/data/durs \
   --workspace "${WS}":"${WORKSPACE}" \
   --commandline "${cmd}"

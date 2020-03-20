@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 from typing import Optional
 
 import numpy as np
@@ -30,14 +31,26 @@ __all__ = ['FasterSpeechDataLayer', 'FasterSpeech', 'FasterSpeechDurLoss']
 
 
 class FasterSpeechDataset:
-    def __init__(self, audio_dataset, durs_file):
+    def __init__(self, audio_dataset, durs_file, durs_type='full-pad'):
         self._audio_dataset = audio_dataset
         self._durs = np.load(durs_file, allow_pickle=True)
+        self._durs_type = durs_type
 
     def __getitem__(self, index):
         audio, audio_len, text, text_len = self._audio_dataset[index]
-        dur_true = torch.tensor(self._durs[index]).long()
-        return dict(audio=audio, audio_len=audio_len, text=text, text_len=text_len, dur_true=dur_true)
+        example = dict(audio=audio, audio_len=audio_len, text=text, text_len=text_len)
+
+        if self._durs_type == 'pad':
+            dur = self._durs[index]
+            example['dur'] = torch.tensor(dur, dtype=torch.long)
+        elif self._durs_type == 'full-pad':
+            blank, dur = self._durs[index]
+            example['blank'] = torch.tensor(blank, dtype=torch.long)
+            example['dur'] = torch.tensor(dur, dtype=torch.long)
+        else:
+            raise ValueError("Wrong durations handling type.")
+
+        return example
 
     def __len__(self):
         return len(self._audio_dataset)
@@ -49,9 +62,10 @@ class FasterSpeechDataLayer(DataLayerNM):
     Basically, replicated behavior from AudioToText Data Layer, zipped with ground truth durations for additional loss.
 
     Args:
-        manifest_filepath (str): Dataset parameter.
+        manifests (str): Dataset parameter.
             Path to JSON containing data.
         durs_file (str): Path to durations arrays file.
+        durs_type: Type of durations to handle.
         labels (list): Dataset parameter.
             List of characters that can be output by the ASR model.
             For Jasper, this is the 28 character set {a-z '}. The CTC blank
@@ -109,15 +123,17 @@ class FasterSpeechDataLayer(DataLayerNM):
 
     def __init__(
         self,
-        manifest_filepath,
+        manifests,
         durs_file,
         labels,
-        batch_size,
+        durs_type='full-pad',
+        batch_size=32,
         sample_rate=16000,
         int_values=False,
         bos_id=None,
         eos_id=None,
         pad_id=None,
+        blank_id=None,
         min_duration=0.1,
         max_duration=None,
         normalize_transcripts=True,
@@ -132,7 +148,7 @@ class FasterSpeechDataLayer(DataLayerNM):
         # Set up dataset.
         self._featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=None)
         dataset_params = {
-            'manifest_filepath': manifest_filepath,
+            'manifest_filepath': manifests,
             'labels': labels,
             'featurizer': self._featurizer,
             'max_duration': max_duration,
@@ -144,8 +160,10 @@ class FasterSpeechDataLayer(DataLayerNM):
             'load_audio': load_audio,
         }
         audio_dataset = AudioDataset(**dataset_params)
-        self._dataset = FasterSpeechDataset(audio_dataset, durs_file)
-        self._pad_id = pad_id or 0
+        self._dataset = FasterSpeechDataset(audio_dataset, durs_file, durs_type)
+        self._durs_type = durs_type
+        self._pad_id = pad_id
+        self._blank_id = blank_id
         self._space_id = labels.index(' ')
         self._sample_rate = sample_rate
 
@@ -174,19 +192,40 @@ class FasterSpeechDataLayer(DataLayerNM):
             return torch.stack(new_tensors).to(dtype=dtype)
 
         def make_mask(lengths):
-            return merge([torch.ones(length + 2) for length in lengths], value=0, dtype=torch.bool)
+            return merge([torch.ones(length) for length in lengths], value=0, dtype=torch.bool)
 
         batch = {key: [example[key] for example in batch] for key in batch[0]}
 
         audio = merge(batch['audio'])
         audio_len = torch.tensor(batch['audio_len'], dtype=torch.long)
-        text = merge(
-            [F.pad(text, pad=[1, 1], value=self._space_id) for text in batch['text']],
-            value=self._pad_id,
-            dtype=torch.long,
-        )
-        text_mask = make_mask(batch.pop('text_len'))
-        dur = merge(batch['dur_true'], dtype=torch.long)
+
+        if self._durs_type == 'pad':
+            text = [F.pad(text, pad=[1, 1], value=self._space_id) for text in batch['text']]
+            text = merge(text, value=self._pad_id, dtype=torch.long)
+            text_mask = make_mask([text_len + 2 for text_len in batch['text_len']])
+            dur = merge(batch['dur'], dtype=torch.long)
+        elif self._durs_type == 'full-pad':
+
+            def interleave(x, y):
+                xy = torch.stack([x[:-1], y], dim=1).view(-1)
+                xy = F.pad(xy, pad=[0, 1], value=x[-1])
+                return xy
+
+            # `text`
+            text = [
+                interleave(x=torch.empty(len(text) + 1, dtype=torch.long).fill_(self._blank_id), y=text)
+                for text in batch['text']
+            ]
+            text = merge(text, value=self._pad_id, dtype=torch.long)
+
+            # `text_mask`
+            text_mask = make_mask([text_len * 2 + 1 for text_len in batch['text_len']])
+
+            # `dur`
+            blank, dur = batch['blank'], batch['dur']
+            dur = merge([interleave(b, d) for b, d in zip(blank, dur)], dtype=torch.long)
+        else:
+            raise ValueError("Wrong durations handling type.")
 
         assert text.shape == text_mask.shape, f'{text.shape} vs {text_mask.shape}'
         assert text.shape == dur.shape, f'{text.shape} vs {dur.shape}'
