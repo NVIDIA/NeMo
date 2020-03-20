@@ -64,7 +64,8 @@ try:
         BuildEngineLoader,
     )
     from .tensorrt_runner import TensorRTRunnerV2
-except:
+except Exception as e:
+    nemo.logging.error('Failed to import: `{}` ({})'.format(str(e), type(e)))
     __trt_pycuda_req_satisfied = False
 
 # create decorator so that tests can be marked with the TRT requirement

@@ -47,7 +47,7 @@ pipeline {
         }
       }
       steps {
-        sh 'pytest -m unit --cpu'
+        sh 'pytest -m unit --cpu -s'
       }
     }
 
