@@ -18,15 +18,13 @@
 # =============================================================================
 
 
-from unittest import TestCase
-
 import pytest
 
 from nemo.core import NeuralModule
 
 
 @pytest.mark.usefixtures("neural_factory")
-class NeuralModuleConfigTest(TestCase):
+class TestNeuralModuleConfig:
     """
         Class testing methods related to Neural Module import/export.
     """
@@ -43,14 +41,16 @@ class NeuralModuleConfigTest(TestCase):
             """ Method for accessing private method of NeuralModuce class """
             return self._NeuralModule__validate_params(params)
 
-    def setUp(self) -> None:
-        super().setUp()
-
+    def setup_method(self, method):
+        """ 
+            Setup_method is invoked for every test method of a class.
+            Mocks up the class and creates module used in all tests.
+        """
         # Mockup abstract methods.
-        NeuralModuleConfigTest.MockupModule.__abstractmethods__ = set()
+        TestNeuralModuleConfig.MockupModule.__abstractmethods__ = set()
 
         # Create object.
-        self.module = NeuralModuleConfigTest.MockupModule()
+        self.module = TestNeuralModuleConfig.MockupModule()
 
     @pytest.mark.unit
     def test_build_in_types(self):
@@ -59,7 +59,7 @@ class NeuralModuleConfigTest(TestCase):
         params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
 
         # Check error output.
-        self.assertEqual(self.module.validate_params(params), True)
+        assert self.module.validate_params(params) == True
 
     @pytest.mark.unit
     def test_nested_dict(self):
@@ -73,7 +73,7 @@ class NeuralModuleConfigTest(TestCase):
         }
 
         # Check error output.
-        self.assertEqual(self.module.validate_params(params), True)
+        assert (self.module.validate_params(params), True)
 
     @pytest.mark.unit
     def test_nested_list(self):
@@ -82,7 +82,7 @@ class NeuralModuleConfigTest(TestCase):
         params = {"list_outer": [[1, 2, 3, 4]]}
 
         # Check error output.
-        self.assertEqual(self.module.validate_params(params), True)
+        assert self.module.validate_params(params) == True
 
     @pytest.mark.unit
     def test_nested_mix(self):
@@ -91,4 +91,4 @@ class NeuralModuleConfigTest(TestCase):
         params = {"list_outer": [{"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}]}
 
         # Check error output.
-        self.assertEqual(self.module.validate_params(params), True)
+        assert self.module.validate_params(params) == True
