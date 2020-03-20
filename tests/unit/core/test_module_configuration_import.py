@@ -17,15 +17,13 @@
 # limitations under the License.
 # =============================================================================
 
-from unittest import TestCase
-
 import pytest
 
 from nemo.core import NeuralModule
 
 
 @pytest.mark.usefixtures("neural_factory")
-class NeuralModuleImportTest(TestCase):
+class TestNeuralModuleImport:
     """
         Class testing Neural Module configuration export.
     """
@@ -46,76 +44,95 @@ class NeuralModuleImportTest(TestCase):
         def __init__(self, x, y):
             super().__init__()
 
-    def setUp(self) -> None:
-        super().setUp()
-
+    def setup_method(self, method):
+        """ 
+            Setup_method is invoked for every test method of a class.
+            Mocks up the classes.
+        """
         # Mockup abstract methods.
-        NeuralModuleImportTest.FirstSimpleModule.__abstractmethods__ = set()
-        NeuralModuleImportTest.SecondSimpleModule.__abstractmethods__ = set()
+        TestNeuralModuleImport.FirstSimpleModule.__abstractmethods__ = set()
+        TestNeuralModuleImport.SecondSimpleModule.__abstractmethods__ = set()
 
     @pytest.mark.unit
-    def test_simple_import_root_neural_module(self):
-        """ Tests whether the Neural Module can instantiate a simple module by loading a configuration file."""
+    def test_simple_import_root_neural_module(self, tmpdir):
+        """
+            Tests whether the Neural Module can instantiate a simple module by loading a configuration file.
+
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
+        """
 
         # params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
-        orig_module = NeuralModuleImportTest.FirstSimpleModule(123, 12.4, "ala ma kota", True)
+        orig_module = TestNeuralModuleImport.FirstSimpleModule(123, 12.4, "ala ma kota", True)
 
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.mkdir("export").join("simple_import_root.yml"))
         # Export.
-        orig_module.export_to_config("/tmp/first_simple_import.yml")
+        orig_module.export_to_config(tmp_file_name)
 
         # Import and create the new object.
-        new_module = NeuralModule.import_from_config("/tmp/first_simple_import.yml")
+        new_module = NeuralModule.import_from_config(tmp_file_name)
 
         # Compare class types.
-        self.assertEqual(type(orig_module).__name__, type(new_module).__name__)
+        assert type(orig_module).__name__ == type(new_module).__name__
 
         # Compare objects - by its all params.
         param_keys = orig_module.init_params.keys()
         for key in param_keys:
-            self.assertEqual(orig_module.init_params[key], new_module.init_params[key])
+            assert orig_module.init_params[key] == new_module.init_params[key]
 
     @pytest.mark.unit
-    def test_simple_import_leaf_module(self):
+    def test_simple_import_leaf_module(self, tmpdir):
         """
             Tests whether a particular module can instantiate another
             instance (a copy) by loading a configuration file.
+
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
         """
 
         # params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
-        orig_module = NeuralModuleImportTest.FirstSimpleModule(123, 12.4, "ala ma kota", True)
+        orig_module = TestNeuralModuleImport.FirstSimpleModule(123, 12.4, "ala ma kota", True)
 
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.mkdir("export").join("simple_import_leaf.yml"))
         # Export.
-        orig_module.export_to_config("/tmp/first_simple_import.yml")
+        orig_module.export_to_config(tmp_file_name)
 
         # Import and create the new object.
-        new_module = NeuralModuleImportTest.FirstSimpleModule.import_from_config("/tmp/first_simple_import.yml")
+        new_module = TestNeuralModuleImport.FirstSimpleModule.import_from_config(tmp_file_name)
 
         # Compare class types.
-        self.assertEqual(type(orig_module).__name__, type(new_module).__name__)
+        assert type(orig_module).__name__ == type(new_module).__name__
 
         # Compare objects - by its all params.
         param_keys = orig_module.init_params.keys()
         for key in param_keys:
-            self.assertEqual(orig_module.init_params[key], new_module.init_params[key])
+            assert orig_module.init_params[key] == new_module.init_params[key]
 
     @pytest.mark.unit
-    def test_incompatible_import_leaf_module(self):
+    def test_incompatible_import_leaf_module(self, tmpdir):
         """
             Tests whether a particular module can instantiate another
             instance (a copy) by loading a configuration file.
+
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
         """
 
         # params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
-        orig_module = NeuralModuleImportTest.SecondSimpleModule(["No", "way", "dude!"], None)
+        orig_module = TestNeuralModuleImport.SecondSimpleModule(["No", "way", "dude!"], None)
 
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.mkdir("export").join("incompatible_import_leaf.yml"))
         # Export.
-        orig_module.export_to_config("/tmp/second_simple_import.yml")
+        orig_module.export_to_config(tmp_file_name)
 
         # This will actuall create an instance of SecondSimpleModule - OK.
-        new_module = NeuralModule.import_from_config("/tmp/second_simple_import.yml")
+        new_module = NeuralModule.import_from_config(tmp_file_name)
         # Compare class types.
-        self.assertEqual(type(orig_module).__name__, type(new_module).__name__)
+        assert type(orig_module).__name__ == type(new_module).__name__
 
         # This will create an instance of SecondSimpleModule, not FirstSimpleModule - SO NOT OK!!
-        with self.assertRaises(ImportError):
-            _ = NeuralModuleImportTest.FirstSimpleModule.import_from_config("/tmp/second_simple_import.yml")
+        with pytest.raises(ImportError):
+            _ = TestNeuralModuleImport.FirstSimpleModule.import_from_config(tmp_file_name)

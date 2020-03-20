@@ -194,10 +194,6 @@ class TestTTSPytorch(TestCase):
 
     @pytest.mark.integration
     def test_fastspeech(self):
-        neural_factory = nemo.core.NeuralModuleFactory(
-            backend=nemo.core.Backend.PyTorch, local_rank=None, create_tb_writer=False,
-        )
-
         data_layer = nemo_asr.AudioToTextDataLayer(
             manifest_filepath=self.manifest_filepath,
             labels=self.labels,
@@ -225,7 +221,7 @@ class TestTTSPytorch(TestCase):
         # Creates and saves durations as numpy arrays.
         durs_dir = pathlib.Path('tests/data/asr/durs')
         durs_dir.mkdir(exist_ok=True)
-        result = neural_factory.infer([data.transcripts, data.transcript_length, spec_length, spec])
+        result = self.nf.infer([data.transcripts, data.transcript_length, spec_length, spec])
         k = -1
         for text, text_len, mel_len, mel in zip(result[0], result[1], result[2], result[3]):
             text = text.cpu().numpy()[0][: text_len.cpu().numpy()[0]]
@@ -280,7 +276,8 @@ class TestTTSPytorch(TestCase):
         callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss_t], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
         )
-        optimizer = neural_factory.get_trainer()
+        # Instantiate an optimizer to perform `train` action
+        optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
             [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 3, "lr": 0.0003},
         )
