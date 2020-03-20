@@ -121,6 +121,6 @@ def get_f1_scores(labels, preds, average_modes=['binary', 'weighted', 'macro', '
     """
     f1_scores = {}
     for average in average_modes:
-        f1_scores['F1 ' + average] = round(f1_score(labels, preds, average='weighted') * 100, 2)
+        f1_scores['F1 ' + average] = round(f1_score(labels, preds, average=average) * 100, 2)
 
     return f1_scores
