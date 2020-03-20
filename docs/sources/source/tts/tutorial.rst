@@ -77,7 +77,7 @@ You can run the following to start training:
 
 .. code-block:: bash
 
-    python tacotron2.py --train_dataset=<data_root>/databaker_csmsc_train.json --eval_datasets <data_root>/databaker_csmsc_eval.json --model_config=configs/tacotron_mandarin.yaml --max_steps=30000
+    python tacotron2.py --train_dataset=<data_root>/databaker_csmsc_train.json --eval_datasets <data_root>/databaker_csmsc_eval.json --model_config=configs/tacotron2_mandarin.yaml --max_steps=30000
 
 .. tip::
     Tacotron 2 normally takes around 20,000 steps for attention to be learned.
