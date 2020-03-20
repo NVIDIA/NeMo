@@ -204,7 +204,7 @@ To run inference:
 .. code-block:: bash
 
     python examples/nlp/token_classification/token_classification_infer.py --labels_dict path_to_data/label_ids.csv
-    --work_dir path_to_output_dir/checkpoints/
+    --checkpoint_dir path_to_output_dir/checkpoints/
 
 Note, label_ids.csv file will be generated during training and stored in the data_dir folder.
 
