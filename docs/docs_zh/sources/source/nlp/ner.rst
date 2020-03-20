@@ -204,7 +204,7 @@ text.txt 每一行包含文本序列，其中词以空格来进行分隔。label
 .. code-block:: bash
 
     python examples/nlp/token_classification/token_classification_infer.py --labels_dict path_to_data/label_ids.csv
-    --work_dir path_to_output_dir/checkpoints/
+    --checkpoint_dir path_to_output_dir/checkpoints/
 
 注意，这里会在训练过程中，到 data_dir 目录下生成 label_ids.csv 文件。
 
