@@ -35,7 +35,7 @@ pipeline {
 
     stage('L0: Unit Tests GPU') {
       steps {
-        sh 'pytest -m unit -s'
+        sh 'pytest -m unit'
       }
     }
 
