@@ -65,7 +65,7 @@ text.txt 每一行包含文本序列，其中词以空格来进行分隔。label
 
 接着，我们需要定义我们的分词器 (tokenizer) 和 BERT 模型。你可以有多种方式来实现。注意，NER 是大小写敏感的（"New York City"比"new york city"更容易被识别出来），所以我们建议使用区分大小写的模型。
 
-如果你正在使用一个标准的 BERT 模型，我们建议你使用下面这条命令。想获取完整的 BERT 列表，可以参考 ``nemo_nlp.huggingface.BERT.list_pretrained_models()`` 。
+如果你正在使用一个标准的 BERT 模型，我们建议你使用下面这条命令。想获取完整的 BERT 列表，可以参考 ``nemo.collections.nlp.nm.trainables.get_bert_models_list()`` 。
 
     .. code-block:: python
 
