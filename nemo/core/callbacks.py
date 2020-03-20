@@ -194,7 +194,7 @@ class SimpleLossLoggerCallback(ActionCallback):
         if self.global_rank is None or self.global_rank == 0:
             step = self.step
             run_time = time.time() - self._last_epoch_start
-            logging.info(f"Finished epoch {self.epoch_num} in {run_time}")
+            logging.info(f"Finished epoch {self.epoch_num} in {run_time:.3f} secs")
             if self._swriter is not None:
                 value = self.epoch_num
                 self._swriter.add_scalar('misc/epoch', value, step)
@@ -226,7 +226,7 @@ class SimpleLossLoggerCallback(ActionCallback):
                     run_time = time.time() - self._last_iter_start
                     self._swriter.add_scalar('misc/step_time', run_time, step)
                 run_time = time.time() - self._last_iter_start
-                logging.info(f"Step time: {run_time} seconds")
+                logging.info(f"Step time: {run_time:.3f} seconds")
 
 
 class CheckpointCallback(ActionCallback):
@@ -424,7 +424,7 @@ class EvaluatorCallback(ActionCallback):
             self.action._eval(self._eval_tensors, self, step)
             elapsed_time = time.time() - start_time
             if self.global_rank == 0 or self.global_rank is None:
-                logging.info(f'Evaluation time: {elapsed_time} seconds')
+                logging.info(f'Evaluation time: {elapsed_time:.3f} seconds')
 
     def on_action_end(self):
         step = self.step
@@ -434,7 +434,7 @@ class EvaluatorCallback(ActionCallback):
         self.action._eval(self._eval_tensors, self, step)
         elapsed_time = time.time() - start_time
         if self.global_rank == 0 or self.global_rank is None:
-            logging.info(f'Evaluation time: {elapsed_time} seconds')
+            logging.info(f'Evaluation time: {elapsed_time:.3f} seconds')
 
     def clear_global_var_dict(self):
         self._global_var_dict = {}

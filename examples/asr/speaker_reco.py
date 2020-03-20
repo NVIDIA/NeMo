@@ -26,7 +26,7 @@ def parse_args():
         eval_batch_size=64,
         lr=0.01,
         weight_decay=0.001,
-        amp_opt_level="O0",
+        amp_opt_level="O1",
         create_tb_writer=True,
     )
 
@@ -51,6 +51,8 @@ def parse_args():
     parser.add_argument("--synced_bn", action='store_true', help="Use synchronized batch norm")
     parser.add_argument("--synced_bn_groupsize", default=0, type=int)
     parser.add_argument("--emb_size", default=256, type=int)
+    parser.add_argument("--print_freq", default=256, type=int)
+    
 
     args = parser.parse_args()
     if args.max_steps is not None:
@@ -111,6 +113,7 @@ def create_all_dags(args, neural_factory):
     del eval_dl_params["train"]
     del eval_dl_params["eval"]
 
+
     data_layer_test = nemo_asr.AudioToLabelDataLayer(
         manifest_filepath=args.eval_datasets[0],
         labels=labels,
@@ -135,19 +138,9 @@ def create_all_dags(args, neural_factory):
         covr=True
         )
 
-    weight = pickle.load(open('myExps/all_LibriSpeech/weight.pkl','rb'))
+    # weight = pickle.load(open('myExps/all_LibriSpeech/weight.pkl','rb'))
+    weight=None
     xent_loss = nemo_asr.CrossEntropyLossNM(weight=weight)
-
-    # create augmentation modules (only used for training) if their configs
-    # are present
-
-    multiply_batch_config = spkr_params.get('MultiplyBatch', None)
-    if multiply_batch_config:
-        multiply_batch = nemo_asr.MultiplyBatch(**multiply_batch_config)
-
-    spectr_augment_config = spkr_params.get('SpectrogramAugmentation', None)
-    if spectr_augment_config:
-        data_spectr_augmentation = nemo_asr.SpectrogramAugmentation(**spectr_augment_config)
 
     # assemble train DAG
 
@@ -156,18 +149,10 @@ def create_all_dags(args, neural_factory):
     processed_signal, processed_signal_len = data_preprocessor(
         input_signal=audio_signal,
         length=audio_signal_len)
-
-    # if multiply_batch_config:
-    #     (processed_signal_t, p_length_t, transcript_t, transcript_len_t,) = multiply_batch(
-    #         in_x=processed_signal, in_x_len=processed_signal_len, in_y=transcript_t, in_y_len=transcript_len_t,
-    #     )
-
-    # if spectr_augment_config:
-    #     processed_signal_t = data_spectr_augmentation(input_spec=processed_signal_t)
-
-    encoded, encoded_len = encoder( audio_signal=processed_signal,length=processed_signal_len)    
     
-    logits = decoder(encoder_output=encoded)
+    encoded, encoded_len = encoder(audio_signal=processed_signal,length=processed_signal_len)    
+    
+    logits,_ = decoder(encoder_output=encoded)
     loss = xent_loss(logits=logits, labels=label)
 
 # --- Assemble Validation DAG --- #
@@ -181,7 +166,7 @@ def create_all_dags(args, neural_factory):
         audio_signal=processed_signal_test,
         length=processed_len_test)
 
-    logits_test = decoder(encoder_output=encoded_test)
+    logits_test,_ = decoder(encoder_output=encoded_test)
     loss_test = xent_loss(
         logits=logits_test,
         labels=label_test)
@@ -193,7 +178,7 @@ def create_all_dags(args, neural_factory):
         print_func=partial(
             monitor_classification_training_progress,
             eval_metric=[1]),
-        step_freq=args.eval_freq,
+        step_freq=args.print_freq,
         get_tb_values=lambda x:[("train_loss", x[0])],
         tb_writer=neural_factory.tb_writer)
 
@@ -221,7 +206,7 @@ def create_all_dags(args, neural_factory):
 
     callbacks.append(eval_callback)
 
-    return loss, callbacks, steps_per_epoch
+    return loss, callbacks, steps_per_epoch, loss_test, logits_test, label_test
 
 
 def main():
@@ -246,6 +231,7 @@ def main():
         checkpoint_dir=args.checkpoint_dir+"/"+args.exp_name,
         create_tb_writer=args.create_tb_writer,
         files_to_copy=[args.model_config, __file__],
+        random_seed=42,
         cudnn_benchmark=args.cudnn_benchmark,
         tensorboard_dir=args.tensorboard_dir+'/'+name,
     )
@@ -257,7 +243,8 @@ def main():
         logging.info('Doing ALL GPU')
 
     # build dags
-    train_loss, callbacks, steps_per_epoch = create_all_dags(args, neural_factory)
+    train_loss, callbacks, steps_per_epoch , loss_test, logits_test, \
+        label_test = create_all_dags(args, neural_factory)
 
     # train model
     neural_factory.train(
@@ -276,7 +263,6 @@ def main():
         synced_batchnorm=args.synced_bn,
         synced_batchnorm_groupsize=args.synced_bn_groupsize,
     )
-
 
 if __name__ == '__main__':
     main()

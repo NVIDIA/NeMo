@@ -192,6 +192,7 @@ class SpeechLabel(_Collection):
 
         output_type = self.OUTPUT_TYPE
         data, duration_filtered = [], 0.0
+        pre_commands=set()
         for audio_file, duration, command in zip(audio_files, durations, labels):
             # Duration filters.
             if min_duration is not None and duration < min_duration:
@@ -214,6 +215,7 @@ class SpeechLabel(_Collection):
         logging.info(
             "Filtered duration for loading collection is %f.", duration_filtered,
         )
+        logging.info("# {} files loaded accounting to # {} labels".format(len(data),len(set(map(lambda x:x.label,data)))))
 
         super().__init__(data)
 

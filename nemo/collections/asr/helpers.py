@@ -134,7 +134,7 @@ def monitor_classification_training_progress(tensors: list, eval_metric=None, tb
         topk_acc = classification_accuracy(logits, targets, top_k=top_k)
 
     tag = 'training_batch_top@{0}'
-    nemo.logging.info(f'Loss: {tensors[0]}')
+    nemo.logging.info(f'Loss: {tensors[0]:.3f}')
 
     for k, acc in zip(top_k, topk_acc):
         if tb_logger is not None:
@@ -303,7 +303,7 @@ def process_classification_evaluation_epoch(global_vars: dict, eval_metric=None,
 
     logs = {f"Evaluation_Loss {tag}": eloss}
 
-    logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
+    logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss:.3f}")
     for k, acc in zip(top_k, topk_accs):
         logging.info(f"==========>>>>>>Evaluation Accuracy Top@{k} {tag}: {acc * 100.:3.4f}")
         logs[f'Evaluation_Accuracy_Top@{k} {tag}'] = acc * 100.0

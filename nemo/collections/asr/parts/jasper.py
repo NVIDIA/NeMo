@@ -77,6 +77,7 @@ class StatsPoolLayer(nn.Module):
         pooled = torch.cat([mean,std],dim=-1)
         if self.covr:
             time_len = encoder_output.shape[-1]
+            # encoder_output = encoder_output
             cov = encoder_output.bmm(encoder_output.transpose(2,1)) #cov matrix
             cov = cov.view(cov.shape[0],-1) / (time_len)
             
