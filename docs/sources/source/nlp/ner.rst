@@ -67,7 +67,7 @@ First, we need to create our neural factory with the supported backend. How you 
 
 Next, we'll need to define our tokenizer and our BERT model. There are a couple of different ways you can do this. Keep in mind that NER benefits from casing ("New York City" is easier to identify than "new york city"), so we recommend you use cased models.
 
-If you're using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out ``nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()``
+If you're using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out ``nemo.collections.nlp.nm.trainables.get_bert_models_list()``
 
     .. code-block:: python
 
@@ -107,7 +107,7 @@ We need to create the classifier to sit on top of the pretrained model and defin
                                               num_classes=num_classes,
                                               dropout=CLASSIFICATION_DROPOUT)
 
-        ner_loss = CrossEntropyLossNM(logits_dim=3)
+        ner_loss = CrossEntropyLossNM(logits_ndim=3)
 
 Now, create the train and evaluation datasets:
 
