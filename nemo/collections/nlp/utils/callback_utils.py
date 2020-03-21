@@ -101,13 +101,14 @@ def get_classification_report(labels, preds, label_ids):
     """
     Returns classification report
     """
-    # remove labels from label_ids that don't appear in the dev set
+    # remove labels from label_ids that don't appear in predictions or ground truths
     used_labels = set(labels) | set(preds)
     labels_names = [
         k + ' (label id: ' + str(v) + ')'
         for k, v in sorted(label_ids.items(), key=lambda item: item[1])
         if v in used_labels
     ]
+
     return classification_report(labels, preds, target_names=labels_names)
 
 

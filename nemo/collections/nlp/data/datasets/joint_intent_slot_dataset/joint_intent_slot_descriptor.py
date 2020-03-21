@@ -18,7 +18,6 @@ import itertools
 
 from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import calc_class_weights, get_label_stats, if_exist
-from nemo.collections.nlp.utils import get_vocab
 
 __all__ = ['JointIntentSlotDataDesc']
 
@@ -68,15 +67,16 @@ class JointIntentSlotDataDesc:
         self.intent_dict_file = self.data_dir + '/dict.intents.csv'
         self.slot_dict_file = self.data_dir + '/dict.slots.csv'
 
-        self.num_intents = len(get_vocab(self.intent_dict_file))
-        slots = JointIntentSlotDataDesc.label2idx(self.slot_dict_file)
-        self.num_slots = len(slots)
+        self.intents_label_ids = JointIntentSlotDataDesc.label2idx(self.intent_dict_file)
+        self.num_intents = len(self.intents_label_ids)
+        self.slots_label_ids = JointIntentSlotDataDesc.label2idx(self.slot_dict_file)
+        self.num_slots = len(self.slots_label_ids)
 
         for mode in ['train', 'test', 'dev']:
             if not if_exist(self.data_dir, [f'{mode}.tsv']):
                 logging.info(f' Stats calculation for {mode} mode' f' is skipped as {mode}.tsv was not found.')
                 continue
-
+            logging.info(f' Stats calculating for {mode} mode...')
             slot_file = f'{self.data_dir}/{mode}_slots.tsv'
             with open(slot_file, 'r') as f:
                 slot_lines = f.readlines()
@@ -102,13 +102,13 @@ class JointIntentSlotDataDesc:
                 raw_intents.append(int(parts[-1]))
                 queries.append(' '.join(parts[:-1]))
 
-            infold = input_file[: input_file.rfind('/')]
+            infold = self.data_dir
 
-            logging.info(f'Three most popular intents during {mode}ing')
+            logging.info(f'Three most popular intents in {mode} mode:')
             total_intents, intent_label_freq = get_label_stats(raw_intents, infold + f'/{mode}_intent_stats.tsv')
             merged_slots = itertools.chain.from_iterable(raw_slots)
 
-            logging.info(f'Three most popular slots during {mode}ing')
+            logging.info(f'Three most popular slots in {mode} mode:')
             slots_total, slots_label_freq = get_label_stats(merged_slots, infold + f'/{mode}_slot_stats.tsv')
 
             if mode == 'train':
@@ -126,9 +126,9 @@ class JointIntentSlotDataDesc:
         if pad_label != -1:
             self.pad_label = pad_label
         else:
-            if none_slot_label not in slots:
+            if none_slot_label not in self.slots_label_ids:
                 raise ValueError(f'none_slot_label {none_slot_label} not ' f'found in {self.slot_dict_file}.')
-            self.pad_label = slots[none_slot_label]
+            self.pad_label = self.slots_label_ids[none_slot_label]
 
     @staticmethod
     def label2idx(file):

@@ -62,7 +62,7 @@ def eval_iter_callback(tensors, global_vars):
     global_vars["all_subtokens_mask"].extend(all_subtokens_mask)
 
 
-def eval_epochs_done_callback(global_vars, label_ids, graph_fold=None, none_label_id=0, normalize_cm=True):
+def eval_epochs_done_callback(global_vars, label_ids, graph_fold=None, normalize_cm=True):
     labels = np.asarray(global_vars['all_labels'])
     preds = np.asarray(global_vars['all_preds'])
     subtokens_mask = np.asarray(global_vars['all_subtokens_mask']) > 0.5
