@@ -39,7 +39,7 @@ The toolkit comes with extendable collections of pre-built modules for automatic
 
 * Watch `this video <https://nvidia.github.io/NeMo/>`_ for a quick walk-through.
 
-* Documentation (latest released version): https://nvidia.github.io/NeMo/
+* Documentation (latest released version): https://nvidia.github.io/NeMo/ `Documentation (master branch) <http://nemo-master-docs.s3-website.us-east-2.amazonaws.com/>`_
 
 * Read NVIDIA `Developer Blog for example applications <https://devblogs.nvidia.com/how-to-build-domain-specific-automatic-speech-recognition-models-on-gpus/>`_
 
@@ -120,7 +120,7 @@ You can use the following checkpoints to use in your fine-tuning experiments.
 |            |                                                                                              |                       |
 |            |                                                                                              |                       |
 +------------+----------------------------------------------------------------------------------------------+-----------------------+
-| TTS        | `WaveGlow <https://ngc.nvidia.com/catalog/models/nvidia:waveglow_ljspeechh>`_                |LJspeech               |
+| TTS        | `WaveGlow <https://ngc.nvidia.com/catalog/models/nvidia:waveglow_ljspeech>`_                |LJspeech               |
 |            |                                                                                              |                       |
 |            |                                                                                              |                       |
 |            |                                                                                              |                       |
