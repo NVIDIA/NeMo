@@ -17,10 +17,15 @@
 import random
 
 import numpy as np
-from nemo.collections.nlp.utils.callback_utils import get_classification_report, get_f1_scores
 
 from nemo import logging
-from nemo.collections.nlp.utils.callback_utils import list2str, plot_confusion_matrix, tensor2list
+from nemo.collections.nlp.utils.callback_utils import (
+    get_classification_report,
+    get_f1_scores,
+    list2str,
+    plot_confusion_matrix,
+    tensor2list,
+)
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
@@ -112,9 +117,7 @@ def eval_epochs_done_callback(global_vars, intents_label_ids, slots_label_ids, g
     for k, v in f1_scores.items():
         logging.info(f'{k}: {v}')
 
-    logging.info(
-        f'\n {get_classification_report(slot_labels, slot_preds, label_ids=slots_label_ids)}'
-    )
+    logging.info(f'\n {get_classification_report(slot_labels, slot_preds, label_ids=slots_label_ids)}')
 
     logging.info('Intent Prediction Results:')
     intent_accuracy = np.mean(intent_labels == intent_preds)
@@ -123,8 +126,6 @@ def eval_epochs_done_callback(global_vars, intents_label_ids, slots_label_ids, g
     for k, v in f1_scores.items():
         logging.info(f'{k}: {v}')
 
-    logging.info(
-        f'\n {get_classification_report(intent_labels, intent_preds, label_ids=intents_label_ids)}'
-    )
+    logging.info(f'\n {get_classification_report(intent_labels, intent_preds, label_ids=intents_label_ids)}')
 
     return dict({'intent_accuracy': intent_accuracy, 'slot_accuracy': slot_accuracy})
