@@ -70,14 +70,14 @@ you can run the following to start training:
 
 .. code-block:: bash
 
-    python tacotron2.py --train_dataset=<data_root>/ljspeech_train.json --eval_datasets <data_root>/ljspeech_eval.json --model_config=configs/tacotron.yaml --max_steps=30000
+    python tacotron2.py --train_dataset=<data_root>/ljspeech_train.json --eval_datasets <data_root>/ljspeech_eval.json --model_config=configs/tacotron2.yaml --max_steps=30000
 
 Training Tacotron 2 on Mandarin also can be done by running the `tacotron2.py` file.
 You can run the following to start training:
 
 .. code-block:: bash
 
-    python tacotron2.py --train_dataset=<data_root>/databaker_csmsc_train.json --eval_datasets <data_root>/databaker_csmsc_eval.json --model_config=configs/tacotron_mandarin.yaml --max_steps=30000
+    python tacotron2.py --train_dataset=<data_root>/databaker_csmsc_train.json --eval_datasets <data_root>/databaker_csmsc_eval.json --model_config=configs/tacotron2_mandarin.yaml --max_steps=30000
 
 .. tip::
     Tacotron 2 normally takes around 20,000 steps for attention to be learned.

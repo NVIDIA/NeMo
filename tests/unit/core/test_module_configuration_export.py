@@ -17,8 +17,6 @@
 # limitations under the License.
 # =============================================================================
 
-from unittest import TestCase
-
 import pytest
 from ruamel.yaml import YAML
 
@@ -28,7 +26,7 @@ YAML = YAML(typ='safe')
 
 
 @pytest.mark.usefixtures("neural_factory")
-class NeuralModuleExportTest(TestCase):
+class TestNeuralModuleExport:
     """
         Class testing Neural Module configuration export.
     """
@@ -41,111 +39,140 @@ class NeuralModuleExportTest(TestCase):
         def __init__(self, a, b, c, d):
             super().__init__()
 
-    def setUp(self) -> None:
-        super().setUp()
-
+    def setup_method(self, method):
+        """ 
+            Setup_method is invoked for every test method of a class.
+            Mocks up the module class.
+        """
         # Mockup abstract methods.
-        NeuralModuleExportTest.MockupSimpleModule.__abstractmethods__ = set()
+        TestNeuralModuleExport.MockupSimpleModule.__abstractmethods__ = set()
 
     @pytest.mark.unit
-    def test_simple_export(self):
+    def test_simple_export(self, tmpdir):
         """
             Tests whether build-in types are properly exported.
+
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
         """
 
-        # params = {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
-        module = NeuralModuleExportTest.MockupSimpleModule(123, 12.4, "ala_ma_kota", True)
+        # Set params: {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
+        params = {"a": 123, "b": 12.4, "c": "ala ma kota", "d": True}
+        module = TestNeuralModuleExport.MockupSimpleModule(**params)
 
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.mkdir("export").join("simple_export.yml"))
         # Export.
-        module.export_to_config("/tmp/simple_export.yml")
+        module.export_to_config(tmp_file_name)
 
         # Check the resulting config file.
-        with open("/tmp/simple_export.yml", 'r') as stream:
+        with open(tmp_file_name, 'r') as stream:
             exported_config = YAML.load(stream)
 
         # Assert that it contains main sections: header and init params.
-        self.assertEqual("header" in exported_config, True)
-        self.assertEqual("init_params" in exported_config, True)
+        assert "header" in exported_config
+        assert "init_params" in exported_config
 
         # Assert that the header contains class and spec.
-        self.assertEqual("full_spec" in exported_config["header"], True)
+        assert "full_spec" in exported_config["header"]
 
         # Check init params.
         exported_init_params = exported_config["init_params"]
-        self.assertEqual(int(exported_init_params["a"]), 123)
-        self.assertEqual(float(exported_init_params["b"]), 12.4)
-        self.assertEqual(exported_init_params["c"], "ala_ma_kota")
-        self.assertEqual(bool(exported_init_params["d"]), True)
+        assert int(exported_init_params["a"]) == 123
+        assert float(exported_init_params["b"]) == 12.4
+        assert exported_init_params["c"] == "ala ma kota"
+        assert bool(exported_init_params["d"]) == True
 
     @pytest.mark.unit
-    def test_nested_list_export(self):
-        """ Tests whether (nested*) lists are properly exported."""
+    def test_nested_list_export(self, tmpdir):
+        """
+            Tests whether (nested*) lists are properly exported.
+
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
+        """
 
         # Params: list, list of lists, list of lists of lists, None type!
-        module = NeuralModuleExportTest.MockupSimpleModule(
+        module = TestNeuralModuleExport.MockupSimpleModule(
             a=[123], b=[[12.4]], c=[[["ala", "ma", "kota"], "kot ma"], "ale"], d=None
         )
 
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.mkdir("export").join("nested_list_export.yml"))
         # Export.
-        module.export_to_config("/tmp/nested_list_export.yml")
+        module.export_to_config(tmp_file_name)
 
         # Check the resulting config file.
-        with open("/tmp/nested_list_export.yml", 'r') as stream:
+        with open(tmp_file_name, 'r') as stream:
             exported_config = YAML.load(stream)
 
         # Assert that it contains main sections: header and init params.
-        self.assertEqual("header" in exported_config, True)
-        self.assertEqual("init_params" in exported_config, True)
+        assert "header" in exported_config
+        assert "init_params" in exported_config
 
         # Check init params.
         exported_init_params = exported_config["init_params"]
-        self.assertEqual(exported_init_params["a"][0], 123)
-        self.assertEqual(exported_init_params["b"][0][0], 12.4)
-        self.assertEqual(exported_init_params["c"][0][0][0], "ala")
-        self.assertEqual(exported_init_params["c"][0][0][1], "ma")
-        self.assertEqual(exported_init_params["c"][0][0][2], "kota")
-        self.assertEqual(exported_init_params["c"][0][1], "kot ma")
-        self.assertEqual(exported_init_params["c"][1], "ale")
-        self.assertEqual(exported_init_params["d"], None)
+        assert exported_init_params["a"][0] == 123
+        assert exported_init_params["b"][0][0] == 12.4
+        assert exported_init_params["c"][0][0][0] == "ala"
+        assert exported_init_params["c"][0][0][1] == "ma"
+        assert exported_init_params["c"][0][0][2] == "kota"
+        assert exported_init_params["c"][0][1] == "kot ma"
+        assert exported_init_params["c"][1] == "ale"
+        assert exported_init_params["d"] == None
 
     @pytest.mark.unit
-    def test_nested_dict_export(self):
-        """ Tests whether (nested*) dictionaries are properly exported."""
+    def test_nested_dict_export(self, tmpdir):
+        """
+            Tests whether (nested*) dictionaries are properly exported.
+
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
+        """
 
         # Params: dict, dict with list, dict with dict, build-in.
-        module = NeuralModuleExportTest.MockupSimpleModule(
+        module = TestNeuralModuleExport.MockupSimpleModule(
             a={"int": 123}, b={"floats": [12.4, 71.2]}, c={"ala": {"ma": "kota", "nie_ma": "psa"}}, d=True
         )
 
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.mkdir("export").join("nested_dict_export.yml"))
         # Export.
-        module.export_to_config("/tmp/nested_dict_export.yml")
+        module.export_to_config(tmp_file_name)
 
         # Check the resulting config file.
-        with open("/tmp/nested_dict_export.yml", 'r') as stream:
+        with open(tmp_file_name, 'r') as stream:
             exported_config = YAML.load(stream)
 
         # Assert that it contains main sections: header and init params.
-        self.assertEqual("header" in exported_config, True)
-        self.assertEqual("init_params" in exported_config, True)
+        assert "header" in exported_config
+        assert "init_params" in exported_config
 
         # Check init params.
         exported_init_params = exported_config["init_params"]
-        self.assertEqual(exported_init_params["a"]["int"], 123)
-        self.assertEqual(exported_init_params["b"]["floats"][0], 12.4)
-        self.assertEqual(exported_init_params["b"]["floats"][1], 71.2)
-        self.assertEqual(exported_init_params["c"]["ala"]["ma"], "kota")
-        self.assertEqual(exported_init_params["c"]["ala"]["nie_ma"], "psa")
-        self.assertEqual(exported_init_params["d"], True)
+        assert exported_init_params["a"]["int"] == 123
+        assert exported_init_params["b"]["floats"][0] == 12.4
+        assert exported_init_params["b"]["floats"][1] == 71.2
+        assert exported_init_params["c"]["ala"]["ma"] == "kota"
+        assert exported_init_params["c"]["ala"]["nie_ma"] == "psa"
+        assert exported_init_params["d"]
 
     @pytest.mark.unit
-    def test_unallowed_export(self):
-        """ Tests whether unallowed types are NOT exported."""
+    def test_unallowed_export(self, tmpdir):
+        """
+            Tests whether unallowed types are NOT exported.
+
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
+        """
 
         e = Exception("some random object")
 
         # Params: dict, dict with list, dict with dict, build-in.
-        module = NeuralModuleExportTest.MockupSimpleModule(e, False, False, False)
+        module = TestNeuralModuleExport.MockupSimpleModule(e, False, False, False)
 
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.mkdir("export").join("unallowed_export.yml"))
         # Assert export error.
-        with self.assertRaises(ValueError):
-            module.export_to_config("/tmp/unallowed_export.yml")
+        with pytest.raises(ValueError):
+            module.export_to_config(tmp_file_name)
