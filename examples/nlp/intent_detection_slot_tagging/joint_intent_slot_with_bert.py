@@ -14,6 +14,15 @@
 # limitations under the License.
 # =============================================================================
 
+"""
+This example is based on a model proposed by Q. Chen et al in 'BERT for Joint Intent Classification and Slot Filling'.
+https://arxiv.org/abs/1902.10909
+
+It shows how to train an intent detection and slot tagging model using BERT based models as input encoder. \
+It can be used as Natural Language Understanding (NLU) module for goal-oriented dialogue systems.
+You may find more information on this example in https://nvidia.github.io/NeMo/nlp/joint_intent_slot_filling.html.
+"""
+
 import argparse
 import math
 import os
@@ -116,7 +125,6 @@ if args.class_balancing == 'weighted_loss':
     # To tackle imbalanced classes, you may use weighted loss
     intent_loss_fn = CrossEntropyLossNM(logits_ndim=2, weight=data_desc.intent_weights)
     slot_loss_fn = CrossEntropyLossNM(logits_ndim=3, weight=data_desc.slot_weights)
-
 else:
     intent_loss_fn = CrossEntropyLossNM(logits_ndim=2)
     slot_loss_fn = CrossEntropyLossNM(logits_ndim=3)
@@ -207,8 +215,14 @@ train_callback = SimpleLossLoggerCallback(
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
-    user_iter_callback=lambda x, y: eval_iter_callback(x, y, eval_data_layer),
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, f'{nf.work_dir}/graphs'),
+    user_iter_callback=lambda x, y: eval_iter_callback(x, y),
+    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+        x,
+        intents_label_ids=data_desc.intents_label_ids,
+        slots_label_ids=data_desc.slots_label_ids,
+        graph_fold=f'{nf.work_dir}/graphs',
+        normalize_cm=True,
+    ),
     tb_writer=nf.tb_writer,
     eval_step=train_steps_per_epoch,
 )

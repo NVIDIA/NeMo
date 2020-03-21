@@ -75,7 +75,7 @@ def get_features(
                 slots.extend([raw_slots[i][j]] * len(word_tokens))
 
         subtokens.append(tokenizer.sep_token)
-        loss_mask.append(not ignore_start_end)
+        loss_mask.append(1 - ignore_start_end)
         subtokens_mask.append(0)
         sent_lengths.append(len(subtokens))
         all_subtokens.append(subtokens)
@@ -117,6 +117,16 @@ def get_features(
         all_segment_ids.append([0] * max_seq_length)
 
     logging.info(f'{too_long_count} are longer than {max_seq_length}')
+
+    logging.info("*** Some Examples of Processed Data***")
+    for i in range(min(len(all_input_ids), 5)):
+        logging.info("i: %s" % (i))
+        logging.info("subtokens: %s" % " ".join(list(map(str, all_subtokens[i]))))
+        logging.info("loss_mask: %s" % " ".join(list(map(str, all_loss_mask[i]))))
+        logging.info("input_mask: %s" % " ".join(list(map(str, all_input_mask[i]))))
+        logging.info("subtokens_mask: %s" % " ".join(list(map(str, all_subtokens_mask[i]))))
+        if with_label:
+            logging.info("slots_label: %s" % " ".join(list(map(str, all_slots[i]))))
 
     return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_slots)
 

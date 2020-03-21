@@ -186,10 +186,16 @@
 
         eval_callback = nemo.core.EvaluatorCallback(
             eval_tensors=eval_tensors,
-            user_iter_callback=lambda x, y: eval_iter_callback(x, y, data_layer),
-            user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, f'{nf.work_dir}/graphs'),
+            user_iter_callback=lambda x, y: eval_iter_callback(x, y),
+            user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+                x,
+                intents_label_ids=data_desc.intents_label_ids,
+                slots_label_ids=data_desc.slots_label_ids,
+                graph_fold=f'{nf.work_dir}/graphs',
+                normalize_cm=True
+            ),
             tb_writer=nf.tb_writer,
-            eval_step=steps_per_epoch,
+            eval_step=train_steps_per_epoch,
         )
 
         ckpt_callback = CheckpointCallback(

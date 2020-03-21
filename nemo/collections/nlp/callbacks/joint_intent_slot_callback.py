@@ -17,15 +17,20 @@
 import random
 
 import numpy as np
-from sklearn.metrics import classification_report
 
 from nemo import logging
-from nemo.collections.nlp.utils.callback_utils import list2str, plot_confusion_matrix, tensor2list
+from nemo.collections.nlp.utils.callback_utils import (
+    get_classification_report,
+    get_f1_scores,
+    list2str,
+    plot_confusion_matrix,
+    tensor2list,
+)
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 
-def eval_iter_callback(tensors, global_vars, eval_data_layer):
+def eval_iter_callback(tensors, global_vars):
     if "all_intent_preds" not in global_vars.keys():
         global_vars["all_intent_preds"] = []
     if "all_intent_labels" not in global_vars.keys():
@@ -75,7 +80,7 @@ def eval_iter_callback(tensors, global_vars, eval_data_layer):
     global_vars["all_subtokens_mask"].extend(all_subtokens_mask)
 
 
-def eval_epochs_done_callback(global_vars, graph_fold):
+def eval_epochs_done_callback(global_vars, intents_label_ids, slots_label_ids, graph_fold=None, normalize_cm=True):
     intent_labels = np.asarray(global_vars['all_intent_labels'])
     intent_preds = np.asarray(global_vars['all_intent_preds'])
 
@@ -96,23 +101,31 @@ def eval_epochs_done_callback(global_vars, graph_fold):
     logging.info("Sampled s_preds: [%s]" % list2str(slot_preds[i : i + sample_size]))
     logging.info("Sampled slots: [%s]" % list2str(slot_labels[i : i + sample_size]))
 
-    plot_confusion_matrix(intent_labels, intent_preds, graph_fold)
+    if graph_fold:
+        # calculate, plot and save the confusion_matrix
+        plot_confusion_matrix(
+            intent_labels, intent_preds, graph_fold, intents_label_ids, normalize=normalize_cm, prefix='Intent'
+        )
+        plot_confusion_matrix(
+            slot_labels, slot_preds, graph_fold, slots_label_ids, normalize=normalize_cm, prefix='Slot'
+        )
 
-    logging.info('Intent prediction results')
-    correct_preds = sum(intent_labels == intent_preds)
-    intent_accuracy = correct_preds / intent_labels.shape[0]
-    logging.info(f'Intent accuracy: {intent_accuracy}')
-    logging.info(
-        f'Classification report:\n \
-        {classification_report(intent_labels, intent_preds)}'
-    )
+    logging.info('Slot Prediction Results:')
+    slot_accuracy = np.mean(slot_labels == slot_preds)
+    logging.info(f'Slot Accuracy: {slot_accuracy}')
+    f1_scores = get_f1_scores(slot_labels, slot_preds, average_modes=['weighted', 'macro', 'micro'])
+    for k, v in f1_scores.items():
+        logging.info(f'{k}: {v}')
 
-    logging.info('Slot prediction results')
-    slot_accuracy = sum(slot_labels == slot_preds) / slot_labels.shape[0]
-    logging.info(f'Slot accuracy: {slot_accuracy}')
-    logging.info(
-        f'Classification report:\n \
-        {classification_report(slot_labels[:-2], slot_preds[:-2])}'
-    )
+    logging.info(f'\n {get_classification_report(slot_labels, slot_preds, label_ids=slots_label_ids)}')
+
+    logging.info('Intent Prediction Results:')
+    intent_accuracy = np.mean(intent_labels == intent_preds)
+    logging.info(f'Intent Accuracy: {intent_accuracy}')
+    f1_scores = get_f1_scores(intent_labels, intent_preds, average_modes=['weighted', 'macro', 'micro'])
+    for k, v in f1_scores.items():
+        logging.info(f'{k}: {v}')
+
+    logging.info(f'\n {get_classification_report(intent_labels, intent_preds, label_ids=intents_label_ids)}')
 
     return dict({'intent_accuracy': intent_accuracy, 'slot_accuracy': slot_accuracy})
