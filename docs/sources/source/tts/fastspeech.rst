@@ -19,7 +19,7 @@ char lasts in audio sample. For that, NeMo uses alignment map from Tacotron 2 in
 truth mel spectrogram for shape matching. For each timestep, we add +1 duration to char with strongest alignment signal
 in alignment map.
 
-To do that, run fastspeech_alignments.py from NeMo/examples/tts with following arguments (provide path to durations
+To do that, run fastspeech_durations.py from NeMo/examples/tts with following arguments (provide path to durations
 dir to save):
 
 .. code-block:: bash
