@@ -54,7 +54,7 @@ class NemoArgParser(argparse.ArgumentParser):
             "--train_dataset", type=str, default=None, help="training dataset path",
         )
         self.add_argument(
-            "--eval_datasets", type=str, nargs="*", help="evaludation datasets paths",
+            "--eval_datasets", type=str, nargs="*", default=[], help="evaludation datasets paths",
         )
         self.add_argument("--batch_size", type=int, help="train batch size per GPU")
         self.add_argument(

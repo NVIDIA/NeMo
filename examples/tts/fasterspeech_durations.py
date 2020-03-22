@@ -15,7 +15,9 @@
 import argparse
 import math
 import os
+from typing import Mapping
 
+import torch
 from ruamel import yaml
 
 import nemo
@@ -26,7 +28,7 @@ from nemo.utils import lr_policies
 logging = nemo.logging
 
 
-def parse_args():
+def parse_args(coef=1):
     parser = argparse.ArgumentParser(
         description='FasterSpeech Training Pipeline.',
         parents=[nm_argparse.NemoArgParser()],
@@ -35,32 +37,98 @@ def parse_args():
     parser.set_defaults(
         amp_opt_level='O0',
         model_config='configs/fasterspeech_durations.yaml',
-        batch_size=64,
+        batch_size=coef * 32,
+        eval_batch_size=coef * 32,
+        eval_freq=5000,  # 10x train freq.
         optimizer='novograd',
         weight_decay=1e-6,
         num_epochs=150,  # Couple of epochs for testing.
-        lr=2 * 1e-2,  # Goes good with Adam.
+        lr=coef * 1e-2,  # Goes good with Adam.
         work_dir='work',
         checkpoint_save_freq=15000,
     )
 
     # Default training things.
     parser.add_argument('--train_log_freq', type=int, default=500, help="Train metrics logging frequency.")
+    parser.add_argument('--eval_names', type=str, nargs="*", default=[], help="Eval datasets names.")
     parser.add_argument('--min_lr', type=float, default=1e-5, help="Minimum learning rate to decay to.")
     parser.add_argument('--warmup', type=int, default=3000, help="Number of steps for warmup.")
 
     # Durations from ASR CTC model.
-    parser.add_argument('--durs_file', type=str, required=True, help="Train dataset durations directory path.")
+    parser.add_argument('--train_durs', type=str, required=True, help="Train dataset durations directory path.")
+    parser.add_argument(
+        '--eval_durss', type=str, nargs="*", default=[], help="Eval datasets durations directory path.",
+    )
     parser.add_argument(
         '--durs_type', type=str, choices=['pad', 'full-pad'], default='full-pad', help="Durations handling type.",
     )
 
     # Model.
     parser.add_argument('--d_emb', type=int, default=128, help="Size of input char embedding.")
+    parser.add_argument(
+        '--loss_method',
+        type=str,
+        choices=['l2-log', 'l2', 'dmld-log', 'dmld', 'xe'],
+        default='l2-log',
+        help="Method for loss calculation.",
+    )
+    parser.add_argument(
+        '--loss_dmld_hidden',
+        type=int,
+        default=5,  # ~= log2(num_classes)
+        help="Third of size of hidden vector for dmld.",
+    )
+    parser.add_argument(
+        '--loss_num_classes',
+        type=int,
+        default=32,  # Cover >98% of all true durations.
+        help="Number of classes to predict for dmld or xe losses.",
+    )
+    parser.add_argument(
+        '--loss_reduction',
+        type=str,
+        choices=['batch', 'all'],
+        default='all',
+        help="Method for loss tensor reduction.",
+    )
 
     args = parser.parse_args()
 
     return args
+
+
+class DurMetric(nemo.core.Metric):
+    def __init__(self, preprocessing):
+        super().__init__()
+
+        self._preprocessing = preprocessing
+
+        self._hit0, self._hit1, self._hit2, self._hit3, self._total = (None,) * 5
+
+    def clear(self) -> None:
+        self._hit0, self._hit1, self._hit2, self._hit3, self._total = 0, 0, 0, 0, 0
+
+    def batch(self, tensors) -> None:
+        tensors = self._preprocessing(tensors)
+
+        for dur_true1, dur_pred1, mask1 in zip(tensors.dur_true, tensors.dur_pred, tensors.mask):
+            prefix = mask1.sum().item()
+            dur_true1, dur_pred1 = dur_true1[:prefix], dur_pred1[:prefix]
+            assert dur_true1.shape == dur_true1.shape
+
+            self._hit0 += (dur_true1 == dur_pred1).sum().item()
+            self._hit1 += ((dur_true1 - dur_pred1).abs() <= 1).sum().item()
+            self._hit2 += ((dur_true1 - dur_pred1).abs() <= 2).sum().item()
+            self._hit3 += ((dur_true1 - dur_pred1).abs() <= 3).sum().item()
+            self._total += prefix
+
+    def final(self) -> Mapping[str, float]:
+        acc = self._hit0 / self._total * 100
+        d1 = self._hit1 / self._total * 100
+        d2 = self._hit2 / self._total * 100
+        d3 = self._hit3 / self._total * 100
+
+        return dict(acc=acc, d1=d1, d2=d2, d3=d3)
 
 
 class FasterSpeechGraph:
@@ -70,81 +138,88 @@ class FasterSpeechGraph:
         pad_id, labels = len(labels), labels + ['<PAD>']
         blank_id, labels = len(labels), labels + ['<BLANK>']
 
-        self.data_layer = nemo_tts.FasterSpeechDataLayer(
+        self.train_dl = nemo_tts.FasterSpeechDataLayer(
             manifests=args.train_dataset,
-            durs_file=args.durs_file,
+            durs_file=args.train_durs,
             labels=labels,
             durs_type=args.durs_type,
             batch_size=args.batch_size,
-            sample_rate=config.sample_rate,
             pad_id=pad_id,
             blank_id=blank_id,
-            shuffle=True,
+            shuffle=True,  # For train part.
             num_workers=max(int(os.cpu_count() / engine.world_size), 1),
-            **config.FasterSpeechDataLayer,
+            **config.FasterSpeechDataLayer_train,
         )
+
+        self.eval_dls = {}
+        for name, eval_dataset, eval_durs in zip(args.eval_names, args.eval_datasets, args.eval_durss):
+            self.eval_dls[name] = nemo_tts.FasterSpeechDataLayer(
+                manifests=eval_dataset,
+                durs_file=eval_durs,
+                labels=labels,
+                durs_type=args.durs_type,
+                batch_size=args.eval_batch_size,
+                pad_id=pad_id,
+                blank_id=blank_id,
+                shuffle=False,  # For eval part.
+                num_workers=max(int(os.cpu_count() / engine.world_size), 1),
+                **config.FasterSpeechDataLayer_eval,
+            )
 
         self.model = nemo_tts.FasterSpeech(
-            n_vocab=len(labels), d_emb=args.d_emb, pad_id=pad_id, jasper_kwargs=config.JasperEncoder, d_out=1,
+            n_vocab=len(labels),
+            d_emb=args.d_emb,
+            pad_id=pad_id,
+            jasper_kwargs=config.JasperEncoder,
+            d_out=(
+                3 * args.loss_dmld_hidden
+                if args.loss_method.startswith('dmld')
+                else (args.loss_num_classes if args.loss_method == 'xe' else 1)
+            ),
         )
 
-        self.loss = nemo_tts.FasterSpeechDurLoss()
+        self.loss = nemo_tts.FasterSpeechDurLoss(
+            method=args.loss_method, num_classes=args.loss_num_classes, reduction=args.loss_reduction,
+        )
 
     def build(self, args, engine):
-        data = self.data_layer()
+        train_loss, callbacks = None, []
+        metrics = ['loss', DurMetric(self.loss.preprocessing)]
+
+        # Train.
+        data = self.train_dl()
         output = self.model(text=data.text, text_mask=data.text_mask)
         loss = self.loss(dur_true=data.dur, dur_pred=output.pred, text_mask=data.text_mask)
-
-        callbacks = [
+        train_loss = loss
+        callbacks.append(
             nemo.core.TrainLogger(
                 tensors=dict(loss=loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
-                metrics=[self._train_metrics],
+                metrics=metrics,
                 freq=args.train_log_freq,
                 tb_writer=engine.tb_writer,
-            ),
-            nemo.core.CheckpointCallback(folder=engine.checkpoint_dir, step_freq=args.checkpoint_save_freq),
-        ]
-
-        total_steps = (
-            args.max_steps
-            if args.max_steps is not None
-            else args.num_epochs * math.ceil(len(self.data_layer) / (args.batch_size * engine.world_size))
+            )
         )
 
-        return loss, callbacks, total_steps
+        # Eval.
+        for name, eval_dl in self.eval_dls.items():
+            data = eval_dl()
+            output = self.model(text=data.text, text_mask=data.text_mask)
+            loss = self.loss(dur_true=data.dur, dur_pred=output.pred, text_mask=data.text_mask)
+            callbacks.append(
+                nemo.core.EvalLogger(
+                    tensors=dict(loss=loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
+                    metrics=metrics,
+                    freq=args.eval_freq,
+                    tb_writer=engine.tb_writer,
+                    prefix=name,
+                )
+            )
 
-    @staticmethod
-    def _train_metrics(tensors):
-        # Loss.
-        loss = tensors.loss.item()
-        logging.info(f'Loss: {loss:.5f}')
+        callbacks.append(
+            nemo.core.CheckpointCallback(folder=engine.checkpoint_dir, step_freq=args.checkpoint_save_freq)
+        )
 
-        # Acc.
-        hit, total = 0, 0
-        for dur_true1, dur_pred1, mask1 in zip(tensors.dur_true, tensors.dur_pred, tensors.mask):
-            prefix = mask1.sum().item()
-            dur_true1, dur_pred1 = dur_true1[:prefix], dur_pred1.squeeze(-1)[:prefix]
-            assert dur_true1.shape == dur_true1.shape
-
-            # Preprocessing.
-            dur_pred1 = dur_pred1.exp() - 1
-            dur_pred1[dur_pred1 < 0.0] = 0.0
-            dur_pred1 = dur_pred1.round().long()
-
-            hit += (dur_true1 == dur_pred1).sum().item()
-            total += prefix
-
-        # Example.
-        # noinspection PyUnboundLocalVariable
-        logging.info(f'dur_true: {dur_true1.data}')
-        # noinspection PyUnboundLocalVariable
-        logging.info(f'dur_pred: {dur_pred1.data}')
-
-        acc = hit / total * 100
-        assert 0 <= acc <= 100
-        logging.info(f'Acc: {acc:.3f}%')
-
-        return dict(loss=loss, acc=acc)
+        return train_loss, callbacks
 
 
 def main():
@@ -170,8 +245,13 @@ def main():
 
     graph = FasterSpeechGraph(args, engine, config)
 
-    loss, callbacks, total_steps = graph.build(args, engine)
+    loss, callbacks = graph.build(args, engine)
 
+    total_steps = (
+        args.max_steps
+        if args.max_steps is not None
+        else args.num_epochs * math.ceil(len(graph.train_dl) / (args.batch_size * engine.world_size))
+    )
     engine.train(
         tensors_to_optimize=[loss],
         optimizer=args.optimizer,

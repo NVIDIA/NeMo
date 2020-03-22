@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import math
 from typing import Optional
 
 import numpy as np
@@ -23,6 +24,7 @@ from torch.nn import functional as F
 import nemo
 from nemo.backends.pytorch import nm as nemo_nm
 from nemo.backends.pytorch.nm import DataLayerNM, LossNM
+from nemo.collections import tts as nemo_tts
 from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer
 from nemo.core.neural_types import AudioSignal, ChannelType, EmbeddedTextType, LengthsType, MaskType, NeuralType
 from nemo.utils.decorators import add_port_docs
@@ -315,25 +317,82 @@ class FasterSpeechDurLoss(LossNM):
         """Returns definitions of module output ports."""
         return dict(loss=NeuralType(None))
 
-    def __init__(self, reduction='true_mean'):
+    def __init__(self, method='l2-log', num_classes=32, reduction='all'):
         super().__init__()
 
+        self._method = method
+        self._num_classes = num_classes
         self._reduction = reduction
 
     def _loss_function(self, dur_true, dur_pred, text_mask):
-        """Do the actual math in FasterSpeech loss calculation."""
+        if self._method.startswith('l2'):
+            if dur_pred.shape[-1] != 1:
+                raise ValueError("Wrong `dur_pred` shape.")
+            dur_pred = dur_pred.squeeze(-1)
 
-        if dur_pred.shape[-1] != 1:
-            raise ValueError('Wrong dur_pred shape.')
-        dur_pred = dur_pred.squeeze(-1)
+        if self._method == 'l2-log':
+            loss = F.mse_loss(dur_pred, (dur_true + 1).float().log(), reduction='none')
+        elif self._method == 'l2':
+            loss = F.mse_loss(dur_pred, dur_true.float(), reduction='none')
+        elif self._method == 'dmld-log':
+            # [0, inf] => [0, num_classes - 1]
+            dur_true = torch.clamp(dur_true, max=self._num_classes - 1)
+            # [0, num_classes - 1] => [0, log(num_classes)]
+            dur_true = (dur_true + 1).float().log()
+            # [0, log(num_classes)] => [-1, 1]
+            dur_true = (torch.clamp(dur_true / math.log(self._num_classes), max=1.0) - 0.5) * 2
 
-        loss = F.mse_loss(dur_pred, (dur_true + 1).float().log(), reduction='none')
+            loss = nemo_tts.parts.dmld_loss(dur_pred, dur_true, self._num_classes)
+        elif self._method == 'dmld':
+            # [0, inf] => [0, num_classes - 1]
+            dur_true = torch.clamp(dur_true, max=self._num_classes - 1)
+            # [0, num_classes - 1] => [-1, 1]
+            dur_true = (dur_true / (self._num_classes - 1) - 0.5) * 2
+
+            loss = nemo_tts.parts.dmld_loss(dur_pred, dur_true, self._num_classes)
+        elif self._method == 'xe':
+            # [0, inf] => [0, num_classes - 1]
+            dur_true = torch.clamp(dur_true, max=self._num_classes - 1)
+
+            loss = F.cross_entropy(input=dur_pred.transpose(1, 2), target=dur_true, reduction='none')
+        else:
+            raise ValueError("Wrong method.")
+
         loss *= text_mask.float()
-
-        if self._reduction == 'true_mean':
+        if self._reduction == 'batch':
             loss = loss.sum(-1) / text_mask.sum(-1)
             loss = loss.mean()
+        elif self._reduction == 'all':
+            loss = loss.sum() / text_mask.sum()
         else:
-            raise ValueError("Wrong reduction method.")
+            raise ValueError("Wrong reduction.")
 
         return loss
+
+    def preprocessing(self, tensors):
+        if self._method == 'l2-log':
+            dur_pred = tensors.dur_pred.squeeze(-1).exp() - 1
+        elif self._method == 'l2':
+            dur_pred = tensors.dur_pred.squeeze(-1)
+        elif self._method == 'dmld-log':
+            dur_pred = nemo_tts.parts.dmld_sample(tensors.dur_pred)
+
+            # [-1, 1] => [0, log(num_classes)]
+            dur_pred = (dur_pred + 1) / 2 * math.log(self._loss_dmld_num_classes)
+            # [0, log(num_classes)] => [0, num_classes - 1]
+            dur_pred = torch.clamp(dur_pred.exp() - 1, max=self._loss_dmld_num_classes - 1)
+        elif self._method == 'dmld':
+            dur_pred = nemo_tts.parts.dmld_sample(tensors.dur_pred)
+
+            # [-1, 1] => [0, num_classes - 1]
+            dur_pred = (dur_pred + 1) / 2 * (self._num_classes - 1)
+        elif self._method == 'xe':
+            dur_pred = tensors.dur_pred.argmax(-1)
+        else:
+            raise ValueError("Wrong method.")
+
+        dur_pred[dur_pred < 0.0] = 0.0
+        dur_pred = dur_pred.float().round().long()
+        tensors.dur_pred = dur_pred
+
+        return tensors

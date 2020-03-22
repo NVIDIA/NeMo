@@ -32,7 +32,10 @@
 # ]
 
 import glob
+import json
 import os
+import pprint
+import sys
 import time
 from abc import ABC
 from typing import Callable, List, Union
@@ -530,27 +533,3 @@ class CheckpointCallback(NeMoCallback):
         epoch = state["epoch"]
         if self._epoch_freq > 0 and epoch % self._epoch_freq == 0 and epoch > 0:
             self.__save_to(self._folder, state)
-
-
-class TrainLogger(SimpleLossLoggerCallback):
-    def __init__(self, tensors, metrics, freq, tb_writer, mu=0.99):
-        self._cache = collections.defaultdict(float)
-
-        def print_func(pt_tensors):
-            kv_tensors = attrdict.AttrDict(dict(zip(tensors.keys(), pt_tensors)))
-
-            for metric in metrics:
-                for k, v in metric(kv_tensors).items():
-                    self._cache[k] = (1 - mu) * self._cache[k] + mu * v
-
-        # noinspection PyUnusedLocal
-        def get_tb_values(*args, **kwargs):
-            return list((k, np.array(v)) for k, v in self._cache.items())
-
-        super().__init__(
-            tensors=list(tensors.values()),
-            print_func=print_func,
-            get_tb_values=get_tb_values,
-            step_freq=freq,
-            tb_writer=tb_writer,
-        )

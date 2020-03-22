@@ -5,6 +5,11 @@ if [[ -z $1 || "$#" -ne 1 ]]; then
   exit 1
 fi
 
+if [ ! -f setup.py ]; then
+  echo "Script should be runned from project root."
+  exit 1
+fi
+
 # ------------------------------------------------------ CONSTS ------------------------------------------------------
 IMAGE="nvidian/pytorch:19.12-py3"
 GPU_MEM=32    # Default is 32.
@@ -40,6 +45,11 @@ nvidia-smi \
 --tensorboard_dir=${WORKSPACE}/tb/durs/${id} \
 --train_dataset=/manifests/librispeech/librivox-train-all.json \
 --durs_file=/data/durs/full-pad.npy
+--train_dataset=/home/stanislavv/data/librispeech/local/train-all.json
+--train_durs=/home/stanislavv/data/librispeech/durs/train-all_full-pad.npy
+--eval_names dev-clean
+--eval_datasets=/home/stanislavv/data/librispeech/local/dev-clean.json
+--eval_durss=/home/stanislavv/data/librispeech/durs/dev-clean_full-pad.npy
 EOF
 
 # ------------------------------------------------------- FIRE -------------------------------------------------------
@@ -51,6 +61,6 @@ ngc batch run \
   --result "${RESULT}" \
   --datasetid 9367:/data/librispeech \
   --datasetid 32028:/manifests/librispeech \
-  --datasetid 57420:/data/durs \
+  --datasetid 57748:/data/durs \
   --workspace "${WS}":"${WORKSPACE}" \
   --commandline "${cmd}"

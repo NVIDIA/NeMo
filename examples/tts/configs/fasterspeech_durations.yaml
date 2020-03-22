@@ -1,19 +1,25 @@
 model: "FasterSpeech"
-sample_rate: 16000
+sample_rate: &sample_rate 16000
 labels: [
     " ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
     "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"
 ]
 
-FasterSpeechDataLayer:
+FasterSpeechDataLayer_train:
     max_duration: 16.7
     trim_silence: true
+    sample_rate: *sample_rate
+
+FasterSpeechDataLayer_eval:
+    trim_silence: true
+    sample_rate: *sample_rate
 
 JasperEncoder:
     activation: "relu"
     conv_mask: true
 
     jasper:
+        # 3 x 256 x 5
         -   filters: 256
             repeat: 1
             kernel: [5]
@@ -41,6 +47,7 @@ JasperEncoder:
             residual: true
             separable: true
 
+        # 3 x 256 x 7
         -   filters: 256
             repeat: 5
             kernel: [7]
@@ -68,9 +75,10 @@ JasperEncoder:
             residual: true
             separable: true
 
-        -   filters: 256
+        # 3 x 512 x 10
+        -   filters: 512
             repeat: 5
-            kernel: [5]
+            kernel: [10]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -79,7 +87,7 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [5]
+            kernel: [10]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -88,7 +96,17 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [5]
+            kernel: [10]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        # 3 x 512 x 15
+        -   filters: 512
+            repeat: 5
+            kernel: [15]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -97,7 +115,7 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [5]
+            kernel: [15]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -106,22 +124,14 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [5]
+            kernel: [15]
             stride: [1]
             dilation: [1]
             dropout: 0.0
             residual: true
             separable: true
 
-        -   filters: 512
-            repeat: 5
-            kernel: [5]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: true
-            separable: true
-
+        # Final 1024.
         -   filters: 1024
             repeat: 1
             kernel: [1]
