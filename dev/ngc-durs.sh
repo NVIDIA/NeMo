@@ -23,7 +23,7 @@ echo "Updating source code..."
 # Choose run id.
 name_id=$1
 num_id=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13)
-id="${name_id}"-"${num_id}"
+id="${name_id}"_"${num_id}"
 # Choose tmp dir to save current state of the project.
 tmp_dir=/tmp/nemos/"${id}"
 echo "Tmp dir: ${tmp_dir}"
@@ -42,14 +42,20 @@ nvidia-smi \
 && python -m torch.distributed.launch --nproc_per_node=8 ${script} \
 --work_dir=${RESULT} \
 --model_config=${config} \
---tensorboard_dir=${WORKSPACE}/tb/durs/${id} \
+--tensorboard_dir=${WORKSPACE}/tb/durs/loss/${id} \
 --train_dataset=/manifests/librispeech/librivox-train-all.json \
---durs_file=/data/durs/full-pad.npy
---train_dataset=/home/stanislavv/data/librispeech/local/train-all.json
---train_durs=/home/stanislavv/data/librispeech/durs/train-all_full-pad.npy
---eval_names dev-clean
---eval_datasets=/home/stanislavv/data/librispeech/local/dev-clean.json
---eval_durss=/home/stanislavv/data/librispeech/durs/dev-clean_full-pad.npy
+--train_durs=/data/durs/train-all_full-pad.npy
+--eval_names dev-clean dev-other test-clean test-other
+--eval_datasets \
+/manifests/librispeech/librivox-dev-clean.json \
+/manifests/librispeech/librivox-dev-other.json \
+/manifests/librispeech/librivox-test-clean.json \
+/manifests/librispeech/librivox-test-other.json \
+--eval_durss \
+/data/durs/dev-clean_full-pad.npy \
+/data/durs/dev-other_full-pad.npy \
+/data/durs/test-clean_full-pad.npy \
+/data/durs/test-other_full-pad.npy
 EOF
 
 # ------------------------------------------------------- FIRE -------------------------------------------------------
