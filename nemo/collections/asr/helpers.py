@@ -295,7 +295,7 @@ def process_classification_evaluation_epoch(global_vars: dict, eval_metric=None,
     topk_accs = []
     for k in top_k:
         correct_counts = torch.tensor(global_vars[f'CorrectCount@{k}'])
-        topk_acc = correct_counts.sum() / total_num_samples
+        topk_acc = correct_counts.sum().float() / total_num_samples
         topk_accs.append(topk_acc)
 
     if tag is None:
