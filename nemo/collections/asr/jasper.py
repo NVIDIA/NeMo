@@ -375,7 +375,6 @@ class JasperDecoderForSpkrClass(TrainableNM):
     def forward(self, encoder_output):
         pool = self._pooling(encoder_output)
         if self._midEmbd1:
-            print("pool shape is ",pool.shape)
             return self.decoder_layers(pool), self.decoder_layers[0](pool)
         return self.decoder_layers(pool)
 
