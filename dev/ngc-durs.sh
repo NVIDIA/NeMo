@@ -39,7 +39,7 @@ read -r -d '' cmd <<EOF
 nvidia-smi \
 && apt-get update && apt-get install -y libsndfile1 \
 && cp -R ${WORKSPACE}/nemos/${id} /nemo && cd /nemo && pip install .[all] \
-&& python -m torch.distributed.launch --nproc_per_node=8 ${script} \
+&& python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${script} \
 --work_dir=${RESULT} \
 --model_config=${config} \
 --tensorboard_dir=${WORKSPACE}/tb/durs/loss/${id} \
