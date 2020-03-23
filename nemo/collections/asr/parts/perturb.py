@@ -56,7 +56,7 @@ class ImpulsePerturbation(Perturbation):
     def perturb(self, data):
         impulse_record = self._rng.sample(self._manifest.data, 1)[0]
         impulse = AudioSegment.from_file(impulse_record['audio_filepath'], target_sr=data.sample_rate)
-        logging.debug("impulse: %s", impulse_record['audio_filepath'])
+        # logging.debug("impulse: %s", impulse_record['audio_filepath'])
         data._samples = signal.fftconvolve(data.samples, impulse.samples, "full")
 
 

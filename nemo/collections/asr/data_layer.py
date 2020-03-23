@@ -16,7 +16,7 @@
 
 import copy
 from functools import partial
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 
@@ -532,7 +532,7 @@ target_label_n, "offset": offset_in_sec_n}
         trim_silence: bool = False,
         drop_last: bool = False,
         load_audio: bool = True,
-        augmentor: Optional[Dict[str, Dict[str, Any]]] = None,
+        augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
     ):
         super(AudioToSpeechLabelDataLayer, self).__init__()
 
@@ -541,7 +541,12 @@ target_label_n, "offset": offset_in_sec_n}
         self._sample_rate = sample_rate
 
         if augmentor is not None:
-            augmentor = self._process_augmentations(augmentor)
+            if isinstance(augmentor, AudioAugmentor):
+                pass
+            elif isinstance(augmentor, dict):
+                augmentor = self._process_augmentations(augmentor)
+            else:
+                raise ValueError("Cannot parse augmentor provided !")
 
         self._featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
 
