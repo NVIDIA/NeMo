@@ -209,7 +209,7 @@ tensors_eval, total_loss_eval, ptr_loss_eval, gate_loss_eval, steps_per_epoch_ev
 train_callback = nemo_core.SimpleLossLoggerCallback(
     tensors=[total_loss_train, gate_loss_train, ptr_loss_train],
     print_func=lambda x: logging.info(
-        f'Loss:{str(round(x[0].item(), 3))}, '
+        f'Total Loss:{str(round(x[0].item(), 3))}, '
         f'Gate Loss:{str(round(x[1].item(), 3))}, '
         f'Pointer Loss:{str(round(x[2].item(), 3))}'
     ),
