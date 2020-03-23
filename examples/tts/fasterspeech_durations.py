@@ -28,7 +28,7 @@ from nemo.utils import lr_policies
 logging = nemo.logging
 
 
-def parse_args(coef=1):
+def parse_args(coef=2):
     parser = argparse.ArgumentParser(
         description='FasterSpeech Training Pipeline.',
         parents=[nm_argparse.NemoArgParser()],
@@ -39,17 +39,17 @@ def parse_args(coef=1):
         model_config='configs/fasterspeech_durations.yaml',
         batch_size=coef * 32,
         eval_batch_size=coef * 32,
-        eval_freq=5000,  # 10x train freq.
+        eval_freq=3000,  # 10x train freq.
         optimizer='novograd',
         weight_decay=1e-6,
         num_epochs=150,  # Couple of epochs for testing.
         lr=coef * 1e-2,  # Goes good with Adam.
         work_dir='work',
-        checkpoint_save_freq=15000,
+        checkpoint_save_freq=10000,  # 1/3x
     )
 
     # Default training things.
-    parser.add_argument('--train_log_freq', type=int, default=500, help="Train metrics logging frequency.")
+    parser.add_argument('--train_log_freq', type=int, default=300, help="Train metrics logging frequency.")  # 1/100x
     parser.add_argument('--eval_names', type=str, nargs="*", default=[], help="Eval datasets names.")
     parser.add_argument('--min_lr', type=float, default=1e-5, help="Minimum learning rate to decay to.")
     parser.add_argument('--warmup', type=int, default=3000, help="Number of steps for warmup.")
@@ -103,10 +103,12 @@ class DurMetric(nemo.core.Metric):
 
         self._preprocessing = preprocessing
 
-        self._hit0, self._hit1, self._hit2, self._hit3, self._total = (None,) * 5
+        self._ss, self._hit0, self._hit1, self._hit2, self._hit3, self._total = (None,) * 6
+        self._hit10m, self._total10m = None, None
 
     def clear(self) -> None:
-        self._hit0, self._hit1, self._hit2, self._hit3, self._total = 0, 0, 0, 0, 0
+        self._ss, self._hit0, self._hit1, self._hit2, self._hit3, self._total = 0, 0, 0, 0, 0, 0
+        self._hit10m, self._total10m = 0, 0
 
     def batch(self, tensors) -> None:
         tensors = self._preprocessing(tensors)
@@ -116,19 +118,24 @@ class DurMetric(nemo.core.Metric):
             dur_true1, dur_pred1 = dur_true1[:prefix], dur_pred1[:prefix]
             assert dur_true1.shape == dur_true1.shape
 
+            self._ss += ((dur_true1 - dur_pred1) ** 2).sum().item()
             self._hit0 += (dur_true1 == dur_pred1).sum().item()
             self._hit1 += ((dur_true1 - dur_pred1).abs() <= 1).sum().item()
             self._hit2 += ((dur_true1 - dur_pred1).abs() <= 2).sum().item()
             self._hit3 += ((dur_true1 - dur_pred1).abs() <= 3).sum().item()
             self._total += prefix
+            self._hit10m += ((dur_true1 == dur_pred1) & (dur_true1 >= 10)).sum().item()
+            self._total10m += (dur_true1 >= 10).sum().item()
 
     def final(self) -> Mapping[str, float]:
+        mse = self._ss / self._total
         acc = self._hit0 / self._total * 100
         d1 = self._hit1 / self._total * 100
         d2 = self._hit2 / self._total * 100
         d3 = self._hit3 / self._total * 100
+        acc10m = self._hit10m / self._total10m * 100
 
-        return dict(acc=acc, d1=d1, d2=d2, d3=d3)
+        return dict(mse=mse, acc=acc, d1=d1, d2=d2, d3=d3, acc10m=acc10m)
 
 
 class FasterSpeechGraph:
