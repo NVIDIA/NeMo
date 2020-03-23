@@ -21,6 +21,7 @@ from os.path import exists
 
 from dialogflow_utils import process_dialogflow
 from mturk_utils import process_mturk
+from assistant_utils import process_assistant
 
 from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import (
@@ -231,7 +232,7 @@ if __name__ == "__main__":
         "--dataset_name",
         required=True,
         type=str,
-        choices=['atis', 'snips', 'jarvis', 'dialogflow', 'mturk-processed'],
+        choices=['atis', 'snips', 'jarvis', 'dialogflow', 'mturk-processed', 'assistant'],
     )
     parser.add_argument(
         "--source_data_dir", required=True, type=str, help='path to the folder containing the dataset files'
@@ -268,5 +269,7 @@ if __name__ == "__main__":
         process_dialogflow(infold=source_dir, outfold=target_dir)
     elif dataset_name == 'mturk-processed':
         process_mturk(infold=source_dir, outfold=target_dir)
+    elif dataset_name == 'assistant':
+        process_assistant(infold=source_dir, outfold=target_dir)
     else:
         raise ValueError(f'Dataset {dataset_name} is not supported.')
