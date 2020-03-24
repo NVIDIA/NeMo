@@ -101,8 +101,9 @@ You can use the following checkpoints to use in your fine-tuning experiments.
 |            |                                                                                              | Mozilla Common Voice  |
 |            |                                                                                              | (en_1488_2019-12-10), |
 |            |                                                                                              | Fisher, Switchboard   |
-|            |                                                                                              | and NSC Singapore     |
-|            |                                                                                              | English Speech        |
+|            |                                                                                              | and Singapore English |
+|            |                                                                                              | National Speech       |
+|            |                                                                                              | Corpus                |
 +------------+----------------------------------------------------------------------------------------------+-----------------------+
 | ASR        | `QuartzNet15x5Zh <https://ngc.nvidia.com/catalog/models/nvidia:aishell2_quartznet15x5>`_     | AISHELL-2 Mandarin    |
 |            |                                                                                              |                       |
