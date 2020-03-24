@@ -28,8 +28,10 @@ dl = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
 m2 = nemo.tutorials.TaylorNet(dim=4)
 loss = nemo.tutorials.MSELoss()
 
-logging.info("This example shows how one can build an `explicit` graph."
-    F"It also shows how to decouple graph instance creation from its activation.")
+logging.info(
+    "This example shows how one can build an `explicit` graph."
+    F"It also shows how to decouple graph instance creation from its activation."
+)
 
 # Create the g0 graph.
 g0 = NeuralGraph(operation_mode=OperationMode.training)

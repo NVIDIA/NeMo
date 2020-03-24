@@ -17,15 +17,15 @@
 # limitations under the License.
 # =============================================================================
 
-from os.path import expanduser
 from functools import partial
+from os.path import expanduser
 
 from ruamel.yaml import YAML
 
 import nemo
-from nemo.core import NeuralGraph, OperationMode
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.helpers import monitor_asr_train_progress
+from nemo.core import NeuralGraph, OperationMode
 
 logging = nemo.logging
 
@@ -41,9 +41,9 @@ logging.info(
 )
 
 # Set paths to "manifests" and model configuration files.
-train_manifest="~/TestData/an4_dataset/an4_train.json"
-val_manifest="~/TestData/an4_dataset/an4_val.json"
-model_config_file="~/workspace/nemo/examples/asr/configs/jasper_an4.yaml"
+train_manifest = "~/TestData/an4_dataset/an4_train.json"
+val_manifest = "~/TestData/an4_dataset/an4_val.json"
+model_config_file = "~/workspace/nemo/examples/asr/configs/jasper_an4.yaml"
 
 yaml = YAML(typ="safe")
 with open(expanduser(model_config_file)) as f:
@@ -71,14 +71,14 @@ greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
 # Create the Jasper composite module.
 with NeuralGraph(operation_mode=OperationMode.training) as Jasper:
-    processed_signal, processed_signal_len = data_preprocessor(input_signal=Jasper, length=Jasper) # Bind inputs.
+    processed_signal, processed_signal_len = data_preprocessor(input_signal=Jasper, length=Jasper)  # Bind inputs.
     encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=processed_signal_len)
-    log_probs = jasper_decoder(encoder_output=encoded) # All output ports are bind (for now!)
+    log_probs = jasper_decoder(encoder_output=encoded)  # All output ports are bind (for now!)
 
 # Create the "implicit" training graph.
 audio_signal, audio_signal_len, transcript, transcript_len = data_layer()
 # Use Jasper module as any other neural module.
-_, _, _, encoded_len, log_probs = Jasper(input_signal=audio_signal, length=audio_signal_len) 
+_, _, _, encoded_len, log_probs = Jasper(input_signal=audio_signal, length=audio_signal_len)
 predictions = greedy_decoder(log_probs=log_probs)
 loss = ctc_loss(log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len)
 tensors_to_evaluate = [loss, predictions, transcript, transcript_len]
