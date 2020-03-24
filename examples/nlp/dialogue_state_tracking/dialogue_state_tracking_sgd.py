@@ -44,19 +44,22 @@ parser.add_argument("--dropout", default=0.1, type=float, help="Dropout rate for
 parser.add_argument("--pretrained_model_name", default="bert-base-cased", type=str, help="Pretrained BERT model")
 
 # Hyperparameters and optimization related flags.
-parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--train_batch_size", default=32, type=int, help="Total batch size for training.")
 parser.add_argument("--eval_batch_size", default=8, type=int, help="Total batch size for eval.")
 parser.add_argument("--predict_batch_size", default=8, type=int, help="Total batch size for predict.")
-parser.add_argument("--learning_rate", default=1e-4, type=float, help="The initial learning rate for Adam.")
-parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--num_epochs", default=80.0, type=int, help="Total number of training epochs to perform.")
+
+parser.add_argument("--optimizer_kind", default="adam_w", type=str)
+parser.add_argument("--learning_rate", default=1e-4, type=float, help="The initial learning rate for Adam.")
+parser.add_argument("--lr_policy", default="PolynomialDecayAnnealing", type=str)
+parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument(
     "--lr_warmup_proportion",
     default=0.1,
     type=float,
     help="Proportion of training to perform linear learning rate warmup for. " "E.g., 0.1 = 10% of training.",
 )
+parser.add_argument("--grad_norm_clip", type=float, default=1, help="Gradient clipping")
 parser.add_argument("--save_epoch_freq", default=1, type=int, help="How often to save the model checkpoint.")
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
@@ -342,5 +345,11 @@ nf.train(
     callbacks=[train_callback, eval_callback, ckpt_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
-    optimization_params={"num_epochs": args.num_epochs, "lr": args.learning_rate},
+    optimization_params={
+        "num_epochs": args.num_epochs,
+        "lr": args.learning_rate,
+        "eps": 1e-6,
+        "weight_decay": args.weight_decay,
+        "grad_norm_clip": args.grad_norm_clip,
+    },
 )
