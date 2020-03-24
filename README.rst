@@ -89,10 +89,8 @@ See `examples/start_here` to get started with the simplest example.
 * `Natural language processing <https://nvidia.github.io/NeMo/nlp/intro.html>`_
 * `Speech Synthesis <https://nvidia.github.io/NeMo/tts/intro.html>`_
 
-Fine-tuning using NeMo
-~~~~~~~~~~~~~~~~~~~~~~
-
-You can use the following pre-trained models start your conversational AI experiments.
+Pre-trained models
+~~~~~~~~~~~~~~~~~~
 
 +------------+----------------------------------------------------------------------------------------------+-----------------------+
 | Modality   | Model                                                                                        | Trained on            |
