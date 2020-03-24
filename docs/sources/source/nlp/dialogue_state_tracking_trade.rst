@@ -204,7 +204,8 @@ you may run the same script by passing `--checkpoint_dir` and setting `--num_epo
         --eval_batch_size <batch size for evaluation> \
         --num_epochs 0
 
-You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ 2.1 on NGC
+You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ 2.1 on NGC.
+
     **MultiWOZ 2.0**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_0
     **MultiWOZ 2.1**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_1
 
