@@ -67,7 +67,7 @@ THE LATEST STABLE VERSION OF NeMo is **0.10.0** (Available via PIP).
 **NeMo Docker Container**
  NVIDIA `NGC NeMo Toolkit container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_ is now available.
 
-* Pull the docker: ``docker pull nvcr.io/nvidia/nemo:v0.9``
+* Pull the docker: ``docker pull nvcr.io/nvidia/nemo:v0.10``
 * Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.9``
 
 If you are using the NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ follow these instructions
@@ -109,7 +109,7 @@ You can use the following checkpoints to use in your fine-tuning experiments.
 +------------+----------------------------------------------------------------------------------------------+-----------------------+
 | NLP        | `BERT base uncased <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo>`_   |English Wikipedia and  |
 |            |                                                                                              |BookCorpus dataset     |
-|            |                                                                                              |seq len <= 128         |
+|            |                                                                                              |seq len <= 512         |
 |            |                                                                                              |                       |
 +------------+----------------------------------------------------------------------------------------------+-----------------------+
 | NLP        | `BERT large uncased <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo>`_ |English Wikipedia and  |
@@ -161,7 +161,7 @@ This command runs unittests:
 .. code-block:: bash
 
     ./reinstall.sh
-    python pytest tests
+    pytest tests
 
 
 Citation
