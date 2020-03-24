@@ -1,5 +1,7 @@
 # Copyright (c) 2019 NVIDIA Corporation
 
+import collections
+import json
 import os
 
 import numpy as np
@@ -8,38 +10,34 @@ from fuzzywuzzy import fuzz
 
 import nemo.collections.nlp.data.datasets.sgd_dataset.prediction_utils as pred_utils
 from nemo import logging
-from nemo.collections.nlp.data.datasets.sgd_dataset import *
+from nemo.collections.nlp.data.datasets.sgd_dataset.evaluate import *
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
-REQ_SLOT_THRESHOLD = 0.5
-F1Scores = collections.namedtuple("F1Scores", ["f1", "precision", "recall"])
+# REQ_SLOT_THRESHOLD = 0.5
+# F1Scores = collections.namedtuple("F1Scores", ["f1", "precision", "recall"])
 
-# Evaluation and other relevant metrics for DSTC8 Schema-guided DST.
-# (1) Active intent accuracy.
-ACTIVE_INTENT_ACCURACY = "active_intent_accuracy"
-# (2) Slot tagging F1.
-SLOT_TAGGING_F1 = "slot_tagging_f1"
-SLOT_TAGGING_PRECISION = "slot_tagging_precision"
-SLOT_TAGGING_RECALL = "slot_tagging_recall"
-# (3) Requested slots F1.
-REQUESTED_SLOTS_F1 = "requested_slots_f1"
-REQUESTED_SLOTS_PRECISION = "requested_slots_precision"
-REQUESTED_SLOTS_RECALL = "requested_slots_recall"
-# (4) Average goal accuracy.
-AVERAGE_GOAL_ACCURACY = "average_goal_accuracy"
-AVERAGE_CAT_ACCURACY = "average_cat_accuracy"
-AVERAGE_NONCAT_ACCURACY = "average_noncat_accuracy"
-# (5) Joint goal accuracy.
-JOINT_GOAL_ACCURACY = "joint_goal_accuracy"
-JOINT_CAT_ACCURACY = "joint_cat_accuracy"
-JOINT_NONCAT_ACCURACY = "joint_noncat_accuracy"
+# # Evaluation and other relevant metrics for DSTC8 Schema-guided DST.
+# # (1) Active intent accuracy.
+# ACTIVE_INTENT_ACCURACY = "active_intent_accuracy"
+# # (2) Slot tagging F1.
+# SLOT_TAGGING_F1 = "slot_tagging_f1"
+# SLOT_TAGGING_PRECISION = "slot_tagging_precision"
+# SLOT_TAGGING_RECALL = "slot_tagging_recall"
+# # (3) Requested slots F1.
+# REQUESTED_SLOTS_F1 = "requested_slots_f1"
+# REQUESTED_SLOTS_PRECISION = "requested_slots_precision"
+# REQUESTED_SLOTS_RECALL = "requested_slots_recall"
+# # (4) Average goal accuracy.
+# AVERAGE_GOAL_ACCURACY = "average_goal_accuracy"
+# AVERAGE_CAT_ACCURACY = "average_cat_accuracy"
+# AVERAGE_NONCAT_ACCURACY = "average_noncat_accuracy"
+# # (5) Joint goal accuracy.
+# JOINT_GOAL_ACCURACY = "joint_goal_accuracy"
+# JOINT_CAT_ACCURACY = "joint_cat_accuracy"
+# JOINT_NONCAT_ACCURACY = "joint_noncat_accuracy"
 
-NAN_VAL = "NA"
-
-ALL_SERVICES = "#ALL_SERVICES"
-SEEN_SERVICES = "#SEEN_SERVICES"
-UNSEEN_SERVICES = "#UNSEEN_SERVICES"
+# NAN_VAL = "NA"
 
 
 def tensor2list(tensor):
