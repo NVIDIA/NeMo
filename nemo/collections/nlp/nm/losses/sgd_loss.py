@@ -214,7 +214,6 @@ class SGDDialogueStateLoss(LossNM):
             "span_start_loss": span_start_loss,
             "span_end_loss": span_end_loss,
         }
-        
-        
+
         total_loss = sum(losses.values()) / len(losses)
         return total_loss
