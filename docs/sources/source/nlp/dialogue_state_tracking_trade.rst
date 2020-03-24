@@ -45,8 +45,8 @@ The MultiWOZ dataset covers the following domains:
  3. attraction
  4. taxi
  5. train
- 6. hospital
- 7. police.
+ 6. hospital(Excluded from training by default)
+ 7. police (Excluded from training by default)
 
 As well as the following slots:
  * inform (∗)
@@ -105,11 +105,11 @@ benefits from copy mechanism to facilitate knowledge transfer between domains. I
 
    Fig. 2: Architecture of the TRADE model (source: :cite:`nlp-dst-wu2019transferable`)
 
-The model is composed of an three main components:
+The model is composed of three main components:
 
- * an **utterance encoder**,
- * a **slot gate**, and
- * a **state generator**.  
+ * **Utterance Encoder**,
+ * **Slot Gate**, and
+ * **State Generator**.
 
 The **utterance encoder** is a bi-directional Gated Recurrent Unit (GRU), returning both \
 context words and and an aggregated context vector encoding the whole dialogue history.
