@@ -45,8 +45,8 @@ The MultiWOZ dataset covers the following domains:
  3. attraction
  4. taxi
  5. train
- 6. hospital
- 7. police.
+ 6. hospital(Excluded from training by default)
+ 7. police (Excluded from training by default)
 
 As well as the following slots:
  * inform (∗)
@@ -105,11 +105,11 @@ benefits from copy mechanism to facilitate knowledge transfer between domains. I
 
    Fig. 2: Architecture of the TRADE model (source: :cite:`nlp-dst-wu2019transferable`)
 
-The model is composed of an three main components:
+The model is composed of three main components:
 
- * an **utterance encoder**,
- * a **slot gate**, and
- * a **state generator**.  
+ * **Utterance Encoder**,
+ * **Slot Gate**, and
+ * **State Generator**.
 
 The **utterance encoder** is a bi-directional Gated Recurrent Unit (GRU), returning both \
 context words and and an aggregated context vector encoding the whole dialogue history.
@@ -145,11 +145,13 @@ In order to preprocess the MultiWOZ dataset you can use the provided `process_mu
 .. code-block:: bash
 
     cd examples/nlp/dialogue_state_tracking/data/
-    python process_multiwoz.py --source_data_dir=$MULTIWOZ_SOURCE_DIR$
+    python process_multiwoz.py \
+        --source_data_dir <path to MultoWOZ dataset> \
+        --target_data_dir <path to store the processed data>
 
 .. note::
-    Argument source_data_dir specifies the folder where you have copied and extracted data into.
-    By default, it will store results in the ``multiwoz2.1`` folder. You may change the default by providing --target_data_dir=$MULTIWOZ_TARGET_DIR$ as another argument.
+    Argument `--source_data_dir` specifies the folder where you have copied and extracted data into. \
+    It will store the processed dataset in the folder given by `--target_data_dir`. \
     Both MultiWOZ 2.0 and MultiWOZ 2.1 datasets can get processed with the same script.
 
 
@@ -168,7 +170,7 @@ The NeMo training graph consists of the following six modules including data lay
 Training
 --------
 
-In order to train an instance of the TRADE model on the MultiWOZ 2.1 dataset and evaluate on its test data simply run \
+In order to train an instance of the TRADE model on the MultiWOZ dataset and evaluate on its test data simply run \
 the `dialogue_state_tracking_trade.py`_ script with default parameters:
 
 .. _dialogue_state_tracking_trade.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/dialogue_state_tracking_trade.py
@@ -177,21 +179,39 @@ the `dialogue_state_tracking_trade.py`_ script with default parameters:
 .. code-block:: bash
 
     cd examples/nlp/dialogue_state_tracking
-    python dialogue_state_tracking_trade.py 
+    python dialogue_state_tracking_trade.py \
+        --data_dir <path to the data> \
+        --work_dir <path to store the experiment logs and checkpoints> \
+        --eval_file_prefix <test or dev>
 
+You may find the list of parameters in the example file and update them as see fits. \
+By default the script would train the model for 10 epochs on 1 single gpu.
 
-.. note::
-    Analogically, the script reads that the ``~/data/state_tracking/multiwoz2.1`` folder by default.
-    This path can be overridden by passing the command line ``data_dir``.
+Evaluating Checkpoints
+----------------------
 
+By default a folder named "checkpoints" would get created under the working folder specified by `--work_dir` and \
+checkpoints are stored under it. To do evaluation a checkpoint on test or dev set, \
+you may run the same script by passing `--checkpoint_dir` and setting `--num_epochs` as zero to avoid the training:
+
+.. code-block:: bash
+
+    cd examples/nlp/dialogue_state_tracking
+    python dialogue_state_tracking_trade.py \
+        --data_dir <path to the data> \
+        --checkpoint_dir <path to checkpoint folder> \
+        --eval_file_prefix <test or dev> \
+        --eval_batch_size <batch size for evaluation> \
+        --num_epochs 0
 
 
 Metrics and Results
 -------------------
 
 In the following table we compare the results achieved by our TRADE model implementation with the results reported \
-in the original paper :cite:`nlp-dst-wu2019transferable`. As the authors were relying on the MultiWOZ 2.0
-dataset, we ran the original implementation on MultiWOZ 2.1 dataset and reported those too.
+in the original paper :cite:`nlp-dst-wu2019transferable`. We trained our models for 10 epochs on a single GPU with 16GB memory. \
+As the authors reported results on just MultiWOZ 2.0 dataset, we ran the original implementation on MultiWOZ 2.1 dataset \
+and reported those too.
 
 We used the same parameters as the original implementation. There are some differences between our implementation and \
 the original one. The main difference is that our model does not use pre-trained embeddings which seems not to affect \
@@ -199,7 +219,7 @@ the performance of the model. The other difference is that we used SquareAnneali
 fixed learning rate. Additionally, we create the vocabulary just based on the training data while the default for the \
 original one is to create vocabulary from all the data including test and development sets. The main reason behind \
 the improvement of our model in terms of accuracy is utilizing better learning rate policy. When we used fixed \
-learning rate in our implementation, we got to similar results as the original one.
+learning rate in our implementation, we got similar results as the original one.
 
 We also did some improvements to the implementation of the model to have faster training. It makes our implementation \
 significantly faster than the original one. Additionally, NeMo supports multi-GPU training which enables even faster \
@@ -207,7 +227,6 @@ training time. It should be noted that learning rate needs to get \
 increased if you want to use multi-GPU training because of having larger batch size.
 
 Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evaluate the model performance:
-
  * **Joint Goal Accuracy** compares the predicted dialogue states to the ground truth at each dialogue turn, and the
    output is considered correct if and only if **all the predicted values exactly match** the ground truth values. 
  * **Slot Accuracy** independently compares each (domain, slot, value) triplet to its ground truth label.
@@ -230,6 +249,11 @@ Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evalua
     During training the TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly \
     classify context vector. The `process_multiwoz.py`_ script extracts that additional information from the dataset,
     and the `dialogue_state_tracking_trade.py`_ script reports the **Gating Accuracy** as well.
+
+You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ 2.1 here
+    **MultiWOZ 2.0**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_0
+    **MultiWOZ 2.1**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_1
+
 
 References
 ----------
