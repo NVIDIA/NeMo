@@ -57,7 +57,7 @@ def parse_args(coef=2):
     # Durations from ASR CTC model.
     parser.add_argument('--train_durs', type=str, required=True, help="Train dataset durations directory path.")
     parser.add_argument(
-        '--eval_durss', type=str, nargs="*", default=[], help="Eval datasets durations directory path.",
+        '--eval_durs', type=str, nargs="*", default=[], help="Eval datasets durations directory path.",
     )
     parser.add_argument(
         '--durs_type', type=str, choices=['pad', 'full-pad'], default='full-pad', help="Durations handling type.",
@@ -159,10 +159,10 @@ class FasterSpeechGraph:
         )
 
         self.eval_dls = {}
-        for name, eval_dataset, eval_durs in zip(args.eval_names, args.eval_datasets, args.eval_durss):
+        for name, eval_dataset, eval_durs1 in zip(args.eval_names, args.eval_datasets, args.eval_durs):
             self.eval_dls[name] = nemo_tts.FasterSpeechDataLayer(
                 manifests=eval_dataset,
-                durs_file=eval_durs,
+                durs_file=eval_durs1,
                 labels=labels,
                 durs_type=args.durs_type,
                 batch_size=args.eval_batch_size,

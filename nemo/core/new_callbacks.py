@@ -120,11 +120,11 @@ class EvalLogger(nemo_callbacks.EvaluatorCallback):
             del global_var_dict
 
             del pt_tensors['IS_FROM_DIST_EVAL']
-            kv_tensors_all = [argparse.Namespace(**dict(zip(tensors.keys(), ts))) for ts in zip(*pt_tensors.values())]
+            kv_tensors = [argparse.Namespace(**dict(zip(tensors.keys(), ts))) for ts in zip(*pt_tensors.values())]
 
             for metric in metrics:
-                for kv_tensors in kv_tensors_all:
-                    metric.batch(kv_tensors)
+                for kv_tensors1 in kv_tensors:
+                    metric.batch(kv_tensors1)
 
         # noinspection PyUnusedLocal
         def user_epochs_done_callback(global_var_dict):

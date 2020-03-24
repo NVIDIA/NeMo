@@ -85,6 +85,8 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     elif 'text_filepath' in item:
         with open(item.pop('text_filepath'), 'r') as f:
             item['text'] = f.read().replace('\n', '')
+    elif 'normalized_text' in item:
+        item['text'] = item['normalized_text']
     else:
         raise ValueError(
             f"Manifest file {manifest_file} has invalid json line " f"structure: {line} without proper text key."

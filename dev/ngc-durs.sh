@@ -44,14 +44,14 @@ nvidia-smi \
 --model_config=${config} \
 --tensorboard_dir=${WORKSPACE}/tb/durs/loss/${id} \
 --train_dataset=/manifests/librispeech/librivox-train-all.json \
---train_durs=/data/durs/train-all_full-pad.npy
---eval_names dev-clean dev-other test-clean test-other
+--train_durs=/data/durs/train-all_full-pad.npy \
+--eval_names dev-clean dev-other test-clean test-other \
 --eval_datasets \
 /manifests/librispeech/librivox-dev-clean.json \
 /manifests/librispeech/librivox-dev-other.json \
 /manifests/librispeech/librivox-test-clean.json \
 /manifests/librispeech/librivox-test-other.json \
---eval_durss \
+--eval_durs \
 /data/durs/dev-clean_full-pad.npy \
 /data/durs/dev-other_full-pad.npy \
 /data/durs/test-clean_full-pad.npy \
