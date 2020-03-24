@@ -71,16 +71,14 @@ https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1
 https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2
 
 
-On BERT base uncased pretrained model (
-https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo)
+On BERT base uncased pretrained model
 the final Exact Match (EM) and F1 scores are as follows:
 Data	        EM      F1
 SQuADv1.1       82.74   89.79
 SQuADv2.0       71.24   74.32
 
 
-On BERT large uncased pretrained model (
-https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo)
+On BERT large uncased pretrained model
 the final Exact Match (EM) and F1 scores are as follows:
 Data	        EM      F1
 SQuADv1.1       85.79   92.28
