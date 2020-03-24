@@ -1,5 +1,5 @@
 import nemo
-from nemo.collections.nlp.data.datasets import SGDDataset
+from nemo.collections.nlp.data.datasets.sgd_dataset.SGDDataset import SGDDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core.neural_types import ChannelType, EmbeddedTextType, LabelsType, LengthsType, NeuralType
 from nemo.utils.decorators import add_port_docs
@@ -36,115 +36,6 @@ class SGDDataLayer(TextDataLayer):
             1: AxisType(TimeTag)
 
         """
-        # return {
-        #     "example_id":NeuralType ({
-        #         0: AxisType(BatchTag)
-        #     }),
-        #     "service_id": NeuralType ({
-        #         0: AxisType(BatchTag)
-        #     }),
-        #     "is_real_example":NeuralType ({
-        #         0: AxisType(BatchTag)
-        #     }),
-
-        #     "user_utterance": NeuralType ({
-        #         0: AxisType(BatchTag)
-        #     }),
-        #     "utterance_ids": NeuralType({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag)
-        #     }),
-        #     "utterance_segment": NeuralType({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag)
-        #     }),
-        #     "utterance_mask": NeuralType({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag)
-        #     }),
-
-        #     "num_categorical_slots": NeuralType ({
-        #         0: AxisType(BatchTag)
-        #     }),
-        #     "categorical_slot_status": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag)
-        #     }),
-        #     "num_categorical_slot_values": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag)
-        #     }),
-        #     "categorical_slot_values": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag)
-        #     }),
-
-        #     "num_noncategorical_slots": NeuralType ({
-        #         0: AxisType(BatchTag)
-        #     }),
-        #     "noncategorical_slot_status": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag)
-        #     }),
-        #     "noncategorical_slot_value_start": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag)
-        #     }),
-        #     "noncategorical_slot_value_end": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag)
-        #     }),
-        #     "start_char_idx": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag)
-        #     }),
-        #     "end_char_idx": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag)
-        #     }),
-
-        #     "num_slots": NeuralType ({
-        #         0:AxisType(BatchTag)
-        #     }),
-        #     "requested_slot_status": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag)
-        #     }),
-
-        #     "num_intents": NeuralType ({
-        #         0:AxisType(BatchTag)
-        #     }),
-        #     "intent_status": NeuralType ({
-        #         0:AxisType(BatchTag)
-        #     }),
-
-        #     "cat_slot_emb": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag),
-        #         2: AxisType(ChannelTag)
-        #     }),
-        #     "cat_slot_value_emb": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag),
-        #         2: AxisType(ChannelTag),
-        #         3: AxisType(ChannelTag)
-        #     }),
-        #     "noncat_slot_emb": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag),
-        #         2: AxisType(ChannelTag)
-        #     }),
-        #     "req_slot_emb": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag),
-        #         2: AxisType(ChannelTag)
-        #     }),
-        #     "intent_emb": NeuralType ({
-        #         0: AxisType(BatchTag),
-        #         1: AxisType(TimeTag),
-        #         2: AxisType(ChannelTag)
-        #     })
-        #   }
         return {
             "example_id": NeuralType(('B'), ChannelType()),
             "service_id": NeuralType(('B'), ChannelType()),

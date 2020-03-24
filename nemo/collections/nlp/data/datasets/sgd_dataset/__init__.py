@@ -14,11 +14,11 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.data.datasets.sgd_dataset.data_utils import *
-from nemo.collections.nlp.data.datasets.sgd_dataset.evaluate import *
-from nemo.collections.nlp.data.datasets.sgd_dataset.metrics import *
-from nemo.collections.nlp.data.datasets.sgd_dataset.prediction_utils import *
-from nemo.collections.nlp.data.datasets.sgd_dataset.schema import *
-from nemo.collections.nlp.data.datasets.sgd_dataset.schema_embedding_dataset import *
-from nemo.collections.nlp.data.datasets.sgd_dataset.schema_processor import *
-from nemo.collections.nlp.data.datasets.sgd_dataset.SGDDataset import *
+# from nemo.collections.nlp.data.datasets.sgd_dataset.data_utils import *
+# from nemo.collections.nlp.data.datasets.sgd_dataset.evaluate import *
+# from nemo.collections.nlp.data.datasets.sgd_dataset.metrics import *
+# from nemo.collections.nlp.data.datasets.sgd_dataset.prediction_utils import *
+# from nemo.collections.nlp.data.datasets.sgd_dataset.schema import *
+# from nemo.collections.nlp.data.datasets.sgd_dataset.schema_embedding_dataset import *
+# from nemo.collections.nlp.data.datasets.sgd_dataset.schema_processor import *
+# from nemo.collections.nlp.data.datasets.sgd_dataset.SGDDataset import *
