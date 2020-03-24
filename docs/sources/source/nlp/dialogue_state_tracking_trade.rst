@@ -231,6 +231,7 @@ training time. It should be noted that learning rate needs to get \
 increased if you want to use multi-GPU training because of having larger batch size.
 
 Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evaluate the model performance:
+
  * **Joint Goal Accuracy** compares the predicted dialogue states to the ground truth at each dialogue turn, and the
    output is considered correct if and only if **all the predicted values exactly match** the ground truth values. 
  * **Slot Accuracy** independently compares each (domain, slot, value) triplet to its ground truth label.
