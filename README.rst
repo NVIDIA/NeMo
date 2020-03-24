@@ -97,12 +97,14 @@ You can use the following checkpoints to use in your fine-tuning experiments.
 +------------+----------------------------------------------------------------------------------------------+-----------------------+
 | Modality   | Model                                                                                        | Trained on            |
 +============+==============================================================================================+=======================+
-| ASR        | `QuartzNet15x5En <https://ngc.nvidia.com/catalog/models/nvidia:multidataset_quartznet15x5>`_ | LibriSpeech,          |
-|            |                                                                                              | Mozilla Common Voice, |
-|            |                                                                                              | WSJ, Fisher,          |
-|            |                                                                                              | and Switchboard       |
+| ASR        | `QuartzNet15x5En <https://ngc.nvidia.com/catalog/models/nvidia:multidataset_quartznet15x5>`_ | LibriSpeech, WSJ,     |
+|            |                                                                                              | Mozilla Common Voice  |
+|            |                                                                                              | (en_1488_2019-12-10), |
+|            |                                                                                              | Fisher, Switchboard   |
+|            |                                                                                              | and NSC Singapore     |
+|            |                                                                                              | English Speech        |
 +------------+----------------------------------------------------------------------------------------------+-----------------------+
-| ASR        | `QuartzNet15x5Zh <https://ngc.nvidia.com/catalog/models/nvidia:aishell2_quartznet15x5>`_     | AI-shell2 Mandarin    |
+| ASR        | `QuartzNet15x5Zh <https://ngc.nvidia.com/catalog/models/nvidia:aishell2_quartznet15x5>`_     | AISHELL-2 Mandarin    |
 |            |                                                                                              |                       |
 |            |                                                                                              |                       |
 |            |                                                                                              |                       |
