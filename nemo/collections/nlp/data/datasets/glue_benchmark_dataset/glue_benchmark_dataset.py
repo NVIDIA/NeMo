@@ -77,13 +77,13 @@ class GLUEDataset(Dataset):
         self.tokenizer = tokenizer
         self.label_list = processor.get_labels()
         self.examples = processor.get_dev_examples(data_dir) if evaluate else processor.get_train_examples(data_dir)
-
+        processor_name = type(processor).__name__
         tokenizer_type = type(tokenizer.tokenizer).__name__
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         cached_features_file = os.path.join(
             data_dir,
-            "cached_{}_{}_{}_{}".format(
-                "dev" if evaluate else "train", tokenizer_type, str(max_seq_length), str(vocab_size)
+            "cached_{}_{}_{}_{}_{}".format(
+                processor_name, "dev" if evaluate else "train", tokenizer_type, str(max_seq_length), str(vocab_size)
             ),
         )
 
