@@ -35,7 +35,7 @@ class Logits(nn.Module):
 
         self.num_classes = num_classes
         self.utterance_proj = nn.Linear(embedding_dim, embedding_dim)
-        self.activation = torch.nn.functional.gelu
+        self.activation = nn.GELU()
 
         self.layer1 = nn.Linear(2 * embedding_dim, embedding_dim)
         self.layer2 = nn.Linear(embedding_dim, num_classes)
@@ -146,7 +146,7 @@ class SGDModel(TrainableNM):
 
         # dim 2 for non_categorical slot - to represent start and end position
         self.noncat_layer1 = nn.Linear(2 * embedding_dim, embedding_dim).to(self._device)
-        self.noncat_activation = torch.nn.functional.gelu
+        self.noncat_activation = nn.GELU()
         self.noncat_layer2 = nn.Linear(embedding_dim, 2).to(self._device)
 
     def forward(
@@ -206,7 +206,6 @@ class SGDModel(TrainableNM):
         # Add a trainable vector for the NONE intent.
         repeated_none_intent_vector = self.none_intent_vector.repeat(batch_size, 1, 1)
         intent_embeddings = torch.cat([repeated_none_intent_vector, intent_embeddings], axis=1)
-
         logits = self.intent_layer(encoded_utterance, intent_embeddings)
         logits = logits.squeeze(axis=-1)  # Shape: (batch_size, max_intents + 1)
 
@@ -263,7 +262,7 @@ class SGDModel(TrainableNM):
         # Predict the status of all non-categorical slots.
         max_num_slots = noncat_slot_emb.size()[1]
         status_logits = self.noncat_slot_layer(encoded_utterance, noncat_slot_emb)
-
+        import pdb; pdb.set_trace()
         # Predict the distribution for span indices.
         max_num_tokens = token_embeddings.size()[1]
 
