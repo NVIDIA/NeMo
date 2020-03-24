@@ -262,7 +262,7 @@ class SGDModel(TrainableNM):
         # Predict the status of all non-categorical slots.
         max_num_slots = noncat_slot_emb.size()[1]
         status_logits = self.noncat_slot_layer(encoded_utterance, noncat_slot_emb)
-        import pdb; pdb.set_trace()
+
         # Predict the distribution for span indices.
         max_num_tokens = token_embeddings.size()[1]
 
