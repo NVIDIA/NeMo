@@ -92,7 +92,7 @@ See `examples/start_here` to get started with the simplest example.
 Fine-tuning using NeMo
 ~~~~~~~~~~~~~~~~~~~~~~
 
-You can use the following checkpoints to use in your fine-tuning experiments.
+You can use the following pre-trained models start your conversational AI experiments.
 
 +------------+----------------------------------------------------------------------------------------------+-----------------------+
 | Modality   | Model                                                                                        | Trained on            |
