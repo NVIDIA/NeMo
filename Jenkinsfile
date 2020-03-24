@@ -35,25 +35,25 @@ pipeline {
 
     stage('L0: Unit Tests') {
       steps {
-        sh 'pytest -m unit'
+        sh 'pytest -m "unit and not skipduringci"'
       }
     }
 
     stage('L0: Integration Tests') {
       steps {
-        sh 'pytest -m integration'
+        sh 'pytest -m "integration and not skipduringci"'
       }
     }
 
     stage('L1: System Tests') {
       steps {
-        sh 'pytest -m system'
+        sh 'pytest -m "system and not skipduringci"'
       }
     }
 
     stage('LX: Unclassified Tests') {
       steps {
-        sh 'pytest -m unclassified'
+        sh 'pytest -m "unclassified and not skipduringci"'
       }
     }
 
