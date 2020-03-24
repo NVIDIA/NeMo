@@ -135,12 +135,12 @@ contain the older version of this dataset.
 Next, we need to preprocess and reformat the dataset, what will result in division of data into three splits:
 
  * traininig split (8242 dialogs in the ``train_dials.json`` file)
- * validation split (1000 dialogs in the ``val_dials.json`` file)
+ * development/validation split (1000 dialogs in the ``dev_dials.json`` file)
  * test split (999 dialogs in the ``test_dials.json`` file)
 
 In order to preprocess the MultiWOZ dataset you can use the provided `process_multiwoz.py`_ script:
 
-.. _process_multiwoz.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/multiwoz/process_multiwoz.py
+.. _process_multiwoz.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/data/process_multiwoz.py
 
 .. code-block:: bash
 
