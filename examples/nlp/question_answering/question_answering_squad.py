@@ -52,13 +52,6 @@ python -m torch.distributed.launch --nproc_per_node=8 question_answering_squad.p
 
 To finetune on SQuADv2.0 which allows non-answerable questions, add the flag --version_2_with_negative.
 
-On BERT base uncased pretrained model (
-https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo)
-the final Exact Match (EM) and F1 scores are as follows:
-Data	        EM      F1
-SQuADv1.1       82.74   89.79
-SQuADv2.0       71.24   74.32
-
 To run only evaluation on pretrained question answering checkpoints on 1 GPU with ground-truth data:
 python question_answering_squad.py
 --eval_file /path_to_data_dir/test.json
@@ -70,6 +63,26 @@ python question_answering_squad.py
 --test_file /path_to_data_dir/test.json
 --checkpoint_dir /path_to_checkpoints
 --mode test
+
+Finetuned SQuAD models can be found at 
+https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1
+https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2
+https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1
+https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2
+
+
+On BERT base uncased pretrained model
+the final Exact Match (EM) and F1 scores are as follows:
+Data	        EM      F1
+SQuADv1.1       82.74   89.79
+SQuADv2.0       71.24   74.32
+
+
+On BERT large uncased pretrained model
+the final Exact Match (EM) and F1 scores are as follows:
+Data	        EM      F1
+SQuADv1.1       85.79   92.28
+SQuADv2.0       80.17   83.32
 """
 import argparse
 import json
