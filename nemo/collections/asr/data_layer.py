@@ -566,7 +566,7 @@ target_label_n}
             dataset=self._dataset,
             batch_size=batch_size,
             # collate_fn=partial(seq_collate_fn, token_pad_value=0),
-            collate_fn=partial(fixed_seq_collate_fn, fixed_length=20*self._sample_rate),
+            collate_fn=partial(fixed_seq_collate_fn, fixed_length=8*self._sample_rate),
             drop_last=drop_last,
             shuffle=shuffle if sampler is None else False,
             sampler=sampler,

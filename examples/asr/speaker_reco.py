@@ -250,7 +250,7 @@ def main():
     neural_factory.train(
         tensors_to_optimize=[train_loss],
         callbacks=callbacks,
-        lr_policy=CosineAnnealing(args.num_epochs * steps_per_epoch, warmup_steps=args.warmup_steps),
+        lr_policy=CosineAnnealing(args.num_epochs * steps_per_epoch, warmup_steps=0.1*args.num_epochs*steps_per_epoch),
         optimizer=args.optimizer,
         optimization_params={
             "num_epochs": args.num_epochs,
