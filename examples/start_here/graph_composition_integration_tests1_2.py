@@ -18,7 +18,7 @@
 # =============================================================================
 
 import nemo
-from nemo.core import NeuralGraph, OperationMode, AppState
+from nemo.core import AppState, NeuralGraph, OperationMode
 
 logging = nemo.logging
 
@@ -28,8 +28,10 @@ dl = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
 m2 = nemo.tutorials.TaylorNet(dim=4)
 loss = nemo.tutorials.MSELoss()
 
-logging.info("This example shows how one can build an `explicit` graph."
-    F"It also shows how to activate and deactivate the g0 context `manually`")
+logging.info(
+    "This example shows how one can build an `explicit` graph."
+    F"It also shows how to activate and deactivate the g0 context `manually`"
+)
 
 # Create the g0 graph.
 g0 = NeuralGraph(operation_mode=OperationMode.training)
