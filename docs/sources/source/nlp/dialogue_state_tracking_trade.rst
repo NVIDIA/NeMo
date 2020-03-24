@@ -9,7 +9,7 @@ The goal of **Dialog State Tracking (DST)** :cite:`nlp-dst-henderson2015machine`
 is to build a representation of the status of the ongoing conversation \
 being a sequence of utterances exchanged between dialog participants. \
 In another words, the goal of DST system is to capture user goals and intentions and encode them as a set of \
-**slots** along with the corresponding **values**.
+**slots** along with the corresponding **values**. DST is considered an essential module for goal-oriented dialogue systems.
 
 
 .. figure:: dst_multiwoz_example.png
@@ -45,7 +45,7 @@ The MultiWOZ dataset covers the following domains:
  3. attraction
  4. taxi
  5. train
- 6. hospital(Excluded from training by default)
+ 6. hospital (Excluded from training by default)
  7. police (Excluded from training by default)
 
 As well as the following slots:
@@ -90,8 +90,8 @@ acts with slots per turn. Additionally, each dialog is supported with a task des
 Moreover, it contains both system and user dialogue act annotations (the latter introduced in MultiWOZ 2.1).
 
 
-The TRADE model
----------------
+TRADE Model
+-----------
 
 The **TRA**\nsferable **D**\ialogue stat\ **E** generator (TRADE) :cite:`nlp-dst-wu2019transferable`  is a model \
 designed specially for the multi-domain \
@@ -204,6 +204,10 @@ you may run the same script by passing `--checkpoint_dir` and setting `--num_epo
         --eval_batch_size <batch size for evaluation> \
         --num_epochs 0
 
+You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ 2.1 here
+    **MultiWOZ 2.0**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_0
+    **MultiWOZ 2.1**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_1
+
 
 Metrics and Results
 -------------------
@@ -249,10 +253,6 @@ Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evalua
     During training the TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly \
     classify context vector. The `process_multiwoz.py`_ script extracts that additional information from the dataset,
     and the `dialogue_state_tracking_trade.py`_ script reports the **Gating Accuracy** as well.
-
-You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ 2.1 here
-    **MultiWOZ 2.0**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_0
-    **MultiWOZ 2.1**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_1
 
 
 References
