@@ -15,7 +15,7 @@ The pretrained back-bone models can be specified `--pretrained_model_name`.
 See the list of available pre-trained models
 `here <https://huggingface.co/transformers/pretrained_models.html>`__. 
 
-.. _pretrained_models:
+.. _pretrained_models_squad:
 
 Download pretrained models
 --------------------------
@@ -272,7 +272,7 @@ To train a question answering model on SQuAD using multi-gpu, run ``question_ans
             --mode "train_eval"
             ...
 
-For model configuration files and checkpoints, see :ref:`pretrained_models`.
+For model configuration files and checkpoints, see :ref:`pretrained_models_squad`.
 
 To run evaluation:
 
