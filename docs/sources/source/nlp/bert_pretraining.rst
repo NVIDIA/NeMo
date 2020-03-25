@@ -15,12 +15,23 @@ Download pretrained models
 
 Pretrained BERT models and model configuration files can be downloaded at following links.
 
-BERT Large models:
+BERT Large models (~330M parameters):
 `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo>`__
 
-BERT Base models:
+BERT Base models (~110M parameters):
 `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo>`__
 `https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo>`__
+
+Model results on downstream tasks:
++---------------------------------------------+--------+--------+--------+--------+--------+--------+
+|                                             | SQuADv1.1       | SQuADv2.0       | GLUE MRPC       |
++                                             +--------+--------+--------+--------+--------+--------+
+|  Model                                      | EM     |  F1    |  EM    |  F1    |  Acc   |  F1   |
++=============================================+========+========+========+========+========+========+
+| BERT-base-uncased                           | 82.74% | 89.79% | 71.24% | 74.32% | 86.52% | 90.53% |
++---------------------------------------------+--------+--------+--------+--------+--------+--------+
+| BERT-large-uncased                          | 85.79% | 92.28% | 80.17% | 83.32% | 88.72% | 91.96% |
++---------------------------------------------+--------+--------+--------+--------+--------+--------+
 
 Introduction
 ------------

@@ -22,17 +22,29 @@ Download pretrained models
 
 Finetuned SQuAD models and model configuration files can be downloaded at following links.
 
-BERT Base uncased models finetuned on SQuADv1.1 or SQuADv2.0 dataset: 
+BERT Base uncased models (~330M parameters) finetuned on SQuADv1.1 or SQuADv2.0 dataset: 
 `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1>`__
 `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2>`__
 
-BERT Large uncased models finetuned on SQuADv1.1 or SQuADv2.0 dataset: 
+BERT Large uncased models (~110M parameters) finetuned on SQuADv1.1 or SQuADv2.0 dataset: 
 `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1>`__
 `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2>`__
+
 
 .. tip::
 
     For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
+
+Model results:
++---------------------------------------------+--------+--------+--------+--------+
+|                                             | SQuADv1.1       | SQuADv2.0       |
++                                             +--------+--------+--------+--------+
+|  Model                                      | EM     |  F1    |  EM    |  F1    |
++=============================================+========+========+========+========+
+| BERT-base-uncased                           | 82.74% | 89.79% | 71.24% | 74.32% |
++---------------------------------------------+--------+--------+--------+--------+
+| BERT-large-uncased                          | 85.79% | 92.28% | 80.17% | 83.32% |
++---------------------------------------------+--------+--------+--------+--------+
 
 Preliminaries
 -------------
