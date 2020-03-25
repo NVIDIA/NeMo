@@ -73,16 +73,15 @@ def get_label_stats(labels, outfile='stats.tsv'):
     total = sum(labels.values())
     out = open(outfile, 'w')
     i = 0
+    freq_dict = {}
     label_frequencies = labels.most_common()
     for k, v in label_frequencies:
         out.write(f'{k}\t{v / total}\n')
         if i < 3:
             logging.info(f'{i} item: {k}, {v} out of {total}, {v / total}.')
         i += 1
+        freq_dict[k] = v
 
-    freq_dict = {}
-    for lf in label_frequencies:
-        freq_dict[lf[0]] = lf[1]
     return total, freq_dict, max(labels.keys())
 
 
