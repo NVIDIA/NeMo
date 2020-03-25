@@ -194,7 +194,7 @@ def create_pipeline(
         if args.use_weighted_loss:
             logging.info(f"Using weighted loss")
             label_freqs = data_layer.dataset.label_frequencies
-            class_weights = calc_class_weights(label_freqs, max_id=-1)
+            class_weights = calc_class_weights(label_freqs)
 
         classifier = classifier(
             hidden_size=hidden_size, num_classes=len(label_ids), dropout=dropout, num_layers=num_layers

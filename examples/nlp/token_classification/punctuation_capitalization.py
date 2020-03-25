@@ -206,7 +206,7 @@ def create_pipeline(
         if args.use_weighted_loss_punct:
             logging.info(f"Using weighted loss for punctuation task")
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
-            class_weights = calc_class_weights(punct_label_freqs, max_id=-1)
+            class_weights = calc_class_weights(punct_label_freqs)
 
         # Initialize punctuation loss
         punct_classifier = punct_classifier(
