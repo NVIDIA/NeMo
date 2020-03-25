@@ -19,7 +19,7 @@ AudioToMelSpectrogramPreprocessor:
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
-    stft_conv: true
+    stft_conv: false
 
 
 JasperEncoder:

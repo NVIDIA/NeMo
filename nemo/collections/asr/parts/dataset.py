@@ -37,9 +37,10 @@ def fixed_seq_collate_fn(batch, fixed_length=16000):
                 # signal = torch.nn.functional.pad(sig,pad)
                 repeat = fixed_length//sig_len
                 rem = fixed_length%sig_len
-                sub = sig[-rem:]
+                sub = sig[-rem:] if rem>0 else torch.tensor([])
                 rep_sig = torch.cat(repeat*[sig])
                 signal = torch.cat((rep_sig,sub))
+                # print(sig_len,repeat,rem,len(sub),len(rep_sig),len(signal))
             else:
                 start_idx = torch.randint(0,chunck_len,(1,)) if chunck_len else torch.tensor(0)
                 end_idx = start_idx + fixed_length
