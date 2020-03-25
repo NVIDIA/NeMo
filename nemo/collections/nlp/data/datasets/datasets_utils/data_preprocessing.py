@@ -329,7 +329,7 @@ def get_freq_weights(label_freq):
     total_size = 0
     for lf in label_freq.values():
         total_size += lf
-    weighted_slots = {label: (total_size / freq) for label, freq in label_freq.items()}
+    weighted_slots = {label: (total_size / (len(label_freq)*freq)) for label, freq in label_freq.items()}
     return weighted_slots
 
 
