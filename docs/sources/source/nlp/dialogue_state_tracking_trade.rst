@@ -9,7 +9,7 @@ The goal of **Dialog State Tracking (DST)** :cite:`nlp-dst-henderson2015machine`
 is to build a representation of the status of the ongoing conversation \
 being a sequence of utterances exchanged between dialog participants. \
 In another words, the goal of DST system is to capture user goals and intentions and encode them as a set of \
-**slots** along with the corresponding **values**. DST is considered an essential module for goal-oriented dialogue systems.
+**slots** along with the corresponding **values**. DST is considered an important module for most of the goal-oriented dialogue systems.
 
 
 .. figure:: dst_multiwoz_example.png
