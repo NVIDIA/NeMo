@@ -16,6 +16,7 @@
 # limitations under the License.
 # =============================================================================
 
+from functools import partial
 import os
 import pathlib
 import tarfile
@@ -77,7 +78,12 @@ class TestTTSPytorch(TestCase):
         else:
             logging.info("speech data found in: {0}".format(data_folder + "asr"))
 
-    @pytest.mark.unclassified
+    @staticmethod
+    def print_and_log_loss(loss_tensor, loss_log_list):
+        logging.info(f'Train Loss: {str(loss_tensor[0].item())}')
+        loss_log_list.append(loss_tensor[0].item())
+
+    @pytest.mark.integration
     @pytest.mark.skipduringci
     @pytest.mark.run_only_on('GPU')
     def test_tacotron2_training(self):
@@ -138,17 +144,19 @@ class TestTTSPytorch(TestCase):
             target_len=spec_target_len,
             seq_len=audio_len,
         )
+        loss_list = []
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss_t], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
+            tensors=[loss_t], print_func=partial(print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
         # Instantiate an optimizer to perform `train` action
         optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
-            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
+            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.0003},
         )
+        print(loss_list)
 
-    @pytest.mark.unclassified
+    @pytest.mark.integration
     def test_waveglow_training(self):
         data_layer = nemo_tts.AudioDataLayer(
             manifest_filepath=self.manifest_filepath, n_segments=4000, batch_size=4, sample_rate=16000
@@ -190,7 +198,7 @@ class TestTTSPytorch(TestCase):
         # Instantiate an optimizer to perform `train` action
         optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
-            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
+            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.0003},
         )
 
     @pytest.mark.integration
@@ -283,5 +291,5 @@ class TestTTSPytorch(TestCase):
         )
         optimizer = neural_factory.get_trainer()
         optimizer.train(
-            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 3, "lr": 0.0003},
+            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.0003},
         )
