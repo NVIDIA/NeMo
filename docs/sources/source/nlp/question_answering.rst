@@ -15,18 +15,20 @@ The pretrained back-bone models can be specified `--pretrained_model_name`.
 See the list of available pre-trained models
 `here <https://huggingface.co/transformers/pretrained_models.html>`__. 
 
+.. _pretrained_models:
+
+Download pretrained models
+------------
+
+Finetuned SQuAD models and model configuration files can be found at 
+`https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1>`__
+`https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2>`__
+`https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1>`__
+`https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2>`__
+
 .. tip::
 
     For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
-
-.. tip::
-    
-    Finetuned SQuAD models and model configuration files can be found at 
-    `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1>`__
-    `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2>`__
-    `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1>`__
-    `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2>`__
-
 
 Preliminaries
 -------------
@@ -254,7 +256,7 @@ To train a question answering model on SQuAD using multi-gpu, run ``question_ans
             --mode "train_eval"
             ...
 
-For model configuration files and checkpoints, see :ref:`squad_model_links`.
+For model configuration files and checkpoints, see :ref:`pretrained_models`.
 
 To run evaluation:
 
