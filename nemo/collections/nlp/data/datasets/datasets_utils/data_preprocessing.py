@@ -50,6 +50,7 @@ __all__ = [
     'remove_punctuation_from_sentence',
     'dataset_to_ids',
     'calc_class_weights',
+    'fill_class_weights',
 ]
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
@@ -77,7 +78,11 @@ def get_label_stats(labels, outfile='stats.tsv'):
         if i < 3:
             logging.info(f'{i} item: {k}, {v} out of {total}, {v / total}.')
         i += 1
-    return total, label_frequencies
+
+    freq_dict = {}
+    for lf in label_frequencies:
+        freq_dict[lf[0]] = lf[1]
+    return total, freq_dict, max(labels.keys())
 
 
 def partition_data(intent_queries, slot_tags, split=0.1):
@@ -314,19 +319,19 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
     return ids
 
 
-def calc_class_weights(label_freq):
+def calc_class_weights(label_freq, total_size):
     """
     Goal is to give more weight to the classes with less samples
-    so as to match the one with the higest frequency. We achieve this by
-    dividing the highest frequency by the freq of each label.
-    Example -
-    [12, 5, 3] -> [12/12, 12/5, 12/3] -> [1, 2.4, 4]
-
-    Here label_freq is assumed to be sorted by the frequency. I.e.
-    label_freq[0] is the most frequent element.
-
+    so as to match the ones with the higher frequencies. We achieve this by
+    dividing the total frequency by the freq of each label to calculate its weight.
     """
+    weighted_slots = {label: (total_size / freq) for label, freq in label_freq.items()}
+    return weighted_slots
 
-    most_common_label_freq = label_freq[0]
-    weighted_slots = sorted([(index, most_common_label_freq[1] / freq) for (index, freq) in label_freq])
-    return [weight for (_, weight) in weighted_slots]
+
+def fill_class_weights(weights, max_id):
+    all_weights = [0.0] * (max_id + 1)
+    for i in range(len(all_weights)):
+        if i in weights:
+            all_weights[i] = weights[i]
+    return all_weights
