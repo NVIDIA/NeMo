@@ -9,7 +9,7 @@ The goal of **Dialog State Tracking (DST)** :cite:`nlp-dst-henderson2015machine`
 is to build a representation of the status of the ongoing conversation \
 being a sequence of utterances exchanged between dialog participants. \
 In another words, the goal of DST system is to capture user goals and intentions and encode them as a set of \
-**slots** along with the corresponding **values**.
+**slots** along with the corresponding **values**. DST is considered an important module for most of the goal-oriented dialogue systems.
 
 
 .. figure:: dst_multiwoz_example.png
@@ -45,7 +45,7 @@ The MultiWOZ dataset covers the following domains:
  3. attraction
  4. taxi
  5. train
- 6. hospital(Excluded from training by default)
+ 6. hospital (Excluded from training by default)
  7. police (Excluded from training by default)
 
 As well as the following slots:
@@ -90,8 +90,8 @@ acts with slots per turn. Additionally, each dialog is supported with a task des
 Moreover, it contains both system and user dialogue act annotations (the latter introduced in MultiWOZ 2.1).
 
 
-The TRADE model
----------------
+TRADE Model
+-----------
 
 The **TRA**\nsferable **D**\ialogue stat\ **E** generator (TRADE) :cite:`nlp-dst-wu2019transferable`  is a model \
 designed specially for the multi-domain \
@@ -135,12 +135,12 @@ contain the older version of this dataset.
 Next, we need to preprocess and reformat the dataset, what will result in division of data into three splits:
 
  * traininig split (8242 dialogs in the ``train_dials.json`` file)
- * validation split (1000 dialogs in the ``val_dials.json`` file)
+ * development/validation split (1000 dialogs in the ``dev_dials.json`` file)
  * test split (999 dialogs in the ``test_dials.json`` file)
 
 In order to preprocess the MultiWOZ dataset you can use the provided `process_multiwoz.py`_ script:
 
-.. _process_multiwoz.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/multiwoz/process_multiwoz.py
+.. _process_multiwoz.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/data/process_multiwoz.py
 
 .. code-block:: bash
 
@@ -204,6 +204,11 @@ you may run the same script by passing `--checkpoint_dir` and setting `--num_epo
         --eval_batch_size <batch size for evaluation> \
         --num_epochs 0
 
+You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ 2.1 datasets on NGC:
+
+    **MultiWOZ 2.0**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_0
+    **MultiWOZ 2.1**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_1
+
 
 Metrics and Results
 -------------------
@@ -227,6 +232,7 @@ training time. It should be noted that learning rate needs to get \
 increased if you want to use multi-GPU training because of having larger batch size.
 
 Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evaluate the model performance:
+
  * **Joint Goal Accuracy** compares the predicted dialogue states to the ground truth at each dialogue turn, and the
    output is considered correct if and only if **all the predicted values exactly match** the ground truth values. 
  * **Slot Accuracy** independently compares each (domain, slot, value) triplet to its ground truth label.
@@ -246,13 +252,10 @@ Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evalua
 
 
 .. note::
-    During training the TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly \
-    classify context vector. The `process_multiwoz.py`_ script extracts that additional information from the dataset,
+    During training, TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly \
+    predict special values for like **don't care** or **none** for the slots. \
+    The `process_multiwoz.py`_ script extracts that additional information from the dataset,
     and the `dialogue_state_tracking_trade.py`_ script reports the **Gating Accuracy** as well.
-
-You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ 2.1 here
-    **MultiWOZ 2.0**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_0
-    **MultiWOZ 2.1**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_1
 
 
 References
