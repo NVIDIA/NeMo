@@ -1,5 +1,10 @@
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils import calc_class_weights, get_label_stats, if_exist, fill_class_weights
+from nemo.collections.nlp.data.datasets.datasets_utils import (
+    calc_class_weights,
+    fill_class_weights,
+    get_label_stats,
+    if_exist,
+)
 
 __all__ = ['TextClassificationDataDesc']
 
@@ -34,7 +39,9 @@ class TextClassificationDataDesc:
             infold = input_file[: input_file.rfind('/')]
 
             logging.info(f'Three most popular classes in {mode} dataset')
-            total_sents, sent_label_freq, max_id = get_label_stats(raw_sentences, infold + f'/{mode}_sentence_stats.tsv')
+            total_sents, sent_label_freq, max_id = get_label_stats(
+                raw_sentences, infold + f'/{mode}_sentence_stats.tsv'
+            )
             max_label_id = max(max_label_id, max_id)
 
             if mode == 'train':

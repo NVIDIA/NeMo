@@ -112,7 +112,9 @@ class JointIntentSlotDataDesc:
                 raw_intents.append(int(parts[-1]))
 
             logging.info(f'Three most popular intents in {mode} mode:')
-            total_intents, intent_label_freq, max_id = get_label_stats(raw_intents, infold + f'/{mode}_intent_stats.tsv')
+            total_intents, intent_label_freq, max_id = get_label_stats(
+                raw_intents, infold + f'/{mode}_intent_stats.tsv'
+            )
             max_intent_id = max(max_intent_id, max_id)
 
             merged_slots = itertools.chain.from_iterable(raw_slots)
