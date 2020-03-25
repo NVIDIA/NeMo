@@ -43,7 +43,7 @@ pipeline {
       when {
         anyOf{
           branch 'master'
-          changeRequest target: 'master' 
+          changeRequest target: 'master'
         }
       }
       steps {
@@ -53,7 +53,7 @@ pipeline {
 
     stage('L0: Integration Tests GPU') {
       steps {
-        sh 'pytest -m "integration and not skipduringci"'
+        sh 'pytest -s -m "integration and not skipduringci"'
       }
     }
 
@@ -61,11 +61,11 @@ pipeline {
       when {
         anyOf{
           branch 'master'
-          changeRequest target: 'master' 
+          changeRequest target: 'master'
         }
       }
       steps {
-        sh 'pytest -m integration --cpu'
+        sh 'pytest -s -m integration --cpu'
       }
     }
 
@@ -79,7 +79,7 @@ pipeline {
       when {
         anyOf{
           branch 'master'
-          changeRequest target: 'master' 
+          changeRequest target: 'master'
         }
       }
       steps {

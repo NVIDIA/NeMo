@@ -84,7 +84,7 @@ class TestTTSPytorch(TestCase):
         loss_log_list.append(loss_tensor[0].item())
 
     @pytest.mark.integration
-    @pytest.mark.skipduringci
+    # @pytest.mark.skipduringci
     @pytest.mark.run_only_on('GPU')
     def test_tacotron2_training(self):
         data_layer = nemo_asr.AudioToTextDataLayer(
@@ -154,9 +154,10 @@ class TestTTSPytorch(TestCase):
         optimizer.train(
             [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.0003},
         )
-        print(loss_list)
+        logging.info(loss_list)
 
     @pytest.mark.integration
+    @pytest.mark.run_only_on('GPU')
     def test_waveglow_training(self):
         data_layer = nemo_tts.AudioDataLayer(
             manifest_filepath=self.manifest_filepath, n_segments=4000, batch_size=4, sample_rate=16000
