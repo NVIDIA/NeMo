@@ -16,10 +16,10 @@
 # limitations under the License.
 # =============================================================================
 
-from functools import partial
 import os
 import pathlib
 import tarfile
+from functools import partial
 from unittest import TestCase
 
 import numpy as np
