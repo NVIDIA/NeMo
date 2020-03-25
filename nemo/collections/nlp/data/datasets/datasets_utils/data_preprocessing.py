@@ -325,7 +325,6 @@ def get_freq_weights(label_freq):
     so as to match the ones with the higher frequencies. We achieve this by
     dividing the total frequency by the freq of each label to calculate its weight.
     """
-
     total_size = 0
     for lf in label_freq.values():
         total_size += lf
@@ -344,11 +343,11 @@ def fill_class_weights(weights, max_id=-1):
     Returns:
         weights_list: list of weights for labels
     """
-
     if max_id < 0:
         max_id = 0
         for l in weights.keys():
             max_id = max(max_id, l)
+
     all_weights = [1.0] * (max_id + 1)
     for i in range(len(all_weights)):
         if i in weights:
