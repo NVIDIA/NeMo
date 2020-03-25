@@ -253,7 +253,7 @@ Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evalua
 
 .. note::
     During training, TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly \
-    predict special values for the slots like **don't care** or **none**. \
+    predict special values for like **don't care** or **none** for the slots. \
     The `process_multiwoz.py`_ script extracts that additional information from the dataset,
     and the `dialogue_state_tracking_trade.py`_ script reports the **Gating Accuracy** as well.
 
