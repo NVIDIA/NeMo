@@ -289,5 +289,5 @@ class TestTTSPytorch(TestCase):
         # Instantiate an optimizer to perform `train` action
         optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
-            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.0003},
+            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
