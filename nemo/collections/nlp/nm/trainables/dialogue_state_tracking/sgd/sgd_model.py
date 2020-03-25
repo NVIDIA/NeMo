@@ -163,7 +163,6 @@ class SGDModel(TrainableNM):
         req_num_slots,
         intent_embeddings,
     ):
-
         """
         encoded_utterance - [CLS] token hidden state from BERT encoding of the utterance
         

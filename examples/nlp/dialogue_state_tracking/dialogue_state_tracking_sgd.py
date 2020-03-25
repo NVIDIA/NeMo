@@ -105,7 +105,7 @@ parser.add_argument(
 parser.add_argument(
     "--overwrite_dial_files", action="store_true", help="Whether to generate a new file saving the dialogue examples."
 )
-parser.add_argument("--no_shuffle", action="store_false", help="Whether to shuffle training data")
+parser.add_argument("--no_shuffle", action="store_true", help="Whether to shuffle training data")
 parser.add_argument(
     "--eval_dataset", type=str, default="dev", choices=["dev", "test"], help="Dataset split for evaluation."
 )
