@@ -35,7 +35,7 @@ class Logits(nn.Module):
 
         self.num_classes = num_classes
         self.utterance_proj = nn.Linear(embedding_dim, embedding_dim)
-        self.activation = nn.GELU()
+        self.activation = F.gelu
 
         self.layer1 = nn.Linear(2 * embedding_dim, embedding_dim)
         self.layer2 = nn.Linear(embedding_dim, num_classes)
@@ -146,7 +146,7 @@ class SGDModel(TrainableNM):
 
         # dim 2 for non_categorical slot - to represent start and end position
         self.noncat_layer1 = nn.Linear(2 * embedding_dim, embedding_dim).to(self._device)
-        self.noncat_activation = nn.GELU()
+        self.noncat_activation = F.gelu
         self.noncat_layer2 = nn.Linear(embedding_dim, 2).to(self._device)
 
     def forward(
