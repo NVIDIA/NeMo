@@ -9,7 +9,7 @@ All code used in this tutorial is based on ``examples/nlp/question_answering/que
 Currently, there are 3 pretrained back-bone models supported, on which the question answering task SQuAD can be fine-tuned:
 BERT, ALBERT and RoBERTa. These are pretrained model checkpoints from `transformers <https://huggingface.co/transformers>`__ . Apart from these, the user can also do fine-tuning
 on a custom BERT checkpoint, specified by the `--bert_checkpoint` argument.
-The pretrained back-bone models can be specified by `--model_type` and the specific model by `--pretrained_model_name`.
+The pretrained back-bone models can be specified `--pretrained_model_name`.
 See the list of available pre-trained models
 `here <https://huggingface.co/transformers/pretrained_models.html>`__. 
 
@@ -17,6 +17,13 @@ See the list of available pre-trained models
 
     For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
 
+.. tip::
+    
+    Finetuned SQuAD models can be found at 
+    `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1>`__
+    `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2>`__
+    `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1>`__
+    `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2>`__
 
 
 Preliminaries

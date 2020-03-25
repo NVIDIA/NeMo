@@ -98,7 +98,8 @@ labels.txt 文件的每行都应该是下面这个格式的:
                                            log_dir=WORK_DIR,
                                            placement=nemo.core.DeviceType.GPU)
 
-然后，定义我们的分词器和 BERT 模型。如果你用标准的 BERT，你可以这么做。想要看所有 BERT O型的名字，可以查看 ``nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()``
+然后，定义我们的分词器和 BERT 模型。如果你用标准的 BERT，你可以这么做。想要看所有 BERT O型的名字，可以查看 ``nemo.collections.nlp.nm.trainables.get_bert_models_list()``. \
+``
 
     .. code-block:: python
 
@@ -345,13 +346,13 @@ labels.txt 文件的每行都应该是下面这个格式的:
 
 .. code-block:: bash
 
-    python examples/nlp/token_classification/punctuation_capitalization.py --data_dir path_to_data --pretrained_bert_model=bert-base-uncased --work_dir path_to_output_dir
+    python examples/nlp/token_classification/punctuation_capitalization.py --data_dir path_to_data --pretrained_model_name=bert-base-uncased --work_dir path_to_output_dir
 
 运行推理:
 
 .. code-block:: bash
 
-    python examples/nlp/token_classification/punctuation_capitalization_infer.py --punct_labels_dict path_to_data/punct_label_ids.csv --capit_labels_dict path_to_data/capit_label_ids.csv --work_dir path_to_output_dir/checkpoints/
+    python examples/nlp/token_classification/punctuation_capitalization_infer.py --punct_labels_dict path_to_data/punct_label_ids.csv --capit_labels_dict path_to_data/capit_label_ids.csv --checkpoint_dir path_to_output_dir/checkpoints/
 
 注意, punct_label_ids.csv 和 capit_label_ids.csv 文件在训练的时候会生成并且存在 data_dir 文件目录下。
 

@@ -22,16 +22,34 @@ import numpy as np
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo import logging
-from nemo.collections.nlp.data import NemoBertTokenizer
 from nemo.collections.nlp.nm.data_layers import BertTokenClassificationInferDataLayer
 from nemo.collections.nlp.utils.data_utils import get_vocab
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Punctuation and capitalization detection inference')
 parser.add_argument("--max_seq_length", default=128, type=int)
-parser.add_argument("--fc_dropout", default=0, type=float)
 parser.add_argument("--punct_num_fc_layers", default=3, type=int)
-parser.add_argument("--pretrained_bert_model", default="bert-base-uncased", type=str)
+parser.add_argument(
+    "--pretrained_model_name",
+    default="bert-base-uncased",
+    type=str,
+    help="Name of the pre-trained model",
+    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+)
+parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
+parser.add_argument(
+    "--tokenizer_model",
+    default=None,
+    type=str,
+    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+)
+parser.add_argument(
+    "--tokenizer",
+    default="nemobert",
+    type=str,
+    choices=["nemobert", "sentencepiece"],
+    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
+)
 parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument(
     "--queries",
@@ -54,7 +72,7 @@ parser.add_argument(
     help="Whether to take predicted label in brackets or \
                     just append to word in the output",
 )
-parser.add_argument("--checkpoints_dir", default='output/checkpoints', type=str)
+parser.add_argument("--checkpoint_dir", default='output/checkpoints', type=str)
 parser.add_argument(
     "--punct_labels_dict",
     default='punct_label_ids.csv',
@@ -69,21 +87,18 @@ parser.add_argument(
     help='This file is generated during training \
                     when the datalayer is created',
 )
-parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 
 args = parser.parse_args()
 
-if not os.path.exists(args.checkpoints_dir):
-    raise ValueError(f'Checkpoints folder not found at {args.checkpoints_dir}')
+if not os.path.exists(args.checkpoint_dir):
+    raise ValueError(f'Checkpoints folder not found at {args.checkpoint_dir}')
 if not (os.path.exists(args.punct_labels_dict) and os.path.exists(args.capit_labels_dict)):
     raise ValueError(
         f'Dictionary with ids to labels not found at {args.punct_labels_dict} \
          or {args.punct_labels_dict}'
     )
 
-nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None
-)
+nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, log_dir=None)
 
 punct_labels_dict = get_vocab(args.punct_labels_dict)
 
@@ -93,9 +108,16 @@ capit_labels_dict = get_vocab(args.capit_labels_dict)
 See the list of pretrained models, call:
 nemo.collections.nlp.BERT.list_pretrained_models()
 """
-pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
+    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+)
+
+tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+    tokenizer_name=args.tokenizer,
+    pretrained_model_name=args.pretrained_model_name,
+    tokenizer_model=args.tokenizer_model,
+)
 hidden_size = pretrained_bert_model.hidden_size
-tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
 
 data_layer = BertTokenClassificationInferDataLayer(
     queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
@@ -104,13 +126,12 @@ data_layer = BertTokenClassificationInferDataLayer(
 punct_classifier = nemo_nlp.nm.trainables.TokenClassifier(
     hidden_size=hidden_size,
     num_classes=len(punct_labels_dict),
-    dropout=args.fc_dropout,
     num_layers=args.punct_num_fc_layers,
     name='Punctuation',
 )
 
 capit_classifier = nemo_nlp.nm.trainables.TokenClassifier(
-    hidden_size=hidden_size, num_classes=len(capit_labels_dict), dropout=args.fc_dropout, name='Capitalization'
+    hidden_size=hidden_size, num_classes=len(capit_labels_dict), name='Capitalization'
 )
 
 input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
@@ -123,7 +144,7 @@ capit_logits = capit_classifier(hidden_states=hidden_states)
 ###########################################################################
 
 # Instantiate an optimizer to perform `infer` action
-evaluated_tensors = nf.infer(tensors=[punct_logits, capit_logits, subtokens_mask], checkpoint_dir=args.checkpoints_dir)
+evaluated_tensors = nf.infer(tensors=[punct_logits, capit_logits, subtokens_mask], checkpoint_dir=args.checkpoint_dir)
 
 
 def concatenate(lists):
