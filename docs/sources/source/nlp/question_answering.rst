@@ -18,13 +18,17 @@ See the list of available pre-trained models
 .. _pretrained_models:
 
 Download pretrained models
-------------
+--------------------------
 
-Finetuned SQuAD models and model configuration files can be found at 
-`https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1>`__
-`https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2>`__
+Finetuned SQuAD models and model configuration files can be downloaded at following links.
+
+BERT Base uncased models finetuned on SQuADv1.1 or SQuADv2.0 dataset: 
 `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1>`__
 `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2>`__
+
+BERT Large uncased models finetuned on SQuADv1.1 or SQuADv2.0 dataset: 
+`https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1>`__
+`https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2>`__
 
 .. tip::
 

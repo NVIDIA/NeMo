@@ -11,10 +11,14 @@ The code used in this tutorial can be found at ``examples/nlp/language_modeling/
 .. _pretrained_models:
 
 Download pretrained models
-------------
+--------------------------
 
-Pretrained BERT models and model configuration files can be found at 
+Pretrained BERT models and model configuration files can be downloaded at following links.
+
+BERT Large models:
 `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo>`__
+
+BERT Base models:
 `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo>`__
 `https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo>`__
 
