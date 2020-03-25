@@ -64,7 +64,7 @@ python question_answering_squad.py
 --checkpoint_dir /path_to_checkpoints
 --mode test
 
-Finetuned SQuAD models can be found at 
+Finetuned SQuAD models and model configuration files can be found at 
 https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1
 https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2
 https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1
