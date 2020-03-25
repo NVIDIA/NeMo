@@ -78,8 +78,6 @@ class JointIntentSlotDataDesc:
         self.num_slots = len(self.slots_label_ids)
 
         infold = self.data_dir
-        max_slot_id = 0
-        max_intent_id = 0
         for mode in ['train', 'test', 'dev']:
             if not if_exist(self.data_dir, [f'{mode}.tsv']):
                 logging.info(f' Stats calculation for {mode} mode' f' is skipped as {mode}.tsv was not found.')
@@ -113,12 +111,10 @@ class JointIntentSlotDataDesc:
             total_intents, intent_label_freq, max_id = get_label_stats(
                 raw_intents, infold + f'/{mode}_intent_stats.tsv'
             )
-            max_intent_id = max(max_intent_id, max_id)
 
             merged_slots = itertools.chain.from_iterable(raw_slots)
             logging.info(f'Three most popular slots in {mode} mode:')
             slots_total, slots_label_freq, max_id = get_label_stats(merged_slots, infold + f'/{mode}_slot_stats.tsv')
-            max_slot_id = max(max_slot_id, max_id)
 
             logging.info(f'Total Number of Intents: {total_intents}')
             logging.info(f'Intent Label Frequencies: {intent_label_freq}')
@@ -131,8 +127,8 @@ class JointIntentSlotDataDesc:
                 slot_weights_dict = get_freq_weights(slots_label_freq)
                 logging.info(f'Slot Weights: {slot_weights_dict}')
 
-        self.intent_weights = fill_class_weights(intent_weights_dict, max_intent_id)
-        self.slot_weights = fill_class_weights(slot_weights_dict, max_slot_id)
+        self.intent_weights = fill_class_weights(intent_weights_dict, self.num_intents - 1)
+        self.slot_weights = fill_class_weights(slot_weights_dict, self.num_slots - 1)
 
         if pad_label != -1:
             self.pad_label = pad_label
