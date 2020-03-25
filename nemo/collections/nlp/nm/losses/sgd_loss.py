@@ -91,7 +91,7 @@ class SGDDialogueStateLoss(LossNM):
     def __init__(self, **kwargs):
         LossNM.__init__(self, **kwargs)
 
-        self._cross_entropy = nn.CrossEntropyLoss(reduction='sum')
+        self._cross_entropy = nn.CrossEntropyLoss()
         self._criterion_req_slots = nn.BCEWithLogitsLoss()
 
     def _get_mask(self, max_number, values):
