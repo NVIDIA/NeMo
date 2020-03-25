@@ -17,6 +17,13 @@ See the list of available pre-trained models
 
     For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
 
+.. tip::
+    
+    Finetuned SQuAD models can be found at 
+    `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1>`__
+    `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2>`__
+    `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1>`__
+    `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2>`__
 
 
 Preliminaries
