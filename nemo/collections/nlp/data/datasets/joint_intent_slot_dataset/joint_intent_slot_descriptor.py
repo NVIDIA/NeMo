@@ -16,8 +16,6 @@
 
 import itertools
 
-import numpy as np
-
 from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import (
     fill_class_weights,
