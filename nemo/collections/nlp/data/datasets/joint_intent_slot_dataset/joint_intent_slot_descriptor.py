@@ -20,8 +20,8 @@ import numpy as np
 
 from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import (
-    calc_class_weights,
     fill_class_weights,
+    get_freq_weights,
     get_label_stats,
     if_exist,
 )
@@ -128,9 +128,9 @@ class JointIntentSlotDataDesc:
             logging.info(f'Slots Label Frequencies: {slots_label_freq}')
 
             if mode == 'train':
-                intent_weights_dict = calc_class_weights(intent_label_freq)
+                intent_weights_dict = get_freq_weights(intent_label_freq)
                 logging.info(f'Intent Weights: {intent_weights_dict}')
-                slot_weights_dict = calc_class_weights(slots_label_freq)
+                slot_weights_dict = get_freq_weights(slots_label_freq)
                 logging.info(f'Slot Weights: {slot_weights_dict}')
 
         self.intent_weights = fill_class_weights(intent_weights_dict, max_intent_id)

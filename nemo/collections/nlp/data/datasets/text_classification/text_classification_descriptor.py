@@ -1,7 +1,7 @@
 from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import (
-    calc_class_weights,
     fill_class_weights,
+    get_freq_weights,
     get_label_stats,
     if_exist,
 )
@@ -45,7 +45,7 @@ class TextClassificationDataDesc:
             max_label_id = max(max_label_id, max_id)
 
             if mode == 'train':
-                class_weights_dict = calc_class_weights(sent_label_freq)
+                class_weights_dict = get_freq_weights(sent_label_freq)
                 logging.info(f'Class Weights: {class_weights_dict}')
 
             logging.info(f'Total Sentences: {total_sents}')

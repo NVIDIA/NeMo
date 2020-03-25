@@ -49,8 +49,9 @@ __all__ = [
     'if_exist',
     'remove_punctuation_from_sentence',
     'dataset_to_ids',
-    'calc_class_weights',
+    'get_freq_weights',
     'fill_class_weights',
+    'calc_class_weights',
 ]
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
@@ -319,7 +320,7 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
     return ids
 
 
-def calc_class_weights(label_freq):
+def get_freq_weights(label_freq):
     """
     Goal is to give more weight to the classes with less samples
     so as to match the ones with the higher frequencies. We achieve this by
@@ -343,3 +344,8 @@ def fill_class_weights(weights, max_id=-1):
         if i in weights:
             all_weights[i] = weights[i]
     return all_weights
+
+
+def calc_class_weights(label_freq, max_id=-1):
+    weights_dict = get_freq_weights(label_freq)
+    return fill_class_weights(weights_dict, max_id=max_id)
