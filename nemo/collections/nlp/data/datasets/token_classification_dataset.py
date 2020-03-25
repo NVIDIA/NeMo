@@ -308,7 +308,7 @@ class BertTokenClassificationDataset(Dataset):
         infold = text_file[: text_file.rfind('/')]
         merged_labels = itertools.chain.from_iterable(self.all_labels)
         logging.info('Three most popular labels')
-        _, self.label_frequencies = get_label_stats(merged_labels, infold + '/label_stats.tsv')
+        _, self.label_frequencies, _ = get_label_stats(merged_labels, infold + '/label_stats.tsv')
 
         # save label_ids
         out = open(infold + '/label_ids.csv', 'w')

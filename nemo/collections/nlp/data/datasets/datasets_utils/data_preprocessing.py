@@ -319,17 +319,25 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
     return ids
 
 
-def calc_class_weights(label_freq, total_size):
+def calc_class_weights(label_freq):
     """
     Goal is to give more weight to the classes with less samples
     so as to match the ones with the higher frequencies. We achieve this by
     dividing the total frequency by the freq of each label to calculate its weight.
     """
+
+    total_size = 0
+    for lf in label_freq.values():
+        total_size += lf
     weighted_slots = {label: (total_size / freq) for label, freq in label_freq.items()}
     return weighted_slots
 
 
-def fill_class_weights(weights, max_id):
+def fill_class_weights(weights, max_id=-1):
+    if max_id < 0:
+        max_id = 0
+        for l in weights.keys():
+            max_id = max(max_id, l)
     all_weights = [0.0] * (max_id + 1)
     for i in range(len(all_weights)):
         if i in weights:

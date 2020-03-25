@@ -25,7 +25,7 @@ from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
     eval_epochs_done_callback,
     eval_iter_callback,
 )
-from nemo.collections.nlp.data.datasets.datasets_utils import calc_class_weights
+from nemo.collections.nlp.data.datasets.datasets_utils import calc_class_weights, fill_class_weights
 from nemo.collections.nlp.nm.data_layers import PunctuationCapitalizationDataLayer
 from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
@@ -206,7 +206,8 @@ def create_pipeline(
         if args.use_weighted_loss_punct:
             logging.info(f"Using weighted loss for punctuation task")
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
-            class_weights = calc_class_weights(punct_label_freqs)
+            class_weights_dict = calc_class_weights(punct_label_freqs)
+            class_weights = fill_class_weights(class_weights_dict, max_id=-1)
 
         # Initialize punctuation loss
         punct_classifier = punct_classifier(

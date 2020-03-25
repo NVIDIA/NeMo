@@ -126,9 +126,9 @@ class JointIntentSlotDataDesc:
             logging.info(f'Slots Label Frequencies: {slots_label_freq}')
 
             if mode == 'train':
-                intent_weights_dict = calc_class_weights(intent_label_freq, total_intents)
+                intent_weights_dict = calc_class_weights(intent_label_freq)
                 logging.info(f'Intent Weights: {intent_weights_dict}')
-                slot_weights_dict = calc_class_weights(slots_label_freq, slots_total)
+                slot_weights_dict = calc_class_weights(slots_label_freq)
                 logging.info(f'Slot Weights: {slot_weights_dict}')
 
         self.intent_weights = fill_class_weights(intent_weights_dict, max_intent_id)

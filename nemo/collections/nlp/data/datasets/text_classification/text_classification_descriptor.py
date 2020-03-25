@@ -34,11 +34,11 @@ class TextClassificationDataDesc:
             infold = input_file[: input_file.rfind('/')]
 
             logging.info(f'Three most popular classes in {mode} dataset')
-            total_sents, sent_label_freq, max_id= get_label_stats(raw_sentences, infold + f'/{mode}_sentence_stats.tsv')
+            total_sents, sent_label_freq, max_id = get_label_stats(raw_sentences, infold + f'/{mode}_sentence_stats.tsv')
             max_label_id = max(max_label_id, max_id)
 
             if mode == 'train':
-                class_weights_dict = calc_class_weights(sent_label_freq, total_sents)
+                class_weights_dict = calc_class_weights(sent_label_freq)
                 logging.info(f'Class Weights: {class_weights_dict}')
 
             logging.info(f'Total Sentences: {total_sents}')
