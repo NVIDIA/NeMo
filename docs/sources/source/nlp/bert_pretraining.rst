@@ -1,3 +1,5 @@
+.. _bert_model_links:
+
 Tutorial
 ========
 
@@ -7,7 +9,7 @@ Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tuto
 The code used in this tutorial can be found at ``examples/nlp/language_modeling/bert_pretraining.py``.
 
 .. tip::
-    Pretrained BERT models can be found at 
+    Pretrained BERT models and model configuration files can be found at 
     `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo>`__
     `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo>`__
     `https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo>`__
@@ -332,7 +334,9 @@ For single GPU training, the script can be started with
 .. code-block:: bash
 
     cd examples/nlp/language_modeling
-    python bert_pretraining.py [args]
+    python bert_pretraining.py --config_file bert-config.json [args]
+
+The BERT configuration files can be found in the NGC model repositories, see :ref:`bert_model_links`.
 
 
 For multi-GPU training with ``x`` GPUs, the script can be started with 

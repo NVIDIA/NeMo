@@ -1,3 +1,5 @@
+.. _squad_model_links:
+
 Tutorial
 ========
 
@@ -19,7 +21,7 @@ See the list of available pre-trained models
 
 .. tip::
     
-    Finetuned SQuAD models can be found at 
+    Finetuned SQuAD models and model configuration files can be found at 
     `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1>`__
     `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2>`__
     `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1>`__
@@ -248,8 +250,11 @@ To train a question answering model on SQuAD using multi-gpu, run ``question_ans
             --amp_opt_level <amp optimization level> 
             --pretrained_model_name <type of model to use> 
             --bert_checkpoint <pretrained bert checkpoint>
+            --bert_config <model configuration file>
             --mode "train_eval"
             ...
+
+For model configuration files and checkpoints, see :ref:`squad_model_links`.
 
 To run evaluation:
 
