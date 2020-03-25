@@ -449,6 +449,8 @@ class EvaluatorCallback(ActionCallback):
             if self._wandb_name is not None or self._wandb_project is not None:
                 if _WANDB_AVAILABLE and wandb.run is None:
                     wandb.init(name=self._wandb_name, project=self._wandb_project)
+                elif _WANDB_AVAILABLE and wandb.run is not None:
+                    logging.info("Re-using wandb session")
                 else:
                     logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
                     logging.info("Will not log data to weights and biases.")
@@ -601,9 +603,10 @@ class WandbCallback(ActionCallback):
         if self.global_rank is None or self.global_rank == 0:
             if _WANDB_AVAILABLE and wandb.run is None:
                 wandb.init(name=self._name, project=self._project)
-
                 if self._args is not None:
                     wandb.config.update(self._args)
+            elif _WANDB_AVAILABLE and wandb.run is not None:
+                logging.info("Re-using wandb session")
             else:
                 logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
                 logging.info("Will not log data to weights and biases.")

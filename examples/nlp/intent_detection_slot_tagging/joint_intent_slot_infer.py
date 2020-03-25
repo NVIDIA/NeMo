@@ -18,7 +18,7 @@ import argparse
 import os
 
 import numpy as np
-from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
@@ -26,6 +26,7 @@ from nemo import logging
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
 from nemo.collections.nlp.nm.trainables.joint_intent_slot import JointIntentSlotClassifier
+from nemo.collections.nlp.utils.callback_utils import get_classification_report, get_f1_scores, plot_confusion_matrix
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Batch inference for intent detection/slot tagging with BERT')
@@ -103,29 +104,115 @@ def get_preds(logits):
     return np.argmax(logits, 1)
 
 
-intent_logits, slot_logits, loss_mask, subtokens_mask, intents, slot_labels = [
+def print_large_array(array):
+    it = np.nditer(array, flags=['multi_index'])
+    prev_row = 0
+    while not it.finished:
+        # print("%d <%s>" % (it[0], it.multi_index), end=' ')
+        if (it.multi_index[0] != prev_row):
+            print()
+            prev_row = it.multi_index[0]
+
+        print(f'{it[0]:2}', end=" ")
+        it.iternext()
+
+
+def log_misclassified_queries(intent_labels, intent_preds, queries, intent_dict_file, limit=50):
+    logging.info(f'Misclassified intent queries (limit {limit})')
+    intents = open(intent_dict_file, 'r').read().splitlines()
+
+    cnt = 0
+    for i in range(len(intent_preds)):
+        if intent_labels[i] != intent_preds[i]:
+            query = queries[i].split('\t')[0]
+            logging.info(f'{query} - intent: {intents[intent_labels[i]]} - predicted: {intents[intent_preds[i]]}')
+            cnt = cnt + 1
+            if cnt >= limit:
+                break
+
+
+def log_misclassified_slots(intent_labels, intent_preds, slot_labels, slot_preds, subtokens_mask, queries, intent_dict_file, limit=50):
+    logging.info(f'Misclassified slots queries (limit {limit})')
+    intents = open(intent_dict_file, 'r').read().splitlines()
+
+    cnt = 0
+    for i in range(len(intent_preds)):
+        cur_slot_pred = slot_preds[i][subtokens_mask[i]]
+        cur_slot_label = slot_labels[i][subtokens_mask[i]]
+        if not np.all(cur_slot_pred == cur_slot_label):
+            query = queries[i].split('\t')[0]
+            logging.info(f'{query} - intent: {intents[intent_labels[i]]} - predicted: {intents[intent_preds[i]]}')
+            logging.info(cur_slot_pred)
+            logging.info(cur_slot_label)
+            cnt = cnt + 1
+            if cnt >= limit:
+                break
+
+
+# check non compliance of B- and I- slots,
+def check_problematic_slots(slot_preds_list, slot_dict):
+    slot_dict = open(slot_dict, 'r').readlines()
+    cnt = 0
+
+    # for sentence in slot_preds:
+        # slots = sentence.split(" ")
+    sentence = slot_preds_list
+    for i in range(len(sentence)):
+        slot_name = slot_dict[int(sentence[i])]
+        if slot_name.startswith("I-"):
+            prev_slot_name = slot_dict[int(sentence[i - 1])]
+            if slot_name[2:] != prev_slot_name[2:]:
+                print("Problem: " + slot_name + " - " + prev_slot_name)
+                cnt += 1
+    print("Total problematic slots: " + str(cnt))
+
+
+
+intent_logits, slot_logits, loss_mask, subtokens_mask, intent_labels, slot_labels_unmasked = [
     concatenate(tensors) for tensors in evaluated_tensors
 ]
 
-pred_intents = np.argmax(intent_logits, 1)
-logging.info('Intent prediction results')
-
-intents = np.asarray(intents)
-pred_intents = np.asarray(pred_intents)
-intent_accuracy = sum(intents == pred_intents) / len(pred_intents)
-logging.info(f'Intent accuracy: {intent_accuracy}')
-logging.info(classification_report(intents, pred_intents))
-
-slot_preds = np.argmax(slot_logits, axis=2)
-slot_preds_list, slot_labels_list = [], []
+# slot accuracies
+logging.info('Slot Prediction Results:')
+slot_preds_unmasked = np.argmax(slot_logits, axis=2)
 subtokens_mask = subtokens_mask > 0.5
-for i, sp in enumerate(slot_preds):
-    slot_preds_list.extend(list(slot_preds[i][subtokens_mask[i]]))
-    slot_labels_list.extend(list(slot_labels[i][subtokens_mask[i]]))
+slot_labels = slot_labels_unmasked[subtokens_mask]
+slot_preds = slot_preds_unmasked[subtokens_mask]
 
-logging.info('Slot prediction results')
-slot_labels_list = np.asarray(slot_labels_list)
-slot_preds_list = np.asarray(slot_preds_list)
-slot_accuracy = sum(slot_labels_list == slot_preds_list) / len(slot_labels_list)
-logging.info(f'Slot accuracy: {slot_accuracy}')
-logging.info(classification_report(slot_labels_list, slot_preds_list))
+slot_accuracy = np.mean(slot_labels == slot_preds)
+logging.info(f'Slot Accuracy: {slot_accuracy}')
+f1_scores = get_f1_scores(slot_labels, slot_preds, average_modes=['weighted', 'macro', 'micro'])
+for k, v in f1_scores.items():
+    logging.info(f'{k}: {v}')
+
+logging.info(f'\n {get_classification_report(slot_labels, slot_preds, label_ids=data_desc.slots_label_ids)}')
+
+# intent accuracies
+logging.info('Intent Prediction Results:')
+intent_preds = np.asarray(np.argmax(intent_logits, 1))
+intent_labels = np.asarray(intent_labels)
+intent_accuracy = np.mean(intent_labels == intent_preds)
+logging.info(f'Intent Accuracy: {intent_accuracy}')
+f1_scores = get_f1_scores(intent_labels, intent_preds, average_modes=['weighted', 'macro', 'micro'])
+for k, v in f1_scores.items():
+    logging.info(f'{k}: {v}')
+
+logging.info(f'\n {get_classification_report(intent_labels, intent_preds, label_ids=data_desc.intents_label_ids)}')
+
+# display confusion matrix
+# does not work well for large matrices
+# cm = confusion_matrix(intent_labels, intent_preds)
+# print_large_array(cp)
+# print(f'Intent Confusion matrix:\n{cm}')
+
+
+# print queries with wrong intent:
+queries = open(f'{data_desc.data_dir}/{args.eval_file_prefix}.tsv', 'r').readlines()[1:]
+log_misclassified_queries(intent_labels, intent_preds, queries, data_desc.intent_dict_file)
+
+# print queries with wrong slots:
+log_misclassified_slots(intent_labels, intent_preds, slot_labels_unmasked, slot_preds_unmasked, subtokens_mask, queries, data_desc.intent_dict_file)
+
+# check potentially problematic slots - when I- label comes after different B- label
+# slot_dict_file = f'{data_desc.data_dir}/dict.slots.csv'
+# check_problematic_slots(slot_labels, slot_dict_file)
