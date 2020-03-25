@@ -334,11 +334,22 @@ def get_freq_weights(label_freq):
 
 
 def fill_class_weights(weights, max_id=-1):
+    """
+    Gets a dictionary of labels with their weights and creates a list with size of the labels filled with those weights.
+    Missing labels in the dictionary would get value 1.
+
+    Args:
+        weights: dictionary of weights for labels, labels as keys and weights are their values
+        max_id: the largest label id in the dataset, default=-1 would consider the largest label in the weights dictionary as max_id
+    Returns:
+        weights_list: list of weights for labels
+    """
+
     if max_id < 0:
         max_id = 0
         for l in weights.keys():
             max_id = max(max_id, l)
-    all_weights = [0.0] * (max_id + 1)
+    all_weights = [1.0] * (max_id + 1)
     for i in range(len(all_weights)):
         if i in weights:
             all_weights[i] = weights[i]

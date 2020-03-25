@@ -99,7 +99,6 @@ nf = nemo.core.NeuralModuleFactory(
     create_tb_writer=True,
     files_to_copy=[__file__],
     add_time_to_log_dir=True,
-    placement=nemo.core.DeviceType.CPU,
 )
 
 pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
