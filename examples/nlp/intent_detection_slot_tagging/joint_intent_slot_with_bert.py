@@ -18,7 +18,7 @@
 This example is based on a model proposed by Q. Chen et al in 'BERT for Joint Intent Classification and Slot Filling'.
 https://arxiv.org/abs/1902.10909
 
-It shows how to train an intent detection and slot tagging model using BERT based models as input encoder. \
+This example shows how to train an intent detection and slot tagging model using BERT based models as input encoder. \
 It can be used as Natural Language Understanding (NLU) module for goal-oriented dialogue systems.
 You may find more information on this example in https://nvidia.github.io/NeMo/nlp/joint_intent_slot_filling.html.
 """
