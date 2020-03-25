@@ -84,11 +84,11 @@ class TestTTSPytorch(TestCase):
         loss_log_list.append(loss_tensor[0].item())
 
     @pytest.mark.integration
-    # @pytest.mark.skipduringci
+    @pytest.mark.skipduringci
     @pytest.mark.run_only_on('GPU')
     def test_tacotron2_training(self):
         data_layer = nemo_asr.AudioToTextDataLayer(
-            manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4,
+            manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4
         )
         preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
             window_size=None,
@@ -100,9 +100,11 @@ class TestTTSPytorch(TestCase):
             dither=0,
             mag_power=1.0,
             pad_value=-11.52,
+            log_zero_guard_type="clamp",
+            log_zero_guard_value=1e-05,
         )
         text_embedding = nemo_tts.TextEmbedding(len(self.labels), 256)
-        t2_enc = nemo_tts.Tacotron2Encoder(encoder_n_convolutions=2, encoder_kernel_size=5, encoder_embedding_dim=256,)
+        t2_enc = nemo_tts.Tacotron2Encoder(encoder_n_convolutions=2, encoder_kernel_size=5, encoder_embedding_dim=256)
         t2_dec = nemo_tts.Tacotron2Decoder(
             n_mel_channels=64,
             n_frames_per_step=1,
@@ -119,7 +121,7 @@ class TestTTSPytorch(TestCase):
             attention_location_kernel_size=15,
         )
         t2_postnet = nemo_tts.Tacotron2Postnet(
-            n_mel_channels=64, postnet_embedding_dim=256, postnet_kernel_size=5, postnet_n_convolutions=3,
+            n_mel_channels=64, postnet_embedding_dim=256, postnet_kernel_size=5, postnet_n_convolutions=3
         )
         t2_loss = nemo_tts.Tacotron2Loss()
         makegatetarget = nemo_tts.MakeGate()
@@ -129,9 +131,9 @@ class TestTTSPytorch(TestCase):
         spec_target, spec_target_len = preprocessing(input_signal=audio, length=audio_len)
 
         transcript_embedded = text_embedding(char_phone=transcript)
-        transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len,)
+        transcript_encoded = t2_enc(char_phone_embeddings=transcript_embedded, embedding_length=transcript_len)
         mel_decoder, gate, _ = t2_dec(
-            char_phone_encoded=transcript_encoded, encoded_length=transcript_len, mel_target=spec_target,
+            char_phone_encoded=transcript_encoded, encoded_length=transcript_len, mel_target=spec_target
         )
         mel_postnet = t2_postnet(mel_input=mel_decoder)
         gate_target = makegatetarget(mel_target=spec_target, target_len=spec_target_len)
@@ -147,14 +149,16 @@ class TestTTSPytorch(TestCase):
         loss_list = []
 
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss_t], print_func=partial(print_and_log_loss, loss_log_list=loss_list), step_freq=1
+            tensors=[loss_t], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
         # Instantiate an optimizer to perform `train` action
         optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
-            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.0003},
+            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.01}
         )
-        logging.info(loss_list)
+
+        # Assert that training loss went down
+        assert loss_list[-1] < loss_list[0]
 
     @pytest.mark.integration
     @pytest.mark.run_only_on('GPU')
@@ -193,14 +197,18 @@ class TestTTSPytorch(TestCase):
         z, log_s_list, log_det_W_list = waveglow(mel_spectrogram=spec_target, audio=audio)
         loss_t = waveglow_loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list)
 
+        loss_list = []
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss_t], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
+            tensors=[loss_t], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
         # Instantiate an optimizer to perform `train` action
         optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
-            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.0003},
+            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.01}
         )
+
+        # Assert that training loss went down
+        assert loss_list[-1] < loss_list[0]
 
     @pytest.mark.integration
     def test_fastspeech(self):
@@ -223,6 +231,8 @@ class TestTTSPytorch(TestCase):
             mag_power=1.0,
             pad_value=-11.52,
             pad_to=0,
+            log_zero_guard_type="clamp",
+            log_zero_guard_value=1e-05,
         )
 
         data = data_layer()
@@ -283,11 +293,15 @@ class TestTTSPytorch(TestCase):
             mel_true=mel_true, mel_pred=mel_pred, dur_true=data.dur_true, dur_pred=dur_pred, text_pos=data.text_pos,
         )
 
+        loss_list = []
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss_t], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
+            tensors=[loss_t], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
         # Instantiate an optimizer to perform `train` action
         optimizer = nemo.backends.pytorch.actions.PtActions()
         optimizer.train(
-            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
+            [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.0003}
         )
+
+        # Assert that training loss went down
+        assert loss_list[-1] < loss_list[0]
