@@ -65,15 +65,11 @@ Neural Modules (NeMo) 是一个用神经模块来构建 AI 应用的工具包，
 
 .. code-block:: bash
 
-    # pull相应的 docker 容器
-    docker pull nvcr.io/nvidia/nemo:v0.9
+     # Pull the docker
+    docker pull nvcr.io/nvidia/nemo:v0.10
 
-    # 运行下面两个命令之一
-    # 如果你的 docker 版本 <19.03
-    nvidia-docker run -it --rm --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.9
-
-    # 如果你的 docker 版本 >=19.03
-    docker run -it --rm --gpus all --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.9
+    # Run Docker for docker version >=19.03
+    docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.10
 
 马上开始用 NeMo 吧。
 
