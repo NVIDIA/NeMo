@@ -23,10 +23,11 @@ BERT Base models (~110M parameters):
 `https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo>`__
 
 Model results on downstream tasks:
+
 +---------------------------------------------+--------+--------+--------+--------+--------+--------+
 |                                             | SQuADv1.1       | SQuADv2.0       | GLUE MRPC       |
 +                                             +--------+--------+--------+--------+--------+--------+
-|  Model                                      | EM     |  F1    |  EM    |  F1    |  Acc   |  F1   |
+|  Model                                      | EM     |  F1    |  EM    |  F1    |  Acc   |  F1    |
 +=============================================+========+========+========+========+========+========+
 | BERT-base-uncased                           | 82.74% | 89.79% | 71.24% | 74.32% | 86.52% | 90.53% |
 +---------------------------------------------+--------+--------+--------+--------+--------+--------+
