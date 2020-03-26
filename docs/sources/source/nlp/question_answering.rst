@@ -36,6 +36,7 @@ BERT Large uncased models (~110M parameters) finetuned on SQuADv1.1 or SQuADv2.0
     For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
 
 Model results:
+
 +---------------------------------------------+--------+--------+--------+--------+
 |                                             | SQuADv1.1       | SQuADv2.0       |
 +                                             +--------+--------+--------+--------+
