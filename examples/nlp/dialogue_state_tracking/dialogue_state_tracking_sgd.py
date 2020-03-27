@@ -302,7 +302,7 @@ logging.info(f'steps per epoch: {steps_per_epoch}')
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=train_tensors,
-    print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
+    print_func=lambda x: logging.info("Loss: {:.8f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer,
     step_freq=steps_per_epoch,
