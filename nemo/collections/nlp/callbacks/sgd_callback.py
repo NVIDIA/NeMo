@@ -86,7 +86,7 @@ def eval_iter_callback(tensors, global_vars):
 
     # For non-categorical slots, the status of each slot and the indices for spans are output.
     predictions['noncat_slot_status'] = torch.argmax(output['logit_noncat_slot_status'], axis=-1)
-    softmax = torch.nn.Softmax()
+    softmax = torch.nn.Softmax(dim=2)
     start_scores = softmax(output['logit_noncat_slot_start'])
     end_scores = softmax(output['logit_noncat_slot_end'])
 
