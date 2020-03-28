@@ -81,7 +81,7 @@ On GLUE benchmark MRPC task the model achieves accuracy/F1 od 88.7/91.96.
 More information about BERT pretraining can be found at 
 https://nvidia.github.io/NeMo/nlp/bert_pretraining.html
 
-Pretrained BERT models can be found at 
+Pretrained BERT models and model configuration files can be found at 
 https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo
 https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo
 https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo
