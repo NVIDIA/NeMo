@@ -246,16 +246,14 @@ Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evalua
 | NeMo's Implementation of TRADE              | 49.78% | 97.06% | 50.44% | 97.15% | 47.77% | 96.82% | 50.85% | 97.21% |
 +---------------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
 
+You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ 2.1 here
+    **MultiWOZ 2.0**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_0
+    **MultiWOZ 2.1**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_1
 
 .. note::
     During training the TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly \
     classify context vector. The `process_multiwoz.py`_ script extracts that additional information from the dataset,
     and the `dialogue_state_tracking_trade.py`_ script reports the **Gating Accuracy** as well.
-
-You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ 2.1 here
-    **MultiWOZ 2.0**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_0
-    **MultiWOZ 2.1**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_1
-
 
 References
 ----------
