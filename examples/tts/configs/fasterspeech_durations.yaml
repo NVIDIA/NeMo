@@ -6,13 +6,13 @@ labels: [
 ]
 
 FasterSpeechDataLayer_train:
+    sample_rate: *sample_rate
     max_duration: 16.7
     trim_silence: true
-    sample_rate: *sample_rate
 
 FasterSpeechDataLayer_eval:
-    trim_silence: true
     sample_rate: *sample_rate
+    trim_silence: true
 
 JasperEncoder:
     activation: "relu"

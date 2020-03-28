@@ -21,6 +21,7 @@ import torch
 from ruamel import yaml
 
 import nemo
+from nemo.collections import asr as nemo_asr
 from nemo.collections import tts as nemo_tts
 from nemo.utils import argparse as nm_argparse
 from nemo.utils import lr_policies
@@ -28,7 +29,7 @@ from nemo.utils import lr_policies
 logging = nemo.logging
 
 
-def parse_args(coef=2):
+def parse_args():
     parser = argparse.ArgumentParser(
         description='FasterSpeech Training Pipeline.',
         parents=[nm_argparse.NemoArgParser()],
@@ -36,25 +37,26 @@ def parse_args(coef=2):
     )
     parser.set_defaults(
         amp_opt_level='O0',
-        model_config='configs/fasterspeech_durations.yaml',
-        batch_size=coef * 32,
-        eval_batch_size=coef * 32,
+        model_config='configs/fasterspeech.yaml',
+        batch_size=32,
+        eval_batch_size=16,
         eval_freq=3000,  # 10x train freq.
         optimizer='novograd',
         weight_decay=1e-6,
         num_epochs=150,  # Couple of epochs for testing.
-        lr=coef * 1e-2,  # Goes good with Adam.
+        lr=1e-2,  # Goes good with Adam.
         work_dir='work',
         checkpoint_save_freq=10000,  # 1/3x
     )
 
-    # Default training things.
-    parser.add_argument('--train_log_freq', type=int, default=300, help="Train metrics logging frequency.")  # 1/100x
+    # Default Training Things
+    # TODO: Make 300.
+    parser.add_argument('--train_freq', type=int, default=10, help="Train metrics logging frequency.")  # 1/100x
     parser.add_argument('--eval_names', type=str, nargs="*", default=[], help="Eval datasets names.")
     parser.add_argument('--min_lr', type=float, default=1e-5, help="Minimum learning rate to decay to.")
     parser.add_argument('--warmup', type=int, default=3000, help="Number of steps for warmup.")
 
-    # Durations from ASR CTC model.
+    # Durations from ASR CTC Model
     parser.add_argument('--train_durs', type=str, required=True, help="Train dataset durations directory path.")
     parser.add_argument(
         '--eval_durs', type=str, nargs="*", default=[], help="Eval datasets durations directory path.",
@@ -63,84 +65,21 @@ def parse_args(coef=2):
         '--durs_type', type=str, choices=['pad', 'full-pad'], default='full-pad', help="Durations handling type.",
     )
 
-    # Model.
-    parser.add_argument('--d_emb', type=int, default=128, help="Size of input char embedding.")
-    parser.add_argument(
-        '--loss_method',
-        type=str,
-        choices=['l2-log', 'l2', 'dmld-log', 'dmld', 'xe'],
-        default='l2-log',
-        help="Method for loss calculation.",
-    )
-    parser.add_argument(
-        '--loss_dmld_hidden',
-        type=int,
-        default=5,  # ~= log2(num_classes)
-        help="Third of size of hidden vector for dmld.",
-    )
-    parser.add_argument(
-        '--loss_num_classes',
-        type=int,
-        default=32,  # Cover >98% of all true durations.
-        help="Number of classes to predict for dmld or xe losses.",
-    )
-    parser.add_argument(
-        '--loss_reduction',
-        type=str,
-        choices=['batch', 'all'],
-        default='all',
-        help="Method for loss tensor reduction.",
-    )
+    # Speakers
+    parser.add_argument('--speakers', type=str, required=True, help="LibriTTS speakers TSV File")
+    parser.add_argument('--d_speaker', type=int, default=64, help="Size of Speaker Embedding")
+
+    # Model
+    parser.add_argument('--d_char', type=int, default=64, help="Size of input char embedding.")
+    parser.add_argument('--loss_reduction', type=str, choices=['batch', 'all'], default='all', help="Loss Reduction")
 
     args = parser.parse_args()
 
     return args
 
 
-class DurMetric(nemo.core.Metric):
-    def __init__(self, preprocessing):
-        super().__init__()
-
-        self._preprocessing = preprocessing
-
-        self._ss, self._hit0, self._hit1, self._hit2, self._hit3, self._total = (None,) * 6
-        self._hit10m, self._total10m = None, None
-
-    def clear(self) -> None:
-        self._ss, self._hit0, self._hit1, self._hit2, self._hit3, self._total = 0, 0, 0, 0, 0, 0
-        self._hit10m, self._total10m = 0, 0
-
-    def batch(self, tensors) -> None:
-        tensors = self._preprocessing(tensors)
-
-        for dur_true1, dur_pred1, mask1 in zip(tensors.dur_true, tensors.dur_pred, tensors.mask):
-            prefix = mask1.sum().item()
-            dur_true1, dur_pred1 = dur_true1[:prefix], dur_pred1[:prefix]
-            assert dur_true1.shape == dur_true1.shape
-
-            self._ss += ((dur_true1 - dur_pred1) ** 2).sum().item()
-            self._hit0 += (dur_true1 == dur_pred1).sum().item()
-            self._hit1 += ((dur_true1 - dur_pred1).abs() <= 1).sum().item()
-            self._hit2 += ((dur_true1 - dur_pred1).abs() <= 2).sum().item()
-            self._hit3 += ((dur_true1 - dur_pred1).abs() <= 3).sum().item()
-            self._total += prefix
-            self._hit10m += ((dur_true1 == dur_pred1) & (dur_true1 >= 10)).sum().item()
-            self._total10m += (dur_true1 >= 10).sum().item()
-
-    def final(self) -> Mapping[str, float]:
-        mse = self._ss / self._total
-        acc = self._hit0 / self._total * 100
-        d1 = self._hit1 / self._total * 100
-        d2 = self._hit2 / self._total * 100
-        d3 = self._hit3 / self._total * 100
-        acc10m = self._hit10m / self._total10m * 100
-
-        return dict(mse=mse, acc=acc, d1=d1, d2=d2, d3=d3, acc10m=acc10m)
-
-
 class FasterSpeechGraph:
     def __init__(self, args, engine, config):
-        # Labels
         labels = config.labels
         pad_id, labels = len(labels), labels + ['<PAD>']
         blank_id, labels = len(labels), labels + ['<BLANK>']
@@ -150,6 +89,7 @@ class FasterSpeechGraph:
             durs_file=args.train_durs,
             labels=labels,
             durs_type=args.durs_type,
+            speakers=args.speakers,
             batch_size=args.batch_size,
             pad_id=pad_id,
             blank_id=blank_id,
@@ -164,6 +104,7 @@ class FasterSpeechGraph:
                 durs_file=eval_durs1,
                 labels=labels,
                 durs_type=args.durs_type,
+                speakers=args.speakers,
                 batch_size=args.eval_batch_size,
                 pad_id=pad_id,
                 blank_id=blank_id,
@@ -171,48 +112,68 @@ class FasterSpeechGraph:
                 **config.FasterSpeechDataLayer_eval,
             )
 
+        self.preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(**config.AudioToMelSpectrogramPreprocessor)
+
         self.model = nemo_tts.FasterSpeech(
             n_vocab=len(labels),
-            d_char=args.d_emb,
+            d_char=args.d_char,
             pad_id=pad_id,
             jasper_kwargs=config.JasperEncoder,
-            d_out=(
-                3 * args.loss_dmld_hidden
-                if args.loss_method.startswith('dmld')
-                else (args.loss_num_classes if args.loss_method == 'xe' else 1)
-            ),
+            d_out=config.n_mels,
+            n_speakers=self.train_dl.n_speakers,
+            d_speaker=args.d_speaker,
         )
 
-        self.loss = nemo_tts.FasterSpeechDurLoss(
-            method=args.loss_method, num_classes=args.loss_num_classes, reduction=args.loss_reduction,
-        )
+        self.loss = nemo_tts.FasterSpeechMelLoss(reduction=args.loss_reduction)
 
     def build(self, args, engine):
         train_loss, callbacks = None, []
-        metrics = ['loss', DurMetric(self.loss.preprocessing)]
+        metrics = ['loss']
 
         # Train.
         data = self.train_dl()
-        output = self.model(text=data.text, text_mask=data.text_mask)
-        loss = self.loss(dur_true=data.dur, dur_pred=output.pred, text_mask=data.text_mask)
-        train_loss = loss
+        mel_true, mel_len = self.preprocessor(input_signal=data.audio, length=data.audio_len)
+        output = self.model(
+            text=data.text,
+            text_mask=data.text_mask,
+            text_rep=data.text_rep,
+            text_rep_mask=data.text_rep_mask,
+            speaker=data.speaker,
+        )
+        train_loss = self.loss(
+            mel_true=mel_true,
+            mel_pred=output.pred,
+            mel_len=mel_len,
+            dur_true=data.dur,
+            text_rep_mask=data.text_rep_mask,
+        )
         callbacks.append(
             nemo.core.TrainLogger(
-                tensors=dict(loss=loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
-                metrics=metrics,
-                freq=args.train_log_freq,
-                tb_writer=engine.tb_writer,
+                tensors=dict(loss=train_loss), metrics=metrics, freq=args.train_freq, tb_writer=engine.tb_writer,
             )
         )
 
         # Eval.
         for name, eval_dl in self.eval_dls.items():
             data = eval_dl()
-            output = self.model(text=data.text, text_mask=data.text_mask)
-            loss = self.loss(dur_true=data.dur, dur_pred=output.pred, text_mask=data.text_mask)
+            mel_true, mel_len = self.preprocessor(input_signal=data.audio, length=data.audio_len)
+            output = self.model(
+                text=data.text,
+                text_mask=data.text_mask,
+                text_rep=data.text_rep,
+                text_rep_mask=data.text_rep_mask,
+                speaker=data.speaker,
+            )
+            loss = self.loss(
+                mel_true=mel_true,
+                mel_pred=output.pred,
+                mel_len=mel_len,
+                dur_true=data.dur,
+                text_rep_mask=data.text_rep_mask,
+            )
             callbacks.append(
                 nemo.core.EvalLogger(
-                    tensors=dict(loss=loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
+                    tensors=dict(loss=loss),
                     metrics=metrics,
                     freq=args.eval_freq,
                     tb_writer=engine.tb_writer,
@@ -269,4 +230,7 @@ def main():
 
 
 if __name__ == '__main__':
+    # TODO: Delete.
+    torch.cuda.set_device(2)
+
     main()

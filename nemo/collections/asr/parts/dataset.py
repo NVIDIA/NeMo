@@ -182,6 +182,8 @@ class AudioDataset(Dataset):
         eos_id=None,
         load_audio=True,
         parser='en',
+        add_id=False,
+        add_speaker=False,
     ):
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
@@ -198,6 +200,8 @@ class AudioDataset(Dataset):
         self.eos_id = eos_id
         self.bos_id = bos_id
         self.load_audio = load_audio
+        self._add_id = add_id
+        self._add_speaker = add_speaker
 
     def __getitem__(self, index):
         sample = self.collection[index]
@@ -222,7 +226,15 @@ class AudioDataset(Dataset):
             t = t + [self.eos_id]
             tl += 1
 
-        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+        output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+
+        if self._add_id:
+            output = (sample.id,) + output
+
+        if self._add_speaker:
+            output = output + (sample.speaker,)
+
+        return output
 
     def __len__(self):
         return len(self.collection)
@@ -405,7 +417,7 @@ class AudioLabelDataset(Dataset):
         manifest_filepath: Path to manifest json as described above. Can
             be comma-separated paths.
         labels (Optional[list]): String containing all the possible labels to map to
-            if None then automatically picks from ASRSpeechLabel collection. 
+            if None then automatically picks from ASRSpeechLabel collection.
         featurizer: Initialized featurizer class that converts paths of
             audio to feature tensors
         max_duration: If audio exceeds this length, do not include in dataset

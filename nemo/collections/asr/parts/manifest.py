@@ -51,10 +51,13 @@ def item_iter(
     if parse_func is None:
         parse_func = __parse_item
 
+    k = -1
     for manifest_file in manifests_files:
         with open(expanduser(manifest_file), 'r') as f:
             for line in f:
+                k += 1
                 item = parse_func(line, manifest_file)
+                item['id'] = k
 
                 yield item
 
@@ -69,14 +72,14 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         item['audio_file'] = item.pop('audio_filepath')
     else:
         raise ValueError(
-            f"Manifest file {manifest_file} has invalid json line " f"structure: {line} without proper audio file key."
+            f"Manifest file {manifest_file} has invalid json line structure: {line} without proper audio file key."
         )
     item['audio_file'] = expanduser(item['audio_file'])
 
     # Duration.
     if 'duration' not in item:
         raise ValueError(
-            f"Manifest file {manifest_file} has invalid json line " f"structure: {line} without proper duration key."
+            f"Manifest file {manifest_file} has invalid json line structure: {line} without proper duration key."
         )
 
     # Text.
@@ -89,11 +92,15 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         item['text'] = item['normalized_text']
     else:
         raise ValueError(
-            f"Manifest file {manifest_file} has invalid json line " f"structure: {line} without proper text key."
+            f"Manifest file {manifest_file} has invalid json line structure: {line} without proper text key."
         )
 
     item = dict(
-        audio_file=item['audio_file'], duration=item['duration'], text=item['text'], offset=item.get('offset', None),
+        audio_file=item['audio_file'],
+        duration=item['duration'],
+        text=item['text'],
+        offset=item.get('offset', None),
+        speaker=item.get('speaker', None),
     )
 
     return item

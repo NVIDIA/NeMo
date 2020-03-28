@@ -14,9 +14,11 @@
 
 import argparse
 import math
-from typing import Optional
+import time
+from typing import Any, Dict, Optional
 
 import numpy as np
+import pandas as pd
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -24,33 +26,66 @@ from torch.nn import functional as F
 import nemo
 from nemo.backends.pytorch import nm as nemo_nm
 from nemo.backends.pytorch.nm import DataLayerNM, LossNM
+from nemo.collections import asr as nemo_asr
 from nemo.collections import tts as nemo_tts
 from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer
-from nemo.core.neural_types import AudioSignal, ChannelType, EmbeddedTextType, LengthsType, MaskType, NeuralType
+from nemo.core.neural_types import (
+    AudioSignal,
+    ChannelType,
+    EmbeddedTextType,
+    LengthsType,
+    MaskType,
+    MelSpectrogramType,
+    NeuralType,
+)
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['FasterSpeechDataLayer', 'FasterSpeech', 'FasterSpeechDurLoss']
+__all__ = ['FasterSpeechDataLayer', 'FasterSpeech', 'FasterSpeechDurLoss', 'FasterSpeechMelLoss']
+
+
+class _Ops:
+    @staticmethod
+    def merge(tensors, value=0.0, dtype=torch.float):
+        max_len = max(tensor.shape[0] for tensor in tensors)
+        new_tensors = []
+        for tensor in tensors:
+            pad = (2 * len(tensor.shape)) * [0]
+            pad[-1] = max_len - tensor.shape[0]
+            new_tensors.append(F.pad(tensor, pad=pad, value=value))
+        return torch.stack(new_tensors).to(dtype=dtype)
+
+    @staticmethod
+    def make_mask(lengths):
+        device = lengths.device if torch.is_tensor(lengths) else 'cpu'
+        return _Ops.merge([torch.ones(length, device=device) for length in lengths], value=0, dtype=torch.bool)
 
 
 class FasterSpeechDataset:
-    def __init__(self, audio_dataset, durs_file, durs_type='full-pad'):
+    def __init__(self, audio_dataset, durs_file, durs_type='full-pad', speakers=None):
         self._audio_dataset = audio_dataset
         self._durs = np.load(durs_file, allow_pickle=True)
         self._durs_type = durs_type
+        self._speakers = None
+
+        if speakers is not None:
+            self._speakers = {sid: i for i, sid in enumerate(pd.read_csv(speakers, sep='\t').index)}
 
     def __getitem__(self, index):
-        audio, audio_len, text, text_len = self._audio_dataset[index]
+        id_, audio, audio_len, text, text_len, speaker = self._audio_dataset[index]
         example = dict(audio=audio, audio_len=audio_len, text=text, text_len=text_len)
 
         if self._durs_type == 'pad':
-            dur = self._durs[index]
+            dur = self._durs[id_]
             example['dur'] = torch.tensor(dur, dtype=torch.long)
         elif self._durs_type == 'full-pad':
-            blank, dur = self._durs[index]
+            blank, dur = self._durs[id_]
             example['blank'] = torch.tensor(blank, dtype=torch.long)
             example['dur'] = torch.tensor(dur, dtype=torch.long)
         else:
             raise ValueError("Wrong durations handling type.")
+
+        if self._speakers is not None:
+            example['speaker'] = self._speakers[speaker]
 
         return example
 
@@ -121,6 +156,9 @@ class FasterSpeechDataLayer(DataLayerNM):
             text=NeuralType(('B', 'T'), EmbeddedTextType()),
             text_mask=NeuralType(('B', 'T'), MaskType()),
             dur=NeuralType(('B', 'T'), LengthsType()),
+            text_rep=NeuralType(('B', 'T'), LengthsType()),
+            text_rep_mask=NeuralType(('B', 'T'), MaskType()),
+            speaker=NeuralType(('B',), EmbeddedTextType()),
         )
 
     def __init__(
@@ -129,6 +167,7 @@ class FasterSpeechDataLayer(DataLayerNM):
         durs_file,
         labels,
         durs_type='full-pad',
+        speakers=None,
         batch_size=32,
         sample_rate=16000,
         int_values=False,
@@ -160,9 +199,11 @@ class FasterSpeechDataLayer(DataLayerNM):
             'bos_id': bos_id,
             'eos_id': eos_id,
             'load_audio': load_audio,
+            'add_id': True,
+            'add_speaker': True,
         }
         audio_dataset = AudioDataset(**dataset_params)
-        self._dataset = FasterSpeechDataset(audio_dataset, durs_file, durs_type)
+        self._dataset = FasterSpeechDataset(audio_dataset, durs_file, durs_type, speakers)
         self._durs_type = durs_type
         self._pad_id = pad_id
         self._blank_id = blank_id
@@ -184,28 +225,17 @@ class FasterSpeechDataLayer(DataLayerNM):
         )
 
     def _collate(self, batch):
-        def merge(tensors, value=0.0, dtype=torch.float):
-            max_len = max(tensor.shape[0] for tensor in tensors)
-            new_tensors = []
-            for tensor in tensors:
-                pad = (2 * len(tensor.shape)) * [0]
-                pad[-1] = max_len - tensor.shape[0]
-                new_tensors.append(F.pad(tensor, pad=pad, value=value))
-            return torch.stack(new_tensors).to(dtype=dtype)
-
-        def make_mask(lengths):
-            return merge([torch.ones(length) for length in lengths], value=0, dtype=torch.bool)
-
         batch = {key: [example[key] for example in batch] for key in batch[0]}
 
-        audio = merge(batch['audio'])
+        audio = _Ops.merge(batch['audio'])
         audio_len = torch.tensor(batch['audio_len'], dtype=torch.long)
 
         if self._durs_type == 'pad':
             text = [F.pad(text, pad=[1, 1], value=self._space_id) for text in batch['text']]
-            text = merge(text, value=self._pad_id, dtype=torch.long)
-            text_mask = make_mask([text_len + 2 for text_len in batch['text_len']])
-            dur = merge(batch['dur'], dtype=torch.long)
+            text = _Ops.merge(text, value=self._pad_id, dtype=torch.long)
+            # noinspection PyTypeChecker
+            text_mask = _Ops.make_mask([text_len + 2 for text_len in batch['text_len']])
+            dur = _Ops.merge(batch['dur'], dtype=torch.long)
         elif self._durs_type == 'full-pad':
 
             def interleave(x, y):
@@ -218,21 +248,29 @@ class FasterSpeechDataLayer(DataLayerNM):
                 interleave(x=torch.empty(len(text) + 1, dtype=torch.long).fill_(self._blank_id), y=text)
                 for text in batch['text']
             ]
-            text = merge(text, value=self._pad_id, dtype=torch.long)
+            text = _Ops.merge(text, value=self._pad_id, dtype=torch.long)
 
             # `text_mask`
-            text_mask = make_mask([text_len * 2 + 1 for text_len in batch['text_len']])
+            # noinspection PyTypeChecker
+            text_mask = _Ops.make_mask([text_len * 2 + 1 for text_len in batch['text_len']])
 
             # `dur`
             blank, dur = batch['blank'], batch['dur']
-            dur = merge([interleave(b, d) for b, d in zip(blank, dur)], dtype=torch.long)
+            dur = _Ops.merge([interleave(b, d) for b, d in zip(blank, dur)], dtype=torch.long)
         else:
             raise ValueError("Wrong durations handling type.")
 
+        text_rep = _Ops.merge(
+            tensors=[torch.repeat_interleave(text1, dur1) for text1, dur1 in zip(text, dur)], dtype=torch.long,
+        )
+        text_rep_mask = _Ops.make_mask(dur.sum(-1))
+        speaker = torch.tensor(batch['speaker'], dtype=torch.long)
+
+        assert audio.shape[-1] == audio_len.max()
         assert text.shape == text_mask.shape, f'{text.shape} vs {text_mask.shape}'
         assert text.shape == dur.shape, f'{text.shape} vs {dur.shape}'
 
-        return audio, audio_len, text, text_mask, dur
+        return audio, audio_len, text, text_mask, dur, text_rep, text_rep_mask, speaker
 
     def __len__(self) -> int:
         return len(self._dataset)
@@ -245,9 +283,14 @@ class FasterSpeechDataLayer(DataLayerNM):
     def data_iterator(self) -> Optional[torch.utils.data.DataLoader]:
         return self._dataloader
 
+    @property
+    def n_speakers(self):
+        # noinspection PyProtectedMember
+        return len(self._dataset._speakers)
+
 
 class FasterSpeech(nemo_nm.TrainableNM):
-    """FasterSpeech Model."""
+    """FasterSpeech TTS Model"""
 
     @property
     @add_port_docs
@@ -256,7 +299,9 @@ class FasterSpeech(nemo_nm.TrainableNM):
         return dict(
             text=NeuralType(('B', 'T'), EmbeddedTextType()),
             text_mask=NeuralType(('B', 'T'), MaskType()),
-            dur=NeuralType(('B', 'T'), LengthsType(), optional=True),
+            text_rep=NeuralType(('B', 'T'), LengthsType(), optional=True),
+            text_rep_mask=NeuralType(('B', 'T'), MaskType(), optional=True),
+            speaker=NeuralType(('B',), EmbeddedTextType(), optional=True),
         )
 
     @property
@@ -266,40 +311,53 @@ class FasterSpeech(nemo_nm.TrainableNM):
         return dict(pred=NeuralType(('B', 'T', 'D'), ChannelType()), len=NeuralType(('B',), LengthsType()))
 
     def __init__(
-        self, n_vocab, d_emb, pad_id, jasper_kwargs, d_out,
+        self,
+        n_vocab: int,
+        d_char: int,
+        pad_id: int,
+        jasper_kwargs: Dict[str, Any],
+        d_out: int,
+        n_speakers: Optional[int] = None,
+        d_speaker: Optional[int] = None,
     ):
         super().__init__()
 
-        # TODO: Have to come up with better implementation after testing phase.
+        # Embedding for Input Text
+        self.text_emb = nn.Embedding(n_vocab, d_char, padding_idx=pad_id).to(self._device)
+
+        # Embedding for Speaker
+        if d_speaker is not None:
+            self.speaker_emb = nn.Embedding(n_speakers, d_speaker).to(self._device)
+
         jasper_params = jasper_kwargs['jasper']
         d_enc_out = jasper_params[-1]["filters"]
+        self.jasper = nemo_asr.JasperEncoder(feat_in=d_char + int(d_speaker or 0), **jasper_kwargs).to(self._device)
 
-        # Embedding for input text.
-        self.emb = nn.Embedding(n_vocab, d_emb, padding_idx=pad_id).to(self._device)
-
-        # To use with module(...., force_pt=True).
-        self.jasper = nemo.collections.asr.JasperEncoder(feat_in=d_emb, **jasper_kwargs).to(self._device)
-
-        # self.out = nn.Linear(d_enc_out, d_out).to(self._device)
         self.out = nn.Conv1d(d_enc_out, d_out, kernel_size=1, bias=True).to(self._device)
 
-    def forward(self, text, text_mask, dur=None):
-        if dur is not None:
-            raise ValueError("Durations expansion is not implemented yet.")
+    def forward(self, text, text_mask, text_rep=None, text_rep_mask=None, speaker=None):
+        if text_rep is not None:
+            text, text_mask = text_rep, text_rep_mask
 
-        text_emb = self.emb(text).transpose(-1, -2)
-        text_len = text_mask.sum(-1)
+        x = self.text_emb(text)  # BT => BTE
+        x_len = text_mask.sum(-1)
 
-        pred, pred_len = self.jasper(text_emb, text_len, force_pt=True)
-        assert text.shape[-1] == pred.shape[-1]
+        if speaker is not None:
+            speaker_x = self.speaker_emb(speaker)  # B => BS
+            speaker_x = speaker_x.unsqueeze(1).repeat([1, x.shape[1], 1])  # BS => BTS
+            x = torch.cat([x, speaker_x], dim=-1)  # stack([BTE, BTS]) = BT(E + S)
 
-        pred = self.out(pred).transpose(-1, -2)
+        pred, pred_len = self.jasper(x.transpose(-1, -2), x_len, force_pt=True)
+        assert x.shape[1] == pred.shape[-1]  # Time
+        assert torch.equal(x_len, pred_len)
+
+        pred = self.out(pred).transpose(-1, -2)  # BTO
 
         return pred, pred_len
 
 
 class FasterSpeechDurLoss(LossNM):
-    """Neural Module Wrapper for Faster Speech Loss."""
+    """Neural Module Wrapper for Faster Speech Dur Loss."""
 
     @property
     @add_port_docs
@@ -359,11 +417,11 @@ class FasterSpeechDurLoss(LossNM):
             raise ValueError("Wrong method.")
 
         loss *= text_mask.float()
-        if self._reduction == 'batch':
+        if self._reduction == 'all':
+            loss = loss.sum() / text_mask.sum()
+        elif self._reduction == 'batch':
             loss = loss.sum(-1) / text_mask.sum(-1)
             loss = loss.mean()
-        elif self._reduction == 'all':
-            loss = loss.sum() / text_mask.sum()
         else:
             raise ValueError("Wrong reduction.")
 
@@ -396,3 +454,47 @@ class FasterSpeechDurLoss(LossNM):
         tensors.dur_pred = dur_pred
 
         return tensors
+
+
+class FasterSpeechMelLoss(LossNM):
+    """Neural Module Wrapper for Faster Speech Mel Loss."""
+
+    @property
+    @add_port_docs
+    def input_ports(self):
+        """Returns definitions of module input ports."""
+        return dict(
+            mel_true=NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            mel_pred=NeuralType(('B', 'T', 'D'), ChannelType()),
+            mel_len=NeuralType(('B',), LengthsType()),
+            dur_true=NeuralType(('B', 'T'), LengthsType()),
+            text_rep_mask=NeuralType(('B', 'T'), MaskType()),
+        )
+
+    @property
+    @add_port_docs
+    def output_ports(self):
+        """Returns definitions of module output ports."""
+        return dict(loss=NeuralType(None))
+
+    def __init__(self, reduction='all'):
+        super().__init__()
+
+        self._reduction = reduction
+
+    def _loss_function(self, mel_true, mel_pred, mel_len, dur_true, text_rep_mask):
+        if not torch.equal(mel_len, dur_true.sum(-1)) or not torch.equal(mel_len, text_rep_mask.sum(-1)):
+            raise ValueError("Wrong mel length calculation.")
+
+        loss = F.mse_loss(mel_pred, mel_true.transpose(-1, -2), reduction='none').mean(-1)
+
+        loss *= text_rep_mask.float()
+        if self._reduction == 'all':
+            loss = loss.sum() / text_rep_mask.sum()
+        elif self._reduction == 'batch':
+            loss = loss.sum(-1) / text_rep_mask.sum(-1)
+            loss = loss.mean()
+        else:
+            raise ValueError("Wrong reduction.")
+
+        return loss
