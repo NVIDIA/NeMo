@@ -45,8 +45,8 @@ The MultiWOZ dataset covers the following domains:
  3. attraction
  4. taxi
  5. train
- 6. hospital(Excluded from training by default)
- 7. police (Excluded from training by default)
+ 6. hospital
+ 7. police
 
 As well as the following slots:
  * inform (∗)
@@ -185,7 +185,9 @@ the `dialogue_state_tracking_trade.py`_ script with default parameters:
         --eval_file_prefix <test or dev>
 
 You may find the list of parameters in the example file and update them as see fits. \
-By default the script would train the model for 10 epochs on 1 single gpu.
+By default the script would train the model for 10 epochs on 1 single gpu. \
+The police and hospital domains are excluded from the training by default as they do not exist in the development set. \
+The list of the domains can get updated in the example.
 
 Evaluating Checkpoints
 ----------------------
