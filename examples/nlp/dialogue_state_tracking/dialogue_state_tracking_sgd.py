@@ -26,12 +26,6 @@ parser = argparse.ArgumentParser(description='Schema_guided_dst')
 parser.add_argument(
     "--bert_ckpt_dir", default=None, type=str, help="Directory containing pre-trained BERT checkpoint."
 )
-# parser.add_argument("--do_lower_case", action="store_true",
-#                     help="Whether to lower case the input text. Should be True for uncased "
-#                     "models and False for cased models.")
-# parser.add_argument("--preserve_unused_tokens", default=False, type=bool,
-#                     help="If preserve_unused_tokens is True, Wordpiece tokenization will not "
-#                     "be applied to words in the vocab.")
 parser.add_argument(
     "--max_seq_length",
     default=80,
@@ -41,7 +35,28 @@ parser.add_argument(
     "than this will be padded.",
 )
 parser.add_argument("--dropout", default=0.1, type=float, help="Dropout rate for BERT representations.")
-parser.add_argument("--pretrained_model_name", default="bert-base-cased", type=str, help="Pretrained BERT model")
+parser.add_argument(
+    "--pretrained_model_name",
+    default="bert-base-cased",
+    type=str,
+    help="Name of the pre-trained model",
+    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+)
+parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to model checkpoint")
+parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
+parser.add_argument(
+    "--tokenizer_model",
+    default=None,
+    type=str,
+    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+)
+parser.add_argument(
+    "--tokenizer",
+    default="nemobert",
+    type=str,
+    choices=["nemobert", "sentencepiece"],
+    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
+)
 
 # Hyperparameters and optimization related flags.
 parser.add_argument("--train_batch_size", default=32, type=int, help="Total batch size for training.")
@@ -80,7 +95,6 @@ parser.add_argument(
     help="Directory for the downloaded DSTC8 data, which contains the dialogue files"
     " and schema files of all datasets (eg train, dev)",
 )
-parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to model checkpoint")
 parser.add_argument(
     "--work_dir",
     type=str,
@@ -127,14 +141,20 @@ nf = nemo.core.NeuralModuleFactory(
     files_to_copy=[__file__],
 )
 
-pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_model_name)
-
+pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
+    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+)
 if args.bert_checkpoint is not None:
     model.restore_from(args.bert_checkpoint)
     logging.info(f"model restored from {args.bert_checkpoint}")
 
-# BERT tokenizer
-tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
+tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+    tokenizer_name=args.tokenizer,
+    pretrained_model_name=args.pretrained_model_name,
+    tokenizer_model=args.tokenizer_model,
+)
+
+hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
 
 # Run SGD preprocessor to generate and store schema embeddings
 schema_preprocessor = SchemaPreprocessor(
@@ -166,7 +186,7 @@ train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
 )
 
 train_data = train_datalayer()
-hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
+
 
 # define model pipeline
 encoder = sgd_modules.Encoder(hidden_size=hidden_size, dropout=args.dropout)
@@ -187,7 +207,6 @@ model = sgd_model.SGDModel(embedding_dim=hidden_size)
     req_slot_mask,
     logit_cat_slot_status,
     logit_cat_slot_value,
-    cat_slot_values_mask,
     logit_noncat_slot_status,
     logit_noncat_slot_start,
     logit_noncat_slot_end,
@@ -219,7 +238,6 @@ loss = dst_loss(
     categorical_slot_status=train_data.categorical_slot_status,
     num_categorical_slots=train_data.num_categorical_slots,
     categorical_slot_values=train_data.categorical_slot_values,
-    cat_slot_values_mask=cat_slot_values_mask,
     noncategorical_slot_status=train_data.noncategorical_slot_status,
     num_noncategorical_slots=train_data.num_noncategorical_slots,
     noncategorical_slot_value_start=train_data.noncategorical_slot_value_start,
@@ -254,7 +272,6 @@ eval_encoded_utterance, eval_token_embeddings = encoder(hidden_states=eval_token
     _,
     eval_logit_cat_slot_status,
     eval_logit_cat_slot_value,
-    _,
     eval_logit_noncat_slot_status,
     eval_logit_noncat_slot_start,
     eval_logit_noncat_slot_end,
