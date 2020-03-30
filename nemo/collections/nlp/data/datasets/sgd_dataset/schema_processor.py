@@ -115,30 +115,3 @@ class SchemaPreprocessor:
 
     def _get_schema_embedding_file_name(self, dataset_split):
         return os.path.join(self._schema_embedding_dir, f"{dataset_split}_pretrained_schema_embedding.npy")
-
-    # def _decode_record(record, name_to_features, schema_tensors):
-    #   """Decodes a record to a TensorFlow example."""
-
-    #   example = tf.parse_single_example(record, name_to_features)
-
-    #   # tf.Example only supports tf.int64, but the TPU only supports tf.int32.
-    #   # So cast all int64 to int32.
-    #   for name in list(example.keys()):
-    #     t = example[name]
-    #     if t.dtype == tf.int64:
-    #       t = tf.cast(t, tf.int32)
-    #     example[name] = t
-
-    #   # Here we need to insert schema's entity embedding to each example.
-
-    #   # Shapes for reference: (all have type tf.float32)
-    #   # "cat_slot_emb": [max_num_cat_slot, hidden_dim]
-    #   # "cat_slot_value_emb": [max_num_cat_slot, max_num_value, hidden_dim]
-    #   # "noncat_slot_emb": [max_num_noncat_slot, hidden_dim]
-    #   # "req_slot_emb": [max_num_total_slot, hidden_dim]
-    #   # "intent_emb": [max_num_intent, hidden_dim]
-
-    #   service_id = example["service_id"]
-    #   for key, value in schema_tensors.items():
-    #     example[key] = value[service_id]
-    #   return example
