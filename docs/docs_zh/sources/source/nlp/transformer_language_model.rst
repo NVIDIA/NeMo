@@ -15,7 +15,7 @@ Transformer语言模型
 
 在这个实验中我们会使用非常小的WikiText-2数据集 :cite:`nlp-lm-merity2016pointer` 。
 
-下载数据集，运行脚本 ``examples/nlp/language_modeling/get_wkt2.sh``. 下载和解压数据集后，文件夹会包括三个文件:
+下载数据集，运行脚本 ``examples/nlp/language_modeling/get_wkt2.sh <FOLDER_FOR_DATA>``. 下载和解压数据集后，文件夹会包括三个文件:
 
     .. code-block:: bash
 
