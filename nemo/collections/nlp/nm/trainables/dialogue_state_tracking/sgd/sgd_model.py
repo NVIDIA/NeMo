@@ -107,7 +107,6 @@ class SGDModel(TrainableNM):
             "req_slot_mask": NeuralType(('B', 'T'), ChannelType()),
             "logit_cat_slot_status": NeuralType(('B', 'T', 'C'), LogitsType()),
             "logit_cat_slot_value": NeuralType(('B', 'T', 'C'), LogitsType()),
-            "cat_slot_values_mask": NeuralType(('B', 'T', 'C'), ChannelType()),
             "logit_noncat_slot_status": NeuralType(('B', 'T', 'C'), LogitsType()),
             "logit_noncat_slot_start": NeuralType(('B', 'T', 'C'), LogitsType()),
             "logit_noncat_slot_end": NeuralType(('B', 'T', 'C'), LogitsType()),
@@ -173,7 +172,7 @@ class SGDModel(TrainableNM):
             encoded_utterance, req_slot_emb, req_num_slots
         )
 
-        logit_cat_slot_status, logit_cat_slot_value, cat_slot_values_mask = self._get_categorical_slot_goals(
+        logit_cat_slot_status, logit_cat_slot_value = self._get_categorical_slot_goals(
             encoded_utterance, cat_slot_emb, cat_slot_value_emb, num_categorical_slot_values
         )
 
@@ -187,7 +186,6 @@ class SGDModel(TrainableNM):
             req_slot_mask,
             logit_cat_slot_status,
             logit_cat_slot_value,
-            cat_slot_values_mask,
             logit_noncat_slot_status,
             logit_noncat_slot_start,
             logit_noncat_slot_end,
@@ -251,7 +249,7 @@ class SGDModel(TrainableNM):
         )
 
         value_logits = torch.where(cat_slot_values_mask, value_logits, negative_logits)
-        return status_logits, value_logits, cat_slot_values_mask
+        return status_logits, value_logits
 
     def _get_noncategorical_slot_goals(self, encoded_utterance, utterance_mask, noncat_slot_emb, token_embeddings):
         """
