@@ -1125,9 +1125,8 @@ class PtActions(Actions):
 
             self.optimizers.append(optimizer)
             assert len(self.optimizers) == 1, (
-                "There was more than one optimizer, was create_optimizer() called before train()? "
-                "If you really want to trigger training again you need to call "
-                "NeuralModuleFactory.reset_trainer() method first."
+                "There was more than one optimizer, was create_optimizer() called before train()? Are you calling "
+                "train() twice in one script, If so you need to call NeuralModuleFactory.reset_trainer() first."
             )
 
         elif PtActions._check_tuples(tensors_to_optimize):
