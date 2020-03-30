@@ -15,9 +15,9 @@
 
 """Wrappers for schemas of different services."""
 
-from __future__ import absolute_import, division, print_function
-
 import json
+
+__all__ = ['ServiceSchema', 'Schema']
 
 
 class ServiceSchema(object):

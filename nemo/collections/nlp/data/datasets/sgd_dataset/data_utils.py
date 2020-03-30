@@ -1,5 +1,4 @@
 """
-coding=utf-8
 Copyright 2019 The Google Research Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,8 +27,8 @@ import re
 
 import torch
 
-import nemo.collections.nlp.data.datasets.sgd_dataset.schema as schema
 from nemo import logging
+from nemo.collections.nlp.data.datasets.sgd_dataset.schema import *
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 

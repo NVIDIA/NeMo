@@ -24,6 +24,8 @@ from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils, schema
 
 REQ_SLOT_THRESHOLD = 0.5
 
+__all__ = ['get_predicted_dialog', 'write_predictions_to_file']
+
 
 def get_predicted_dialog(dialog, all_predictions, schemas):
     """Update labels in a dialogue based on model predictions.
