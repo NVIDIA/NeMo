@@ -17,8 +17,8 @@
 import torch
 from torch import nn
 
-from nemo.collections.nlp.data.datasets.sgd_dataset.data_utils import STATUS_ACTIVE
 from nemo.backends.pytorch import LossNM
+from nemo.collections.nlp.data.datasets.sgd_dataset.data_utils import STATUS_ACTIVE
 from nemo.core import ChannelType, LabelsType, LengthsType, LogitsType, LossType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
