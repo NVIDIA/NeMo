@@ -35,11 +35,20 @@ autodoc_mock_imports = [
     'torchvision',
     'torchvision.models',
     'torchtext',
+    'torch_stft',
     'h5py',
     'kaldi_io',
     'transformers',
     'transformers.tokenization_bert',
     'apex',
+    'ruamel',
+    'frozendict',
+    'inflect', 
+    'unidecode',
+    'librosa',
+    'soundfile',
+    'sentencepiece',
+    'youtokentome'
 ]
 
 # -- General configuration ------------------------------------------------
