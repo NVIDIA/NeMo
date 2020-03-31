@@ -544,7 +544,7 @@ class PtActions(Actions):
 
             callback.clear_global_var_dict()
             dl_device = dl_nm._device
-
+        
             # Evaluation mini-batch for loop
             num_batches = None
             if hasattr(eval_dataloader, "__len__"):
@@ -557,6 +557,7 @@ class PtActions(Actions):
                 ):
                     logging.info(f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
+
                 if isinstance(data, torch.Tensor):
                     data = (data,)
                 for d in data:
@@ -578,6 +579,7 @@ class PtActions(Actions):
                 # all processes loop through the elements in the same order
                 for t2e in tensors_2_evaluate:
                     key = t2e.unique_name
+
                     if key not in registered_e_tensors.keys():
                         logging.info("WARNING: Tensor {} was not found during eval".format(key))
                         continue
@@ -586,31 +588,35 @@ class PtActions(Actions):
                         tensors_list = []
                         # where we will all_gather tensor sizes
                         tensor_on_worker = registered_e_tensors[key]
-                        if tensor_on_worker.shape != torch.Size([]):
-                            tensor_on_worker_size_as_tensor = torch.tensor(tensor_on_worker.shape).cuda()
-                            sizes = []
-                            for ind in range(world_size):
-                                sizes.append(torch.empty_like(tensor_on_worker_size_as_tensor))
-                            dist.all_gather(sizes, tensor_on_worker_size_as_tensor)
-                            mx_dim, _ = torch.max(torch.stack(sizes), dim=0)
-                        else:  # this is a singleton. For example, loss value
-                            sizes = [torch.Size([])] * world_size
+                        if isinstance(tensor_on_worker, tuple):
+                            tensors_list.append(list(tensor_on_worker))
                             mx_dim = None
-                        for ind in range(world_size):
-                            # we have to use max shape for all_gather
-                            if mx_dim is None:  # singletons
-                                tensors_list.append(torch.tensor(2).cuda().type_as(tensor_on_worker))
-                            else:  # non-singletons
-                                tensors_list.append(
-                                    torch.empty(mx_dim.cpu().data.numpy().tolist()).cuda().type_as(tensor_on_worker)
-                                )
-
-                        if mx_dim is not None:
-                            t_to_send = self.pad_tensor(tensor_on_worker, mx_dim)
                         else:
-                            t_to_send = tensor_on_worker
-                        dist.all_gather(tensors_list, t_to_send)
-                        tensors_list = [self.depad_tensor(t, size) for t, size in zip(tensors_list, sizes)]
+                            if tensor_on_worker.shape != torch.Size([]):
+                                tensor_on_worker_size_as_tensor = torch.tensor(tensor_on_worker.shape).cuda()
+                                sizes = []
+                                for ind in range(world_size):
+                                    sizes.append(torch.empty_like(tensor_on_worker_size_as_tensor))
+                                dist.all_gather(sizes, tensor_on_worker_size_as_tensor)
+                                mx_dim, _ = torch.max(torch.stack(sizes), dim=0)
+                            else:  # this is a singleton. For example, loss value
+                                sizes = [torch.Size([])] * world_size
+                                mx_dim = None
+                            for ind in range(world_size):
+                                # we have to use max shape for all_gather
+                                if mx_dim is None:  # singletons
+                                    tensors_list.append(torch.tensor(2).cuda().type_as(tensor_on_worker))
+                                else:  # non-singletons
+                                    tensors_list.append(
+                                        torch.empty(mx_dim.cpu().data.numpy().tolist()).cuda().type_as(tensor_on_worker)
+                                    )
+                            if mx_dim is not None:
+                                t_to_send = self.pad_tensor(tensor_on_worker, mx_dim)
+                            else:
+                                t_to_send = tensor_on_worker
+    
+                            dist.all_gather(tensors_list, t_to_send)
+                            tensors_list = [self.depad_tensor(t, size) for t, size in zip(tensors_list, sizes)]
                         if self.global_rank == 0:
                             values_dict["IS_FROM_DIST_EVAL"] = True
                             values_dict[key] = tensors_list
