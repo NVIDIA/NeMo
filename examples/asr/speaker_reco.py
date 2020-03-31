@@ -75,9 +75,6 @@ def create_all_dags(args, neural_factory):
     with open(args.model_config) as f:
         spkr_params = yaml.load(f)
     
-    label_file = os.path.dirname(args.train_dataset)
-    labels = pickle.load(open(label_file+'/spkr_labels.pkl','rb'))
-    print("====>Total Speakers, {}<====".format(len(labels)))
     sample_rate = spkr_params['sample_rate']
 
     # Calculate num_workers for dataloader
@@ -93,7 +90,7 @@ def create_all_dags(args, neural_factory):
 
     data_layer_train = nemo_asr.AudioToLabelDataLayer(
         manifest_filepath=args.train_dataset,
-        labels=labels,
+        labels=None,
         batch_size=args.batch_size,
         num_workers=cpu_per_traindl,
         **train_dl_params,
@@ -116,7 +113,7 @@ def create_all_dags(args, neural_factory):
 
     data_layer_test = nemo_asr.AudioToLabelDataLayer(
         manifest_filepath=args.eval_datasets[0],
-        labels=labels,
+        labels=None,
         batch_size=args.batch_size,
         num_workers=cpu_per_traindl,
         **eval_dl_params,
@@ -133,7 +130,7 @@ def create_all_dags(args, neural_factory):
 
     decoder = nemo_asr.JasperDecoderForSpkrClass(
         feat_in=spkr_params['JasperEncoder']['jasper'][-1]['filters'],
-        num_classes=len(labels),
+        num_classes=data_layer_train.num_classes,
         emb_size=args.emb_size,
         covr=True
         )

@@ -554,6 +554,7 @@ target_label_n}
             'load_audio': load_audio,
         }
         self._dataset = AudioLabelDataset(**dataset_params)
+        self.num_classes = self._dataset.num_commands
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
