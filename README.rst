@@ -120,7 +120,7 @@ This command runs unittests:
 .. code-block:: bash
 
     ./reinstall.sh
-    python pytest tests
+    python -m pytest tests
 
 
 Citation

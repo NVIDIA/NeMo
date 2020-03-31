@@ -50,13 +50,13 @@ def neural_factory(request):
 
 
 @pytest.fixture(autouse=True)
-def skip_by_device(request, device):
-    if request.node.get_closest_marker('skip_on_device'):
-        if request.node.get_closest_marker('skip_on_device').args[0] == device:
+def run_only_on_device_fixture(request, device):
+    if request.node.get_closest_marker('run_only_on'):
+        if request.node.get_closest_marker('run_only_on').args[0] != device:
             pytest.skip('skipped on this device: {}'.format(device))
 
 
 def pytest_configure(config):
     config.addinivalue_line(
-        "markers", "skip_on_device(device): skip test for the given device [CPU | GPU]",
+        "markers", "run_only_on(device): runs the test only on a given device [CPU | GPU]",
     )

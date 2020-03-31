@@ -33,31 +33,67 @@ pipeline {
     }
 
 
-    stage('L0: Unit Tests') {
+    stage('L0: Unit Tests GPU') {
       steps {
         sh 'pytest -m unit'
       }
     }
 
-    stage('L0: Integration Tests') {
+    stage('L0: Unit Tests CPU') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest target: 'master' 
+        }
+      }
+      steps {
+        sh 'pytest -m unit --cpu'
+      }
+    }
+
+    stage('L0: Integration Tests GPU') {
       steps {
         sh 'pytest -m integration'
       }
     }
 
-    stage('L1: System Tests') {
+    stage('L0: Integration Tests CPU') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest target: 'master' 
+        }
+      }
+      steps {
+        sh 'pytest -m integration --cpu'
+      }
+    }
+
+    stage('L1: System Tests GPU') {
       steps {
         sh 'pytest -m system'
       }
     }
 
-    stage('LX: Unclassified Tests') {
+    stage('L1: System Tests CPU') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest target: 'master' 
+        }
+      }
+      steps {
+        sh 'pytest -m system --cpu'
+      }
+    }
+
+    stage('LX: Unclassified Tests GPU') {
       steps {
         sh 'pytest -m unclassified'
       }
     }
 
-    stage('L2: Parallel Stage1') {
+    stage('L2: Parallel Stage1 GPU') {
       when {
         anyOf{
           branch 'master'
@@ -116,7 +152,7 @@ pipeline {
       parallel {
         stage ('Text Classification with BERT Test') {
           steps {
-            sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --pretrained_model_name bert-base-uncased --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs'
+            sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --pretrained_model_name bert-base-uncased --num_epochs=1 --max_seq_length=50 --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=dev --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs'
             sh 'rm -rf examples/nlp/text_classification/outputs'
           }
         }
@@ -149,15 +185,15 @@ pipeline {
       parallel {
         stage('Token Classification Training/Inference Test') {
           steps {
-            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=0 python token_classification.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --batch_size 2 --num_epochs 1 --save_epoch_freq 1 --work_dir token_classification_output --pretrained_bert_model bert-base-uncased'
-            sh 'cd examples/nlp/token_classification && DATE_F=$(ls token_classification_output/) && CUDA_VISIBLE_DEVICES=0 python token_classification_infer.py --work_dir token_classification_output/$DATE_F/checkpoints/ --labels_dict /home/TestData/nlp/token_classification_punctuation/label_ids.csv --pretrained_bert_model bert-base-uncased'
+            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=0 python token_classification.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --batch_size 2 --num_epochs 1 --save_epoch_freq 1 --work_dir token_classification_output --pretrained_model_name bert-base-uncased'
+            sh 'cd examples/nlp/token_classification && DATE_F=$(ls token_classification_output/) && CUDA_VISIBLE_DEVICES=0 python token_classification_infer.py --checkpoint_dir token_classification_output/$DATE_F/checkpoints/ --labels_dict /home/TestData/nlp/token_classification_punctuation/label_ids.csv --pretrained_model_name bert-base-uncased'
             sh 'rm -rf examples/nlp/token_classification/token_classification_output'
           }
         }
         stage ('Punctuation and Classification Training/Inference Test') {
           steps {
             sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=1 python punctuation_capitalization.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --work_dir punctuation_output --save_epoch_freq 1 --num_epochs 1 --save_step_freq -1 --batch_size 2'
-            sh 'cd examples/nlp/token_classification && DATE_F=$(ls punctuation_output/) && DATA_DIR="/home/TestData/nlp/token_classification_punctuation" && CUDA_VISIBLE_DEVICES=1 python punctuation_capitalization_infer.py --checkpoints_dir punctuation_output/$DATE_F/checkpoints/ --punct_labels_dict $DATA_DIR/punct_label_ids.csv --capit_labels_dict $DATA_DIR/capit_label_ids.csv'
+            sh 'cd examples/nlp/token_classification && DATE_F=$(ls punctuation_output/) && DATA_DIR="/home/TestData/nlp/token_classification_punctuation" && CUDA_VISIBLE_DEVICES=1 python punctuation_capitalization_infer.py --checkpoint_dir punctuation_output/$DATE_F/checkpoints/ --punct_labels_dict $DATA_DIR/punct_label_ids.csv --capit_labels_dict $DATA_DIR/capit_label_ids.csv'
             sh 'rm -rf examples/nlp/token_classification/punctuation_output'
           }
         }
@@ -225,9 +261,9 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp/intent_detection_slot_tagging && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py --num_gpus=2 --num_epochs=1 --max_seq_length=50 --dataset_name=jarvis-retail --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=eval --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs'
-          sh 'cd examples/nlp/intent_detection_slot_tagging && TASK_NAME=$(ls outputs/) && DATE_F=$(ls outputs/$TASK_NAME/) && CHECKPOINT_DIR=outputs/$TASK_NAME/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer.py --work_dir $CHECKPOINT_DIR --eval_file_prefix=eval --dataset_name=jarvis-retail --data_dir=/home/TestData/nlp/retail/ --batch_size=10'
-          sh 'cd examples/nlp/intent_detection_slot_tagging && TASK_NAME=$(ls outputs/) && DATE_F=$(ls outputs/$TASK_NAME/) && CHECKPOINT_DIR=outputs/$TASK_NAME/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer_b1.py --data_dir=/home/TestData/nlp/retail/ --work_dir $CHECKPOINT_DIR --dataset_name=jarvis-retail --query="how much is it?"'
+          sh 'cd examples/nlp/intent_detection_slot_tagging && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py --num_gpus=2 --pretrained_model_name=bert-base-uncased --num_epochs=1 --max_seq_length=50 --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=dev --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs_joint_intent_slot'
+          sh 'cd examples/nlp/intent_detection_slot_tagging && DATE_F=$(ls outputs_joint_intent_slot/) && CHECKPOINT_DIR=outputs_joint_intent_slot/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer.py --checkpoint_dir $CHECKPOINT_DIR --pretrained_model_name=bert-base-uncased --eval_file_prefix=dev --data_dir=/home/TestData/nlp/retail/ --batch_size=10'
+          sh 'cd examples/nlp/intent_detection_slot_tagging && DATE_F=$(ls outputs_joint_intent_slot/) && CHECKPOINT_DIR=outputs_joint_intent_slot/$DATE_F/checkpoints/ && CUDA_VISIBLE_DEVICES=0 python joint_intent_slot_infer_b1.py --data_dir=/home/TestData/nlp/retail/ --pretrained_model_name=bert-base-uncased --checkpoint_dir $CHECKPOINT_DIR --query="how much is it?"'
           sh 'rm -rf examples/nlp/intent_detection_slot_tagging/outputs'
         }
       }

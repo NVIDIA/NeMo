@@ -2,3 +2,4 @@ librosa
 matplotlib
 pypinyin
 scipy
+attrdict

@@ -9,7 +9,7 @@ The goal of **Dialog State Tracking (DST)** :cite:`nlp-dst-henderson2015machine`
 is to build a representation of the status of the ongoing conversation \
 being a sequence of utterances exchanged between dialog participants. \
 In another words, the goal of DST system is to capture user goals and intentions and encode them as a set of \
-**slots** along with the corresponding **values**.
+**slots** along with the corresponding **values**. DST is considered an important module for most of the goal-oriented dialogue systems.
 
 
 .. figure:: dst_multiwoz_example.png
@@ -46,7 +46,7 @@ The MultiWOZ dataset covers the following domains:
  4. taxi
  5. train
  6. hospital
- 7. police.
+ 7. police
 
 As well as the following slots:
  * inform (∗)
@@ -90,8 +90,8 @@ acts with slots per turn. Additionally, each dialog is supported with a task des
 Moreover, it contains both system and user dialogue act annotations (the latter introduced in MultiWOZ 2.1).
 
 
-The TRADE model
----------------
+TRADE Model
+-----------
 
 The **TRA**\nsferable **D**\ialogue stat\ **E** generator (TRADE) :cite:`nlp-dst-wu2019transferable`  is a model \
 designed specially for the multi-domain \
@@ -105,11 +105,11 @@ benefits from copy mechanism to facilitate knowledge transfer between domains. I
 
    Fig. 2: Architecture of the TRADE model (source: :cite:`nlp-dst-wu2019transferable`)
 
-The model is composed of an three main components:
+The model is composed of three main components:
 
- * an **utterance encoder**,
- * a **slot gate**, and
- * a **state generator**.  
+ * **Utterance Encoder**,
+ * **Slot Gate**, and
+ * **State Generator**.
 
 The **utterance encoder** is a bi-directional Gated Recurrent Unit (GRU), returning both \
 context words and and an aggregated context vector encoding the whole dialogue history.
@@ -135,24 +135,24 @@ contain the older version of this dataset.
 Next, we need to preprocess and reformat the dataset, what will result in division of data into three splits:
 
  * traininig split (8242 dialogs in the ``train_dials.json`` file)
- * validation split (1000 dialogs in the ``val_dials.json`` file)
+ * development/validation split (1000 dialogs in the ``dev_dials.json`` file)
  * test split (999 dialogs in the ``test_dials.json`` file)
 
 In order to preprocess the MultiWOZ dataset you can use the provided `process_multiwoz.py`_ script:
 
-.. _process_multiwoz.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/multiwoz/process_multiwoz.py
+.. _process_multiwoz.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/data/process_multiwoz.py
 
 .. code-block:: bash
 
-    cd examples/nlp/dialogue_state_tracking/multiwoz
-    python process_multiwoz.py
+    cd examples/nlp/dialogue_state_tracking/data/
+    python process_multiwoz.py \
+        --source_data_dir <path to MultoWOZ dataset> \
+        --target_data_dir <path to store the processed data>
 
 .. note::
-    By default, the script assumes that you will copy and extract data into the \
-    ``~/data/state_tracking/multiwoz2.1/`` \
-    folder and it will store results in the ``~/data/state_tracking/multiwoz2.1`` folder. \
-    Both those can be overridden by passing the command line ``source_data_dir`` and ``target_data_dir`` arguments \
-    respectively. Both MultiWOZ 2.0 and MultiWOZ 2.1 can get processed with the same script.
+    Argument `--source_data_dir` specifies the folder where you have copied and extracted data into. \
+    It will store the processed dataset in the folder given by `--target_data_dir`. \
+    Both MultiWOZ 2.0 and MultiWOZ 2.1 datasets can get processed with the same script.
 
 
 Building the NeMo Graph
@@ -170,7 +170,7 @@ The NeMo training graph consists of the following six modules including data lay
 Training
 --------
 
-In order to train an instance of the TRADE model on the MultiWOZ 2.1 dataset and evaluate on its test data simply run \
+In order to train an instance of the TRADE model on the MultiWOZ dataset and evaluate on its test data simply run \
 the `dialogue_state_tracking_trade.py`_ script with default parameters:
 
 .. _dialogue_state_tracking_trade.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/dialogue_state_tracking_trade.py
@@ -179,21 +179,41 @@ the `dialogue_state_tracking_trade.py`_ script with default parameters:
 .. code-block:: bash
 
     cd examples/nlp/dialogue_state_tracking
-    python dialogue_state_tracking_trade.py 
+    python dialogue_state_tracking_trade.py \
+        --data_dir <path to the data> \
+        --work_dir <path to store the experiment logs and checkpoints> \
+        --eval_file_prefix <test or dev>
+
+You may find the list of parameters in the example file and update them as see fits. \
+By default the script would train the model for 10 epochs on 1 single gpu. \
+The police and hospital domains are excluded from the training by default as they do not exist in the development set. \
+The list of the domains can get updated in the example.
 
 
-.. note::
-    Analogically, the script reads that the ``~/data/state_tracking/multiwoz2.1`` folder by default.
-    This path can be overridden by passing the command line ``data_dir``.
+Evaluating Checkpoints
+----------------------
 
+By default a folder named "checkpoints" would get created under the working folder specified by `--work_dir` and \
+checkpoints are stored under it. To do evaluation a checkpoint on test or dev set, \
+you may run the same script by passing `--checkpoint_dir` and setting `--num_epochs` as zero to avoid the training:
 
+.. code-block:: bash
+
+    cd examples/nlp/dialogue_state_tracking
+    python dialogue_state_tracking_trade.py \
+        --data_dir <path to the data> \
+        --checkpoint_dir <path to checkpoint folder> \
+        --eval_file_prefix <test or dev> \
+        --eval_batch_size <batch size for evaluation> \
+        --num_epochs 0
 
 Metrics and Results
 -------------------
 
 In the following table we compare the results achieved by our TRADE model implementation with the results reported \
-in the original paper :cite:`nlp-dst-wu2019transferable`. As the authors were relying on the MultiWOZ 2.0
-dataset, we ran the original implementation on MultiWOZ 2.1 dataset and reported those too.
+in the original paper :cite:`nlp-dst-wu2019transferable`. We trained our models for 10 epochs on a single GPU with 16GB memory. \
+As the authors reported results on just MultiWOZ 2.0 dataset, we ran the original implementation on MultiWOZ 2.1 dataset \
+and reported those too.
 
 We used the same parameters as the original implementation. There are some differences between our implementation and \
 the original one. The main difference is that our model does not use pre-trained embeddings which seems not to affect \
@@ -201,7 +221,7 @@ the performance of the model. The other difference is that we used SquareAnneali
 fixed learning rate. Additionally, we create the vocabulary just based on the training data while the default for the \
 original one is to create vocabulary from all the data including test and development sets. The main reason behind \
 the improvement of our model in terms of accuracy is utilizing better learning rate policy. When we used fixed \
-learning rate in our implementation, we got to similar results as the original one.
+learning rate in our implementation, we got similar results as the original one.
 
 We also did some improvements to the implementation of the model to have faster training. It makes our implementation \
 significantly faster than the original one. Additionally, NeMo supports multi-GPU training which enables even faster \
@@ -224,14 +244,19 @@ Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evalua
 +=============================================+========+========+========+========+========+========+========+========+
 | Original :cite:`nlp-dst-wu2019transferable` | 48.62% | 96.92% | 48.76% | 96.95% | 45.31% | 96.57% | 49.15% | 97.04% |
 +---------------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
-| NeMo's Implementation of TRADE              | 48.92% | 97.03% | 50.96% | 97.17% | 47.25% | 96.80% | 51.38% | 97.21% |
+| NeMo's Implementation of TRADE              | 49.78% | 97.06% | 50.44% | 97.15% | 47.77% | 96.82% | 50.85% | 97.21% |
 +---------------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
 
+You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ 2.1 datasets on NGC:
+
+    **MultiWOZ 2.0**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_0
+    **MultiWOZ 2.1**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_1
 
 .. note::
-    During training the TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly \
-    classify context vector. The `process_multiwoz.py`_ script extracts that additional information from the dataset,
-    and the `dialogue_state_tracking_trade.py`_ script reports the **Gating Accuracy** as well.
+    During training, TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly \
+    predict special values for like **don't care** or **none** for the slots. \
+    The `process_multiwoz.py`_ script extracts that additional information from the dataset and the `dialogue_state_tracking_trade.py`_ script reports the **Gating Accuracy** as well.
+
 
 References
 ----------

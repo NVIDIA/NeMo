@@ -1,5 +1,5 @@
-Transformer Language Model
-==========================
+Tutorial
+========
 
 In this tutorial, we will build and train a language model using the Transformer architecture :cite:`nlp-lm-vaswani2017attention`.
 Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See the :ref:`installation` section for more details.
@@ -15,7 +15,7 @@ Download Corpus
 
 For demonstration purposes, we will be using the very small WikiText-2 dataset :cite:`nlp-lm-merity2016pointer`.
 
-To download the dataset, run the script ``examples/nlp/language_modeling/get_wkt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
+To download the dataset, run the script ``examples/nlp/language_modeling/get_wkt2.sh <FOLDER_FOR_DATA>``. After downloading and unzipping, the folder ``<FOLDER_FOR_DATA>`` should include 3 files that look like this:
 
     .. code-block:: bash
 

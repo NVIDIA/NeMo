@@ -25,8 +25,8 @@ Neural Machine Translation (NMT)
 
    neural_machine_translation
 
-BERT
-----
+Pretraining BERT
+-----------------
 .. toctree::
    :maxdepth: 8
 
@@ -41,13 +41,13 @@ Transformer Language Model
    transformer_language_model
 
 
-Dialog State Tracking
----------------------
+Dialogue State Tracking
+-----------------------
 
 .. toctree::
    :maxdepth: 8
 
-   dialog_state_tracking_trade
+   dialogue_state_tracking_trade.rst
 
 
 Named Entity Recognition
@@ -77,13 +77,13 @@ Intent and Slot filling
 
 
 Question Answering 
------------------------
+------------------
 .. toctree::
    :maxdepth: 8
 
    question_answering
 
-Improving speech recognition with BERTx2 post-processing model
+Improving Speech Recognition with BERTx2 Post-processing Model
 --------------------------------------------------------------
 .. toctree::
    :maxdepth: 8

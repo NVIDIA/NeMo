@@ -123,12 +123,15 @@ class ExpManager:
         # Create work_dir if specified
         if work_dir:
             self.work_dir = work_dir
+            # only create tm_sur dir if checkpoints dir is not present in the work_dir
             if add_time:
                 self.work_dir = os.path.join(work_dir, tm_suf)
             self.make_dir(self.work_dir, exist_ok)
+            self.ckpt_dir = os.path.join(self.work_dir, 'checkpoints')
+
             if use_tb:
                 self.get_tb_writer(exist_ok=exist_ok)
-            self.ckpt_dir = f'{self.work_dir}/checkpoints'
+
             if files_to_copy and self.global_rank == 0:
                 for file in files_to_copy:
                     basename = os.path.basename(file)

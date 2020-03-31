@@ -48,7 +48,16 @@ class BertTextClassificationDataset(Dataset):
             If -1, use all dataset. Useful for testing.
     """
 
-    def __init__(self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=False, use_cache=False):
+    def __init__(
+        self,
+        input_file,
+        max_seq_length,
+        tokenizer,
+        num_samples=-1,
+        shuffle=False,
+        use_cache=False,
+        do_lower_case=False,
+    ):
         self.input_file = input_file
         self.max_seq_length = max_seq_length
         self.tokenizer = tokenizer
@@ -56,17 +65,21 @@ class BertTextClassificationDataset(Dataset):
         self.use_cache = use_cache
         self.shuffle = shuffle
         self.vocab_size = self.tokenizer.tokenizer.vocab_size
+        self.do_lower_case = do_lower_case
 
         if use_cache:
             data_dir, filename = os.path.split(input_file)
+            vocab_size = getattr(tokenizer, "vocab_size", 0)
             tokenizer_type = type(tokenizer.tokenizer).__name__
             cached_features_file = os.path.join(
-                data_dir, "cached_{}_{}_{}".format(filename[:-4], tokenizer_type, str(max_seq_length), '.hdf5')
+                data_dir,
+                "cached_{}_{}_{}_{}".format(
+                    filename[:-4], tokenizer_type, str(max_seq_length), str(vocab_size), '.hdf5'
+                ),
             )
 
         if use_cache and os.path.exists(cached_features_file):
             self.load_cached_features(cached_features_file)
-
         else:
             with open(input_file, "r") as f:
                 sent_labels, all_sent_subtokens = [], []
@@ -86,9 +99,13 @@ class BertTextClassificationDataset(Dataset):
                     if index % 20000 == 0:
                         logging.debug(f"Processing line {index}/{len(lines)}")
 
-                    sent_label = int(line.split()[-1])
+                    if do_lower_case:
+                        line = line.lower()
+
+                    line_splited = line.strip().split()
+                    sent_label = int(line_splited[-1])
                     sent_labels.append(sent_label)
-                    sent_words = line.strip().split()[:-1]
+                    sent_words = line_splited[:-1]
                     sent_subtokens = [tokenizer.cls_token]
 
                     for word in sent_words:

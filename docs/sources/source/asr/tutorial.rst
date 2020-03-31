@@ -261,7 +261,7 @@ Multi-GPU training
 
 Enabling multi-GPU training with NeMo is easy:
 
-   (1) First set `placement` to `nemo.core.DeviceType.AllGpu` in NeuralModuleFactory and in your Neural Modules
+   (1) First set `placement` to `nemo.core.DeviceType.AllGpu` in NeuralModuleFactory
    (2) Have your script accept 'local_rank' argument and do not set it yourself: `parser.add_argument("--local_rank", default=None, type=int)`
    (3) Use `torch.distributed.launch` package to run your script like this (replace <num_gpus> with number of gpus):
 

@@ -724,7 +724,6 @@ class PtActions(Actions):
                 loop_iterator = eval_dataloader
 
             for epoch_i, data in enumerate(loop_iterator, 0):
-                logging.debug(torch.cuda.memory_allocated())
                 if verbose and (num_batches < 10 or (epoch_i % int(num_batches / 10) == 0)):
                     logging.info(f"Evaluating batch {epoch_i} out of {num_batches}")
                 tensors = []
@@ -921,9 +920,7 @@ class PtActions(Actions):
                         self.modules.add(module[0])
 
     @staticmethod
-    def __module_export(
-        module, output, d_format: DeploymentFormat, input_example=None, output_example=None,
-    ):
+    def __module_export(module, output, d_format: DeploymentFormat, input_example=None, output_example=None):
         # Check if output already exists
         destination = Path(output)
         if destination.exists():
@@ -939,25 +936,17 @@ class PtActions(Actions):
                     if axis.kind == AxisKind.Batch or axis.kind == AxisKind.Time:
                         dynamic_axes[port_name].append(ind)
 
-        # This is a hack for Jasper to Jarvis export -- need re-design for this
-        inputs_to_drop = set()
-        outputs_to_drop = set()
-        if type(module).__name__ == "JasperEncoder":
-            logging.info(
-                "Module is JasperEncoder. We are removing input and output length ports since they are not needed for "
-                "deployment"
-            )
-            inputs_to_drop.add("length")
-            outputs_to_drop.add("encoded_lengths")
-
+        # extract dynamic axes and remove unnecessary inputs/outputs
         # for input_ports
         for port_name, ntype in module.input_ports.items():
-            if port_name in inputs_to_drop:
+            if port_name in module._disabled_deployment_input_ports:
+                input_names.remove(port_name)
                 continue
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)
         # for output_ports
         for port_name, ntype in module.output_ports.items():
-            if port_name in outputs_to_drop:
+            if port_name in module._disabled_deployment_output_ports:
+                output_names.remove(port_name)
                 continue
             __extract_dynamic_axes(port_name, ntype, dynamic_axes)
 
@@ -990,7 +979,7 @@ class PtActions(Actions):
                     # Route 2 - via tracing
                     traced_m = torch.jit.trace(module, input_example)
                     traced_m.save(output)
-            elif d_format == DeploymentFormat.ONNX:
+            elif d_format == DeploymentFormat.ONNX or d_format == DeploymentFormat.TRTONNX:
                 if input_example is None:
                     raise ValueError(f'Example input is None, but ONNX tracing was' f' attempted')
                 if output_example is None:
@@ -1007,11 +996,11 @@ class PtActions(Actions):
                     output,
                     input_names=input_names,
                     output_names=output_names,
-                    verbose=True,
+                    verbose=False,
                     export_params=True,
                     do_constant_folding=True,
                     dynamic_axes=dynamic_axes,
-                    opset_version=10,
+                    opset_version=11,
                     example_outputs=output_example,
                 )
                 # fn = output + ".readable"
@@ -1043,9 +1032,7 @@ class PtActions(Actions):
             type(module).__call__ = __old_call__
 
     @staticmethod
-    def deployment_export(
-        module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None,
-    ):
+    def deployment_export(module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None):
         """Exports Neural Module instance for deployment.
 
         Args:
@@ -1057,6 +1044,7 @@ class PtActions(Actions):
             amp_max_loss_scale (float): Max value for amp loss scaling.
                 Defaults to 2.0**24.
         """
+
         with torch.no_grad():
             PtActions.__module_export(
                 module=module,
@@ -1136,9 +1124,10 @@ class PtActions(Actions):
             training_loop = [(optimizer, tensors_to_optimize, opt_call_chain)]
 
             self.optimizers.append(optimizer)
-            assert (
-                len(self.optimizers) == 1
-            ), "There was more than one optimizer, was create_optimizer() called before train()?"
+            assert len(self.optimizers) == 1, (
+                "There was more than one optimizer, was create_optimizer() called before train()? Are you calling "
+                "train() twice in one script, If so you need to call NeuralModuleFactory.reset_trainer() first."
+            )
 
         elif PtActions._check_tuples(tensors_to_optimize):
             if batches_per_step != 1:
@@ -1241,7 +1230,14 @@ class PtActions(Actions):
                                         f"Synchronized batch norm group size ({synced_batchnorm_groupsize}) must be 0"
                                         f" or divide total number of GPUs ({world_size})."
                                     )
-                                sync_batchnorm_group = torch.distributed.new_group(synced_batchnorm_groupsize)
+                                # Find ranks of other nodes in the same batchnorm group
+                                rank = torch.distributed.get_rank()
+                                group = rank // synced_batchnorm_groupsize
+                                group_rank_ids = range(
+                                    group * synced_batchnorm_groupsize, (group + 1) * synced_batchnorm_groupsize
+                                )
+                                sync_batchnorm_group = torch.distributed.new_group(group_rank_ids)
+
                             pmodule = nn.SyncBatchNorm.convert_sync_batchnorm(
                                 pmodule, process_group=sync_batchnorm_group
                             )

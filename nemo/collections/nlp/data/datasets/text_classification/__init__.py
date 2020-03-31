@@ -14,5 +14,5 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.data.datasets.text_classification.text_classification_data_descriptor import *
 from nemo.collections.nlp.data.datasets.text_classification.text_classification_dataset import *
+from nemo.collections.nlp.data.datasets.text_classification.text_classification_descriptor import *

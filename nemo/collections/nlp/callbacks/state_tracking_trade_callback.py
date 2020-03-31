@@ -57,7 +57,7 @@ def eval_iter_callback(tensors, global_vars, data_desc):
 
 
 def eval_epochs_done_callback(global_vars, data_desc):
-    joint_acc, turn_acc = evaluate_metrics(
+    joint_acc, slot_acc = evaluate_metrics(
         global_vars['comp_res'],
         global_vars['gating_labels'],
         global_vars['gating_preds'],
@@ -67,7 +67,7 @@ def eval_epochs_done_callback(global_vars, data_desc):
     gating_comp_flatten = (np.asarray(global_vars['gating_labels']) == np.asarray(global_vars['gating_preds'])).ravel()
     gating_acc = np.sum(gating_comp_flatten) / len(gating_comp_flatten)
 
-    evaluation_metrics = {"Joint_Goal_Acc": joint_acc, "Turn_Acc": turn_acc, "Gate_Acc": gating_acc}
+    evaluation_metrics = {"Joint_Goal_Acc": joint_acc, "Slot_Acc": slot_acc, "Gate_Acc": gating_acc}
     logging.info(evaluation_metrics)
 
     return evaluation_metrics
@@ -98,6 +98,6 @@ def evaluate_metrics(comp_res, gating_labels, gating_preds, ptr_code):
         if not turn_wrong:
             correct_turns += 1
 
-    turn_acc = correct_slots / float(total_slots) if total_slots != 0 else 0
+    slot_acc = correct_slots / float(total_slots) if total_slots != 0 else 0
     joint_acc = correct_turns / float(total_turns) if total_turns != 0 else 0
-    return joint_acc, turn_acc
+    return joint_acc, slot_acc

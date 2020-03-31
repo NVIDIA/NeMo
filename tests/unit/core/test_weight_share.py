@@ -287,7 +287,7 @@ class TestWeightSharing(TestCase):
         self.assertFalse(np.array_equal(embd.embedding.weight.detach().cpu().numpy(), weights.detach().cpu().numpy()))
 
     @pytest.mark.unit
-    @pytest.mark.skip_on_device('CPU')
+    @pytest.mark.run_only_on('GPU')
     def test_freeze_unfreeze_TrainableNM(self):
         path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/jasper_smaller.yaml"))
         with open(path) as file:

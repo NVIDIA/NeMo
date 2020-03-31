@@ -12,13 +12,23 @@ See the :ref:`installation` section.
 Introduction
 ------------
 
+Speech Command Recognition is the task of classifying an input audio pattern into a discrete set of classes.
+It is a subset of Automatic Speech Recognition, sometimes referred to as Key Word Spotting, in which a model is constantly analyzing speech patterns to detect certain "command" classes.
+Upon detection of these commands, a specific action can be taken by the system. It is often the objective of command recognition models to be small and efficient, so that they can be deployed onto
+low power sensors and remain active for long durations of time.
+
 This Speech Command recognition tutorial is based on the QuartzNet model :cite:`speech-recognition-tut-kriman2019quartznet` with
-a modified decoder head to suit classification tasks.
+a modified decoder head to suit classification tasks. Instead of predicting a token for each time step of the input, we predict
+a single label for the entire duration of the audio signal. This is accomplished by a decoder head that performs Global Max / Average pooling
+across all timesteps prior to classification. After this, the model can be trained via standard categorical cross-entropy loss.
 
 1. Audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)
 2. Data augmentation using SpecAugment :cite:`speech-recognition-tut-park2019` to increase number of data samples.
 3. Develop a small Neural classification model which can be trained efficiently.
 
+.. note::
+  A Jupyter Notebook containing all the steps to download the dataset, train a model and evaluate its results
+  is available at : `Speech Commands Using NeMo <https://github.com/NVIDIA/NeMo/blob/master/examples/asr/notebooks/3_Speech_Commands_using_NeMo.ipynb>`_
 
 Data Preparation
 ----------------
