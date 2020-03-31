@@ -57,6 +57,12 @@ class MNISTDataLayer(DataLayerNM):
             root=abs_data_folder, train=self._train, download=True, transform=self._transforms
         )
 
+        # Class names.
+        labels = 'Zero One Two Three Four Five Six Seven Eight Nine'.split(' ')
+        word_to_ix = {labels[i]: i for i in range(10)}
+        # Reverse mapping - for labels.
+        self.ix_to_word = {value: key for (key, value) in word_to_ix.items()}
+
     @property
     @add_port_docs()
     def output_ports(self):
