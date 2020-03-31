@@ -57,13 +57,11 @@ class SGDDataset(Dataset):
 
     def __getitem__(self, idx):
         ex = self.features[idx]
-
         service_id = ex.service_schema.service_id
         return (
             ex.example_id,
             np.array(service_id),
-            np.array(ex.is_real_example),
-            ex.user_utterance,
+            np.array(ex.is_real_example, dtype=int),
             np.array(ex.utterance_ids),
             np.array(ex.utterance_segment),
             np.array(ex.utterance_mask, dtype=np.long),

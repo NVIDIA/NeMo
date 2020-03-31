@@ -187,7 +187,6 @@ train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
 
 train_data = train_datalayer()
 
-
 # define model pipeline
 encoder = sgd_modules.Encoder(hidden_size=hidden_size, dropout=args.dropout)
 dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLoss()

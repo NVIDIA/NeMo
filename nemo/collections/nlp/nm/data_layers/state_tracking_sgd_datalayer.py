@@ -3,6 +3,7 @@ from nemo.collections.nlp.data.datasets.sgd_dataset.SGDDataset import SGDDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core.neural_types import ChannelType, EmbeddedTextType, LabelsType, LengthsType, NeuralType
 from nemo.utils.decorators import add_port_docs
+from torch.utils import data as pt_data
 
 __all__ = ['SGDDataLayer']
 
@@ -40,7 +41,6 @@ class SGDDataLayer(TextDataLayer):
             "example_id": NeuralType(('B'), ChannelType()),
             "service_id": NeuralType(('B'), ChannelType()),
             "is_real_example": NeuralType(('B'), ChannelType()),
-            "user_utterance": NeuralType(('B'), ChannelType()),
             "utterance_ids": NeuralType(('B', 'T'), ChannelType()),
             "utterance_segment": NeuralType(('B', 'T'), ChannelType()),
             "utterance_mask": NeuralType(('B', 'T'), ChannelType()),
@@ -76,6 +76,7 @@ class SGDDataLayer(TextDataLayer):
         dataset_type=SGDDataset,
         shuffle=False,
         batch_size=1,
+        num_workers=0,
     ):
 
         dataset_params = {
@@ -87,3 +88,29 @@ class SGDDataLayer(TextDataLayer):
             'dialogues_processor': dialogues_processor,
         }
         super().__init__(dataset_type, dataset_params, batch_size=batch_size, shuffle=shuffle)
+
+    #     if self._placement == nemo.core.DeviceType.AllGpu:
+    #         sampler = pt_data.distributed.DistributedSampler(self._dataset)
+    #     else:
+    #         sampler = None
+        
+    #     self._dataloader = pt_data.DataLoader(
+    #         dataset=self._dataset,
+    #         batch_size=batch_size,
+    #         shuffle=sampler is None,
+    #         num_workers=num_workers,
+    #         collate_fn=self._collate_fn,
+    #         sampler=sampler,
+    #     )
+
+
+    # def _collate_fn(self, batch):
+    #     """ data is a list of batch_size sample
+    #     each sample is a dictionary of features
+    #     """
+    #     new_batch = []
+    #     example_ids = []
+    #     for _batch in batch:
+    #         new_batch.append(_batch[1:])
+    #         example_ids.append(_batch[0])
+    #     return example_ids, super().collate_fn(new_batch)
