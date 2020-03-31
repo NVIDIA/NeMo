@@ -63,7 +63,14 @@ class BertInferDataLayer(TextDataLayer):
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
         }
 
-    def __init__(self, tokenizer, max_seq_length, input_file, dataset_type, embedding_dim, batch_size=1, shuffle=False):
+    def __init__(
+        self, tokenizer, max_seq_length, input_file, dataset_type, embedding_dim, batch_size=1, shuffle=False
+    ):
 
-        dataset_params = {'tokenizer': tokenizer, 'max_seq_length': max_seq_length, 'input_file': input_file, 'embedding_dim': embedding_dim}
+        dataset_params = {
+            'tokenizer': tokenizer,
+            'max_seq_length': max_seq_length,
+            'input_file': input_file,
+            'embedding_dim': embedding_dim,
+        }
         super().__init__(dataset_type, dataset_params, batch_size=batch_size, shuffle=shuffle)

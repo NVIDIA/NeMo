@@ -1,10 +1,11 @@
+import torch
+from torch.utils import data as pt_data
+
 import nemo
 from nemo.collections.nlp.data.datasets.sgd_dataset.SGDDataset import SGDDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core.neural_types import ChannelType, EmbeddedTextType, LabelsType, LengthsType, NeuralType
 from nemo.utils.decorators import add_port_docs
-import torch
-from torch.utils import data as pt_data
 
 __all__ = ['SGDDataLayer']
 
@@ -94,7 +95,7 @@ class SGDDataLayer(TextDataLayer):
     #         sampler = pt_data.distributed.DistributedSampler(self._dataset)
     #     else:
     #         sampler = None
-        
+
     #     self._dataloader = pt_data.DataLoader(
     #         dataset=self._dataset,
     #         batch_size=batch_size,
@@ -103,7 +104,6 @@ class SGDDataLayer(TextDataLayer):
     #         collate_fn=self._collate_fn,
     #         sampler=sampler,
     #     )
-
 
     # def _collate_fn(self, batch):
     #     """ data is a list of batch_size sample

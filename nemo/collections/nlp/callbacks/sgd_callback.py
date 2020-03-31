@@ -30,7 +30,7 @@ def eval_iter_callback(tensors, global_vars):
         ind = k.find('~~~')
         if ind != -1:
             output[k[:ind]] = v[0]
-    
+
     predictions = {}
     predictions['example_id'] = output['example_id']
     predictions['service_id'] = output['service_id']
@@ -104,7 +104,7 @@ def eval_epochs_done_callback(
 
 
 def evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file):
-    
+
     in_domain_services = get_in_domain_services(
         os.path.join(data_dir, eval_dataset, "schema.json"), os.path.join(data_dir, "train", "schema.json")
     )
