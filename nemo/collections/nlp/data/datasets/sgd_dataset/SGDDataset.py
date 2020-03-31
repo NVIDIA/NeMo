@@ -57,7 +57,7 @@ class SGDDataset(Dataset):
 
     def __getitem__(self, idx):
         ex = self.features[idx]
-       
+
         service_id = ex.service_schema.service_id
         return (
             ex.example_id,

@@ -48,7 +48,7 @@ class SchemaEmbeddingDataset(Dataset):
         input_features = self._get_input_features()
 
         self.features = collections.defaultdict(list)
-        
+
         for feature in input_features:
             self.features["input_ids"].append(feature.input_ids)
             self.features["input_mask"].append(feature.input_mask)
@@ -277,7 +277,7 @@ class SchemaEmbeddingDataset(Dataset):
             embedding = [round(float(x), 6) for x in hidden_states[0][idx, 0, :].flat]
             intent_or_slot_id = self.features['intent_or_slot_id'][idx]
             value_id = self.features['value_id'][idx]
-            
+
             if tensor_name == "cat_slot_value_emb":
                 emb_mat[intent_or_slot_id, value_id] = embedding
             else:
