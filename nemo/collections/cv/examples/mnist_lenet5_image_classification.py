@@ -14,19 +14,17 @@
 # limitations under the License.
 # =============================================================================
 
+import argparse
 import math
 
 import torch
 
 import nemo
+import nemo.utils.argparse as nm_argparse
 from nemo.collections.cv.modules.data_layers.mnist_datalayer import MNISTDataLayer
 from nemo.collections.cv.modules.losses.nll_loss import NLLLoss
 from nemo.collections.cv.modules.trainables.lenet5 import LeNet5
 from nemo.core import DeviceType, NeuralType
-
-import argparse
-import nemo.utils.argparse as nm_argparse
-
 
 if __name__ == "__main__":
     # Create the default parser.
@@ -35,10 +33,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # 0. Instantiate Neural Factory with supported backend
-    nf = nemo.core.NeuralModuleFactory(
-        local_rank=args.local_rank,
-        placement=DeviceType.GPU)
-
+    nf = nemo.core.NeuralModuleFactory(local_rank=args.local_rank, placement=DeviceType.GPU)
 
     #############################################################################
     # 1. Instantiate necessary neural modules
@@ -49,13 +44,11 @@ if __name__ == "__main__":
     # Data layer for the validation.
     dl_e = MNISTDataLayer(batch_size=64, data_folder="~/data/mnist", train=False, shuffle=True)
 
-
     #############################################################################
     # 2. Describe activation's flow
     x, y = dl()
     p = lenet5(images=x)
     loss = nll_loss(predictions=p, targets=y)
-
 
     #############################################################################
     # Create validation graph, starting from the second data layer.
@@ -64,7 +57,6 @@ if __name__ == "__main__":
     nll_loss_e = NLLLoss()
     loss_e = nll_loss_e(predictions=p, targets=y)
 
-
     def eval_loss_per_batch_callback(tensors, global_vars):
         if "eval_loss" not in global_vars.keys():
             global_vars["eval_loss"] = []
@@ -72,12 +64,10 @@ if __name__ == "__main__":
             if key.startswith("loss"):
                 global_vars["eval_loss"].append(torch.mean(torch.stack(value)))
 
-
     def eval_loss_epoch_finished_callback(global_vars):
         eloss = torch.max(torch.tensor(global_vars["eval_loss"]))
         print("Evaluation Loss: {0}".format(eloss))
         return dict({"Evaluation Loss": eloss})
-
 
     ecallback = nemo.core.EvaluatorCallback(
         eval_tensors=[loss_e],
@@ -86,12 +76,10 @@ if __name__ == "__main__":
         eval_step=100,
     )
 
-
     # SimpleLossLoggerCallback will print loss values to console.
     callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[loss], print_func=lambda x: print(f'Train Loss: {str(x[0].item())}')
     )
-
 
     # Invoke "train" action
     nf.train(
