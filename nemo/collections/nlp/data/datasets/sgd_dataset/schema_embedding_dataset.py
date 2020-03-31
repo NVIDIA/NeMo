@@ -31,7 +31,7 @@ __all__ = ['SchemaEmbeddingDataset']
 
 
 class SchemaEmbeddingDataset(Dataset):
-    def __init__(self, tokenizer, max_seq_length, input_file):
+    def __init__(self, tokenizer, max_seq_length, input_file, embedding_dim):
         """Generate the embeddings for a schema's elements.
 
         Args:
@@ -42,12 +42,13 @@ class SchemaEmbeddingDataset(Dataset):
         """
         self._tokenizer = tokenizer
         self._max_seq_length = max_seq_length
+        self._embedding_dim = embedding_dim
         self.schemas = schema.Schema(input_file)
 
         input_features = self._get_input_features()
 
         self.features = collections.defaultdict(list)
-
+        
         for feature in input_features:
             self.features["input_ids"].append(feature.input_ids)
             self.features["input_mask"].append(feature.input_mask)
@@ -276,7 +277,7 @@ class SchemaEmbeddingDataset(Dataset):
             embedding = [round(float(x), 6) for x in hidden_states[0][idx, 0, :].flat]
             intent_or_slot_id = self.features['intent_or_slot_id'][idx]
             value_id = self.features['value_id'][idx]
-
+            
             if tensor_name == "cat_slot_value_emb":
                 emb_mat[intent_or_slot_id, value_id] = embedding
             else:
@@ -290,7 +291,7 @@ class SchemaEmbeddingDataset(Dataset):
         max_num_noncat_slot = data_utils.MAX_NUM_NONCAT_SLOT
         max_num_slot = max_num_cat_slot + max_num_noncat_slot
         max_num_value = data_utils.MAX_NUM_VALUE_PER_CAT_SLOT
-        embedding_dim = data_utils.EMBEDDING_DIMENSION
+        embedding_dim = self._embedding_dim
 
         for _ in self.schemas.services:
             schema_embeddings.append(

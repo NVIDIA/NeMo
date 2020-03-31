@@ -56,6 +56,7 @@ class SchemaPreprocessor:
         schema_embedding_dir,
         max_seq_length,
         tokenizer,
+        embedding_dim,
         bert_model,
         datasets,
         overwrite_schema_emb_files,
@@ -72,12 +73,13 @@ class SchemaPreprocessor:
                 nemo.logging.info(f"Start generating the schema embeddings for {dataset_split} dataset.")
                 # create schema embedding if no file exists
                 schema_json_path = os.path.join(data_dir, dataset_split, "schema.json")
-
+                
                 emb_datalayer = BertInferDataLayer(
                     dataset_type=SchemaEmbeddingDataset,
                     tokenizer=tokenizer,
                     max_seq_length=max_seq_length,
                     input_file=schema_json_path,
+                    embedding_dim=embedding_dim
                 )
 
                 input_ids, input_mask, input_type_ids = emb_datalayer()

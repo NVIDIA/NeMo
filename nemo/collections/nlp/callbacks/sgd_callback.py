@@ -72,7 +72,6 @@ def eval_iter_callback(tensors, global_vars):
     # Add inverse alignments.
     predictions['noncat_alignment_start'] = output['start_char_idx']
     predictions['noncat_alignment_end'] = output['end_char_idx']
-    print('iter end:', torch.distributed.get_rank())
     global_vars['predictions'].extend(combine_predictions_in_example(predictions, batch_size))
 
 
@@ -96,7 +95,6 @@ def combine_predictions_in_example(predictions, batch_size):
 def eval_epochs_done_callback(
     global_vars, input_json_files, schema_json_file, prediction_dir, data_dir, eval_dataset, output_metric_file
 ):
-    print('epoch end:', torch.distributed.get_rank())
     pred_utils.write_predictions_to_file(
         global_vars['predictions'], input_json_files, schema_json_file, prediction_dir
     )
