@@ -3,6 +3,7 @@ from nemo.collections.nlp.data.datasets.sgd_dataset.SGDDataset import SGDDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core.neural_types import ChannelType, EmbeddedTextType, LabelsType, LengthsType, NeuralType
 from nemo.utils.decorators import add_port_docs
+import torch
 from torch.utils import data as pt_data
 
 __all__ = ['SGDDataLayer']
@@ -113,4 +114,4 @@ class SGDDataLayer(TextDataLayer):
     #     for _batch in batch:
     #         new_batch.append(_batch[1:])
     #         example_ids.append(_batch[0])
-    #     return example_ids, super().collate_fn(new_batch)
+    #     return example_ids, torch.utils.data.dataloader.default_collate(new_batch)

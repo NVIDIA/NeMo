@@ -31,8 +31,6 @@ __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 
 def eval_iter_callback(tensors, global_vars):
-    import torch
-    print('iter end:', torch.distributed.get_rank())
     if "all_preds" not in global_vars.keys():
         global_vars["all_preds"] = []
     if "all_labels" not in global_vars.keys():
@@ -65,8 +63,6 @@ def eval_iter_callback(tensors, global_vars):
 
 
 def eval_epochs_done_callback(global_vars, label_ids, graph_fold=None, normalize_cm=True):
-    import torch
-    print('epoch end:', torch.distributed.get_rank())
     labels = np.asarray(global_vars['all_labels'])
     preds = np.asarray(global_vars['all_preds'])
     subtokens_mask = np.asarray(global_vars['all_subtokens_mask']) > 0.5

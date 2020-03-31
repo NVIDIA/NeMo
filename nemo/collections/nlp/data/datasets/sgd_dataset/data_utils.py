@@ -117,7 +117,7 @@ class Dstc8DataProcessor(object):
         dialogs = load_dialogues(dialog_paths)
         schema_path = os.path.join(self.dstc8_data_dir, dataset, "schema.json")
         schemas = schema.Schema(schema_path)
-
+        
         examples = []
         for dialog_idx, dialog in enumerate(dialogs):
             if dialog_idx % 1000 == 0:

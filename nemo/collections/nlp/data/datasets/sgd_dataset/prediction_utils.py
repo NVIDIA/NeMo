@@ -137,7 +137,6 @@ def write_predictions_to_file(predictions, input_json_files, schema_json_file, o
             nemo.logging.info(f'{input_file_path} file is loaded')
             pred_dialogs = []
             for d in dialogs:
-                # import pdb; pdb.set_trace()
                 pred_dialogs.append(get_predicted_dialog(d, all_predictions, schemas))
         input_file_name = os.path.basename(input_file_path)
         output_file_path = os.path.join(output_dir, input_file_name)

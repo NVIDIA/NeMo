@@ -154,7 +154,7 @@ tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     tokenizer_model=args.tokenizer_model,
 )
 
-hidden_size = pretrained_bert_model.local_parameters["hidden_size"]
+hidden_size = pretrained_bert_model.hidden_size
 
 # Run SGD preprocessor to generate and store schema embeddings
 schema_preprocessor = SchemaPreprocessor(
@@ -162,6 +162,7 @@ schema_preprocessor = SchemaPreprocessor(
     schema_embedding_dir=args.schema_embedding_dir,
     max_seq_length=args.max_seq_length,
     tokenizer=tokenizer,
+    embedding_dim=hidden_size,
     bert_model=pretrained_bert_model,
     datasets=['train', args.eval_dataset],
     overwrite_schema_emb_files=args.overwrite_schema_emb_files,
