@@ -254,8 +254,7 @@ You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ
 
 .. note::
     During training, TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly \
-    predict special values for like **don't care** or **none** for the slots. \
-    The `process_multiwoz.py`_ script extracts that additional information from the dataset and the `dialogue_state_tracking_trade.py`_ script reports the **Gating Accuracy** as well.
+    predict special values for like **don't care** or **none** for the slots. The `process_multiwoz.py`_ script extracts the additional labels from the dataset and `dialogue_state_tracking_trade.py`_ script reports the **Gating Accuracy** as well.
 
 
 References
