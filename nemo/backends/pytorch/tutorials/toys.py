@@ -158,10 +158,8 @@ class RealFunctionDataLayer(DataLayerNM):
 
         x_data = t.tensor(np.random.uniform(low=x_lo, high=x_hi, size=self._n)).unsqueeze(-1).to(self._device)
         y_data = func(x_data)
-
-        self._data_iterator = t_utils.DataLoader(
-            t_utils.TensorDataset(x_data.float(), y_data.float()), batch_size=self._batch_size,
-        )
+        self._dataset = t_utils.TensorDataset(x_data.float(), y_data.float())
+        self._data_iterator = t_utils.DataLoader(self._dataset, batch_size=self._batch_size,)
 
     @property
     def data_iterator(self):
@@ -169,7 +167,7 @@ class RealFunctionDataLayer(DataLayerNM):
 
     @property
     def dataset(self):
-        return None
+        return self._dataset
 
 
 class MSELoss(LossNM):
