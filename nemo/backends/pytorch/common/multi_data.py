@@ -60,10 +60,8 @@ class MultiDataLayer(DataLayerNM):
             datasets=[dl.dataset for dl in self._data_layers], combination_mode=combination_mode
         )
 
-        total_num_port = sum([len(dl.output_ports) for dl in self._data_layers])
         self._ports = dict()
         if self._port_names:
-            assert (len(self._port_names) == total_num_port, "Number of ports is does not match.")
             i = 0
             for dl in self._data_layers:
                 for _, port_type in dl.output_ports.items():
