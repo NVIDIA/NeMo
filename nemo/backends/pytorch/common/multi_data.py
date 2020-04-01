@@ -100,7 +100,15 @@ class MultiDataset(torch.utils.data.Dataset):
         """
         self.datasets = datasets
         self.combination_mode = combination_mode
-        self.len = None
+        if self.combination_mode == "cross_product":
+            self.len = np.prod([len(d) for d in self.datasets])
+        elif self.combination_mode == "zip":
+            ds_lens = [len(d) for d in self.datasets]
+            self.len = np.min(ds_lens)
+            if len(set(ds_lens)) != 1:
+                raise ValueError("datasets do not have equal lengths.")
+        else:
+            raise ValueError("combination_mode unknown")
 
     def __getitem__(self, i):
         """
@@ -115,14 +123,4 @@ class MultiDataset(torch.utils.data.Dataset):
         In case of  combination_mode="cross_product" this would be prod(len(d) for d in self.datasets). 
         In case of  combination_mode="zip" this would be min(len(d) for d in self.datasets) given that all datasets have same length. 
         """
-        if not self.len:
-            if self.combination_mode == "cross_product":
-                self.len = np.prod([len(d) for d in self.datasets])
-            elif self.combination_mode == "zip":
-                ds_lens = [len(d) for d in self.datasets]
-                self.len = np.min(ds_lens)
-                if not np.all(ds_lens):
-                    logging.warning("datasets do not have equal lengths and will be pruned to the shortest length.")
-            else:
-                raise ValueError("combination_mode unknown")
         return self.len
