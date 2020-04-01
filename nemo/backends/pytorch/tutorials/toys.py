@@ -154,9 +154,8 @@ class RealFunctionDataLayer(DataLayerNM):
 
         self._n = n
         self._batch_size = batch_size
-        self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
 
-        x_data = t.tensor(np.random.uniform(low=x_lo, high=x_hi, size=self._n)).unsqueeze(-1).to(self._device)
+        x_data = t.tensor(np.random.uniform(low=x_lo, high=x_hi, size=self._n)).unsqueeze(-1)
         y_data = func(x_data)
         self._dataset = t_utils.TensorDataset(x_data.float(), y_data.float())
         self._data_iterator = t_utils.DataLoader(self._dataset, batch_size=self._batch_size,)
