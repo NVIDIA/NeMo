@@ -16,6 +16,7 @@
 # limitations under the License.
 # =============================================================================
 
+from enum import Enum
 from typing import List
 
 import numpy as np
@@ -25,7 +26,12 @@ from nemo import logging
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core.neural_types import *
 
-__all__ = ['MultiDataLayer']
+__all__ = ['MultiDataLayer', 'DataCombination']
+
+
+class DataCombination(Enum):
+    CROSSPRODUCT = 1
+    ZIP = 2
 
 
 class MultiDataLayer(DataLayerNM):
@@ -34,13 +40,13 @@ class MultiDataLayer(DataLayerNM):
         data_layers: List[DataLayerNM],
         batch_size: int,
         shuffle: bool = False,
-        combination_mode: str = "cross_product",
+        combination_mode: DataCombination = DataCombination.CROSSPRODUCT,
         port_names: List[str] = None,
     ):
         """
         data_layers: (list) of DataLayerNM objects
         batch_size: (int) batchsize when the underlying dataset is loaded
-        combination_mode: (str) defines how to combine the datasets, Options are ["cross_product", "zip"].
+        combination_mode: (DataCombination) defines how to combine the datasets.
         shuffle: (bool) whether underlying multi dataset should be shuffled in each epoch
         port_names: List(str) user can override all port names if specified 
         """
@@ -93,16 +99,20 @@ class MultiDataLayer(DataLayerNM):
 
 
 class MultiDataset(torch.utils.data.Dataset):
-    def __init__(self, datasets: List[torch.utils.data.Dataset], combination_mode: str = "cross_product"):
+    def __init__(
+        self,
+        datasets: List[torch.utils.data.Dataset],
+        combination_mode: DataCombination = DataCombination.CROSSPRODUCT,
+    ):
         """
         Datasets: list of torch.utils.data.Dataset objects.
         combination_mode: str, defines how to combine the datasets, Options are ["cross_product", "zip"]. 
         """
         self.datasets = datasets
         self.combination_mode = combination_mode
-        if self.combination_mode == "cross_product":
+        if self.combination_mode == DataCombination.CROSSPRODUCT:
             self.len = np.prod([len(d) for d in self.datasets])
-        elif self.combination_mode == "zip":
+        elif self.combination_mode == DataCombination.ZIP:
             ds_lens = [len(d) for d in self.datasets]
             self.len = np.min(ds_lens)
             if len(set(ds_lens)) != 1:

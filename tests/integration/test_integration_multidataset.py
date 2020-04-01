@@ -24,6 +24,7 @@ import pytest
 import torch
 
 import nemo
+from nemo.backends.pytorch.common import DataCombination
 from nemo.core import ChannelType, NeuralType
 
 logging = nemo.logging
@@ -45,7 +46,7 @@ class TestMultiDLIntegration(TestCase):
         dl_2 = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(batch_size=batch_size, n=dataset_size_1)
 
         data_layer = nemo.backends.pytorch.common.MultiDataLayer(
-            data_layers=[dl_1, dl_2], batch_size=batch_size, shuffle=shuffle, combination_mode="zip"
+            data_layers=[dl_1, dl_2], batch_size=batch_size, shuffle=shuffle, combination_mode=DataCombination.ZIP
         )
         x_0, y_0, x_1, y_1 = data_layer()
 

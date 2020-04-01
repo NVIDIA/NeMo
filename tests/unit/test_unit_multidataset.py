@@ -24,6 +24,7 @@ import pytest
 import torch
 
 import nemo
+from nemo.backends.pytorch.common import DataCombination
 from nemo.core import ChannelType, NeuralType
 
 logging = nemo.logging
@@ -54,7 +55,10 @@ class TestMultiDLUnit(TestCase):
         )
 
         data_layer = nemo.backends.pytorch.common.MultiDataLayer(
-            data_layers=[dl_1, dl_2], batch_size=batch_size, shuffle=shuffle, combination_mode="cross_product"
+            data_layers=[dl_1, dl_2],
+            batch_size=batch_size,
+            shuffle=shuffle,
+            combination_mode=DataCombination.CROSSPRODUCT,
         )
         self.assertEqual([*data_layer.output_ports], ["a", "b", "a_1", "c"])
         self.assertEqual(len(data_layer), dataset_size * dataset_size)
@@ -81,7 +85,7 @@ class TestMultiDLUnit(TestCase):
             data_layers=[dl_1, dl_2],
             batch_size=batch_size,
             shuffle=shuffle,
-            combination_mode="cross_product",
+            combination_mode=DataCombination.CROSSPRODUCT,
             port_names=["1", "2", "3", "4"],
         )
         self.assertEqual([*data_layer.output_ports], ["1", "2", "3", "4"])
@@ -107,7 +111,7 @@ class TestMultiDLUnit(TestCase):
         )
 
         data_layer = nemo.backends.pytorch.common.MultiDataLayer(
-            data_layers=[dl_1, dl_2], batch_size=batch_size, shuffle=shuffle, combination_mode="zip"
+            data_layers=[dl_1, dl_2], batch_size=batch_size, shuffle=shuffle, combination_mode=DataCombination.ZIP
         )
         self.assertEqual(len(data_layer), final_dataset_size)
 
@@ -132,7 +136,7 @@ class TestMultiDLUnit(TestCase):
 
         with pytest.raises(ValueError):
             data_layer = nemo.backends.pytorch.common.MultiDataLayer(
-                data_layers=[dl_1, dl_2], batch_size=batch_size, shuffle=shuffle, combination_mode="zip"
+                data_layers=[dl_1, dl_2], batch_size=batch_size, shuffle=shuffle, combination_mode=DataCombination.ZIP
             )
 
     @pytest.mark.unit
