@@ -110,15 +110,18 @@ def create_all_dags(args, neural_factory):
     del eval_dl_params["train"]
     del eval_dl_params["eval"]
 
+    data_layers_test = []
+    for test_set in args.eval_datasets:
 
-    data_layer_test = nemo_asr.AudioToLabelDataLayer(
-        manifest_filepath=args.eval_datasets[0],
-        labels=None,
-        batch_size=args.batch_size,
-        num_workers=cpu_per_traindl,
-        **eval_dl_params,
+        data_layer_test = nemo_asr.AudioToLabelDataLayer(
+            manifest_filepath=test_set,
+            labels=data_layer_train.labels,
+            batch_size=args.batch_size,
+            num_workers=cpu_per_traindl,
+            **eval_dl_params,
         # normalize_transcripts=False
-    )
+        )
+        data_layers_test.append(data_layer_test)
     # create shared modules
 
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
@@ -151,24 +154,7 @@ def create_all_dags(args, neural_factory):
     
     logits,_ = decoder(encoder_output=encoded)
     loss = xent_loss(logits=logits, labels=label)
-
-# --- Assemble Validation DAG --- #
-    audio_signal_test, audio_len_test, label_test, label_len_test = data_layer_test()
-
-    processed_signal_test, processed_len_test = data_preprocessor(
-        input_signal=audio_signal_test,
-        length=audio_len_test)
-
-    encoded_test, encoded_len_test = encoder(
-        audio_signal=processed_signal_test,
-        length=processed_len_test)
-
-    logits_test,_ = decoder(encoder_output=encoded_test)
-    loss_test = xent_loss(
-        logits=logits_test,
-        labels=label_test)
     
-
     # create train callbacks
     train_callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[loss, logits, label],
@@ -190,18 +176,30 @@ def create_all_dags(args, neural_factory):
 
         callbacks.append(chpt_callback)
 
-    tagname = args.eval_datasets[0]
-    eval_callback = nemo.core.EvaluatorCallback(
-        eval_tensors=[loss_test, logits_test, label_test],
-        user_iter_callback=partial(
-            process_classification_evaluation_batch, top_k=1),
-        user_epochs_done_callback=partial(
-            process_classification_evaluation_epoch,tag=tagname),
-        eval_step=args.eval_freq,  # How often we evaluate the model on the test set
-        tb_writer=neural_factory.tb_writer
-        )
 
-    callbacks.append(eval_callback)
+# --- Assemble Validation DAG --- #
+
+    for i,eval_layer in enumerate(data_layers_test):
+
+        audio_signal_test, audio_len_test, label_test, label_len_test = eval_layer()
+        processed_signal_test, processed_len_test = data_preprocessor(input_signal=audio_signal_test,length=audio_len_test)
+        encoded_test, encoded_len_test = encoder(audio_signal=processed_signal_test,length=processed_len_test)
+        logits_test,_ = decoder(encoder_output=encoded_test)
+        loss_test = xent_loss(logits=logits_test,labels=label_test)
+
+        tagname = os.path.dirname(args.eval_datasets[i]).split('/')[-1]+'_'+str(i)
+        print(tagname)
+        eval_callback = nemo.core.EvaluatorCallback(
+            eval_tensors=[loss_test, logits_test, label_test],
+            user_iter_callback=partial(
+                process_classification_evaluation_batch, top_k=1),
+            user_epochs_done_callback=partial(
+                process_classification_evaluation_epoch,tag=tagname),
+            eval_step=args.eval_freq,  # How often we evaluate the model on the test set
+            tb_writer=neural_factory.tb_writer
+            )
+
+        callbacks.append(eval_callback)
 
     return loss, callbacks, steps_per_epoch, loss_test, logits_test, label_test
 

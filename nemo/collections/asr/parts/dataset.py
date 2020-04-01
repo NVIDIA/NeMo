@@ -417,7 +417,7 @@ class AudioLabelDataset(Dataset):
         self.trim = trim
         self.load_audio = load_audio
 
-        self.labels = self.collection.uniq_labels
+        self.labels =  labels if labels else self.collection.uniq_labels
         self.num_commands = len(self.labels)
 
         self.label2id, self.id2label = {}, {}

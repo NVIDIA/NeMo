@@ -555,6 +555,8 @@ target_label_n}
         }
         self._dataset = AudioLabelDataset(**dataset_params)
         self.num_classes = self._dataset.num_commands
+        logging.info("# of classes :{}".format(self.num_classes))
+        self.labels = self._dataset.labels
 
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
