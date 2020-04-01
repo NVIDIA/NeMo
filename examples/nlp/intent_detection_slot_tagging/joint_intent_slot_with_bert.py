@@ -213,7 +213,7 @@ train_callback = SimpleLossLoggerCallback(
         f'Slot Tagging Loss:{str(round(x[2].item(), 3))}'
     ),
     tb_writer=nf.tb_writer,
-    get_tb_values=lambda x: [["loss", x[0]]],
+    get_tb_values=lambda x: [["total_loss", x[0]], ["intent_loss", x[1]], ["slot_loss", x[2]]],
     step_freq=train_steps_per_epoch,
 )
 
