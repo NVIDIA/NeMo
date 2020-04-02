@@ -16,8 +16,6 @@
 import os
 import sys
 
-from package_info import __version__
-
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -97,6 +95,7 @@ author = "NVIDIA"
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 
+from package_info import __version__
 
 # The short X.Y version.
 # version = "0.10.0"
