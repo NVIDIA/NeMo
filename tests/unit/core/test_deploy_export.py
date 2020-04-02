@@ -319,9 +319,10 @@ class TestDeployExport:
         module = NeuralModule.import_from_config("tests/configs/test_deploy_export.yaml", module_name)
         # Generate filename in the temporary directory.
         tmp_file_name = str(tmpdir.mkdir("export").join(module_name))
+        input_example = input_example.cuda() if input_example is not None else input_example
         # Test export.
         self.__test_export_route(
-            module=module, out_name=tmp_file_name, mode=df_type, input_example=input_exampl.cuda(),
+            module=module, out_name=tmp_file_name, mode=df_type, input_example=input_example,
         )
 
     @pytest.mark.unit
