@@ -4,6 +4,7 @@ dropout: &drop 0.5
 repeat:  &rep  1
 
 AudioToLabelDataLayer:
+    min_duration: 0.1
     sample_rate: *sample_rate
     train:
         shuffle: true
