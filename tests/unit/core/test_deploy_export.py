@@ -282,25 +282,25 @@ class TestDeployExport:
             # TaylorNet export tests.
             (None, "TaylorNet", DF.TORCHSCRIPT),
             # TokenClassifier export tests.
-            (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.ONNX),
-            (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.TORCHSCRIPT),
-            (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.PYTORCH),
-            pytest.param(torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.TRTONNX, marks=requires_trt),
+            (torch.randn(16, 16, 512), "TokenClassifier", DF.ONNX),
+            (torch.randn(16, 16, 512), "TokenClassifier", DF.TORCHSCRIPT),
+            (torch.randn(16, 16, 512), "TokenClassifier", DF.PYTORCH),
+            pytest.param(torch.randn(16, 16, 512), "TokenClassifier", DF.TRTONNX, marks=requires_trt),
             # JasperDecoderForCTC export tests.
-            (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.ONNX),
-            (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.TORCHSCRIPT),
-            (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.PYTORCH),
-            pytest.param(torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.TRTONNX, marks=requires_trt),
+            (torch.randn(34, 1024, 1), "JasperDecoderForCTC", DF.ONNX),
+            (torch.randn(34, 1024, 1), "JasperDecoderForCTC", DF.TORCHSCRIPT),
+            (torch.randn(34, 1024, 1), "JasperDecoderForCTC", DF.PYTORCH),
+            pytest.param(torch.randn(34, 1024, 1), "JasperDecoderForCTC", DF.TRTONNX, marks=requires_trt),
             # JasperEncoder export tests.
-            (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.ONNX),
-            (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.TORCHSCRIPT),
-            (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.PYTORCH),
-            pytest.param(torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.TRTONNX, marks=requires_trt),
+            (torch.randn(16, 64, 256), "JasperEncoder", DF.ONNX),
+            (torch.randn(16, 64, 256), "JasperEncoder", DF.TORCHSCRIPT),
+            (torch.randn(16, 64, 256), "JasperEncoder", DF.PYTORCH),
+            pytest.param(torch.randn(16, 64, 256), "JasperEncoder", DF.TRTONNX, marks=requires_trt),
             # QuartznetEncoder export tests.
-            (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.ONNX),
-            (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.TORCHSCRIPT),
-            (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.PYTORCH),
-            pytest.param(torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.TRTONNX, marks=requires_trt),
+            (torch.randn(16, 64, 256), "QuartznetEncoder", DF.ONNX),
+            (torch.randn(16, 64, 256), "QuartznetEncoder", DF.TORCHSCRIPT),
+            (torch.randn(16, 64, 256), "QuartznetEncoder", DF.PYTORCH),
+            pytest.param(torch.randn(16, 64, 256), "QuartznetEncoder", DF.TRTONNX, marks=requires_trt),
         ],
     )
     def test_module_export(self, tmpdir, input_example, module_name, df_type):
@@ -321,7 +321,7 @@ class TestDeployExport:
         tmp_file_name = str(tmpdir.mkdir("export").join(module_name))
         # Test export.
         self.__test_export_route(
-            module=module, out_name=tmp_file_name, mode=df_type, input_example=input_example,
+            module=module, out_name=tmp_file_name, mode=df_type, input_example=input_exampl.cuda(),
         )
 
     @pytest.mark.unit
