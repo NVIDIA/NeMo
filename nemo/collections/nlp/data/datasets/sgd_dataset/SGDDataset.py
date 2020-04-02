@@ -6,6 +6,7 @@ https://github.com/google-research/google-research/tree/master/schema_guided_dst
 import os
 
 import numpy as np
+import torch
 from torch.utils.data import Dataset
 
 from nemo import logging
@@ -35,20 +36,23 @@ class SGDDataset(Dataset):
         if not os.path.exists(dialogues_example_dir):
             os.makedirs(dialogues_example_dir)
 
-        if os.path.exists(dial_file) and not overwrite_dial_file:
+        schema_pkl_files = dialogues_processor.schema_pkl_files
+        schema_pkl_exist = dataset_split in schema_pkl_files and os.path.exists(schema_pkl_files[dataset_split])
+
+        if os.path.exists(dial_file) and not overwrite_dial_file and schema_pkl_exist:
             logging.info(f"Loading dialogue examples from {dial_file}.")
             with open(dial_file, "rb") as f:
                 self.features = np.load(f, allow_pickle=True)
-
         else:
             logging.info("Start generating the dialogue examples.")
-
             self.features = dialogues_processor.get_dialog_examples(dataset_split)
-            with open(dial_file, "wb") as f:
-                np.save(f, self.features)
 
-            logging.info(f"The dialogue examples saved at {dial_file}")
-            logging.info("Finish generating the dialogue examples.")
+            master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+            if master_device:
+                with open(dial_file, "wb") as f:
+                    np.save(f, self.features)
+                logging.info(f"The dialogue examples saved at {dial_file}")
+                logging.info("Finish generating the dialogue examples.")
         self.schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split)
 
     def __get_ids_to_service_names_dict():
