@@ -1214,7 +1214,12 @@ class PtActions(Actions):
                 for i in range(1, len(call_chain) - 1):
                     key = call_chain[i][0].unique_instance_id
                     pmodule = self.module_reference_table[key][1]
-                    if not isinstance(pmodule, DDP) and isinstance(pmodule, torch.nn.Module):
+                    num_trainable_weights = self.module_reference_table[key][1].num_weights
+                    if (
+                        not isinstance(pmodule, DDP)
+                        and isinstance(pmodule, torch.nn.Module)
+                        and num_trainable_weights > 0
+                    ):
                         # gpf = 1
                         # if gradient_predivide:
                         #     gpf = dist.get_world_size()
