@@ -64,11 +64,7 @@ THE LATEST STABLE VERSION OF NeMo is **0.10.0** (Available via PIP).
 2) PyTorch 1.4.* with GPU support
 3) (optional, for best performance) NVIDIA APEX. Install from here: https://github.com/NVIDIA/apex
 
-**NeMo Docker Container**
- NVIDIA `NGC NeMo Toolkit container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_ is now available.
 
-* Pull the docker: ``docker pull nvcr.io/nvidia/nemo:v0.10``
-* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.10``
 
 If you are using the NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ follow these instructions
 
