@@ -63,7 +63,7 @@ class SchemaPreprocessor:
         bert_ckpt_dir,
         nf,
     ):
-
+        self.schemas_dict = {}
         self._schema_embedding_dir = schema_embedding_dir
         for dataset_split in datasets:
             schema_embedding_file = self._get_schema_embedding_file_name(dataset_split)
