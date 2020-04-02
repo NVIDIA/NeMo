@@ -74,6 +74,7 @@ FILE_RANGES = {
     "dstc8_single_domain": {"train": range(1, 44), "dev": range(1, 8), "test": range(1, 12)},
     "dstc8_multi_domain": {"train": range(44, 128), "dev": range(8, 21), "test": range(12, 35)},
     "dstc8_all": {"train": range(1, 128), "dev": range(1, 21), "test": range(1, 35)},
+    "DEBUG": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 3)},
 }
 
 # Name of the file containing all predictions and their corresponding frame metrics.
@@ -102,8 +103,10 @@ class Dstc8DataProcessor(object):
         self._max_seq_length = max_seq_length
 
         self._schemas = {}
+        self.schema_pkl_files = {}
         for dataset in ["train", "dev", "test"]:
             schema_pkl_file = os.path.join(self.dstc8_data_dir, dataset, "_schema.pkl")
+            self.schema_pkl_files[dataset] = schema_pkl_file
             if os.path.exists(schema_pkl_file):
                 self._schemas[dataset] = pickle.load(open(schema_pkl_file, "rb"))
 
