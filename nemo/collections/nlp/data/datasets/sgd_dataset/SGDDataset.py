@@ -50,7 +50,6 @@ class SGDDataset(Dataset):
             logging.info(f"The dialogue examples saved at {dial_file}")
             logging.info("Finish generating the dialogue examples.")
         self.schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split)
-      
 
     def __get_ids_to_service_names_dict():
         return

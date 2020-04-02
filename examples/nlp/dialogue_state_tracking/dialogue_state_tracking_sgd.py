@@ -257,7 +257,6 @@ eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
 
 # Encode the utterances using BERT
 eval_data = eval_datalayer()
-print(len(eval_datalayer))
 
 eval_token_embeddings = pretrained_bert_model(
     input_ids=eval_data.utterance_ids,
@@ -313,7 +312,8 @@ eval_tensors = [
     eval_data.num_noncategorical_slots,
 ]
 
-steps_per_epoch = len(train_datalayer) // (args.train_batch_size * args.num_gpus)
+steps_per_epoch = math.ceil(len(train_datalayer) / (args.train_batch_size * args.num_gpus))
+
 logging.info(f'steps per epoch: {steps_per_epoch}')
 
 # Create trainer and execute training action
@@ -341,7 +341,9 @@ os.makedirs(prediction_dir, exist_ok=True)
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
-    user_iter_callback=lambda x, y: eval_iter_callback(x, y, dialogues_processor.get_ids_to_service_names_dict(args.eval_dataset), args.eval_dataset),
+    user_iter_callback=lambda x, y: eval_iter_callback(
+        x, y, dialogues_processor.get_ids_to_service_names_dict(args.eval_dataset), args.eval_dataset
+    ),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x, input_json_files, schema_json_file, prediction_dir, args.data_dir, args.eval_dataset, output_metric_file
     ),

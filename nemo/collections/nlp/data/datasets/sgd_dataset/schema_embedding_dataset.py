@@ -44,7 +44,7 @@ class SchemaEmbeddingDataset(Dataset):
         self._max_seq_length = max_seq_length
         self._embedding_dim = embedding_dim
         self.schemas = schema.Schema(input_file)
-        
+
         input_features = self._get_input_features()
 
         self.features = collections.defaultdict(list)
