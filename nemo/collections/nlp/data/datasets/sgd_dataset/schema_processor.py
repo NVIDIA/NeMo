@@ -7,6 +7,7 @@ import collections
 import os
 
 import numpy as np
+import torch
 
 import nemo
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema_embedding_dataset import SchemaEmbeddingDataset
@@ -68,8 +69,9 @@ class SchemaPreprocessor:
         for dataset_split in datasets:
             schema_embedding_file = self._get_schema_embedding_file_name(dataset_split)
 
-            # Generate the schema embeddings if needed or specified.
-            if not os.path.exists(schema_embedding_file) or overwrite_schema_emb_files:
+            # Generate the schema embeddings if needed or specified
+            master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+            if master_device and not os.path.exists(schema_embedding_file) or overwrite_schema_emb_files:
                 nemo.logging.info(f"Start generating the schema embeddings for {dataset_split} dataset.")
                 # create schema embedding if no file exists
                 schema_json_path = os.path.join(data_dir, dataset_split, "schema.json")
