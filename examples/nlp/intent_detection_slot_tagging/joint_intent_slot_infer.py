@@ -104,44 +104,37 @@ def get_preds(logits):
     return np.argmax(logits, 1)
 
 
-def print_large_array(array):
-    it = np.nditer(array, flags=['multi_index'])
-    prev_row = 0
-    while not it.finished:
-        # print("%d <%s>" % (it[0], it.multi_index), end=' ')
-        if (it.multi_index[0] != prev_row):
-            print()
-            prev_row = it.multi_index[0]
-
-        print(f'{it[0]:2}', end=" ")
-        it.iternext()
-
-
-def log_misclassified_queries(intent_labels, intent_preds, queries, intent_dict_file, limit=50):
-    logging.info(f'Misclassified intent queries (limit {limit})')
-    intents = open(intent_dict_file, 'r').read().splitlines()
-
+def log_misclassified_queries(intent_labels, intent_preds, queries, intent_dict, limit=50):
+    logging.info(f'*** Misclassified intent queries (limit {limit}) ***')
     cnt = 0
     for i in range(len(intent_preds)):
         if intent_labels[i] != intent_preds[i]:
             query = queries[i].split('\t')[0]
-            logging.info(f'{query} - intent: {intents[intent_labels[i]]} - predicted: {intents[intent_preds[i]]}')
+            logging.info(f'{query} - intent: {intent_dict[intent_labels[i]]} - predicted: {intent_dict[intent_preds[i]]}')
             cnt = cnt + 1
             if cnt >= limit:
                 break
 
 
-def log_misclassified_slots(intent_labels, intent_preds, slot_labels, slot_preds, subtokens_mask, queries, intent_dict_file, limit=50):
-    logging.info(f'Misclassified slots queries (limit {limit})')
-    intents = open(intent_dict_file, 'r').read().splitlines()
+def log_misclassified_slots(intent_labels, intent_preds, slot_labels, slot_preds, subtokens_mask, queries, intent_dict, slot_dict, limit=50):
+    logging.info('');
+    logging.info(f'*** Misclassified slots queries (limit {limit}) ***')
+    # print slot dictionary
+    str = ''
+    for i, slot in enumerate(slot_dict):
+        str += f'{i} - {slot}, '
+        if i % 5 == 4 or i == len(slot_dict)-1:
+            logging.info(str)
+            str = ''
 
+    logging.info('----------------');
     cnt = 0
     for i in range(len(intent_preds)):
         cur_slot_pred = slot_preds[i][subtokens_mask[i]]
         cur_slot_label = slot_labels[i][subtokens_mask[i]]
         if not np.all(cur_slot_pred == cur_slot_label):
             query = queries[i].split('\t')[0]
-            logging.info(f'{query} - intent: {intents[intent_labels[i]]} - predicted: {intents[intent_preds[i]]}')
+            logging.info(f'{query} - intent: {intent_dict[intent_labels[i]]} - predicted: {intent_dict[intent_preds[i]]}')
             logging.info(cur_slot_pred)
             logging.info(cur_slot_label)
             cnt = cnt + 1
@@ -167,18 +160,42 @@ def check_problematic_slots(slot_preds_list, slot_dict):
     print("Total problematic slots: " + str(cnt))
 
 
+def analyze_confusion_matrix(cm, dict, max_pairs=10):
+    threshold = 5
+    confused_pairs = {}
+    size = cm.shape[0]
+    for i in range(size):
+        res = cm[i].argsort()
+        for j in range(size):
+            pos = res[size-j-1]
+            # no confusion - same row and column
+            if pos == i:
+                continue
+            elif cm[i][pos] >= threshold:
+                str = f'{dict[i]} -> {dict[pos]}'
+                confused_pairs[str] = cm[i][pos]
+            else:
+                break
+
+    # sort my max confusions and print first max_pairs
+    sorted_confused_pairs = sorted(confused_pairs.items(), key=lambda x: x[1], reverse=True)
+    for i, pair_str in enumerate(sorted_confused_pairs):
+        if i>= max_pairs:
+            break;
+        logging.info(pair_str)
+
 
 intent_logits, slot_logits, loss_mask, subtokens_mask, intent_labels, slot_labels_unmasked = [
     concatenate(tensors) for tensors in evaluated_tensors
 ]
 
+# --- analyse of the results ---
 # slot accuracies
 logging.info('Slot Prediction Results:')
 slot_preds_unmasked = np.argmax(slot_logits, axis=2)
 subtokens_mask = subtokens_mask > 0.5
 slot_labels = slot_labels_unmasked[subtokens_mask]
 slot_preds = slot_preds_unmasked[subtokens_mask]
-
 slot_accuracy = np.mean(slot_labels == slot_preds)
 logging.info(f'Slot Accuracy: {slot_accuracy}')
 f1_scores = get_f1_scores(slot_labels, slot_preds, average_modes=['weighted', 'macro', 'micro'])
@@ -199,19 +216,28 @@ for k, v in f1_scores.items():
 
 logging.info(f'\n {get_classification_report(intent_labels, intent_preds, label_ids=data_desc.intents_label_ids)}')
 
-# display confusion matrix
-# does not work well for large matrices
-# cm = confusion_matrix(intent_labels, intent_preds)
-# print_large_array(cp)
-# print(f'Intent Confusion matrix:\n{cm}')
-
-
 # print queries with wrong intent:
 queries = open(f'{data_desc.data_dir}/{args.eval_file_prefix}.tsv', 'r').readlines()[1:]
-log_misclassified_queries(intent_labels, intent_preds, queries, data_desc.intent_dict_file)
+intent_dict = open(data_desc.intent_dict_file, 'r').read().splitlines()
+log_misclassified_queries(intent_labels, intent_preds, queries, intent_dict, limit=30)
 
 # print queries with wrong slots:
-log_misclassified_slots(intent_labels, intent_preds, slot_labels_unmasked, slot_preds_unmasked, subtokens_mask, queries, data_desc.intent_dict_file)
+slot_dict = open(data_desc.slot_dict_file, 'r').read().splitlines()
+log_misclassified_slots(intent_labels, intent_preds, slot_labels_unmasked, slot_preds_unmasked, subtokens_mask, queries, intent_dict, slot_dict, limit=30)
+
+# analyze confusion matrices
+print('')
+logging.info(f'*** Most Confused Intents ***')
+cm = confusion_matrix(intent_labels, intent_preds)
+analyze_confusion_matrix(cm, intent_dict, max_pairs=20)
+
+print('')
+logging.info(f'*** Most Confused Slots ***')
+cm = confusion_matrix(slot_labels, slot_preds, np.arange(len(slot_dict)))
+analyze_confusion_matrix(cm, slot_dict, max_pairs=20)
+
+# does not work well for large matrices
+# print(f'Intent Confusion matrix:\n{cm}')
 
 # check potentially problematic slots - when I- label comes after different B- label
 # slot_dict_file = f'{data_desc.data_dir}/dict.slots.csv'
