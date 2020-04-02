@@ -23,8 +23,8 @@ https://github.com/google-research/google-research/tree/master/schema_guided_dst
 
 import json
 import os
-import re
 import pickle
+import re
 
 import torch
 
@@ -125,7 +125,7 @@ class Dstc8DataProcessor(object):
         schemas = Schema(schema_path)
         self._schemas[dataset] = schemas
         self._save_schemas(dataset)
-        
+
         examples = []
         for dialog_idx, dialog in enumerate(dialogs):
             if dialog_idx % 1000 == 0:
@@ -136,7 +136,7 @@ class Dstc8DataProcessor(object):
     def _save_schemas(self, dataset):
         schema_pkl_file = os.path.join(self.dstc8_data_dir, dataset, "_schema.pkl")
         pickle.dump(self._schemas[dataset], open(schema_pkl_file, "wb"))
-    
+
     def get_service_names_to_id_dict(self, dataset):
         if dataset not in self._schemas:
             raise ValueError(f"schema not available for {dataset} dataset. Rerun with flag --overwrite_dial_files")
@@ -162,7 +162,7 @@ class Dstc8DataProcessor(object):
                 else:
                     system_utterance = ""
                     system_frames = {}
-              
+
                 turn_id = "{}-{}-{:02d}".format(dataset, dialog_id, turn_idx)
                 turn_examples, prev_states = self._create_examples_from_turn(
                     turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas
@@ -203,11 +203,16 @@ class Dstc8DataProcessor(object):
         for service, user_frame in user_frames.items():
             # Create an example for this service.
             example = base_example.make_copy_with_utterance_features()
-            
+
             example.example_id = "{}-{}".format(turn_id, service)
             _, dialog_id, turn_id_ = turn_id.split('-')
             dialog_id_1, dialog_id_2 = dialog_id.split('_')
-            example.example_id_num = [int(dialog_id_1), int(dialog_id_2), int(turn_id_), schemas.get_service_id(service)]
+            example.example_id_num = [
+                int(dialog_id_1),
+                int(dialog_id_2),
+                int(turn_id_),
+                schemas.get_service_id(service),
+            ]
 
             example.service_schema = schemas.get_service_schema(service)
             system_frame = system_frames.get(service, None)

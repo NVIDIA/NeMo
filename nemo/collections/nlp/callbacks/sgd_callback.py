@@ -22,27 +22,25 @@ def tensor2list(tensor):
 def get_str_example_id(eval_dataset, ids_to_service_names_dict, example_id_num):
     def format_turn_id(ex_id_num):
         dialog_id_1, dialog_id_2, turn_id, service_id = ex_id_num
-        return "{}-{}_{:05d}-{:02d}-{}".format(eval_dataset, dialog_id_1, dialog_id_2, turn_id, ids_to_service_names_dict[service_id])
-   
+        return "{}-{}_{:05d}-{:02d}-{}".format(
+            eval_dataset, dialog_id_1, dialog_id_2, turn_id, ids_to_service_names_dict[service_id]
+        )
+
     return list(map(format_turn_id, tensor2list(example_id_num)))
-    
+
 
 def eval_iter_callback(tensors, global_vars, ids_to_service_names_dict, eval_dataset):
-    global_vars_keys = ['predictions']
-    for key in global_vars_keys:
-        if key not in global_vars:
-            global_vars[key] = []
+    if 'predictions' not in global_vars:
+        global_vars['predictions'] = []
 
     output = {}
     for k, v in tensors.items():
         ind = k.find('~~~')
         if ind != -1:
-            output[k[:ind]] = v[0]
+            output[k[:ind]] = torch.cat(v)
 
     predictions = {}
     predictions['example_id'] = get_str_example_id(eval_dataset, ids_to_service_names_dict, output['example_id_num'])
-
-    get_str_example_id(eval_dataset, ids_to_service_names_dict, output['example_id_num'])
     predictions['service_id'] = output['service_id']
     predictions['is_real_example'] = output['is_real_example']
 
@@ -104,10 +102,7 @@ def combine_predictions_in_example(predictions, batch_size):
 
 def eval_epochs_done_callback(
     global_vars, input_json_files, schema_json_file, prediction_dir, data_dir, eval_dataset, output_metric_file
-):  
-    print (len(global_vars['predictions']), '1gpu: 5964')
-    import pdb; pdb.set_trace()
-    print ('------>',torch.distributed.get_rank())
+):
     pred_utils.write_predictions_to_file(
         global_vars['predictions'], input_json_files, schema_json_file, prediction_dir
     )

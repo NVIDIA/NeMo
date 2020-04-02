@@ -90,4 +90,3 @@ class SGDDataLayer(TextDataLayer):
             'dialogues_processor': dialogues_processor,
         }
         super().__init__(dataset_type, dataset_params, batch_size=batch_size, shuffle=shuffle)
-
