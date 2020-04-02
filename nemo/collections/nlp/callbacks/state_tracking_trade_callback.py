@@ -18,6 +18,7 @@ import numpy as np
 import torch
 
 from nemo import logging
+from nemo.collections.nlp.utils.callback_utils import tensor2numpy
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
@@ -33,27 +34,37 @@ def eval_iter_callback(tensors, global_vars, data_desc):
     if 'gating_preds' not in global_vars:
         global_vars['gating_preds'] = []
 
-    for kv, v in tensors.items():
-        if kv.startswith('loss'):
-            loss_numpy = v[0].cpu().numpy()
-            global_vars['loss'].append(loss_numpy)
-        if kv.startswith('point_outputs'):
-            point_outputs = v[0]
-        if kv.startswith('gate_outputs'):
-            gate_outputs = v[0]
-        if kv.startswith('gating_labels'):
-            gating_labels = v[0].cpu().numpy()
-            global_vars['gating_labels'].extend(gating_labels)
-        if kv.startswith('tgt_ids'):
-            tgt_ids = v[0]
+    point_outputs_max = []
+    tgt_ids = []
+    gate_outputs_max = []
+    for names_list, values_list in tensors.items():
+        if names_list.startswith('loss'):
+            for values in values_list:
+                global_vars['loss'].append(tensor2numpy(values))
+        if names_list.startswith('gating_labels'):
+            for values in values_list:
+                global_vars['gating_labels'].extend(tensor2numpy(values))
+        if names_list.startswith('point_outputs'):
+            for values in values_list:
+                p_max = torch.argmax(values, dim=-1)
+                point_outputs_max.extend(tensor2numpy(p_max))
+        if names_list.startswith('gate_outputs'):
+            for values in values_list:
+                g_max = torch.argmax(values, axis=-1)
+                gate_outputs_max.extend(tensor2numpy(g_max))
+        if names_list.startswith('tgt_ids'):
+            for values in values_list:
+                tgt_ids.extend(tensor2numpy(values))
 
-    point_outputs_max = torch.argmax(point_outputs, dim=-1)
+    point_outputs_max = np.asarray(point_outputs_max)
+    tgt_ids = np.asarray(tgt_ids)
+
     mask_paddings = tgt_ids == data_desc.vocab.pad_id
     comp_res = (point_outputs_max == tgt_ids) | mask_paddings
-    comp_res = torch.all(comp_res, axis=-1, keepdims=False)
+    comp_res = np.all(comp_res, axis=-1, keepdims=False)
+    global_vars['comp_res'].extend(comp_res)
 
-    global_vars['comp_res'].extend(comp_res.cpu().numpy())
-    global_vars['gating_preds'].extend(torch.argmax(gate_outputs, axis=-1).cpu().numpy())
+    global_vars['gating_preds'].extend(gate_outputs_max)
 
 
 def eval_epochs_done_callback(global_vars, data_desc):
