@@ -38,21 +38,18 @@ def eval_iter_callback(tensors, global_vars, data_desc):
     tgt_ids_list = []
     gate_outputs_max_list = []
     for tensor_name, values_list in tensors.items():
-        if tensor_name.startswith('loss'):
-            for values in values_list:
-                global_vars['loss'].append(tensor2list(values))
         if tensor_name.startswith('gating_labels'):
             for values in values_list:
                 global_vars['gating_labels'].extend(tensor2list(values))
-        if tensor_name.startswith('point_outputs'):
+        elif tensor_name.startswith('point_outputs'):
             for values in values_list:
                 p_max = torch.argmax(values, dim=-1)
                 point_outputs_max_list.append(tensor2numpy(p_max))
-        if tensor_name.startswith('gate_outputs'):
+        elif tensor_name.startswith('gate_outputs'):
             for values in values_list:
                 g_max = torch.argmax(values, axis=-1)
                 gate_outputs_max_list.append(tensor2numpy(g_max))
-        if tensor_name.startswith('tgt_ids'):
+        elif tensor_name.startswith('tgt_ids'):
             for values in values_list:
                 tgt_ids_list.append(tensor2numpy(values))
 

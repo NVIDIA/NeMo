@@ -156,7 +156,7 @@ class ModuleSaverCallback(ActionCallback):
 
 class SimpleLossLoggerCallback(ActionCallback):
     """
-    For callback documentation: please see
+    For callback documentation: please seenum_eval_samples
     https://nvidia.github.io/NeMo/tutorials/callbacks.html
     """
 
