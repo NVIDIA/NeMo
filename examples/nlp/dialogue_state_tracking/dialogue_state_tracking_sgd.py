@@ -292,7 +292,7 @@ eval_encoded_utterance, eval_token_embeddings = encoder(hidden_states=eval_token
 train_tensors = [loss]
 
 eval_tensors = [
-    eval_data.example_id,
+    eval_data.example_id_num,
     eval_data.service_id,
     eval_data.is_real_example,
     eval_data.start_char_idx,
@@ -334,7 +334,6 @@ input_json_files = [
 
 schema_json_file = os.path.join(args.data_dir, args.eval_dataset, 'schema.json')
 
-
 # Write predictions to file in DSTC8 format.
 prediction_dir = os.path.join(args.work_dir, 'predictions', 'pred_res_{}_{}'.format(args.eval_dataset, args.task_name))
 output_metric_file = os.path.join(args.work_dir, 'metrics.txt')
@@ -342,7 +341,7 @@ os.makedirs(prediction_dir, exist_ok=True)
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
-    user_iter_callback=lambda x, y: eval_iter_callback(x, y),
+    user_iter_callback=lambda x, y: eval_iter_callback(x, y, dialogues_processor.get_ids_to_service_names_dict(args.eval_dataset), args.eval_dataset),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x, input_json_files, schema_json_file, prediction_dir, args.data_dir, args.eval_dataset, output_metric_file
     ),

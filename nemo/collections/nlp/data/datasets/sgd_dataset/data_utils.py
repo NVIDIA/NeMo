@@ -24,6 +24,7 @@ https://github.com/google-research/google-research/tree/master/schema_guided_dst
 import json
 import os
 import re
+import pickle
 
 import torch
 
@@ -70,10 +71,9 @@ STATUS_ACTIVE = 1
 STATUS_DONTCARE = 2
 
 FILE_RANGES = {
-    "DEBUG": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 2)},
     "dstc8_single_domain": {"train": range(1, 44), "dev": range(1, 8), "test": range(1, 12)},
     "dstc8_multi_domain": {"train": range(44, 128), "dev": range(8, 21), "test": range(12, 35)},
-    "dstc8_all": {"train": range(1, 3), "dev": range(1, 3), "test": range(1, 3)},
+    "dstc8_all": {"train": range(1, 128), "dev": range(1, 21), "test": range(1, 35)},
 }
 
 # Name of the file containing all predictions and their corresponding frame metrics.
@@ -101,6 +101,12 @@ class Dstc8DataProcessor(object):
         self._tokenizer = tokenizer
         self._max_seq_length = max_seq_length
 
+        self._schemas = {}
+        for dataset in ["train", "dev", "test"]:
+            schema_pkl_file = os.path.join(self.dstc8_data_dir, dataset, "_schema.pkl")
+            if os.path.exists(schema_pkl_file):
+                self._schemas[dataset] = pickle.load(open(schema_pkl_file, "rb"))
+
     def get_dialog_examples(self, dataset):
         """Return a list of `InputExample`s of the data splits' dialogues.
 
@@ -117,13 +123,27 @@ class Dstc8DataProcessor(object):
         dialogs = load_dialogues(dialog_paths)
         schema_path = os.path.join(self.dstc8_data_dir, dataset, "schema.json")
         schemas = Schema(schema_path)
-
+        self._schemas[dataset] = schemas
+        self._save_schemas(dataset)
+        
         examples = []
         for dialog_idx, dialog in enumerate(dialogs):
             if dialog_idx % 1000 == 0:
                 logging.info(f'Processed {dialog_idx} dialogs.')
             examples.extend(self._create_examples_from_dialog(dialog, schemas, dataset))
         return examples
+
+    def _save_schemas(self, dataset):
+        schema_pkl_file = os.path.join(self.dstc8_data_dir, dataset, "_schema.pkl")
+        pickle.dump(self._schemas[dataset], open(schema_pkl_file, "wb"))
+    
+    def get_service_names_to_id_dict(self, dataset):
+        if dataset not in self._schemas:
+            raise ValueError(f"schema not available for {dataset} dataset. Rerun with flag --overwrite_dial_files")
+        return self._schemas[dataset]._services_vocab
+
+    def get_ids_to_service_names_dict(self, dataset):
+        return self._schemas[dataset]._services_id_to_vocab
 
     def _create_examples_from_dialog(self, dialog, schemas, dataset):
         """Create examples for every turn in the dialog."""
@@ -142,6 +162,7 @@ class Dstc8DataProcessor(object):
                 else:
                     system_utterance = ""
                     system_frames = {}
+              
                 turn_id = "{}-{}-{:02d}".format(dataset, dialog_id, turn_idx)
                 turn_examples, prev_states = self._create_examples_from_turn(
                     turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas
@@ -171,6 +192,10 @@ class Dstc8DataProcessor(object):
             log_data_warnings=self._log_data_warnings,
         )
         base_example.example_id = turn_id
+
+        _, dialog_id, turn_id_ = turn_id.split('-')
+        dialog_id_1, dialog_id_2 = dialog_id.split('_')
+        base_example.example_id_num = [int(dialog_id_1), int(dialog_id_2), int(turn_id_)]
         base_example.add_utterance_features(
             system_tokens, system_inv_alignments, user_tokens, user_inv_alignments, user_utterance, system_utterance
         )
@@ -178,7 +203,12 @@ class Dstc8DataProcessor(object):
         for service, user_frame in user_frames.items():
             # Create an example for this service.
             example = base_example.make_copy_with_utterance_features()
+            
             example.example_id = "{}-{}".format(turn_id, service)
+            _, dialog_id, turn_id_ = turn_id.split('-')
+            dialog_id_1, dialog_id_2 = dialog_id.split('_')
+            example.example_id_num = [int(dialog_id_1), int(dialog_id_2), int(turn_id_), schemas.get_service_id(service)]
+
             example.service_schema = schemas.get_service_schema(service)
             system_frame = system_frames.get(service, None)
             state = user_frame["state"]["slot_values"]
@@ -303,6 +333,7 @@ class InputExample(object):
         max_seq_length=DEFAULT_MAX_SEQ_LENGTH,
         service_schema=None,
         example_id="NONE",
+        example_id_num=[],
         is_real_example=False,
         tokenizer=None,
         log_data_warnings=False,
@@ -314,7 +345,9 @@ class InputExample(object):
             this value will be truncated.
           service_schema: A ServiceSchema object wrapping the schema for the service
             corresponding to this example.
-          example_id: Unique identifier for the example.
+          example_id: Unique identifier for the example, like: 'train-1_00000-00-Restaurants_1'
+          example_id_num: dialogue_id and turn_id combined and service id combined into a list of ints,
+            like: [1, 0, 0, 18]
           is_real_example: Indicates if an example is real or used for padding in a
             minibatch.
           tokenizer: A tokenizer object that has convert_tokens_to_ids and
@@ -325,6 +358,8 @@ class InputExample(object):
         """
         self.service_schema = service_schema
         self.example_id = example_id
+        self.example_id_num = example_id_num
+
         self.is_real_example = is_real_example
         self._max_seq_length = max_seq_length
         self._tokenizer = tokenizer
@@ -529,6 +564,7 @@ class InputExample(object):
             max_seq_length=self._max_seq_length,
             service_schema=self.service_schema,
             example_id=self.example_id,
+            example_id_num=self.example_id_num,
             is_real_example=self.is_real_example,
             tokenizer=self._tokenizer,
             log_data_warnings=self._log_data_warnings,
@@ -649,52 +685,3 @@ def load_dialogues(dialog_json_filepaths):
 
 def list_to_str(l):
     return " ".join(str(x) for x in l)
-
-
-# # Modified from run_classifier.file_based_convert_examples_to_features in the
-# # public bert model repo.
-# # https://github.com/google-research/bert/blob/master/run_classifier.py.
-# def file_based_convert_examples_to_features(dial_examples, output_file):
-#     """Convert a set of `InputExample`s to a TFRecord file."""
-#     writer = open(output_file, "w")
-
-#     for (ex_index, example) in enumerate(dial_examples):
-#         if ex_index % 10000 == 0:
-#             logging.info(f'Writing example {ex_index} of {len(dial_examples)}')
-
-#         ex = example
-#         features = collections.OrderedDict()
-
-#         features["example_id"] = ex.example_id
-#         features["is_real_example"] = str(int(ex.is_real_example))
-#         features["service_id"] = str(ex.service_schema.service_id)
-
-#         features["utt"] = list_to_str(ex.utterance_ids)
-#         features["utt_seg"] = list_to_str(ex.utterance_segment)
-#         features["utt_mask"] = list_to_str(ex.utterance_mask)
-
-#         features["cat_slot_num"] = str(ex.num_categorical_slots)
-#         features["cat_slot_status"] = list_to_str(ex.categorical_slot_status)
-#         features["cat_slot_value_num"] = list_to_str(ex.num_categorical_slot_values)
-#         features["cat_slot_value"] = list_to_str(ex.categorical_slot_values)
-
-#         features["noncat_slot_num"] = str(ex.num_noncategorical_slots)
-#         features["noncat_slot_status"] = list_to_str(ex.noncategorical_slot_status)
-#         features["noncat_slot_value_start"] = list_to_str(ex.noncategorical_slot_value_start)
-#         features["noncat_slot_value_end"] = list_to_str(ex.noncategorical_slot_value_end)
-#         features["noncat_alignment_start"] = list_to_str(ex.start_char_idx)
-#         features["noncat_alignment_end"] = list_to_str(ex.end_char_idx)
-
-#         features["req_slot_num"] = str(ex.num_slots)
-#         features["req_slot_status"] = list_to_str(ex.requested_slot_status)
-
-#         features["intent_num"] = str(ex.num_intents)
-#         features["intent_status"] = list_to_str(ex.intent_status)
-
-#         if ex_index == 0:
-#             header = "\t".join(features.keys())
-#             writer.write(header + "\n")
-
-#         csv_example = "\t".join(list(features.values()))
-#         writer.write(csv_example + "\n")
-#     writer.close()
