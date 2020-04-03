@@ -69,7 +69,7 @@ You can use NVIDIA `NGC NeMo container <https://ngc.nvidia.com/catalog/container
     docker pull nvcr.io/nvidia/nemo:v0.10
     
     # Run Docker for docker version >=19.03
-    docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.10
+    docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.10
 
 and begin using NeMo immediately.
 
