@@ -128,7 +128,7 @@ def get_features(
                 all_labels[i] = [pad_id] + all_labels[i][-max_seq_length + 1 :]
             too_long_count += 1
 
-        all_input_ids.append([tokenizer.tokens_to_ids(t) for t in subtokens])
+        all_input_ids.append(tokenizer.tokens_to_ids(subtokens))
 
         if len(subtokens) < max_seq_length:
             extra = max_seq_length - len(subtokens)
