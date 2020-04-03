@@ -377,3 +377,5 @@ nf.train(
         "grad_norm_clip": args.grad_norm_clip,
     },
 )
+
+logging.info('********End of script***********')
