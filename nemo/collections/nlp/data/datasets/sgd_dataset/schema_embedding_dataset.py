@@ -20,6 +20,7 @@ import collections
 import re
 
 import numpy as np
+import torch
 from torch.utils.data import Dataset
 
 from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils, schema
@@ -306,9 +307,11 @@ class SchemaEmbeddingDataset(Dataset):
 
         # Populate the embeddings based on bert inference results and save them.
         self._populate_schema_embeddings(schema_embeddings, bert_hidden_states)
-        with open(output_file, "wb") as f_s:
-            np.save(f_s, schema_embeddings)
-        f_s.close()
+        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        if master_device:
+            with open(output_file, "wb") as f_s:
+                np.save(f_s, schema_embeddings)
+            f_s.close()
 
 
 class InputFeatures(object):

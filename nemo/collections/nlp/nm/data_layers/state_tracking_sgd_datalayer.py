@@ -40,7 +40,7 @@ class SGDDataLayer(TextDataLayer):
 
         """
         return {
-            "example_id": NeuralType(('B'), ChannelType()),
+            "example_id_num": NeuralType(('B'), ChannelType()),
             "service_id": NeuralType(('B'), ChannelType()),
             "is_real_example": NeuralType(('B'), ChannelType()),
             "utterance_ids": NeuralType(('B', 'T'), ChannelType()),
@@ -90,28 +90,3 @@ class SGDDataLayer(TextDataLayer):
             'dialogues_processor': dialogues_processor,
         }
         super().__init__(dataset_type, dataset_params, batch_size=batch_size, shuffle=shuffle)
-
-    #     if self._placement == nemo.core.DeviceType.AllGpu:
-    #         sampler = pt_data.distributed.DistributedSampler(self._dataset)
-    #     else:
-    #         sampler = None
-
-    #     self._dataloader = pt_data.DataLoader(
-    #         dataset=self._dataset,
-    #         batch_size=batch_size,
-    #         shuffle=sampler is None,
-    #         num_workers=num_workers,
-    #         collate_fn=self._collate_fn,
-    #         sampler=sampler,
-    #     )
-
-    # def _collate_fn(self, batch):
-    #     """ data is a list of batch_size sample
-    #     each sample is a dictionary of features
-    #     """
-    #     new_batch = []
-    #     example_ids = []
-    #     for _batch in batch:
-    #         new_batch.append(_batch[1:])
-    #         example_ids.append(_batch[0])
-    #     return example_ids, torch.utils.data.dataloader.default_collate(new_batch)
