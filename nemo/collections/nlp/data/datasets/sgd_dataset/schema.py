@@ -123,6 +123,7 @@ class Schema(object):
         # Load the schema from the json file.
         with open(schema_json_path, "r") as f:
             schemas = json.load(f)
+        f.close()
         self._services = sorted(schema["service_name"] for schema in schemas)
         self._services_vocab = {v: k for k, v in enumerate(self._services)}
         self._services_id_to_vocab = {v: k for k, v in self._services_vocab.items()}

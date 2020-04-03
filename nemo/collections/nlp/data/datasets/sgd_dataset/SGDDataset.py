@@ -43,6 +43,7 @@ class SGDDataset(Dataset):
             logging.info(f"Loading dialogue examples from {dial_file}.")
             with open(dial_file, "rb") as f:
                 self.features = np.load(f, allow_pickle=True)
+            f.close()
         else:
             logging.info("Start generating the dialogue examples.")
             self.features = dialogues_processor.get_dialog_examples(dataset_split)
@@ -51,6 +52,7 @@ class SGDDataset(Dataset):
             if master_device:
                 with open(dial_file, "wb") as f:
                     np.save(f, self.features)
+                f.close()
                 logging.info(f"The dialogue examples saved at {dial_file}")
                 logging.info("Finish generating the dialogue examples.")
         self.schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split)

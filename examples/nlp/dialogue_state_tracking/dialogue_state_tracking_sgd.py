@@ -9,6 +9,7 @@ import os
 import pickle
 
 import numpy as np
+import torch
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
@@ -290,8 +291,6 @@ eval_encoded_utterance, eval_token_embeddings = encoder(hidden_states=eval_token
     intent_embeddings=eval_data.intent_emb,
 )
 
-train_tensors = [loss]
-
 eval_tensors = [
     eval_data.example_id_num,
     eval_data.service_id,
@@ -314,10 +313,12 @@ eval_tensors = [
     eval_data.num_noncategorical_slots,
 ]
 
+
 steps_per_epoch = math.ceil(len(train_datalayer) / (args.train_batch_size * args.num_gpus))
 
 logging.info(f'steps per epoch: {steps_per_epoch}')
 
+train_tensors = [loss]
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=train_tensors,
@@ -327,19 +328,22 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     step_freq=steps_per_epoch // 10,
 )
 
+master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+if master_device:
+    # we'll write predictions to file in DSTC8 format during evaluation callback
+    input_json_files = [
+        os.path.join(args.data_dir, args.eval_dataset, 'dialogues_{:03d}.json'.format(fid))
+        for fid in data_utils.FILE_RANGES[args.task_name][args.eval_dataset]
+    ]
 
-# we'll write predictions to file in DSTC8 format during evaluation callback
-input_json_files = [
-    os.path.join(args.data_dir, args.eval_dataset, 'dialogues_{:03d}.json'.format(fid))
-    for fid in data_utils.FILE_RANGES[args.task_name][args.eval_dataset]
-]
+    schema_json_file = os.path.join(args.data_dir, args.eval_dataset, 'schema.json')
 
-schema_json_file = os.path.join(args.data_dir, args.eval_dataset, 'schema.json')
-
-# Write predictions to file in DSTC8 format.
-prediction_dir = os.path.join(nf.work_dir, 'predictions', 'pred_res_{}_{}'.format(args.eval_dataset, args.task_name))
-output_metric_file = os.path.join(nf.work_dir, 'metrics.txt')
-os.makedirs(prediction_dir, exist_ok=True)
+    # Write predictions to file in DSTC8 format.
+    prediction_dir = os.path.join(
+        nf.work_dir, 'predictions', 'pred_res_{}_{}'.format(args.eval_dataset, args.task_name)
+    )
+    output_metric_file = os.path.join(nf.work_dir, 'metrics.txt')
+    os.makedirs(prediction_dir, exist_ok=True)
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
@@ -350,7 +354,7 @@ eval_callback = nemo.core.EvaluatorCallback(
         x, input_json_files, schema_json_file, prediction_dir, args.data_dir, args.eval_dataset, output_metric_file
     ),
     tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch,
+    eval_step=10 * steps_per_epoch,
 )
 
 ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir, step_freq=args.ckpt_save_freq)

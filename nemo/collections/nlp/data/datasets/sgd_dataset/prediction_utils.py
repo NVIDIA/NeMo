@@ -138,7 +138,9 @@ def write_predictions_to_file(predictions, input_json_files, schema_json_file, o
             pred_dialogs = []
             for d in dialogs:
                 pred_dialogs.append(get_predicted_dialog(d, all_predictions, schemas))
+        f.close()
         input_file_name = os.path.basename(input_file_path)
         output_file_path = os.path.join(output_dir, input_file_name)
         with open(output_file_path, "w") as f:
             json.dump(pred_dialogs, f, indent=2, separators=(",", ": "), sort_keys=True)
+        f.close()

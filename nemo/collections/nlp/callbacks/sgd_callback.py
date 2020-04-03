@@ -122,6 +122,7 @@ def evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file):
         list_services = json.load(f)
         for service in list_services:
             eval_services[service["service_name"]] = service
+        f.close()
 
     dataset_ref = get_dataset_as_dict(os.path.join(data_dir, eval_dataset, "dialogues_*.json"))
     dataset_hyp = get_dataset_as_dict(os.path.join(prediction_dir, "*.json"))
@@ -132,7 +133,9 @@ def evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file):
     # Write the aggregated metrics values.
     with open(output_metric_file, "w") as f:
         json.dump(all_metric_aggregate, f, indent=2, separators=(",", ": "), sort_keys=True)
+    f.close()
     # Write the per-frame metrics values with the corrresponding dialogue frames.
     with open(os.path.join(prediction_dir, PER_FRAME_OUTPUT_FILENAME), "w") as f:
         json.dump(dataset_hyp, f, indent=2, separators=(",", ": "))
+    f.close()
     return all_metric_aggregate[ALL_SERVICES]

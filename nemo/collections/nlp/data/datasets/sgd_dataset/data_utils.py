@@ -688,6 +688,7 @@ def load_dialogues(dialog_json_filepaths):
     for dialog_json_filepath in sorted(dialog_json_filepaths):
         with open(dialog_json_filepath, 'r') as f:
             dialogs.extend(json.load(f))
+        f.close()
     return dialogs
 
 
