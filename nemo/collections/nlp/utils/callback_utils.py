@@ -23,7 +23,7 @@ from sklearn.metrics import classification_report, confusion_matrix, f1_score
 
 from nemo import logging
 
-__all__ = ['list2str', 'tensor2list', 'plot_confusion_matrix']
+__all__ = ['list2str', 'tensor2list', 'plot_confusion_matrix', 'tensor2numpy']
 
 
 def list2str(l):
@@ -32,6 +32,10 @@ def list2str(l):
 
 def tensor2list(tensor):
     return tensor.detach().cpu().tolist()
+
+
+def tensor2numpy(tensor):
+    return tensor.detach().cpu().numpy()
 
 
 def plot_confusion_matrix(labels, preds, graph_fold, label_ids=None, normalize=False, prefix=''):
