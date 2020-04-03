@@ -120,6 +120,7 @@ parser.add_argument(
     "--overwrite_dial_files", action="store_true", help="Whether to generate a new file saving the dialogue examples."
 )
 parser.add_argument("--no_shuffle", action="store_true", help="Whether to shuffle training data")
+parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
 parser.add_argument(
     "--eval_dataset", type=str, default="dev", choices=["dev", "test"], help="Dataset split for evaluation."
 )
@@ -139,7 +140,7 @@ nf = nemo.core.NeuralModuleFactory(
     log_dir=args.work_dir,
     create_tb_writer=True,
     files_to_copy=[__file__],
-    add_time_to_log_dir=True,
+    add_time_to_log_dir=not args.no_time_to_log_dir,
 )
 
 pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
@@ -323,7 +324,7 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     print_func=lambda x: logging.info("Loss: {:.8f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer,
-    step_freq=steps_per_epoch,
+    step_freq=steps_per_epoch // 10,
 )
 
 
@@ -336,8 +337,8 @@ input_json_files = [
 schema_json_file = os.path.join(args.data_dir, args.eval_dataset, 'schema.json')
 
 # Write predictions to file in DSTC8 format.
-prediction_dir = os.path.join(args.work_dir, 'predictions', 'pred_res_{}_{}'.format(args.eval_dataset, args.task_name))
-output_metric_file = os.path.join(args.work_dir, 'metrics.txt')
+prediction_dir = os.path.join(nf.work_dir, 'predictions', 'pred_res_{}_{}'.format(args.eval_dataset, args.task_name))
+output_metric_file = os.path.join(nf.work_dir, 'metrics.txt')
 os.makedirs(prediction_dir, exist_ok=True)
 
 eval_callback = nemo.core.EvaluatorCallback(

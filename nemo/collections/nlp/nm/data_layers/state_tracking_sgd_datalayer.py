@@ -78,7 +78,6 @@ class SGDDataLayer(TextDataLayer):
         dataset_type=SGDDataset,
         shuffle=False,
         batch_size=1,
-        num_workers=0,
     ):
 
         dataset_params = {
