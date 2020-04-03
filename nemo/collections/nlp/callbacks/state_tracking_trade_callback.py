@@ -58,12 +58,12 @@ def eval_iter_callback(tensors, global_vars, data_desc):
         mask_paddings = tgt_ids_list[i] == data_desc.vocab.pad_id
         comp_res = (point_outputs_max_list[i] == tgt_ids_list[i]) | mask_paddings
         comp_res = np.all(comp_res, axis=-1, keepdims=False)
-        comp_res_list.append(comp_res)
+        comp_res_list.extend(comp_res.tolist())
 
-    gate_outputs_max = np.concatenate(gate_outputs_max_list, axis=0)
+    gate_outputs_max = np.concatenate(gate_outputs_max_list, axis=0).tolist()
 
-    global_vars['comp_res'].extend(comp_res.tolist())
-    global_vars['gating_preds'].extend(gate_outputs_max.tolist())
+    global_vars['comp_res'].extend(comp_res_list)
+    global_vars['gating_preds'].extend(gate_outputs_max)
 
 
 def eval_epochs_done_callback(global_vars, data_desc):
