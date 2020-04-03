@@ -27,7 +27,7 @@
 NVIDIA Neural Modules: NeMo
 ===========================
 
-NeMo is a toolkit creating `Conversational AI <https://developer.nvidia.com/conversational-ai#started>`_ applications.
+NeMo is a toolkit for creating `Conversational AI <https://developer.nvidia.com/conversational-ai#started>`_ applications.
 
 NeMo toolkit makes it possible for researchers to easily compose complex neural network architectures for conversational AI using reusable components - Neural Modules.
 **Neural Modules** are conceptual blocks of neural networks that take *typed* inputs and produce *typed* outputs. Such modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
