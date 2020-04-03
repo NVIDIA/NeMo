@@ -160,6 +160,26 @@ def check_problematic_slots(slot_preds_list, slot_dict):
     print("Total problematic slots: " + str(cnt))
 
 
+def errors_per_class(cm, dict):
+    size = cm.shape[0]
+    confused_per_class = {}
+    total_errors = 0
+    for class_num in range(size):
+        sum = 0;
+        for i in range(size):
+            if i != class_num:
+                sum += cm[class_num][i]
+                sum += cm[i][class_num]
+        confused_per_class[dict[class_num]] = sum
+        total_errors += sum
+        # logging.info(f'{dict[class_num]} - {sum}')
+
+    logging.info(f'Total errors (multiplied by 2): {total_errors}')
+    sorted_confused_per_class = sorted(confused_per_class.items(), key=lambda x: x[1], reverse=True)
+    for conf_str in sorted_confused_per_class:
+        logging.info(conf_str)
+
+
 def analyze_confusion_matrix(cm, dict, max_pairs=10):
     threshold = 5
     confused_pairs = {}
@@ -231,10 +251,14 @@ logging.info(f'*** Most Confused Intents ***')
 cm = confusion_matrix(intent_labels, intent_preds)
 analyze_confusion_matrix(cm, intent_dict, max_pairs=20)
 
+logging.info(f'*** Intent errors per class (in both directions) ***')
+errors_per_class(cm, intent_dict)
+
 print('')
 logging.info(f'*** Most Confused Slots ***')
 cm = confusion_matrix(slot_labels, slot_preds, np.arange(len(slot_dict)))
 analyze_confusion_matrix(cm, slot_dict, max_pairs=20)
+
 
 # does not work well for large matrices
 # print(f'Intent Confusion matrix:\n{cm}')
